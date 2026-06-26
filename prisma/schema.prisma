@@ -1,0 +1,349 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── CORE (Phase 1) ──────────────────────────────────────────────────────────
+
+model Organization {
+  id                   String    @id @default(cuid())
+  clerkOrgId           String    @unique
+  name                 String
+  slug                 String?   @unique
+  squareCustomerId     String?
+  squareSubscriptionId String?
+  subscriptionStatus   String?   @default("inactive")
+  activeModules        String[]  @default([])
+  squareAccessToken    String?
+  squareRefreshToken   String?
+  squareTokenExpiresAt DateTime?
+  createdAt            DateTime  @default(now())
+
+  stores          Store[]
+  users           User[]
+  staff           StaffMember[]
+  templates       Template[]
+  checklists      Checklist[]
+  storageAreas    StorageArea[]
+  inventoryCounts InventoryCount[]
+  itemMetadata    ItemMetadata[]
+  menuItems       MenuItem[]
+  auditLogs       AuditLog[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  clerkUserId    String   @unique
+  organizationId String
+  email          String
+  name           String?
+  role           Role     @default(STAFF)
+  createdAt      DateTime @default(now())
+
+  organization     Organization          @relation(fields: [organizationId], references: [id])
+  storeAssignments StoreUserAssignment[]
+  taskLogs         TaskLog[]
+}
+
+model Store {
+  id               String   @id @default(cuid())
+  organizationId   String
+  squareLocationId String?  @unique
+  storeNumber      String?
+  name             String
+  brand            String?
+  address          String?
+  city             String?
+  state            String?
+  zip              String?
+  timezone         String   @default("America/Los_Angeles")
+  contactEmail     String?
+  phoneNumber      String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  organization        Organization              @relation(fields: [organizationId], references: [id])
+  hours               StoreHours[]
+  userAssignments     StoreUserAssignment[]
+  staffAssignments    StoreStaffAssignment[]
+  templateAssignments TemplateStoreAssignment[]
+  checklists          Checklist[]
+  storageAreas        StorageArea[]
+  inventoryCounts     InventoryCount[]
+}
+
+model StoreHours {
+  id          String  @id @default(cuid())
+  storeId     String
+  dayOfWeek   Int
+  openingTime String?
+  closingTime String?
+  isClosed    Boolean @default(false)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+model StoreUserAssignment {
+  id      String @id @default(cuid())
+  userId  String
+  storeId String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storeId])
+}
+
+model StaffMember {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  squareTeamMemberId String?  @unique
+  displayName        String
+  fullName           String?
+  email              String?
+  createdAt          DateTime @default(now())
+
+  organization     Organization           @relation(fields: [organizationId], references: [id])
+  storeAssignments StoreStaffAssignment[]
+  taskLogs         TaskLog[]
+}
+
+model StoreStaffAssignment {
+  id            String @id @default(cuid())
+  staffMemberId String
+  storeId       String
+
+  staffMember StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+  store       Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([staffMemberId, storeId])
+}
+
+model Template {
+  id               String   @id @default(cuid())
+  organizationId   String
+  name             String
+  description      String?
+  type             String
+  frequency        String   @default("Daily")
+  availabilityType String   @default("StoreHours")
+  operationalPhase String?
+  startOffsetHours Int?
+  endOffsetHours   Int?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  organization     Organization              @relation(fields: [organizationId], references: [id])
+  storeAssignments TemplateStoreAssignment[]
+  tasks            Task[]
+  checklists       Checklist[]
+}
+
+model TemplateStoreAssignment {
+  id         String @id @default(cuid())
+  templateId String
+  storeId    String
+
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, storeId])
+}
+
+model Task {
+  id                   String   @id @default(cuid())
+  templateId           String
+  sectionName          String
+  description          String
+  estimatedTimeMinutes Int?
+  requiresPhoto        Boolean  @default(false)
+  requiresTemp         Boolean  @default(false)
+  isCritical           Boolean  @default(false)
+  orderIndex           Int      @default(0)
+  excludedStoreIds     String[]
+
+  template Template  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  taskLogs TaskLog[]
+}
+
+model Checklist {
+  id             String    @id @default(cuid())
+  organizationId String
+  templateId     String
+  storeId        String
+  date           DateTime
+  status         String    @default("Pending")
+  startedAt      DateTime?
+  completedAt    DateTime?
+  completionRate Float?    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  template     Template     @relation(fields: [templateId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id])
+  taskLogs     TaskLog[]
+}
+
+model TaskLog {
+  id                 String   @id @default(cuid())
+  checklistId        String
+  taskId             String
+  completedByUserId  String?
+  completedByStaffId String?
+  completedAt        DateTime @default(now())
+  photoUrl           String?
+  temperatureValue   Float?
+  notes              String?
+
+  checklist        Checklist    @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  task             Task         @relation(fields: [taskId], references: [id])
+  completedByUser  User?        @relation(fields: [completedByUserId], references: [id])
+  completedByStaff StaffMember? @relation(fields: [completedByStaffId], references: [id])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+  STORE
+}
+
+// ─── PHASE 2: INVENTORY MODULE ────────────────────────────────────────────────
+
+model StorageArea {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  name           String
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  store        Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  itemMappings ItemStorageMapping[]
+  countLines   InventoryCountLine[]
+}
+
+model ItemStorageMapping {
+  id                 String @id @default(cuid())
+  storageAreaId      String
+  squareCatalogObjId String
+  sortOrder          Int    @default(0)
+
+  storageArea StorageArea @relation(fields: [storageAreaId], references: [id], onDelete: Cascade)
+
+  @@unique([storageAreaId, squareCatalogObjId])
+}
+
+model ItemMetadata {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  squareCatalogObjId String
+  vendorName         String?
+  glCode             String?
+  parLevel           Float?
+  unitCostOverride   Float?
+  unitOfMeasure      String?
+  notes              String?
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, squareCatalogObjId])
+}
+
+model InventoryCount {
+  id                  String    @id @default(cuid())
+  organizationId      String
+  storeId             String
+  startedAt           DateTime  @default(now())
+  finalizedAt         DateTime?
+  completedByUserIds  String[]
+  sittingInventoryVal Float?
+  status              String    @default("Draft")
+
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  store        Store                @relation(fields: [storeId], references: [id])
+  lines        InventoryCountLine[]
+}
+
+model InventoryCountLine {
+  id                 String  @id @default(cuid())
+  inventoryCountId   String
+  storageAreaId      String?
+  squareCatalogObjId String
+  itemName           String
+  unitOfMeasure      String?
+  quantityCounted    Float
+  unitCost           Float?
+  lineValue          Float?
+  usageVariance      Float?
+
+  inventoryCount InventoryCount @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
+  storageArea    StorageArea?   @relation(fields: [storageAreaId], references: [id])
+}
+
+// ─── PHASE 2: NUTRITION MODULE ────────────────────────────────────────────────
+
+model MenuItem {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  squareCatalogObjId String?
+  name               String
+  description        String?
+  category           String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  nutrition    MenuItemNutrition?
+  allergens    MenuItemAllergen[]
+}
+
+model MenuItemNutrition {
+  id            String  @id @default(cuid())
+  menuItemId    String  @unique
+  servingSize   String?
+  calories      Int?
+  totalFatG     Float?
+  saturatedFatG Float?
+  transFatG     Float?
+  cholesterolMg Float?
+  sodiumMg      Float?
+  totalCarbG    Float?
+  dietaryFiberG Float?
+  totalSugarsG  Float?
+  addedSugarsG  Float?
+  proteinG      Float?
+  vitaminDMcg   Float?
+  calciumMg     Float?
+  ironMg        Float?
+  potassiumMg   Float?
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+}
+
+model MenuItemAllergen {
+  id         String @id @default(cuid())
+  menuItemId String
+  allergen   String
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, allergen])
+}
