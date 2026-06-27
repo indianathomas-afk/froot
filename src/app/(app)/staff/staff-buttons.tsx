@@ -95,9 +95,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
   const [importing, setImporting] = useState(false)
   const [members, setMembers] = useState<SquareTeamMember[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  // multi-store: map of memberId -> Set of storeIds
   const [storeMap, setStoreMap] = useState<Record<string, Set<string>>>({})
-  const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set())
   const router = useRouter()
 
   async function handleOpen() {
@@ -127,11 +125,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
   const allSelected = available.length > 0 && selected.size === available.length
 
   function toggleAll() {
-    if (allSelected) {
-      setSelected(new Set())
-    } else {
-      setSelected(new Set(available.map((m) => m.id)))
-    }
+    setSelected(allSelected ? new Set() : new Set(available.map((m) => m.id)))
   }
 
   function toggleMemberStore(memberId: string, storeId: string) {
@@ -142,12 +136,8 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
     })
   }
 
-  function toggleStoreExpanded(memberId: string) {
-    setExpandedStores((prev) => {
-      const next = new Set(prev)
-      next.has(memberId) ? next.delete(memberId) : next.add(memberId)
-      return next
-    })
+  function memberName(m: SquareTeamMember) {
+    return m.display_name || [m.given_name, m.family_name].filter(Boolean).join(" ") || "Unknown"
   }
 
   async function handleImport() {
@@ -160,7 +150,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              displayName: m.display_name || [m.given_name, m.family_name].filter(Boolean).join(" ") || "Unknown",
+              displayName: memberName(m),
               fullName: [m.given_name, m.family_name].filter(Boolean).join(" ") || null,
               squareTeamMemberId: m.id,
               storeIds: Array.from(storeMap[m.id] ?? []),
@@ -195,62 +185,33 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
               )}
               {available.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        onChange={toggleAll}
-                      />
-                      <span className="text-sm font-medium">
-                        {allSelected ? "Deselect all" : "Select all"} ({selected.size} of {available.length})
-                      </span>
-                    </label>
-                  </div>
-                  {available.map((m) => {
-                    const memberStores = storeMap[m.id] ?? new Set()
-                    const isExpanded = expandedStores.has(m.id)
-                    const isSelected = selected.has(m.id)
-                    return (
-                      <div key={m.id} className="rounded-lg border border-[var(--color-border)] mb-2 overflow-hidden">
-                        <div className="flex items-center gap-3 p-3">
-                          <input type="checkbox" checked={isSelected} onChange={() => toggle(m.id)} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-[var(--color-foreground)]">
-                              {m.display_name || [m.given_name, m.family_name].filter(Boolean).join(" ") || "Unknown"}
-                            </p>
-                            {memberStores.size > 0 && (
-                              <p className="text-xs text-[var(--color-muted-foreground)]">
-                                {memberStores.size} location{memberStores.size !== 1 ? "s" : ""} assigned
-                              </p>
-                            )}
-                          </div>
-                          {isSelected && stores.length > 0 && (
-                            <button
-                              onClick={() => toggleStoreExpanded(m.id)}
-                              className="text-xs text-[var(--color-primary)] shrink-0"
-                            >
-                              {isExpanded ? "Hide stores ▲" : "Assign stores ▼"}
-                            </button>
-                          )}
-                        </div>
-                        {isSelected && isExpanded && stores.length > 0 && (
-                          <div className="border-t border-[var(--color-border)] bg-[var(--color-accent)]/30 px-4 py-2 space-y-1">
-                            {stores.map((s) => (
-                              <label key={s.id} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={memberStores.has(s.id)}
-                                  onChange={() => toggleMemberStore(m.id, s.id)}
-                                />
-                                {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
-                              </label>
-                            ))}
+                  <label className="flex items-center gap-2 cursor-pointer mb-3 pb-3 border-b border-[var(--color-border)]">
+                    <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                    <span className="text-sm font-medium text-[var(--color-foreground)]">
+                      {allSelected ? "Deselect all" : "Select all"} ({selected.size} of {available.length})
+                    </span>
+                  </label>
+                  {available.map((m) => (
+                    <div key={m.id} className="flex items-start gap-3 p-3 rounded-lg border border-[var(--color-border)] mb-2">
+                      <input type="checkbox" className="mt-0.5" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-[var(--color-foreground)]">{memberName(m)}</p>
+                        {selected.has(m.id) && stores.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {stores.map((s) => {
+                              const checked = (storeMap[m.id] ?? new Set()).has(s.id)
+                              return (
+                                <label key={s.id} className={`flex items-center gap-1.5 text-xs cursor-pointer px-2 py-1 rounded-full border transition-colors ${checked ? "bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)]" : "border-[var(--color-border)] text-[var(--color-muted-foreground)]"}`}>
+                                  <input type="checkbox" className="hidden" checked={checked} onChange={() => toggleMemberStore(m.id, s.id)} />
+                                  {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                                </label>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
-                    )
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
               {alreadyDone.length > 0 && (
@@ -259,9 +220,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
                   {alreadyDone.map((m) => (
                     <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border)] mb-2 opacity-50">
                       <input type="checkbox" disabled checked />
-                      <p className="text-sm text-[var(--color-foreground)]">
-                        {m.display_name || [m.given_name, m.family_name].filter(Boolean).join(" ") || "Unknown"}
-                      </p>
+                      <p className="text-sm text-[var(--color-foreground)]">{memberName(m)}</p>
                     </div>
                   ))}
                 </div>
