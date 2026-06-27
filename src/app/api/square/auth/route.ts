@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 
-const SCOPES = "MERCHANT_PROFILE_READ+TEAM_MEMBERS_READ"
+const SCOPES = "MERCHANT_PROFILE_READ"
 
 export async function GET() {
   const { orgId } = await auth()
