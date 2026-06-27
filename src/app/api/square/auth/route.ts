@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 
-const SCOPES = ["MERCHANT_PROFILE_READ", "TEAM_MEMBERS_READ"]
+const SCOPES = "TEAM_MEMBERS_READ"
 
 export async function GET() {
   const { orgId } = await auth()
@@ -11,8 +11,7 @@ export async function GET() {
   const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
   const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
 
-  const scopeParam = SCOPES.map((s) => `scope=${s}`).join("&")
-  const url = `${baseUrl}/oauth2/authorize?client_id=${appId}&${scopeParam}&state=${orgId}&session=false`
+  const url = `${baseUrl}/oauth2/authorize?client_id=${appId}&scope=${SCOPES}&state=${orgId}&session=false`
 
   return NextResponse.redirect(url)
 }
