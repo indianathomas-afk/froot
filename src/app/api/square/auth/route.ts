@@ -4,11 +4,7 @@ import { NextResponse } from "next/server"
 const SCOPES = [
   "MERCHANT_PROFILE_READ",
   "TEAM_MEMBERS_READ",
-  "PAYMENTS_READ",
-  "ITEMS_READ",
-  "INVENTORY_READ",
-  "ORDERS_READ",
-].join(" ")
+].join("+")
 
 export async function GET() {
   const { orgId } = await auth()
