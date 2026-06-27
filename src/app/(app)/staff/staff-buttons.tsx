@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Download, Pencil, Trash2 } from "lucide-react"
+import { Plus, Download, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 
 type Store = { id: string; name: string; storeNumber: string | null }
-type StaffMember = { id: string; displayName: string; fullName: string | null }
 type SquareTeamMember = { id: string; display_name: string; given_name?: string; family_name?: string; alreadyImported: boolean }
 
 // Add Staff Member Modal
@@ -96,7 +95,9 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
   const [importing, setImporting] = useState(false)
   const [members, setMembers] = useState<SquareTeamMember[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [storeMap, setStoreMap] = useState<Record<string, string>>({})
+  // multi-store: map of memberId -> Set of storeIds
+  const [storeMap, setStoreMap] = useState<Record<string, Set<string>>>({})
+  const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set())
   const router = useRouter()
 
   async function handleOpen() {
@@ -121,6 +122,34 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
     })
   }
 
+  const available = members.filter((m) => !m.alreadyImported)
+  const alreadyDone = members.filter((m) => m.alreadyImported)
+  const allSelected = available.length > 0 && selected.size === available.length
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(available.map((m) => m.id)))
+    }
+  }
+
+  function toggleMemberStore(memberId: string, storeId: string) {
+    setStoreMap((prev) => {
+      const cur = new Set(prev[memberId] ?? [])
+      cur.has(storeId) ? cur.delete(storeId) : cur.add(storeId)
+      return { ...prev, [memberId]: cur }
+    })
+  }
+
+  function toggleStoreExpanded(memberId: string) {
+    setExpandedStores((prev) => {
+      const next = new Set(prev)
+      next.has(memberId) ? next.delete(memberId) : next.add(memberId)
+      return next
+    })
+  }
+
   async function handleImport() {
     setImporting(true)
     try {
@@ -134,7 +163,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
               displayName: m.display_name,
               fullName: [m.given_name, m.family_name].filter(Boolean).join(" ") || null,
               squareTeamMemberId: m.id,
-              storeIds: storeMap[m.id] ? [storeMap[m.id]] : [],
+              storeIds: Array.from(storeMap[m.id] ?? []),
             }),
           })
         )
@@ -145,9 +174,6 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
       setImporting(false)
     }
   }
-
-  const available = members.filter((m) => !m.alreadyImported)
-  const alreadyDone = members.filter((m) => m.alreadyImported)
 
   return (
     <>
@@ -170,30 +196,59 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
               {available.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium">{selected.size} of {available.length} selected</p>
-                    <button className="text-xs text-[var(--color-primary)]" onClick={() => setSelected(new Set(available.map((m) => m.id)))}>Select all</button>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                      />
+                      <span className="text-sm font-medium">
+                        {allSelected ? "Deselect all" : "Select all"} ({selected.size} of {available.length})
+                      </span>
+                    </label>
                   </div>
-                  {available.map((m) => (
-                    <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border)] mb-2">
-                      <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{m.display_name}</p>
-                        {m.given_name && <p className="text-xs text-[var(--color-muted-foreground)]">{m.given_name} {m.family_name}</p>}
+                  {available.map((m) => {
+                    const memberStores = storeMap[m.id] ?? new Set()
+                    const isExpanded = expandedStores.has(m.id)
+                    const isSelected = selected.has(m.id)
+                    return (
+                      <div key={m.id} className="rounded-lg border border-[var(--color-border)] mb-2 overflow-hidden">
+                        <div className="flex items-center gap-3 p-3">
+                          <input type="checkbox" checked={isSelected} onChange={() => toggle(m.id)} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{m.display_name}</p>
+                            {memberStores.size > 0 && (
+                              <p className="text-xs text-[var(--color-muted-foreground)]">
+                                {memberStores.size} location{memberStores.size !== 1 ? "s" : ""} assigned
+                              </p>
+                            )}
+                          </div>
+                          {isSelected && stores.length > 0 && (
+                            <button
+                              onClick={() => toggleStoreExpanded(m.id)}
+                              className="text-xs text-[var(--color-primary)] shrink-0"
+                            >
+                              {isExpanded ? "Hide stores ▲" : "Assign stores ▼"}
+                            </button>
+                          )}
+                        </div>
+                        {isSelected && isExpanded && stores.length > 0 && (
+                          <div className="border-t border-[var(--color-border)] bg-[var(--color-accent)]/30 px-4 py-2 space-y-1">
+                            {stores.map((s) => (
+                              <label key={s.id} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={memberStores.has(s.id)}
+                                  onChange={() => toggleMemberStore(m.id, s.id)}
+                                />
+                                {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      {selected.has(m.id) && stores.length > 0 && (
-                        <select
-                          className="text-xs border border-[var(--color-border)] rounded px-2 py-1 bg-[var(--color-card)]"
-                          value={storeMap[m.id] ?? ""}
-                          onChange={(e) => setStoreMap((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                        >
-                          <option value="">No store</option>
-                          {stores.map((s) => (
-                            <option key={s.id} value={s.id}>{s.storeNumber ? `#${s.storeNumber} - ` : ""}{s.name}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
               {alreadyDone.length > 0 && (
