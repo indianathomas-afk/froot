@@ -12,26 +12,36 @@ export async function GET() {
   const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
   const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
 
-  const res = await fetch(`${baseUrl}/v2/team-members`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${org.squareAccessToken}`,
-      "Square-Version": "2024-01-17",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ query: { filter: { status: "ACTIVE" } } }),
-  })
+  // Try the OAuth token first; fall back to the personal access token if scope is insufficient
+  const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]
 
-  if (!res.ok) return NextResponse.json({ error: "Square API error" }, { status: 500 })
+  let data: Record<string, unknown> | null = null
+  for (const token of tokens) {
+    const res = await fetch(`${baseUrl}/v2/team-members/search`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Square-Version": "2024-01-17",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: { filter: { status: "ACTIVE" } } }),
+    })
 
-  const data = await res.json()
+    if (res.ok) {
+      data = await res.json()
+      break
+    }
+  }
+
+  if (!data) return NextResponse.json({ error: "Unable to fetch team members. TEAM_MEMBERS_READ permission may be required." }, { status: 403 })
+
   const existingIds = new Set(
     (await prisma.staffMember.findMany({ where: { organizationId: org.id }, select: { squareTeamMemberId: true } }))
       .map((s) => s.squareTeamMemberId)
       .filter(Boolean)
   )
 
-  const members = (data.team_members ?? []).map((m: Record<string, unknown>) => ({
+  const members = ((data.team_members as Record<string, unknown>[]) ?? []).map((m) => ({
     ...m,
     alreadyImported: existingIds.has(m.id as string),
   }))
