@@ -3,13 +3,10 @@ import { NextResponse } from "next/server"
 
 const SCOPES = [
   "MERCHANT_PROFILE_READ",
-  "EMPLOYEES_READ",
   "TEAM_MEMBERS_READ",
   "PAYMENTS_READ",
   "ITEMS_READ",
-  "ITEMS_WRITE",
   "INVENTORY_READ",
-  "INVENTORY_WRITE",
   "ORDERS_READ",
 ].join(" ")
 
