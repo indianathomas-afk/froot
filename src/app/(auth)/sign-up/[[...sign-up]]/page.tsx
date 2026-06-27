@@ -1,12 +1,13 @@
 import { SignUp } from "@clerk/nextjs"
+import Image from "next/image"
 
 export default function SignUpPage() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "oklch(97% .02 65)" }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-[var(--color-primary)] flex items-center justify-center mx-auto mb-3 text-3xl">
-            🍊
+          <div className="w-16 h-16 mx-auto mb-3">
+            <Image src="/logo.png" alt="Froot" width={64} height={64} />
           </div>
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">froot</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">

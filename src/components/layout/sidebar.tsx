@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
@@ -37,8 +38,8 @@ export function Sidebar() {
     <aside className="fixed left-0 top-0 h-screen w-[190px] flex flex-col border-r border-[var(--color-border)] bg-[var(--color-card)] z-40">
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-[var(--color-border)]">
-        <div className="w-8 h-8 rounded-full bg-[var(--color-primary)] flex items-center justify-center">
-          <span className="text-white text-lg">🍊</span>
+        <div className="w-8 h-8">
+          <Image src="/logo.png" alt="Froot" width={32} height={32} />
         </div>
       </div>
 
