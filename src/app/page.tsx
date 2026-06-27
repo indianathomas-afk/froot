@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import { FileText, BarChart2, ArrowRight, Store, Clock } from "lucide-react"
 
 export default function LandingPage() {
@@ -7,7 +8,7 @@ export default function LandingPage() {
       {/* Nav */}
       <header className="flex items-center justify-between px-8 py-4 border-b border-[var(--color-border)] bg-[var(--color-card)]">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-lg">🍊</div>
+          <div className="w-8 h-8"><Image src="/logo.png" alt="Froot" width={32} height={32} /></div>
           <span className="font-semibold text-[var(--color-foreground)]">froot</span>
         </div>
         <Link
@@ -57,7 +58,7 @@ export default function LandingPage() {
           </div>
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 rounded bg-[var(--color-primary)]/10 flex items-center justify-center text-sm">🍊</div>
+              <div className="w-7 h-7"><Image src="/logo.png" alt="Froot" width={28} height={28} /></div>
               <h3 className="font-semibold text-[var(--color-foreground)]">Froot</h3>
             </div>
             <ul className="space-y-1.5 text-sm text-[var(--color-muted-foreground)]">
