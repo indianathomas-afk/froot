@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 
 type Store = { id: string; name: string; storeNumber: string | null }
-type SquareTeamMember = { id: string; display_name: string; given_name?: string; family_name?: string; alreadyImported: boolean }
+type SquareTeamMember = { id: string; display_name?: string; given_name?: string; family_name?: string; alreadyImported: boolean }
 
 // Add Staff Member Modal
 export function AddStaffButton({ stores }: { stores: Store[] }) {
@@ -160,7 +160,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              displayName: m.display_name,
+              displayName: m.display_name || [m.given_name, m.family_name].filter(Boolean).join(" ") || "Unknown",
               fullName: [m.given_name, m.family_name].filter(Boolean).join(" ") || null,
               squareTeamMemberId: m.id,
               storeIds: Array.from(storeMap[m.id] ?? []),
@@ -216,7 +216,9 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
                         <div className="flex items-center gap-3 p-3">
                           <input type="checkbox" checked={isSelected} onChange={() => toggle(m.id)} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{m.display_name}</p>
+                            <p className="text-sm font-medium text-[var(--color-foreground)]">
+                              {m.display_name || [m.given_name, m.family_name].filter(Boolean).join(" ") || "Unknown"}
+                            </p>
                             {memberStores.size > 0 && (
                               <p className="text-xs text-[var(--color-muted-foreground)]">
                                 {memberStores.size} location{memberStores.size !== 1 ? "s" : ""} assigned
@@ -257,7 +259,9 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
                   {alreadyDone.map((m) => (
                     <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border)] mb-2 opacity-50">
                       <input type="checkbox" disabled checked />
-                      <p className="text-sm">{m.display_name}</p>
+                      <p className="text-sm text-[var(--color-foreground)]">
+                        {m.display_name || [m.given_name, m.family_name].filter(Boolean).join(" ") || "Unknown"}
+                      </p>
                     </div>
                   ))}
                 </div>
