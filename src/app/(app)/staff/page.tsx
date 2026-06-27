@@ -1,8 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
-import { Plus, Pencil, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AddStaffButton, ImportStaffButton, DeleteStaffButton } from "./staff-buttons"
 
 async function getStaffData() {
   const { orgId } = await auth()
@@ -25,7 +23,6 @@ async function getStaffData() {
 export default async function StaffPage() {
   const { staff, stores } = await getStaffData()
 
-  // Group staff by first assigned store
   const byStore = new Map<string, typeof staff>()
   const unassigned: typeof staff = []
 
@@ -39,6 +36,8 @@ export default async function StaffPage() {
     }
   }
 
+  const storeProps = stores.map((s) => ({ id: s.id, name: s.name, storeNumber: s.storeNumber }))
+
   return (
     <div>
       <div className="flex items-start justify-between mb-6">
@@ -46,26 +45,10 @@ export default async function StaffPage() {
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Staff Members</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Manage team members for each store location</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4" />
-          Add Staff Member
-        </Button>
-      </div>
-
-      {/* Store filter */}
-      <div className="flex items-center gap-3 mb-6">
-        <span className="text-sm font-medium text-[var(--color-foreground)]">Filter by Store:</span>
-        <Select defaultValue="all">
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Stores</SelectItem>
-            {stores.map((s) => (
-              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <ImportStaffButton stores={storeProps} />
+          <AddStaffButton stores={storeProps} />
+        </div>
       </div>
 
       {staff.length === 0 ? (
@@ -75,10 +58,10 @@ export default async function StaffPage() {
           </div>
           <p className="font-medium text-[var(--color-foreground)] mb-1">No Staff Members</p>
           <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Add team members to track who completes each task.</p>
-          <Button>
-            <Plus className="h-4 w-4" />
-            Add First Staff Member
-          </Button>
+          <div className="flex gap-2 justify-center">
+            <ImportStaffButton stores={storeProps} />
+            <AddStaffButton stores={storeProps} />
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -124,14 +107,7 @@ export default async function StaffPage() {
                           </div>
                         </td>
                         <td className="px-6 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button className="p-1 rounded hover:bg-[var(--color-accent)]">
-                              <Pencil className="h-4 w-4 text-[var(--color-muted-foreground)]" />
-                            </button>
-                            <button className="p-1 rounded hover:bg-[var(--color-accent)]">
-                              <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]" />
-                            </button>
-                          </div>
+                          <DeleteStaffButton staffId={member.id} />
                         </td>
                       </tr>
                     ))}
@@ -140,6 +116,28 @@ export default async function StaffPage() {
               </div>
             )
           })}
+          {unassigned.length > 0 && (
+            <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+              <div className="px-6 py-4 border-b border-[var(--color-border)]">
+                <p className="font-semibold text-[var(--color-foreground)]">Unassigned</p>
+                <p className="text-xs text-[var(--color-muted-foreground)]">{unassigned.length} member{unassigned.length !== 1 ? "s" : ""}</p>
+              </div>
+              <table className="w-full">
+                <tbody>
+                  {unassigned.map((member) => (
+                    <tr key={member.id} className="border-b border-[var(--color-border)] last:border-0">
+                      <td className="px-6 py-3 text-sm font-medium text-[var(--color-foreground)]">{member.displayName}</td>
+                      <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
+                      <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">—</td>
+                      <td className="px-6 py-3 text-right">
+                        <DeleteStaffButton staffId={member.id} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

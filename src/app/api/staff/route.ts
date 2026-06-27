@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
-  const { displayName, fullName, email, storeIds } = await req.json()
+  const { displayName, fullName, email, storeIds, squareTeamMemberId } = await req.json()
 
   const member = await prisma.staffMember.create({
     data: {
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
       displayName,
       fullName: fullName || null,
       email: email || null,
+      squareTeamMemberId: squareTeamMemberId || null,
       storeAssignments: {
         create: (storeIds ?? []).map((storeId: string) => ({ storeId })),
       },
