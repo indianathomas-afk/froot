@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const checklist = await prisma.checklist.findFirst({ where: { id, organizationId: org.id } })
   if (!checklist) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { taskId, photoUrl, temperatureValue, notes } = await req.json()
+  const { taskId, photoUrl, temperatureValue, notes, completedByStaffId } = await req.json()
 
   // Update checklist to In Progress if Pending
   if (checklist.status === "Pending") {
@@ -35,11 +35,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ action: "uncompleted" })
   }
 
+  // completedByStaffId may be "manager" (generic label) — only store real DB IDs
+  const staffId = completedByStaffId && completedByStaffId !== "manager" ? completedByStaffId : null
+
   await prisma.taskLog.create({
     data: {
       checklistId: id,
       taskId,
       completedByUserId: user?.id ?? null,
+      completedByStaffId: staffId,
       photoUrl: photoUrl ?? null,
       temperatureValue: temperatureValue ?? null,
       notes: notes ?? null,

@@ -26,5 +26,14 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
 
   if (!checklist) return notFound()
 
-  return <ChecklistExecutionClient checklist={checklist} />
+  const staff = await prisma.staffMember.findMany({
+    where: {
+      organizationId: org.id,
+      storeAssignments: { some: { storeId: checklist.storeId } },
+    },
+    select: { id: true, displayName: true },
+    orderBy: { displayName: "asc" },
+  })
+
+  return <ChecklistExecutionClient checklist={checklist} staff={staff} />
 }

@@ -3,45 +3,66 @@
 import { useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Play } from "lucide-react"
+import { Play, Store } from "lucide-react"
 import { useRouter } from "next/navigation"
 
-interface Store {
+interface StoreItem {
   id: string
   name: string
   storeNumber: string | null
 }
 
-interface Checklist {
+interface TemplateOption {
   id: string
-  templateName: string
-  templateType: string
+  name: string
+  type: string
   taskCount: number
   estimatedMinutes: number
+  existingChecklistId: string | null
+  existingStatus: string | null
 }
 
-export function StoreViewClient({ stores }: { stores: Store[] }) {
+export function StoreViewClient({ stores }: { stores: StoreItem[] }) {
   const [selectedStoreId, setSelectedStoreId] = useState<string>("")
-  const [selectedStore, setSelectedStore] = useState<Store | null>(null)
-  const [checklists, setChecklists] = useState<Checklist[]>([])
+  const [selectedStore, setSelectedStore] = useState<StoreItem | null>(null)
+  const [templates, setTemplates] = useState<TemplateOption[]>([])
   const [loading, setLoading] = useState(false)
+  const [starting, setStarting] = useState<string | null>(null)
   const router = useRouter()
 
   async function handleStoreSelect(storeId: string) {
     setSelectedStoreId(storeId)
     const store = stores.find((s) => s.id === storeId) ?? null
     setSelectedStore(store)
-    if (!storeId) { setChecklists([]); return }
+    if (!storeId) { setTemplates([]); return }
 
     setLoading(true)
     try {
-      const res = await fetch(`/api/checklists?storeId=${storeId}&today=1`)
-      if (res.ok) {
-        const data = await res.json()
-        setChecklists(data)
-      }
+      const res = await fetch(`/api/stores/${storeId}/templates`)
+      if (res.ok) setTemplates(await res.json())
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function startChecklist(template: TemplateOption) {
+    // If checklist already exists today, go straight to it
+    if (template.existingChecklistId) {
+      router.push(`/store-view/checklist/${template.existingChecklistId}`)
+      return
+    }
+
+    setStarting(template.id)
+    try {
+      const res = await fetch("/api/checklists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId: template.id, storeId: selectedStoreId }),
+      })
+      const data = await res.json()
+      if (data.id) router.push(`/store-view/checklist/${data.id}`)
+    } finally {
+      setStarting(null)
     }
   }
 
@@ -55,7 +76,7 @@ export function StoreViewClient({ stores }: { stores: Store[] }) {
 
         <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-6 max-w-sm">
           <div className="flex items-center gap-2 mb-2">
-            <span>🏪</span>
+            <Store className="h-4 w-4 text-[var(--color-muted-foreground)]" />
             <h2 className="font-semibold text-[var(--color-foreground)]">Select Store</h2>
           </div>
           <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Choose a store to view available checklists</p>
@@ -66,7 +87,7 @@ export function StoreViewClient({ stores }: { stores: Store[] }) {
             <SelectContent>
               {stores.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.storeNumber ? `#${s.storeNumber} - ` : ""}{s.name}
+                  {s.name}{s.storeNumber ? ` (#${s.storeNumber})` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -76,6 +97,13 @@ export function StoreViewClient({ stores }: { stores: Store[] }) {
     )
   }
 
+  const statusLabel = (t: TemplateOption) => {
+    if (!t.existingStatus) return null
+    if (t.existingStatus === "Completed") return { text: "Completed", cls: "text-[var(--color-success-text)] bg-[var(--color-success-bg)]" }
+    if (t.existingStatus === "In Progress") return { text: "In Progress", cls: "text-[var(--color-info-text)] bg-[var(--color-info-bg)]" }
+    return null
+  }
+
   return (
     <div>
       <div className="flex items-start justify-between mb-8">
@@ -83,7 +111,7 @@ export function StoreViewClient({ stores }: { stores: Store[] }) {
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Store Dashboard: {selectedStore.name}</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Preview what staff members see at this location</p>
         </div>
-        <Button variant="outline" onClick={() => { setSelectedStore(null); setSelectedStoreId(""); setChecklists([]) }}>
+        <Button variant="outline" onClick={() => { setSelectedStore(null); setSelectedStoreId(""); setTemplates([]) }}>
           Change Store
         </Button>
       </div>
@@ -104,36 +132,46 @@ export function StoreViewClient({ stores }: { stores: Store[] }) {
         <div className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-5 animate-pulse">
-              <div className="h-5 bg-[var(--color-muted)] rounded mb-2 w-3/4"></div>
-              <div className="h-4 bg-[var(--color-muted)] rounded mb-4 w-1/2"></div>
-              <div className="h-9 bg-[var(--color-muted)] rounded"></div>
+              <div className="h-5 bg-[var(--color-muted)] rounded mb-2 w-3/4" />
+              <div className="h-4 bg-[var(--color-muted)] rounded mb-4 w-1/2" />
+              <div className="h-9 bg-[var(--color-muted)] rounded" />
             </div>
           ))}
         </div>
-      ) : checklists.length === 0 ? (
+      ) : templates.length === 0 ? (
         <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
           <p className="font-medium text-[var(--color-foreground)] mb-1">No checklists available</p>
-          <p className="text-sm text-[var(--color-muted-foreground)]">No checklists have been generated for this store today.</p>
+          <p className="text-sm text-[var(--color-muted-foreground)]">No active templates are assigned to this store.</p>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-4">
-          {checklists.map((checklist) => (
-            <div key={checklist.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-5">
-              <h3 className="font-semibold text-[var(--color-foreground)] mb-1">{checklist.templateName}</h3>
-              <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
-                {checklist.taskCount} tasks • ~{checklist.estimatedMinutes} min
-              </p>
-              <button
-                onClick={() => router.push(`/store-view/checklist/${checklist.id}`)}
-                className="w-full flex items-center justify-center gap-2 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                <div className="w-4 h-4 rounded-full border-2 border-white flex items-center justify-center">
-                  <Play className="h-2 w-2 fill-white" />
+          {templates.map((template) => {
+            const badge = statusLabel(template)
+            const isStarting = starting === template.id
+            return (
+              <div key={template.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-5">
+                <div className="flex items-start justify-between mb-1">
+                  <h3 className="font-semibold text-[var(--color-foreground)]">{template.name}</h3>
+                  {badge && (
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.cls}`}>{badge.text}</span>
+                  )}
                 </div>
-                Start Checklist
-              </button>
-            </div>
-          ))}
+                <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+                  {template.taskCount} tasks{template.estimatedMinutes > 0 ? ` • ~${template.estimatedMinutes} min` : ""}
+                </p>
+                <button
+                  onClick={() => startChecklist(template)}
+                  disabled={isStarting}
+                  className="w-full flex items-center justify-center gap-2 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+                >
+                  <div className="w-4 h-4 rounded-full border-2 border-white flex items-center justify-center">
+                    <Play className="h-2 w-2 fill-white" />
+                  </div>
+                  {isStarting ? "Starting..." : template.existingChecklistId ? "Continue Checklist" : "Start Checklist"}
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

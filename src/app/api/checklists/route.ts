@@ -55,30 +55,53 @@ export async function POST(req: Request) {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
-  // Generate checklists for all stores based on active templates
-  const [stores, templates] = await Promise.all([
-    prisma.store.findMany({ where: { organizationId: org.id, isActive: true } }),
-    prisma.template.findMany({ where: { organizationId: org.id, isActive: true } }),
-  ])
-
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+
+  let body: Record<string, string> = {}
+  try { body = await req.json() } catch { /* no body */ }
+
+  // Single-checklist creation: {templateId, storeId}
+  if (body.templateId && body.storeId) {
+    const existing = await prisma.checklist.findFirst({
+      where: { organizationId: org.id, storeId: body.storeId, templateId: body.templateId, date: { gte: today, lt: tomorrow } },
+    })
+    if (existing) return NextResponse.json({ id: existing.id }, { status: 200 })
+
+    const checklist = await prisma.checklist.create({
+      data: {
+        organizationId: org.id,
+        storeId: body.storeId,
+        templateId: body.templateId,
+        date: today,
+        status: "Pending",
+      },
+    })
+    return NextResponse.json({ id: checklist.id }, { status: 201 })
+  }
+
+  // Bulk: generate for all stores × all applicable templates
+  const [stores, templates] = await Promise.all([
+    prisma.store.findMany({ where: { organizationId: org.id, isActive: true } }),
+    prisma.template.findMany({ where: { organizationId: org.id, isActive: true }, include: { storeAssignments: true } }),
+  ])
 
   const created: string[] = []
   for (const store of stores) {
     for (const template of templates) {
+      const applicable =
+        template.storeAssignments.length === 0 ||
+        template.storeAssignments.some((a) => a.storeId === store.id)
+      if (!applicable) continue
+
       const existing = await prisma.checklist.findFirst({
-        where: { organizationId: org.id, storeId: store.id, templateId: template.id, date: today },
+        where: { organizationId: org.id, storeId: store.id, templateId: template.id, date: { gte: today, lt: tomorrow } },
       })
       if (!existing) {
         const checklist = await prisma.checklist.create({
-          data: {
-            organizationId: org.id,
-            storeId: store.id,
-            templateId: template.id,
-            date: today,
-            status: "Pending",
-          },
+          data: { organizationId: org.id, storeId: store.id, templateId: template.id, date: today, status: "Pending" },
         })
         created.push(checklist.id)
       }
