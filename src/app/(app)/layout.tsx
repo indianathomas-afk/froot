@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/layout/sidebar"
+import { AppShell } from "@/components/layout/app-shell"
 import { auth } from "@clerk/nextjs/server"
 import { OrganizationList } from "@clerk/nextjs"
 import Image from "next/image"
@@ -26,11 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 ml-[190px] min-h-screen bg-[var(--color-background)]">
-        <div className="max-w-6xl mx-auto px-8 py-8">
-          {children}
-        </div>
-      </main>
+      <AppShell>{children}</AppShell>
     </div>
   )
 }
