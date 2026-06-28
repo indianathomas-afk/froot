@@ -72,7 +72,7 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
       `}</style>
 
       <div className="print-page">
-        <PrintControls />
+        <PrintControls templateName={template.name} />
 
         {/* Header */}
         <div className="header">
