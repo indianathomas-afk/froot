@@ -14,9 +14,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!template) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   const body = await req.json()
-  const { tasks, ...templateData } = body
+
+  // Quick status-only update (archive / activate)
+  if ("isActive" in body && !("tasks" in body)) {
+    const updated = await prisma.template.update({ where: { id }, data: { isActive: body.isActive } })
+    return NextResponse.json(updated)
+  }
+  if ("isArchived" in body && !("tasks" in body)) {
+    const updated = await prisma.template.update({ where: { id }, data: { isArchived: body.isArchived } })
+    return NextResponse.json(updated)
+  }
+
+  const { tasks, storeIds, ...templateData } = body
 
   await prisma.task.deleteMany({ where: { templateId: id } })
+  await prisma.templateStoreAssignment.deleteMany({ where: { templateId: id } })
 
   const updated = await prisma.template.update({
     where: { id },
@@ -25,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       tasks: {
         create: (tasks ?? []).map((t: {
           sectionName: string; description: string; estimatedTimeMinutes?: number;
-          requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number;
+          requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[];
         }) => ({
           sectionName: t.sectionName,
           description: t.description,
@@ -34,11 +46,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           requiresTemp: t.requiresTemp ?? false,
           isCritical: t.isCritical ?? false,
           orderIndex: t.orderIndex ?? 0,
-          excludedStoreIds: [],
+          excludedStoreIds: t.excludedStoreIds ?? [],
         })),
       },
+      storeAssignments: storeIds?.length
+        ? { create: (storeIds as string[]).map((sid: string) => ({ storeId: sid })) }
+        : undefined,
     },
-    include: { tasks: true },
+    include: { tasks: true, storeAssignments: true },
   })
 
   return NextResponse.json(updated)

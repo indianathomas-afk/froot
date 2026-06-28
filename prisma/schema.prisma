@@ -134,6 +134,7 @@ model Template {
   startOffsetHours Int?
   endOffsetHours   Int?
   isActive         Boolean  @default(true)
+  isArchived       Boolean  @default(false)
   createdAt        DateTime @default(now())
 
   organization     Organization              @relation(fields: [organizationId], references: [id])

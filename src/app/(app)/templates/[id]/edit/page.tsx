@@ -11,11 +11,18 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return notFound()
 
-  const template = await prisma.template.findFirst({
-    where: { id, organizationId: org.id },
-    include: { tasks: { orderBy: { orderIndex: "asc" } } },
-  })
+  const [template, stores] = await Promise.all([
+    prisma.template.findFirst({
+      where: { id, organizationId: org.id },
+      include: { tasks: { orderBy: { orderIndex: "asc" } }, storeAssignments: true },
+    }),
+    prisma.store.findMany({
+      where: { organizationId: org.id },
+      select: { id: true, name: true, storeNumber: true },
+      orderBy: { name: "asc" },
+    }),
+  ])
   if (!template) return notFound()
 
-  return <TemplateForm initialData={template} />
+  return <TemplateForm initialData={template} stores={stores} />
 }

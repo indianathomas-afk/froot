@@ -20,9 +20,17 @@ interface Task {
   requiresTemp: boolean
   isCritical: boolean
   orderIndex: number
+  excludedStoreIds: string[]
+}
+
+interface Store {
+  id: string
+  name: string
+  storeNumber: string | null
 }
 
 interface TemplateFormProps {
+  stores?: Store[]
   initialData?: {
     id: string
     name: string
@@ -34,6 +42,7 @@ interface TemplateFormProps {
     startOffsetHours: number | null
     endOffsetHours: number | null
     tasks: Task[]
+    storeAssignments?: { storeId: string }[]
   }
 }
 
@@ -52,7 +61,7 @@ function getPhaseDescription(phase: string | null, start: number, end: number, a
   return ""
 }
 
-export function TemplateForm({ initialData }: TemplateFormProps) {
+export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
   const [saving, setSaving] = useState(false)
@@ -65,10 +74,18 @@ export function TemplateForm({ initialData }: TemplateFormProps) {
   const [phase, setPhase] = useState(initialData?.operationalPhase ?? "Before Opening")
   const [startOffset, setStartOffset] = useState(initialData?.startOffsetHours ?? 1)
   const [endOffset, setEndOffset] = useState(initialData?.endOffsetHours ?? 2)
-  const [appliesTo, setAppliesTo] = useState("all")
-  const [tasks, setTasks] = useState<Task[]>(initialData?.tasks ?? [])
+  const [appliesTo, setAppliesTo] = useState(
+    initialData?.storeAssignments?.length ? "selected" : "all"
+  )
+  const [selectedStoreIds, setSelectedStoreIds] = useState<Set<string>>(
+    new Set(initialData?.storeAssignments?.map((a) => a.storeId) ?? [])
+  )
+  const [tasks, setTasks] = useState<Task[]>(
+    (initialData?.tasks ?? []).map((t) => ({ ...t, excludedStoreIds: t.excludedStoreIds ?? [] }))
+  )
   const [showAddTask, setShowAddTask] = useState(false)
-  const [newTask, setNewTask] = useState({ sectionName: "", description: "", estimatedTimeMinutes: 5, requiresPhoto: false, requiresTemp: false, isCritical: false })
+  const [newTask, setNewTask] = useState({ sectionName: "", description: "", estimatedTimeMinutes: 5, requiresPhoto: false, requiresTemp: false, isCritical: false, excludedStoreIds: [] as string[] })
+  const [expandedTaskExclusions, setExpandedTaskExclusions] = useState<Set<string>>(new Set())
 
   function addTask() {
     const task: Task = {
@@ -78,8 +95,27 @@ export function TemplateForm({ initialData }: TemplateFormProps) {
       orderIndex: tasks.length,
     }
     setTasks((p) => [...p, task])
-    setNewTask({ sectionName: "", description: "", estimatedTimeMinutes: 5, requiresPhoto: false, requiresTemp: false, isCritical: false })
+    setNewTask({ sectionName: "", description: "", estimatedTimeMinutes: 5, requiresPhoto: false, requiresTemp: false, isCritical: false, excludedStoreIds: [] })
     setShowAddTask(false)
+  }
+
+  function toggleTaskExclusion(taskId: string, storeId: string) {
+    setTasks((prev) => prev.map((t) => {
+      if (t.id !== taskId) return t
+      const ids = t.excludedStoreIds.includes(storeId)
+        ? t.excludedStoreIds.filter((s) => s !== storeId)
+        : [...t.excludedStoreIds, storeId]
+      return { ...t, excludedStoreIds: ids }
+    }))
+  }
+
+  function toggleNewTaskExclusion(storeId: string) {
+    setNewTask((prev) => ({
+      ...prev,
+      excludedStoreIds: prev.excludedStoreIds.includes(storeId)
+        ? prev.excludedStoreIds.filter((s) => s !== storeId)
+        : [...prev.excludedStoreIds, storeId],
+    }))
   }
 
   function removeTask(id: string) {
@@ -95,6 +131,7 @@ export function TemplateForm({ initialData }: TemplateFormProps) {
         operationalPhase: availType === "StoreHours" ? phase : null,
         startOffsetHours: availType === "StoreHours" ? startOffset : null,
         endOffsetHours: availType === "StoreHours" ? endOffset : null,
+        storeIds: appliesTo === "selected" ? Array.from(selectedStoreIds) : [],
         tasks: tasks.map((t, i) => ({ ...t, orderIndex: i })),
       }
 
@@ -260,6 +297,32 @@ export function TemplateForm({ initialData }: TemplateFormProps) {
                 <p className="text-xs text-[var(--color-muted-foreground)]">
                   {appliesTo === "all" ? "This checklist will be visible to all stores" : "Choose specific stores below"}
                 </p>
+                {appliesTo === "selected" && stores.length > 0 && (
+                  <div className="border border-[var(--color-border)] rounded-lg p-3 space-y-1 max-h-48 overflow-y-auto">
+                    {stores.map((s) => (
+                      <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer p-1.5 rounded hover:bg-[var(--color-accent)]">
+                        <input
+                          type="checkbox"
+                          checked={selectedStoreIds.has(s.id)}
+                          onChange={() => {
+                            setSelectedStoreIds((prev) => {
+                              const next = new Set(prev)
+                              next.has(s.id) ? next.delete(s.id) : next.add(s.id)
+                              return next
+                            })
+                          }}
+                          className="rounded"
+                        />
+                        {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {appliesTo === "selected" && selectedStoreIds.size > 0 && (
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    This checklist will only be visible to {selectedStoreIds.size} selected store{selectedStoreIds.size !== 1 ? "s" : ""}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -282,34 +345,70 @@ export function TemplateForm({ initialData }: TemplateFormProps) {
             ) : (
               <div className="space-y-2">
                 {tasks.map((task, idx) => (
-                  <div key={task.id} className={`flex items-start gap-3 p-3 rounded-md border ${task.isCritical ? "border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/5" : "border-[var(--color-border)] bg-[var(--color-background)]"}`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-[var(--color-muted-foreground)] w-5">{idx + 1}.</span>
-                        {task.isCritical && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] px-1.5 py-0.5 rounded">
-                            <AlertTriangle className="h-3 w-3" /> CRITICAL
-                          </span>
-                        )}
-                        {task.requiresPhoto && (
-                          <span className="inline-flex items-center gap-1 text-xs bg-[var(--color-info-bg)] text-[var(--color-info-text)] border border-[var(--color-info-border)] px-1.5 py-0.5 rounded">
-                            <Camera className="h-3 w-3" /> Photo
-                          </span>
-                        )}
+                  <div key={task.id} className={`p-3 rounded-md border ${task.isCritical ? "border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/5" : "border-[var(--color-border)] bg-[var(--color-background)]"}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm text-[var(--color-muted-foreground)] w-5">{idx + 1}.</span>
+                          {task.isCritical && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] px-1.5 py-0.5 rounded">
+                              <AlertTriangle className="h-3 w-3" /> CRITICAL
+                            </span>
+                          )}
+                          {task.requiresPhoto && (
+                            <span className="inline-flex items-center gap-1 text-xs bg-[var(--color-info-bg)] text-[var(--color-info-text)] border border-[var(--color-info-border)] px-1.5 py-0.5 rounded">
+                              <Camera className="h-3 w-3" /> Photo
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-sm mt-0.5 ${task.isCritical ? "text-[var(--color-destructive)] font-medium" : "text-[var(--color-foreground)]"}`}>
+                          {task.description}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-[var(--color-muted-foreground)]">§ {task.sectionName}</span>
+                          {task.estimatedTimeMinutes && (
+                            <span className="text-xs text-[var(--color-muted-foreground)]">~{task.estimatedTimeMinutes} min</span>
+                          )}
+                        </div>
                       </div>
-                      <p className={`text-sm mt-0.5 ${task.isCritical ? "text-[var(--color-destructive)] font-medium" : "text-[var(--color-foreground)]"}`}>
-                        {task.description}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-[var(--color-muted-foreground)]">§ {task.sectionName}</span>
-                        {task.estimatedTimeMinutes && (
-                          <span className="text-xs text-[var(--color-muted-foreground)]">~{task.estimatedTimeMinutes} min</span>
-                        )}
-                      </div>
+                      <button onClick={() => removeTask(task.id)} className="p-1 rounded hover:bg-[var(--color-accent)]">
+                        <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                      </button>
                     </div>
-                    <button onClick={() => removeTask(task.id)} className="p-1 rounded hover:bg-[var(--color-accent)]">
-                      <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)]" />
-                    </button>
+                    {stores.length > 0 && (
+                      <div className="mt-2">
+                        {expandedTaskExclusions.has(task.id) ? (
+                          <div className="p-3 bg-[var(--color-muted)]/20 rounded-md border border-[var(--color-border)]">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-medium text-[var(--color-muted-foreground)]">This task does not apply to:</p>
+                              <button
+                                onClick={() => setExpandedTaskExclusions((prev) => { const next = new Set(prev); next.delete(task.id); return next })}
+                                className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                              >Hide</button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1">
+                              {stores.map((s) => (
+                                <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
+                                  <input
+                                    type="checkbox"
+                                    checked={task.excludedStoreIds.includes(s.id)}
+                                    onChange={() => toggleTaskExclusion(task.id, s.id)}
+                                  />
+                                  {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setExpandedTaskExclusions((prev) => new Set([...prev, task.id]))}
+                            className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                          >
+                            {task.excludedStoreIds.length > 0 ? `Excluded from ${task.excludedStoreIds.length} store${task.excludedStoreIds.length !== 1 ? "s" : ""}` : "Exclude from stores ▾"}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -346,6 +445,23 @@ export function TemplateForm({ initialData }: TemplateFormProps) {
                     Critical
                   </label>
                 </div>
+                {stores.length > 0 && (
+                  <div className="p-3 bg-[var(--color-muted)]/20 rounded-md border border-[var(--color-border)]">
+                    <p className="text-xs font-medium text-[var(--color-muted-foreground)] mb-2">This task does not apply to:</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {stores.map((s) => (
+                        <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
+                          <input
+                            type="checkbox"
+                            checked={newTask.excludedStoreIds.includes(s.id)}
+                            onChange={() => toggleNewTaskExclusion(s.id)}
+                          />
+                          {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button size="sm" onClick={addTask} disabled={!newTask.description || !newTask.sectionName}>Add Task</Button>
                   <Button size="sm" variant="outline" onClick={() => setShowAddTask(false)}>Cancel</Button>
