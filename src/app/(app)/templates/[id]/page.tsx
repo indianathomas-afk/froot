@@ -44,22 +44,7 @@ export default async function TemplateViewPage({ params }: { params: Promise<{ i
               Edit
             </button>
           </Link>
-          <PrintButton
-            templateName={template.name}
-            templateDescription={template.description}
-            templateType={template.type}
-            templateFrequency={template.frequency}
-            totalMinutes={totalMinutes}
-            tasks={template.tasks.map((t) => ({
-              description: t.description,
-              sectionName: t.sectionName,
-              isCritical: t.isCritical,
-              requiresPhoto: t.requiresPhoto,
-              requiresTemp: t.requiresTemp,
-              estimatedTimeMinutes: t.estimatedTimeMinutes,
-              orderIndex: t.orderIndex,
-            }))}
-          />
+          <PrintButton templateId={id} />
         </div>
       </div>
 
