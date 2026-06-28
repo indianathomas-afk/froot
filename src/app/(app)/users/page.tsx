@@ -32,6 +32,36 @@ async function getData() {
 
   const dbByClerkId = new Map(dbUsers.map((u) => [u.clerkUserId, u]))
 
+  // Auto-sync any Clerk member who has no DB User record yet
+  const unsyncedMembers = memberships.data.filter((m) => {
+    const uid = m.publicUserData?.userId
+    return uid && !dbByClerkId.has(uid)
+  })
+  if (unsyncedMembers.length > 0) {
+    await Promise.all(
+      unsyncedMembers.map((m) => {
+        const pub = m.publicUserData!
+        return prisma.user.upsert({
+          where: { clerkUserId: pub.userId! },
+          create: {
+            clerkUserId: pub.userId!,
+            organizationId: org.id,
+            email: pub.identifier ?? "",
+            name: [pub.firstName, pub.lastName].filter(Boolean).join(" ") || null,
+            role: m.role === "org:admin" ? "ADMIN" : "STORE",
+          },
+          update: {},
+        })
+      })
+    )
+    // Re-fetch after sync
+    const refreshed = await prisma.user.findMany({
+      where: { organizationId: org.id },
+      include: { storeAssignments: { include: { store: true } } },
+    })
+    refreshed.forEach((u) => dbByClerkId.set(u.clerkUserId, u))
+  }
+
   const members = memberships.data.map((m) => {
     const pub = m.publicUserData
     const dbUser = pub?.userId ? dbByClerkId.get(pub.userId) : null
