@@ -22,10 +22,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     orderBy: { name: "asc" },
   })
 
-  // Filter: if template has storeAssignments, only include if this store is assigned
-  const applicable = templates.filter((t) =>
-    t.storeAssignments.length === 0 || t.storeAssignments.some((a) => a.storeId === storeId)
-  )
+  // Filter: "all" → show for every store; "selected" → only if this store is in storeAssignments
+  const applicable = templates.filter((t) => {
+    if (t.appliesTo === "selected") {
+      return t.storeAssignments.some((a) => a.storeId === storeId)
+    }
+    return true // "all" or legacy rows with no appliesTo set
+  })
 
   // Check which ones already have a checklist started today
   const today = new Date()

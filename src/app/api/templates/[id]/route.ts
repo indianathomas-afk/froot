@@ -25,7 +25,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json(updated)
   }
 
-  const { tasks, storeIds, ...templateData } = body
+  const { tasks, storeIds, appliesTo, ...templateData } = body
 
   await prisma.task.deleteMany({ where: { templateId: id } })
   await prisma.templateStoreAssignment.deleteMany({ where: { templateId: id } })
@@ -34,6 +34,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     where: { id },
     data: {
       ...templateData,
+      appliesTo: appliesTo ?? "all",
       tasks: {
         create: (tasks ?? []).map((t: {
           sectionName: string; description: string; estimatedTimeMinutes?: number;

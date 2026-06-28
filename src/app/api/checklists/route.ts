@@ -92,8 +92,9 @@ export async function POST(req: Request) {
   for (const store of stores) {
     for (const template of templates) {
       const applicable =
-        template.storeAssignments.length === 0 ||
-        template.storeAssignments.some((a) => a.storeId === store.id)
+        template.appliesTo === "selected"
+          ? template.storeAssignments.some((a) => a.storeId === store.id)
+          : true
       if (!applicable) continue
 
       const existing = await prisma.checklist.findFirst({

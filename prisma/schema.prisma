@@ -135,6 +135,7 @@ model Template {
   endOffsetHours   Int?
   isActive         Boolean  @default(true)
   isArchived       Boolean  @default(false)
+  appliesTo        String   @default("all")
   createdAt        DateTime @default(now())
 
   organization     Organization              @relation(fields: [organizationId], references: [id])

@@ -41,6 +41,7 @@ interface TemplateFormProps {
     operationalPhase: string | null
     startOffsetHours: number | null
     endOffsetHours: number | null
+    appliesTo?: string
     tasks: Task[]
     storeAssignments?: { storeId: string }[]
   }
@@ -131,6 +132,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         operationalPhase: availType === "StoreHours" ? phase : null,
         startOffsetHours: availType === "StoreHours" ? startOffset : null,
         endOffsetHours: availType === "StoreHours" ? endOffset : null,
+        appliesTo,
         storeIds: appliesTo === "selected" ? Array.from(selectedStoreIds) : [],
         tasks: tasks.map((t, i) => ({ ...t, orderIndex: i })),
       }

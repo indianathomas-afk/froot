@@ -61,6 +61,7 @@ export async function POST(req: Request) {
       operationalPhase: templateData.operationalPhase || null,
       startOffsetHours: templateData.startOffsetHours ?? null,
       endOffsetHours: templateData.endOffsetHours ?? null,
+      appliesTo: storeIds?.length ? "selected" : (templateData.appliesTo ?? "all"),
       tasks: {
         create: (tasks ?? []).map((t: {
           sectionName: string; description: string; estimatedTimeMinutes?: number;
