@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       organizationId: orgId,
       emailAddress: email,
       role: role === "ADMIN" ? "org:admin" : "org:member",
-      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/sign-up`,
     })
     return NextResponse.json({ invitation }, { status: 201 })
   } catch (err: unknown) {

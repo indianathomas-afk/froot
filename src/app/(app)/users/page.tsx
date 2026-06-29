@@ -12,15 +12,16 @@ const ROLE_STYLES: Record<string, string> = {
 
 async function getData() {
   const { orgId } = await auth()
-  if (!orgId) return { members: [], stores: [] }
+  if (!orgId) return { members: [], pendingInvites: [], stores: [] }
 
   const clerk = await clerkClient()
-  const [memberships, org] = await Promise.all([
+  const [memberships, pendingInvitations, org] = await Promise.all([
     clerk.organizations.getOrganizationMembershipList({ organizationId: orgId, limit: 100 }),
+    clerk.organizations.getOrganizationInvitationList({ organizationId: orgId, status: ["pending"] }),
     prisma.organization.findUnique({ where: { clerkOrgId: orgId } }),
   ])
 
-  if (!org) return { members: [], stores: [] }
+  if (!org) return { members: [], pendingInvites: [], stores: [] }
 
   const [dbUsers, stores] = await Promise.all([
     prisma.user.findMany({
@@ -78,13 +79,21 @@ async function getData() {
     }
   })
 
-  return { members, stores }
+  const pendingInvites = pendingInvitations.data.map((inv) => ({
+    id: inv.id,
+    email: inv.emailAddress,
+    role: inv.role === "org:admin" ? "ADMIN" : "STORE",
+    createdAt: new Date(inv.createdAt),
+  }))
+
+  return { members, pendingInvites, stores }
 }
 
 export default async function UsersPage() {
-  const { members, stores } = await getData()
+  const { members, pendingInvites, stores } = await getData()
 
   const storeProps = stores.map((s) => ({ id: s.id, name: s.name, storeNumber: s.storeNumber }))
+  const totalCount = members.length + pendingInvites.length
 
   return (
     <div>
@@ -99,10 +108,10 @@ export default async function UsersPage() {
       <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
         <div className="px-6 py-4 border-b border-[var(--color-border)]">
           <h2 className="font-medium text-[var(--color-foreground)]">Organization Members</h2>
-          <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">{members.length} member{members.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">{totalCount} member{totalCount !== 1 ? "s" : ""}{pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ""}</p>
         </div>
 
-        {members.length === 0 ? (
+        {totalCount === 0 ? (
           <div className="p-16 text-center text-[var(--color-muted-foreground)]">
             <p className="text-sm">No users yet. Invite your team to get started.</p>
           </div>
@@ -111,7 +120,7 @@ export default async function UsersPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
-                  {["User", "Role", "Location Access", "Joined", "Actions"].map((h) => (
+                  {["User", "Role", "Location Access", "Invited", "Actions"].map((h) => (
                     <th key={h} className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">{h}</th>
                   ))}
                 </tr>
@@ -160,6 +169,30 @@ export default async function UsersPage() {
                         />
                         <RemoveUserButton clerkUserId={member.clerkUserId} userName={member.name || member.email} />
                       </div>
+                    </td>
+                  </tr>
+                ))}
+                {pendingInvites.map((inv) => (
+                  <tr key={inv.id} className="border-b border-[var(--color-border)] last:border-0 bg-[var(--color-accent)]/10">
+                    <td className="px-6 py-4">
+                      <p className="text-sm font-medium text-[var(--color-foreground)]">{inv.email}</p>
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200 mt-1">
+                        Pending
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${ROLE_STYLES[inv.role] ?? ROLE_STYLES.STAFF}`}>
+                        {inv.role.charAt(0) + inv.role.slice(1).toLowerCase()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
+                      {format(inv.createdAt, "M/d/yyyy")}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs text-[var(--color-muted-foreground)] italic">Awaiting acceptance</span>
                     </td>
                   </tr>
                 ))}
