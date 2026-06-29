@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -21,6 +21,7 @@ interface Task {
   isCritical: boolean
   orderIndex: number
   excludedStoreIds: string[]
+  videoUrl?: string | null
 }
 
 interface Store {
@@ -62,6 +63,28 @@ function getPhaseDescription(phase: string | null, start: number, end: number, a
   return ""
 }
 
+const emptyTaskFields = {
+  sectionName: "",
+  description: "",
+  estimatedTimeMinutes: 5,
+  requiresPhoto: false,
+  requiresTemp: false,
+  isCritical: false,
+  excludedStoreIds: [] as string[],
+  videoUrl: "",
+}
+
+interface EditDraft {
+  sectionName: string
+  description: string
+  estimatedTimeMinutes: number
+  requiresPhoto: boolean
+  requiresTemp: boolean
+  isCritical: boolean
+  excludedStoreIds: string[]
+  videoUrl: string
+}
+
 export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
@@ -82,11 +105,47 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     new Set(initialData?.storeAssignments?.map((a) => a.storeId) ?? [])
   )
   const [tasks, setTasks] = useState<Task[]>(
-    (initialData?.tasks ?? []).map((t) => ({ ...t, excludedStoreIds: t.excludedStoreIds ?? [] }))
+    (initialData?.tasks ?? []).map((t) => ({ ...t, excludedStoreIds: t.excludedStoreIds ?? [], videoUrl: t.videoUrl ?? "" }))
   )
   const [showAddTask, setShowAddTask] = useState(false)
-  const [newTask, setNewTask] = useState({ sectionName: "", description: "", estimatedTimeMinutes: 5, requiresPhoto: false, requiresTemp: false, isCritical: false, excludedStoreIds: [] as string[] })
+  const [newTask, setNewTask] = useState(emptyTaskFields)
   const [expandedTaskExclusions, setExpandedTaskExclusions] = useState<Set<string>>(new Set())
+
+  // Inline edit state
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<EditDraft>({
+    ...emptyTaskFields,
+    estimatedTimeMinutes: 5,
+  })
+
+  function startEditTask(task: Task) {
+    setEditingTaskId(task.id)
+    setEditDraft({
+      sectionName: task.sectionName,
+      description: task.description,
+      estimatedTimeMinutes: task.estimatedTimeMinutes ?? 5,
+      requiresPhoto: task.requiresPhoto,
+      requiresTemp: task.requiresTemp,
+      isCritical: task.isCritical,
+      excludedStoreIds: task.excludedStoreIds,
+      videoUrl: task.videoUrl ?? "",
+    })
+  }
+
+  function saveEditTask(taskId: string) {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id !== taskId
+          ? t
+          : {
+              ...t,
+              ...editDraft,
+              estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null,
+            }
+      )
+    )
+    setEditingTaskId(null)
+  }
 
   function addTask() {
     const task: Task = {
@@ -96,7 +155,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       orderIndex: tasks.length,
     }
     setTasks((p) => [...p, task])
-    setNewTask({ sectionName: "", description: "", estimatedTimeMinutes: 5, requiresPhoto: false, requiresTemp: false, isCritical: false, excludedStoreIds: [] })
+    setNewTask(emptyTaskFields)
     setShowAddTask(false)
   }
 
@@ -112,6 +171,15 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
 
   function toggleNewTaskExclusion(storeId: string) {
     setNewTask((prev) => ({
+      ...prev,
+      excludedStoreIds: prev.excludedStoreIds.includes(storeId)
+        ? prev.excludedStoreIds.filter((s) => s !== storeId)
+        : [...prev.excludedStoreIds, storeId],
+    }))
+  }
+
+  function toggleEditDraftExclusion(storeId: string) {
+    setEditDraft((prev) => ({
       ...prev,
       excludedStoreIds: prev.excludedStoreIds.includes(storeId)
         ? prev.excludedStoreIds.filter((s) => s !== storeId)
@@ -347,67 +415,145 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
             ) : (
               <div className="space-y-2">
                 {tasks.map((task, idx) => (
-                  <div key={task.id} className={`p-3 rounded-md border ${task.isCritical ? "border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/5" : "border-[var(--color-border)] bg-[var(--color-background)]"}`}>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm text-[var(--color-muted-foreground)] w-5">{idx + 1}.</span>
-                          {task.isCritical && (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] px-1.5 py-0.5 rounded">
-                              <AlertTriangle className="h-3 w-3" /> CRITICAL
-                            </span>
-                          )}
-                          {task.requiresPhoto && (
-                            <span className="inline-flex items-center gap-1 text-xs bg-[var(--color-info-bg)] text-[var(--color-info-text)] border border-[var(--color-info-border)] px-1.5 py-0.5 rounded">
-                              <Camera className="h-3 w-3" /> Photo
-                            </span>
-                          )}
+                  <div key={task.id} className={`rounded-md border ${task.isCritical ? "border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/5" : "border-[var(--color-border)] bg-[var(--color-background)]"}`}>
+                    {editingTaskId === task.id ? (
+                      /* ── Inline edit form ── */
+                      <div className="p-4 space-y-3">
+                        <h3 className="text-sm font-medium">Edit Task</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Section Name</Label>
+                            <Input className="h-8 text-sm" value={editDraft.sectionName} onChange={(e) => setEditDraft((p) => ({ ...p, sectionName: e.target.value }))} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Est. Time (min)</Label>
+                            <Input className="h-8 text-sm" type="number" min={1} value={editDraft.estimatedTimeMinutes} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedTimeMinutes: Number(e.target.value) }))} />
+                          </div>
                         </div>
-                        <p className={`text-sm mt-0.5 ${task.isCritical ? "text-[var(--color-destructive)] font-medium" : "text-[var(--color-foreground)]"}`}>
-                          {task.description}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-[var(--color-muted-foreground)]">§ {task.sectionName}</span>
-                          {task.estimatedTimeMinutes && (
-                            <span className="text-xs text-[var(--color-muted-foreground)]">~{task.estimatedTimeMinutes} min</span>
-                          )}
+                        <div className="space-y-1">
+                          <Label className="text-xs">Task Description</Label>
+                          <Textarea className="text-sm" rows={2} value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
                         </div>
-                      </div>
-                      <button onClick={() => removeTask(task.id)} className="p-1 rounded hover:bg-[var(--color-accent)]">
-                        <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)]" />
-                      </button>
-                    </div>
-                    {stores.length > 0 && (
-                      <div className="mt-2">
-                        {expandedTaskExclusions.has(task.id) ? (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Training Video URL (optional)</Label>
+                          <Input className="h-8 text-sm" type="url" placeholder="https://..." value={editDraft.videoUrl} onChange={(e) => setEditDraft((p) => ({ ...p, videoUrl: e.target.value }))} />
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={editDraft.requiresPhoto} onChange={(e) => setEditDraft((p) => ({ ...p, requiresPhoto: e.target.checked }))} className="rounded" />
+                            Requires Photo
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={editDraft.requiresTemp} onChange={(e) => setEditDraft((p) => ({ ...p, requiresTemp: e.target.checked }))} className="rounded" />
+                            Requires Temp
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={editDraft.isCritical} onChange={(e) => setEditDraft((p) => ({ ...p, isCritical: e.target.checked }))} className="rounded" />
+                            Critical
+                          </label>
+                        </div>
+                        {stores.length > 0 && (
                           <div className="p-3 bg-[var(--color-muted)]/20 rounded-md border border-[var(--color-border)]">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-medium text-[var(--color-muted-foreground)]">This task does not apply to:</p>
-                              <button
-                                onClick={() => setExpandedTaskExclusions((prev) => { const next = new Set(prev); next.delete(task.id); return next })}
-                                className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                              >Hide</button>
-                            </div>
+                            <p className="text-xs font-medium text-[var(--color-muted-foreground)] mb-2">This task does not apply to:</p>
                             <div className="grid grid-cols-2 gap-1">
                               {stores.map((s) => (
                                 <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
                                   <input
                                     type="checkbox"
-                                    checked={task.excludedStoreIds.includes(s.id)}
-                                    onChange={() => toggleTaskExclusion(task.id, s.id)}
+                                    checked={editDraft.excludedStoreIds.includes(s.id)}
+                                    onChange={() => toggleEditDraftExclusion(s.id)}
                                   />
                                   {s.storeNumber ? `#${s.storeNumber}` : s.name}
                                 </label>
                               ))}
                             </div>
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => setExpandedTaskExclusions((prev) => new Set([...prev, task.id]))}
-                            className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                          >
-                            {task.excludedStoreIds.length > 0 ? `Excluded from ${task.excludedStoreIds.length} store${task.excludedStoreIds.length !== 1 ? "s" : ""}` : "Exclude from stores ▾"}
-                          </button>
+                        )}
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => saveEditTask(task.id)} disabled={!editDraft.description || !editDraft.sectionName}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingTaskId(null)}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── Read-only row ── */
+                      <div className="p-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm text-[var(--color-muted-foreground)] w-5">{idx + 1}.</span>
+                              {task.isCritical && (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] px-1.5 py-0.5 rounded">
+                                  <AlertTriangle className="h-3 w-3" /> CRITICAL
+                                </span>
+                              )}
+                              {task.requiresPhoto && (
+                                <span className="inline-flex items-center gap-1 text-xs bg-[var(--color-info-bg)] text-[var(--color-info-text)] border border-[var(--color-info-border)] px-1.5 py-0.5 rounded">
+                                  <Camera className="h-3 w-3" /> Photo
+                                </span>
+                              )}
+                              {task.videoUrl && (
+                                <a
+                                  href={task.videoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80"
+                                >
+                                  <Play className="h-3 w-3" /> Video
+                                </a>
+                              )}
+                            </div>
+                            <p className={`text-sm mt-0.5 ${task.isCritical ? "text-[var(--color-destructive)] font-medium" : "text-[var(--color-foreground)]"}`}>
+                              {task.description}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs text-[var(--color-muted-foreground)]">§ {task.sectionName}</span>
+                              {task.estimatedTimeMinutes && (
+                                <span className="text-xs text-[var(--color-muted-foreground)]">~{task.estimatedTimeMinutes} min</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => startEditTask(task)} className="p-1 rounded hover:bg-[var(--color-accent)]">
+                              <Pencil className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                            </button>
+                            <button onClick={() => removeTask(task.id)} className="p-1 rounded hover:bg-[var(--color-accent)]">
+                              <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                            </button>
+                          </div>
+                        </div>
+                        {stores.length > 0 && (
+                          <div className="mt-2">
+                            {expandedTaskExclusions.has(task.id) ? (
+                              <div className="p-3 bg-[var(--color-muted)]/20 rounded-md border border-[var(--color-border)]">
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-medium text-[var(--color-muted-foreground)]">This task does not apply to:</p>
+                                  <button
+                                    onClick={() => setExpandedTaskExclusions((prev) => { const next = new Set(prev); next.delete(task.id); return next })}
+                                    className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                                  >Hide</button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1">
+                                  {stores.map((s) => (
+                                    <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
+                                      <input
+                                        type="checkbox"
+                                        checked={task.excludedStoreIds.includes(s.id)}
+                                        onChange={() => toggleTaskExclusion(task.id, s.id)}
+                                      />
+                                      {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setExpandedTaskExclusions((prev) => new Set([...prev, task.id]))}
+                                className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                              >
+                                {task.excludedStoreIds.length > 0 ? `Excluded from ${task.excludedStoreIds.length} store${task.excludedStoreIds.length !== 1 ? "s" : ""}` : "Exclude from stores ▾"}
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -432,6 +578,10 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 <div className="space-y-1">
                   <Label className="text-xs">Task Description</Label>
                   <Textarea className="text-sm" rows={2} placeholder="Describe the task..." value={newTask.description} onChange={(e) => setNewTask((p) => ({ ...p, description: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Training Video URL (optional)</Label>
+                  <Input className="h-8 text-sm" type="url" placeholder="https://..." value={newTask.videoUrl} onChange={(e) => setNewTask((p) => ({ ...p, videoUrl: e.target.value }))} />
                 </div>
                 <div className="flex items-center gap-4 text-sm">
                   <label className="flex items-center gap-1.5 cursor-pointer">

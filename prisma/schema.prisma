@@ -166,6 +166,7 @@ model Task {
   isCritical           Boolean  @default(false)
   orderIndex           Int      @default(0)
   excludedStoreIds     String[]
+  videoUrl             String?
 
   template Template  @relation(fields: [templateId], references: [id], onDelete: Cascade)
   taskLogs TaskLog[]

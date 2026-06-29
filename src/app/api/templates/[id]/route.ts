@@ -38,7 +38,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       tasks: {
         create: (tasks ?? []).map((t: {
           sectionName: string; description: string; estimatedTimeMinutes?: number;
-          requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[];
+          requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[]; videoUrl?: string;
         }) => ({
           sectionName: t.sectionName,
           description: t.description,
@@ -48,6 +48,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           isCritical: t.isCritical ?? false,
           orderIndex: t.orderIndex ?? 0,
           excludedStoreIds: t.excludedStoreIds ?? [],
+          videoUrl: t.videoUrl || null,
         })),
       },
       storeAssignments: storeIds?.length
