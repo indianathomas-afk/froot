@@ -89,6 +89,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const [name, setName] = useState(initialData?.name ?? "")
   const [description, setDescription] = useState(initialData?.description ?? "")
@@ -193,6 +194,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
 
   async function handleSave() {
     setSaving(true)
+    setSaveError(null)
     try {
       const payload = {
         name, description, type, frequency,
@@ -205,21 +207,28 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         tasks: tasks.map((t, i) => ({ ...t, orderIndex: i })),
       }
 
-      if (isEdit) {
-        await fetch(`/api/templates/${initialData!.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-      } else {
-        await fetch("/api/templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
+      const res = isEdit
+        ? await fetch(`/api/templates/${initialData!.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/templates", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        setSaveError(body?.error ?? "Failed to save template. Please try again.")
+        return
       }
+
       router.push("/templates")
       router.refresh()
+    } catch {
+      setSaveError("Failed to save template. Please check your connection and try again.")
     } finally {
       setSaving(false)
     }
@@ -245,7 +254,10 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
             <p className="text-sm text-[var(--color-muted-foreground)]">Design a checklist template with tasks and time estimates</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {saveError && (
+            <p className="text-sm text-[var(--color-destructive)]">{saveError}</p>
+          )}
           {isEdit && (
             <Button variant="destructive" size="sm">Delete</Button>
           )}
@@ -630,7 +642,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
             <div className="space-y-3">
               {[
                 { label: "Total Tasks", value: tasks.length },
-                { label: "Estimated Time", value: totalMinutes > 0 ? `${Math.floor(totalMinutes / 60) > 0 ? Math.floor(totalMinutes / 60) + "h " : ""}${totalMinutes % 60}m` : "0m" },
+                { label: "Estimated Time", value: totalMinutes > 0 ? `${Math.floor(Math.round(totalMinutes) / 60) > 0 ? Math.floor(Math.round(totalMinutes) / 60) + "h " : ""}${Math.round(totalMinutes) % 60}m` : "0m" },
                 { label: "Critical Tasks", value: criticalCount },
                 { label: "Photo Requirements", value: photoCount },
                 { label: "Sections", value: sections },

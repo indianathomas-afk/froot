@@ -27,38 +27,45 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { tasks, storeIds, appliesTo, ...templateData } = body
 
-  await prisma.task.deleteMany({ where: { templateId: id } })
-  await prisma.templateStoreAssignment.deleteMany({ where: { templateId: id } })
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.task.deleteMany({ where: { templateId: id } })
+      await tx.templateStoreAssignment.deleteMany({ where: { templateId: id } })
 
-  const updated = await prisma.template.update({
-    where: { id },
-    data: {
-      ...templateData,
-      appliesTo: appliesTo ?? "all",
-      tasks: {
-        create: (tasks ?? []).map((t: {
-          sectionName: string; description: string; estimatedTimeMinutes?: number;
-          requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[]; videoUrl?: string;
-        }) => ({
-          sectionName: t.sectionName,
-          description: t.description,
-          estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
-          requiresPhoto: t.requiresPhoto ?? false,
-          requiresTemp: t.requiresTemp ?? false,
-          isCritical: t.isCritical ?? false,
-          orderIndex: t.orderIndex ?? 0,
-          excludedStoreIds: t.excludedStoreIds ?? [],
-          videoUrl: t.videoUrl || null,
-        })),
-      },
-      storeAssignments: storeIds?.length
-        ? { create: (storeIds as string[]).map((sid: string) => ({ storeId: sid })) }
-        : undefined,
-    },
-    include: { tasks: true, storeAssignments: true },
-  })
+      return tx.template.update({
+        where: { id },
+        data: {
+          ...templateData,
+          appliesTo: appliesTo ?? "all",
+          tasks: {
+            create: (tasks ?? []).map((t: {
+              sectionName: string; description: string; estimatedTimeMinutes?: number;
+              requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[]; videoUrl?: string;
+            }) => ({
+              sectionName: t.sectionName,
+              description: t.description,
+              estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
+              requiresPhoto: t.requiresPhoto ?? false,
+              requiresTemp: t.requiresTemp ?? false,
+              isCritical: t.isCritical ?? false,
+              orderIndex: t.orderIndex ?? 0,
+              excludedStoreIds: t.excludedStoreIds ?? [],
+              videoUrl: t.videoUrl || null,
+            })),
+          },
+          storeAssignments: storeIds?.length
+            ? { create: (storeIds as string[]).map((sid: string) => ({ storeId: sid })) }
+            : undefined,
+        },
+        include: { tasks: true, storeAssignments: true },
+      })
+    })
 
-  return NextResponse.json(updated)
+    return NextResponse.json(updated)
+  } catch (err) {
+    console.error("Failed to update template", err)
+    return NextResponse.json({ error: "Failed to save template" }, { status: 500 })
+  }
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
