@@ -22,24 +22,26 @@ import { cn } from "@/lib/utils"
 import { useClerk, useUser } from "@clerk/nextjs"
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/checklists", label: "Checklists", icon: CheckSquare },
-  { href: "/templates", label: "Templates", icon: FileText },
-  { href: "/stores", label: "Stores", icon: Store },
-  { href: "/users", label: "Users", icon: Users },
-  { href: "/staff", label: "Staff", icon: UserSquare },
-  { href: "/reports", label: "Reports", icon: BarChart2 },
-  { href: "/store-view", label: "Store View", icon: Eye },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/checklists", label: "Checklists", icon: CheckSquare, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/templates", label: "Templates", icon: FileText, roles: ["ADMIN", "MANAGER"] },
+  { href: "/stores", label: "Stores", icon: Store, roles: ["ADMIN", "MANAGER"] },
+  { href: "/users", label: "Users", icon: Users, roles: ["ADMIN"] },
+  { href: "/staff", label: "Staff", icon: UserSquare, roles: ["ADMIN", "MANAGER"] },
+  { href: "/reports", label: "Reports", icon: BarChart2, roles: ["ADMIN", "MANAGER"] },
+  { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
 ]
 
 const STORAGE_KEY = "froot-sidebar-collapsed"
 
-export function Sidebar() {
+export function Sidebar({ role }: { role: string }) {
   const pathname = usePathname()
   const { signOut } = useClerk()
   const { user } = useUser()
   const [collapsed, setCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const visibleNavItems = navItems.filter((item) => item.roles.includes(role))
+  const canSeeSettings = role === "ADMIN"
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -77,7 +79,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {visibleNavItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || pathname.startsWith(href + "/")
           return (
             <Link
@@ -100,22 +102,24 @@ export function Sidebar() {
       </nav>
 
       {/* Settings */}
-      <div className="px-2 py-2">
-        <Link
-          href="/settings"
-          title={collapsed ? "Settings" : undefined}
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
-            collapsed ? "justify-center px-2" : "",
-            pathname.startsWith("/settings")
-              ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
-              : "text-[var(--color-foreground)] hover:bg-[var(--color-accent)]"
-          )}
-        >
-          <Settings className={cn("h-4 w-4 shrink-0", pathname.startsWith("/settings") ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} />
-          {!collapsed && "Settings"}
-        </Link>
-      </div>
+      {canSeeSettings && (
+        <div className="px-2 py-2">
+          <Link
+            href="/settings"
+            title={collapsed ? "Settings" : undefined}
+            className={cn(
+              "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
+              collapsed ? "justify-center px-2" : "",
+              pathname.startsWith("/settings")
+                ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
+                : "text-[var(--color-foreground)] hover:bg-[var(--color-accent)]"
+            )}
+          >
+            <Settings className={cn("h-4 w-4 shrink-0", pathname.startsWith("/settings") ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} />
+            {!collapsed && "Settings"}
+          </Link>
+        </div>
+      )}
 
       {/* User info */}
       <div className="border-t border-[var(--color-border)] px-3 py-3">

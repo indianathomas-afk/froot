@@ -22,3 +22,30 @@ export async function requireModule(module: "inventory" | "nutrition") {
     throw new Error(`MODULE_NOT_ACTIVE:${module}`)
   }
 }
+
+export async function getCurrentUser() {
+  const { userId } = await auth()
+  if (!userId) throw new Error("Unauthorized")
+  const org = await getOrganization()
+  const dbUser = await prisma.user.findUnique({
+    where: { clerkUserId: userId },
+    include: { storeAssignments: true },
+  })
+  return { userId, org, dbUser }
+}
+
+export async function requireAdmin() {
+  const { dbUser } = await getCurrentUser()
+  if (dbUser?.role !== "ADMIN") {
+    throw new Error("FORBIDDEN: Admin access required")
+  }
+  return dbUser
+}
+
+export async function requireManagerOrAdmin() {
+  const { dbUser } = await getCurrentUser()
+  if (dbUser?.role !== "ADMIN" && dbUser?.role !== "MANAGER") {
+    throw new Error("FORBIDDEN: Manager or Admin access required")
+  }
+  return dbUser
+}

@@ -4,6 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, XCircle } from "lucide-react"
 import Link from "next/link"
+import { requireAdmin } from "@/lib/auth"
+import { redirect } from "next/navigation"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -12,6 +14,12 @@ async function getOrgData() {
 }
 
 export default async function SettingsPage() {
+  try {
+    await requireAdmin()
+  } catch {
+    redirect("/dashboard")
+  }
+
   const org = await getOrgData()
   const isSquareConnected = !!org?.squareAccessToken
 

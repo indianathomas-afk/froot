@@ -2,6 +2,8 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { format } from "date-fns"
 import { InviteUserButton, EditUserButton, RemoveUserButton, RevokeInviteButton } from "./user-actions"
+import { requireAdmin } from "@/lib/auth"
+import { redirect } from "next/navigation"
 
 const ROLE_STYLES: Record<string, string> = {
   ADMIN: "bg-orange-100 text-orange-700 border border-orange-200",
@@ -23,13 +25,16 @@ async function getData() {
 
   if (!org) return { members: [], pendingInvites: [], stores: [] }
 
-  const [dbUsers, stores] = await Promise.all([
+  const [dbUsers, stores, pendingInviteRecords] = await Promise.all([
     prisma.user.findMany({
       where: { organizationId: org.id },
       include: { storeAssignments: { include: { store: true } } },
     }),
     prisma.store.findMany({ where: { organizationId: org.id }, orderBy: { name: "asc" } }),
+    prisma.pendingInvite.findMany({ where: { organizationId: org.id } }),
   ])
+  const storeById = new Map(stores.map((s) => [s.id, s]))
+  const pendingByEmail = new Map(pendingInviteRecords.map((p) => [p.email, p]))
 
   const dbByClerkId = new Map(dbUsers.map((u) => [u.clerkUserId, u]))
 
@@ -79,17 +84,27 @@ async function getData() {
     }
   })
 
-  const pendingInvites = pendingInvitations.data.map((inv) => ({
-    id: inv.id,
-    email: inv.emailAddress,
-    role: inv.role === "org:admin" ? "ADMIN" : "STORE",
-    createdAt: new Date(inv.createdAt),
-  }))
+  const pendingInvites = pendingInvitations.data.map((inv) => {
+    const pendingRecord = pendingByEmail.get(inv.emailAddress)
+    return {
+      id: inv.id,
+      email: inv.emailAddress,
+      role: pendingRecord?.role ?? (inv.role === "org:admin" ? "ADMIN" : "STORE"),
+      storeNames: (pendingRecord?.storeIds ?? []).map((id) => storeById.get(id)).filter((s): s is NonNullable<typeof s> => !!s),
+      createdAt: new Date(inv.createdAt),
+    }
+  })
 
   return { members, pendingInvites, stores }
 }
 
 export default async function UsersPage() {
+  try {
+    await requireAdmin()
+  } catch {
+    redirect("/dashboard")
+  }
+
   const { members, pendingInvites, stores } = await getData()
 
   const storeProps = stores.map((s) => ({ id: s.id, name: s.name, storeNumber: s.storeNumber }))
@@ -186,7 +201,19 @@ export default async function UsersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
+                      {inv.role === "ADMIN" ? (
+                        <span className="text-xs text-orange-600 font-medium">All locations</span>
+                      ) : inv.storeNames.length === 0 ? (
+                        <span className="text-xs text-[var(--color-muted-foreground)]">No locations assigned</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {inv.storeNames.map((s) => (
+                            <span key={s.id} className="inline-flex items-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium px-2 py-0.5">
+                              {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
                       {format(inv.createdAt, "M/d/yyyy")}

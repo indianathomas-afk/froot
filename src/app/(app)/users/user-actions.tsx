@@ -22,7 +22,16 @@ export function InviteUserButton({ stores }: { stores: Store[] }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [form, setForm] = useState({ email: "", role: "STORE" })
+  const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set())
   const router = useRouter()
+
+  function toggleStore(id: string) {
+    setSelectedStores((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -32,7 +41,7 @@ export function InviteUserButton({ stores }: { stores: Store[] }) {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, storeIds: Array.from(selectedStores) }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -41,6 +50,7 @@ export function InviteUserButton({ stores }: { stores: Store[] }) {
       }
       setOpen(false)
       setForm({ email: "", role: "STORE" })
+      setSelectedStores(new Set())
       router.refresh()
     } finally {
       setSaving(false)
@@ -54,7 +64,7 @@ export function InviteUserButton({ stores }: { stores: Store[] }) {
         Invite User
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invite User</DialogTitle>
           </DialogHeader>
@@ -83,8 +93,23 @@ export function InviteUserButton({ stores }: { stores: Store[] }) {
                 ))}
               </div>
             </div>
+            {form.role !== "ADMIN" && (
+              <div className="space-y-1.5">
+                <Label>Location Access</Label>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Select which store location(s) this user can access.</p>
+                <div className="border border-[var(--color-border)] rounded-lg max-h-48 overflow-y-auto p-2 space-y-1">
+                  {stores.map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 p-2 rounded hover:bg-[var(--color-accent)] cursor-pointer text-sm">
+                      <input type="checkbox" checked={selectedStores.has(s.id)} onChange={() => toggleStore(s.id)} />
+                      {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
+                    </label>
+                  ))}
+                  {stores.length === 0 && <p className="text-xs text-[var(--color-muted-foreground)] p-2">No stores yet.</p>}
+                </div>
+              </div>
+            )}
             {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
-            <p className="text-xs text-[var(--color-muted-foreground)]">An email invitation will be sent. You can assign store access after they accept.</p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">An email invitation will be sent with the selected role and location access already applied.</p>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={saving}>{saving ? "Sending..." : "Send Invitation"}</Button>

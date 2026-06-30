@@ -73,7 +73,15 @@ export async function POST(req: Request) {
         "org:manager": "MANAGER",
         "org:member": "STAFF",
       }
-      await prisma.user.upsert({
+
+      // Check for a pending invite to recover the originally intended app role + store assignment
+      const pending = await prisma.pendingInvite.findUnique({
+        where: { organizationId_email: { organizationId: org.id, email: membership.public_user_data.identifier } },
+      })
+
+      const resolvedRole = (pending?.role ?? roleMap[membership.role] ?? "STAFF") as "ADMIN" | "MANAGER" | "STAFF" | "STORE"
+
+      const user = await prisma.user.upsert({
         where: { clerkUserId: membership.public_user_data.user_id },
         update: {},
         create: {
@@ -81,9 +89,19 @@ export async function POST(req: Request) {
           organizationId: org.id,
           email: membership.public_user_data.identifier,
           name: [membership.public_user_data.first_name, membership.public_user_data.last_name].filter(Boolean).join(" ") || null,
-          role: (roleMap[membership.role] ?? "STAFF") as "ADMIN" | "MANAGER" | "STAFF" | "STORE",
+          role: resolvedRole,
         },
       })
+
+      if (pending) {
+        if (pending.storeIds.length > 0) {
+          await prisma.storeUserAssignment.createMany({
+            data: pending.storeIds.map((storeId) => ({ userId: user.id, storeId })),
+            skipDuplicates: true,
+          })
+        }
+        await prisma.pendingInvite.delete({ where: { id: pending.id } })
+      }
     }
   }
 

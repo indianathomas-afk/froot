@@ -3,9 +3,10 @@ import { AppShell } from "@/components/layout/app-shell"
 import { auth } from "@clerk/nextjs/server"
 import { OrganizationList } from "@clerk/nextjs"
 import Image from "next/image"
+import { prisma } from "@/lib/prisma"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { orgId } = await auth()
+  const { orgId, userId } = await auth()
 
   if (!orgId) {
     return (
@@ -24,9 +25,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     )
   }
 
+  const dbUser = userId ? await prisma.user.findUnique({ where: { clerkUserId: userId } }) : null
+
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar role={dbUser?.role ?? "STAFF"} />
       <AppShell>{children}</AppShell>
     </div>
   )
