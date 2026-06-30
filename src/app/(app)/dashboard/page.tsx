@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { getUserStoreScope } from "@/lib/auth"
 import { Store, CheckSquare, CheckCircle, BarChart2, ArrowRight, FileText } from "lucide-react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,30 +9,36 @@ async function getDashboardData() {
   const { orgId } = await auth()
   if (!orgId) return null
 
-  const org = await prisma.organization.findUnique({
-    where: { clerkOrgId: orgId },
-    include: {
-      stores: { where: { isActive: true } },
-      checklists: {
-        where: {
-          date: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999)),
-          },
-        },
-      },
-    },
-  })
-
+  const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return null
 
-  const today = org.checklists
-  const completed = today.filter((c) => c.status === "Completed").length
-  const total = today.length
+  const { isAdmin, storeIds } = await getUserStoreScope()
+
+  // Non-admins only ever see stats for their assigned store(s).
+  const checklistWhere: Record<string, unknown> = {
+    organizationId: org.id,
+    date: {
+      gte: new Date(new Date().setHours(0, 0, 0, 0)),
+      lt: new Date(new Date().setHours(23, 59, 59, 999)),
+    },
+  }
+  if (!isAdmin) checklistWhere.storeId = { in: storeIds }
+
+  const [activeStoreCount, todayChecklists] = await Promise.all([
+    isAdmin
+      ? prisma.store.count({ where: { organizationId: org.id, isActive: true } })
+      : Promise.resolve(storeIds.length),
+    prisma.checklist.findMany({ where: checklistWhere }),
+  ])
+
+  const completed = todayChecklists.filter((c) => c.status === "Completed").length
+  const total = todayChecklists.length
   const complianceRate = total > 0 ? Math.round((completed / total) * 100) : null
 
   return {
-    activeStores: org.stores.length,
+    isAdmin,
+    soleStoreId: !isAdmin && storeIds.length === 1 ? storeIds[0] : null,
+    activeStores: activeStoreCount,
     todayChecklists: total,
     completed,
     complianceRate,
@@ -40,14 +47,17 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
+  const isAdmin = data?.isAdmin ?? true
 
   const kpiCards = [
-    {
-      title: "Active Stores",
-      value: data?.activeStores ?? 0,
-      subtitle: "Across all locations",
-      icon: Store,
-    },
+    ...(isAdmin
+      ? [{
+          title: "Active Stores",
+          value: data?.activeStores ?? 0,
+          subtitle: "Across all locations",
+          icon: Store,
+        }]
+      : []),
     {
       title: "Today's Checklists",
       value: data?.todayChecklists ?? 0,
@@ -68,6 +78,36 @@ export default async function DashboardPage() {
     },
   ]
 
+  const checklistsHref = !isAdmin && data?.soleStoreId ? `/checklists?store=${data.soleStoreId}` : "/checklists"
+
+  const quickActions = [
+    ...(isAdmin
+      ? [
+          {
+            icon: Store,
+            title: "Manage Stores",
+            desc: "Add, edit, or configure your store locations and brand assignments",
+            href: "/stores",
+            label: "Go to Stores",
+          },
+          {
+            icon: FileText,
+            title: "Checklist Templates",
+            desc: "Create and manage checklist templates for different brands and shifts",
+            href: "/templates",
+            label: "Manage Templates",
+          },
+        ]
+      : []),
+    {
+      icon: CheckSquare,
+      title: "Daily Checklists",
+      desc: "View, complete, and track daily checklists across all locations",
+      href: checklistsHref,
+      label: "View Checklists",
+    },
+  ]
+
   return (
     <div>
       <div className="mb-8">
@@ -76,7 +116,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className={`grid gap-4 mb-8 ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}>
         {kpiCards.map(({ title, value, subtitle, icon: Icon }) => (
           <Card key={title}>
             <CardContent className="p-6">
@@ -94,30 +134,8 @@ export default async function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          {
-            icon: Store,
-            title: "Manage Stores",
-            desc: "Add, edit, or configure your store locations and brand assignments",
-            href: "/stores",
-            label: "Go to Stores",
-          },
-          {
-            icon: FileText,
-            title: "Checklist Templates",
-            desc: "Create and manage checklist templates for different brands and shifts",
-            href: "/templates",
-            label: "Manage Templates",
-          },
-          {
-            icon: CheckSquare,
-            title: "Daily Checklists",
-            desc: "View, complete, and track daily checklists across all locations",
-            href: "/checklists",
-            label: "View Checklists",
-          },
-        ].map(({ icon: Icon, title, desc, href, label }) => (
+      <div className={`grid gap-4 ${quickActions.length === 1 ? "grid-cols-1 max-w-sm" : "grid-cols-3"}`}>
+        {quickActions.map(({ icon: Icon, title, desc, href, label }) => (
           <Card key={title} className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="w-10 h-10 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center mb-4">

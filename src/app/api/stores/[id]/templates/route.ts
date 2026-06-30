@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { getUserStoreScope } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -12,6 +13,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
   const store = await prisma.store.findFirst({ where: { id: storeId, organizationId: org.id } })
   if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
+
+  const { isAdmin, storeIds } = await getUserStoreScope()
+  if (!isAdmin && !storeIds.includes(storeId)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const templates = await prisma.template.findMany({
     where: { organizationId: org.id, isActive: true, isArchived: false },

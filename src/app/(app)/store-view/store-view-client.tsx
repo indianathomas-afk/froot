@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Play, Store } from "lucide-react"
@@ -22,13 +22,15 @@ interface TemplateOption {
   existingStatus: string | null
 }
 
-export function StoreViewClient({ stores }: { stores: StoreItem[] }) {
-  const [selectedStoreId, setSelectedStoreId] = useState<string>("")
-  const [selectedStore, setSelectedStore] = useState<StoreItem | null>(null)
+export function StoreViewClient({ stores, autoStoreId }: { stores: StoreItem[]; autoStoreId?: string | null }) {
+  const autoStore = autoStoreId ? stores.find((s) => s.id === autoStoreId) ?? null : null
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(autoStoreId ?? "")
+  const [selectedStore, setSelectedStore] = useState<StoreItem | null>(autoStore)
   const [templates, setTemplates] = useState<TemplateOption[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(!!autoStore)
   const [starting, setStarting] = useState<string | null>(null)
   const router = useRouter()
+  const autoSelected = useRef(false)
 
   async function handleStoreSelect(storeId: string) {
     setSelectedStoreId(storeId)
@@ -44,6 +46,14 @@ export function StoreViewClient({ stores }: { stores: StoreItem[] }) {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (autoStoreId && !autoSelected.current) {
+      autoSelected.current = true
+      handleStoreSelect(autoStoreId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStoreId])
 
   async function startChecklist(template: TemplateOption) {
     // If checklist already exists today, go straight to it
@@ -111,9 +121,11 @@ export function StoreViewClient({ stores }: { stores: StoreItem[] }) {
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Store Dashboard: {selectedStore.name}</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Preview what staff members see at this location</p>
         </div>
-        <Button variant="outline" onClick={() => { setSelectedStore(null); setSelectedStoreId(""); setTemplates([]) }}>
-          Change Store
-        </Button>
+        {stores.length > 1 && (
+          <Button variant="outline" onClick={() => { setSelectedStore(null); setSelectedStoreId(""); setTemplates([]) }}>
+            Change Store
+          </Button>
+        )}
       </div>
 
       <div className="mb-4">

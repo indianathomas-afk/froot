@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { getUserStoreScope } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
@@ -9,12 +10,20 @@ export async function GET(req: Request) {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
+  const { isAdmin, storeIds } = await getUserStoreScope()
+
   const url = new URL(req.url)
   const storeId = url.searchParams.get("storeId")
   const today = url.searchParams.get("today")
 
+  // Non-admins can never widen access via a storeId query param — only a store
+  // they're actually assigned to is honored, otherwise we scope to all of theirs.
   const where: Record<string, unknown> = { organizationId: org.id }
-  if (storeId) where.storeId = storeId
+  if (!isAdmin) {
+    where.storeId = storeId && storeIds.includes(storeId) ? storeId : { in: storeIds }
+  } else if (storeId) {
+    where.storeId = storeId
+  }
   if (today) {
     const start = new Date()
     start.setHours(0, 0, 0, 0)

@@ -49,3 +49,13 @@ export async function requireManagerOrAdmin() {
   }
   return dbUser
 }
+
+// Returns the set of store IDs the current user is allowed to see.
+// isAdmin: true means unrestricted (all org stores). Otherwise storeIds is the
+// authoritative allow-list, sourced from StoreUserAssignment — never from URL params.
+export async function getUserStoreScope() {
+  const { dbUser } = await getCurrentUser()
+  const isAdmin = dbUser?.role === "ADMIN"
+  const storeIds = dbUser?.storeAssignments.map((a) => a.storeId) ?? []
+  return { isAdmin, storeIds, role: dbUser?.role ?? null }
+}

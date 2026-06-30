@@ -1,9 +1,10 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { getUserStoreScope } from "@/lib/auth"
 import { CheckSquare } from "lucide-react"
 import Link from "next/link"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format } from "date-fns"
+import { StoreFilter } from "./store-filter"
 
 const STATUS_STYLES: Record<string, { label: string; classes: string }> = {
   Pending: { label: "Not Started", classes: "bg-gray-100 text-gray-600 border border-gray-200" },
@@ -12,53 +13,87 @@ const STATUS_STYLES: Record<string, { label: string; classes: string }> = {
   "Non-Compliant": { label: "Non-Compliant", classes: "bg-red-50 text-[var(--color-destructive)] border border-red-200" },
 }
 
-async function getChecklists() {
+async function getChecklists(requestedStoreId: string | undefined) {
   const { orgId } = await auth()
-  if (!orgId) return { checklists: [], stores: [] }
+  if (!orgId) return { checklists: [], stores: [], lockedStoreId: null }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { checklists: [], stores: [] }
+  if (!org) return { checklists: [], stores: [], lockedStoreId: null }
+
+  const { isAdmin, storeIds } = await getUserStoreScope()
+
+  // Stores visible in the filter dropdown — admins see everything, everyone else
+  // only ever sees their own assignments.
+  const stores = await prisma.store.findMany({
+    where: isAdmin ? { organizationId: org.id } : { organizationId: org.id, id: { in: storeIds } },
+    orderBy: { name: "asc" },
+  })
+
+  // Validate the requested store against what this user is actually allowed to see.
+  // Never trust the URL param directly — a non-admin can't widen their own access
+  // by editing ?store=, and a single-store non-admin is hard-locked regardless of the param.
+  let effectiveStoreId: string | undefined
+  if (!isAdmin) {
+    if (storeIds.length === 1) {
+      effectiveStoreId = storeIds[0]
+    } else if (requestedStoreId && storeIds.includes(requestedStoreId)) {
+      effectiveStoreId = requestedStoreId
+    }
+    // else: multi-store non-admin with no/invalid selection → show all their stores
+  } else if (requestedStoreId) {
+    effectiveStoreId = requestedStoreId
+  }
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
 
-  const [checklists, stores] = await Promise.all([
-    prisma.checklist.findMany({
-      where: { organizationId: org.id, date: { gte: today, lt: tomorrow } },
-      include: { store: true, template: true },
-      orderBy: { date: "desc" },
-    }),
-    prisma.store.findMany({ where: { organizationId: org.id }, orderBy: { name: "asc" } }),
-  ])
+  const where: Record<string, unknown> = { organizationId: org.id, date: { gte: today, lt: tomorrow } }
+  if (effectiveStoreId) {
+    where.storeId = effectiveStoreId
+  } else if (!isAdmin) {
+    where.storeId = { in: storeIds }
+  }
 
-  return { checklists, stores }
+  const checklists = await prisma.checklist.findMany({
+    where,
+    include: { store: true, template: true },
+    orderBy: { date: "desc" },
+  })
+
+  return {
+    checklists,
+    stores,
+    lockedStoreId: !isAdmin && storeIds.length === 1 ? storeIds[0] : null,
+    selectedStoreId: effectiveStoreId ?? "all",
+  }
 }
 
-export default async function ChecklistsPage() {
-  const { checklists, stores } = await getChecklists()
+export default async function ChecklistsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ store?: string }>
+}) {
+  const { store } = await searchParams
+  const { checklists, stores, lockedStoreId, selectedStoreId } = await getChecklists(store)
 
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Daily Checklists</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">View and manage daily checklists across all locations</p>
+        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+          {lockedStoreId
+            ? `Viewing checklists for ${stores.find((s) => s.id === lockedStoreId)?.name ?? "your location"}`
+            : "View and manage daily checklists across all locations"}
+        </p>
       </div>
 
-      {/* Filter */}
-      <div className="mb-6">
-        <Select defaultValue="all">
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="All Stores" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Stores</SelectItem>
-            {stores.map((s) => (
-              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Filter — hidden entirely when the user is locked to a single store */}
+      {!lockedStoreId && (
+        <div className="mb-6">
+          <StoreFilter stores={stores.map((s) => ({ id: s.id, name: s.name }))} selected={selectedStoreId ?? "all"} />
+        </div>
+      )}
 
       {checklists.length === 0 ? (
         <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-16 text-center">

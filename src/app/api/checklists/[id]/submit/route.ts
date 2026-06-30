@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { getUserStoreScope } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,6 +16,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     include: { template: { include: { tasks: true } }, taskLogs: true },
   })
   if (!checklist) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  // Store-level users must still be able to submit their own checklists —
+  // only scope by store assignment, never block completion outright.
+  const { isAdmin, storeIds } = await getUserStoreScope()
+  if (!isAdmin && !storeIds.includes(checklist.storeId)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const totalTasks = checklist.template.tasks.length
   const completedTasks = checklist.taskLogs.length
