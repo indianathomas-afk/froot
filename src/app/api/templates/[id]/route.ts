@@ -25,11 +25,50 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json(updated)
   }
 
+  type IncomingTask = {
+    id?: string; sectionName: string; description: string; estimatedTimeMinutes?: number | null;
+    requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[]; videoUrl?: string | null;
+  }
   const { tasks, storeIds, appliesTo, ...templateData } = body
+  const incomingTasks: IncomingTask[] = Array.isArray(tasks) ? tasks : []
 
   try {
+    const existingTaskIds = new Set(
+      (await prisma.task.findMany({ where: { templateId: id }, select: { id: true } })).map((t) => t.id)
+    )
+    const incomingIds = new Set(incomingTasks.map((t) => t.id).filter((tid): tid is string => !!tid && existingTaskIds.has(tid)))
+    const idsToDelete = [...existingTaskIds].filter((tid) => !incomingIds.has(tid))
+
+    // Tasks with completion history (TaskLog) can't be deleted (RESTRICT FK) — leave them in place.
+    const blockedIds = new Set(
+      idsToDelete.length
+        ? (await prisma.taskLog.findMany({ where: { taskId: { in: idsToDelete } }, select: { taskId: true }, distinct: ["taskId"] })).map((l) => l.taskId)
+        : []
+    )
+    const safeToDelete = idsToDelete.filter((tid) => !blockedIds.has(tid))
+
+    const toUpdate = incomingTasks.filter((t) => t.id && existingTaskIds.has(t.id))
+    const toCreate = incomingTasks.filter((t) => !t.id || !existingTaskIds.has(t.id))
+
+    const taskData = (t: IncomingTask) => ({
+      sectionName: t.sectionName,
+      description: t.description,
+      estimatedTimeMinutes: t.estimatedTimeMinutes != null ? Math.round(t.estimatedTimeMinutes) : null,
+      requiresPhoto: t.requiresPhoto ?? false,
+      requiresTemp: t.requiresTemp ?? false,
+      isCritical: t.isCritical ?? false,
+      orderIndex: t.orderIndex ?? 0,
+      excludedStoreIds: t.excludedStoreIds ?? [],
+      videoUrl: t.videoUrl || null,
+    })
+
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.task.deleteMany({ where: { templateId: id } })
+      if (safeToDelete.length) {
+        await tx.task.deleteMany({ where: { id: { in: safeToDelete } } })
+      }
+      for (const t of toUpdate) {
+        await tx.task.update({ where: { id: t.id! }, data: taskData(t) })
+      }
       await tx.templateStoreAssignment.deleteMany({ where: { templateId: id } })
 
       return tx.template.update({
@@ -37,22 +76,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         data: {
           ...templateData,
           appliesTo: appliesTo ?? "all",
-          tasks: {
-            create: (tasks ?? []).map((t: {
-              sectionName: string; description: string; estimatedTimeMinutes?: number;
-              requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[]; videoUrl?: string;
-            }) => ({
-              sectionName: t.sectionName,
-              description: t.description,
-              estimatedTimeMinutes: t.estimatedTimeMinutes != null ? Math.round(t.estimatedTimeMinutes) : null,
-              requiresPhoto: t.requiresPhoto ?? false,
-              requiresTemp: t.requiresTemp ?? false,
-              isCritical: t.isCritical ?? false,
-              orderIndex: t.orderIndex ?? 0,
-              excludedStoreIds: t.excludedStoreIds ?? [],
-              videoUrl: t.videoUrl || null,
-            })),
-          },
+          tasks: toCreate.length ? { create: toCreate.map(taskData) } : undefined,
           storeAssignments: storeIds?.length
             ? { create: (storeIds as string[]).map((sid: string) => ({ storeId: sid })) }
             : undefined,
