@@ -225,3 +225,26 @@ export function RemoveUserButton({ clerkUserId, userName }: { clerkUserId: strin
     </button>
   )
 }
+
+// ── Revoke Invitation ────────────────────────────────────────────────────────
+export function RevokeInviteButton({ invitationId, email }: { invitationId: string; email: string }) {
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+
+  async function handleRevoke() {
+    if (!confirm(`Revoke the pending invitation for ${email}?`)) return
+    setLoading(true)
+    try {
+      await fetch(`/api/users/invitations/${invitationId}`, { method: "DELETE" })
+      router.refresh()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button onClick={handleRevoke} disabled={loading} className="p-1 rounded hover:bg-[var(--color-accent)]" title="Revoke invitation">
+      <X className="h-4 w-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]" />
+    </button>
+  )
+}

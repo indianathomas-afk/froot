@@ -1,7 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { format } from "date-fns"
-import { InviteUserButton, EditUserButton, RemoveUserButton } from "./user-actions"
+import { InviteUserButton, EditUserButton, RemoveUserButton, RevokeInviteButton } from "./user-actions"
 
 const ROLE_STYLES: Record<string, string> = {
   ADMIN: "bg-orange-100 text-orange-700 border border-orange-200",
@@ -192,7 +192,10 @@ export default async function UsersPage() {
                       {format(inv.createdAt, "M/d/yyyy")}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-xs text-[var(--color-muted-foreground)] italic">Awaiting acceptance</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[var(--color-muted-foreground)] italic">Awaiting acceptance</span>
+                        <RevokeInviteButton invitationId={inv.id} email={inv.email} />
+                      </div>
                     </td>
                   </tr>
                 ))}
