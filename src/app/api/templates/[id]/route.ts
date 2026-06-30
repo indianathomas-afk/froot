@@ -53,7 +53,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const taskData = (t: IncomingTask) => ({
       sectionName: t.sectionName,
       description: t.description,
-      estimatedTimeMinutes: t.estimatedTimeMinutes != null ? Math.round(t.estimatedTimeMinutes) : null,
+      estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
       requiresPhoto: t.requiresPhoto ?? false,
       requiresTemp: t.requiresTemp ?? false,
       isCritical: t.isCritical ?? false,

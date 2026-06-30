@@ -141,7 +141,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
           : {
               ...t,
               ...editDraft,
-              estimatedTimeMinutes: editDraft.estimatedTimeMinutes ? Math.round(editDraft.estimatedTimeMinutes) : null,
+              estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null,
             }
       )
     )
@@ -152,7 +152,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     const task: Task = {
       id: Math.random().toString(36),
       ...newTask,
-      estimatedTimeMinutes: newTask.estimatedTimeMinutes ? Math.round(newTask.estimatedTimeMinutes) : null,
+      estimatedTimeMinutes: newTask.estimatedTimeMinutes || null,
       orderIndex: tasks.length,
     }
     setTasks((p) => [...p, task])
@@ -207,7 +207,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         tasks: tasks.map((t, i) => ({
           ...t,
           orderIndex: i,
-          estimatedTimeMinutes: t.estimatedTimeMinutes != null ? Math.round(t.estimatedTimeMinutes) : null,
+          estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
         })),
       }
 

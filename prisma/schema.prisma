@@ -174,7 +174,7 @@ model Task {
   templateId           String
   sectionName          String
   description          String
-  estimatedTimeMinutes Int?
+  estimatedTimeMinutes Float?
   requiresPhoto        Boolean  @default(false)
   requiresTemp         Boolean  @default(false)
   isCritical           Boolean  @default(false)
