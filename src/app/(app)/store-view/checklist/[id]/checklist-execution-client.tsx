@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, AlertTriangle, Camera, User } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Camera, Printer, User } from "lucide-react"
 import Link from "next/link"
 
 interface TaskAttachment {
@@ -145,8 +145,19 @@ export function ChecklistExecutionClient({ checklist, staff }: Props) {
               )}
             </div>
           </div>
-          <div className="bg-[var(--color-muted)] rounded-lg px-3 py-1.5 text-sm font-semibold text-[var(--color-foreground)] tabular-nums">
-            {completedCount} / {totalTasks}
+          <div className="flex items-center gap-2">
+            <a
+              href={`/print/checklist/${checklist.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--color-primary)] text-[var(--color-primary)] text-sm font-medium hover:bg-[var(--color-primary)]/5 transition-colors"
+            >
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">Print</span>
+            </a>
+            <div className="bg-[var(--color-muted)] rounded-lg px-3 py-1.5 text-sm font-semibold text-[var(--color-foreground)] tabular-nums">
+              {completedCount} / {totalTasks}
+            </div>
           </div>
         </div>
         <div className="h-1 bg-[var(--color-muted)] mx-4 rounded-full overflow-hidden">
