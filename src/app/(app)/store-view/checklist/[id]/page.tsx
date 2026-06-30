@@ -18,7 +18,7 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
       store: true,
       template: {
         include: {
-          tasks: { orderBy: { orderIndex: "asc" } },
+          tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } },
         },
       },
       taskLogs: true,

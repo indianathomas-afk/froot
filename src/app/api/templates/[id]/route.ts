@@ -81,7 +81,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             ? { create: (storeIds as string[]).map((sid: string) => ({ storeId: sid })) }
             : undefined,
         },
-        include: { tasks: true, storeAssignments: true },
+        include: { tasks: { include: { attachment: true } }, storeAssignments: true },
       })
     })
 

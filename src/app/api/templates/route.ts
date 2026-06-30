@@ -11,7 +11,7 @@ export async function GET() {
 
   const templates = await prisma.template.findMany({
     where: { organizationId: org.id },
-    include: { tasks: { orderBy: { orderIndex: "asc" } } },
+    include: { tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } } },
     orderBy: { createdAt: "asc" },
   })
 

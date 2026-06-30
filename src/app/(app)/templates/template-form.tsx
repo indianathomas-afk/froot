@@ -3,13 +3,20 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+
+interface TaskAttachment {
+  id: string
+  label: string
+  url: string
+  contentType: string
+}
 
 interface Task {
   id: string
@@ -22,6 +29,7 @@ interface Task {
   orderIndex: number
   excludedStoreIds: string[]
   videoUrl?: string | null
+  attachment?: TaskAttachment | null
 }
 
 interface Store {
@@ -63,6 +71,9 @@ function getPhaseDescription(phase: string | null, start: number, end: number, a
   return ""
 }
 
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"]
+
 const emptyTaskFields = {
   sectionName: "",
   description: "",
@@ -83,6 +94,12 @@ interface EditDraft {
   isCritical: boolean
   excludedStoreIds: string[]
   videoUrl: string
+}
+
+function formatBytes(b: number) {
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
@@ -119,6 +136,24 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     estimatedTimeMinutes: 5,
   })
 
+  // Attachment state for new-task form
+  const [newAttachmentLabel, setNewAttachmentLabel] = useState("")
+  const [newAttachmentFile, setNewAttachmentFile] = useState<File | null>(null)
+  const [newAttachmentError, setNewAttachmentError] = useState("")
+
+  // Attachment state for inline edit form
+  const [editAttachmentLabel, setEditAttachmentLabel] = useState("")
+  const [editAttachmentFile, setEditAttachmentFile] = useState<File | null>(null)
+  const [editAttachmentError, setEditAttachmentError] = useState("")
+  // Existing attachment on the task being edited (null = removed)
+  const [editExistingAttachment, setEditExistingAttachment] = useState<TaskAttachment | null | undefined>(undefined)
+
+  function validateFile(file: File): string {
+    if (!ALLOWED_MIME.includes(file.type)) return "Only PDF, JPG, and PNG files are allowed"
+    if (file.size > MAX_FILE_BYTES) return "File must be 10 MB or smaller"
+    return ""
+  }
+
   function startEditTask(task: Task) {
     setEditingTaskId(task.id)
     setEditDraft({
@@ -131,32 +166,56 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       excludedStoreIds: task.excludedStoreIds,
       videoUrl: task.videoUrl ?? "",
     })
+    setEditExistingAttachment(task.attachment ?? null)
+    setEditAttachmentLabel(task.attachment?.label ?? "")
+    setEditAttachmentFile(null)
+    setEditAttachmentError("")
   }
 
-  function saveEditTask(taskId: string) {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id !== taskId
-          ? t
-          : {
-              ...t,
-              ...editDraft,
-              estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null,
-            }
-      )
-    )
+  async function saveEditTask(taskId: string) {
+    // If there's a new file to upload, do that first
+    if (editAttachmentFile) {
+      const form = new FormData()
+      form.append("file", editAttachmentFile)
+      form.append("taskId", taskId)
+      form.append("label", editAttachmentLabel || editAttachmentFile.name)
+      const res = await fetch("/api/upload/task-attachment", { method: "POST", body: form })
+      if (res.ok) {
+        const att = await res.json() as TaskAttachment
+        setTasks((prev) => prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: att }))
+      } else {
+        setEditAttachmentError("Upload failed. Please try again.")
+        return
+      }
+    } else if (editExistingAttachment === null) {
+      // User explicitly removed the attachment
+      await fetch(`/api/upload/task-attachment/${taskId}`, { method: "DELETE" })
+      setTasks((prev) => prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: null }))
+    } else {
+      setTasks((prev) => prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null }))
+    }
     setEditingTaskId(null)
   }
 
+  // Pending attachments for newly-added tasks (local ID → {file, label})
+  const [pendingAttachments, setPendingAttachments] = useState<Record<string, { file: File; label: string }>>({})
+
   function addTask() {
+    const localId = Math.random().toString(36)
     const task: Task = {
-      id: Math.random().toString(36),
+      id: localId,
       ...newTask,
       estimatedTimeMinutes: newTask.estimatedTimeMinutes || null,
       orderIndex: tasks.length,
     }
     setTasks((p) => [...p, task])
+    if (newAttachmentFile) {
+      setPendingAttachments((p) => ({ ...p, [localId]: { file: newAttachmentFile, label: newAttachmentLabel || newAttachmentFile.name } }))
+    }
     setNewTask(emptyTaskFields)
+    setNewAttachmentFile(null)
+    setNewAttachmentLabel("")
+    setNewAttachmentError("")
     setShowAddTask(false)
   }
 
@@ -227,6 +286,25 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         const body = await res.json().catch(() => null)
         setSaveError(body?.error ?? "Failed to save template. Please try again.")
         return
+      }
+
+      // Upload any pending attachments for newly-added tasks.
+      // The API returns saved tasks in the same order as the payload.
+      if (Object.keys(pendingAttachments).length > 0) {
+        const savedTemplate = await res.json() as { tasks: { id: string }[] }
+        const localIds = tasks.map((t) => t.id)
+        await Promise.all(
+          Object.entries(pendingAttachments).map(([localId, { file, label }]) => {
+            const idx = localIds.indexOf(localId)
+            const realTaskId = savedTemplate.tasks[idx]?.id
+            if (!realTaskId) return Promise.resolve()
+            const form = new FormData()
+            form.append("file", file)
+            form.append("taskId", realTaskId)
+            form.append("label", label)
+            return fetch("/api/upload/task-attachment", { method: "POST", body: form })
+          })
+        )
       }
 
       router.push("/templates")
@@ -454,6 +532,55 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                           <Label className="text-xs">Training Video URL (optional)</Label>
                           <Input className="h-8 text-sm" type="url" placeholder="https://..." value={editDraft.videoUrl} onChange={(e) => setEditDraft((p) => ({ ...p, videoUrl: e.target.value }))} />
                         </div>
+                        {/* Attachment section — edit form */}
+                        <div className="space-y-2 border border-[var(--color-border)] rounded-md p-3 bg-[var(--color-muted)]/10">
+                          <p className="text-xs font-medium text-[var(--color-foreground)]">Document / Image Attachment (optional)</p>
+                          {/* Existing attachment row */}
+                          {editExistingAttachment && !editAttachmentFile && (
+                            <div className="flex items-center gap-2 text-xs text-[var(--color-foreground)] bg-[var(--color-accent)] rounded px-2 py-1.5">
+                              {editExistingAttachment.contentType.startsWith("image/")
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                ? <img src={editExistingAttachment.url} alt="" className="w-5 h-5 rounded object-cover shrink-0" />
+                                : <FileText className="h-4 w-4 shrink-0 text-[var(--color-muted-foreground)]" />}
+                              <span className="flex-1 truncate">{editExistingAttachment.label}</span>
+                              <button type="button" onClick={() => setEditExistingAttachment(null)} className="ml-1 hover:text-[var(--color-destructive)]">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+                          {/* New file selected */}
+                          {editAttachmentFile ? (
+                            <div className="flex items-center gap-2 text-xs bg-[var(--color-accent)] rounded px-2 py-1.5">
+                              <FileText className="h-4 w-4 shrink-0 text-[var(--color-muted-foreground)]" />
+                              <span className="flex-1 truncate">{editAttachmentFile.name} ({formatBytes(editAttachmentFile.size)})</span>
+                              <button type="button" onClick={() => { setEditAttachmentFile(null); setEditAttachmentError("") }} className="ml-1 hover:text-[var(--color-destructive)]">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <Input
+                                className="h-8 text-sm"
+                                placeholder="File Description Name"
+                                value={editAttachmentLabel}
+                                onChange={(e) => setEditAttachmentLabel(e.target.value)}
+                              />
+                              <Input
+                                className="h-8 text-sm"
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0] ?? null
+                                  if (!f) return
+                                  const err = validateFile(f)
+                                  if (err) { setEditAttachmentError(err); e.target.value = "" }
+                                  else { setEditAttachmentFile(f); setEditAttachmentError("") }
+                                }}
+                              />
+                            </div>
+                          )}
+                          {editAttachmentError && <p className="text-xs text-[var(--color-destructive)]">{editAttachmentError}</p>}
+                        </div>
                         <div className="flex items-center gap-4 text-sm">
                           <label className="flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" checked={editDraft.requiresPhoto} onChange={(e) => setEditDraft((p) => ({ ...p, requiresPhoto: e.target.checked }))} className="rounded" />
@@ -515,6 +642,17 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                                   className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80"
                                 >
                                   <Play className="h-3 w-3" /> Video
+                                </a>
+                              )}
+                              {task.attachment && (
+                                <a
+                                  href={task.attachment.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80 max-w-[140px]"
+                                >
+                                  <FileText className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{task.attachment.label}</span>
                                 </a>
                               )}
                             </div>
@@ -598,6 +736,41 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 <div className="space-y-1">
                   <Label className="text-xs">Training Video URL (optional)</Label>
                   <Input className="h-8 text-sm" type="url" placeholder="https://..." value={newTask.videoUrl} onChange={(e) => setNewTask((p) => ({ ...p, videoUrl: e.target.value }))} />
+                </div>
+                {/* Attachment section — new task form */}
+                <div className="space-y-2 border border-[var(--color-border)] rounded-md p-3 bg-[var(--color-muted)]/10">
+                  <p className="text-xs font-medium text-[var(--color-foreground)]">Document / Image Attachment (optional)</p>
+                  {newAttachmentFile ? (
+                    <div className="flex items-center gap-2 text-xs bg-[var(--color-accent)] rounded px-2 py-1.5">
+                      <FileText className="h-4 w-4 shrink-0 text-[var(--color-muted-foreground)]" />
+                      <span className="flex-1 truncate">{newAttachmentFile.name} ({formatBytes(newAttachmentFile.size)})</span>
+                      <button type="button" onClick={() => { setNewAttachmentFile(null); setNewAttachmentError("") }} className="ml-1 hover:text-[var(--color-destructive)]">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Input
+                        className="h-8 text-sm"
+                        placeholder="File Description Name"
+                        value={newAttachmentLabel}
+                        onChange={(e) => setNewAttachmentLabel(e.target.value)}
+                      />
+                      <Input
+                        className="h-8 text-sm"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null
+                          if (!f) return
+                          const err = validateFile(f)
+                          if (err) { setNewAttachmentError(err); e.target.value = "" }
+                          else { setNewAttachmentFile(f); setNewAttachmentError("") }
+                        }}
+                      />
+                    </div>
+                  )}
+                  {newAttachmentError && <p className="text-xs text-[var(--color-destructive)]">{newAttachmentError}</p>}
                 </div>
                 <div className="flex items-center gap-4 text-sm">
                   <label className="flex items-center gap-1.5 cursor-pointer">

@@ -182,8 +182,21 @@ model Task {
   excludedStoreIds     String[]
   videoUrl             String?
 
-  template Template  @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  taskLogs TaskLog[]
+  template   Template        @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  taskLogs   TaskLog[]
+  attachment TaskAttachment?
+}
+
+model TaskAttachment {
+  id          String   @id @default(cuid())
+  taskId      String   @unique
+  label       String
+  url         String
+  contentType String
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }
 
 model Checklist {

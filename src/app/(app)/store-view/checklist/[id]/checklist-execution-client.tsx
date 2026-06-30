@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, AlertTriangle, Camera, User } from "lucide-react"
 import Link from "next/link"
 
+interface TaskAttachment {
+  id: string
+  label: string
+  url: string
+  contentType: string
+}
+
 interface Task {
   id: string
   sectionName: string
@@ -14,6 +21,7 @@ interface Task {
   requiresTemp: boolean
   isCritical: boolean
   orderIndex: number
+  attachment: TaskAttachment | null
 }
 
 interface TaskLog {
@@ -207,6 +215,36 @@ export function ChecklistExecutionClient({ checklist, staff }: Props) {
                           )}
                         </div>
                       </div>
+
+                      {/* Attachment link */}
+                      {task.attachment && (
+                        <div className="mt-2 ml-8">
+                          {task.attachment.contentType.startsWith("image/") ? (
+                            <a
+                              href={task.attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 min-h-[44px] py-2 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] hover:bg-[var(--color-accent)] transition-colors text-sm text-[var(--color-foreground)]"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={task.attachment.url} alt="" className="w-6 h-6 rounded object-cover shrink-0" />
+                              <span>{task.attachment.label} — View Image →</span>
+                            </a>
+                          ) : (
+                            <a
+                              href={task.attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 min-h-[44px] py-2 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] hover:bg-[var(--color-accent)] transition-colors text-sm text-[var(--color-foreground)]"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="text-base">📄</span>
+                              <span>{task.attachment.label} — View Document →</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
 
                       {/* Staff picker */}
                       {isPicking && (
