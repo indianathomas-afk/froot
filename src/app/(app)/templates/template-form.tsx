@@ -141,7 +141,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
           : {
               ...t,
               ...editDraft,
-              estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null,
+              estimatedTimeMinutes: editDraft.estimatedTimeMinutes ? Math.round(editDraft.estimatedTimeMinutes) : null,
             }
       )
     )
@@ -152,7 +152,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     const task: Task = {
       id: Math.random().toString(36),
       ...newTask,
-      estimatedTimeMinutes: newTask.estimatedTimeMinutes || null,
+      estimatedTimeMinutes: newTask.estimatedTimeMinutes ? Math.round(newTask.estimatedTimeMinutes) : null,
       orderIndex: tasks.length,
     }
     setTasks((p) => [...p, task])
@@ -204,7 +204,11 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         endOffsetHours: availType === "StoreHours" ? endOffset : null,
         appliesTo,
         storeIds: appliesTo === "selected" ? Array.from(selectedStoreIds) : [],
-        tasks: tasks.map((t, i) => ({ ...t, orderIndex: i })),
+        tasks: tasks.map((t, i) => ({
+          ...t,
+          orderIndex: i,
+          estimatedTimeMinutes: t.estimatedTimeMinutes != null ? Math.round(t.estimatedTimeMinutes) : null,
+        })),
       }
 
       const res = isEdit
@@ -439,7 +443,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Est. Time (min)</Label>
-                            <Input className="h-8 text-sm" type="number" min={1} value={editDraft.estimatedTimeMinutes} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedTimeMinutes: Number(e.target.value) }))} />
+                            <Input className="h-8 text-sm" type="number" min={1} step={1} value={editDraft.estimatedTimeMinutes} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedTimeMinutes: Math.round(Number(e.target.value)) }))} />
                           </div>
                         </div>
                         <div className="space-y-1">
@@ -584,7 +588,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Est. Time (min)</Label>
-                    <Input className="h-8 text-sm" type="number" min={1} value={newTask.estimatedTimeMinutes} onChange={(e) => setNewTask((p) => ({ ...p, estimatedTimeMinutes: Number(e.target.value) }))} />
+                    <Input className="h-8 text-sm" type="number" min={1} step={1} value={newTask.estimatedTimeMinutes} onChange={(e) => setNewTask((p) => ({ ...p, estimatedTimeMinutes: Math.round(Number(e.target.value)) }))} />
                   </div>
                 </div>
                 <div className="space-y-1">
