@@ -443,7 +443,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Est. Time (min)</Label>
-                            <Input className="h-8 text-sm" type="number" min={1} step={1} value={editDraft.estimatedTimeMinutes} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedTimeMinutes: Math.round(Number(e.target.value)) }))} />
+                            <Input className="h-8 text-sm" type="number" min={0} step={0.5} value={editDraft.estimatedTimeMinutes} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedTimeMinutes: Number(e.target.value) }))} />
                           </div>
                         </div>
                         <div className="space-y-1">
@@ -588,7 +588,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Est. Time (min)</Label>
-                    <Input className="h-8 text-sm" type="number" min={1} step={1} value={newTask.estimatedTimeMinutes} onChange={(e) => setNewTask((p) => ({ ...p, estimatedTimeMinutes: Math.round(Number(e.target.value)) }))} />
+                    <Input className="h-8 text-sm" type="number" min={0} step={0.5} value={newTask.estimatedTimeMinutes} onChange={(e) => setNewTask((p) => ({ ...p, estimatedTimeMinutes: Number(e.target.value) }))} />
                   </div>
                 </div>
                 <div className="space-y-1">
