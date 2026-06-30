@@ -137,6 +137,7 @@ export function EditUserButton({
 }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
   const [role, setRole] = useState(currentRole)
   const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set(currentStoreIds))
   const router = useRouter()
@@ -152,12 +153,18 @@ export function EditUserButton({
   async function handleSave() {
     if (!dbUserId) return
     setSaving(true)
+    setError("")
     try {
-      await fetch(`/api/users/${dbUserId}`, {
+      const res = await fetch(`/api/users/${dbUserId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, storeIds: Array.from(selectedStores) }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? "Failed to save changes")
+        return
+      }
       setOpen(false)
       router.refresh()
     } finally {
@@ -217,6 +224,7 @@ export function EditUserButton({
                 <p className="text-xs text-orange-700">Admins have access to all locations automatically.</p>
               </div>
             )}
+            {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

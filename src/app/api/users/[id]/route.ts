@@ -20,8 +20,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { role, storeIds } = await req.json()
 
+  const existing = await prisma.user.findFirst({ where: { id, organizationId: org.id } })
+  if (!existing) {
+    return NextResponse.json({ error: "User not found in this organization" }, { status: 404 })
+  }
+
   const user = await prisma.user.update({
-    where: { id, organizationId: org.id },
+    where: { id },
     data: {
       role,
       storeAssignments: {
