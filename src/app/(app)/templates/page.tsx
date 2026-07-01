@@ -27,14 +27,32 @@ function TypeBadge({ type }: { type: string }) {
   )
 }
 
+type TemplateTask = {
+  id: string
+  sectionName: string
+  description: string
+  estimatedTimeMinutes: number | null
+  requiresPhoto: boolean
+  requiresTemp: boolean
+  isCritical: boolean
+  orderIndex: number
+  excludedStoreIds: string[]
+  videoUrl: string | null
+}
+
 type Template = {
   id: string
   name: string
   type: string
+  frequency: string
   availabilityType: string
+  operationalPhase: string | null
+  startOffsetHours: number | null
+  endOffsetHours: number | null
+  appliesTo: string
   isActive: boolean
   isArchived: boolean
-  tasks: { id: string }[]
+  tasks: TemplateTask[]
 }
 
 export default function TemplatesPage() {
@@ -104,7 +122,28 @@ export default function TemplatesPage() {
     await fetch("/api/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: `${template.name} (Copy)`, type: template.type, availabilityType: template.availabilityType, tasks: [] }),
+      body: JSON.stringify({
+        name: `${template.name} (Copy)`,
+        type: template.type,
+        frequency: template.frequency,
+        availabilityType: template.availabilityType,
+        operationalPhase: template.operationalPhase,
+        startOffsetHours: template.startOffsetHours,
+        endOffsetHours: template.endOffsetHours,
+        appliesTo: template.appliesTo,
+        isActive: false,
+        tasks: template.tasks.map((t) => ({
+          sectionName: t.sectionName,
+          description: t.description,
+          estimatedTimeMinutes: t.estimatedTimeMinutes,
+          requiresPhoto: t.requiresPhoto,
+          requiresTemp: t.requiresTemp,
+          isCritical: t.isCritical,
+          orderIndex: t.orderIndex,
+          excludedStoreIds: t.excludedStoreIds,
+          videoUrl: t.videoUrl ?? null,
+        })),
+      }),
     })
     await load()
   }

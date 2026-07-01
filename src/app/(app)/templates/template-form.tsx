@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
 interface TaskAttachment {
   id: string
@@ -107,6 +108,18 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const isEdit = !!initialData
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      await fetch(`/api/templates/${initialData!.id}`, { method: "DELETE" })
+      router.push("/templates")
+      router.refresh()
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const [name, setName] = useState(initialData?.name ?? "")
   const [description, setDescription] = useState(initialData?.description ?? "")
@@ -341,7 +354,31 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
             <p className="text-sm text-[var(--color-destructive)]">{saveError}</p>
           )}
           {isEdit && (
-            <Button variant="destructive" size="sm">Delete</Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={deleting}>
+                  {deleting ? "Deleting..." : "Delete"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this template?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the template and all its tasks. Any checklists already generated from this template will not be affected. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] hover:bg-[var(--color-destructive)]/90"
+                  >
+                    {deleting ? "Deleting..." : "Yes, Delete Template"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
           <Button onClick={handleSave} disabled={saving}>
             <Save className="h-4 w-4" />
