@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -11,6 +11,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent, closestCenter } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 interface TaskAttachment {
   id: string
@@ -103,6 +106,254 @@ function formatBytes(b: number) {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// ─── Sortable task row ────────────────────────────────────────────────────────
+
+interface SortableTaskRowProps {
+  task: Task
+  idx: number
+  editingTaskId: string | null
+  stores: Store[]
+  expandedTaskExclusions: Set<string>
+  setExpandedTaskExclusions: React.Dispatch<React.SetStateAction<Set<string>>>
+  editDraft: EditDraft
+  setEditDraft: React.Dispatch<React.SetStateAction<EditDraft>>
+  editExistingAttachment: TaskAttachment | null | undefined
+  setEditExistingAttachment: React.Dispatch<React.SetStateAction<TaskAttachment | null | undefined>>
+  editAttachmentLabel: string
+  setEditAttachmentLabel: React.Dispatch<React.SetStateAction<string>>
+  editAttachmentFile: File | null
+  setEditAttachmentFile: React.Dispatch<React.SetStateAction<File | null>>
+  editAttachmentError: string
+  setEditAttachmentError: React.Dispatch<React.SetStateAction<string>>
+  validateFile: (f: File) => string
+  startEditTask: (task: Task) => void
+  saveEditTask: (taskId: string) => Promise<void>
+  setEditingTaskId: React.Dispatch<React.SetStateAction<string | null>>
+  removeTask: (id: string) => void
+  toggleTaskExclusion: (taskId: string, storeId: string) => void
+  toggleEditDraftExclusion: (storeId: string) => void
+}
+
+function SortableTaskRow({
+  task, idx, editingTaskId, stores,
+  expandedTaskExclusions, setExpandedTaskExclusions,
+  editDraft, setEditDraft,
+  editExistingAttachment, setEditExistingAttachment,
+  editAttachmentLabel, setEditAttachmentLabel,
+  editAttachmentFile, setEditAttachmentFile,
+  editAttachmentError, setEditAttachmentError,
+  validateFile, startEditTask, saveEditTask, setEditingTaskId,
+  removeTask, toggleTaskExclusion, toggleEditDraftExclusion,
+}: SortableTaskRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
+  const isEditing = editingTaskId === task.id
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    boxShadow: isDragging ? "0 4px 12px rgba(0,0,0,0.15)" : undefined,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-md border ${task.isCritical ? "border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/5" : "border-[var(--color-border)] bg-[var(--color-background)]"}`}
+    >
+      {isEditing ? (
+        /* ── Inline edit form ── */
+        <div className="p-4 space-y-3">
+          <h3 className="text-sm font-medium">Edit Task</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Section Name</Label>
+              <Input className="h-8 text-sm" value={editDraft.sectionName} onChange={(e) => setEditDraft((p) => ({ ...p, sectionName: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Est. Time (min)</Label>
+              <Input className="h-8 text-sm" type="number" min={0} step={0.5} value={editDraft.estimatedTimeMinutes} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedTimeMinutes: Number(e.target.value) }))} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Task Description</Label>
+            <Textarea className="text-sm" rows={2} value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Training Video URL (optional)</Label>
+            <Input className="h-8 text-sm" type="url" placeholder="https://..." value={editDraft.videoUrl} onChange={(e) => setEditDraft((p) => ({ ...p, videoUrl: e.target.value }))} />
+          </div>
+          {/* Attachment section */}
+          <div className="space-y-2 border border-[var(--color-border)] rounded-md p-3 bg-[var(--color-muted)]/10">
+            <p className="text-xs font-medium text-[var(--color-foreground)]">Document / Image Attachment (optional)</p>
+            {editExistingAttachment && !editAttachmentFile && (
+              <div className="flex items-center gap-2 text-xs text-[var(--color-foreground)] bg-[var(--color-accent)] rounded px-2 py-1.5">
+                {editExistingAttachment.contentType.startsWith("image/")
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={editExistingAttachment.url} alt="" className="w-5 h-5 rounded object-cover shrink-0" />
+                  : <FileText className="h-4 w-4 shrink-0 text-[var(--color-muted-foreground)]" />}
+                <span className="flex-1 truncate">{editExistingAttachment.label}</span>
+                <button type="button" onClick={() => setEditExistingAttachment(null)} className="ml-1 hover:text-[var(--color-destructive)]">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+            {editAttachmentFile ? (
+              <div className="flex items-center gap-2 text-xs bg-[var(--color-accent)] rounded px-2 py-1.5">
+                <FileText className="h-4 w-4 shrink-0 text-[var(--color-muted-foreground)]" />
+                <span className="flex-1 truncate">{editAttachmentFile.name} ({formatBytes(editAttachmentFile.size)})</span>
+                <button type="button" onClick={() => { setEditAttachmentFile(null); setEditAttachmentError("") }} className="ml-1 hover:text-[var(--color-destructive)]">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Input className="h-8 text-sm" placeholder="File Description Name" value={editAttachmentLabel} onChange={(e) => setEditAttachmentLabel(e.target.value)} />
+                <Input
+                  className="h-8 text-sm"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null
+                    if (!f) return
+                    const err = validateFile(f)
+                    if (err) { setEditAttachmentError(err); e.target.value = "" }
+                    else { setEditAttachmentFile(f); setEditAttachmentError("") }
+                  }}
+                />
+              </div>
+            )}
+            {editAttachmentError && <p className="text-xs text-[var(--color-destructive)]">{editAttachmentError}</p>}
+          </div>
+          <div className="flex items-center gap-4 text-sm">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={editDraft.requiresPhoto} onChange={(e) => setEditDraft((p) => ({ ...p, requiresPhoto: e.target.checked }))} className="rounded" />
+              Requires Photo
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={editDraft.requiresTemp} onChange={(e) => setEditDraft((p) => ({ ...p, requiresTemp: e.target.checked }))} className="rounded" />
+              Requires Temp
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={editDraft.isCritical} onChange={(e) => setEditDraft((p) => ({ ...p, isCritical: e.target.checked }))} className="rounded" />
+              Critical
+            </label>
+          </div>
+          {stores.length > 0 && (
+            <div className="p-3 bg-[var(--color-muted)]/20 rounded-md border border-[var(--color-border)]">
+              <p className="text-xs font-medium text-[var(--color-muted-foreground)] mb-2">This task does not apply to:</p>
+              <div className="grid grid-cols-2 gap-1">
+                {stores.map((s) => (
+                  <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
+                    <input type="checkbox" checked={editDraft.excludedStoreIds.includes(s.id)} onChange={() => toggleEditDraftExclusion(s.id)} />
+                    {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => saveEditTask(task.id)} disabled={!editDraft.description || !editDraft.sectionName}>Save</Button>
+            <Button size="sm" variant="outline" onClick={() => setEditingTaskId(null)}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        /* ── Read-only row ── */
+        <div className="p-3">
+          <div className="flex items-start gap-2">
+            {/* Drag handle */}
+            <div
+              {...listeners}
+              {...attributes}
+              className={`mt-0.5 p-1 rounded shrink-0 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-accent)] ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+              style={{ touchAction: "none" }}
+            >
+              <GripVertical className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-[var(--color-muted-foreground)] w-5">{idx + 1}.</span>
+                {task.isCritical && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] px-1.5 py-0.5 rounded">
+                    <AlertTriangle className="h-3 w-3" /> CRITICAL
+                  </span>
+                )}
+                {task.requiresPhoto && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-[var(--color-info-bg)] text-[var(--color-info-text)] border border-[var(--color-info-border)] px-1.5 py-0.5 rounded">
+                    <Camera className="h-3 w-3" /> Photo
+                  </span>
+                )}
+                {task.videoUrl && (
+                  <a href={task.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80">
+                    <Play className="h-3 w-3" /> Video
+                  </a>
+                )}
+                {task.attachment && (
+                  <a href={task.attachment.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80 max-w-[140px]">
+                    <FileText className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{task.attachment.label}</span>
+                  </a>
+                )}
+              </div>
+              <p className={`text-sm mt-0.5 ${task.isCritical ? "text-[var(--color-destructive)] font-medium" : "text-[var(--color-foreground)]"}`}>
+                {task.description}
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-[var(--color-muted-foreground)]">§ {task.sectionName}</span>
+                {task.estimatedTimeMinutes && (
+                  <span className="text-xs text-[var(--color-muted-foreground)]">~{task.estimatedTimeMinutes} min</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button onClick={() => startEditTask(task)} className="p-1 rounded hover:bg-[var(--color-accent)]">
+                <Pencil className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+              </button>
+              <button onClick={() => removeTask(task.id)} className="p-1 rounded hover:bg-[var(--color-accent)]">
+                <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+              </button>
+            </div>
+          </div>
+          {stores.length > 0 && (
+            <div className="mt-2 ml-7">
+              {expandedTaskExclusions.has(task.id) ? (
+                <div className="p-3 bg-[var(--color-muted)]/20 rounded-md border border-[var(--color-border)]">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-[var(--color-muted-foreground)]">This task does not apply to:</p>
+                    <button
+                      onClick={() => setExpandedTaskExclusions((prev) => { const next = new Set(prev); next.delete(task.id); return next })}
+                      className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                    >Hide</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {stores.map((s) => (
+                      <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
+                        <input type="checkbox" checked={task.excludedStoreIds.includes(s.id)} onChange={() => toggleTaskExclusion(task.id, s.id)} />
+                        {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setExpandedTaskExclusions((prev) => new Set([...prev, task.id]))}
+                  className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                >
+                  {task.excludedStoreIds.length > 0 ? `Excluded from ${task.excludedStoreIds.length} store${task.excludedStoreIds.length !== 1 ? "s" : ""}` : "Exclude from stores ▾"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main form ────────────────────────────────────────────────────────────────
+
 export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
@@ -144,10 +395,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
 
   // Inline edit state
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
-  const [editDraft, setEditDraft] = useState<EditDraft>({
-    ...emptyTaskFields,
-    estimatedTimeMinutes: 5,
-  })
+  const [editDraft, setEditDraft] = useState<EditDraft>({ ...emptyTaskFields, estimatedTimeMinutes: 5 })
 
   // Attachment state for new-task form
   const [newAttachmentLabel, setNewAttachmentLabel] = useState("")
@@ -158,8 +406,21 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const [editAttachmentLabel, setEditAttachmentLabel] = useState("")
   const [editAttachmentFile, setEditAttachmentFile] = useState<File | null>(null)
   const [editAttachmentError, setEditAttachmentError] = useState("")
-  // Existing attachment on the task being edited (null = removed)
   const [editExistingAttachment, setEditExistingAttachment] = useState<TaskAttachment | null | undefined>(undefined)
+
+  // dnd-kit sensors — distance:8 prevents accidental drags on button clicks
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      setTasks((items) => {
+        const oldIndex = items.findIndex((t) => t.id === active.id)
+        const newIndex = items.findIndex((t) => t.id === over.id)
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
+  }
 
   function validateFile(file: File): string {
     if (!ALLOWED_MIME.includes(file.type)) return "Only PDF, JPG, and PNG files are allowed"
@@ -186,7 +447,6 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   }
 
   async function saveEditTask(taskId: string) {
-    // If there's a new file to upload, do that first
     if (editAttachmentFile) {
       const form = new FormData()
       form.append("file", editAttachmentFile)
@@ -201,7 +461,6 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         return
       }
     } else if (editExistingAttachment === null) {
-      // User explicitly removed the attachment
       await fetch(`/api/upload/task-attachment/${taskId}`, { method: "DELETE" })
       setTasks((prev) => prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: null }))
     } else {
@@ -210,7 +469,6 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     setEditingTaskId(null)
   }
 
-  // Pending attachments for newly-added tasks (local ID → {file, label})
   const [pendingAttachments, setPendingAttachments] = useState<Record<string, { file: File; label: string }>>({})
 
   function addTask() {
@@ -276,24 +534,12 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         endOffsetHours: availType === "StoreHours" ? endOffset : null,
         appliesTo,
         storeIds: appliesTo === "selected" ? Array.from(selectedStoreIds) : [],
-        tasks: tasks.map((t, i) => ({
-          ...t,
-          orderIndex: i,
-          estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
-        })),
+        tasks: tasks.map((t, i) => ({ ...t, orderIndex: i, estimatedTimeMinutes: t.estimatedTimeMinutes ?? null })),
       }
 
       const res = isEdit
-        ? await fetch(`/api/templates/${initialData!.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          })
-        : await fetch("/api/templates", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          })
+        ? await fetch(`/api/templates/${initialData!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        : await fetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
 
       if (!res.ok) {
         const body = await res.json().catch(() => null)
@@ -301,8 +547,6 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         return
       }
 
-      // Upload any pending attachments for newly-added tasks.
-      // The API returns saved tasks in the same order as the payload.
       if (Object.keys(pendingAttachments).length > 0) {
         const savedTemplate = await res.json() as { tasks: { id: string }[] }
         const localIds = tasks.map((t) => t.id)
@@ -350,9 +594,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {saveError && (
-            <p className="text-sm text-[var(--color-destructive)]">{saveError}</p>
-          )}
+          {saveError && <p className="text-sm text-[var(--color-destructive)]">{saveError}</p>}
           {isEdit && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -395,28 +637,16 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label>Checklist Name *</Label>
-                <Input
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Morning Opening Checklist"
-                />
+                <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Morning Opening Checklist" />
               </div>
               <div className="space-y-1.5">
                 <Label>Description</Label>
-                <Textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Brief description of this checklist"
-                  rows={3}
-                />
+                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description of this checklist" rows={3} />
               </div>
               <div className="space-y-1.5">
                 <Label>When should this checklist be generated? *</Label>
                 <Select value={frequency} onValueChange={setFrequency}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Daily">Daily</SelectItem>
                     <SelectItem value="Weekly">Weekly</SelectItem>
@@ -428,9 +658,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
               <div className="space-y-1.5">
                 <Label>When is this checklist available? *</Label>
                 <Select value={availType} onValueChange={setAvailType}>
-                  <SelectTrigger className="w-56">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="StoreHours">Relative to Store Hours</SelectItem>
                     <SelectItem value="AllDay">All Day</SelectItem>
@@ -444,28 +672,20 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                   <div className="space-y-1.5">
                     <Label>Operational Phase *</Label>
                     <Select value={phase} onValueChange={setPhase}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {PHASES.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                        ))}
+                        {PHASES.map((p) => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-[var(--color-muted-foreground)]">When should this checklist be available?</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label>
-                        {phase === "Before Opening" ? "Starts (hours before opening)" : phase === "During the Day" ? "Starts (hours after opening)" : "Starts (hours before closing)"} *
-                      </Label>
+                      <Label>{phase === "Before Opening" ? "Starts (hours before opening)" : phase === "During the Day" ? "Starts (hours after opening)" : "Starts (hours before closing)"} *</Label>
                       <Input type="number" value={startOffset} onChange={(e) => setStartOffset(Number(e.target.value))} min={0} max={24} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>
-                        {phase === "Before Opening" ? "Ends (hours after opening)" : phase === "During the Day" ? "Ends (hours before closing)" : "Ends (hours after closing)"} *
-                      </Label>
+                      <Label>{phase === "Before Opening" ? "Ends (hours after opening)" : phase === "During the Day" ? "Ends (hours before closing)" : "Ends (hours after closing)"} *</Label>
                       <Input type="number" value={endOffset} onChange={(e) => setEndOffset(Number(e.target.value))} min={0} max={24} />
                     </div>
                   </div>
@@ -544,213 +764,40 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 <p className="text-xs mt-1">Click &ldquo;Add Task&rdquo; to get started</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {tasks.map((task, idx) => (
-                  <div key={task.id} className={`rounded-md border ${task.isCritical ? "border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/5" : "border-[var(--color-border)] bg-[var(--color-background)]"}`}>
-                    {editingTaskId === task.id ? (
-                      /* ── Inline edit form ── */
-                      <div className="p-4 space-y-3">
-                        <h3 className="text-sm font-medium">Edit Task</h3>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Section Name</Label>
-                            <Input className="h-8 text-sm" value={editDraft.sectionName} onChange={(e) => setEditDraft((p) => ({ ...p, sectionName: e.target.value }))} />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Est. Time (min)</Label>
-                            <Input className="h-8 text-sm" type="number" min={0} step={0.5} value={editDraft.estimatedTimeMinutes} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedTimeMinutes: Number(e.target.value) }))} />
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Task Description</Label>
-                          <Textarea className="text-sm" rows={2} value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Training Video URL (optional)</Label>
-                          <Input className="h-8 text-sm" type="url" placeholder="https://..." value={editDraft.videoUrl} onChange={(e) => setEditDraft((p) => ({ ...p, videoUrl: e.target.value }))} />
-                        </div>
-                        {/* Attachment section — edit form */}
-                        <div className="space-y-2 border border-[var(--color-border)] rounded-md p-3 bg-[var(--color-muted)]/10">
-                          <p className="text-xs font-medium text-[var(--color-foreground)]">Document / Image Attachment (optional)</p>
-                          {/* Existing attachment row */}
-                          {editExistingAttachment && !editAttachmentFile && (
-                            <div className="flex items-center gap-2 text-xs text-[var(--color-foreground)] bg-[var(--color-accent)] rounded px-2 py-1.5">
-                              {editExistingAttachment.contentType.startsWith("image/")
-                                /* eslint-disable-next-line @next/next/no-img-element */
-                                ? <img src={editExistingAttachment.url} alt="" className="w-5 h-5 rounded object-cover shrink-0" />
-                                : <FileText className="h-4 w-4 shrink-0 text-[var(--color-muted-foreground)]" />}
-                              <span className="flex-1 truncate">{editExistingAttachment.label}</span>
-                              <button type="button" onClick={() => setEditExistingAttachment(null)} className="ml-1 hover:text-[var(--color-destructive)]">
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          )}
-                          {/* New file selected */}
-                          {editAttachmentFile ? (
-                            <div className="flex items-center gap-2 text-xs bg-[var(--color-accent)] rounded px-2 py-1.5">
-                              <FileText className="h-4 w-4 shrink-0 text-[var(--color-muted-foreground)]" />
-                              <span className="flex-1 truncate">{editAttachmentFile.name} ({formatBytes(editAttachmentFile.size)})</span>
-                              <button type="button" onClick={() => { setEditAttachmentFile(null); setEditAttachmentError("") }} className="ml-1 hover:text-[var(--color-destructive)]">
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="space-y-1.5">
-                              <Input
-                                className="h-8 text-sm"
-                                placeholder="File Description Name"
-                                value={editAttachmentLabel}
-                                onChange={(e) => setEditAttachmentLabel(e.target.value)}
-                              />
-                              <Input
-                                className="h-8 text-sm"
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0] ?? null
-                                  if (!f) return
-                                  const err = validateFile(f)
-                                  if (err) { setEditAttachmentError(err); e.target.value = "" }
-                                  else { setEditAttachmentFile(f); setEditAttachmentError("") }
-                                }}
-                              />
-                            </div>
-                          )}
-                          {editAttachmentError && <p className="text-xs text-[var(--color-destructive)]">{editAttachmentError}</p>}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={editDraft.requiresPhoto} onChange={(e) => setEditDraft((p) => ({ ...p, requiresPhoto: e.target.checked }))} className="rounded" />
-                            Requires Photo
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={editDraft.requiresTemp} onChange={(e) => setEditDraft((p) => ({ ...p, requiresTemp: e.target.checked }))} className="rounded" />
-                            Requires Temp
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={editDraft.isCritical} onChange={(e) => setEditDraft((p) => ({ ...p, isCritical: e.target.checked }))} className="rounded" />
-                            Critical
-                          </label>
-                        </div>
-                        {stores.length > 0 && (
-                          <div className="p-3 bg-[var(--color-muted)]/20 rounded-md border border-[var(--color-border)]">
-                            <p className="text-xs font-medium text-[var(--color-muted-foreground)] mb-2">This task does not apply to:</p>
-                            <div className="grid grid-cols-2 gap-1">
-                              {stores.map((s) => (
-                                <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
-                                  <input
-                                    type="checkbox"
-                                    checked={editDraft.excludedStoreIds.includes(s.id)}
-                                    onChange={() => toggleEditDraftExclusion(s.id)}
-                                  />
-                                  {s.storeNumber ? `#${s.storeNumber}` : s.name}
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => saveEditTask(task.id)} disabled={!editDraft.description || !editDraft.sectionName}>Save</Button>
-                          <Button size="sm" variant="outline" onClick={() => setEditingTaskId(null)}>Cancel</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* ── Read-only row ── */
-                      <div className="p-3">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm text-[var(--color-muted-foreground)] w-5">{idx + 1}.</span>
-                              {task.isCritical && (
-                                <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] px-1.5 py-0.5 rounded">
-                                  <AlertTriangle className="h-3 w-3" /> CRITICAL
-                                </span>
-                              )}
-                              {task.requiresPhoto && (
-                                <span className="inline-flex items-center gap-1 text-xs bg-[var(--color-info-bg)] text-[var(--color-info-text)] border border-[var(--color-info-border)] px-1.5 py-0.5 rounded">
-                                  <Camera className="h-3 w-3" /> Photo
-                                </span>
-                              )}
-                              {task.videoUrl && (
-                                <a
-                                  href={task.videoUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80"
-                                >
-                                  <Play className="h-3 w-3" /> Video
-                                </a>
-                              )}
-                              {task.attachment && (
-                                <a
-                                  href={task.attachment.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80 max-w-[140px]"
-                                >
-                                  <FileText className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{task.attachment.label}</span>
-                                </a>
-                              )}
-                            </div>
-                            <p className={`text-sm mt-0.5 ${task.isCritical ? "text-[var(--color-destructive)] font-medium" : "text-[var(--color-foreground)]"}`}>
-                              {task.description}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-[var(--color-muted-foreground)]">§ {task.sectionName}</span>
-                              {task.estimatedTimeMinutes && (
-                                <span className="text-xs text-[var(--color-muted-foreground)]">~{task.estimatedTimeMinutes} min</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => startEditTask(task)} className="p-1 rounded hover:bg-[var(--color-accent)]">
-                              <Pencil className="h-4 w-4 text-[var(--color-muted-foreground)]" />
-                            </button>
-                            <button onClick={() => removeTask(task.id)} className="p-1 rounded hover:bg-[var(--color-accent)]">
-                              <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)]" />
-                            </button>
-                          </div>
-                        </div>
-                        {stores.length > 0 && (
-                          <div className="mt-2">
-                            {expandedTaskExclusions.has(task.id) ? (
-                              <div className="p-3 bg-[var(--color-muted)]/20 rounded-md border border-[var(--color-border)]">
-                                <div className="flex items-center justify-between mb-2">
-                                  <p className="text-xs font-medium text-[var(--color-muted-foreground)]">This task does not apply to:</p>
-                                  <button
-                                    onClick={() => setExpandedTaskExclusions((prev) => { const next = new Set(prev); next.delete(task.id); return next })}
-                                    className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                                  >Hide</button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-1">
-                                  {stores.map((s) => (
-                                    <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
-                                      <input
-                                        type="checkbox"
-                                        checked={task.excludedStoreIds.includes(s.id)}
-                                        onChange={() => toggleTaskExclusion(task.id, s.id)}
-                                      />
-                                      {s.storeNumber ? `#${s.storeNumber}` : s.name}
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setExpandedTaskExclusions((prev) => new Set([...prev, task.id]))}
-                                className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                              >
-                                {task.excludedStoreIds.length > 0 ? `Excluded from ${task.excludedStoreIds.length} store${task.excludedStoreIds.length !== 1 ? "s" : ""}` : "Exclude from stores ▾"}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {tasks.map((task, idx) => (
+                      <SortableTaskRow
+                        key={task.id}
+                        task={task}
+                        idx={idx}
+                        editingTaskId={editingTaskId}
+                        stores={stores}
+                        expandedTaskExclusions={expandedTaskExclusions}
+                        setExpandedTaskExclusions={setExpandedTaskExclusions}
+                        editDraft={editDraft}
+                        setEditDraft={setEditDraft}
+                        editExistingAttachment={editExistingAttachment}
+                        setEditExistingAttachment={setEditExistingAttachment}
+                        editAttachmentLabel={editAttachmentLabel}
+                        setEditAttachmentLabel={setEditAttachmentLabel}
+                        editAttachmentFile={editAttachmentFile}
+                        setEditAttachmentFile={setEditAttachmentFile}
+                        editAttachmentError={editAttachmentError}
+                        setEditAttachmentError={setEditAttachmentError}
+                        validateFile={validateFile}
+                        startEditTask={startEditTask}
+                        saveEditTask={saveEditTask}
+                        setEditingTaskId={setEditingTaskId}
+                        removeTask={removeTask}
+                        toggleTaskExclusion={toggleTaskExclusion}
+                        toggleEditDraftExclusion={toggleEditDraftExclusion}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             )}
 
             {showAddTask && (
@@ -787,12 +834,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      <Input
-                        className="h-8 text-sm"
-                        placeholder="File Description Name"
-                        value={newAttachmentLabel}
-                        onChange={(e) => setNewAttachmentLabel(e.target.value)}
-                      />
+                      <Input className="h-8 text-sm" placeholder="File Description Name" value={newAttachmentLabel} onChange={(e) => setNewAttachmentLabel(e.target.value)} />
                       <Input
                         className="h-8 text-sm"
                         type="file"
@@ -829,11 +871,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                     <div className="grid grid-cols-2 gap-1">
                       {stores.map((s) => (
                         <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
-                          <input
-                            type="checkbox"
-                            checked={newTask.excludedStoreIds.includes(s.id)}
-                            onChange={() => toggleNewTaskExclusion(s.id)}
-                          />
+                          <input type="checkbox" checked={newTask.excludedStoreIds.includes(s.id)} onChange={() => toggleNewTaskExclusion(s.id)} />
                           {s.storeNumber ? `#${s.storeNumber}` : s.name}
                         </label>
                       ))}
@@ -849,7 +887,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
           </div>
         </div>
 
-        {/* Sidebar: Summary + Tips */}
+        {/* Sidebar */}
         <div className="space-y-4">
           <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-5">
             <h2 className="font-semibold text-[var(--color-foreground)] mb-4">Summary</h2>
@@ -872,7 +910,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
           <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-5">
             <h2 className="font-semibold text-[var(--color-foreground)] mb-3">Tips</h2>
             <ul className="space-y-1.5 text-xs text-[var(--color-muted-foreground)]">
-              <li>• Drag tasks to reorder them</li>
+              <li>• Drag the ⠿ handle to reorder tasks</li>
               <li>• Group related tasks using section names</li>
               <li>• Mark critical tasks that require extra attention</li>
               <li>• Exclude tasks from specific locations as needed</li>
