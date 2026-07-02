@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { getUserStoreScope, requireAdmin } from "@/lib/auth"
 
 const CreateStoreSchema = z.object({
   name: z.string().min(1),
@@ -23,8 +24,12 @@ export async function GET() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
+  const { isAdmin, storeIds } = await getUserStoreScope()
   const stores = await prisma.store.findMany({
-    where: { organizationId: org.id },
+    where: {
+      organizationId: org.id,
+      ...(isAdmin ? {} : { id: { in: storeIds } }),
+    },
     include: { hours: true },
     orderBy: { name: "asc" },
   })
@@ -35,6 +40,8 @@ export async function GET() {
 export async function POST(req: Request) {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  try { await requireAdmin() } catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
 
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })

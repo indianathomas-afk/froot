@@ -1,9 +1,10 @@
-import { auth } from "@clerk/nextjs/server"
-import { prisma } from "@/lib/prisma"
-import { MapPin, Clock, Mail, Phone, Pencil, Trash2, CheckCircle } from "lucide-react"
+import { MapPin, Clock, Mail, Phone, CheckCircle } from "lucide-react"
 import { StoreActions } from "./store-actions"
 import { AddStoreButton } from "./add-store-button"
 import { ImportSquareButton } from "./import-square-button"
+import { getUserStoreScope } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { auth } from "@clerk/nextjs/server"
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const DAY_LABELS: Record<string, string> = {
@@ -35,18 +36,23 @@ function formatHours(hours: { dayOfWeek: number; openingTime: string | null; clo
 
 async function getStores() {
   const { orgId } = await auth()
-  if (!orgId) return []
+  if (!orgId) return { stores: [], isAdmin: false }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return []
-  return prisma.store.findMany({
-    where: { organizationId: org.id },
+  if (!org) return { stores: [], isAdmin: false }
+  const { isAdmin, storeIds } = await getUserStoreScope()
+  const stores = await prisma.store.findMany({
+    where: {
+      organizationId: org.id,
+      ...(isAdmin ? {} : { id: { in: storeIds } }),
+    },
     include: { hours: true, userAssignments: true },
     orderBy: { name: "asc" },
   })
+  return { stores, isAdmin }
 }
 
 export default async function StoresPage() {
-  const stores = await getStores()
+  const { stores, isAdmin } = await getStores()
 
   return (
     <div>
@@ -55,10 +61,12 @@ export default async function StoresPage() {
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Store Locations</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Manage store locations, hours, and login accounts</p>
         </div>
-        <div className="flex gap-2">
-          <ImportSquareButton />
-          <AddStoreButton />
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <ImportSquareButton />
+            <AddStoreButton />
+          </div>
+        )}
       </div>
 
       {stores.length === 0 ? (
@@ -98,7 +106,7 @@ export default async function StoresPage() {
                         Has Account
                       </span>
                     )}
-                    <StoreActions storeId={store.id} />
+                    {isAdmin && <StoreActions storeId={store.id} />}
                   </div>
                 </div>
 

@@ -1,15 +1,10 @@
-import { requireAdmin } from "@/lib/auth"
-import { redirect } from "next/navigation"
-import TemplatesClient from "./templates-client"
+"use client"
 
-export default async function TemplatesPage() {
-  try {
-    await requireAdmin()
-  } catch {
-    redirect("/dashboard")
-  }
-  return <TemplatesClient />
-}
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import Image from "next/image"
+import { Plus, Eye, Pencil, Copy, Archive, CheckCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 const TYPE_COLORS: Record<string, string> = {
   Opener: "bg-orange-100 text-orange-700 border-orange-200",
@@ -60,7 +55,7 @@ type Template = {
   tasks: TemplateTask[]
 }
 
-export default function TemplatesPage() {
+export default function TemplatesClient() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())

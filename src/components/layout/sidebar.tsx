@@ -24,7 +24,7 @@ import { useClerk, useUser } from "@clerk/nextjs"
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/checklists", label: "Checklists", icon: CheckSquare, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
-  { href: "/templates", label: "Templates", icon: FileText, roles: ["ADMIN", "MANAGER"] },
+  { href: "/templates", label: "Templates", icon: FileText, roles: ["ADMIN"] },
   { href: "/stores", label: "Stores", icon: Store, roles: ["ADMIN", "MANAGER"] },
   { href: "/users", label: "Users", icon: Users, roles: ["ADMIN"] },
   { href: "/staff", label: "Staff", icon: UserSquare, roles: ["ADMIN", "MANAGER"] },

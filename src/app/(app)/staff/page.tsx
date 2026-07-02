@@ -1,27 +1,34 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, DeleteStaffButton } from "./staff-buttons"
+import { getUserStoreScope } from "@/lib/auth"
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [] }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [] }
+  if (!org) return { staff: [], stores: [], isAdmin: false }
+
+  const { isAdmin, storeIds } = await getUserStoreScope()
+  const storeFilter = isAdmin ? {} : { id: { in: storeIds } }
 
   const [staff, stores] = await Promise.all([
     prisma.staffMember.findMany({
-      where: { organizationId: org.id },
+      where: {
+        organizationId: org.id,
+        ...(isAdmin ? {} : { storeAssignments: { some: { storeId: { in: storeIds } } } }),
+      },
       include: { storeAssignments: { include: { store: true } } },
       orderBy: { displayName: "asc" },
     }),
-    prisma.store.findMany({ where: { organizationId: org.id }, orderBy: { name: "asc" } }),
+    prisma.store.findMany({ where: { organizationId: org.id, ...storeFilter }, orderBy: { name: "asc" } }),
   ])
 
-  return { staff, stores }
+  return { staff, stores, isAdmin }
 }
 
 export default async function StaffPage() {
-  const { staff, stores } = await getStaffData()
+  const { staff, stores, isAdmin } = await getStaffData()
 
   const byStore = new Map<string, typeof staff>()
   const unassigned: typeof staff = []
@@ -45,10 +52,12 @@ export default async function StaffPage() {
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Staff Members</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Manage team members for each store location</p>
         </div>
-        <div className="flex gap-2">
-          <ImportStaffButton stores={storeProps} />
-          <AddStaffButton stores={storeProps} />
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <ImportStaffButton stores={storeProps} />
+            <AddStaffButton stores={storeProps} />
+          </div>
+        )}
       </div>
 
       {staff.length === 0 ? (
@@ -58,10 +67,12 @@ export default async function StaffPage() {
           </div>
           <p className="font-medium text-[var(--color-foreground)] mb-1">No Staff Members</p>
           <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Add team members to track who completes each task.</p>
-          <div className="flex gap-2 justify-center">
-            <ImportStaffButton stores={storeProps} />
-            <AddStaffButton stores={storeProps} />
-          </div>
+          {isAdmin && (
+            <div className="flex gap-2 justify-center">
+              <ImportStaffButton stores={storeProps} />
+              <AddStaffButton stores={storeProps} />
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

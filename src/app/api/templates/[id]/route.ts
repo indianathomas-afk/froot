@@ -1,10 +1,13 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { requireAdmin } from "@/lib/auth"
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  try { await requireAdmin() } catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
 
   const { id } = await params
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
@@ -95,6 +98,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  try { await requireAdmin() } catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
 
   const { id } = await params
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })

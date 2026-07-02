@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { CheckCircle, Clock, AlertCircle, XCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getUserStoreScope } from "@/lib/auth"
 
 async function getReportsData() {
   const { orgId } = await auth()
@@ -10,14 +11,21 @@ async function getReportsData() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return null
 
+  const { isAdmin, storeIds } = await getUserStoreScope()
+  const storeFilter = isAdmin ? {} : { id: { in: storeIds } }
+
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
   const [checklists, stores] = await Promise.all([
     prisma.checklist.findMany({
-      where: { organizationId: org.id, date: { gte: since } },
+      where: {
+        organizationId: org.id,
+        date: { gte: since },
+        ...(isAdmin ? {} : { storeId: { in: storeIds } }),
+      },
       include: { store: true },
     }),
-    prisma.store.findMany({ where: { organizationId: org.id, isActive: true }, orderBy: { name: "asc" } }),
+    prisma.store.findMany({ where: { organizationId: org.id, isActive: true, ...storeFilter }, orderBy: { name: "asc" } }),
   ])
 
   const completed = checklists.filter((c) => c.status === "Completed").length

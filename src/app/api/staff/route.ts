@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { getUserStoreScope } from "@/lib/auth"
 
 export async function GET() {
   const { orgId } = await auth()
@@ -9,8 +10,12 @@ export async function GET() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
+  const { isAdmin, storeIds } = await getUserStoreScope()
   const staff = await prisma.staffMember.findMany({
-    where: { organizationId: org.id },
+    where: {
+      organizationId: org.id,
+      ...(isAdmin ? {} : { storeAssignments: { some: { storeId: { in: storeIds } } } }),
+    },
     include: { storeAssignments: { include: { store: true } } },
     orderBy: { displayName: "asc" },
   })
