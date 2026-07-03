@@ -60,48 +60,56 @@ export async function POST(req: Request) {
 
   if (type === "organizationMembership.created") {
     const membership = data as {
-      organization: { id: string }
+      organization: { id: string; name: string; slug?: string }
       public_user_data: { user_id: string; identifier: string; first_name?: string; last_name?: string }
       role: string
     }
-    const org = await prisma.organization.findUnique({
+
+    // Don't assume organization.created has already been processed - Clerk does not
+    // guarantee webhook delivery order, so create the org here too if it's missing yet.
+    const org = await prisma.organization.upsert({
       where: { clerkOrgId: membership.organization.id },
+      update: {},
+      create: {
+        clerkOrgId: membership.organization.id,
+        name: membership.organization.name,
+        slug: membership.organization.slug ?? slugify(membership.organization.name),
+      },
     })
-    if (org) {
-      const roleMap: Record<string, string> = {
-        "org:admin": "ADMIN",
-        "org:manager": "MANAGER",
-        "org:member": "STAFF",
+
+    const roleMap: Record<string, string> = {
+      "org:admin": "ADMIN",
+      "org:manager": "MANAGER",
+      "org:member": "STAFF",
+    }
+
+    // Check for a pending invite to recover the originally intended app role + store assignment
+    const pending = await prisma.pendingInvite.findUnique({
+      where: { organizationId_email: { organizationId: org.id, email: membership.public_user_data.identifier } },
+    })
+
+    const resolvedRole = (pending?.role ?? roleMap[membership.role] ?? "STAFF") as "ADMIN" | "MANAGER" | "STAFF" | "STORE"
+
+    const user = await prisma.user.upsert({
+      where: { clerkUserId: membership.public_user_data.user_id },
+      update: {},
+      create: {
+        clerkUserId: membership.public_user_data.user_id,
+        organizationId: org.id,
+        email: membership.public_user_data.identifier,
+        name: [membership.public_user_data.first_name, membership.public_user_data.last_name].filter(Boolean).join(" ") || null,
+        role: resolvedRole,
+      },
+    })
+
+    if (pending) {
+      if (pending.storeIds.length > 0) {
+        await prisma.storeUserAssignment.createMany({
+          data: pending.storeIds.map((storeId) => ({ userId: user.id, storeId })),
+          skipDuplicates: true,
+        })
       }
-
-      // Check for a pending invite to recover the originally intended app role + store assignment
-      const pending = await prisma.pendingInvite.findUnique({
-        where: { organizationId_email: { organizationId: org.id, email: membership.public_user_data.identifier } },
-      })
-
-      const resolvedRole = (pending?.role ?? roleMap[membership.role] ?? "STAFF") as "ADMIN" | "MANAGER" | "STAFF" | "STORE"
-
-      const user = await prisma.user.upsert({
-        where: { clerkUserId: membership.public_user_data.user_id },
-        update: {},
-        create: {
-          clerkUserId: membership.public_user_data.user_id,
-          organizationId: org.id,
-          email: membership.public_user_data.identifier,
-          name: [membership.public_user_data.first_name, membership.public_user_data.last_name].filter(Boolean).join(" ") || null,
-          role: resolvedRole,
-        },
-      })
-
-      if (pending) {
-        if (pending.storeIds.length > 0) {
-          await prisma.storeUserAssignment.createMany({
-            data: pending.storeIds.map((storeId) => ({ userId: user.id, storeId })),
-            skipDuplicates: true,
-          })
-        }
-        await prisma.pendingInvite.delete({ where: { id: pending.id } })
-      }
+      await prisma.pendingInvite.delete({ where: { id: pending.id } })
     }
   }
 
