@@ -6,12 +6,6 @@ import { slugify } from "@/lib/utils"
 
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
-  console.log("[debug-webhook-secret]", {
-    exists: !!WEBHOOK_SECRET,
-    length: WEBHOOK_SECRET?.length,
-    prefix: WEBHOOK_SECRET?.slice(0, 10),
-    suffix: WEBHOOK_SECRET?.slice(-6),
-  })
   if (!WEBHOOK_SECRET) {
     return new Response("Webhook secret not configured", { status: 500 })
   }
