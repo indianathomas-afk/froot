@@ -4,6 +4,7 @@ import { getUserStoreScope } from "@/lib/auth"
 import { Store, CheckSquare, CheckCircle, BarChart2, ArrowRight, FileText } from "lucide-react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
+import { BuildInfo } from "@/components/build-info"
 
 async function getDashboardData() {
   const { orgId } = await auth()
@@ -153,6 +154,8 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      <BuildInfo />
     </div>
   )
 }
