@@ -6,6 +6,7 @@ import { requireManagerOrAdmin, requireModule } from "@/lib/auth"
 
 const MetadataSchema = z.object({
   vendorName: z.string().optional().nullable(),
+  vendorId: z.string().optional().nullable(),
   glCode: z.string().optional().nullable(),
   parLevel: z.number().optional().nullable(),
   unitCostOverride: z.number().optional().nullable(),

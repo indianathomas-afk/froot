@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatDistanceToNow } from "date-fns"
 
+type Vendor = { id: string; name: string }
+
 type Variation = {
   id: string
   name: string
@@ -20,6 +22,7 @@ type Variation = {
 
 type Metadata = {
   vendorName: string | null
+  vendorId: string | null
   glCode: string | null
   parLevel: number | null
   unitCostOverride: number | null
@@ -50,12 +53,14 @@ function formatPrice(cents: number | null) {
 export function ItemsClient({
   items,
   categories,
+  vendors,
   isAdmin,
   lastCatalogSyncAt,
   squareConnected,
 }: {
   items: Item[]
   categories: Category[]
+  vendors: Vendor[]
   isAdmin: boolean
   lastCatalogSyncAt: string | null
   squareConnected: boolean
@@ -144,6 +149,7 @@ export function ItemsClient({
                   <ItemRow
                     key={item.id}
                     item={item}
+                    vendors={vendors}
                     expanded={expandedId === item.id}
                     onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
                   />
@@ -157,18 +163,20 @@ export function ItemsClient({
   )
 }
 
-function ItemRow({ item, expanded, onToggle }: { item: Item; expanded: boolean; onToggle: () => void }) {
+function ItemRow({ item, vendors, expanded, onToggle }: { item: Item; vendors: Vendor[]; expanded: boolean; onToggle: () => void }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
-    vendorName: item.metadata?.vendorName ?? "",
+    vendorId: item.metadata?.vendorId ?? "",
     glCode: item.metadata?.glCode ?? "",
     parLevel: item.metadata?.parLevel?.toString() ?? "",
     unitCostOverride: item.metadata?.unitCostOverride?.toString() ?? "",
     unitOfMeasure: item.metadata?.unitOfMeasure ?? "",
     notes: item.metadata?.notes ?? "",
   })
+
+  const vendorName = vendors.find((v) => v.id === item.metadata?.vendorId)?.name ?? item.metadata?.vendorName ?? null
 
   async function handleSave() {
     setSaving(true)
@@ -178,7 +186,7 @@ function ItemRow({ item, expanded, onToggle }: { item: Item; expanded: boolean; 
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vendorName: form.vendorName || null,
+          vendorId: form.vendorId || null,
           glCode: form.glCode || null,
           parLevel: form.parLevel ? Number(form.parLevel) : null,
           unitCostOverride: form.unitCostOverride ? Number(form.unitCostOverride) : null,
@@ -212,7 +220,7 @@ function ItemRow({ item, expanded, onToggle }: { item: Item; expanded: boolean; 
         </td>
         <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">{item.categoryName ?? "—"}</td>
         <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">{item.variations.length}</td>
-        <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">{item.metadata?.vendorName ?? "—"}</td>
+        <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">{vendorName ?? "—"}</td>
         <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">{item.metadata?.parLevel ?? "—"}</td>
         <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">
           {item.metadata?.unitCostOverride !== null && item.metadata?.unitCostOverride !== undefined
@@ -242,7 +250,21 @@ function ItemRow({ item, expanded, onToggle }: { item: Item; expanded: boolean; 
               <div>
                 <h4 className="text-xs font-medium text-[var(--color-muted-foreground)] uppercase mb-2">Item Details</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <FieldInput label="Vendor" value={form.vendorName} onChange={(v) => setForm((f) => ({ ...f, vendorName: v }))} />
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <label className="text-xs text-[var(--color-muted-foreground)]">Vendor</label>
+                    <Select value={form.vendorId || "none"} onValueChange={(v) => setForm((f) => ({ ...f, vendorId: v === "none" ? "" : v }))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="No vendor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No vendor</SelectItem>
+                        {vendors.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!form.vendorId && item.metadata?.vendorName && (
+                      <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">Previously: {item.metadata.vendorName}</p>
+                    )}
+                  </div>
                   <FieldInput label="GL Code" value={form.glCode} onChange={(v) => setForm((f) => ({ ...f, glCode: v }))} />
                   <FieldInput label="Par Level" value={form.parLevel} onChange={(v) => setForm((f) => ({ ...f, parLevel: v }))} type="number" />
                   <FieldInput label="Unit Cost" value={form.unitCostOverride} onChange={(v) => setForm((f) => ({ ...f, unitCostOverride: v }))} type="number" />

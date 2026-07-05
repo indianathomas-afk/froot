@@ -36,6 +36,8 @@ model Organization {
   auditLogs         AuditLog[]
   catalogCategories CatalogCategory[]
   catalogItems      CatalogItem[]
+  vendors           Vendor[]
+  purchaseOrders    PurchaseOrder[]
 }
 
 model User {
@@ -77,6 +79,7 @@ model Store {
   checklists          Checklist[]
   storageAreas        StorageArea[]
   inventoryCounts     InventoryCount[]
+  purchaseOrders      PurchaseOrder[]
 }
 
 model StoreHours {
@@ -288,6 +291,7 @@ model ItemMetadata {
   organizationId     String
   squareCatalogObjId String
   vendorName         String?
+  vendorId           String?
   glCode             String?
   parLevel           Float?
   unitCostOverride   Float?
@@ -296,6 +300,7 @@ model ItemMetadata {
   updatedAt          DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  vendor       Vendor?      @relation(fields: [vendorId], references: [id])
 
   @@unique([organizationId, squareCatalogObjId])
 }
@@ -345,6 +350,77 @@ model CatalogItemVariation {
   catalogItem CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
 
   @@unique([catalogItemId, squareVariationId])
+}
+
+model Vendor {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  accountNumber  String?
+  contactName    String?
+  email          String?
+  phone          String?
+  terms          String?
+  leadTimeDays   Int?
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  vendorItems    VendorItem[]
+  purchaseOrders PurchaseOrder[]
+  itemMetadata   ItemMetadata[]
+}
+
+model VendorItem {
+  id                 String  @id @default(cuid())
+  vendorId           String
+  squareCatalogObjId String
+  vendorSku          String?
+  caseSize           String?
+  lastCasePrice      Float?
+  unitsPerCase       Float?
+
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, squareCatalogObjId])
+}
+
+model PurchaseOrder {
+  id              String    @id @default(cuid())
+  organizationId  String
+  storeId         String
+  vendorId        String
+  poNumber        String
+  invoiceNumber   String?
+  orderedAt       DateTime?
+  expectedAt      DateTime?
+  totalAmount     Float     @default(0)
+  status          String    @default("DRAFT")
+  enteredByUserId String?
+  createdAt       DateTime  @default(now())
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  store        Store               @relation(fields: [storeId], references: [id])
+  vendor       Vendor              @relation(fields: [vendorId], references: [id])
+  lines        PurchaseOrderLine[]
+
+  @@unique([organizationId, poNumber])
+}
+
+model PurchaseOrderLine {
+  id                 String  @id @default(cuid())
+  purchaseOrderId    String
+  squareCatalogObjId String
+  itemName           String
+  quantityOrdered    Float
+  quantityReceived   Float   @default(0)
+  unitOfMeasure      String?
+  unitCost           Float
+  lineTotal          Float
+  receivingNote      String?
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 }
 
 model InventoryCount {

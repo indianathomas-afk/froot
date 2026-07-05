@@ -29,9 +29,14 @@ const navItems = [
   { href: "/stores", label: "Stores", icon: Store, roles: ["ADMIN", "MANAGER"] },
   { href: "/users", label: "Users", icon: Users, roles: ["ADMIN"] },
   { href: "/staff", label: "Staff", icon: UserSquare, roles: ["ADMIN", "MANAGER"] },
-  { href: "/items", label: "Items", icon: Package, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], module: "inventory" },
   { href: "/reports", label: "Reports", icon: BarChart2, roles: ["ADMIN", "MANAGER"] },
   { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+]
+
+const inventoryNavItems = [
+  { href: "/items", label: "Items", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/vendors", label: "Vendors", roles: ["ADMIN", "MANAGER"] },
+  { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
 ]
 
 const STORAGE_KEY = "froot-sidebar-collapsed"
@@ -42,9 +47,10 @@ export function Sidebar({ role, activeModules = [] }: { role: string; activeModu
   const { user } = useUser()
   const [collapsed, setCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const visibleNavItems = navItems.filter(
-    (item) => item.roles.includes(role) && (!item.module || activeModules.includes(item.module))
-  )
+  const visibleNavItems = navItems.filter((item) => item.roles.includes(role))
+  const visibleInventoryItems = activeModules.includes("inventory")
+    ? inventoryNavItems.filter((item) => item.roles.includes(role))
+    : []
   const canSeeSettings = role === "ADMIN"
 
   useEffect(() => {
@@ -103,6 +109,36 @@ export function Sidebar({ role, activeModules = [] }: { role: string; activeModu
             </Link>
           )
         })}
+
+        {visibleInventoryItems.length > 0 && (
+          <div className="pt-3">
+            {!collapsed && (
+              <p className="px-3 pb-1 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wide flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5" />
+                Inventory
+              </p>
+            )}
+            {visibleInventoryItems.map(({ href, label }) => {
+              const isActive = pathname === href || pathname.startsWith(href + "/")
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={collapsed ? label : undefined}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
+                    collapsed ? "justify-center px-2" : "pl-6",
+                    isActive
+                      ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
+                      : "text-[var(--color-foreground)] hover:bg-[var(--color-accent)]"
+                  )}
+                >
+                  {collapsed ? <Package className={cn("h-4 w-4 shrink-0", isActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} /> : label}
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </nav>
 
       {/* Settings */}

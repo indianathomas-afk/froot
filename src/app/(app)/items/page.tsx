@@ -6,7 +6,7 @@ import Link from "next/link"
 import { ItemsClient } from "./items-client"
 
 async function getData(organizationId: string) {
-  const [categories, items, metadata] = await Promise.all([
+  const [categories, items, metadata, vendors] = await Promise.all([
     prisma.catalogCategory.findMany({
       where: { organizationId, isDeleted: false },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -17,9 +17,10 @@ async function getData(organizationId: string) {
       orderBy: { name: "asc" },
     }),
     prisma.itemMetadata.findMany({ where: { organizationId } }),
+    prisma.vendor.findMany({ where: { organizationId, isActive: true }, orderBy: { name: "asc" } }),
   ])
 
-  return { categories, items, metadata }
+  return { categories, items, metadata, vendors }
 }
 
 export default async function ItemsPage() {
@@ -53,7 +54,7 @@ export default async function ItemsPage() {
   }
 
   const dbUser = userId ? await prisma.user.findUnique({ where: { clerkUserId: userId } }) : null
-  const { categories, items, metadata } = await getData(org.id)
+  const { categories, items, metadata, vendors } = await getData(org.id)
 
   const metadataBySquareId = new Map(metadata.map((m) => [m.squareCatalogObjId, m]))
 
@@ -83,6 +84,7 @@ export default async function ItemsPage() {
     <ItemsClient
       items={itemsForClient}
       categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+      vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
       isAdmin={dbUser?.role === "ADMIN"}
       lastCatalogSyncAt={org.lastCatalogSyncAt?.toISOString() ?? null}
       squareConnected={!!org.squareAccessToken}
