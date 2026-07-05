@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireModule } from "@/lib/auth"
 
-export async function GET(_: Request, { params }: { params: Promise<{ squareObjId: string }> }) {
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -16,32 +16,32 @@ export async function GET(_: Request, { params }: { params: Promise<{ squareObjI
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
   }
 
-  const { squareObjId } = await params
+  const { id } = await params
 
-  const vendorItems = await prisma.vendorItem.findMany({
-    where: { squareCatalogObjId: squareObjId, vendor: { organizationId: org.id, isActive: true } },
+  const vendorIngredients = await prisma.vendorIngredient.findMany({
+    where: { ingredientId: id, vendor: { organizationId: org.id, isActive: true } },
     include: { vendor: true },
   })
 
-  const withUnitCost = vendorItems.map((vi) => ({
+  const withUnitCost = vendorIngredients.map((vi) => ({
     ...vi,
-    perUnitCost:
-      vi.lastCasePrice != null
+    costPerReportingUnit:
+      vi.casePrice != null
         ? vi.unitsPerCase && vi.unitsPerCase > 0
-          ? vi.lastCasePrice / vi.unitsPerCase
-          : vi.lastCasePrice
+          ? vi.casePrice / vi.unitsPerCase
+          : vi.casePrice
         : null,
   }))
 
   const cheapestCost = withUnitCost.reduce<number | null>((min, vi) => {
-    if (vi.perUnitCost == null) return min
-    if (min == null || vi.perUnitCost < min) return vi.perUnitCost
+    if (vi.costPerReportingUnit == null) return min
+    if (min == null || vi.costPerReportingUnit < min) return vi.costPerReportingUnit
     return min
   }, null)
 
   const result = withUnitCost.map((vi) => ({
     ...vi,
-    isCheapest: cheapestCost != null && vi.perUnitCost === cheapestCost,
+    isCheapest: cheapestCost != null && vi.costPerReportingUnit === cheapestCost,
   }))
 
   return NextResponse.json(result)

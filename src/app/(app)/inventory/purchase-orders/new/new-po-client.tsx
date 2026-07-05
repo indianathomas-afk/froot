@@ -8,19 +8,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-type Item = {
-  squareCatalogObjId: string
-  name: string
+type Ingredient = {
+  id: string
+  displayName: string
   categoryName: string | null
-  unitOfMeasure: string | null
-  unitCostOverride: number | null
+  purchaseUnitLabel: string
+  purchaseCost: number
 }
 
 type Line = {
-  squareCatalogObjId: string
-  itemName: string
+  ingredientId: string
+  displayName: string
+  purchaseUnitLabel: string
   quantityOrdered: string
-  unitOfMeasure: string
   unitCost: string
   hint: string | null
 }
@@ -28,11 +28,11 @@ type Line = {
 export function NewPurchaseOrderClient({
   stores,
   vendors,
-  items,
+  ingredients,
 }: {
   stores: { id: string; name: string }[]
   vendors: { id: string; name: string }[]
-  items: Item[]
+  ingredients: Ingredient[]
 }) {
   const router = useRouter()
   const [storeId, setStoreId] = useState("")
@@ -40,39 +40,39 @@ export function NewPurchaseOrderClient({
   const [expectedAt, setExpectedAt] = useState("")
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [lines, setLines] = useState<Line[]>([])
-  const [itemSearch, setItemSearch] = useState("")
+  const [ingredientSearch, setIngredientSearch] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const filteredItems = useMemo(() => {
-    if (!itemSearch.trim()) return []
-    const q = itemSearch.trim().toLowerCase()
-    return items.filter((i) => i.name.toLowerCase().includes(q)).slice(0, 8)
-  }, [itemSearch, items])
+  const filteredIngredients = useMemo(() => {
+    if (!ingredientSearch.trim()) return []
+    const q = ingredientSearch.trim().toLowerCase()
+    return ingredients.filter((i) => i.displayName.toLowerCase().includes(q)).slice(0, 8)
+  }, [ingredientSearch, ingredients])
 
-  async function addItem(item: Item) {
+  async function addIngredient(ingredient: Ingredient) {
     const newLine: Line = {
-      squareCatalogObjId: item.squareCatalogObjId,
-      itemName: item.name,
+      ingredientId: ingredient.id,
+      displayName: ingredient.displayName,
+      purchaseUnitLabel: ingredient.purchaseUnitLabel,
       quantityOrdered: "1",
-      unitOfMeasure: item.unitOfMeasure ?? "",
-      unitCost: item.unitCostOverride?.toString() ?? "",
+      unitCost: ingredient.purchaseCost.toString(),
       hint: null,
     }
     setLines((prev) => [...prev, newLine])
-    setItemSearch("")
+    setIngredientSearch("")
 
     if (vendorId) {
       try {
-        const res = await fetch(`/api/inventory/items/${item.squareCatalogObjId}/vendor-prices`)
-        const prices: { vendorId: string; vendor: { name: string }; perUnitCost: number | null; isCheapest: boolean }[] = await res.json()
+        const res = await fetch(`/api/inventory/ingredients/${ingredient.id}/vendor-prices`)
+        const prices: { vendorId: string; vendor: { name: string }; costPerReportingUnit: number | null; isCheapest: boolean }[] = await res.json()
         const currentVendorPrice = prices.find((p) => p.vendorId === vendorId)
-        const cheaper = prices.find((p) => p.isCheapest && p.vendorId !== vendorId && p.perUnitCost != null)
-        if (cheaper && (!currentVendorPrice?.perUnitCost || cheaper.perUnitCost! < currentVendorPrice.perUnitCost)) {
+        const cheaper = prices.find((p) => p.isCheapest && p.vendorId !== vendorId && p.costPerReportingUnit != null)
+        if (cheaper && (!currentVendorPrice?.costPerReportingUnit || cheaper.costPerReportingUnit! < currentVendorPrice.costPerReportingUnit)) {
           setLines((prev) =>
             prev.map((l) =>
-              l.squareCatalogObjId === item.squareCatalogObjId && l.hint === null
-                ? { ...l, hint: `${cheaper.vendor.name} offers this for $${cheaper.perUnitCost!.toFixed(2)}/unit` }
+              l.ingredientId === ingredient.id && l.hint === null
+                ? { ...l, hint: `${cheaper.vendor.name} offers this for $${cheaper.costPerReportingUnit!.toFixed(4)}/unit` }
                 : l
             )
           )
@@ -100,10 +100,8 @@ export function NewPurchaseOrderClient({
       invoiceNumber: invoiceNumber || null,
       expectedAt: expectedAt ? new Date(expectedAt).toISOString() : null,
       lines: lines.map((l) => ({
-        squareCatalogObjId: l.squareCatalogObjId,
-        itemName: l.itemName,
+        ingredientId: l.ingredientId,
         quantityOrdered: Number(l.quantityOrdered) || 0,
-        unitOfMeasure: l.unitOfMeasure || null,
         unitCost: Number(l.unitCost) || 0,
       })),
     }
@@ -144,7 +142,7 @@ export function NewPurchaseOrderClient({
     <div className="max-w-3xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--color-foreground)]">New Purchase Order</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Pick a store and vendor, then add items to order.</p>
+        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Pick a store and vendor, then add ingredients to order.</p>
       </div>
 
       <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-6 mb-6">
@@ -177,26 +175,29 @@ export function NewPurchaseOrderClient({
           </div>
         </div>
 
-        <Label>Add Item</Label>
+        <Label>Add Ingredient</Label>
         <div className="relative">
           <Input
-            placeholder="Search items..."
-            value={itemSearch}
-            onChange={(e) => setItemSearch(e.target.value)}
+            placeholder="Search ingredients..."
+            value={ingredientSearch}
+            onChange={(e) => setIngredientSearch(e.target.value)}
           />
-          {filteredItems.length > 0 && (
+          {filteredIngredients.length > 0 && (
             <div className="absolute z-10 mt-1 w-full bg-[var(--color-popover)] border border-[var(--color-border)] rounded-md shadow-md max-h-64 overflow-y-auto">
-              {filteredItems.map((item) => (
+              {filteredIngredients.map((ingredient) => (
                 <button
-                  key={item.squareCatalogObjId}
-                  onClick={() => addItem(item)}
+                  key={ingredient.id}
+                  onClick={() => addIngredient(ingredient)}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-accent)] transition-colors"
                 >
-                  <span className="font-medium text-[var(--color-foreground)]">{item.name}</span>
-                  {item.categoryName && <span className="text-xs text-[var(--color-muted-foreground)] ml-2">{item.categoryName}</span>}
+                  <span className="font-medium text-[var(--color-foreground)]">{ingredient.displayName}</span>
+                  {ingredient.categoryName && <span className="text-xs text-[var(--color-muted-foreground)] ml-2">{ingredient.categoryName}</span>}
                 </button>
               ))}
             </div>
+          )}
+          {ingredients.length === 0 && (
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">No ingredients yet — add some in Inventory → Ingredients first.</p>
           )}
         </div>
       </div>
@@ -206,7 +207,7 @@ export function NewPurchaseOrderClient({
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--color-border)]">
-                {["Item", "Qty", "Unit", "Unit Cost", "Line Total", ""].map((h) => (
+                {["Ingredient", "Qty", "Unit Cost", "Line Total", ""].map((h) => (
                   <th key={h} className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-4 py-2">{h}</th>
                 ))}
               </tr>
@@ -215,23 +216,19 @@ export function NewPurchaseOrderClient({
               {lines.map((line, i) => (
                 <tr key={i} className="border-b border-[var(--color-border)] last:border-0">
                   <td className="px-4 py-2">
-                    <p className="text-sm text-[var(--color-foreground)]">{line.itemName}</p>
+                    <p className="text-sm text-[var(--color-foreground)]">{line.displayName}</p>
                     {line.hint && <p className="text-xs text-[var(--color-warning-text)]">{line.hint}</p>}
                   </td>
                   <td className="px-4 py-2">
-                    <Input
-                      type="number"
-                      className="h-8 w-20 text-sm"
-                      value={line.quantityOrdered}
-                      onChange={(e) => updateLine(i, { quantityOrdered: e.target.value })}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <Input
-                      className="h-8 w-20 text-sm"
-                      value={line.unitOfMeasure}
-                      onChange={(e) => updateLine(i, { unitOfMeasure: e.target.value })}
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        className="h-8 w-16 text-sm"
+                        value={line.quantityOrdered}
+                        onChange={(e) => updateLine(i, { quantityOrdered: e.target.value })}
+                      />
+                      <span className="text-xs text-[var(--color-muted-foreground)] whitespace-nowrap">{line.purchaseUnitLabel}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-2">
                     <Input

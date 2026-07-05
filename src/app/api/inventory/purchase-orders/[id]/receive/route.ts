@@ -30,7 +30,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const po = await prisma.purchaseOrder.findFirst({
     where: { id, organizationId: org.id, ...(isAdmin ? {} : { storeId: { in: storeIds } }) },
-    include: { lines: true },
+    include: { lines: { include: { ingredient: true } } },
   })
   if (!po) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (po.status !== "SUBMITTED" && po.status !== "PARTIALLY_RECEIVED") {
@@ -60,16 +60,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         },
       })
 
-      await tx.vendorItem.upsert({
-        where: { vendorId_squareCatalogObjId: { vendorId: po.vendorId, squareCatalogObjId: line.squareCatalogObjId } },
-        create: { vendorId: po.vendorId, squareCatalogObjId: line.squareCatalogObjId, lastCasePrice: line.unitCost },
-        update: { lastCasePrice: line.unitCost },
+      await tx.vendorIngredient.upsert({
+        where: { vendorId_ingredientId: { vendorId: po.vendorId, ingredientId: line.ingredientId } },
+        create: { vendorId: po.vendorId, ingredientId: line.ingredientId, casePrice: line.unitCost },
+        update: { casePrice: line.unitCost },
       })
 
-      await tx.itemMetadata.upsert({
-        where: { organizationId_squareCatalogObjId: { organizationId: org.id, squareCatalogObjId: line.squareCatalogObjId } },
-        create: { organizationId: org.id, squareCatalogObjId: line.squareCatalogObjId, unitCostOverride: line.unitCost },
-        update: { unitCostOverride: line.unitCost },
+      // Most-recent-cost method: the price just paid becomes the ingredient's
+      // current cost everywhere it's displayed (recipes, reports, etc.).
+      await tx.ingredient.update({
+        where: { id: line.ingredientId },
+        data: {
+          purchaseCost: line.unitCost,
+          costPerReportingUnit: line.unitCost / line.ingredient.unitsPerPurchase,
+        },
       })
     }
 
@@ -85,7 +89,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const updated = await prisma.purchaseOrder.findUnique({
     where: { id },
-    include: { lines: true, store: true, vendor: true },
+    include: { lines: { include: { ingredient: true } }, store: true, vendor: true },
   })
 
   return NextResponse.json(updated)

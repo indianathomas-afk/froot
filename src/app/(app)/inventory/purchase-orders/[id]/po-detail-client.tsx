@@ -13,11 +13,10 @@ import {
 
 type Line = {
   id: string
-  squareCatalogObjId: string
-  itemName: string
+  ingredientName: string
+  purchaseUnitLabel: string
   quantityOrdered: number
   quantityReceived: number
-  unitOfMeasure: string | null
   unitCost: number
   lineTotal: number
   receivingNote: string | null
@@ -183,9 +182,9 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
               const remaining = line.quantityOrdered - line.quantityReceived
               return (
                 <tr key={line.id} className="border-b border-[var(--color-border)] last:border-0">
-                  <td className="px-4 py-2 text-sm text-[var(--color-foreground)]">{line.itemName}</td>
-                  <td className="px-4 py-2 text-sm text-[var(--color-muted-foreground)]">{line.quantityOrdered} {line.unitOfMeasure}</td>
-                  <td className="px-4 py-2 text-sm text-[var(--color-muted-foreground)]">{line.quantityReceived} {line.unitOfMeasure}</td>
+                  <td className="px-4 py-2 text-sm text-[var(--color-foreground)]">{line.ingredientName}</td>
+                  <td className="px-4 py-2 text-sm text-[var(--color-muted-foreground)]">{line.quantityOrdered} {line.purchaseUnitLabel}</td>
+                  <td className="px-4 py-2 text-sm text-[var(--color-muted-foreground)]">{line.quantityReceived} {line.purchaseUnitLabel}</td>
                   <td className="px-4 py-2 text-sm text-[var(--color-muted-foreground)]">${line.unitCost.toFixed(2)}</td>
                   <td className="px-4 py-2 text-sm text-[var(--color-foreground)]">${line.lineTotal.toFixed(2)}</td>
                   {receiving && (

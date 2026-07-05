@@ -19,7 +19,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
 
   const po = await prisma.purchaseOrder.findFirst({
     where: { id, organizationId: org.id, ...(isAdmin ? {} : { storeId: { in: storeIds } }) },
-    include: { lines: true, store: true, vendor: true },
+    include: { lines: { include: { ingredient: true } }, store: true, vendor: true },
   })
   if (!po) notFound()
 
@@ -32,6 +32,16 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
         expectedAt: po.expectedAt?.toISOString() ?? null,
         orderedAt: po.orderedAt?.toISOString() ?? null,
         createdAt: po.createdAt.toISOString(),
+        lines: po.lines.map((l) => ({
+          id: l.id,
+          ingredientName: l.ingredientName,
+          purchaseUnitLabel: l.ingredient.purchaseUnitLabel,
+          quantityOrdered: l.quantityOrdered,
+          quantityReceived: l.quantityReceived,
+          unitCost: l.unitCost,
+          lineTotal: l.lineTotal,
+          receivingNote: l.receivingNote,
+        })),
       }}
       canManage={canManage}
     />

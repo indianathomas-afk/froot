@@ -370,24 +370,25 @@ model Vendor {
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
 
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  vendorItems    VendorItem[]
-  purchaseOrders PurchaseOrder[]
-  itemMetadata   ItemMetadata[]
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  vendorIngredients VendorIngredient[]
+  purchaseOrders    PurchaseOrder[]
+  itemMetadata      ItemMetadata[]
 }
 
-model VendorItem {
-  id                 String  @id @default(cuid())
-  vendorId           String
-  squareCatalogObjId String
-  vendorSku          String?
-  caseSize           String?
-  lastCasePrice      Float?
-  unitsPerCase       Float?
+model VendorIngredient {
+  id              String  @id @default(cuid())
+  vendorId        String
+  ingredientId    String
+  vendorSku       String?
+  packDescription String?
+  casePrice       Float?
+  unitsPerCase    Float?
 
-  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendor     Vendor     @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
 
-  @@unique([vendorId, squareCatalogObjId])
+  @@unique([vendorId, ingredientId])
 }
 
 model PurchaseOrder {
@@ -413,18 +414,18 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderLine {
-  id                 String  @id @default(cuid())
-  purchaseOrderId    String
-  squareCatalogObjId String
-  itemName           String
-  quantityOrdered    Float
-  quantityReceived   Float   @default(0)
-  unitOfMeasure      String?
-  unitCost           Float
-  lineTotal          Float
-  receivingNote      String?
+  id               String  @id @default(cuid())
+  purchaseOrderId  String
+  ingredientId     String
+  ingredientName   String
+  quantityOrdered  Float
+  quantityReceived Float   @default(0)
+  unitCost         Float
+  lineTotal        Float
+  receivingNote    String?
 
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  ingredient    Ingredient    @relation(fields: [ingredientId], references: [id])
 }
 
 // ─── PHASE 2: INVENTORY MODULE v2 — sales items (Square) vs ingredients (Froot) ──
@@ -492,8 +493,10 @@ model Ingredient {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  organization Organization        @relation(fields: [organizationId], references: [id])
-  category     IngredientCategory? @relation(fields: [categoryId], references: [id])
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  category           IngredientCategory? @relation(fields: [categoryId], references: [id])
+  vendorIngredients  VendorIngredient[]
+  purchaseOrderLines PurchaseOrderLine[]
 }
 
 model InventoryCount {

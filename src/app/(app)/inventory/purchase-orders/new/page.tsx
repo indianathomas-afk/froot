@@ -18,39 +18,30 @@ export default async function NewPurchaseOrderPage() {
 
   const { isAdmin, storeIds } = await getUserStoreScope()
 
-  const [stores, vendors, catalogItems, metadata] = await Promise.all([
+  const [stores, vendors, ingredients] = await Promise.all([
     prisma.store.findMany({
       where: { organizationId: org.id, ...(isAdmin ? {} : { id: { in: storeIds } }) },
       orderBy: { name: "asc" },
     }),
     prisma.vendor.findMany({ where: { organizationId: org.id, isActive: true }, orderBy: { name: "asc" } }),
-    prisma.catalogItem.findMany({
-      where: { organizationId: org.id, isDeleted: false },
+    prisma.ingredient.findMany({
+      where: { organizationId: org.id, isActive: true },
       include: { category: true },
       orderBy: { name: "asc" },
     }),
-    prisma.itemMetadata.findMany({ where: { organizationId: org.id } }),
   ])
-
-  const metadataBySquareId = new Map(metadata.map((m) => [m.squareCatalogObjId, m]))
-
-  const items = catalogItems.map((item) => {
-    const squareCatalogObjId = item.squareItemId ?? item.id
-    const meta = metadataBySquareId.get(squareCatalogObjId)
-    return {
-      squareCatalogObjId,
-      name: item.name,
-      categoryName: item.category?.name ?? null,
-      unitOfMeasure: meta?.unitOfMeasure ?? null,
-      unitCostOverride: meta?.unitCostOverride ?? null,
-    }
-  })
 
   return (
     <NewPurchaseOrderClient
       stores={stores.map((s) => ({ id: s.id, name: s.name }))}
       vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
-      items={items}
+      ingredients={ingredients.map((i) => ({
+        id: i.id,
+        displayName: i.brand ? `${i.brand} ${i.name}` : i.name,
+        categoryName: i.category?.name ?? null,
+        purchaseUnitLabel: i.purchaseUnitLabel,
+        purchaseCost: i.purchaseCost,
+      }))}
     />
   )
 }

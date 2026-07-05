@@ -5,10 +5,8 @@ import { z } from "zod"
 import { getCurrentUser, getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
 
 const LineSchema = z.object({
-  squareCatalogObjId: z.string().min(1),
-  itemName: z.string().min(1),
+  ingredientId: z.string().min(1),
   quantityOrdered: z.number().positive(),
-  unitOfMeasure: z.string().optional().nullable(),
   unitCost: z.number().nonnegative(),
 })
 
@@ -61,7 +59,7 @@ export async function GET(req: Request) {
           }
         : {}),
     },
-    include: { store: true, vendor: true, lines: true },
+    include: { store: true, vendor: true, lines: { include: { ingredient: true } } },
     orderBy: { createdAt: "desc" },
   })
 
@@ -103,6 +101,16 @@ export async function POST(req: Request) {
   const vendor = await prisma.vendor.findFirst({ where: { id: data.vendorId, organizationId: org.id } })
   if (!vendor) return NextResponse.json({ error: "Vendor not found" }, { status: 404 })
 
+  const ingredients = await prisma.ingredient.findMany({
+    where: { id: { in: data.lines.map((l) => l.ingredientId) }, organizationId: org.id },
+  })
+  const ingredientById = new Map(ingredients.map((i) => [i.id, i]))
+  for (const line of data.lines) {
+    if (!ingredientById.has(line.ingredientId)) {
+      return NextResponse.json({ error: `Ingredient ${line.ingredientId} not found` }, { status: 404 })
+    }
+  }
+
   const totalAmount = data.lines.reduce((sum, l) => sum + l.quantityOrdered * l.unitCost, 0)
 
   const purchaseOrder = await prisma.purchaseOrder.create({
@@ -117,14 +125,16 @@ export async function POST(req: Request) {
       status: "DRAFT",
       enteredByUserId: dbUser?.id ?? null,
       lines: {
-        create: data.lines.map((l) => ({
-          squareCatalogObjId: l.squareCatalogObjId,
-          itemName: l.itemName,
-          quantityOrdered: l.quantityOrdered,
-          unitOfMeasure: l.unitOfMeasure || null,
-          unitCost: l.unitCost,
-          lineTotal: l.quantityOrdered * l.unitCost,
-        })),
+        create: data.lines.map((l) => {
+          const ingredient = ingredientById.get(l.ingredientId)!
+          return {
+            ingredientId: l.ingredientId,
+            ingredientName: ingredient.brand ? `${ingredient.brand} ${ingredient.name}` : ingredient.name,
+            quantityOrdered: l.quantityOrdered,
+            unitCost: l.unitCost,
+            lineTotal: l.quantityOrdered * l.unitCost,
+          }
+        }),
       },
     },
     include: { lines: true, store: true, vendor: true },

@@ -5,10 +5,8 @@ import { z } from "zod"
 import { getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
 
 const LineSchema = z.object({
-  squareCatalogObjId: z.string().min(1),
-  itemName: z.string().min(1),
+  ingredientId: z.string().min(1),
   quantityOrdered: z.number().positive(),
-  unitOfMeasure: z.string().optional().nullable(),
   unitCost: z.number().nonnegative(),
 })
 
@@ -27,7 +25,7 @@ async function findScopedPO(organizationId: string, id: string, isAdmin: boolean
       organizationId,
       ...(isAdmin ? {} : { storeId: { in: storeIds } }),
     },
-    include: { lines: true, store: true, vendor: true },
+    include: { lines: { include: { ingredient: true } }, store: true, vendor: true },
   })
   return po
 }
@@ -85,6 +83,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const body = await req.json()
   const data = UpdateSchema.parse(body)
 
+  let ingredientById = new Map<string, { name: string; brand: string | null }>()
+  if (data.lines) {
+    const ingredients = await prisma.ingredient.findMany({
+      where: { id: { in: data.lines.map((l) => l.ingredientId) }, organizationId: org.id },
+    })
+    ingredientById = new Map(ingredients.map((i) => [i.id, i]))
+    for (const line of data.lines) {
+      if (!ingredientById.has(line.ingredientId)) {
+        return NextResponse.json({ error: `Ingredient ${line.ingredientId} not found` }, { status: 404 })
+      }
+    }
+  }
+
   const totalAmount = data.lines
     ? data.lines.reduce((sum, l) => sum + l.quantityOrdered * l.unitCost, 0)
     : existing.totalAmount
@@ -100,18 +111,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(data.lines && {
         lines: {
           deleteMany: {},
-          create: data.lines.map((l) => ({
-            squareCatalogObjId: l.squareCatalogObjId,
-            itemName: l.itemName,
-            quantityOrdered: l.quantityOrdered,
-            unitOfMeasure: l.unitOfMeasure || null,
-            unitCost: l.unitCost,
-            lineTotal: l.quantityOrdered * l.unitCost,
-          })),
+          create: data.lines.map((l) => {
+            const ingredient = ingredientById.get(l.ingredientId)!
+            return {
+              ingredientId: l.ingredientId,
+              ingredientName: ingredient.brand ? `${ingredient.brand} ${ingredient.name}` : ingredient.name,
+              quantityOrdered: l.quantityOrdered,
+              unitCost: l.unitCost,
+              lineTotal: l.quantityOrdered * l.unitCost,
+            }
+          }),
         },
       }),
     },
-    include: { lines: true, store: true, vendor: true },
+    include: { lines: { include: { ingredient: true } }, store: true, vendor: true },
   })
 
   return NextResponse.json(updated)
