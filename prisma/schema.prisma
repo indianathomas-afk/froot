@@ -23,21 +23,25 @@ model Organization {
   lastCatalogSyncAt    DateTime?
   createdAt            DateTime  @default(now())
 
-  stores            Store[]
-  users             User[]
-  pendingInvites    PendingInvite[]
-  staff             StaffMember[]
-  templates         Template[]
-  checklists        Checklist[]
-  storageAreas      StorageArea[]
-  inventoryCounts   InventoryCount[]
-  itemMetadata      ItemMetadata[]
-  menuItems         MenuItem[]
-  auditLogs         AuditLog[]
-  catalogCategories CatalogCategory[]
-  catalogItems      CatalogItem[]
-  vendors           Vendor[]
-  purchaseOrders    PurchaseOrder[]
+  stores               Store[]
+  users                User[]
+  pendingInvites       PendingInvite[]
+  staff                StaffMember[]
+  templates            Template[]
+  checklists           Checklist[]
+  storageAreas         StorageArea[]
+  inventoryCounts      InventoryCount[]
+  itemMetadata         ItemMetadata[]
+  menuItems            MenuItem[]
+  auditLogs            AuditLog[]
+  catalogCategories    CatalogCategory[]
+  catalogItems         CatalogItem[]
+  vendors              Vendor[]
+  purchaseOrders       PurchaseOrder[]
+  squareCategories     SquareCategory[]
+  salesItems           SalesItem[]
+  ingredientCategories IngredientCategory[]
+  ingredients          Ingredient[]
 }
 
 model User {
@@ -421,6 +425,75 @@ model PurchaseOrderLine {
   receivingNote      String?
 
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+}
+
+// ─── PHASE 2: INVENTORY MODULE v2 — sales items (Square) vs ingredients (Froot) ──
+
+model SquareCategory {
+  id               String  @id @default(cuid())
+  organizationId   String
+  squareCategoryId String
+  name             String
+  isDeleted        Boolean @default(false)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  salesItems   SalesItem[]
+
+  @@unique([organizationId, squareCategoryId])
+}
+
+model SalesItem {
+  id                String   @id @default(cuid())
+  organizationId    String
+  squareItemId      String
+  squareVariationId String
+  name              String
+  variationName     String
+  displayName       String
+  squareCategoryId  String?
+  menuGroup         String?
+  priceCents        Int?
+  isDeleted         Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  squareCategory SquareCategory? @relation(fields: [squareCategoryId], references: [id])
+
+  @@unique([organizationId, squareVariationId])
+}
+
+model IngredientCategory {
+  id             String  @id @default(cuid())
+  organizationId String
+  name           String
+  glCode         String?
+  sortOrder      Int     @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  ingredients  Ingredient[]
+
+  @@unique([organizationId, name])
+}
+
+model Ingredient {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  brand                String?
+  name                 String
+  categoryId           String?
+  purchaseUnitLabel    String
+  packDescription      String?
+  purchaseCost         Float
+  reportingUnit        String
+  unitsPerPurchase     Float
+  costPerReportingUnit Float
+  isActive             Boolean  @default(true)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  category     IngredientCategory? @relation(fields: [categoryId], references: [id])
 }
 
 model InventoryCount {
