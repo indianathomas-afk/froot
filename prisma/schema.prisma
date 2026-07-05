@@ -20,19 +20,22 @@ model Organization {
   squareAccessToken    String?
   squareRefreshToken   String?
   squareTokenExpiresAt DateTime?
+  lastCatalogSyncAt    DateTime?
   createdAt            DateTime  @default(now())
 
-  stores          Store[]
-  users           User[]
-  pendingInvites  PendingInvite[]
-  staff           StaffMember[]
-  templates       Template[]
-  checklists      Checklist[]
-  storageAreas    StorageArea[]
-  inventoryCounts InventoryCount[]
-  itemMetadata    ItemMetadata[]
-  menuItems       MenuItem[]
-  auditLogs       AuditLog[]
+  stores            Store[]
+  users             User[]
+  pendingInvites    PendingInvite[]
+  staff             StaffMember[]
+  templates         Template[]
+  checklists        Checklist[]
+  storageAreas      StorageArea[]
+  inventoryCounts   InventoryCount[]
+  itemMetadata      ItemMetadata[]
+  menuItems         MenuItem[]
+  auditLogs         AuditLog[]
+  catalogCategories CatalogCategory[]
+  catalogItems      CatalogItem[]
 }
 
 model User {
@@ -297,6 +300,53 @@ model ItemMetadata {
   @@unique([organizationId, squareCatalogObjId])
 }
 
+model CatalogCategory {
+  id               String  @id @default(cuid())
+  organizationId   String
+  squareCategoryId String
+  name             String
+  isDeleted        Boolean @default(false)
+  sortOrder        Int     @default(0)
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  items        CatalogItem[]
+
+  @@unique([organizationId, squareCategoryId])
+}
+
+model CatalogItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  squareItemId   String?
+  categoryId     String?
+  name           String
+  description    String?
+  isDeleted      Boolean  @default(false)
+  isArchived     Boolean  @default(false)
+  productType    String?
+  updatedAt      DateTime @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id])
+  category     CatalogCategory?       @relation(fields: [categoryId], references: [id])
+  variations   CatalogItemVariation[]
+
+  @@unique([organizationId, squareItemId])
+}
+
+model CatalogItemVariation {
+  id                String  @id @default(cuid())
+  catalogItemId     String
+  squareVariationId String?
+  name              String
+  sku               String?
+  priceMoney        Int?
+  ordinal           Int     @default(0)
+
+  catalogItem CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+
+  @@unique([catalogItemId, squareVariationId])
+}
+
 model InventoryCount {
   id                  String    @id @default(cuid())
   organizationId      String
@@ -340,7 +390,7 @@ model MenuItem {
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
+  organization Organization       @relation(fields: [organizationId], references: [id])
   nutrition    MenuItemNutrition?
   allergens    MenuItemAllergen[]
 }

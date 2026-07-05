@@ -17,6 +17,7 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Package,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClerk, useUser } from "@clerk/nextjs"
@@ -28,19 +29,22 @@ const navItems = [
   { href: "/stores", label: "Stores", icon: Store, roles: ["ADMIN", "MANAGER"] },
   { href: "/users", label: "Users", icon: Users, roles: ["ADMIN"] },
   { href: "/staff", label: "Staff", icon: UserSquare, roles: ["ADMIN", "MANAGER"] },
+  { href: "/items", label: "Items", icon: Package, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], module: "inventory" },
   { href: "/reports", label: "Reports", icon: BarChart2, roles: ["ADMIN", "MANAGER"] },
   { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
 ]
 
 const STORAGE_KEY = "froot-sidebar-collapsed"
 
-export function Sidebar({ role }: { role: string }) {
+export function Sidebar({ role, activeModules = [] }: { role: string; activeModules?: string[] }) {
   const pathname = usePathname()
   const { signOut } = useClerk()
   const { user } = useUser()
   const [collapsed, setCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const visibleNavItems = navItems.filter((item) => item.roles.includes(role))
+  const visibleNavItems = navItems.filter(
+    (item) => item.roles.includes(role) && (!item.module || activeModules.includes(item.module))
+  )
   const canSeeSettings = role === "ADMIN"
 
   useEffect(() => {
