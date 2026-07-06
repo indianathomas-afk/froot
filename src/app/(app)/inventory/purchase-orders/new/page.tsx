@@ -25,7 +25,7 @@ export default async function NewPurchaseOrderPage() {
     }),
     prisma.vendor.findMany({ where: { organizationId: org.id, isActive: true }, orderBy: { name: "asc" } }),
     prisma.ingredient.findMany({
-      where: { organizationId: org.id, isActive: true },
+      where: { organizationId: org.id, isActive: true, isArchived: false, deletedAt: null },
       include: { category: true },
       orderBy: { name: "asc" },
     }),

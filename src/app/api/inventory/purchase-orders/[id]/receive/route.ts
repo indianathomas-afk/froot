@@ -47,6 +47,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
+  const changedCosts: { ingredientId: string; ingredientName: string; oldCost: number; newCost: number }[] = []
+
   await prisma.$transaction(async (tx) => {
     for (const r of receipts) {
       const line = linesById.get(r.lineId)!
@@ -68,11 +70,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       // Most-recent-cost method: the price just paid becomes the ingredient's
       // current cost everywhere it's displayed (recipes, reports, etc.).
+      const newCostPerReportingUnit = line.unitCost / line.ingredient.unitsPerPurchase
+      if (newCostPerReportingUnit !== line.ingredient.costPerReportingUnit) {
+        changedCosts.push({
+          ingredientId: line.ingredientId,
+          ingredientName: line.ingredientName,
+          oldCost: line.ingredient.costPerReportingUnit,
+          newCost: newCostPerReportingUnit,
+        })
+      }
+
       await tx.ingredient.update({
         where: { id: line.ingredientId },
         data: {
           purchaseCost: line.unitCost,
-          costPerReportingUnit: line.unitCost / line.ingredient.unitsPerPurchase,
+          costPerReportingUnit: newCostPerReportingUnit,
+          costLogs: { create: { costPerReportingUnit: newCostPerReportingUnit, source: "PO_RECEIPT", sourceRef: po.poNumber } },
         },
       })
     }
@@ -92,5 +105,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     include: { lines: { include: { ingredient: true } }, store: true, vendor: true },
   })
 
-  return NextResponse.json(updated)
+  return NextResponse.json({ ...updated, changedCosts })
 }

@@ -14,7 +14,11 @@ type PreviewRow = {
     brand: string | null
     name: string
     category: string | null
+    subcategory: string | null
+    sku: string | null
     glCode: string | null
+    glCodeOverride: string | null
+    productNote: string | null
     purchaseUnitLabel: string
     packDescription: string | null
     purchaseCost: number
@@ -44,7 +48,11 @@ function validateRow(raw: RawRow, rowNum: number): PreviewRow {
       brand: raw.brand?.trim() || null,
       name,
       category: raw.category?.trim() || null,
+      subcategory: raw.subcategory?.trim() || null,
+      sku: raw.sku?.trim() || null,
       glCode: raw.glCode?.trim() || null,
+      glCodeOverride: raw.glCodeOverride?.trim() || null,
+      productNote: raw.productNote?.trim() || null,
       purchaseUnitLabel,
       packDescription: raw.packDescription?.trim() || null,
       purchaseCost,
@@ -113,7 +121,8 @@ export function CsvImportButton({ onImported }: { onImported: () => void }) {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-xs text-[var(--color-muted-foreground)]">
-              Columns: brand, name, category, glCode, purchaseUnitLabel, packDescription, purchaseCost, reportingUnit, unitsPerPurchase
+              Columns: brand, name, category, subcategory, sku, glCode, glCodeOverride, productNote, purchaseUnitLabel,
+              packDescription, purchaseCost, reportingUnit, unitsPerPurchase
             </p>
             <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFile} className="text-sm" />
 

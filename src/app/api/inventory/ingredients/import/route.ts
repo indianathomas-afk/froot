@@ -8,7 +8,11 @@ const RowSchema = z.object({
   brand: z.string().optional().nullable(),
   name: z.string().min(1),
   category: z.string().optional().nullable(),
+  subcategory: z.string().optional().nullable(),
+  sku: z.string().optional().nullable(),
   glCode: z.string().optional().nullable(),
+  glCodeOverride: z.string().optional().nullable(),
+  productNote: z.string().optional().nullable(),
   purchaseUnitLabel: z.string().min(1),
   packDescription: z.string().optional().nullable(),
   purchaseCost: z.number().nonnegative(),
@@ -29,8 +33,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
   }
 
+  let dbUser
   try {
-    await requireAdmin()
+    dbUser = await requireAdmin()
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
@@ -67,18 +72,25 @@ export async function POST(req: Request) {
         }
       }
 
+      const costPerReportingUnit = data.purchaseCost / data.unitsPerPurchase
       await prisma.ingredient.create({
         data: {
           organizationId: org.id,
           brand: data.brand || null,
           name: data.name,
           categoryId,
+          subcategory: data.subcategory || null,
+          sku: data.sku || null,
+          glCodeOverride: data.glCodeOverride || null,
+          productNote: data.productNote || null,
           purchaseUnitLabel: data.purchaseUnitLabel,
           packDescription: data.packDescription || null,
           purchaseCost: data.purchaseCost,
           reportingUnit: data.reportingUnit,
           unitsPerPurchase: data.unitsPerPurchase,
-          costPerReportingUnit: data.purchaseCost / data.unitsPerPurchase,
+          costPerReportingUnit,
+          lastEditedByUserId: dbUser?.id ?? null,
+          costLogs: { create: { costPerReportingUnit, source: "IMPORT" } },
         },
       })
       created++

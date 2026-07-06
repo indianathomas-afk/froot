@@ -59,6 +59,7 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
   const [receiving, setReceiving] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [receiveInputs, setReceiveInputs] = useState<Record<string, { qty: string; note: string }>>(
     Object.fromEntries(po.lines.map((l) => [l.id, { qty: String(l.quantityOrdered - l.quantityReceived), note: "" }]))
   )
@@ -97,6 +98,7 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
   async function handleReceive() {
     setBusy(true)
     setError(null)
+    setNotice(null)
     try {
       const payload = po.lines
         .map((l) => ({
@@ -119,6 +121,8 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
       const data = await res.json()
       if (!res.ok) return setError(data.error ?? "Failed to receive")
       setReceiving(false)
+      const changed = data.changedCosts?.length ?? 0
+      if (changed > 0) setNotice(`Received items — ${changed} item cost${changed !== 1 ? "s" : ""} updated.`)
       router.refresh()
     } finally {
       setBusy(false)
@@ -219,6 +223,7 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
         </table>
       </div>
 
+      {notice && <p className="text-sm text-[var(--color-success-text)] mb-4">{notice}</p>}
       {error && <p className="text-sm text-[var(--color-destructive)] mb-4">{error}</p>}
 
       <div className="flex items-center gap-3">

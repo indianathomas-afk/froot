@@ -3,19 +3,31 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { serializeIngredient } from "@/lib/ingredient-dto"
 
 const IngredientSchema = z.object({
   brand: z.string().optional().nullable(),
   name: z.string().min(1),
   categoryId: z.string().optional().nullable(),
+  subcategory: z.string().optional().nullable(),
+  sku: z.string().optional().nullable(),
   purchaseUnitLabel: z.string().min(1),
   packDescription: z.string().optional().nullable(),
   purchaseCost: z.number().nonnegative(),
   reportingUnit: z.string().min(1),
   unitsPerPurchase: z.number().positive(),
+  glCodeOverride: z.string().optional().nullable(),
+  productNote: z.string().optional().nullable(),
+  kind: z.enum(["PURCHASED", "PREPARED"]).optional(),
   isActive: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
   notes: z.string().optional().nullable(),
 })
+
+const includeRelations = {
+  category: true,
+  vendorIngredients: { include: { vendor: true } },
+} as const
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
@@ -30,8 +42,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
   }
 
+  let dbUser
   try {
-    await requireManagerOrAdmin()
+    dbUser = await requireManagerOrAdmin()
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
@@ -45,6 +58,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const purchaseCost = data.purchaseCost ?? existing.purchaseCost
   const unitsPerPurchase = data.unitsPerPurchase ?? existing.unitsPerPurchase
+  const costPerReportingUnit = purchaseCost / unitsPerPurchase
+  const costChanged = costPerReportingUnit !== existing.costPerReportingUnit
 
   const updated = await prisma.ingredient.update({
     where: { id },
@@ -52,20 +67,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(data.brand !== undefined && { brand: data.brand || null }),
       ...(data.name !== undefined && { name: data.name }),
       ...(data.categoryId !== undefined && { categoryId: data.categoryId || null }),
+      ...(data.subcategory !== undefined && { subcategory: data.subcategory || null }),
+      ...(data.sku !== undefined && { sku: data.sku || null }),
       ...(data.purchaseUnitLabel !== undefined && { purchaseUnitLabel: data.purchaseUnitLabel }),
       ...(data.packDescription !== undefined && { packDescription: data.packDescription || null }),
       ...(data.purchaseCost !== undefined && { purchaseCost: data.purchaseCost }),
       ...(data.reportingUnit !== undefined && { reportingUnit: data.reportingUnit }),
       ...(data.unitsPerPurchase !== undefined && { unitsPerPurchase: data.unitsPerPurchase }),
+      ...(data.glCodeOverride !== undefined && { glCodeOverride: data.glCodeOverride || null }),
+      ...(data.productNote !== undefined && { productNote: data.productNote || null }),
+      ...(data.kind !== undefined && { kind: data.kind }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
+      ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
       ...(data.notes !== undefined && { notes: data.notes || null }),
-      ...((data.purchaseCost !== undefined || data.unitsPerPurchase !== undefined) && {
-        costPerReportingUnit: purchaseCost / unitsPerPurchase,
-      }),
+      ...(costChanged && { costPerReportingUnit }),
+      lastEditedByUserId: dbUser?.id ?? null,
+      ...(costChanged && { costLogs: { create: { costPerReportingUnit, source: "MANUAL" } } }),
     },
+    include: includeRelations,
   })
 
-  return NextResponse.json(updated)
+  return NextResponse.json(serializeIngredient(updated, dbUser?.name || dbUser?.email || null))
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -81,8 +103,9 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
   }
 
+  let dbUser
   try {
-    await requireManagerOrAdmin()
+    dbUser = await requireManagerOrAdmin()
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
@@ -91,6 +114,11 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   const existing = await prisma.ingredient.findFirst({ where: { id, organizationId: org.id } })
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  await prisma.ingredient.update({ where: { id }, data: { isActive: false } })
+  // Soft delete only — no hard deletes, ever. Restore is available from the
+  // View Deleted screen.
+  await prisma.ingredient.update({
+    where: { id },
+    data: { deletedAt: new Date(), lastEditedByUserId: dbUser?.id ?? null },
+  })
   return NextResponse.json({ success: true })
 }

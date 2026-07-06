@@ -42,6 +42,7 @@ model Organization {
   salesItems           SalesItem[]
   ingredientCategories IngredientCategory[]
   ingredients          Ingredient[]
+  ingredientDuplicateDismissals IngredientDuplicateDismissal[]
 }
 
 model User {
@@ -477,26 +478,58 @@ model IngredientCategory {
 }
 
 model Ingredient {
-  id                   String   @id @default(cuid())
+  id                   String    @id @default(cuid())
   organizationId       String
   brand                String?
   name                 String
   categoryId           String?
+  subcategory          String?
+  sku                  String?
   purchaseUnitLabel    String
   packDescription      String?
   purchaseCost         Float
   reportingUnit        String
   unitsPerPurchase     Float
   costPerReportingUnit Float
-  isActive             Boolean  @default(true)
+  glCodeOverride       String?
+  productNote          String?
+  isActive             Boolean   @default(true)
+  isArchived           Boolean   @default(false)
+  deletedAt            DateTime?
+  lastEditedByUserId   String?
+  kind                 String    @default("PURCHASED") // PURCHASED | PREPARED
   notes                String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   organization       Organization        @relation(fields: [organizationId], references: [id])
   category           IngredientCategory? @relation(fields: [categoryId], references: [id])
   vendorIngredients  VendorIngredient[]
   purchaseOrderLines PurchaseOrderLine[]
+  costLogs           IngredientCostLog[]
+}
+
+model IngredientCostLog {
+  id                   String   @id @default(cuid())
+  ingredientId         String
+  costPerReportingUnit Float
+  source               String // PO_RECEIPT | MANUAL | IMPORT
+  sourceRef            String?
+  createdAt            DateTime @default(now())
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+}
+
+model IngredientDuplicateDismissal {
+  id             String   @id @default(cuid())
+  organizationId String
+  ingredientAId  String
+  ingredientBId  String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, ingredientAId, ingredientBId])
 }
 
 model InventoryCount {

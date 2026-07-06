@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { Carrot } from "lucide-react"
 import Link from "next/link"
+import { serializeIngredient } from "@/lib/ingredient-dto"
 import { IngredientsClient } from "./ingredients-client"
 
 export default async function IngredientsPage() {
@@ -38,36 +39,41 @@ export default async function IngredientsPage() {
   const isAdmin = dbUser?.role === "ADMIN"
   const canManage = isAdmin || dbUser?.role === "MANAGER"
 
-  const [ingredients, categories] = await Promise.all([
+  const [ingredients, categories, deletedIngredients] = await Promise.all([
     prisma.ingredient.findMany({
-      where: { organizationId: org.id },
-      include: { category: true },
+      where: { organizationId: org.id, deletedAt: null },
+      include: { category: true, vendorIngredients: { include: { vendor: true } } },
       orderBy: { name: "asc" },
     }),
     prisma.ingredientCategory.findMany({
       where: { organizationId: org.id },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
+    prisma.ingredient.findMany({
+      where: { organizationId: org.id, deletedAt: { not: null } },
+      select: { id: true, brand: true, name: true },
+    }),
   ])
+
+  const editorIds = [...new Set(ingredients.map((i) => i.lastEditedByUserId).filter((id): id is string => !!id))]
+  const editors = editorIds.length ? await prisma.user.findMany({ where: { id: { in: editorIds } } }) : []
+  const editorNameById = new Map(editors.map((u) => [u.id, u.name || u.email]))
+
+  const ingredientCountByCategory: Record<string, number> = {}
+  for (const i of ingredients) {
+    if (i.categoryId && !i.glCodeOverride) {
+      ingredientCountByCategory[i.categoryId] = (ingredientCountByCategory[i.categoryId] ?? 0) + 1
+    }
+  }
 
   return (
     <IngredientsClient
-      ingredients={ingredients.map((i) => ({
-        id: i.id,
-        brand: i.brand,
-        name: i.name,
-        categoryId: i.categoryId,
-        categoryName: i.category?.name ?? null,
-        purchaseUnitLabel: i.purchaseUnitLabel,
-        packDescription: i.packDescription,
-        purchaseCost: i.purchaseCost,
-        reportingUnit: i.reportingUnit,
-        unitsPerPurchase: i.unitsPerPurchase,
-        costPerReportingUnit: i.costPerReportingUnit,
-        isActive: i.isActive,
-        notes: i.notes,
-      }))}
+      ingredients={ingredients.map((i) =>
+        serializeIngredient(i, i.lastEditedByUserId ? editorNameById.get(i.lastEditedByUserId) ?? null : null)
+      )}
       categories={categories.map((c) => ({ id: c.id, name: c.name, glCode: c.glCode }))}
+      ingredientCountByCategory={ingredientCountByCategory}
+      deletedIngredientNames={deletedIngredients.map((i) => ({ id: i.id, brand: i.brand, name: i.name }))}
       canManage={canManage}
       isAdmin={isAdmin}
     />
