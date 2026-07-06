@@ -40,6 +40,7 @@ const inventoryNavItems = [
   { href: "/inventory/counts", label: "Counts", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/inventory/vendors", label: "Vendors", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/reports", label: "Reports", roles: ["ADMIN", "MANAGER"] },
 ]
 
 export function Sidebar({ role, activeModules = [] }: { role: string; activeModules?: string[] }) {

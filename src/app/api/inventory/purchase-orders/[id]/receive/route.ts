@@ -58,6 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         where: { id: r.lineId },
         data: {
           quantityReceived,
+          receivedAt: new Date(), // places this received value in the right inventory period (I-5)
           ...(r.receivingNote !== undefined && { receivingNote: r.receivingNote || null }),
         },
       })
@@ -96,7 +97,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     await tx.purchaseOrder.update({
       where: { id },
-      data: { status: allFull ? "RECEIVED" : anyReceived ? "PARTIALLY_RECEIVED" : po.status },
+      data: {
+        status: allFull ? "RECEIVED" : anyReceived ? "PARTIALLY_RECEIVED" : po.status,
+        ...(allFull && !po.receivedAt ? { receivedAt: new Date() } : {}),
+      },
     })
   })
 
