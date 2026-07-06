@@ -274,21 +274,24 @@ model StorageArea {
   sortOrder      Int      @default(0)
   createdAt      DateTime @default(now())
 
-  organization Organization         @relation(fields: [organizationId], references: [id])
-  store        Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  itemMappings ItemStorageMapping[]
-  countLines   InventoryCountLine[]
+  organization       Organization               @relation(fields: [organizationId], references: [id])
+  store              Store                      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  ingredientMappings IngredientStorageMapping[]
+  countLines         InventoryCountLine[]
 }
 
-model ItemStorageMapping {
-  id                 String @id @default(cuid())
-  storageAreaId      String
-  squareCatalogObjId String
-  sortOrder          Int    @default(0)
+// Per-store assignment of an ingredient to a storage area. An ingredient may map
+// into multiple areas of the same store; sortOrder is the shelf-to-sheet count order.
+model IngredientStorageMapping {
+  id            String @id @default(cuid())
+  storageAreaId String
+  ingredientId  String
+  sortOrder     Int    @default(0)
 
   storageArea StorageArea @relation(fields: [storageAreaId], references: [id], onDelete: Cascade)
+  ingredient  Ingredient  @relation(fields: [ingredientId], references: [id])
 
-  @@unique([storageAreaId, squareCatalogObjId])
+  @@unique([storageAreaId, ingredientId])
 }
 
 model ItemMetadata {
@@ -502,11 +505,12 @@ model Ingredient {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  organization       Organization        @relation(fields: [organizationId], references: [id])
-  category           IngredientCategory? @relation(fields: [categoryId], references: [id])
+  organization       Organization               @relation(fields: [organizationId], references: [id])
+  category           IngredientCategory?        @relation(fields: [categoryId], references: [id])
   vendorIngredients  VendorIngredient[]
   purchaseOrderLines PurchaseOrderLine[]
   costLogs           IngredientCostLog[]
+  storageMappings    IngredientStorageMapping[]
 }
 
 model IngredientCostLog {

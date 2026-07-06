@@ -58,6 +58,24 @@ export async function POST(req: Request) {
 
     await tx.purchaseOrderLine.updateMany({ where: { ingredientId: mergedId }, data: { ingredientId: survivorId } })
 
+    const mergedMappings = await tx.ingredientStorageMapping.findMany({ where: { ingredientId: mergedId } })
+    const survivorAreaIds = new Set(
+      (
+        await tx.ingredientStorageMapping.findMany({
+          where: { ingredientId: survivorId },
+          select: { storageAreaId: true },
+        })
+      ).map((m) => m.storageAreaId)
+    )
+    for (const mapping of mergedMappings) {
+      if (survivorAreaIds.has(mapping.storageAreaId)) {
+        // Survivor already lives in this area — drop the merged duplicate.
+        await tx.ingredientStorageMapping.delete({ where: { id: mapping.id } })
+      } else {
+        await tx.ingredientStorageMapping.update({ where: { id: mapping.id }, data: { ingredientId: survivorId } })
+      }
+    }
+
     await tx.ingredient.update({
       where: { id: mergedId },
       data: { deletedAt: new Date(), lastEditedByUserId: dbUser?.id ?? null },
