@@ -501,6 +501,10 @@ model Ingredient {
   deletedAt            DateTime?
   lastEditedByUserId   String?
   kind                 String    @default("PURCHASED") // PURCHASED | PREPARED
+  // Count-by-weighing container weights, stored in oz (dry). tare = empty
+  // container, full = full container (full only needed for volume/count items).
+  tareWeightOz         Float?
+  fullWeightOz         Float?
   notes                String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -511,6 +515,7 @@ model Ingredient {
   purchaseOrderLines PurchaseOrderLine[]
   costLogs           IngredientCostLog[]
   storageMappings    IngredientStorageMapping[]
+  countLines         InventoryCountLine[]
 }
 
 model IngredientCostLog {
@@ -540,31 +545,58 @@ model InventoryCount {
   id                  String    @id @default(cuid())
   organizationId      String
   storeId             String
+  name                String?
+  notes               String?
+  isPartial           Boolean   @default(false)
   startedAt           DateTime  @default(now())
   finalizedAt         DateTime?
   completedByUserIds  String[]
   sittingInventoryVal Float?
-  status              String    @default("Draft")
+  status              String    @default("Draft") // Draft | Finalized
 
-  organization Organization         @relation(fields: [organizationId], references: [id])
-  store        Store                @relation(fields: [storeId], references: [id])
+  organization Organization               @relation(fields: [organizationId], references: [id])
+  store        Store                      @relation(fields: [storeId], references: [id])
   lines        InventoryCountLine[]
+  corrections  InventoryCountCorrection[]
 }
 
+// One line per (storage area, ingredient) assignment, snapshotted when the draft
+// is created — name/unit/cost frozen at count start so later price changes never
+// rewrite a finalized count. quantityCounted null = not yet counted (distinct
+// from an explicit 0 on the shelf).
 model InventoryCountLine {
-  id                 String  @id @default(cuid())
-  inventoryCountId   String
-  storageAreaId      String?
-  squareCatalogObjId String
-  itemName           String
-  unitOfMeasure      String?
-  quantityCounted    Float
-  unitCost           Float?
-  lineValue          Float?
-  usageVariance      Float?
+  id                   String    @id @default(cuid())
+  inventoryCountId     String
+  storageAreaId        String?
+  ingredientId         String
+  ingredientName       String
+  reportingUnit        String
+  quantityCounted      Float?
+  costPerReportingUnit Float
+  lineValue            Float?
+  usageVariance        Float?
+  sortOrder            Int       @default(0)
+  countedAt            DateTime?
 
   inventoryCount InventoryCount @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
   storageArea    StorageArea?   @relation(fields: [storageAreaId], references: [id])
+  ingredient     Ingredient     @relation(fields: [ingredientId], references: [id])
+}
+
+// Audit trail for post-finalize corrections — one row per changed field. The
+// count total is recomputed but the original entry stays explainable.
+model InventoryCountCorrection {
+  id        String   @id @default(cuid())
+  countId   String
+  lineId    String
+  field     String // quantityCounted | costPerReportingUnit
+  oldValue  Float?
+  newValue  Float?
+  note      String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  count InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
 }
 
 // ─── PHASE 2: NUTRITION MODULE ────────────────────────────────────────────────

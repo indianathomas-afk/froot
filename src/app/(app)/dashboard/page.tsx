@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
-import { Store, CheckSquare, CheckCircle, BarChart2, ArrowRight, FileText } from "lucide-react"
+import { Store, CheckSquare, CheckCircle, BarChart2, ArrowRight, FileText, ClipboardList } from "lucide-react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { BuildInfo } from "@/components/build-info"
@@ -36,6 +36,31 @@ async function getDashboardData() {
   const total = todayChecklists.length
   const complianceRate = total > 0 ? Math.round((completed / total) * 100) : null
 
+  // Days since last finalized count per store — only when the inventory module
+  // is active. A store that has never counted shows "Never counted".
+  let countRecency: { storeId: string; storeName: string; days: number | null }[] = []
+  if (org.activeModules.includes("inventory")) {
+    const stores = await prisma.store.findMany({
+      where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
+      include: {
+        inventoryCounts: {
+          where: { status: "Finalized" },
+          orderBy: { finalizedAt: "desc" },
+          take: 1,
+        },
+      },
+      orderBy: { name: "asc" },
+    })
+    countRecency = stores.map((s) => {
+      const last = s.inventoryCounts[0]?.finalizedAt ?? null
+      return {
+        storeId: s.id,
+        storeName: s.name,
+        days: last ? Math.floor((Date.now() - last.getTime()) / 86400000) : null,
+      }
+    })
+  }
+
   return {
     isAdmin,
     soleStoreId: !isAdmin && storeIds.length === 1 ? storeIds[0] : null,
@@ -43,6 +68,7 @@ async function getDashboardData() {
     todayChecklists: total,
     completed,
     complianceRate,
+    countRecency,
   }
 }
 
@@ -133,6 +159,35 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Inventory: days since last count */}
+      {(data?.countRecency.length ?? 0) > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-[var(--color-foreground)] mb-3">Days since last inventory count</h2>
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            {(data?.countRecency ?? []).map(({ storeId, storeName, days }) => (
+              <Link key={storeId} href="/inventory/counts">
+                <Card className="hover:shadow-md transition-shadow h-full">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm text-[var(--color-muted-foreground)] mb-1 truncate">{storeName}</p>
+                        <p className="text-2xl font-bold text-[var(--color-foreground)]">
+                          {days === null ? "—" : days}
+                        </p>
+                        <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+                          {days === null ? "Never counted" : days === 0 ? "Counted today" : `day${days === 1 ? "" : "s"} since last count`}
+                        </p>
+                      </div>
+                      <ClipboardList className="h-5 w-5 text-[var(--color-muted-foreground)]" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className={`grid gap-4 ${quickActions.length === 1 ? "grid-cols-1 max-w-sm" : "grid-cols-3"}`}>
