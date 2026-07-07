@@ -142,40 +142,13 @@ Or use the helpers in `src/lib/auth.ts`:
 
 ## Phase Status
 
-### Phase 1 — Complete ✅
-All core pages are built and deployed:
-- `/dashboard` — KPI cards, quick action links
-- `/checklists` — list with store/date filters, status badges
-- `/templates` and `/templates/[id]/edit` — template list + task builder
-- `/stores` — store cards, Square import modal
-- `/users` — role management table
-- `/staff` — staff list grouped by store, Square import modal
-- `/reports` — store performance table with filters
-- `/store-view` — staff-facing checklist execution (mobile-optimized)
-- `/settings` — Square connection, org info, billing stubs
-- `/print/template/[id]` — print/PDF page, auto-fires `window.print()` on load
-- Square OAuth: connect, callback, disconnect, locations import, team members import
-- Clerk webhook handler at `/api/webhooks/clerk`
+**See `ROADMAP.md` for the current phase table — it is the single source of truth for build status.**
 
-### Phase 2 — Not Started ❌
-These modules are gated behind `activeModules` on the `Organization` record. All Phase 2 DB models exist in the schema for forward compatibility, but no application code reads/writes them yet.
+At the end of every phase: update `ROADMAP.md` (status, commit hash, one-line notes) and commit it with the phase's code. Do not track phase status here.
 
-**Inventory module** (`activeModules.includes("inventory")`):
-- `/inventory` — dashboard with sitting value, COGS, chart
-- `/inventory/items` — catalog item manager (synced from Square)
-- `/inventory/storage-areas` — custom physical locations per store
-- `/inventory/counts/new` — physical count workflow
-- `/inventory/history` — completed count list
-- `/inventory/expected` — theoretical vs actual stock report
-- `/inventory/cogs` — COGS report with CSV export
-- `/inventory/adjustments` — loss, transfer, prep deduction
+Phase 2 modules are gated behind `activeModules` on the `Organization` record.
 
-**Nutrition module** (`activeModules.includes("nutrition")`):
-- `/nutrition/menu` — menu item manager
-- `/nutrition/menu/[id]` — nutrition facts editor with live label preview
-- `/menu/[orgSlug]` — public nutrition page (SSR, no auth, embeddable via iframe)
-
-**Before building any Phase 2 route, call:**
+**Before building any module-gated route, call:**
 ```ts
 import { requireModule } from "@/lib/auth"
 await requireModule("inventory") // or "nutrition"
