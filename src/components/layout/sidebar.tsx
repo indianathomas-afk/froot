@@ -42,6 +42,7 @@ const inventoryNavItems = [
   { href: "/inventory/adjustments", label: "Adjustments", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/inventory/vendors", label: "Vendors", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/expected", label: "Expected Stock", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/reports", label: "Reports", roles: ["ADMIN", "MANAGER"] },
 ]
 
