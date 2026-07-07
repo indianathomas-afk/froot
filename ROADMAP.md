@@ -13,8 +13,8 @@
 | 4 | I-4 Physical counts | M | ✅ Done (commit eb816db) — count workflow, weigh-to-count, offline-tolerant entry, finalize, corrections + audit trail, count summary |
 | 5 | I-5 Sales sync + COGS & analytics | M–L | ✅ Done 7-6 (b3cb378) — Square sales sync (daily/hourly/per-item caches), inventory-period math, Reports suite under Inventory: Summary, Item Sales, Periods/COGS with GL breakdown + negative-usage flags, Valuation, Turnover, Vendor Spend |
 | — | D-1 Dashboard redesign (added in pack v2.3) | M | ✅ Done 7-6 (1b8160f) — Sales Performance (today vs same weekday last year, hourly pace), Monthly Goal with extrapolation, real Shift Checklist, mock-backed Team Messages / Corporate Update / Instagram |
-| 6 | I-6 Recipes + needs-attention queue + adjustments | L | ⬜ **Next up** — also adds Variance + Profitability tabs to the reports suite |
-| 7 | I-7 Reorder points & alerts | M | ⬜ Not started |
-| 8 | M-1 Keva data migration (optional) | M | ⬜ Best after I-6 |
+| 6 | I-6 Recipes + needs-attention queue + adjustments | L | ✅ Done 7-6 (4947def) — recipes w/ read-time cost engine + loop detection, triage queue, prep/batch items, transfers/loss/adjustments (backdatable, grouped), Variance + Profitability report tabs; fixture: `npx tsx scripts/seed-razz-fixture.ts` |
+| 7 | I-7 Reorder points & alerts | M | ⬜ **Next up** |
+| 8 | M-1 Keva data migration (optional) | M | ⬜ Unblocked (I-6 done) |
 | 9–11 | N-1/N-2/N-3 Nutrition | M | ⬜ Not started |
 | 12 | X-1 Activation & QA | S | ⬜ Not started |
