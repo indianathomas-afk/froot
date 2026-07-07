@@ -471,6 +471,7 @@ model PurchaseOrder {
   status          String    @default("DRAFT")
   enteredByUserId String?
   receivedAt      DateTime? // set when the PO reaches RECEIVED (fully received)
+  invoiceFileUrl  String? // I-7: invoice photo/PDF attached at receiving (Vercel Blob)
   createdAt       DateTime  @default(now())
 
   organization Organization              @relation(fields: [organizationId], references: [id])

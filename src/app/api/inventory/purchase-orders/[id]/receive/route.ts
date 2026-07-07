@@ -9,6 +9,13 @@ const ReceiptSchema = z.object({
   lineId: z.string().min(1),
   quantityReceivedDelta: z.number().positive(),
   receivingNote: z.string().optional().nullable(),
+  // I-7: actual unit cost from the physical invoice when it differs from the
+  // ordered price. undefined = received at the ordered price.
+  unitCost: z.number().nonnegative().optional(),
+  // I-7: the "price changed — update going forward?" answer. false keeps the
+  // vendor price file and ingredient cost untouched (this PO still records
+  // the price actually paid). Defaults to true (most-recent-cost method).
+  updatePricesGoingForward: z.boolean().optional(),
 })
 
 // I-7: invoice-level adjustment lines confirmed at receive time (auto-attached
@@ -75,6 +82,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     for (const r of receipts) {
       const line = linesById.get(r.lineId)!
       const quantityReceived = Math.min(line.quantityReceived + r.quantityReceivedDelta, line.quantityOrdered)
+      // I-7: the invoice may carry a different price than the order.
+      const paidUnitCost = r.unitCost ?? line.unitCost
 
       await tx.purchaseOrderLine.update({
         where: { id: r.lineId },
@@ -82,18 +91,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           quantityReceived,
           receivedAt: new Date(), // places this received value in the right inventory period (I-5)
           ...(r.receivingNote !== undefined && { receivingNote: r.receivingNote || null }),
+          ...(paidUnitCost !== line.unitCost && {
+            unitCost: paidUnitCost,
+            lineTotal: line.quantityOrdered * paidUnitCost,
+          }),
         },
       })
 
+      // "Price changed — update going forward?" (I-7): declining keeps the
+      // vendor price file and ingredient cost as they were; the PO line still
+      // records the price actually paid.
+      if (r.updatePricesGoingForward === false) continue
+
       await tx.vendorIngredient.upsert({
         where: { vendorId_ingredientId: { vendorId: po.vendorId, ingredientId: line.ingredientId } },
-        create: { vendorId: po.vendorId, ingredientId: line.ingredientId, casePrice: line.unitCost },
-        update: { casePrice: line.unitCost },
+        create: { vendorId: po.vendorId, ingredientId: line.ingredientId, casePrice: paidUnitCost },
+        update: { casePrice: paidUnitCost },
       })
 
       // Most-recent-cost method: the price just paid becomes the ingredient's
       // current cost everywhere it's displayed (recipes, reports, etc.).
-      const newCostPerReportingUnit = line.unitCost / line.ingredient.unitsPerPurchase
+      const newCostPerReportingUnit = paidUnitCost / line.ingredient.unitsPerPurchase
       if (newCostPerReportingUnit !== line.ingredient.costPerReportingUnit) {
         changedCosts.push({
           ingredientId: line.ingredientId,
@@ -106,7 +124,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       await tx.ingredient.update({
         where: { id: line.ingredientId },
         data: {
-          purchaseCost: line.unitCost,
+          purchaseCost: paidUnitCost,
           costPerReportingUnit: newCostPerReportingUnit,
           costLogs: { create: { costPerReportingUnit: newCostPerReportingUnit, source: "PO_RECEIPT", sourceRef: po.poNumber } },
         },
@@ -139,6 +157,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       where: { id },
       data: {
         status: allFull ? "RECEIVED" : anyReceived ? "PARTIALLY_RECEIVED" : po.status,
+        // Invoice prices may have changed line totals (I-7).
+        totalAmount: freshLines.reduce((s, l) => s + l.lineTotal, 0),
         ...(allFull && !po.receivedAt ? { receivedAt: new Date() } : {}),
       },
     })

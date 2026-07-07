@@ -47,6 +47,7 @@ type PurchaseOrder = {
   poNumber: string
   status: string
   invoiceNumber: string | null
+  invoiceFileUrl: string | null
   totalAmount: number
   expectedAt: string | null
   orderedAt: string | null
@@ -56,6 +57,8 @@ type PurchaseOrder = {
   lines: Line[]
   adjustments: PoAdjustment[]
 }
+
+type PriceChange = { lineId: string; ingredientName: string; oldPrice: number; newPrice: number }
 
 // Editable adjustment row while receiving.
 type AdjustmentDraft = {
@@ -91,9 +94,14 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [receiveInputs, setReceiveInputs] = useState<Record<string, { qty: string; note: string }>>(
-    Object.fromEntries(po.lines.map((l) => [l.id, { qty: String(l.quantityOrdered - l.quantityReceived), note: "" }]))
+  const [receiveInputs, setReceiveInputs] = useState<Record<string, { qty: string; note: string; cost: string }>>(
+    Object.fromEntries(
+      po.lines.map((l) => [l.id, { qty: String(l.quantityOrdered - l.quantityReceived), note: "", cost: String(l.unitCost) }])
+    )
   )
+  // "Price changed — update going forward?" (BevSpot's Confirming Deliveries).
+  const [priceChanges, setPriceChanges] = useState<PriceChange[] | null>(null)
+  const [uploadingInvoice, setUploadingInvoice] = useState(false)
   // Invoice adjustments confirmed at receive time: existing PO adjustments if
   // any, else the vendor's standing active adjustments (I-7 auto-attach).
   const linesTotal = po.lines.reduce((s, l) => s + l.lineTotal, 0)
@@ -149,23 +157,57 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
     }
   }
 
-  async function handleReceive() {
+  // updatePrices: undefined = not yet asked; when invoice prices differ from
+  // the vendor's price file, a confirm dialog collects the answer first.
+  async function handleReceive(updatePrices?: boolean) {
+    const receipts = po.lines
+      .map((l) => {
+        const input = receiveInputs[l.id]
+        const cost = Number(input?.cost)
+        const paidUnitCost = Number.isFinite(cost) && cost >= 0 ? cost : l.unitCost
+        return {
+          lineId: l.id,
+          quantityReceivedDelta: Number(input?.qty) || 0,
+          receivingNote: input?.note || null,
+          ...(paidUnitCost !== l.unitCost && { unitCost: paidUnitCost }),
+          paidUnitCost,
+          vendorCasePrice: l.vendorCasePrice,
+          ingredientName: l.ingredientName,
+        }
+      })
+      .filter((r) => r.quantityReceivedDelta > 0)
+
+    if (receipts.length === 0) {
+      setError("Enter a received quantity for at least one item")
+      return
+    }
+
+    const changes: PriceChange[] = receipts
+      .filter((r) => r.vendorCasePrice !== null && r.paidUnitCost !== r.vendorCasePrice)
+      .map((r) => ({
+        lineId: r.lineId,
+        ingredientName: r.ingredientName,
+        oldPrice: r.vendorCasePrice as number,
+        newPrice: r.paidUnitCost,
+      }))
+    if (updatePrices === undefined && changes.length > 0) {
+      setPriceChanges(changes)
+      return
+    }
+    setPriceChanges(null)
+
     setBusy(true)
     setError(null)
     setNotice(null)
     try {
-      const payload = po.lines
-        .map((l) => ({
-          lineId: l.id,
-          quantityReceivedDelta: Number(receiveInputs[l.id]?.qty) || 0,
-          receivingNote: receiveInputs[l.id]?.note || null,
-        }))
-        .filter((r) => r.quantityReceivedDelta > 0)
-
-      if (payload.length === 0) {
-        setError("Enter a received quantity for at least one item")
-        return
-      }
+      const changedIds = new Set(changes.map((c) => c.lineId))
+      const payload = receipts.map(({ lineId, quantityReceivedDelta, receivingNote, unitCost }) => ({
+        lineId,
+        quantityReceivedDelta,
+        receivingNote,
+        ...(unitCost !== undefined && { unitCost }),
+        ...(changedIds.has(lineId) && { updatePricesGoingForward: updatePrices !== false }),
+      }))
 
       const adjustments = adjustmentDrafts
         .filter((a) => a.name.trim() && Number.isFinite(Number(a.amount)))
@@ -222,6 +264,50 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
         <div>
           <p className="text-[var(--color-muted-foreground)]">Invoice #</p>
           <p className="text-[var(--color-foreground)]">{po.invoiceNumber ?? "—"}</p>
+          <div className="mt-1 flex items-center gap-2">
+            {po.invoiceFileUrl && (
+              <a
+                href={po.invoiceFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-[var(--color-primary)] hover:underline"
+              >
+                View invoice file
+              </a>
+            )}
+            {canManage && po.status !== "CANCELLED" && (
+              <label className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)] cursor-pointer underline-offset-2 hover:underline">
+                {uploadingInvoice ? "Uploading…" : po.invoiceFileUrl ? "Replace" : "Attach invoice (PDF/photo)"}
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  className="hidden"
+                  disabled={uploadingInvoice}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setUploadingInvoice(true)
+                    setError(null)
+                    try {
+                      const form = new FormData()
+                      form.append("file", file)
+                      form.append("purchaseOrderId", po.id)
+                      const res = await fetch("/api/upload/po-invoice", { method: "POST", body: form })
+                      if (!res.ok) {
+                        const data = await res.json().catch(() => ({}))
+                        setError(data.error ?? "Invoice upload failed")
+                        return
+                      }
+                      router.refresh()
+                    } finally {
+                      setUploadingInvoice(false)
+                      e.target.value = ""
+                    }
+                  }}
+                />
+              </label>
+            )}
+          </div>
         </div>
         <div>
           <p className="text-[var(--color-muted-foreground)]">Expected</p>
@@ -246,7 +332,7 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
         <table className="w-full">
           <thead>
             <tr className="border-b border-[var(--color-border)]">
-              {["Item", "Ordered", "Received", "Unit Cost", "Line Total", ...(receiving ? ["Receive Now", "Note"] : [])].map((h) => (
+              {["Item", "Ordered", "Received", "Unit Cost", "Line Total", ...(receiving ? ["Receive Now", "Invoice Price", "Note"] : [])].map((h) => (
                 <th key={h} className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-4 py-2">{h}</th>
               ))}
             </tr>
@@ -273,6 +359,20 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
                             setReceiveInputs((prev) => ({ ...prev, [line.id]: { ...prev[line.id], qty: e.target.value } }))
                           }
                         />
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-[var(--color-muted-foreground)]">$</span>
+                          <Input
+                            type="number"
+                            className="h-8 w-24 text-sm"
+                            value={receiveInputs[line.id]?.cost ?? ""}
+                            disabled={remaining <= 0}
+                            onChange={(e) =>
+                              setReceiveInputs((prev) => ({ ...prev, [line.id]: { ...prev[line.id], cost: e.target.value } }))
+                            }
+                          />
+                        </div>
                       </td>
                       <td className="px-4 py-2">
                         <Input
@@ -392,10 +492,37 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
         )}
         {canReceive && receiving && (
           <>
-            <Button onClick={handleReceive} disabled={busy}>{busy ? "Saving..." : "Confirm Receiving"}</Button>
+            <Button onClick={() => handleReceive()} disabled={busy}>{busy ? "Saving..." : "Confirm Receiving"}</Button>
             <Button variant="outline" onClick={() => setReceiving(false)}>Cancel</Button>
           </>
         )}
+        {/* Price changed — adopt going forward or keep originals (I-7) */}
+        <AlertDialog open={priceChanges !== null} onOpenChange={(o) => !o && setPriceChanges(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Prices changed on this delivery</AlertDialogTitle>
+              <AlertDialogDescription>
+                The invoice price differs from {po.vendor.name}&apos;s price on file. Update the vendor price and
+                ingredient costs going forward, or keep the original prices (this order still records what you paid).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-1 text-sm max-h-48 overflow-y-auto">
+              {(priceChanges ?? []).map((c) => (
+                <div key={c.lineId} className="flex items-center justify-between">
+                  <span className="text-[var(--color-foreground)]">{c.ingredientName}</span>
+                  <span className="text-[var(--color-muted-foreground)]">
+                    ${c.oldPrice.toFixed(2)} → <span className="font-medium text-[var(--color-foreground)]">${c.newPrice.toFixed(2)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => handleReceive(false)}>Keep original prices</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleReceive(true)}>Update going forward</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {canCancel && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
