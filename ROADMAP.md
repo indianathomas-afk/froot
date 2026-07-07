@@ -2,7 +2,7 @@
 
 > **Single source of truth for build status.** At the end of every phase, update this table
 > (status, commit hash, notes) and commit it along with the phase's code.
-> Last updated: 2026-07-06
+> Last updated: 2026-07-07
 
 | Order | Phase | Size | Status |
 |---|---|---|---|
@@ -14,7 +14,7 @@
 | 5 | I-5 Sales sync + COGS & analytics | M–L | ✅ Done 7-6 (b3cb378) — Square sales sync (daily/hourly/per-item caches), inventory-period math, Reports suite under Inventory: Summary, Item Sales, Periods/COGS with GL breakdown + negative-usage flags, Valuation, Turnover, Vendor Spend |
 | — | D-1 Dashboard redesign (added in pack v2.3) | M | ✅ Done 7-6 (1b8160f) — Sales Performance (today vs same weekday last year, hourly pace), Monthly Goal with extrapolation, real Shift Checklist, mock-backed Team Messages / Corporate Update / Instagram |
 | 6 | I-6 Recipes + needs-attention queue + adjustments | L | ✅ Done 7-6 (4947def) — recipes w/ read-time cost engine + loop detection, triage queue, prep/batch items, transfers/loss/adjustments (backdatable, grouped), Variance + Profitability report tabs; fixture: `npx tsx scripts/seed-razz-fixture.ts` |
-| 7 | I-7 Reorder points & alerts | M | ⬜ **Next up** |
+| 7 | I-7 Reorder points & alerts | M | ✅ Done 7-7 (1020b9e…5380324, 6 commits) — expected-inventory engine (`/inventory/expected`, consumption-mode depletion, degraded mode w/o sales), per-store pars/reorder points + weekly usage on Ingredients, low-stock alerts (`/inventory/alerts` + sidebar badge, 14d staleness guard hardcoded — org-configurable later), Cart Builder + Smart Cart (`/inventory/orders/new`, fill-to-par / N×usage → one draft PO per vendor), vendor minimums/delivery days/standing adjustments (auto-attach at receive, in COGS GL), PO history grouping + CSV + invoice attach (Blob, no OCR) + price-change confirm; fixture: `npx tsx scripts/seed-i7-fixture.ts --seed/--verify --org <id>`; deferred: emailing orders to reps, alert-badge live refresh |
 | 8 | M-1 Keva data migration (optional) | M | ⬜ Unblocked (I-6 done) |
 | 9–11 | N-1/N-2/N-3 Nutrition | M | ⬜ Not started |
 | 12 | X-1 Activation & QA | S | ⬜ Not started |
