@@ -10,5 +10,9 @@ export default defineConfig({
   },
   datasource: {
     url: process.env["DATABASE_URL"],
+    // Needed by `prisma migrate dev` on cloud databases like Neon, which
+    // can't auto-create a shadow database. Point this at a throwaway empty
+    // Neon branch (local .env only — deploys never use it).
+    shadowDatabaseUrl: process.env["SHADOW_DATABASE_URL"],
   },
 });

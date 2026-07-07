@@ -1,4 +1,4 @@
-import { MapPin, Clock, Mail, Phone, CheckCircle } from "lucide-react"
+import { MapPin, Clock, Mail, Phone, CheckCircle, Link2 } from "lucide-react"
 import { StoreActions } from "./store-actions"
 import { AddStoreButton } from "./add-store-button"
 import { ImportSquareButton } from "./import-square-button"
@@ -100,13 +100,36 @@ export default async function StoresPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {store.squareLocationId && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-primary)] bg-[var(--color-accent)] border border-[var(--color-border)] px-2 py-0.5 rounded-full">
+                        <Link2 className="h-3 w-3" />
+                        Square Linked
+                      </span>
+                    )}
                     {hasAccount && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-success-text)] bg-[var(--color-success-bg)] border border-[var(--color-success-border)] px-2 py-0.5 rounded-full">
                         <CheckCircle className="h-3 w-3" />
                         Has Account
                       </span>
                     )}
-                    {isAdmin && <StoreActions storeId={store.id} />}
+                    {isAdmin && (
+                      <StoreActions
+                        store={{
+                          id: store.id,
+                          name: store.name,
+                          storeNumber: store.storeNumber,
+                          brand: store.brand,
+                          address: store.address,
+                          city: store.city,
+                          state: store.state,
+                          zip: store.zip,
+                          timezone: store.timezone,
+                          contactEmail: store.contactEmail,
+                          phoneNumber: store.phoneNumber,
+                          squareLocationId: store.squareLocationId,
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
 
