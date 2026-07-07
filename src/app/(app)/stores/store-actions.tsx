@@ -214,6 +214,9 @@ export function StoreActions({ store }: { store: StoreForEdit }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {!TIMEZONES.some((tz) => tz.value === form.timezone) && (
+                    <SelectItem value={form.timezone}>{form.timezone}</SelectItem>
+                  )}
                   {TIMEZONES.map((tz) => (
                     <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
                   ))}
