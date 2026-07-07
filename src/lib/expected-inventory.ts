@@ -347,3 +347,105 @@ export async function computeWeeklyUsage(org: Organization, store: Store): Promi
   }
   return { usage, basis: "sales" }
 }
+
+// ─── Low-stock alerts ─────────────────────────────────────────────────────────
+// Alert when expected on-hand drops below the reorder point (or the par when no
+// reorder point is set — reorder point wins when both exist). Suggested order
+// quantity restocks to par (falling back to the trigger level), rounded UP to
+// whole purchase units.
+
+export type LowStockAlert = {
+  ingredientId: string
+  ingredientName: string
+  reportingUnit: string
+  purchaseUnitLabel: string
+  unitsPerPurchase: number
+  expectedQty: number
+  parLevel: number | null
+  reorderPoint: number | null
+  /** the level that triggered the alert (reorderPoint ?? parLevel) */
+  triggerLevel: number
+  /** whole purchase units to get back to par (or the trigger level) */
+  suggestedOrderUnits: number
+  /** reporting units the suggested order represents */
+  suggestedOrderQty: number
+  primaryVendorId: string | null
+  primaryVendorName: string | null
+  isNegative: boolean
+}
+
+export type StoreAlerts = {
+  storeId: string
+  storeName: string
+  /** null when no finalized full count exists — alerts can't be computed */
+  baseCount: ExpectedInventoryResult["baseCount"]
+  daysSinceCount: number
+  isStale: boolean
+  salesDataComplete: boolean
+  alerts: LowStockAlert[]
+}
+
+export async function computeLowStockAlerts(org: Organization, store: Store): Promise<StoreAlerts> {
+  const [expected, pars] = await Promise.all([
+    computeExpectedInventory(org, store),
+    prisma.storeIngredientPar.findMany({ where: { storeId: store.id } }),
+  ])
+
+  const rowById = new Map(expected.rows.map((r) => [r.ingredientId, r]))
+  const parIngredientIds = pars.map((p) => p.ingredientId)
+  const vendorLinks = parIngredientIds.length
+    ? await prisma.vendorIngredient.findMany({
+        where: { ingredientId: { in: parIngredientIds }, vendor: { isActive: true } },
+        include: { vendor: { select: { id: true, name: true } } },
+        orderBy: { casePrice: "asc" },
+      })
+    : []
+  // Primary vendor = first (cheapest) vendor price on file — same convention
+  // as the variance report's vendor grouping.
+  const primaryVendor = new Map<string, { id: string; name: string }>()
+  for (const v of vendorLinks) {
+    if (!primaryVendor.has(v.ingredientId)) primaryVendor.set(v.ingredientId, v.vendor)
+  }
+
+  const alerts: LowStockAlert[] = []
+  if (expected.baseCount) {
+    for (const par of pars) {
+      const trigger = par.reorderPoint ?? par.parLevel
+      if (trigger === null || trigger <= 0) continue
+      const row = rowById.get(par.ingredientId)
+      if (!row || row.expectedQty >= trigger) continue
+      const restockTo = par.parLevel ?? trigger
+      const deficit = Math.max(0, restockTo - row.expectedQty)
+      const units = row.unitsPerPurchase > 0 ? Math.ceil(deficit / row.unitsPerPurchase - 1e-9) : 0
+      const vendor = primaryVendor.get(par.ingredientId) ?? null
+      alerts.push({
+        ingredientId: row.ingredientId,
+        ingredientName: row.ingredientName,
+        reportingUnit: row.reportingUnit,
+        purchaseUnitLabel: row.purchaseUnitLabel,
+        unitsPerPurchase: row.unitsPerPurchase,
+        expectedQty: row.expectedQty,
+        parLevel: par.parLevel,
+        reorderPoint: par.reorderPoint,
+        triggerLevel: trigger,
+        suggestedOrderUnits: units,
+        suggestedOrderQty: units * row.unitsPerPurchase,
+        primaryVendorId: vendor?.id ?? null,
+        primaryVendorName: vendor?.name ?? null,
+        isNegative: row.isNegative,
+      })
+    }
+  }
+  // Most-depleted first (expected as a fraction of the trigger level).
+  alerts.sort((a, b) => a.expectedQty / a.triggerLevel - b.expectedQty / b.triggerLevel)
+
+  return {
+    storeId: store.id,
+    storeName: store.name,
+    baseCount: expected.baseCount,
+    daysSinceCount: expected.daysSinceCount,
+    isStale: expected.isStale,
+    salesDataComplete: expected.salesDataComplete,
+    alerts,
+  }
+}

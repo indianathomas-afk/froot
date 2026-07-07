@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
+import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
@@ -43,6 +44,7 @@ const inventoryNavItems = [
   { href: "/inventory/vendors", label: "Vendors", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/inventory/expected", label: "Expected Stock", roles: ["ADMIN", "MANAGER"] },
+  { href: "/inventory/alerts", label: "Alerts", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/reports", label: "Reports", roles: ["ADMIN", "MANAGER"] },
 ]
 
@@ -56,6 +58,24 @@ export function Sidebar({ role, activeModules = [] }: { role: string; activeModu
     ? inventoryNavItems.filter((item) => item.roles.includes(role))
     : []
   const canSeeSettings = role === "ADMIN"
+
+  // Low-stock alert count for the Alerts badge — fetched once per mount (the
+  // count runs the expected-inventory engine server-side, so no polling).
+  const [alertCount, setAlertCount] = useState(0)
+  const showAlertBadge = activeModules.includes("inventory") && (role === "ADMIN" || role === "MANAGER")
+  useEffect(() => {
+    if (!showAlertBadge) return
+    let cancelled = false
+    fetch("/api/inventory/alerts/count")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d && typeof d.count === "number") setAlertCount(d.count)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [showAlertBadge])
 
   function toggle() {
     setSidebarCollapsed(!collapsed)
@@ -126,7 +146,18 @@ export function Sidebar({ role, activeModules = [] }: { role: string; activeModu
                       : "text-[var(--color-foreground)] hover:bg-[var(--color-accent)]"
                   )}
                 >
-                  {collapsed ? <Package className={cn("h-4 w-4 shrink-0", isActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} /> : label}
+                  {collapsed ? (
+                    <Package className={cn("h-4 w-4 shrink-0", isActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} />
+                  ) : (
+                    <>
+                      <span className="flex-1">{label}</span>
+                      {href === "/inventory/alerts" && alertCount > 0 && (
+                        <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-[var(--color-warning)] text-white text-xs font-semibold">
+                          {alertCount > 99 ? "99+" : alertCount}
+                        </span>
+                      )}
+                    </>
+                  )}
                 </Link>
               )
             })}
