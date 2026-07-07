@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
-import { AlertTriangle, CheckCircle2 } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ShoppingCart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -74,6 +75,12 @@ export function AlertsClient({ stores }: { stores: { id: string; name: string }[
             set).
           </p>
         </div>
+        <Link href="/inventory/orders/new">
+          <Button>
+            <ShoppingCart className="h-4 w-4" />
+            Build Order
+          </Button>
+        </Link>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-6">

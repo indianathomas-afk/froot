@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus } from "lucide-react"
+import { Plus, ShoppingCart } from "lucide-react"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -72,12 +72,20 @@ export function PurchaseOrdersClient({
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Order from vendors and track receiving.</p>
         </div>
         {canCreate && (
-          <Link href="/inventory/purchase-orders/new">
-            <Button>
-              <Plus className="h-4 w-4" />
-              New PO
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/inventory/orders/new">
+              <Button variant="outline">
+                <ShoppingCart className="h-4 w-4" />
+                Order Cart
+              </Button>
+            </Link>
+            <Link href="/inventory/purchase-orders/new">
+              <Button>
+                <Plus className="h-4 w-4" />
+                New PO
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 
