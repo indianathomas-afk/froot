@@ -1,7 +1,9 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 
-const SCOPES = "MERCHANT_PROFILE_READ ITEMS_READ"
+// ORDERS_READ: sales sync (dashboard + inventory reports)
+// EMPLOYEES_READ: team member import (removes the personal-token fallback)
+const SCOPES = "MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ"
 
 export async function GET() {
   const { orgId } = await auth()
