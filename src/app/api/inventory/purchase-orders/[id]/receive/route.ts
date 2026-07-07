@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getUserStoreScope, requireModule } from "@/lib/auth"
+import { recomputePreparedIngredientCosts } from "@/lib/recipe-cost"
 
 const ReceiveSchema = z.array(
   z.object({
@@ -103,6 +104,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     })
   })
+
+  // Ripple the new costs into prepared (batch) ingredients so recipes that use
+  // them, and future counts, see the receipt price at any nesting depth.
+  if (changedCosts.length > 0) await recomputePreparedIngredientCosts(org.id)
 
   const updated = await prisma.purchaseOrder.findUnique({
     where: { id },

@@ -36,8 +36,10 @@ const navItems = [
 const inventoryNavItems = [
   { href: "/inventory/ingredients", label: "Ingredients", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/inventory/sales-items", label: "Sales Items", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/recipes", label: "Recipes", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/storage-areas", label: "Storage Areas", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/counts", label: "Counts", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/adjustments", label: "Adjustments", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/inventory/vendors", label: "Vendors", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/inventory/reports", label: "Reports", roles: ["ADMIN", "MANAGER"] },

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { RefreshCw, AlertTriangle, TrendingUp, Moon, ChevronDown, ChevronRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Line,
   LineChart,
@@ -57,8 +59,67 @@ type CogsRow = {
   usage: number
   sales: number
   costPct: number | null
+  transfersIn: number
+  transfersOut: number
+  waste: number
+  prepNet: number
+  corrections: number
   glBreakdown: GlRow[]
   negativeUsage: NegativeUsageRow[]
+}
+
+type AdjustmentTypeTotals = Partial<Record<string, { qty: number; value: number }>>
+
+type VarianceRow = {
+  ingredientId: string
+  ingredientName: string
+  reportingUnit: string
+  categoryName: string | null
+  vendorName: string | null
+  isPrepared: boolean
+  beginQty: number
+  purchasedQty: number
+  endQty: number
+  adjustmentsByType: AdjustmentTypeTotals
+  usedQty: number
+  theoreticalQty: number
+  soldContributions: { salesItemId: string; displayName: string; qtySold: number; qty: number }[]
+  varianceQty: number
+  varianceValue: number
+  costPerUnit: number
+  onlyOnCounts: boolean
+}
+
+type VarianceData = {
+  periodKey: string
+  startDate: string
+  endDate: string
+  rows: VarianceRow[]
+  manualAdjustments: { salesItemId: string; qtyDelta: number; note: string | null }[]
+  salesItemOptions: { id: string; displayName: string }[]
+  expansionProblems: { salesItemId: string; displayName: string }[]
+  unmappedSoldCount: number
+}
+
+type ProfitabilityRow = {
+  salesItemId: string | null
+  squareVariationId: string
+  displayName: string
+  menuGroup: string | null
+  priceCents: number | null
+  recipeStatus: string
+  hasRecipe: boolean
+  quantitySold: number
+  grossSales: number
+  recipeCost: number | null
+  totalCost: number | null
+  costPct: number | null
+  grossProfit: number | null
+}
+
+type ProfitabilityData = {
+  items: ProfitabilityRow[]
+  totals: { grossSales: number; totalCost: number; costedSales: number }
 }
 
 type ItemSalesRow = {
@@ -136,6 +197,7 @@ export function ReportsClient({ stores }: { stores: { id: string; name: string }
     valuation: { stores: ValuationRow[]; total: number; asOf: string } | null
     turnover: { ingredients: TurnoverRow[]; periodCount: number } | null
     vendors: { vendors: VendorRow[]; total: number } | null
+    profitability: ProfitabilityData | null
     failed: boolean
   }
   const [bundle, setBundle] = useState<ReportBundle | null>(null)
@@ -177,8 +239,9 @@ export function ReportsClient({ stores }: { stores: { id: string; name: string }
       fetch(`/api/inventory/reports/valuation?date=${to}`),
       fetch(`/api/inventory/reports/turnover?${qs}`),
       fetch(`/api/inventory/reports/vendor-spend?${qs}`),
+      fetch(`/api/inventory/reports/profitability?${qs}`),
     ])
-      .then(async ([cogsRes, itemsRes, valRes, turnRes, vendRes]) =>
+      .then(async ([cogsRes, itemsRes, valRes, turnRes, vendRes, profitRes]) =>
         setBundle({
           key: rangeKey,
           cogs: cogsRes.ok ? (await cogsRes.json()).periods : null,
@@ -186,11 +249,21 @@ export function ReportsClient({ stores }: { stores: { id: string; name: string }
           valuation: valRes.ok ? await valRes.json() : null,
           turnover: turnRes.ok ? await turnRes.json() : null,
           vendors: vendRes.ok ? await vendRes.json() : null,
+          profitability: profitRes.ok ? await profitRes.json() : null,
           failed: false,
         })
       )
       .catch(() =>
-        setBundle({ key: rangeKey, cogs: null, itemSales: null, valuation: null, turnover: null, vendors: null, failed: true })
+        setBundle({
+          key: rangeKey,
+          cogs: null,
+          itemSales: null,
+          valuation: null,
+          turnover: null,
+          vendors: null,
+          profitability: null,
+          failed: true,
+        })
       )
   }, [rangeKey])
 
@@ -205,7 +278,34 @@ export function ReportsClient({ stores }: { stores: { id: string; name: string }
   const valuation = current?.valuation ?? null
   const turnover = current?.turnover ?? null
   const vendors = current?.vendors ?? null
+  const profitability = current?.profitability ?? null
   const error = syncError ?? (current?.failed ? "Couldn't load reports — try again." : null)
+
+  // ── Variance needs ONE period (its math runs between two boundary counts) ──
+  const variancePeriod = useMemo(() => {
+    if (!meta || meta.periods.length === 0) return null
+    if (periodSel === "latest") return meta.periods[0]
+    return meta.periods.find((p) => p.endCountId === periodSel) ?? null
+  }, [meta, periodSel])
+
+  const varianceKey = storeId && variancePeriod ? `${storeId}|${variancePeriod.beginCountId}|${variancePeriod.endCountId}` : ""
+  const [variance, setVariance] = useState<{ key: string; data: VarianceData | null } | null>(null)
+
+  const loadVariance = useCallback(() => {
+    if (!varianceKey) return
+    const [sid, beginId, endId] = varianceKey.split("|")
+    fetch(`/api/inventory/reports/variance?storeId=${sid}&beginCountId=${beginId}&endCountId=${endId}`)
+      .then((res): Promise<VarianceData | null> => (res.ok ? res.json() : Promise.resolve(null)))
+      .then((data) => setVariance({ key: varianceKey, data }))
+      .catch(() => setVariance({ key: varianceKey, data: null }))
+  }, [varianceKey])
+
+  useEffect(() => {
+    loadVariance()
+  }, [loadVariance])
+
+  const varianceData = variance && variance.key === varianceKey ? variance.data : null
+  const varianceLoading = !!varianceKey && (variance === null || variance.key !== varianceKey)
 
   async function syncNow() {
     if (!storeId || !range) return
@@ -388,6 +488,8 @@ export function ReportsClient({ stores }: { stores: { id: string; name: string }
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
           <TabsTrigger value="turnover">Turnover</TabsTrigger>
           <TabsTrigger value="vendor-spend">Vendor Spend</TabsTrigger>
+          <TabsTrigger value="variance">Variance</TabsTrigger>
+          <TabsTrigger value="profitability">Profitability</TabsTrigger>
         </TabsList>
 
         {/* ── SUMMARY ── */}
@@ -641,6 +743,24 @@ export function ReportsClient({ stores }: { stores: { id: string; name: string }
             </div>
           )}
         </TabsContent>
+
+        {/* ── VARIANCE (I-6) ── */}
+        <TabsContent value="variance">
+          {!variancePeriod ? (
+            <EmptyCard text="Variance compares one inventory period at a time — pick a specific period (or Latest) in the picker above." />
+          ) : varianceLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : !varianceData ? (
+            <EmptyCard text="Couldn't load the variance report — try again." />
+          ) : (
+            <VarianceTab data={varianceData} storeId={storeId} onChanged={loadVariance} />
+          )}
+        </TabsContent>
+
+        {/* ── PROFITABILITY (I-6) ── */}
+        <TabsContent value="profitability">
+          <ProfitabilityTab data={profitability} loading={loading} />
+        </TabsContent>
       </Tabs>
     </div>
   )
@@ -869,7 +989,7 @@ function PeriodsTab({ rows, loading }: { rows: CogsRow[] | null; loading: boolea
               <th className="py-1 font-medium text-right" title="Value of the count that opens the period">Beginning</th>
               <th className="py-1 font-medium text-right" title="Received purchase value within the period">Purchases</th>
               <th className="py-1 font-medium text-right" title="Value of the count that closes the period">Ending</th>
-              <th className="py-1 font-medium text-right" title="Beginning + Purchases − Ending">Usage</th>
+              <th className="py-1 font-medium text-right" title="Beginning + Purchases − Ending − Transfers out + Transfers in (waste stays in usage; expand a row for the breakdown)">Usage</th>
               <th className="py-1 font-medium text-right" title="Net Square sales attributed to the period">Sales</th>
               <th className="py-1 font-medium text-right" title="Usage ÷ Sales">Cost %</th>
             </tr>
@@ -911,6 +1031,34 @@ function PeriodRow({ row, open, onToggle }: { row: CogsRow; open: boolean; onTog
         <tr className="border-b border-[var(--color-border)] bg-[var(--color-accent)]/30">
           <td />
           <td colSpan={7} className="py-3 pr-2">
+            {(row.transfersIn !== 0 || row.transfersOut !== 0 || row.waste !== 0 || row.prepNet !== 0 || row.corrections !== 0) && (
+              <div className="mb-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)] mb-1.5">
+                  Stock movements in this period
+                </p>
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                  <span title="Value received from other stores — added back into the usage equation">
+                    Transfers in: <span className="font-medium">{usd(row.transfersIn)}</span>
+                  </span>
+                  <span title="Value sent to other stores or custom destinations — excluded from this store's usage">
+                    Transfers out: <span className="font-medium">{usd(row.transfersOut)}</span>
+                  </span>
+                  <span title="Recorded waste + comps — included in usage, shown here separately">
+                    Waste &amp; comps: <span className="font-medium">{usd(row.waste)}</span>
+                  </span>
+                  {row.prepNet !== 0 && (
+                    <span title="Prep batches: produced value − consumed value (usually ≈ $0)">
+                      Prep net: <span className="font-medium">{usd(row.prepNet)}</span>
+                    </span>
+                  )}
+                  {row.corrections !== 0 && (
+                    <span title="Manual stock corrections folded into the usage equation">
+                      Corrections: <span className="font-medium">{usd(row.corrections)}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)] mb-1.5">
@@ -1001,5 +1149,437 @@ function VendorTrendChart({ vendors }: { vendors: VendorRow[] }) {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+// ─── Variance (I-6) ───────────────────────────────────────────────────────────
+
+function varianceCauseHint(row: VarianceRow): string | null {
+  const threshold = Math.max(0.02 * Math.max(row.theoreticalQty, row.usedQty), 0.005)
+  if (Math.abs(row.varianceQty) <= threshold) return null
+  if (row.varianceQty < 0) {
+    return "Used more than sold — check over-portioning, unrecorded loss or comps, a delivery that wasn't received in the system, or a recipe mapping mistake."
+  }
+  return "Sold more than used — check for a miscount on a boundary count, negative usage, or a recipe mapping mistake."
+}
+
+function usedMathTitle(row: VarianceRow): string {
+  const parts = [`Beginning ${num(row.beginQty)}`, `+ Purchases ${num(row.purchasedQty)}`]
+  const labels: Record<string, string> = {
+    TRANSFER_IN: "Transfers in",
+    TRANSFER_OUT: "Transfers out",
+    WASTE: "Waste",
+    COMP: "Comps",
+    PREP_CONSUME: "Prep consumed",
+    PREP_PRODUCE: "Prep produced",
+    CORRECTION: "Corrections",
+  }
+  for (const [type, label] of Object.entries(labels)) {
+    const t = row.adjustmentsByType[type]
+    if (t && t.qty !== 0) parts.push(`${t.qty > 0 ? "+" : "−"} ${label} ${num(Math.abs(t.qty))}`)
+  }
+  parts.push(`− Ending ${num(row.endQty)}`)
+  return `${parts.join(" ")} = ${num(row.usedQty)} ${row.reportingUnit} (recorded movements are netted out, so this is sales usage + shrink)`
+}
+
+function soldMathTitle(row: VarianceRow): string {
+  if (row.soldContributions.length === 0) return "Nothing sold maps to this ingredient."
+  const lines = row.soldContributions
+    .slice(0, 12)
+    .map((c) => `${num(c.qtySold)} × ${c.displayName} → ${num(c.qty)} ${row.reportingUnit}`)
+  const more = row.soldContributions.length > 12 ? ` …and ${row.soldContributions.length - 12} more` : ""
+  return `${lines.join("\n")}${more}`
+}
+
+function VarianceTab({ data, storeId, onChanged }: { data: VarianceData; storeId: string; onChanged: () => void }) {
+  const [groupBy, setGroupBy] = useState<"all" | "category" | "vendor">("all")
+  const [adjustOpen, setAdjustOpen] = useState(false)
+
+  const groups = useMemo((): [string, VarianceRow[]][] => {
+    if (groupBy === "all") return [["All ingredients", data.rows]]
+    const map = new Map<string, VarianceRow[]>()
+    for (const r of data.rows) {
+      const key = (groupBy === "category" ? r.categoryName : r.vendorName) ?? (groupBy === "category" ? "Uncategorized" : "No vendor")
+      map.set(key, [...(map.get(key) ?? []), r])
+    }
+    return [...map.entries()].sort(
+      (a, b) =>
+        b[1].reduce((s, r) => s + Math.abs(r.varianceValue), 0) - a[1].reduce((s, r) => s + Math.abs(r.varianceValue), 0)
+    )
+  }, [data.rows, groupBy])
+
+  const totalVariance = data.rows.reduce((s, r) => s + r.varianceValue, 0)
+
+  return (
+    <div className="space-y-4">
+      {data.unmappedSoldCount > 0 && (
+        <div className="text-sm bg-[var(--color-warning-bg)] text-[var(--color-warning-text)] rounded-md px-3 py-2">
+          {data.unmappedSoldCount} sold item{data.unmappedSoldCount === 1 ? "" : "s"} in this period {data.unmappedSoldCount === 1 ? "has" : "have"} no recipe —
+          their ingredient usage is missing from &ldquo;Sold&rdquo;.{" "}
+          <Link href="/inventory/recipes" className="underline font-medium">Map them in Recipes →</Link>
+        </div>
+      )}
+      {data.expansionProblems.length > 0 && (
+        <div className="text-sm bg-[var(--color-destructive)]/10 text-[var(--color-destructive)] rounded-md px-3 py-2">
+          Recipes with loops or unit problems were skipped:{" "}
+          {data.expansionProblems.map((p) => p.displayName).join(", ")} — fix them in Recipes so Sold is complete.
+        </div>
+      )}
+
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              {data.startDate} → {data.endDate} · biggest $ gaps first · hover Used / Sold for the math
+            </p>
+            <div className="flex-1" />
+            <Select value={groupBy} onValueChange={(v) => setGroupBy(v as typeof groupBy)}>
+              <SelectTrigger className="w-44 h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All items</SelectItem>
+                <SelectItem value="category">Group by category</SelectItem>
+                <SelectItem value="vendor">Group by vendor</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
+              Adjust sold quantities
+            </Button>
+          </div>
+
+          {data.rows.length === 0 ? (
+            <p className="text-sm text-[var(--color-muted-foreground)] py-6 text-center">
+              No ingredients on this period&apos;s boundary counts and nothing sold maps to a recipe yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[760px]">
+                <thead>
+                  <tr className="text-left text-xs text-[var(--color-muted-foreground)]">
+                    <th className="py-1 font-medium">Ingredient</th>
+                    <th className="py-1 font-medium text-right" title="Beginning + purchases + recorded movements − ending. Hover a value for the full equation.">Used</th>
+                    <th className="py-1 font-medium text-right" title="Σ quantity sold × recipe amounts, sub-recipes and prepared items expanded. Hover a value for the per-item math.">Sold</th>
+                    <th className="py-1 font-medium text-right" title="Sold − Used. Negative = product left the shelf that sales don't explain.">Variance</th>
+                    <th className="py-1 font-medium text-right">Variance $</th>
+                    <th className="py-1 font-medium">Possible cause</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map(([group, rows]) => (
+                    <VarianceGroupRows key={group} group={group} rows={rows} showHeader={groupBy !== "all"} />
+                  ))}
+                  <tr>
+                    <td className="py-2 font-semibold">Total</td>
+                    <td colSpan={3} />
+                    <td className={`py-2 text-right font-semibold ${totalVariance < 0 ? "text-[var(--color-destructive)]" : ""}`}>
+                      {usd(totalVariance)}
+                    </td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <SoldAdjustmentsDialog
+        open={adjustOpen}
+        onClose={() => setAdjustOpen(false)}
+        storeId={storeId}
+        data={data}
+        onChanged={onChanged}
+      />
+    </div>
+  )
+}
+
+function VarianceGroupRows({ group, rows, showHeader }: { group: string; rows: VarianceRow[]; showHeader: boolean }) {
+  return (
+    <>
+      {showHeader && (
+        <tr>
+          <td colSpan={6} className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+            {group} · {usd(rows.reduce((s, r) => s + r.varianceValue, 0))}
+          </td>
+        </tr>
+      )}
+      {rows.map((r) => {
+        const hint = varianceCauseHint(r)
+        return (
+          <tr key={r.ingredientId} className="border-b border-[var(--color-border)] last:border-0">
+            <td className="py-1.5 pr-2">
+              {r.ingredientName}
+              {r.isPrepared && <Badge variant="secondary" className="ml-1.5 text-[10px]">prepared</Badge>}
+            </td>
+            <td className="py-1.5 text-right cursor-help underline decoration-dotted decoration-[var(--color-border)]" title={usedMathTitle(r)}>
+              {num(r.usedQty)} {r.reportingUnit}
+            </td>
+            <td className="py-1.5 text-right cursor-help underline decoration-dotted decoration-[var(--color-border)]" title={soldMathTitle(r)}>
+              {num(r.theoreticalQty)} {r.reportingUnit}
+            </td>
+            <td className={`py-1.5 text-right ${r.varianceQty < 0 ? "text-[var(--color-destructive)]" : ""}`}>
+              {num(r.varianceQty)}
+            </td>
+            <td className={`py-1.5 text-right font-medium ${r.varianceValue < 0 ? "text-[var(--color-destructive)]" : ""}`}>
+              {usd(r.varianceValue)}
+            </td>
+            <td className="py-1.5 text-xs text-[var(--color-muted-foreground)] max-w-[260px]">{hint ?? "—"}</td>
+          </tr>
+        )
+      })}
+    </>
+  )
+}
+
+function SoldAdjustmentsDialog({
+  open,
+  onClose,
+  storeId,
+  data,
+  onChanged,
+}: {
+  open: boolean
+  onClose: () => void
+  storeId: string
+  data: VarianceData
+  onChanged: () => void
+}) {
+  const [salesItemId, setSalesItemId] = useState("")
+  const [qtyDelta, setQtyDelta] = useState("")
+  const [note, setNote] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const nameById = useMemo(() => new Map(data.salesItemOptions.map((s) => [s.id, s.displayName])), [data.salesItemOptions])
+
+  async function submit(itemId: string, delta: number, noteText: string | null) {
+    setBusy(true)
+    setFormError(null)
+    try {
+      const res = await fetch("/api/inventory/variance-adjustments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeId, salesItemId: itemId, periodKey: data.periodKey, qtyDelta: delta, note: noteText }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setFormError(body.error ?? "Failed to save adjustment")
+        return
+      }
+      setSalesItemId("")
+      setQtyDelta("")
+      setNote("")
+      onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adjust sold quantities</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-[var(--color-muted-foreground)]">
+          Correct the sold count used by this variance period (e.g. a party order rung up wrong). Square sales data itself
+          is never modified.
+        </p>
+
+        {data.manualAdjustments.length > 0 && (
+          <div className="border border-[var(--color-border)] rounded-md divide-y divide-[var(--color-border)]">
+            {data.manualAdjustments.map((a) => (
+              <div key={a.salesItemId} className="flex items-center gap-2 px-3 py-2 text-sm">
+                <span className="flex-1">{nameById.get(a.salesItemId) ?? a.salesItemId}</span>
+                <span className="font-medium">{a.qtyDelta > 0 ? `+${a.qtyDelta}` : a.qtyDelta}</span>
+                {a.note && <span className="text-xs text-[var(--color-muted-foreground)]">{a.note}</span>}
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => submit(a.salesItemId, 0, null)}>
+                  Clear
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <Select value={salesItemId} onValueChange={setSalesItemId}>
+            <SelectTrigger><SelectValue placeholder="Sales item" /></SelectTrigger>
+            <SelectContent>
+              {data.salesItemOptions.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.displayName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              step="any"
+              placeholder="Qty delta (e.g. -3 or 12)"
+              value={qtyDelta}
+              onChange={(e) => setQtyDelta(e.target.value)}
+              className="w-44"
+            />
+            <Input placeholder="Note (why?)" value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          {formError && <p className="text-sm text-[var(--color-destructive)]">{formError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>Done</Button>
+            <Button
+              disabled={busy || !salesItemId || !Number(qtyDelta)}
+              onClick={() => submit(salesItemId, Number(qtyDelta), note || null)}
+            >
+              {busy ? "Saving…" : "Add adjustment"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Profitability (I-6) ──────────────────────────────────────────────────────
+
+function ProfitabilityTab({ data, loading }: { data: ProfitabilityData | null; loading: boolean }) {
+  const [sortBy, setSortBy] = useState<"grossSales" | "quantitySold" | "costPct" | "grossProfit">("grossSales")
+  const [rollup, setRollup] = useState(false)
+
+  const sorted = useMemo(() => {
+    if (!data) return []
+    return [...data.items].sort((a, b) => {
+      const av = a[sortBy]
+      const bv = b[sortBy]
+      if (av === null && bv === null) return 0
+      if (av === null) return 1
+      if (bv === null) return -1
+      return sortBy === "costPct" ? av - bv : bv - av
+    })
+  }, [data, sortBy])
+
+  const menuGroups = useMemo((): [string, ProfitabilityRow[]][] => {
+    if (!rollup) return []
+    const map = new Map<string, ProfitabilityRow[]>()
+    for (const i of sorted) {
+      const key = i.menuGroup ?? "Ungrouped"
+      map.set(key, [...(map.get(key) ?? []), i])
+    }
+    return [...map.entries()].sort(
+      (a, b) => b[1].reduce((s, i) => s + i.grossSales, 0) - a[1].reduce((s, i) => s + i.grossSales, 0)
+    )
+  }, [sorted, rollup])
+
+  if (loading || !data) return <Skeleton className="h-40 w-full" />
+  if (data.items.length === 0) return <EmptyCard text="No sales in the selected window — sync sales to populate." />
+
+  const unmappedCount = data.items.filter((i) => !i.hasRecipe && i.recipeStatus !== "NON_RECIPE").length
+  const blendedCostPct = data.totals.costedSales > 0 ? data.totals.totalCost / data.totals.costedSales : null
+
+  const sortButton = (key: typeof sortBy, label: string) => (
+    <button
+      className={`text-xs px-2 py-1 rounded-md border ${sortBy === key ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-transparent" : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)]"}`}
+      onClick={() => setSortBy(key)}
+    >
+      {label}
+    </button>
+  )
+
+  const renderRows = (rows: ProfitabilityRow[]) =>
+    rows.map((i) => (
+      <tr key={i.squareVariationId} className="border-b border-[var(--color-border)] last:border-0">
+        <td className="py-1.5 pr-2">{i.displayName}</td>
+        <td className="py-1.5 text-[var(--color-muted-foreground)]">{i.menuGroup ?? "—"}</td>
+        <td className="py-1.5 text-right">{num(i.quantitySold)}</td>
+        <td className="py-1.5 text-right">{usd(i.grossSales)}</td>
+        <td className="py-1.5 text-right">
+          {i.hasRecipe ? (
+            i.recipeCost === null ? (
+              <span title="Recipe has a loop or unit problem — cost can't be computed">
+                <AlertTriangle className="inline h-3.5 w-3.5 text-[var(--color-warning-text)]" /> N/A
+              </span>
+            ) : (
+              usd(i.recipeCost)
+            )
+          ) : i.recipeStatus === "NON_RECIPE" ? (
+            <span className="text-[var(--color-muted-foreground)]">non-recipe</span>
+          ) : (
+            <Link
+              href={i.salesItemId ? `/inventory/recipes/new?salesItemId=${i.salesItemId}` : "/inventory/recipes"}
+              className="text-[var(--color-primary)] underline"
+              title="No recipe yet — map this item to see its cost and profit"
+            >
+              map it
+            </Link>
+          )}
+        </td>
+        <td className="py-1.5 text-right">{pct(i.costPct)}</td>
+        <td className="py-1.5 text-right font-medium">{usd(i.grossProfit)}</td>
+      </tr>
+    ))
+
+  return (
+    <Card>
+      <CardContent className="pt-4">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className="text-xs text-[var(--color-muted-foreground)]">Sort:</span>
+          {sortButton("grossSales", "Gross sales")}
+          {sortButton("quantitySold", "Qty sold")}
+          {sortButton("costPct", "Cost %")}
+          {sortButton("grossProfit", "Profit $")}
+          <Button size="sm" variant={rollup ? "default" : "outline"} onClick={() => setRollup((r) => !r)}>
+            Menu-group rollup
+          </Button>
+          <div className="flex-1" />
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            Gross {usd(data.totals.grossSales)} · blended cost {pct(blendedCostPct)}
+            {unmappedCount > 0 && <> · {unmappedCount} unmapped</>}
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead>
+              <tr className="text-left text-xs text-[var(--color-muted-foreground)]">
+                <th className="py-1 font-medium">Item</th>
+                <th className="py-1 font-medium">Menu group</th>
+                <th className="py-1 font-medium text-right">Qty sold</th>
+                <th className="py-1 font-medium text-right">Gross sales</th>
+                <th className="py-1 font-medium text-right" title="Theoretical cost of one unit from its recipe">Recipe cost</th>
+                <th className="py-1 font-medium text-right" title="(recipe cost × qty) ÷ gross sales">Cost %</th>
+                <th className="py-1 font-medium text-right" title="Gross sales − recipe cost × qty">Gross profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rollup
+                ? menuGroups.map(([group, rows]) => (
+                    <ProfitGroupRows key={group} group={group} rows={rows} renderRows={renderRows} />
+                  ))
+                : renderRows(sorted)}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ProfitGroupRows({
+  group,
+  rows,
+  renderRows,
+}: {
+  group: string
+  rows: ProfitabilityRow[]
+  renderRows: (rows: ProfitabilityRow[]) => React.ReactNode
+}) {
+  const gross = rows.reduce((s, i) => s + i.grossSales, 0)
+  const cost = rows.reduce((s, i) => s + (i.totalCost ?? 0), 0)
+  const costed = rows.reduce((s, i) => s + (i.totalCost !== null ? i.grossSales : 0), 0)
+  return (
+    <>
+      <tr>
+        <td colSpan={7} className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+          {group} · {usd(gross)} gross · {costed > 0 ? `${((cost / costed) * 100).toFixed(1)}% cost` : "no costed items"}
+        </td>
+      </tr>
+      {renderRows(rows)}
+    </>
   )
 }

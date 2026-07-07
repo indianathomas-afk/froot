@@ -47,6 +47,11 @@ model Organization {
   salesLineCaches      SalesLineCache[]
   salesHourlyCaches    SalesHourlyCache[]
   storeMonthlyGoals    StoreMonthlyGoal[]
+  recipes              Recipe[]
+  inventoryAdjustments InventoryAdjustment[]
+  adjustmentGroups     AdjustmentGroup[]
+  lossReasons          LossReason[]
+  varianceAdjustments  VarianceAdjustment[]
 }
 
 model User {
@@ -93,6 +98,10 @@ model Store {
   salesLineCaches     SalesLineCache[]
   salesHourlyCaches   SalesHourlyCache[]
   monthlyGoals        StoreMonthlyGoal[]
+  inventoryAdjustments InventoryAdjustment[]
+  adjustmentGroupsFrom AdjustmentGroup[]    @relation("AdjustmentGroupFromStore")
+  adjustmentGroupsTo   AdjustmentGroup[]    @relation("AdjustmentGroupToStore")
+  varianceAdjustments  VarianceAdjustment[]
 }
 
 model StoreHours {
@@ -469,10 +478,13 @@ model SalesItem {
   menuGroup         String?
   priceCents        Int?
   isDeleted         Boolean  @default(false)
+  recipeStatus      String   @default("UNMAPPED") // UNMAPPED | MAPPED | NON_RECIPE
   updatedAt         DateTime @updatedAt
 
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  squareCategory SquareCategory? @relation(fields: [squareCategoryId], references: [id])
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  squareCategory      SquareCategory?      @relation(fields: [squareCategoryId], references: [id])
+  recipe              Recipe?
+  varianceAdjustments VarianceAdjustment[]
 
   @@unique([organizationId, squareVariationId])
 }
@@ -511,6 +523,8 @@ model Ingredient {
   deletedAt            DateTime?
   lastEditedByUserId   String?
   kind                 String    @default("PURCHASED") // PURCHASED | PREPARED
+  // PREPARED only: the countable sub-recipe this ingredient is produced from.
+  preparedFromRecipeId String?   @unique
   // Count-by-weighing container weights, stored in oz (dry). tare = empty
   // container, full = full container (full only needed for volume/count items).
   tareWeightOz         Float?
@@ -521,11 +535,14 @@ model Ingredient {
 
   organization       Organization               @relation(fields: [organizationId], references: [id])
   category           IngredientCategory?        @relation(fields: [categoryId], references: [id])
+  preparedFromRecipe Recipe?                    @relation("PreparedIngredient", fields: [preparedFromRecipeId], references: [id])
   vendorIngredients  VendorIngredient[]
   purchaseOrderLines PurchaseOrderLine[]
   costLogs           IngredientCostLog[]
   storageMappings    IngredientStorageMapping[]
   countLines         InventoryCountLine[]
+  recipeLines        RecipeLine[]
+  adjustments        InventoryAdjustment[]
 }
 
 model IngredientCostLog {
@@ -685,6 +702,152 @@ model StoreMonthlyGoal {
   store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, month])
+}
+
+// ─── PHASE I-6: RECIPES, ADJUSTMENTS, TRANSFERS, LOSS & PREP ─────────────────
+// Recipes NEVER write to Square — a recipe attaches to a variation via
+// salesItemId only; all Square fields on SalesItem stay read-only.
+
+// salesItemId null = sub-recipe/batch (e.g. "Cup Kit - 32oz") usable as a line
+// inside other recipes. servingSize* pre-fills the amount field when this
+// recipe is added as a line in the editor. Costs are computed at read time
+// (src/lib/recipe-cost.ts) — never stored on the recipe.
+model Recipe {
+  id              String   @id @default(cuid())
+  organizationId  String
+  name            String
+  salesItemId     String?  @unique
+  yieldQty        Float    @default(1)
+  yieldUnit       String   @default("serving")
+  servingSizeQty  Float?
+  servingSizeUnit String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  salesItem          SalesItem?   @relation(fields: [salesItemId], references: [id])
+  lines              RecipeLine[]
+  usedIn             RecipeLine[] @relation("SubRecipeLine")
+  preparedIngredient Ingredient?  @relation("PreparedIngredient")
+
+  @@index([organizationId])
+}
+
+// Exactly one of ingredientId/subRecipeId is set (enforced in Zod). unit is a
+// usage unit convertible to the ingredient's reporting-unit dimension.
+model RecipeLine {
+  id           String @id @default(cuid())
+  recipeId     String
+  ingredientId String?
+  subRecipeId  String?
+  amount       Float
+  unit         String
+  sortOrder    Int    @default(0)
+
+  recipe     Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
+  subRecipe  Recipe?     @relation("SubRecipeLine", fields: [subRecipeId], references: [id])
+
+  @@index([recipeId])
+  @@index([subRecipeId])
+}
+
+// Header for multi-line stock movements: one transfer / loss entry / prep batch
+// = one group + its InventoryAdjustment rows. TRANSFER: fromStoreId (+ toStoreId,
+// or destinationLabel for non-tracked destinations like "Kitchen"). PREP:
+// recipeId + batchMultiplier enable the "re-record" shortcut. occurredAt is
+// backdatable so rows land in the right inventory period.
+model AdjustmentGroup {
+  id               String   @id @default(cuid())
+  organizationId   String
+  type             String // TRANSFER | LOSS | PREP
+  fromStoreId      String?
+  toStoreId        String?
+  destinationLabel String?
+  recipeId         String?
+  batchMultiplier  Float?
+  occurredAt       DateTime
+  note             String?
+  createdByUserId  String
+  createdAt        DateTime @default(now())
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  fromStore    Store?                @relation("AdjustmentGroupFromStore", fields: [fromStoreId], references: [id])
+  toStore      Store?                @relation("AdjustmentGroupToStore", fields: [toStoreId], references: [id])
+  adjustments  InventoryAdjustment[]
+
+  @@index([organizationId, occurredAt])
+}
+
+// quantity is the SIGNED stock effect in reporting units: negative reduces
+// on-hand (WASTE, COMP, TRANSFER_OUT, PREP_CONSUME), positive increases it
+// (TRANSFER_IN, PREP_PRODUCE), CORRECTION is either. value = quantity × cost.
+// APIs accept positive user input and apply the sign. occurredAt (backdatable)
+// buckets the row into an inventory period; createdAt is the audit timestamp.
+model InventoryAdjustment {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  storeId              String
+  ingredientId         String
+  ingredientName       String
+  type                 String // WASTE | TRANSFER_IN | TRANSFER_OUT | COMP | CORRECTION | PREP_CONSUME | PREP_PRODUCE
+  quantity             Float
+  costPerReportingUnit Float
+  value                Float
+  reason               String?
+  lossReasonId         String?
+  groupId              String?
+  occurredAt           DateTime @default(now())
+  createdByUserId      String
+  createdAt            DateTime @default(now())
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  store        Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient       @relation(fields: [ingredientId], references: [id])
+  lossReason   LossReason?      @relation(fields: [lossReasonId], references: [id])
+  group        AdjustmentGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, occurredAt])
+  @@index([organizationId, occurredAt])
+  @@index([groupId])
+}
+
+// Seeded per org: Spoilage, Breakage, Comp, Theft/Unknown (isDefault). Orgs add
+// custom reasons; referenced rows keep reasons from being deleted (no cascade).
+model LossReason {
+  id             String  @id @default(cuid())
+  organizationId String
+  label          String
+  isDefault      Boolean @default(false)
+  sortOrder      Int     @default(0)
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  adjustments  InventoryAdjustment[]
+
+  @@unique([organizationId, label])
+}
+
+// Manual sold-quantity correction on the Variance report ONLY — Square sales
+// data stays untouched. periodKey = "<beginCountId>_<endCountId>". One row per
+// (store, salesItem, period); the API upserts.
+model VarianceAdjustment {
+  id              String   @id @default(cuid())
+  organizationId  String
+  storeId         String
+  salesItemId     String
+  periodKey       String
+  qtyDelta        Float
+  note            String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  salesItem    SalesItem    @relation(fields: [salesItemId], references: [id])
+
+  @@unique([storeId, salesItemId, periodKey])
 }
 
 // ─── PHASE 2: NUTRITION MODULE ────────────────────────────────────────────────

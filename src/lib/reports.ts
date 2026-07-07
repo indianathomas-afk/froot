@@ -130,9 +130,67 @@ export async function receivedLinesInWindow(
   }))
 }
 
+// ─── Adjustment rollups (Phase I-6) ──────────────────────────────────────────
+// InventoryAdjustment.quantity/value are SIGNED stock effects (out = negative).
+// Rows are bucketed by their backdatable occurredAt into (after, through].
+
+export type AdjustmentTypeTotals = Partial<Record<string, { qty: number; value: number }>>
+
+export type AdjustmentRollup = {
+  /** signed totals per type across the window, e.g. TRANSFER_OUT.value < 0 */
+  byType: AdjustmentTypeTotals
+  /** per ingredient: signed qty/value per type */
+  perIngredient: Map<string, { ingredientName: string; byType: AdjustmentTypeTotals }>
+}
+
+export async function adjustmentRollupInWindow(
+  organizationId: string,
+  storeId: string,
+  after: Date,
+  through: Date
+): Promise<AdjustmentRollup> {
+  const rows = await prisma.inventoryAdjustment.findMany({
+    where: { organizationId, storeId, occurredAt: { gt: after, lte: through } },
+  })
+  const byType: AdjustmentTypeTotals = {}
+  const perIngredient: AdjustmentRollup["perIngredient"] = new Map()
+  for (const r of rows) {
+    const t = (byType[r.type] ??= { qty: 0, value: 0 })
+    t.qty += r.quantity
+    t.value += r.value
+    const ing = perIngredient.get(r.ingredientId) ?? { ingredientName: r.ingredientName, byType: {} }
+    const it = (ing.byType[r.type] ??= { qty: 0, value: 0 })
+    it.qty += r.quantity
+    it.value += r.value
+    perIngredient.set(r.ingredientId, ing)
+  }
+  return { byType, perIngredient }
+}
+
+// Sum of the signed values for the types that belong in the COGS usage
+// equation: usage = beginning + purchases − ending − transfersOut + transfersIn
+// (+ prep net ≈ 0 and corrections). WASTE/COMP stay inside usage and are
+// reported separately.
+export const USAGE_EQUATION_TYPES = ["TRANSFER_IN", "TRANSFER_OUT", "PREP_CONSUME", "PREP_PRODUCE", "CORRECTION"]
+
+export function usageEquationAdjustmentValue(byType: AdjustmentTypeTotals): number {
+  return USAGE_EQUATION_TYPES.reduce((s, t) => s + (byType[t]?.value ?? 0), 0)
+}
+
+export function signedQtyAllTypes(byType: AdjustmentTypeTotals): number {
+  return Object.values(byType).reduce((s, t) => s + (t?.qty ?? 0), 0)
+}
+
 export type CountLineRollup = Map<
   string,
-  { ingredientName: string; qty: number; value: number; glCode: string | null; categoryName: string | null }
+  {
+    ingredientName: string
+    qty: number
+    value: number
+    glCode: string | null
+    categoryName: string | null
+    reportingUnit: string
+  }
 >
 
 // Per-ingredient totals (qty in reporting units + line value) for one count.
@@ -149,6 +207,7 @@ export async function countLineRollup(countId: string): Promise<CountLineRollup>
       value: 0,
       glCode: l.ingredient.glCodeOverride ?? l.ingredient.category?.glCode ?? null,
       categoryName: l.ingredient.category?.name ?? null,
+      reportingUnit: l.reportingUnit,
     }
     entry.qty += l.quantityCounted ?? 0
     entry.value += l.lineValue ?? (l.quantityCounted ?? 0) * l.costPerReportingUnit
