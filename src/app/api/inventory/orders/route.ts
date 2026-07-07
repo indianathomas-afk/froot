@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getCurrentUser } from "@/lib/auth"
 import { requireCountsContext } from "@/lib/count-access"
+import { defaultExpectedAt } from "@/lib/vendor-delivery"
 
 // POST /api/inventory/orders — the Cart Builder's "create orders": one DRAFT
 // PurchaseOrder per vendor from a mixed-vendor cart. From there the existing
@@ -69,10 +70,8 @@ export async function POST(req: Request) {
     let seq = 0
     for (const [vendorId, lines] of byVendor) {
       const vendor = vendorById.get(vendorId)!
-      // Default the expected date from the vendor's lead time when set.
-      const expectedAt = vendor.leadTimeDays
-        ? new Date(now.getTime() + vendor.leadTimeDays * 86_400_000)
-        : null
+      // Next configured delivery day → lead time → next weekday.
+      const expectedAt = defaultExpectedAt(vendor, now)
       const totalAmount = lines.reduce((s, l) => s + l.quantityOrdered * l.unitCost, 0)
       const po = await tx.purchaseOrder.create({
         data: {

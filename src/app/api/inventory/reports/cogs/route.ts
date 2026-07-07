@@ -69,15 +69,27 @@ export async function GET(req: Request) {
       // non-fatal — report renders from whatever is cached
     }
 
-    const [beginLines, endLines, received, sales, adjustments] = await Promise.all([
+    const [beginLines, endLines, received, sales, adjustments, poAdjustments] = await Promise.all([
       countLineRollup(period.begin.countId),
       countLineRollup(period.end.countId),
       receivedLinesInWindow(ctx.org.id, storeId, period.begin.finalizedAt, period.end.finalizedAt),
       netSalesForWindow(storeId, window.start, window.end),
       adjustmentRollupInWindow(ctx.org.id, storeId, period.begin.finalizedAt, period.end.finalizedAt),
+      // I-7: vendor invoice adjustments (fees/deposits/credits) attached at
+      // receive time land in the period their PO was received.
+      prisma.purchaseOrderAdjustment.findMany({
+        where: {
+          purchaseOrder: {
+            organizationId: ctx.org.id,
+            storeId,
+            receivedAt: { gt: period.begin.finalizedAt, lte: period.end.finalizedAt },
+          },
+        },
+      }),
     ])
 
-    const purchases = received.reduce((s, l) => s + l.value, 0)
+    const vendorAdjustmentTotal = poAdjustments.reduce((s, a) => s + a.amount, 0)
+    const purchases = received.reduce((s, l) => s + l.value, 0) + vendorAdjustmentTotal
     // I-6: usage = beginning + purchases − ending − transfersOut + transfersIn
     // (adjustment values are signed, out = negative). Prep nets ≈ 0 and
     // corrections fold in the same way; waste stays inside usage and is
@@ -129,6 +141,14 @@ export async function GET(req: Request) {
           usage: usageVal,
         })
       }
+    }
+
+    // Vendor invoice adjustments categorize by their own GL code.
+    for (const a of poAdjustments) {
+      const key = a.glCode ?? "—"
+      const row = byGl.get(key) ?? { glCode: a.glCode ?? null, categoryName: "Vendor Adjustments", usage: 0 }
+      row.usage += a.amount
+      byGl.set(key, row)
     }
 
     rows.push({

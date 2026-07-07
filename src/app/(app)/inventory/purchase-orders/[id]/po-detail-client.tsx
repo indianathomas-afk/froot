@@ -13,6 +13,7 @@ import {
 
 type Line = {
   id: string
+  ingredientId: string
   ingredientName: string
   purchaseUnitLabel: string
   quantityOrdered: number
@@ -20,6 +21,25 @@ type Line = {
   unitCost: number
   lineTotal: number
   receivingNote: string | null
+  vendorCasePrice: number | null
+}
+
+type PoAdjustment = {
+  id: string
+  vendorAdjustmentId: string | null
+  name: string
+  type: string
+  value: number
+  amount: number
+  glCode: string | null
+}
+
+type VendorAdjustment = {
+  id: string
+  name: string
+  type: string
+  value: number
+  glCode: string | null
 }
 
 type PurchaseOrder = {
@@ -32,8 +52,19 @@ type PurchaseOrder = {
   orderedAt: string | null
   createdAt: string
   store: { name: string }
-  vendor: { name: string }
+  vendor: { name: string; activeAdjustments: VendorAdjustment[] }
   lines: Line[]
+  adjustments: PoAdjustment[]
+}
+
+// Editable adjustment row while receiving.
+type AdjustmentDraft = {
+  vendorAdjustmentId: string | null
+  name: string
+  type: "FLAT" | "PERCENT"
+  value: number
+  amount: string
+  glCode: string
 }
 
 const STATUS_STEPS = ["DRAFT", "SUBMITTED", "RECEIVED"]
@@ -63,6 +94,29 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
   const [receiveInputs, setReceiveInputs] = useState<Record<string, { qty: string; note: string }>>(
     Object.fromEntries(po.lines.map((l) => [l.id, { qty: String(l.quantityOrdered - l.quantityReceived), note: "" }]))
   )
+  // Invoice adjustments confirmed at receive time: existing PO adjustments if
+  // any, else the vendor's standing active adjustments (I-7 auto-attach).
+  const linesTotal = po.lines.reduce((s, l) => s + l.lineTotal, 0)
+  const [adjustmentDrafts, setAdjustmentDrafts] = useState<AdjustmentDraft[]>(() =>
+    po.adjustments.length > 0
+      ? po.adjustments.map((a) => ({
+          vendorAdjustmentId: a.vendorAdjustmentId,
+          name: a.name,
+          type: a.type === "PERCENT" ? "PERCENT" : "FLAT",
+          value: a.value,
+          amount: a.amount.toFixed(2),
+          glCode: a.glCode ?? "",
+        }))
+      : po.vendor.activeAdjustments.map((a) => ({
+          vendorAdjustmentId: a.id,
+          name: a.name,
+          type: a.type === "PERCENT" ? ("PERCENT" as const) : ("FLAT" as const),
+          value: a.value,
+          amount: (a.type === "PERCENT" ? (a.value / 100) * linesTotal : a.value).toFixed(2),
+          glCode: a.glCode ?? "",
+        }))
+  )
+  const adjustmentsTotal = po.adjustments.reduce((s, a) => s + a.amount, 0)
 
   const canReceive = po.status === "SUBMITTED" || po.status === "PARTIALLY_RECEIVED"
   const canSubmit = canManage && po.status === "DRAFT"
@@ -113,10 +167,21 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
         return
       }
 
+      const adjustments = adjustmentDrafts
+        .filter((a) => a.name.trim() && Number.isFinite(Number(a.amount)))
+        .map((a) => ({
+          vendorAdjustmentId: a.vendorAdjustmentId,
+          name: a.name.trim(),
+          type: a.type,
+          value: a.value,
+          amount: Number(a.amount),
+          glCode: a.glCode.trim() || null,
+        }))
+
       const res = await fetch(`/api/inventory/purchase-orders/${po.id}/receive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ receipts: payload, adjustments }),
       })
       const data = await res.json()
       if (!res.ok) return setError(data.error ?? "Failed to receive")
@@ -169,6 +234,11 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
         <div>
           <p className="text-[var(--color-muted-foreground)]">Total</p>
           <p className="text-[var(--color-foreground)] font-medium">${po.totalAmount.toFixed(2)}</p>
+          {adjustmentsTotal !== 0 && (
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              + ${adjustmentsTotal.toFixed(2)} adjustments = ${(po.totalAmount + adjustmentsTotal).toFixed(2)} invoice
+            </p>
+          )}
         </div>
       </div>
 
@@ -222,6 +292,93 @@ export function PurchaseOrderDetailClient({ po, canManage }: { po: PurchaseOrder
           </tbody>
         </table>
       </div>
+
+      {/* Invoice adjustments — editable while receiving, read-only after */}
+      {receiving && canReceive ? (
+        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-4 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-[var(--color-foreground)]">Invoice adjustments</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setAdjustmentDrafts((prev) => [
+                  ...prev,
+                  { vendorAdjustmentId: null, name: "", type: "FLAT", value: 0, amount: "", glCode: "" },
+                ])
+              }
+            >
+              Add adjustment
+            </Button>
+          </div>
+          {adjustmentDrafts.length === 0 ? (
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              No adjustments — fees, deposits, or credits on the invoice can be added here.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {adjustmentDrafts.map((a, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-2">
+                  <Input
+                    className="h-8 w-44 text-sm"
+                    placeholder="Name (e.g. Fuel surcharge)"
+                    value={a.name}
+                    onChange={(e) =>
+                      setAdjustmentDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
+                    }
+                  />
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-[var(--color-muted-foreground)]">$</span>
+                    <Input
+                      type="number"
+                      className="h-8 w-24 text-sm"
+                      placeholder="0.00"
+                      value={a.amount}
+                      onChange={(e) =>
+                        setAdjustmentDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))
+                      }
+                    />
+                  </div>
+                  <Input
+                    className="h-8 w-24 text-sm"
+                    placeholder="GL code"
+                    value={a.glCode}
+                    onChange={(e) =>
+                      setAdjustmentDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, glCode: e.target.value } : x)))
+                    }
+                  />
+                  {a.vendorAdjustmentId && (
+                    <span className="text-xs text-[var(--color-muted-foreground)]">
+                      standing{a.type === "PERCENT" ? ` (${a.value}%)` : ""}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setAdjustmentDrafts((prev) => prev.filter((_, j) => j !== i))}
+                    className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : po.adjustments.length > 0 ? (
+        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-4 mb-6">
+          <p className="text-sm font-medium text-[var(--color-foreground)] mb-2">Invoice adjustments</p>
+          <div className="space-y-1">
+            {po.adjustments.map((a) => (
+              <div key={a.id} className="flex items-center justify-between text-sm">
+                <span className="text-[var(--color-muted-foreground)]">
+                  {a.name}
+                  {a.glCode ? ` · GL ${a.glCode}` : ""}
+                </span>
+                <span className="text-[var(--color-foreground)]">${a.amount.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {notice && <p className="text-sm text-[var(--color-success-text)] mb-4">{notice}</p>}
       {error && <p className="text-sm text-[var(--color-destructive)] mb-4">{error}</p>}

@@ -5,13 +5,32 @@ import { z } from "zod"
 import { getUserStoreScope, requireModule } from "@/lib/auth"
 import { recomputePreparedIngredientCosts } from "@/lib/recipe-cost"
 
-const ReceiveSchema = z.array(
+const ReceiptSchema = z.object({
+  lineId: z.string().min(1),
+  quantityReceivedDelta: z.number().positive(),
+  receivingNote: z.string().optional().nullable(),
+})
+
+// I-7: invoice-level adjustment lines confirmed at receive time (auto-attached
+// from the vendor's standing VendorAdjustments, editable before saving).
+const PoAdjustmentSchema = z.object({
+  vendorAdjustmentId: z.string().optional().nullable(),
+  name: z.string().min(1),
+  type: z.enum(["FLAT", "PERCENT"]),
+  value: z.number(),
+  amount: z.number(),
+  glCode: z.string().optional().nullable(),
+})
+
+// Body is either the legacy bare receipts array or
+// { receipts, adjustments? } — adjustments replace the PO's set wholesale.
+const ReceiveSchema = z.union([
+  z.array(ReceiptSchema).min(1),
   z.object({
-    lineId: z.string().min(1),
-    quantityReceivedDelta: z.number().positive(),
-    receivingNote: z.string().optional().nullable(),
-  })
-).min(1)
+    receipts: z.array(ReceiptSchema).min(1),
+    adjustments: z.array(PoAdjustmentSchema).optional(),
+  }),
+])
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
@@ -39,7 +58,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const body = await req.json()
-  const receipts = ReceiveSchema.parse(body)
+  const parsed = ReceiveSchema.parse(body)
+  const receipts = Array.isArray(parsed) ? parsed : parsed.receipts
+  const adjustments = Array.isArray(parsed) ? undefined : parsed.adjustments
 
   const linesById = new Map(po.lines.map((l) => [l.id, l]))
   for (const r of receipts) {
@@ -92,6 +113,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       })
     }
 
+    // Replace the PO's adjustment lines with the confirmed set (I-7).
+    if (adjustments !== undefined) {
+      await tx.purchaseOrderAdjustment.deleteMany({ where: { purchaseOrderId: id } })
+      if (adjustments.length > 0) {
+        await tx.purchaseOrderAdjustment.createMany({
+          data: adjustments.map((a) => ({
+            purchaseOrderId: id,
+            vendorAdjustmentId: a.vendorAdjustmentId ?? null,
+            name: a.name,
+            type: a.type,
+            value: a.value,
+            amount: a.amount,
+            glCode: a.glCode ?? null,
+          })),
+        })
+      }
+    }
+
     const freshLines = await tx.purchaseOrderLine.findMany({ where: { purchaseOrderId: id } })
     const allFull = freshLines.every((l) => l.quantityReceived >= l.quantityOrdered)
     const anyReceived = freshLines.some((l) => l.quantityReceived > 0)
@@ -111,7 +150,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const updated = await prisma.purchaseOrder.findUnique({
     where: { id },
-    include: { lines: { include: { ingredient: true } }, store: true, vendor: true },
+    include: { lines: { include: { ingredient: true } }, store: true, vendor: true, adjustments: true },
   })
 
   return NextResponse.json({ ...updated, changedCosts })

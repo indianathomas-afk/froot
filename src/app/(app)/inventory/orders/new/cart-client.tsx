@@ -41,7 +41,7 @@ type Guide = {
   salesDataComplete: boolean
   usageBasis: "periods" | "sales" | "none"
   rows: GuideRow[]
-  allVendors: { id: string; name: string }[]
+  allVendors: { id: string; name: string; minOrderCases: number | null; minOrderDollars: number | null }[]
 }
 
 // qty is entered as text in either purchase units ("case") or reporting units.
@@ -132,19 +132,35 @@ export function CartClient({ stores }: { stores: { id: string; name: string }[] 
   )
 
   const vendorTotals = useMemo(() => {
-    const totals = new Map<string, { vendorName: string; items: number; total: number }>()
+    const totals = new Map<string, { vendorName: string; items: number; cases: number; total: number }>()
     for (const { row, line } of cartRows) {
       const vid = cartVendorId(row) ?? NO_VENDOR
       const name =
         vid === NO_VENDOR ? "No vendor" : row.vendors.find((v) => v.vendorId === vid)?.vendorName ?? "Vendor"
-      const t = totals.get(vid) ?? { vendorName: name, items: 0, total: 0 }
+      const t = totals.get(vid) ?? { vendorName: name, items: 0, cases: 0, total: 0 }
+      const units = qtyUnits(row, line)
       t.items += 1
-      t.total += qtyUnits(row, line) * vendorPrice(row, vid === NO_VENDOR ? null : vid)
+      t.cases += units
+      t.total += units * vendorPrice(row, vid === NO_VENDOR ? null : vid)
       totals.set(vid, t)
     }
     return totals
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartRows])
+
+  // BevSpot-style "minimum not met" — warn, never block.
+  function minimumWarning(vendorId: string, t: { cases: number; total: number }): string | null {
+    const v = guide?.allVendors.find((x) => x.id === vendorId)
+    if (!v) return null
+    const problems: string[] = []
+    if (v.minOrderCases != null && t.cases < v.minOrderCases) {
+      problems.push(`${fmtQty(t.cases)} of ${fmtQty(v.minOrderCases)} case minimum`)
+    }
+    if (v.minOrderDollars != null && t.total < v.minOrderDollars) {
+      problems.push(`${fmtMoney(t.total)} of ${fmtMoney(v.minOrderDollars)} minimum`)
+    }
+    return problems.length > 0 ? `Minimum not met — ${problems.join(", ")}` : null
+  }
 
   const cartTotal = [...vendorTotals.values()].reduce((s, t) => s + t.total, 0)
   const unassignedCount = vendorTotals.get(NO_VENDOR)?.items ?? 0
@@ -516,17 +532,25 @@ export function CartClient({ stores }: { stores: { id: string; name: string }[] 
             <div className="space-y-2">
               {[...vendorTotals.entries()]
                 .filter(([vid]) => vid !== NO_VENDOR)
-                .map(([vid, t]) => (
-                  <div
-                    key={vid}
-                    className="flex items-center justify-between rounded-md border border-[var(--color-border)] px-3 py-2 text-sm"
-                  >
-                    <span className="font-medium text-[var(--color-foreground)]">{t.vendorName}</span>
-                    <span className="text-[var(--color-muted-foreground)]">
-                      {t.items} item{t.items === 1 ? "" : "s"} · {fmtMoney(t.total)}
-                    </span>
-                  </div>
-                ))}
+                .map(([vid, t]) => {
+                  const warning = minimumWarning(vid, t)
+                  return (
+                    <div key={vid} className="rounded-md border border-[var(--color-border)] px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-[var(--color-foreground)]">{t.vendorName}</span>
+                        <span className="text-[var(--color-muted-foreground)]">
+                          {t.items} item{t.items === 1 ? "" : "s"} · {fmtMoney(t.total)}
+                        </span>
+                      </div>
+                      {warning && (
+                        <p className="flex items-center gap-1 mt-1 text-xs text-[var(--color-warning-text)]">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          {warning}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
             </div>
             {unassignedCount > 0 && (
               <p className="text-xs text-[var(--color-warning-text)] bg-[var(--color-warning-text)]/10 rounded-md px-3 py-2">

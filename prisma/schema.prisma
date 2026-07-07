@@ -389,6 +389,14 @@ model Vendor {
   phone          String?
   terms          String?
   leadTimeDays   Int?
+  // I-7: minimum-order thresholds — cart review warns (never blocks) when a
+  // draft PO for this vendor is under either one.
+  minOrderCases   Float?
+  minOrderDollars Float?
+  // I-7: weekday ints 0 (Sun) – 6 (Sat); new POs default expectedAt to the
+  // next configured delivery day (falling back to leadTimeDays, then next
+  // weekday).
+  deliveryDays   Json?
   notes          String?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
@@ -397,6 +405,42 @@ model Vendor {
   vendorIngredients VendorIngredient[]
   purchaseOrders    PurchaseOrder[]
   itemMetadata      ItemMetadata[]
+  adjustments       VendorAdjustment[]
+}
+
+// I-7: standing invoice-level adjustments (fuel surcharge, bottle deposits,
+// credits...) auto-attached as editable lines when receiving this vendor's
+// POs. glCode keeps the whole invoice categorizable for finance.
+model VendorAdjustment {
+  id        String   @id @default(cuid())
+  vendorId  String
+  name      String
+  type      String // FLAT | PERCENT (of the PO's line total)
+  value     Float // dollars for FLAT, percent points for PERCENT (5 = 5%)
+  glCode    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  vendor        Vendor                    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  poAdjustments PurchaseOrderAdjustment[]
+}
+
+// I-7: adjustment line attached to a specific PO at receive time — a snapshot
+// of (or manual addition beyond) the vendor's standing adjustments. amount is
+// the resolved dollar effect on this PO; included in COGS GL breakdowns.
+model PurchaseOrderAdjustment {
+  id                 String   @id @default(cuid())
+  purchaseOrderId    String
+  vendorAdjustmentId String?
+  name               String
+  type               String // FLAT | PERCENT
+  value              Float
+  amount             Float
+  glCode             String?
+  createdAt          DateTime @default(now())
+
+  purchaseOrder    PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  vendorAdjustment VendorAdjustment? @relation(fields: [vendorAdjustmentId], references: [id])
 }
 
 model VendorIngredient {
@@ -429,10 +473,11 @@ model PurchaseOrder {
   receivedAt      DateTime? // set when the PO reaches RECEIVED (fully received)
   createdAt       DateTime  @default(now())
 
-  organization Organization        @relation(fields: [organizationId], references: [id])
-  store        Store               @relation(fields: [storeId], references: [id])
-  vendor       Vendor              @relation(fields: [vendorId], references: [id])
+  organization Organization              @relation(fields: [organizationId], references: [id])
+  store        Store                     @relation(fields: [storeId], references: [id])
+  vendor       Vendor                    @relation(fields: [vendorId], references: [id])
   lines        PurchaseOrderLine[]
+  adjustments  PurchaseOrderAdjustment[]
 
   @@unique([organizationId, poNumber])
 }

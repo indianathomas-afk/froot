@@ -47,7 +47,7 @@ export async function GET(req: Request) {
     prisma.vendor.findMany({
       where: { organizationId: ctx.org.id, isActive: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, leadTimeDays: true },
+      select: { id: true, name: true, leadTimeDays: true, minOrderCases: true, minOrderDollars: true },
     }),
   ])
 
