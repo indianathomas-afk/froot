@@ -20,19 +20,33 @@ model Organization {
   squareAccessToken    String?
   squareRefreshToken   String?
   squareTokenExpiresAt DateTime?
+  lastCatalogSyncAt    DateTime?
   createdAt            DateTime  @default(now())
 
-  stores          Store[]
-  users           User[]
-  pendingInvites  PendingInvite[]
-  staff           StaffMember[]
-  templates       Template[]
-  checklists      Checklist[]
-  storageAreas    StorageArea[]
-  inventoryCounts InventoryCount[]
-  itemMetadata    ItemMetadata[]
-  menuItems       MenuItem[]
-  auditLogs       AuditLog[]
+  stores               Store[]
+  users                User[]
+  pendingInvites       PendingInvite[]
+  staff                StaffMember[]
+  templates            Template[]
+  checklists           Checklist[]
+  storageAreas         StorageArea[]
+  inventoryCounts      InventoryCount[]
+  itemMetadata         ItemMetadata[]
+  menuItems            MenuItem[]
+  auditLogs            AuditLog[]
+  catalogCategories    CatalogCategory[]
+  catalogItems         CatalogItem[]
+  vendors              Vendor[]
+  purchaseOrders       PurchaseOrder[]
+  squareCategories     SquareCategory[]
+  salesItems           SalesItem[]
+  ingredientCategories IngredientCategory[]
+  ingredients          Ingredient[]
+  ingredientDuplicateDismissals IngredientDuplicateDismissal[]
+  salesPeriodCaches    SalesPeriodCache[]
+  salesLineCaches      SalesLineCache[]
+  salesHourlyCaches    SalesHourlyCache[]
+  storeMonthlyGoals    StoreMonthlyGoal[]
 }
 
 model User {
@@ -74,6 +88,11 @@ model Store {
   checklists          Checklist[]
   storageAreas        StorageArea[]
   inventoryCounts     InventoryCount[]
+  purchaseOrders      PurchaseOrder[]
+  salesPeriodCaches   SalesPeriodCache[]
+  salesLineCaches     SalesLineCache[]
+  salesHourlyCaches   SalesHourlyCache[]
+  monthlyGoals        StoreMonthlyGoal[]
 }
 
 model StoreHours {
@@ -263,21 +282,24 @@ model StorageArea {
   sortOrder      Int      @default(0)
   createdAt      DateTime @default(now())
 
-  organization Organization         @relation(fields: [organizationId], references: [id])
-  store        Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  itemMappings ItemStorageMapping[]
-  countLines   InventoryCountLine[]
+  organization       Organization               @relation(fields: [organizationId], references: [id])
+  store              Store                      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  ingredientMappings IngredientStorageMapping[]
+  countLines         InventoryCountLine[]
 }
 
-model ItemStorageMapping {
-  id                 String @id @default(cuid())
-  storageAreaId      String
-  squareCatalogObjId String
-  sortOrder          Int    @default(0)
+// Per-store assignment of an ingredient to a storage area. An ingredient may map
+// into multiple areas of the same store; sortOrder is the shelf-to-sheet count order.
+model IngredientStorageMapping {
+  id            String @id @default(cuid())
+  storageAreaId String
+  ingredientId  String
+  sortOrder     Int    @default(0)
 
   storageArea StorageArea @relation(fields: [storageAreaId], references: [id], onDelete: Cascade)
+  ingredient  Ingredient  @relation(fields: [ingredientId], references: [id])
 
-  @@unique([storageAreaId, squareCatalogObjId])
+  @@unique([storageAreaId, ingredientId])
 }
 
 model ItemMetadata {
@@ -285,6 +307,7 @@ model ItemMetadata {
   organizationId     String
   squareCatalogObjId String
   vendorName         String?
+  vendorId           String?
   glCode             String?
   parLevel           Float?
   unitCostOverride   Float?
@@ -293,39 +316,375 @@ model ItemMetadata {
   updatedAt          DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  vendor       Vendor?      @relation(fields: [vendorId], references: [id])
 
   @@unique([organizationId, squareCatalogObjId])
+}
+
+model CatalogCategory {
+  id               String  @id @default(cuid())
+  organizationId   String
+  squareCategoryId String
+  name             String
+  isDeleted        Boolean @default(false)
+  sortOrder        Int     @default(0)
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  items        CatalogItem[]
+
+  @@unique([organizationId, squareCategoryId])
+}
+
+model CatalogItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  squareItemId   String?
+  categoryId     String?
+  name           String
+  description    String?
+  isDeleted      Boolean  @default(false)
+  isArchived     Boolean  @default(false)
+  productType    String?
+  updatedAt      DateTime @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id])
+  category     CatalogCategory?       @relation(fields: [categoryId], references: [id])
+  variations   CatalogItemVariation[]
+
+  @@unique([organizationId, squareItemId])
+}
+
+model CatalogItemVariation {
+  id                String  @id @default(cuid())
+  catalogItemId     String
+  squareVariationId String?
+  name              String
+  sku               String?
+  priceMoney        Int?
+  ordinal           Int     @default(0)
+
+  catalogItem CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+
+  @@unique([catalogItemId, squareVariationId])
+}
+
+model Vendor {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  accountNumber  String?
+  contactName    String?
+  email          String?
+  phone          String?
+  terms          String?
+  leadTimeDays   Int?
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  vendorIngredients VendorIngredient[]
+  purchaseOrders    PurchaseOrder[]
+  itemMetadata      ItemMetadata[]
+}
+
+model VendorIngredient {
+  id              String  @id @default(cuid())
+  vendorId        String
+  ingredientId    String
+  vendorSku       String?
+  packDescription String?
+  casePrice       Float?
+  unitsPerCase    Float?
+
+  vendor     Vendor     @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, ingredientId])
+}
+
+model PurchaseOrder {
+  id              String    @id @default(cuid())
+  organizationId  String
+  storeId         String
+  vendorId        String
+  poNumber        String
+  invoiceNumber   String?
+  orderedAt       DateTime?
+  expectedAt      DateTime?
+  totalAmount     Float     @default(0)
+  status          String    @default("DRAFT")
+  enteredByUserId String?
+  receivedAt      DateTime? // set when the PO reaches RECEIVED (fully received)
+  createdAt       DateTime  @default(now())
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  store        Store               @relation(fields: [storeId], references: [id])
+  vendor       Vendor              @relation(fields: [vendorId], references: [id])
+  lines        PurchaseOrderLine[]
+
+  @@unique([organizationId, poNumber])
+}
+
+model PurchaseOrderLine {
+  id               String  @id @default(cuid())
+  purchaseOrderId  String
+  ingredientId     String
+  ingredientName   String
+  quantityOrdered  Float
+  quantityReceived Float     @default(0)
+  unitCost         Float
+  lineTotal        Float
+  receivingNote    String?
+  receivedAt       DateTime? // last receipt timestamp — places the received value in an inventory period
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  ingredient    Ingredient    @relation(fields: [ingredientId], references: [id])
+}
+
+// ─── PHASE 2: INVENTORY MODULE v2 — sales items (Square) vs ingredients (Froot) ──
+
+model SquareCategory {
+  id               String  @id @default(cuid())
+  organizationId   String
+  squareCategoryId String
+  name             String
+  isDeleted        Boolean @default(false)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  salesItems   SalesItem[]
+
+  @@unique([organizationId, squareCategoryId])
+}
+
+model SalesItem {
+  id                String   @id @default(cuid())
+  organizationId    String
+  squareItemId      String
+  squareVariationId String
+  name              String
+  variationName     String
+  displayName       String
+  squareCategoryId  String?
+  menuGroup         String?
+  priceCents        Int?
+  isDeleted         Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  squareCategory SquareCategory? @relation(fields: [squareCategoryId], references: [id])
+
+  @@unique([organizationId, squareVariationId])
+}
+
+model IngredientCategory {
+  id             String  @id @default(cuid())
+  organizationId String
+  name           String
+  glCode         String?
+  sortOrder      Int     @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  ingredients  Ingredient[]
+
+  @@unique([organizationId, name])
+}
+
+model Ingredient {
+  id                   String    @id @default(cuid())
+  organizationId       String
+  brand                String?
+  name                 String
+  categoryId           String?
+  subcategory          String?
+  sku                  String?
+  purchaseUnitLabel    String
+  packDescription      String?
+  purchaseCost         Float
+  reportingUnit        String
+  unitsPerPurchase     Float
+  costPerReportingUnit Float
+  glCodeOverride       String?
+  productNote          String?
+  isActive             Boolean   @default(true)
+  isArchived           Boolean   @default(false)
+  deletedAt            DateTime?
+  lastEditedByUserId   String?
+  kind                 String    @default("PURCHASED") // PURCHASED | PREPARED
+  // Count-by-weighing container weights, stored in oz (dry). tare = empty
+  // container, full = full container (full only needed for volume/count items).
+  tareWeightOz         Float?
+  fullWeightOz         Float?
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization       Organization               @relation(fields: [organizationId], references: [id])
+  category           IngredientCategory?        @relation(fields: [categoryId], references: [id])
+  vendorIngredients  VendorIngredient[]
+  purchaseOrderLines PurchaseOrderLine[]
+  costLogs           IngredientCostLog[]
+  storageMappings    IngredientStorageMapping[]
+  countLines         InventoryCountLine[]
+}
+
+model IngredientCostLog {
+  id                   String   @id @default(cuid())
+  ingredientId         String
+  costPerReportingUnit Float
+  source               String // PO_RECEIPT | MANUAL | IMPORT
+  sourceRef            String?
+  createdAt            DateTime @default(now())
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+}
+
+model IngredientDuplicateDismissal {
+  id             String   @id @default(cuid())
+  organizationId String
+  ingredientAId  String
+  ingredientBId  String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, ingredientAId, ingredientBId])
 }
 
 model InventoryCount {
   id                  String    @id @default(cuid())
   organizationId      String
   storeId             String
+  name                String?
+  notes               String?
+  isPartial           Boolean   @default(false)
   startedAt           DateTime  @default(now())
   finalizedAt         DateTime?
   completedByUserIds  String[]
   sittingInventoryVal Float?
-  status              String    @default("Draft")
+  status              String    @default("Draft") // Draft | Finalized
 
-  organization Organization         @relation(fields: [organizationId], references: [id])
-  store        Store                @relation(fields: [storeId], references: [id])
+  organization Organization               @relation(fields: [organizationId], references: [id])
+  store        Store                      @relation(fields: [storeId], references: [id])
   lines        InventoryCountLine[]
+  corrections  InventoryCountCorrection[]
 }
 
+// One line per (storage area, ingredient) assignment, snapshotted when the draft
+// is created — name/unit/cost frozen at count start so later price changes never
+// rewrite a finalized count. quantityCounted null = not yet counted (distinct
+// from an explicit 0 on the shelf).
 model InventoryCountLine {
-  id                 String  @id @default(cuid())
-  inventoryCountId   String
-  storageAreaId      String?
-  squareCatalogObjId String
-  itemName           String
-  unitOfMeasure      String?
-  quantityCounted    Float
-  unitCost           Float?
-  lineValue          Float?
-  usageVariance      Float?
+  id                   String    @id @default(cuid())
+  inventoryCountId     String
+  storageAreaId        String?
+  ingredientId         String
+  ingredientName       String
+  reportingUnit        String
+  quantityCounted      Float?
+  costPerReportingUnit Float
+  lineValue            Float?
+  usageVariance        Float?
+  sortOrder            Int       @default(0)
+  countedAt            DateTime?
 
   inventoryCount InventoryCount @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
   storageArea    StorageArea?   @relation(fields: [storageAreaId], references: [id])
+  ingredient     Ingredient     @relation(fields: [ingredientId], references: [id])
+}
+
+// Audit trail for post-finalize corrections — one row per changed field. The
+// count total is recomputed but the original entry stays explainable.
+model InventoryCountCorrection {
+  id        String   @id @default(cuid())
+  countId   String
+  lineId    String
+  field     String // quantityCounted | costPerReportingUnit
+  oldValue  Float?
+  newValue  Float?
+  note      String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  count InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+}
+
+// ─── PHASE I-5: SALES CACHES (Square Orders → local aggregates) ──────────────
+// Populated by the sales sync (SearchOrders, COMPLETED, closed_at). Dates and
+// hours are bucketed in the STORE's timezone. Sync is idempotent per day: a
+// re-sync replaces the covered days wholesale.
+
+model SalesPeriodCache {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  date           DateTime @db.Date
+  grossSales     Float    @default(0) // order totals incl. tax, after discounts
+  netSales       Float    @default(0) // pre-tax: gross − tax
+  taxTotal       Float    @default(0)
+  discountTotal  Float    @default(0)
+  orderCount     Int      @default(0)
+  syncedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
+  @@index([organizationId, date])
+}
+
+// Per Square variation per day — feeds the Item Sales report now and
+// theoretical usage / variance in I-6.
+model SalesLineCache {
+  id                String   @id @default(cuid())
+  organizationId    String
+  storeId           String
+  date              DateTime @db.Date
+  squareVariationId String
+  quantitySold      Float    @default(0)
+  grossSales        Float    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date, squareVariationId])
+  @@index([storeId, date])
+}
+
+// Hourly pace — feeds the Dashboard (D-1) intraday chart.
+model SalesHourlyCache {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  date           DateTime @db.Date
+  hour           Int // 0–23, store-local
+  netSales       Float    @default(0)
+  orderCount     Int      @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date, hour])
+  @@index([storeId, date])
+}
+
+// ─── PHASE D-1: DASHBOARD ─────────────────────────────────────────────────────
+
+// Monthly sales goal per store (month = first-of-month UTC date). Managers and
+// admins set it; the Dashboard's Monthly Goal card reads it.
+model StoreMonthlyGoal {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  month          DateTime @db.Date
+  goalAmount     Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, month])
 }
 
 // ─── PHASE 2: NUTRITION MODULE ────────────────────────────────────────────────
@@ -340,7 +699,7 @@ model MenuItem {
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
+  organization Organization       @relation(fields: [organizationId], references: [id])
   nutrition    MenuItemNutrition?
   allergens    MenuItemAllergen[]
 }

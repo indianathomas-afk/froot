@@ -3,7 +3,6 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { useState, useEffect } from "react"
 import {
   LayoutDashboard,
   CheckSquare,
@@ -17,9 +16,11 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Package,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClerk, useUser } from "@clerk/nextjs"
+import { setSidebarCollapsed, useSidebarCollapsed } from "./use-sidebar-collapsed"
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
@@ -32,33 +33,32 @@ const navItems = [
   { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
 ]
 
-const STORAGE_KEY = "froot-sidebar-collapsed"
+const inventoryNavItems = [
+  { href: "/inventory/ingredients", label: "Ingredients", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/sales-items", label: "Sales Items", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/storage-areas", label: "Storage Areas", roles: ["ADMIN", "MANAGER"] },
+  { href: "/inventory/counts", label: "Counts", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/vendors", label: "Vendors", roles: ["ADMIN", "MANAGER"] },
+  { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/reports", label: "Reports", roles: ["ADMIN", "MANAGER"] },
+]
 
-export function Sidebar({ role }: { role: string }) {
+export function Sidebar({ role, activeModules = [] }: { role: string; activeModules?: string[] }) {
   const pathname = usePathname()
   const { signOut } = useClerk()
   const { user } = useUser()
-  const [collapsed, setCollapsed] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const collapsed = useSidebarCollapsed()
   const visibleNavItems = navItems.filter((item) => item.roles.includes(role))
+  const visibleInventoryItems = activeModules.includes("inventory")
+    ? inventoryNavItems.filter((item) => item.roles.includes(role))
+    : []
   const canSeeSettings = role === "ADMIN"
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === "true") setCollapsed(true)
-    setMounted(true)
-  }, [])
-
   function toggle() {
-    setCollapsed((prev) => {
-      localStorage.setItem(STORAGE_KEY, String(!prev))
-      return !prev
-    })
+    setSidebarCollapsed(!collapsed)
   }
 
   const w = collapsed ? "w-[60px]" : "w-[190px]"
-
-  if (!mounted) return <aside className="fixed left-0 top-0 h-screen w-[190px] bg-[var(--color-card)] border-r border-[var(--color-border)] z-40" />
 
   return (
     <aside className={cn("fixed left-0 top-0 h-screen flex flex-col border-r border-[var(--color-border)] bg-[var(--color-card)] z-40 transition-all duration-200", w)}>
@@ -99,6 +99,36 @@ export function Sidebar({ role }: { role: string }) {
             </Link>
           )
         })}
+
+        {visibleInventoryItems.length > 0 && (
+          <div className="pt-3">
+            {!collapsed && (
+              <p className="px-3 pb-1 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wide flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5" />
+                Inventory
+              </p>
+            )}
+            {visibleInventoryItems.map(({ href, label }) => {
+              const isActive = pathname === href || pathname.startsWith(href + "/")
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={collapsed ? label : undefined}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
+                    collapsed ? "justify-center px-2" : "pl-6",
+                    isActive
+                      ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
+                      : "text-[var(--color-foreground)] hover:bg-[var(--color-accent)]"
+                  )}
+                >
+                  {collapsed ? <Package className={cn("h-4 w-4 shrink-0", isActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} /> : label}
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </nav>
 
       {/* Settings */}

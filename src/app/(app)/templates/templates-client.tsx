@@ -62,8 +62,9 @@ export default function TemplatesClient() {
   const [view, setView] = useState<"active" | "archived">("active")
   const [bulkLoading, setBulkLoading] = useState(false)
 
+  // loading starts true and only reloads keep showing current data — no
+  // synchronous setState here so the mount effect stays lint-clean.
   async function load() {
-    setLoading(true)
     try {
       const res = await fetch("/api/templates")
       const data = await res.json()

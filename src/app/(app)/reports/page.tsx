@@ -41,7 +41,7 @@ async function getReportsData() {
     return { store, total: sc.length, completed: sComp, pending: sPend, rate }
   })
 
-  return { completed, inProgress, pending, nonCompliant, storePerf }
+  return { completed, inProgress, pending, nonCompliant, storePerf, inventoryActive: org.activeModules.includes("inventory") }
 }
 
 export default async function ReportsPage() {
@@ -53,6 +53,19 @@ export default async function ReportsPage() {
         <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Accountability &amp; Compliance</h1>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Track who completed what, identify missed standards, and review audit-ready records</p>
       </div>
+
+      {data?.inventoryActive && (
+        <a
+          href="/inventory/reports"
+          className="flex items-center justify-between mb-6 px-4 py-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-primary)]/5 hover:bg-[var(--color-primary)]/10 transition-colors"
+        >
+          <div>
+            <p className="text-sm font-semibold text-[var(--color-foreground)]">Inventory Reports</p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">Sales, usage, cost %, valuation, turnover, and vendor spend live under Inventory → Reports</p>
+          </div>
+          <span className="text-sm font-medium text-[var(--color-primary)]">Open →</span>
+        </a>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">
