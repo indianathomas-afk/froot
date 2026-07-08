@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
   CheckSquare,
+  ChevronDown,
   FileText,
   Store,
   Users,
@@ -77,6 +78,21 @@ export function Sidebar({ role, activeModules = [] }: { role: string; activeModu
     }
   }, [showAlertBadge])
 
+  // Inventory section collapse — persisted so the (long) asset list stays out
+  // of the way across visits. Read after mount to avoid a hydration mismatch.
+  const [inventoryOpen, setInventoryOpen] = useState(true)
+  useEffect(() => {
+    const stored = localStorage.getItem("froot-inventory-nav-open")
+    if (stored !== null) setInventoryOpen(stored === "true")
+  }, [])
+
+  function toggleInventory() {
+    setInventoryOpen((open) => {
+      localStorage.setItem("froot-inventory-nav-open", String(!open))
+      return !open
+    })
+  }
+
   function toggle() {
     setSidebarCollapsed(!collapsed)
   }
@@ -125,13 +141,42 @@ export function Sidebar({ role, activeModules = [] }: { role: string; activeModu
 
         {visibleInventoryItems.length > 0 && (
           <div className="pt-3">
-            {!collapsed && (
-              <p className="px-3 pb-1 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wide flex items-center gap-1.5">
+            {collapsed ? (
+              <button
+                onClick={toggleInventory}
+                title={inventoryOpen ? "Collapse inventory" : "Expand inventory"}
+                className={cn(
+                  "flex items-center justify-center w-full px-2 py-2 rounded-md transition-colors",
+                  pathname.startsWith("/inventory")
+                    ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                    : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)]"
+                )}
+              >
+                <Package className="h-4 w-4 shrink-0" />
+              </button>
+            ) : (
+              <button
+                onClick={toggleInventory}
+                className={cn(
+                  "w-full flex items-center gap-1.5 px-3 py-1 pb-1 rounded-md text-xs font-medium uppercase tracking-wide transition-colors hover:bg-[var(--color-accent)]",
+                  !inventoryOpen && pathname.startsWith("/inventory")
+                    ? "text-[var(--color-primary)]"
+                    : "text-[var(--color-muted-foreground)]"
+                )}
+              >
                 <Package className="h-3.5 w-3.5" />
                 Inventory
-              </p>
+                {!inventoryOpen && alertCount > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-[var(--color-warning)] text-white text-[10px] font-semibold normal-case tracking-normal">
+                    {alertCount > 99 ? "99+" : alertCount}
+                  </span>
+                )}
+                <ChevronDown
+                  className={cn("h-3.5 w-3.5 ml-auto transition-transform duration-200", !inventoryOpen && "-rotate-90")}
+                />
+              </button>
             )}
-            {visibleInventoryItems.map(({ href, label }) => {
+            {inventoryOpen && visibleInventoryItems.map(({ href, label }) => {
               const isActive = pathname === href || pathname.startsWith(href + "/")
               return (
                 <Link
