@@ -181,13 +181,27 @@ Square is entirely optional — all features work without it, import buttons onl
 
 ## Database
 
-Schema is at `prisma/schema.prisma`. Key commands:
+Schema is at `prisma/schema.prisma`. Schema changes ship as migration files committed with the code — see `MIGRATIONS.md` for the full policy and history.
+
+**Do not use `npx prisma db push`** — retired after the 2026-07-06 staging drift incident.
+**`npx prisma migrate dev` is currently broken** — the baseline squash was never done, so shadow-DB replay fails with P3018 (and `.env` has no `SHADOW_DATABASE_URL`).
+
+The working flow for every schema change (timestamp format `YYYYMMDDHHMMSS`):
 ```bash
-npx prisma migrate dev      # create and apply a migration
-npx prisma db push          # push schema without migration (for fast iteration)
-npx prisma generate         # regenerate client after schema changes
-npx prisma studio           # GUI to inspect data
+# 1. edit prisma/schema.prisma
+# 2. diff the schema against the live dev DB to generate the migration SQL:
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
+  --script -o prisma/migrations/<timestamp>_<name>/migration.sql
+# 3. review the SQL, then apply it and record it in the migrations ledger:
+npx prisma db execute --file prisma/migrations/<timestamp>_<name>/migration.sql
+npx prisma migrate resolve --applied <timestamp>_<name>
+# 4. regenerate the client:
+npx prisma generate
 ```
+
+Commit the migration folder with the code that uses it. Staging and production apply it via `prisma migrate deploy` in the Vercel build — never run migrations against those branches by hand.
+
+`npx prisma studio` — GUI to inspect data.
 
 Run `next build` — it runs `prisma generate` automatically (see `package.json` build script).
 
