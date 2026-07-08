@@ -2,7 +2,7 @@
 
 > **Single source of truth for build status.** At the end of every phase, update this table
 > (status, commit hash, notes) and commit it along with the phase's code.
-> Last updated: 2026-07-07
+> Last updated: 2026-07-08
 
 | Order | Phase | Size | Status |
 |---|---|---|---|
@@ -15,6 +15,11 @@
 | — | D-1 Dashboard redesign (added in pack v2.3) | M | ✅ Done 7-6 (1b8160f) — Sales Performance (today vs same weekday last year, hourly pace), Monthly Goal with extrapolation, real Shift Checklist, mock-backed Team Messages / Corporate Update / Instagram |
 | 6 | I-6 Recipes + needs-attention queue + adjustments | L | ✅ Done 7-6 (4947def) — recipes w/ read-time cost engine + loop detection, triage queue, prep/batch items, transfers/loss/adjustments (backdatable, grouped), Variance + Profitability report tabs; fixture: `npx tsx scripts/seed-razz-fixture.ts` |
 | 7 | I-7 Reorder points & alerts | M | ✅ Done 7-7 (1020b9e…5380324, 6 commits) — expected-inventory engine (`/inventory/expected`, consumption-mode depletion, degraded mode w/o sales), per-store pars/reorder points + weekly usage on Ingredients, low-stock alerts (`/inventory/alerts` + sidebar badge, 14d staleness guard hardcoded — org-configurable later), Cart Builder + Smart Cart (`/inventory/orders/new`, fill-to-par / N×usage → one draft PO per vendor), vendor minimums/delivery days/standing adjustments (auto-attach at receive, in COGS GL), PO history grouping + CSV + invoice attach (Blob, no OCR) + price-change confirm; fixture: `npx tsx scripts/seed-i7-fixture.ts --seed/--verify --org <id>`; deferred: emailing orders to reps, alert-badge live refresh |
+| — | F-1 Forecasting: sales-data foundation | S–M | ✅ Done 7-8 (b7feecb) — GoalPlan/DailyGoal schema (migration `20260708100000_f1_goal_plans`), resumable LY backfill (`POST /api/forecasting/backfill`, ~2-week chunks, verified against real 2025 Square history), nightly 3-day reconciliation cron (`vercel.json` → `/api/cron/sales-reconcile`, verified 9/9 Keva stores); actuals reuse I-5 `SalesPeriodCache`; **⚠ deploy: set `CRON_SECRET` env var in Vercel**; exit test (penny-reconcile a full month vs Square Dashboard) pending Gary's spot-check after first full backfill |
+| — | F-2 Goal engine + Forecasting page | M | ✅ Done 7-8 (11f0b47) — weekday-aligned basis (−364d, calendar-date + weekday-avg fallbacks), % scaling with month-exact rounding residuals, `/forecasting` (Goal Settings panel + 12-month calendar, actual-vs-goal tinting, managers read-only, admin writes enforced server-side in every route); fixture: `npx tsx scripts/verify-goal-engine.ts` (15 checks green) |
+| — | F-3 Forecasting overrides + import | M | ✅ Done 7-8 (11f0b47) — day-edit dialog (`isOverride`, survives % recalcs), month-total edit redistributed by LY weekday weights, CSV/XLSX import (daily `date,amount` or monthly `month,amount` shapes, server-side parse, preview → commit, raw file to Vercel Blob), "remaining days only" mid-year raise + opt-in override reset; see `FORECASTING.md` |
+| — | F-4 Dashboard live pacing | S | 🟡 Partial 7-8 (96bc048) — Monthly Goal card is plan-driven with goal-weighted extrapolation (`MTD ÷ MTD-goal × month goal`; run-rate fallback when no plan), "Forecasting →" link replaces manual edit when a plan owns the month; deferred: Square order webhooks (15-min lazy sync + nightly reconcile cover v1), all-locations rollup + store ranking table |
+| — | F-5 Forecasting polish | S | ⬜ Not started — behind-pace notifications, CSV export, goal-edit audit log (do before external merchants) |
 | 8 | M-1 Keva data migration (optional) | M | ⬜ Unblocked (I-6 done) |
 | 9–11 | N-1/N-2/N-3 Nutrition | M | ⬜ Not started |
 | 12 | X-1 Activation & QA | S | ⬜ Not started |
