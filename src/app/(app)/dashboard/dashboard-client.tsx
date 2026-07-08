@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Line, LineChart, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer } from "recharts"
+import { SalesPerformanceCard } from "./sales-performance-card"
 
 // ─── Types (mirror /api/dashboard/summary) ────────────────────────────────────
 
@@ -73,13 +73,6 @@ const usd = (n: number | null | undefined, digits = 0) =>
   n === null || n === undefined
     ? "—"
     : n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: digits, minimumFractionDigits: digits })
-
-function hourLabel(h: number): string {
-  if (h === 0) return "12a"
-  if (h < 12) return `${h}a`
-  if (h === 12) return "12p"
-  return `${h - 12}p`
-}
 
 // ─── Persisted store selection (same external-store pattern as the sidebar) ──
 
@@ -174,7 +167,7 @@ export function DashboardClient({
       {/* Sales row: Performance (2) + Monthly Goal (1) */}
       <div className="flex flex-wrap gap-4">
         <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
-          <SalesPerformanceCard loading={loading} summary={current} />
+          <SalesPerformanceCard storeId={storeId} />
         </div>
         <div className="flex-1 min-w-[260px]">
           <MonthlyGoalCard loading={loading} summary={current} onSaved={load} />
@@ -233,131 +226,6 @@ export function DashboardClient({
         </div>
       )}
     </div>
-  )
-}
-
-// ─── Sales Performance ────────────────────────────────────────────────────────
-
-function SalesPerformanceCard({ loading, summary }: { loading: boolean; summary: Summary | null }) {
-  const comparisonWeekday = useMemo(
-    () => new Date().toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
-    []
-  )
-
-  const chartData = useMemo(() => {
-    if (!summary?.sales) return []
-    const nowHour = new Date().getHours()
-    const cumulative = (points: HourPoint[], upTo: number | null) => {
-      const byHour = new Map(points.map((p) => [p.hour, p.net]))
-      let run = 0
-      const out: (number | null)[] = []
-      for (let h = 0; h <= 23; h++) {
-        run += byHour.get(h) ?? 0
-        out.push(upTo !== null && h > upTo ? null : +run.toFixed(2))
-      }
-      return out
-    }
-    const todaySeries = cumulative(summary.sales.today.hourly, nowHour)
-    const lastYearSeries = summary.sales.lastYear ? cumulative(summary.sales.lastYear.hourly, null) : []
-    return Array.from({ length: 24 }, (_, h) => ({
-      hour: hourLabel(h),
-      today: todaySeries[h],
-      lastYear: lastYearSeries[h] ?? null,
-    })).filter((_, h) => h >= 6) // stores aren't open at 3am — start the axis at 6a
-  }, [summary])
-
-  if (loading) return <Skeleton className="h-64 w-full" />
-
-  const sales = summary?.sales
-
-  return (
-    <Card className="h-full">
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-[15px] font-bold text-[var(--color-foreground)]">Sales Performance</p>
-          <p className="text-[11px] font-semibold tracking-wide text-[var(--color-muted-foreground)]">
-            TODAY vs LAST {comparisonWeekday}
-          </p>
-        </div>
-
-        {!summary?.salesAvailable ? (
-          <div className="py-8 text-center">
-            <p className="text-sm font-medium text-[var(--color-foreground)] mb-1">Connect Square to see sales</p>
-            <p className="text-sm text-[var(--color-muted-foreground)]">
-              Link this store to a Square location (and activate the Inventory module) to light up live sales.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-end gap-6 mb-3">
-              <div>
-                <p className="text-[11px] font-semibold tracking-wide text-[var(--color-muted-foreground)]">TODAY SO FAR</p>
-                <p className="text-3xl font-extrabold text-[var(--color-foreground)]">{usd(sales?.today.total ?? 0)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold tracking-wide text-[var(--color-muted-foreground)]">
-                  SAME {comparisonWeekday}, LAST YR
-                </p>
-                <p className="text-3xl font-extrabold text-[var(--color-muted-foreground)]/60">
-                  {sales?.lastYear ? usd(sales.lastYear.total) : "—"}
-                </p>
-              </div>
-              <DeltaPill today={sales?.today.total ?? 0} lastYear={sales?.lastYear?.total ?? null} />
-            </div>
-
-            {chartData.length > 0 ? (
-              <>
-                <div className="h-36">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <XAxis dataKey="hour" tick={{ fontSize: 10 }} interval={2} />
-                      <YAxis tick={{ fontSize: 10 }} width={44} tickFormatter={(v) => `$${v}`} />
-                      <ChartTooltip formatter={(v) => usd(Number(v), 2)} />
-                      <Line type="monotone" dataKey="lastYear" name="Last year" stroke="#D8CBBF" strokeWidth={3} dot={false} connectNulls />
-                      <Line type="monotone" dataKey="today" name="Today" stroke="var(--color-primary)" strokeWidth={3} dot={false} connectNulls />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex gap-4 mt-1">
-                  <LegendDot color="var(--color-primary)" label="Today" />
-                  <LegendDot color="#D8CBBF" label={sales?.lastYear ? `Same ${comparisonWeekday}, last year` : "No last-year data yet"} />
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-[var(--color-muted-foreground)] py-4">
-                No sales recorded yet today — the pace chart fills in as orders close.
-              </p>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function DeltaPill({ today, lastYear }: { today: number; lastYear: number | null }) {
-  if (!lastYear || lastYear <= 0) return null
-  const delta = ((today - lastYear) / lastYear) * 100
-  const up = delta >= 0
-  return (
-    <span
-      className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-        up
-          ? "bg-[var(--color-success-bg,#e6f6e9)] text-[var(--color-success-text,#1d7c2e)]"
-          : "bg-[var(--color-warning-bg,#fdf3e0)] text-[var(--color-warning-text,#a36a00)]"
-      }`}
-    >
-      {up ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
-    </span>
-  )
-}
-
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
-      <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: color }} />
-      {label}
-    </span>
   )
 }
 
