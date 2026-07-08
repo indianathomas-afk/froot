@@ -110,9 +110,29 @@ export async function GET(req: Request) {
   }
 
   // ── Monthly goal ──
-  const goalRow = await prisma.storeMonthlyGoal.findUnique({
-    where: { storeId_month: { storeId, month: dbDate(mStart) } },
-  })
+  // A Forecasting plan (materialized DailyGoal rows) beats the legacy manual
+  // StoreMonthlyGoal. Its MTD goal sum also enables goal-weighted pacing:
+  // projected = MTD actual ÷ MTD goal × month goal — which respects the
+  // remaining weekday mix (3 Saturdays left ≠ 1), unlike simple run-rate.
+  const monthEnd = `${mStart.slice(0, 7)}-${String(totalDays).padStart(2, "0")}`
+  const [goalRow, planMonthAgg, planMtdAgg] = await Promise.all([
+    prisma.storeMonthlyGoal.findUnique({
+      where: { storeId_month: { storeId, month: dbDate(mStart) } },
+    }),
+    prisma.dailyGoal.aggregate({
+      where: { storeId, date: { gte: dbDate(mStart), lte: dbDate(monthEnd) } },
+      _sum: { goalAmount: true },
+      _count: true,
+    }),
+    prisma.dailyGoal.aggregate({
+      where: { storeId, date: { gte: dbDate(mStart), lte: dbDate(today) } },
+      _sum: { goalAmount: true },
+    }),
+  ])
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const hasPlan = planMonthAgg._count > 0
+  const planMonthGoal = hasPlan ? round2(planMonthAgg._sum.goalAmount ?? 0) : null
+  const planMtdGoal = hasPlan ? round2(planMtdAgg._sum.goalAmount ?? 0) : null
 
   // ── Shift checklist (today, this store) ──
   const dayStartUtc = new Date(`${today}T00:00:00.000Z`)
@@ -143,7 +163,9 @@ export async function GET(req: Request) {
     sales,
     goal: {
       month: mStart,
-      goalAmount: goalRow?.goalAmount ?? null,
+      goalAmount: planMonthGoal ?? goalRow?.goalAmount ?? null,
+      source: planMonthGoal !== null ? "plan" : goalRow ? "manual" : null,
+      mtdGoal: planMtdGoal,
       monthToDate: sales?.monthToDate ?? null,
       daysElapsed: dayOfMonth,
       daysInMonth: totalDays,

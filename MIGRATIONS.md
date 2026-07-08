@@ -71,14 +71,30 @@ git push origin staging
 ```
 
 ## 3. The new normal (every schema change)
+
+> `prisma migrate dev` is currently broken here: the baseline squash (step 2)
+> was never done, so shadow-DB replay of the old migration history fails with
+> P3018 (and `.env` has no `SHADOW_DATABASE_URL`). Until the baseline lands,
+> hand-author migrations instead:
+
 ```bash
 # 1. edit prisma/schema.prisma
-# 2. create + apply migration against the dev branch:
-npx prisma migrate dev --name add_recipe_table
-# 3. commit the migration folder WITH the code that uses it
-# 4. push staging → Vercel build runs `prisma migrate deploy` on the staging DB
-# 5. test on staging → merge to main → same SQL runs on prod
+# 2. diff the schema against the live dev DB to generate the migration SQL
+#    (timestamp format YYYYMMDDHHMMSS):
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
+  --script -o prisma/migrations/<timestamp>_<name>/migration.sql
+# 3. review the SQL, apply it, and record it in the migrations ledger:
+npx prisma db execute --file prisma/migrations/<timestamp>_<name>/migration.sql
+npx prisma migrate resolve --applied <timestamp>_<name>
+# 4. regenerate the client:
+npx prisma generate
+# 5. commit the migration folder WITH the code that uses it
+# 6. push staging → Vercel build runs `prisma migrate deploy` on the staging DB
+# 7. test on staging → merge to main → same SQL runs on prod
 ```
+
+Once the baseline squash is done and `SHADOW_DATABASE_URL` is set, steps 2–4
+collapse back to `npx prisma migrate dev --name <name>`.
 
 Rules:
 - Never `db push` against staging or prod again.
