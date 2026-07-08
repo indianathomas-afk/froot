@@ -27,6 +27,8 @@ type Summary = {
   goal: {
     month: string
     goalAmount: number | null
+    source: "plan" | "manual" | null
+    mtdGoal: number | null
     monthToDate: number | null
     daysElapsed: number
     daysInMonth: number
@@ -304,7 +306,14 @@ function MonthlyGoalCard({ loading, summary, onSaved }: { loading: boolean; summ
 
   const pctOfGoal = Math.min(1, mtd / goal.goalAmount)
   const toGo = Math.max(0, goal.goalAmount - mtd)
-  const extrapolated = goal.daysElapsed > 0 ? (mtd / goal.daysElapsed) * goal.daysInMonth : 0
+  // Goal-weighted pacing when a Forecasting plan provides an MTD goal (it
+  // respects the weekday mix of the remaining days); run-rate otherwise.
+  const goalWeighted = goal.mtdGoal !== null && goal.mtdGoal > 0
+  const extrapolated = goalWeighted
+    ? (mtd / goal.mtdGoal!) * goal.goalAmount
+    : goal.daysElapsed > 0
+      ? (mtd / goal.daysElapsed) * goal.daysInMonth
+      : 0
   const pctToGoal = (extrapolated / goal.goalAmount) * 100
   const onTrack = pctToGoal >= 100
 
@@ -313,16 +322,25 @@ function MonthlyGoalCard({ loading, summary, onSaved }: { loading: boolean; summ
       <CardContent className="pt-5 pb-4 h-full flex flex-col">
         <div className="flex items-center justify-between mb-1">
           <p className="text-[15px] font-bold text-[var(--color-foreground)]">Monthly Goal</p>
-          {summary.canManageGoal && (
-            <button
+          {goal.source === "plan" ? (
+            <Link
+              href="/forecasting"
               className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]"
-              onClick={() => {
-                setAmount(String(goal.goalAmount))
-                setEditing(true)
-              }}
             >
-              Edit
-            </button>
+              Forecasting →
+            </Link>
+          ) : (
+            summary.canManageGoal && (
+              <button
+                className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]"
+                onClick={() => {
+                  setAmount(String(goal.goalAmount))
+                  setEditing(true)
+                }}
+              >
+                Edit
+              </button>
+            )
           )}
         </div>
 
