@@ -5,6 +5,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  "/api/cron(.*)", // authenticates itself via CRON_SECRET (Vercel cron has no session)
   "/menu(.*)",
 ])
 

@@ -47,6 +47,7 @@ model Organization {
   salesLineCaches      SalesLineCache[]
   salesHourlyCaches    SalesHourlyCache[]
   storeMonthlyGoals    StoreMonthlyGoal[]
+  goalPlans            GoalPlan[]
   recipes              Recipe[]
   inventoryAdjustments InventoryAdjustment[]
   adjustmentGroups     AdjustmentGroup[]
@@ -99,6 +100,8 @@ model Store {
   salesLineCaches     SalesLineCache[]
   salesHourlyCaches   SalesHourlyCache[]
   monthlyGoals        StoreMonthlyGoal[]
+  goalPlans           GoalPlan[]
+  dailyGoals          DailyGoal[]
   inventoryAdjustments InventoryAdjustment[]
   adjustmentGroupsFrom AdjustmentGroup[]    @relation("AdjustmentGroupFromStore")
   adjustmentGroupsTo   AdjustmentGroup[]    @relation("AdjustmentGroupToStore")
@@ -973,4 +976,55 @@ model MenuItemAllergen {
   menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@unique([menuItemId, allergen])
+}
+
+// ─── PHASE F: SALES GOALS & FORECASTING ──────────────────────────────────────
+// One GoalPlan per store per year. DailyGoal rows are MATERIALIZED (not
+// computed on read) so the calendar is one indexed query and manual overrides
+// are first-class rows. basisAmount is stored per day so the increase % can be
+// re-applied at any time without re-querying Square. Actuals come from
+// SalesPeriodCache (I-5) — Square is never read on a dashboard/calendar path.
+
+enum GoalBasisType {
+  SQUARE_LAST_YEAR
+  IMPORT
+  MANUAL
+}
+
+model GoalPlan {
+  id             String        @id @default(cuid())
+  organizationId String
+  storeId        String
+  year           Int
+  basisType      GoalBasisType
+  basisTotal     Float         @default(0)
+  increasePct    Float         @default(0)
+  goalTotal      Float         @default(0) // derived, denormalized
+  importFileUrl  String? // Vercel Blob URL when basisType = IMPORT
+  updatedById    String // Clerk user id of last editor
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  dailyGoals   DailyGoal[]
+
+  @@unique([storeId, year])
+  @@index([organizationId, year])
+}
+
+model DailyGoal {
+  id          String   @id @default(cuid())
+  planId      String
+  storeId     String
+  date        DateTime @db.Date
+  basisAmount Float    @default(0) // LY same-weekday sales or imported value
+  goalAmount  Float    @default(0)
+  isOverride  Boolean  @default(false) // manually edited — survives % recalcs
+
+  plan  GoalPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  store Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
+  @@index([planId])
 }

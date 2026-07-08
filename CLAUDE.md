@@ -205,6 +205,7 @@ SQUARE_APPLICATION_ID=
 SQUARE_APPLICATION_SECRET=
 SQUARE_ENVIRONMENT=            # "sandbox" or "production"
 NEXT_PUBLIC_APP_URL=           # e.g. https://www.usefroot.com
+CRON_SECRET=                   # auth for /api/cron/* (Vercel sends it on cron invocations)
 ```
 
 ---
