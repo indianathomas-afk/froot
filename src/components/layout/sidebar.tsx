@@ -16,6 +16,7 @@ import {
   Eye,
   Settings,
   LogOut,
+  TrendingUp,
   PanelLeftClose,
   PanelLeftOpen,
   Package,
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/users", label: "Users", icon: Users, roles: ["ADMIN"] },
   { href: "/staff", label: "Staff", icon: UserSquare, roles: ["ADMIN", "MANAGER"] },
   { href: "/reports", label: "Reports", icon: BarChart2, roles: ["ADMIN", "MANAGER"] },
+  { href: "/forecasting", label: "Forecasting", icon: TrendingUp, roles: ["ADMIN", "MANAGER"] },
   { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
 ]
 
