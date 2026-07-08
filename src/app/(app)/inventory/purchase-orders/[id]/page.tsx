@@ -19,9 +19,22 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
 
   const po = await prisma.purchaseOrder.findFirst({
     where: { id, organizationId: org.id, ...(isAdmin ? {} : { storeId: { in: storeIds } }) },
-    include: { lines: { include: { ingredient: true } }, store: true, vendor: true },
+    include: {
+      lines: { include: { ingredient: true } },
+      store: true,
+      vendor: { include: { adjustments: { where: { isActive: true }, orderBy: { createdAt: "asc" } } } },
+      adjustments: { orderBy: { createdAt: "asc" } },
+    },
   })
   if (!po) notFound()
+
+  // Vendor prices on file — the receive flow compares the received unit cost
+  // against these for the "price changed, update going forward?" confirm.
+  const vendorPrices = await prisma.vendorIngredient.findMany({
+    where: { vendorId: po.vendorId, ingredientId: { in: po.lines.map((l) => l.ingredientId) } },
+    select: { ingredientId: true, casePrice: true },
+  })
+  const casePriceByIngredient = new Map(vendorPrices.map((v) => [v.ingredientId, v.casePrice]))
 
   const canManage = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
 
@@ -34,6 +47,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
         createdAt: po.createdAt.toISOString(),
         lines: po.lines.map((l) => ({
           id: l.id,
+          ingredientId: l.ingredientId,
           ingredientName: l.ingredientName,
           purchaseUnitLabel: l.ingredient.purchaseUnitLabel,
           quantityOrdered: l.quantityOrdered,
@@ -41,7 +55,27 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
           unitCost: l.unitCost,
           lineTotal: l.lineTotal,
           receivingNote: l.receivingNote,
+          vendorCasePrice: casePriceByIngredient.get(l.ingredientId) ?? null,
         })),
+        adjustments: po.adjustments.map((a) => ({
+          id: a.id,
+          vendorAdjustmentId: a.vendorAdjustmentId,
+          name: a.name,
+          type: a.type,
+          value: a.value,
+          amount: a.amount,
+          glCode: a.glCode,
+        })),
+        vendor: {
+          name: po.vendor.name,
+          activeAdjustments: po.vendor.adjustments.map((a) => ({
+            id: a.id,
+            name: a.name,
+            type: a.type,
+            value: a.value,
+            glCode: a.glCode,
+          })),
+        },
       }}
       canManage={canManage}
     />

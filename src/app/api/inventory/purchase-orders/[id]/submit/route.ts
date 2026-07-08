@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { defaultExpectedAt } from "@/lib/vendor-delivery"
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
@@ -27,6 +28,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
 
   const po = await prisma.purchaseOrder.findFirst({
     where: { id, organizationId: org.id, ...(isAdmin ? {} : { storeId: { in: storeIds } }) },
+    include: { vendor: true },
   })
   if (!po) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (po.status !== "DRAFT") {
@@ -35,7 +37,13 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
 
   const updated = await prisma.purchaseOrder.update({
     where: { id },
-    data: { status: "SUBMITTED", orderedAt: new Date() },
+    data: {
+      status: "SUBMITTED",
+      orderedAt: new Date(),
+      // I-7: submitting without an expected date defaults it from the
+      // vendor's delivery days (then lead time, then next weekday).
+      ...(po.expectedAt ? {} : { expectedAt: defaultExpectedAt(po.vendor) }),
+    },
     include: { lines: true, store: true, vendor: true },
   })
 

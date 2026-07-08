@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { Carrot } from "lucide-react"
 import Link from "next/link"
+import { getUserStoreScope } from "@/lib/auth"
 import { serializeIngredient } from "@/lib/ingredient-dto"
 import { IngredientsClient } from "./ingredients-client"
 
@@ -39,6 +40,13 @@ export default async function IngredientsPage() {
   const isAdmin = dbUser?.role === "ADMIN"
   const canManage = isAdmin || dbUser?.role === "MANAGER"
 
+  const { storeIds } = await getUserStoreScope()
+  const stores = await prisma.store.findMany({
+    where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  })
+
   const [ingredients, categories, deletedIngredients] = await Promise.all([
     prisma.ingredient.findMany({
       where: { organizationId: org.id, deletedAt: null },
@@ -74,6 +82,7 @@ export default async function IngredientsPage() {
       categories={categories.map((c) => ({ id: c.id, name: c.name, glCode: c.glCode }))}
       ingredientCountByCategory={ingredientCountByCategory}
       deletedIngredientNames={deletedIngredients.map((i) => ({ id: i.id, brand: i.brand, name: i.name }))}
+      stores={stores}
       canManage={canManage}
       isAdmin={isAdmin}
     />

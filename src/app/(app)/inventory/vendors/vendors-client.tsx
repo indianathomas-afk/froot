@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Pencil, Plus, Trash2 } from "lucide-react"
+import { WEEKDAY_LABELS, parseDeliveryDays } from "@/lib/vendor-delivery"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,7 +26,19 @@ type Vendor = {
   phone: string | null
   terms: string | null
   leadTimeDays: number | null
+  minOrderCases: number | null
+  minOrderDollars: number | null
+  deliveryDays: unknown
   notes: string | null
+  isActive: boolean
+}
+
+type AdjustmentRow = {
+  id?: string
+  name: string
+  type: "FLAT" | "PERCENT"
+  value: string
+  glCode: string
   isActive: boolean
 }
 
@@ -37,6 +50,8 @@ const emptyForm = {
   phone: "",
   terms: "",
   leadTimeDays: "",
+  minOrderCases: "",
+  minOrderDollars: "",
   notes: "",
 }
 
@@ -69,7 +84,7 @@ export function VendorsClient({ vendors, canManage }: { vendors: Vendor[]; canMa
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
-                  {["Vendor", "Contact", "Terms", "Lead Time", "Status", ""].map((h) => (
+                  {["Vendor", "Contact", "Terms", "Delivery", "Minimums", "Status", ""].map((h) => (
                     <th key={h} className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">{h}</th>
                   ))}
                 </tr>
@@ -87,7 +102,22 @@ export function VendorsClient({ vendors, canManage }: { vendors: Vendor[]; canMa
                     </td>
                     <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">{v.terms ?? "—"}</td>
                     <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
-                      {v.leadTimeDays != null ? `${v.leadTimeDays} day${v.leadTimeDays !== 1 ? "s" : ""}` : "—"}
+                      {parseDeliveryDays(v.deliveryDays).length > 0
+                        ? parseDeliveryDays(v.deliveryDays).map((d) => WEEKDAY_LABELS[d]).join(", ")
+                        : v.leadTimeDays != null
+                          ? `${v.leadTimeDays} day${v.leadTimeDays !== 1 ? "s" : ""} lead`
+                          : "—"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
+                      {v.minOrderCases != null || v.minOrderDollars != null ? (
+                        <>
+                          {v.minOrderCases != null && <span>{v.minOrderCases} cases</span>}
+                          {v.minOrderCases != null && v.minOrderDollars != null && " / "}
+                          {v.minOrderDollars != null && <span>${v.minOrderDollars.toFixed(0)}</span>}
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <Badge variant={v.isActive ? "success" : "secondary"}>{v.isActive ? "Active" : "Inactive"}</Badge>
@@ -136,6 +166,8 @@ function VendorDialog({
 }) {
   const isOpen = vendor !== undefined
   const [form, setForm] = useState(emptyForm)
+  const [deliveryDays, setDeliveryDays] = useState<number[]>([])
+  const [adjustments, setAdjustments] = useState<AdjustmentRow[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -153,12 +185,42 @@ function VendorDialog({
             phone: vendor.phone ?? "",
             terms: vendor.terms ?? "",
             leadTimeDays: vendor.leadTimeDays?.toString() ?? "",
+            minOrderCases: vendor.minOrderCases?.toString() ?? "",
+            minOrderDollars: vendor.minOrderDollars?.toString() ?? "",
             notes: vendor.notes ?? "",
           }
         : emptyForm
     )
+    setDeliveryDays(vendor ? parseDeliveryDays(vendor.deliveryDays) : [])
+    setAdjustments([])
     setError(null)
   }
+
+  // Standing adjustments exist only for saved vendors.
+  const vendorId = vendor?.id ?? null
+  useEffect(() => {
+    if (!vendorId) return
+    let cancelled = false
+    fetch(`/api/inventory/vendors/${vendorId}/adjustments`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { id: string; name: string; type: string; value: number; glCode: string | null; isActive: boolean }[]) => {
+        if (cancelled) return
+        setAdjustments(
+          rows.map((a) => ({
+            id: a.id,
+            name: a.name,
+            type: a.type === "PERCENT" ? "PERCENT" : "FLAT",
+            value: String(a.value),
+            glCode: a.glCode ?? "",
+            isActive: a.isActive,
+          }))
+        )
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [vendorId])
 
   async function handleSave() {
     setSaving(true)
@@ -172,6 +234,9 @@ function VendorDialog({
         phone: form.phone || null,
         terms: form.terms || null,
         leadTimeDays: form.leadTimeDays ? Number(form.leadTimeDays) : null,
+        minOrderCases: form.minOrderCases ? Number(form.minOrderCases) : null,
+        minOrderDollars: form.minOrderDollars ? Number(form.minOrderDollars) : null,
+        deliveryDays,
         notes: form.notes || null,
       }
       const res = await fetch(vendor ? `/api/inventory/vendors/${vendor.id}` : "/api/inventory/vendors", {
@@ -184,6 +249,28 @@ function VendorDialog({
         setError(data.error ?? "Save failed")
         return
       }
+      if (vendor) {
+        const valid = adjustments.filter((a) => a.name.trim() && Number.isFinite(Number(a.value)))
+        const adjRes = await fetch(`/api/inventory/vendors/${vendor.id}/adjustments`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            valid.map((a) => ({
+              ...(a.id ? { id: a.id } : {}),
+              name: a.name.trim(),
+              type: a.type,
+              value: Number(a.value),
+              glCode: a.glCode.trim() || null,
+              isActive: a.isActive,
+            }))
+          ),
+        })
+        if (!adjRes.ok) {
+          const data = await adjRes.json().catch(() => ({}))
+          setError(data.error ?? "Vendor saved, but adjustments failed to save")
+          return
+        }
+      }
       onSaved()
     } finally {
       setSaving(false)
@@ -192,7 +279,7 @@ function VendorDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{vendor ? "Edit Vendor" : "New Vendor"}</DialogTitle>
         </DialogHeader>
@@ -226,7 +313,129 @@ function VendorDialog({
               <Label>Lead Time (days)</Label>
               <Input type="number" value={form.leadTimeDays} onChange={(e) => setForm((f) => ({ ...f, leadTimeDays: e.target.value }))} />
             </div>
+            <div>
+              <Label>Min Order (cases)</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="No minimum"
+                value={form.minOrderCases}
+                onChange={(e) => setForm((f) => ({ ...f, minOrderCases: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Min Order ($)</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="No minimum"
+                value={form.minOrderDollars}
+                onChange={(e) => setForm((f) => ({ ...f, minOrderDollars: e.target.value }))}
+              />
+            </div>
           </div>
+          <div>
+            <Label>Delivery Days</Label>
+            <div className="flex items-center gap-1 mt-1">
+              {WEEKDAY_LABELS.map((label, day) => {
+                const active = deliveryDays.includes(day)
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() =>
+                      setDeliveryDays((prev) => (active ? prev.filter((d) => d !== day) : [...prev, day].sort()))
+                    }
+                    className={
+                      "px-2 py-1 rounded text-xs border transition-colors " +
+                      (active
+                        ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)]"
+                        : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)]")
+                    }
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+              New orders default their expected date to the next delivery day.
+            </p>
+          </div>
+          {vendor && (
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Standing Invoice Adjustments</Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() =>
+                    setAdjustments((prev) => [...prev, { name: "", type: "FLAT", value: "", glCode: "", isActive: true }])
+                  }
+                >
+                  Add
+                </Button>
+              </div>
+              <p className="text-xs text-[var(--color-muted-foreground)] mb-2">
+                Fees, deposits, or credits auto-attached when receiving this vendor&apos;s orders. Negative = credit.
+              </p>
+              <div className="space-y-2">
+                {adjustments.map((a, i) => (
+                  <div key={a.id ?? `new-${i}`} className="flex flex-wrap items-center gap-2">
+                    <Input
+                      className="h-8 w-36 text-sm"
+                      placeholder="Fuel surcharge"
+                      value={a.name}
+                      onChange={(e) => setAdjustments((prev) => prev.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                    />
+                    <select
+                      className="h-8 rounded-md border border-[var(--color-border)] bg-transparent px-2 text-sm"
+                      value={a.type}
+                      onChange={(e) =>
+                        setAdjustments((prev) =>
+                          prev.map((x, j) => (j === i ? { ...x, type: e.target.value as "FLAT" | "PERCENT" } : x))
+                        )
+                      }
+                    >
+                      <option value="FLAT">$ flat</option>
+                      <option value="PERCENT">% of order</option>
+                    </select>
+                    <Input
+                      type="number"
+                      className="h-8 w-20 text-sm"
+                      placeholder={a.type === "FLAT" ? "5.00" : "3"}
+                      value={a.value}
+                      onChange={(e) => setAdjustments((prev) => prev.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
+                    />
+                    <Input
+                      className="h-8 w-20 text-sm"
+                      placeholder="GL code"
+                      value={a.glCode}
+                      onChange={(e) => setAdjustments((prev) => prev.map((x, j) => (j === i ? { ...x, glCode: e.target.value } : x)))}
+                    />
+                    <label className="flex items-center gap-1 text-xs text-[var(--color-muted-foreground)]">
+                      <input
+                        type="checkbox"
+                        checked={a.isActive}
+                        onChange={(e) =>
+                          setAdjustments((prev) => prev.map((x, j) => (j === i ? { ...x, isActive: e.target.checked } : x)))
+                        }
+                      />
+                      active
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustments((prev) => prev.filter((_, j) => j !== i))}
+                      className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <Label>Notes</Label>
             <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />

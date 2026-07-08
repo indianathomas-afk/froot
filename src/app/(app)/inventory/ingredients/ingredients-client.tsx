@@ -24,6 +24,15 @@ import Link from "next/link"
 type Category = { id: string; name: string; glCode: string | null }
 type Vendor = { id: string; name: string; isActive: boolean }
 type DeletedName = { id: string; brand: string | null; name: string }
+type StoreOption = { id: string; name: string }
+
+type ParEntry = { parLevel: number | null; reorderPoint: number | null }
+type ParsData = {
+  storeId: string
+  pars: Record<string, ParEntry>
+  weeklyUsage: Record<string, number>
+  usageBasis: "periods" | "sales" | "none"
+}
 
 type Ingredient = {
   id: string
@@ -107,6 +116,7 @@ export function IngredientsClient({
   categories,
   ingredientCountByCategory,
   deletedIngredientNames,
+  stores,
   canManage,
   isAdmin,
 }: {
@@ -114,6 +124,7 @@ export function IngredientsClient({
   categories: Category[]
   ingredientCountByCategory: Record<string, number>
   deletedIngredientNames: DeletedName[]
+  stores: StoreOption[]
   canManage: boolean
   isAdmin: boolean
 }) {
@@ -126,6 +137,8 @@ export function IngredientsClient({
   const [managingCategories, setManagingCategories] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [parsStoreId, setParsStoreId] = useState(stores[0]?.id ?? "")
+  const [parsData, setParsData] = useState<ParsData | null>(null)
 
   useEffect(() => {
     fetch("/api/inventory/vendors")
@@ -133,6 +146,40 @@ export function IngredientsClient({
       .then((v) => setVendors(v))
       .catch(() => {})
   }, [])
+
+  // Pars + weekly usage for the selected store. The payload carries its
+  // storeId so a slow response for a previously selected store never lands.
+  useEffect(() => {
+    if (!parsStoreId) return
+    let cancelled = false
+    fetch(`/api/inventory/pars?storeId=${parsStoreId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return
+        const pars: Record<string, ParEntry> = {}
+        for (const p of data.pars as { ingredientId: string; parLevel: number | null; reorderPoint: number | null }[]) {
+          pars[p.ingredientId] = { parLevel: p.parLevel, reorderPoint: p.reorderPoint }
+        }
+        setParsData({ storeId: parsStoreId, pars, weeklyUsage: data.weeklyUsage, usageBasis: data.usageBasis })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [parsStoreId])
+
+  const parsLoaded = parsData?.storeId === parsStoreId
+  const parsStoreName = stores.find((s) => s.id === parsStoreId)?.name ?? ""
+
+  function handleParSaved(ingredientId: string, entry: ParEntry) {
+    setParsData((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, pars: { ...prev.pars } }
+      if (entry.parLevel === null && entry.reorderPoint === null) delete next.pars[ingredientId]
+      else next.pars[ingredientId] = entry
+      return next
+    })
+  }
 
   const filtered = useMemo(() => {
     return ingredients.filter((i) => {
@@ -250,6 +297,17 @@ export function IngredientsClient({
             <SelectItem value="lastEdited">Last Edited</SelectItem>
           </SelectContent>
         </Select>
+        {stores.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-[var(--color-muted-foreground)]">Pars for</span>
+            <Select value={parsStoreId} onValueChange={setParsStoreId}>
+              <SelectTrigger className="w-44"><SelectValue placeholder="Select store" /></SelectTrigger>
+              <SelectContent>
+                {stores.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="flex items-center rounded-md border border-[var(--color-border)] overflow-hidden text-sm">
           {(["active", "archived", "all"] as ViewFilter[]).map((v) => (
             <button
@@ -273,6 +331,7 @@ export function IngredientsClient({
           count={selectedIds.size}
           categories={categories}
           vendors={vendors}
+          parsStoreName={parsStoreName}
           onVendorsChanged={(v) => setVendors((prev) => [...prev, v])}
           onCategoriesChanged={() => router.refresh()}
           onClear={() => setSelectedIds(new Set())}
@@ -285,7 +344,46 @@ export function IngredientsClient({
             setSelectedIds(new Set())
             router.refresh()
           }}
+          onApplyPars={async (pars) => {
+            if (!parsStoreId) return
+            const res = await fetch("/api/inventory/pars", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                storeId: parsStoreId,
+                pars: [...selectedIds].map((ingredientId) => ({ ingredientId, ...pars })),
+              }),
+            })
+            if (res.ok) {
+              setParsData((prev) => {
+                if (!prev) return prev
+                const next = { ...prev, pars: { ...prev.pars } }
+                for (const id of selectedIds) {
+                  const merged: ParEntry = {
+                    parLevel: pars.parLevel !== undefined ? pars.parLevel : next.pars[id]?.parLevel ?? null,
+                    reorderPoint:
+                      pars.reorderPoint !== undefined ? pars.reorderPoint : next.pars[id]?.reorderPoint ?? null,
+                  }
+                  if (merged.parLevel === null && merged.reorderPoint === null) delete next.pars[id]
+                  else next.pars[id] = merged
+                }
+                return next
+              })
+            }
+            setSelectedIds(new Set())
+          }}
         />
+      )}
+
+      {parsStoreId && parsLoaded && (
+        <p className="text-xs text-[var(--color-muted-foreground)] mb-3">
+          {parsData?.usageBasis === "periods"
+            ? "Weekly usage is real count-to-count usage from your inventory periods."
+            : parsData?.usageBasis === "sales"
+              ? "Weekly usage is estimated from synced sales (no full inventory period yet)."
+              : "No usage data yet — finalize two full counts or sync sales to see weekly usage."}{" "}
+          Unsure of pars? Order to usage for a few weeks to discover them.
+        </p>
       )}
 
       {ingredients.length === 0 ? (
@@ -328,7 +426,16 @@ export function IngredientsClient({
                             />
                           </th>
                         )}
-                        {["Ingredient", "Category", "Pack", "Vendor Price", "Cost / Unit", "Last Edited", ""].map((h) => (
+                        {[
+                          "Ingredient",
+                          "Category",
+                          "Pack",
+                          "Vendor Price",
+                          "Cost / Unit",
+                          ...(parsStoreId ? ["Par / Reorder", "Usage / wk"] : []),
+                          "Last Edited",
+                          "",
+                        ].map((h) => (
                           <th key={h} className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-4 py-3">{h}</th>
                         ))}
                       </tr>
@@ -373,6 +480,39 @@ export function IngredientsClient({
                           <td className="px-4 py-3 text-sm text-[var(--color-foreground)]">
                             ${ing.costPerReportingUnit.toFixed(4)}/{ing.reportingUnit}
                           </td>
+                          {parsStoreId && (
+                            <>
+                              <td className="px-4 py-3">
+                                {parsLoaded ? (
+                                  <ParCell
+                                    key={`${parsStoreId}-${ing.id}`}
+                                    storeId={parsStoreId}
+                                    ingredientId={ing.id}
+                                    reportingUnit={ing.reportingUnit}
+                                    purchaseUnitLabel={ing.purchaseUnitLabel}
+                                    unitsPerPurchase={ing.unitsPerPurchase}
+                                    entry={parsData?.pars[ing.id] ?? null}
+                                    canManage={canManage}
+                                    onSaved={handleParSaved}
+                                  />
+                                ) : (
+                                  <span className="text-xs text-[var(--color-muted-foreground)]">…</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)] whitespace-nowrap">
+                                {parsLoaded && parsData?.weeklyUsage[ing.id] !== undefined ? (
+                                  <>
+                                    {(Math.round(parsData.weeklyUsage[ing.id] * 10) / 10).toLocaleString()} {ing.reportingUnit}
+                                    {parsData.usageBasis === "sales" && (
+                                      <span className="block text-xs opacity-70">from sales</span>
+                                    )}
+                                  </>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                            </>
+                          )}
                           <td className="px-4 py-3 text-xs text-[var(--color-muted-foreground)]">
                             {formatDate(ing.updatedAt)}
                             {ing.lastEditedByName && <div>{ing.lastEditedByName}</div>}
@@ -480,22 +620,126 @@ function NotePopover({ note }: { note: string }) {
   )
 }
 
+// Par + reorder point for one ingredient at the selected store, in the
+// ingredient's reporting unit. Saves on blur; shows the purchase-unit
+// equivalent of the par so "12 lbs" reads as "≈ 0.3 box".
+function ParCell({
+  storeId,
+  ingredientId,
+  reportingUnit,
+  purchaseUnitLabel,
+  unitsPerPurchase,
+  entry,
+  canManage,
+  onSaved,
+}: {
+  storeId: string
+  ingredientId: string
+  reportingUnit: string
+  purchaseUnitLabel: string
+  unitsPerPurchase: number
+  entry: ParEntry | null
+  canManage: boolean
+  onSaved: (ingredientId: string, entry: ParEntry) => void
+}) {
+  const [parVal, setParVal] = useState(entry?.parLevel?.toString() ?? "")
+  const [reorderVal, setReorderVal] = useState(entry?.reorderPoint?.toString() ?? "")
+  const [saving, setSaving] = useState(false)
+
+  if (!canManage) {
+    if (!entry) return <span className="text-sm text-[var(--color-muted-foreground)]">—</span>
+    return (
+      <span className="text-sm text-[var(--color-foreground)] whitespace-nowrap">
+        {entry.parLevel ?? "—"} / {entry.reorderPoint ?? "—"} {reportingUnit}
+      </span>
+    )
+  }
+
+  async function save() {
+    const parse = (v: string) => {
+      if (v.trim() === "") return null
+      const n = Number(v)
+      return Number.isFinite(n) && n >= 0 ? n : undefined // undefined = invalid
+    }
+    const parLevel = parse(parVal)
+    const reorderPoint = parse(reorderVal)
+    if (parLevel === undefined || reorderPoint === undefined) return
+    if (parLevel === (entry?.parLevel ?? null) && reorderPoint === (entry?.reorderPoint ?? null)) return
+    setSaving(true)
+    try {
+      const res = await fetch("/api/inventory/pars", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeId, pars: [{ ingredientId, parLevel, reorderPoint }] }),
+      })
+      if (res.ok) onSaved(ingredientId, { parLevel, reorderPoint })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const parNum = Number(parVal)
+  const caseEquivalent =
+    parVal.trim() !== "" && Number.isFinite(parNum) && parNum > 0 && unitsPerPurchase > 0
+      ? parNum / unitsPerPurchase
+      : null
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="number"
+          min={0}
+          placeholder="Par"
+          title={`Par level (${reportingUnit})`}
+          value={parVal}
+          onChange={(e) => setParVal(e.target.value)}
+          onBlur={save}
+          disabled={saving}
+          className="h-8 w-20 text-sm"
+        />
+        <Input
+          type="number"
+          min={0}
+          placeholder="Reorder"
+          title={`Reorder point (${reportingUnit})`}
+          value={reorderVal}
+          onChange={(e) => setReorderVal(e.target.value)}
+          onBlur={save}
+          disabled={saving}
+          className="h-8 w-20 text-sm"
+        />
+        <span className="text-xs text-[var(--color-muted-foreground)]">{reportingUnit}</span>
+      </div>
+      {caseEquivalent !== null && (
+        <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+          ≈ {(Math.round(caseEquivalent * 10) / 10).toLocaleString()} {purchaseUnitLabel}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function BulkEditPanel({
   count,
   categories,
   vendors,
+  parsStoreName,
   onVendorsChanged,
   onCategoriesChanged,
   onClear,
   onApply,
+  onApplyPars,
 }: {
   count: number
   categories: Category[]
   vendors: Vendor[]
+  parsStoreName: string
   onVendorsChanged: (v: Vendor) => void
   onCategoriesChanged: () => void
   onClear: () => void
   onApply: (payload: Record<string, unknown>) => Promise<void>
+  onApplyPars: (pars: { parLevel?: number | null; reorderPoint?: number | null }) => Promise<void>
 }) {
   const [categoryChoice, setCategoryChoice] = useState("__nochange__")
   const [subcategoryTouched, setSubcategoryTouched] = useState(false)
@@ -503,6 +747,10 @@ function BulkEditPanel({
   const [glTouched, setGlTouched] = useState(false)
   const [glCodeOverride, setGlCodeOverride] = useState("")
   const [vendorChoice, setVendorChoice] = useState("__nochange__")
+  const [parTouched, setParTouched] = useState(false)
+  const [parLevel, setParLevel] = useState("")
+  const [reorderTouched, setReorderTouched] = useState(false)
+  const [reorderPoint, setReorderPoint] = useState("")
   const [applying, setApplying] = useState(false)
   const [quickAdd, setQuickAdd] = useState<"category" | "vendor" | null>(null)
   const [quickAddName, setQuickAddName] = useState("")
@@ -546,11 +794,23 @@ function BulkEditPanel({
       if (subcategoryTouched) payload.subcategory = subcategory || null
       if (glTouched) payload.glCodeOverride = glCodeOverride || null
       if (vendorChoice !== "__nochange__") payload.vendorId = vendorChoice
-      await onApply(payload)
+
+      if (parTouched || reorderTouched) {
+        await onApplyPars({
+          ...(parTouched && { parLevel: parLevel.trim() === "" ? null : Number(parLevel) }),
+          ...(reorderTouched && { reorderPoint: reorderPoint.trim() === "" ? null : Number(reorderPoint) }),
+        })
+      }
+      if (Object.keys(payload).length > 0) await onApply(payload)
+      else onClear()
     } finally {
       setApplying(false)
     }
   }
+
+  const parInvalid =
+    (parTouched && parLevel.trim() !== "" && !(Number(parLevel) >= 0)) ||
+    (reorderTouched && reorderPoint.trim() !== "" && !(Number(reorderPoint) >= 0))
 
   async function handleAction(action: "archive" | "unarchive" | "delete") {
     setApplying(true)
@@ -561,7 +821,13 @@ function BulkEditPanel({
     }
   }
 
-  const hasEdits = categoryChoice !== "__nochange__" || subcategoryTouched || glTouched || vendorChoice !== "__nochange__"
+  const hasEdits =
+    categoryChoice !== "__nochange__" ||
+    subcategoryTouched ||
+    glTouched ||
+    vendorChoice !== "__nochange__" ||
+    parTouched ||
+    reorderTouched
 
   return (
     <div className="border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5 rounded-lg p-4 mb-4 space-y-3">
@@ -617,9 +883,41 @@ function BulkEditPanel({
             </SelectContent>
           </Select>
         </div>
+        {parsStoreName && (
+          <>
+            <div>
+              <Label className="text-xs">Par Level ({parsStoreName}, reporting units)</Label>
+              <Input
+                className="h-9"
+                type="number"
+                min={0}
+                placeholder="No change — blank clears"
+                value={parLevel}
+                onChange={(e) => {
+                  setParLevel(e.target.value)
+                  setParTouched(true)
+                }}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Reorder Point ({parsStoreName}, reporting units)</Label>
+              <Input
+                className="h-9"
+                type="number"
+                min={0}
+                placeholder="No change — blank clears"
+                value={reorderPoint}
+                onChange={(e) => {
+                  setReorderPoint(e.target.value)
+                  setReorderTouched(true)
+                }}
+              />
+            </div>
+          </>
+        )}
       </div>
       <div className="flex items-center gap-2 pt-1">
-        <Button size="sm" onClick={handleApply} disabled={!hasEdits || applying}>Apply to {count}</Button>
+        <Button size="sm" onClick={handleApply} disabled={!hasEdits || applying || parInvalid}>Apply to {count}</Button>
         <Button size="sm" variant="outline" onClick={() => handleAction("archive")} disabled={applying}>Archive</Button>
         <Button size="sm" variant="outline" onClick={() => handleAction("unarchive")} disabled={applying}>Unarchive</Button>
         <AlertDialog>

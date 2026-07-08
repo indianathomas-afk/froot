@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getCurrentUser, getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { defaultExpectedAt } from "@/lib/vendor-delivery"
 
 const LineSchema = z.object({
   ingredientId: z.string().min(1),
@@ -120,7 +121,9 @@ export async function POST(req: Request) {
       vendorId: data.vendorId,
       poNumber: await nextPoNumber(org.id),
       invoiceNumber: data.invoiceNumber || null,
-      expectedAt: data.expectedAt ? new Date(data.expectedAt) : null,
+      // I-7: unset expected dates default from the vendor's delivery days
+      // (then lead time, then next weekday).
+      expectedAt: data.expectedAt ? new Date(data.expectedAt) : defaultExpectedAt(vendor),
       totalAmount,
       status: "DRAFT",
       enteredByUserId: dbUser?.id ?? null,

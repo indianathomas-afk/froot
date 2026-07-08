@@ -12,6 +12,9 @@ const VendorSchema = z.object({
   phone: z.string().optional().nullable(),
   terms: z.string().optional().nullable(),
   leadTimeDays: z.number().int().nonnegative().optional().nullable(),
+  minOrderCases: z.number().nonnegative().optional().nullable(),
+  minOrderDollars: z.number().nonnegative().optional().nullable(),
+  deliveryDays: z.array(z.number().int().min(0).max(6)).optional().nullable(),
   notes: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
 })
@@ -52,6 +55,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(data.phone !== undefined && { phone: data.phone || null }),
       ...(data.terms !== undefined && { terms: data.terms || null }),
       ...(data.leadTimeDays !== undefined && { leadTimeDays: data.leadTimeDays }),
+      ...(data.minOrderCases !== undefined && { minOrderCases: data.minOrderCases }),
+      ...(data.minOrderDollars !== undefined && { minOrderDollars: data.minOrderDollars }),
+      // Prisma Json columns take DbNull via undefined-vs-null handling; an
+      // empty array is stored as-is and reads back as "no delivery days".
+      ...(data.deliveryDays !== undefined && { deliveryDays: data.deliveryDays ?? [] }),
       ...(data.notes !== undefined && { notes: data.notes || null }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
     },

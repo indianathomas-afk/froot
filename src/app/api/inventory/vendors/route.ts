@@ -12,6 +12,9 @@ const VendorSchema = z.object({
   phone: z.string().optional().nullable(),
   terms: z.string().optional().nullable(),
   leadTimeDays: z.number().int().nonnegative().optional().nullable(),
+  minOrderCases: z.number().nonnegative().optional().nullable(),
+  minOrderDollars: z.number().nonnegative().optional().nullable(),
+  deliveryDays: z.array(z.number().int().min(0).max(6)).optional().nullable(),
   notes: z.string().optional().nullable(),
 })
 
@@ -68,6 +71,9 @@ export async function POST(req: Request) {
       phone: data.phone || null,
       terms: data.terms || null,
       leadTimeDays: data.leadTimeDays ?? null,
+      minOrderCases: data.minOrderCases ?? null,
+      minOrderDollars: data.minOrderDollars ?? null,
+      deliveryDays: data.deliveryDays ?? undefined,
       notes: data.notes || null,
     },
   })

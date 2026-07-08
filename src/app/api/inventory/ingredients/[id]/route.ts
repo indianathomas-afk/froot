@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireManagerOrAdmin, requireModule } from "@/lib/auth"
 import { serializeIngredient } from "@/lib/ingredient-dto"
+import { recomputePreparedIngredientCosts } from "@/lib/recipe-cost"
 
 const IngredientSchema = z.object({
   brand: z.string().optional().nullable(),
@@ -86,6 +87,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     },
     include: includeRelations,
   })
+
+  if (costChanged) await recomputePreparedIngredientCosts(org.id)
 
   return NextResponse.json(serializeIngredient(updated, dbUser?.name || dbUser?.email || null))
 }
