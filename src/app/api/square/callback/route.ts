@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL("/settings?error=square_auth_failed", process.env.NEXT_PUBLIC_APP_URL!))
   }
 
-  const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
+  const env = (process.env.SQUARE_ENVIRONMENT ?? "sandbox").trim().toLowerCase()
   const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
 
   const tokenRes = await fetch(`${baseUrl}/oauth2/token`, {

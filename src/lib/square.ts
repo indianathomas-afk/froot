@@ -4,7 +4,7 @@ import type { Organization } from "@prisma/client"
 const SQUARE_VERSION = "2024-01-17"
 
 function getBaseUrl() {
-  const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
+  const env = (process.env.SQUARE_ENVIRONMENT ?? "sandbox").trim().toLowerCase()
   return env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
 }
 

@@ -10,7 +10,7 @@ export async function GET() {
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const appId = process.env.NEXT_PUBLIC_SQUARE_APP_ID ?? ""
-  const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
+  const env = (process.env.SQUARE_ENVIRONMENT ?? "sandbox").trim().toLowerCase()
   const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/square/callback`
 

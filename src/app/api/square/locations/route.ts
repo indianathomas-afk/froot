@@ -9,7 +9,7 @@ export async function GET() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org?.squareAccessToken) return NextResponse.json({ error: "Square not connected" }, { status: 400 })
 
-  const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
+  const env = (process.env.SQUARE_ENVIRONMENT ?? "sandbox").trim().toLowerCase()
   const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
 
   const res = await fetch(`${baseUrl}/v2/locations`, {
