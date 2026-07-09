@@ -3,10 +3,24 @@ import type { Organization } from "@prisma/client"
 
 const SQUARE_VERSION = "2024-01-17"
 
-function getBaseUrl() {
-  const env = (process.env.SQUARE_ENVIRONMENT ?? "sandbox").trim().toLowerCase()
-  return env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
+// The OAuth/API host must match the app's environment, and the environment is
+// already encoded in the app ID prefix: production IDs start with "sq0idp-",
+// sandbox IDs with "sandbox-". Deriving the host from the app ID (rather than a
+// separate SQUARE_ENVIRONMENT flag) makes host and credentials impossible to
+// mismatch — the failure mode where a production ID hit the sandbox host and
+// Square returned 400. SQUARE_ENVIRONMENT is only a fallback for an
+// unrecognized ID (e.g. a raw personal-access-token setup with no app ID).
+export function squareBaseUrl(): string {
+  const appId = (process.env.NEXT_PUBLIC_SQUARE_APP_ID ?? process.env.SQUARE_APPLICATION_ID ?? "").trim()
+  let production: boolean
+  if (appId.startsWith("sandbox-")) production = false
+  else if (appId.startsWith("sq0idp-")) production = true
+  else production = (process.env.SQUARE_ENVIRONMENT ?? "sandbox").trim().toLowerCase() === "production"
+  return production ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
 }
+
+// Back-compat alias for internal callers in this file.
+const getBaseUrl = squareBaseUrl
 
 async function refreshTokenIfNeeded(org: Organization): Promise<Organization> {
   if (!org.squareRefreshToken || !org.squareTokenExpiresAt) return org
