@@ -42,6 +42,8 @@ froot/
 │   │   ├── (auth)/             ← Sign-in / sign-up pages (Clerk hosted UI)
 │   │   ├── api/                ← All API routes
 │   │   │   ├── checklists/
+│   │   │   ├── corporate-updates/
+│   │   │   ├── messages/
 │   │   │   ├── square/
 │   │   │   ├── staff/
 │   │   │   ├── stores/

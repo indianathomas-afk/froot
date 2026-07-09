@@ -8,8 +8,8 @@ import { DashboardClient } from "./dashboard-client"
 // styling follow froot_docs/dashboard-design/ (README.md is the spec).
 // Sales Performance + Monthly Goal run on real data (I-5 sales caches +
 // StoreMonthlyGoal); Shift Checklist reads today's real checklists; Team
-// Messages, Corporate Update, and Instagram are typed mocks until their
-// backends land in later builds.
+// Messages + Corporate Update are live (I-14, /api/dashboard/comms);
+// Instagram stays a typed mock until its backend lands.
 
 async function getDashboardData() {
   const { orgId } = await auth()
