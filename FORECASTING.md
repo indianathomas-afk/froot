@@ -18,9 +18,13 @@ as a monthly goal with a goal-weighted month-end projection.
   recalculate manually-edited days" is checked. Mid-year raises can apply to
   **remaining days only** — past months keep the goals their actuals were
   measured against.
-- **Net sales** = gross − tax (matches the I-5 sales caches and Square's
-  reports). Actuals come from `SalesPeriodCache`; Square is never called on a
-  dashboard/calendar read.
+- **Net sales** = total collected − tax − tips (matches Square's "Net Sales").
+  **Third-party delivery orders (DoorDash, Uber Eats, Grubhub, Orda, …) ARE
+  counted** — delivery revenue is intentionally in the goal metric, so Froot's
+  number is higher than Square's Sales Summary "Net Sales" (which excludes
+  marketplace orders Square doesn't collect). Compare Froot against a Square
+  report that includes all orders, not the Sales Summary. Actuals come from
+  `SalesPeriodCache`; Square is never called on a dashboard/calendar read.
 - **Projection** (Dashboard Monthly Goal card): goal-weighted pacing —
   `projected = MTD actual ÷ MTD goal × month goal` — falling back to run-rate
   when no plan exists. A plan beats the legacy `StoreMonthlyGoal` for its month.
