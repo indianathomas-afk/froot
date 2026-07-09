@@ -700,9 +700,10 @@ model SalesPeriodCache {
   organizationId String
   storeId        String
   date           DateTime @db.Date
-  grossSales     Float    @default(0) // order totals incl. tax, after discounts
-  netSales       Float    @default(0) // pre-tax: gross − tax
+  grossSales     Float    @default(0) // total collected: incl. tax + tips, after discounts
+  netSales       Float    @default(0) // sales metric: gross − tax − tips (excludes tax & tips)
   taxTotal       Float    @default(0)
+  tipTotal       Float    @default(0)
   discountTotal  Float    @default(0)
   orderCount     Int      @default(0)
   syncedAt       DateTime @default(now())

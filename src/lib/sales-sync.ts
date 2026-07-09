@@ -23,6 +23,7 @@ type SquareOrder = {
   closed_at?: string
   total_money?: SquareMoney
   total_tax_money?: SquareMoney
+  total_tip_money?: SquareMoney
   total_discount_money?: SquareMoney
   line_items?: SquareLineItem[]
 }
@@ -106,7 +107,7 @@ export async function syncSalesForStore(
   endNext.setUTCDate(endNext.getUTCDate() + 1)
   const endAt = localMidnightUtc(endNext.toISOString().slice(0, 10), tz)
 
-  type DayAgg = { gross: number; net: number; tax: number; discount: number; orders: number }
+  type DayAgg = { gross: number; net: number; tax: number; tip: number; discount: number; orders: number }
   const byDay = new Map<string, DayAgg>()
   const byHour = new Map<string, { net: number; orders: number }>() // `${date}|${hour}`
   const byLine = new Map<string, { qty: number; gross: number }>() // `${date}|${variationId}`
@@ -147,15 +148,22 @@ export async function syncSalesForStore(
       // Orders can close a few minutes past local midnight into a date outside
       // the requested window — keep them; their day gets rewritten too.
 
+      // total_money is what was collected — it includes tax AND tips. The
+      // sales metric excludes both (matches Square's "Net Sales" definition);
+      // net = total − tax − tip. Third-party delivery orders (DoorDash, Uber
+      // Eats, Orda, etc.) are COMPLETED orders and ARE counted here — delivery
+      // revenue is intentionally included in the goal metric.
       const gross = dollars(order.total_money)
       const tax = dollars(order.total_tax_money)
+      const tip = dollars(order.total_tip_money)
       const discount = dollars(order.total_discount_money)
-      const net = gross - tax
+      const net = gross - tax - tip
 
-      const day = byDay.get(dateStr) ?? { gross: 0, net: 0, tax: 0, discount: 0, orders: 0 }
+      const day = byDay.get(dateStr) ?? { gross: 0, net: 0, tax: 0, tip: 0, discount: 0, orders: 0 }
       day.gross += gross
       day.net += net
       day.tax += tax
+      day.tip += tip
       day.discount += discount
       day.orders += 1
       byDay.set(dateStr, day)
@@ -192,7 +200,7 @@ export async function syncSalesForStore(
 
     await tx.salesPeriodCache.createMany({
       data: [...dates].map((dateStr) => {
-        const day = byDay.get(dateStr) ?? { gross: 0, net: 0, tax: 0, discount: 0, orders: 0 }
+        const day = byDay.get(dateStr) ?? { gross: 0, net: 0, tax: 0, tip: 0, discount: 0, orders: 0 }
         return {
           organizationId: org.id,
           storeId: store.id,
@@ -200,6 +208,7 @@ export async function syncSalesForStore(
           grossSales: day.gross,
           netSales: day.net,
           taxTotal: day.tax,
+          tipTotal: day.tip,
           discountTotal: day.discount,
           orderCount: day.orders,
         }
