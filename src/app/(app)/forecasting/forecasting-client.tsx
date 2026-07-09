@@ -283,25 +283,40 @@ function GoalSettingsPanel({
 
   async function runBackfill() {
     setBackfill({ running: true, covered: 0, total: 0 })
-    // Chunked, resumable: each call syncs ~2 weeks; loop until done.
-    for (let i = 0; i < 60; i++) {
-      try {
-        const res = await fetch("/api/forecasting/backfill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ storeId, year }),
-        })
-        const data = await res.json()
-        if (!res.ok) {
-          setBackfill({ running: false, covered: 0, total: 0, error: data.error ?? "Backfill failed" })
-          return
+    // Chunked, resumable: each call syncs ~2 weeks; loop until done. A chunk
+    // that times out or hits a Square hiccup is retried with backoff before
+    // giving up — and even a hard stop loses nothing (re-running resumes).
+    let lastProgress = { covered: 0, total: 0 }
+    for (let i = 0; i < 80; i++) {
+      let data: { done?: boolean; coveredDays: number; totalDays: number; error?: string } | null = null
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const res = await fetch("/api/forecasting/backfill", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ storeId, year }),
+          })
+          const body = await res.json()
+          if (!res.ok) throw new Error(body.error ?? "Backfill failed")
+          data = body
+          break
+        } catch (e) {
+          if (attempt === 3) {
+            setBackfill({
+              ...lastProgress,
+              running: false,
+              error: `${e instanceof Error ? e.message : "Backfill failed"} — click to resume where it left off.`,
+            })
+            loadBasis()
+            return
+          }
+          await new Promise((r) => setTimeout(r, 2000 * attempt))
         }
-        setBackfill({ running: !data.done, covered: data.coveredDays, total: data.totalDays })
-        if (data.done) break
-      } catch {
-        setBackfill({ running: false, covered: 0, total: 0, error: "Backfill failed — try again." })
-        return
       }
+      if (!data) return
+      lastProgress = { covered: data.coveredDays, total: data.totalDays }
+      setBackfill({ running: !data.done, ...lastProgress })
+      if (data.done) break
     }
     loadBasis()
   }

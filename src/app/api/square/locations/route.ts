@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { squareBaseUrl } from "@/lib/square"
 
 export async function GET() {
   const { orgId } = await auth()
@@ -9,8 +10,7 @@ export async function GET() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org?.squareAccessToken) return NextResponse.json({ error: "Square not connected" }, { status: 400 })
 
-  const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
-  const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
+  const baseUrl = squareBaseUrl()
 
   const res = await fetch(`${baseUrl}/v2/locations`, {
     headers: { Authorization: `Bearer ${org.squareAccessToken}`, "Square-Version": "2024-01-17" },

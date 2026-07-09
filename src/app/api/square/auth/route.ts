@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
+import { squareBaseUrl } from "@/lib/square"
 
 // ORDERS_READ: sales sync (dashboard + inventory reports)
 // EMPLOYEES_READ: team member import (removes the personal-token fallback)
@@ -10,8 +11,7 @@ export async function GET() {
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const appId = process.env.NEXT_PUBLIC_SQUARE_APP_ID ?? ""
-  const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
-  const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
+  const baseUrl = squareBaseUrl()
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/square/callback`
 
   const url = `${baseUrl}/oauth2/authorize?client_id=${appId}&scope=${SCOPES}&state=${orgId}&session=false&redirect_uri=${encodeURIComponent(redirectUri)}`

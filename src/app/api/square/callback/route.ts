@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { squareBaseUrl } from "@/lib/square"
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -10,8 +11,7 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL("/settings?error=square_auth_failed", process.env.NEXT_PUBLIC_APP_URL!))
   }
 
-  const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
-  const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
+  const baseUrl = squareBaseUrl()
 
   const tokenRes = await fetch(`${baseUrl}/oauth2/token`, {
     method: "POST",

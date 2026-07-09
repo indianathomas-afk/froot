@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { squareBaseUrl } from "@/lib/square"
 
 export async function GET() {
   const { orgId } = await auth()
@@ -9,8 +10,7 @@ export async function GET() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org?.squareAccessToken) return NextResponse.json({ error: "Square not connected" }, { status: 400 })
 
-  const env = process.env.SQUARE_ENVIRONMENT ?? "sandbox"
-  const baseUrl = env === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com"
+  const baseUrl = squareBaseUrl()
 
   // Try the OAuth token first; fall back to the personal access token if scope is insufficient
   const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]

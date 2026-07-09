@@ -6,6 +6,10 @@ import { addDaysStr, basisWindow } from "@/lib/goal-engine"
 import { dbDate, localDateStr } from "@/lib/reports"
 import { syncSalesForStore } from "@/lib/sales-sync"
 
+// A dense 2-week chunk can exceed the default function duration — give the
+// Square pagination loop the same headroom as the reconciliation cron.
+export const maxDuration = 300
+
 const BackfillSchema = z.object({
   storeId: z.string().min(1),
   year: z.number().int().min(2020).max(2100),
