@@ -4,6 +4,7 @@ import { z } from "zod"
 import { requireForecastContext, requireForecastStore } from "@/lib/forecasting-access"
 import { refreshPlanTotals, round2 } from "@/lib/goal-engine"
 import { dbDate } from "@/lib/reports"
+import { writeAuditLog } from "@/lib/audit"
 
 const DaySchema = z.object({
   storeId: z.string().min(1),
@@ -40,6 +41,22 @@ export async function PATCH(req: Request) {
       data: { goalAmount: round2(goalAmount), isOverride: true },
     })
     return refreshPlanTotals(tx, existing.planId)
+  })
+
+  await writeAuditLog({
+    organizationId: ctx.org.id,
+    userId: ctx.userId,
+    action: "goal.day_override",
+    entityType: "daily_goal",
+    entityId: existing.id,
+    metadata: {
+      storeId,
+      storeName: store.name,
+      period: date,
+      before: existing.goalAmount,
+      after: round2(goalAmount),
+      source: "day",
+    },
   })
 
   return NextResponse.json({

@@ -56,6 +56,7 @@ model Organization {
   storeIngredientPars  StoreIngredientPar[]
   teamMessages         TeamMessage[]
   corporateUpdates     CorporateUpdate[]
+  paceAlertLogs        PaceAlertLog[]
 }
 
 model User {
@@ -115,6 +116,7 @@ model Store {
   varianceAdjustments  VarianceAdjustment[]
   ingredientPars       StoreIngredientPar[]
   teamMessages         TeamMessage[]
+  paceAlertLogs        PaceAlertLog[]
 }
 
 model StoreHours {
@@ -288,6 +290,27 @@ model AuditLog {
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, entityType, createdAt])
+}
+
+// ─── PHASE F-5: BEHIND-PACE ALERTS ───────────────────────────────────────────
+// One row per store-month = the alert was sent; its unique constraint is the
+// idempotency lock that keeps the daily cron from re-alerting all month.
+model PaceAlertLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  month          DateTime @db.Date // first-of-month UTC date
+  pacePct        Float
+  thresholdPct   Float
+  recipients     String[]
+  sentAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, month])
 }
 
 enum Role {

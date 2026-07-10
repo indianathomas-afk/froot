@@ -226,6 +226,7 @@ SQUARE_ENVIRONMENT=            # "sandbox" or "production"
 NEXT_PUBLIC_APP_URL=           # e.g. https://www.usefroot.com
 CRON_SECRET=                   # auth for /api/cron/* (Vercel sends it on cron invocations)
 SQUARE_WEBHOOK_SIGNATURE_KEY=  # per-app webhook subscription key (FORECASTING.md § Square order webhooks)
+PACE_ALERT_THRESHOLD_PCT=      # optional — behind-pace alert threshold, default 90 (FORECASTING.md § Hardening)
 ```
 
 ---

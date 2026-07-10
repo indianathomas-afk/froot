@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getCurrentUser } from "@/lib/auth"
+import { writeAuditLog } from "@/lib/audit"
 
 const GoalSchema = z.object({
   storeId: z.string().min(1),
@@ -40,10 +41,29 @@ export async function PUT(req: Request) {
   if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
 
   const monthDate = new Date(`${month}T00:00:00.000Z`)
+  const existing = await prisma.storeMonthlyGoal.findUnique({
+    where: { storeId_month: { storeId, month: monthDate } },
+  })
   const goal = await prisma.storeMonthlyGoal.upsert({
     where: { storeId_month: { storeId, month: monthDate } },
     create: { organizationId: org.id, storeId, month: monthDate, goalAmount },
     update: { goalAmount },
+  })
+
+  await writeAuditLog({
+    organizationId: org.id,
+    userId: ctx.userId,
+    action: "goal.manual_set",
+    entityType: "store_monthly_goal",
+    entityId: goal.id,
+    metadata: {
+      storeId,
+      storeName: store.name,
+      period: month.slice(0, 7),
+      before: existing?.goalAmount ?? null,
+      after: goal.goalAmount,
+      source: "manual",
+    },
   })
 
   return NextResponse.json({ id: goal.id, storeId, month, goalAmount: goal.goalAmount })
