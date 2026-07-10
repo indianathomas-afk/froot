@@ -3,11 +3,12 @@ import { getSquareClient } from "@/lib/square"
 import type { Organization, Store } from "@prisma/client"
 
 // ─── Square sales sync ────────────────────────────────────────────────────────
-// Pulls COMPLETED orders (closed_at window) for one store and aggregates them
+// Pulls COMPLETED orders (created_at window) for one store and aggregates them
 // into SalesPeriodCache (daily), SalesLineCache (daily × variation), and
-// SalesHourlyCache (daily × hour). Dates/hours are bucketed in the STORE's
-// timezone. Idempotent per day: every local date touched by the window is
-// deleted and rewritten in one transaction.
+// SalesHourlyCache (daily × hour). Dates/hours are bucketed by each order's
+// created_at in the STORE's timezone — matching how Square's Sales Summary
+// assigns a sale to a reporting day. Idempotent per day: every local date
+// touched by the window is deleted and rewritten in one transaction.
 
 type SquareMoney = { amount?: number; currency?: string } | null | undefined
 
@@ -20,6 +21,7 @@ type SquareLineItem = {
 
 type SquareOrder = {
   id: string
+  created_at?: string
   closed_at?: string
   total_money?: SquareMoney
   total_tax_money?: SquareMoney
@@ -127,10 +129,15 @@ export async function syncSalesForStore(
           filter: {
             state_filter: { states: ["COMPLETED"] },
             date_time_filter: {
-              closed_at: { start_at: startAt.toISOString(), end_at: endAt.toISOString() },
+              // Bucket by created_at — Square's Sales Summary reports sales on
+              // the day the order was OPENED, not closed. Filtering/bucketing by
+              // closed_at threw delivery/online orders (opened one day, closed
+              // the next) into the wrong reporting day. Verified: created_at +
+              // COMPLETED reconciles to Square's Net Sales to the penny.
+              created_at: { start_at: startAt.toISOString(), end_at: endAt.toISOString() },
             },
           },
-          sort: { sort_field: "CLOSED_AT", sort_order: "ASC" },
+          sort: { sort_field: "CREATED_AT", sort_order: "ASC" },
         },
       }),
     })
@@ -142,11 +149,12 @@ export async function syncSalesForStore(
 
     const data = (await res.json()) as { orders?: SquareOrder[]; cursor?: string }
     for (const order of data.orders ?? []) {
-      if (!order.closed_at) continue
-      const instant = new Date(order.closed_at)
+      if (!order.created_at) continue
+      const instant = new Date(order.created_at)
       const { dateStr, hour } = localParts(instant, tz)
-      // Orders can close a few minutes past local midnight into a date outside
-      // the requested window — keep them; their day gets rewritten too.
+      // An order can be created a few minutes either side of local midnight,
+      // landing on a date outside the requested window — keep it; its day gets
+      // rewritten too.
 
       // total_money is what was collected — it includes tax AND tips. The
       // sales metric excludes both (matches Square's "Net Sales" definition);
