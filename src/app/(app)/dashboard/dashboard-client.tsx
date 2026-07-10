@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { projectMonthEnd } from "@/lib/pacing"
+import { MessageAttachments, type FeedAttachment } from "@/app/(app)/messages/messages-client"
 import { SalesPerformanceCard } from "./sales-performance-card"
 import { RollupView } from "./rollup-view"
 
@@ -60,6 +61,7 @@ type Comms = {
     title: string
     body: string
     publishedAt: string
+    attachments: FeedAttachment[]
   } | null
 }
 
@@ -500,20 +502,23 @@ function CorporateUpdateCard({ loading, update }: { loading: boolean; update: No
   if (loading) return <Skeleton className="h-56 w-full" />
   if (!update) return null
 
+  // Not wrapped in a Link — attachments carry their own links (documents,
+  // YouTube embed), which can't nest inside an anchor. The footer navigates.
   return (
-    <Link href="/messages" className="block h-full">
-      <div className="h-full rounded-xl p-5 bg-gradient-to-br from-[#FCE0CC] to-[#F6C8A6] flex flex-col hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-6 h-6 rounded bg-[var(--color-primary)] flex items-center justify-center">
-            <Megaphone className="h-3.5 w-3.5 text-white" />
-          </div>
-          <p className="text-[13px] font-extrabold tracking-wide text-[#8A3E17]">CORPORATE UPDATE</p>
+    <div className="h-full rounded-xl p-5 bg-gradient-to-br from-[#FCE0CC] to-[#F6C8A6] flex flex-col hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded bg-[var(--color-primary)] flex items-center justify-center">
+          <Megaphone className="h-3.5 w-3.5 text-white" />
         </div>
-        <p className="text-base font-bold text-[#1C1917] mb-1">{update.title}</p>
-        <p className="text-[13px] text-[#6B4326] flex-1 line-clamp-5 whitespace-pre-wrap">{update.body}</p>
-        <p className="text-xs font-bold text-[#8A3E17] mt-3">Posted {timeAgo(update.publishedAt)} →</p>
+        <p className="text-[13px] font-extrabold tracking-wide text-[#8A3E17]">CORPORATE UPDATE</p>
       </div>
-    </Link>
+      <p className="text-base font-bold text-[#1C1917] mb-1">{update.title}</p>
+      <p className="text-[13px] text-[#6B4326] flex-1 line-clamp-5 whitespace-pre-wrap">{update.body}</p>
+      <MessageAttachments attachments={update.attachments ?? []} />
+      <Link href="/messages" className="text-xs font-bold text-[#8A3E17] mt-3 hover:underline">
+        Posted {timeAgo(update.publishedAt)} →
+      </Link>
+    </div>
   )
 }
 

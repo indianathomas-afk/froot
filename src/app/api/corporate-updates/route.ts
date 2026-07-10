@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, getUserStoreScope } from "@/lib/auth"
-import { MAX_ATTACHMENTS, attachmentSchema, buildAttachmentRows } from "@/lib/messages"
+import { MAX_ATTACHMENTS, attachmentSchema, buildAttachmentRows, youTubeVideoId } from "@/lib/messages"
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -33,12 +33,20 @@ function serializeUpdate(u: {
     publishedAt: u.publishedAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
     author: u.authorUser ? (u.authorUser.name ?? u.authorUser.email.split("@")[0]) : null,
-    attachments: u.attachments ?? [],
+    attachments: (u.attachments ?? []).map((a) => ({
+      id: a.id,
+      kind: a.kind,
+      url: a.url,
+      filename: a.filename,
+      youtubeId: a.kind === "youtube" ? youTubeVideoId(a.url) : null,
+    })),
   }
 }
 
-// GET /api/corporate-updates?before=&limit= — published updates visible to the
-// caller's stores; admins also see drafts (for the composer).
+// GET /api/corporate-updates?before=&limit=&storeId= — published updates
+// visible to the caller's stores; admins also see drafts (for the composer).
+// When storeId is given, only updates targeted at that store (or at all
+// stores) are returned — the Messages feed passes the currently viewed store.
 export async function GET(req: Request) {
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
   try {
@@ -51,6 +59,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url)
   const before = url.searchParams.get("before")
+  const storeId = url.searchParams.get("storeId")
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 20, 1), 100)
 
   const updates = await prisma.corporateUpdate.findMany({
@@ -58,13 +67,18 @@ export async function GET(req: Request) {
       organizationId: org.id,
       deletedAt: null,
       ...(before ? { createdAt: { lt: new Date(before) } } : {}),
-      ...(isAdmin
-        ? {}
-        : {
-            publishedAt: { not: null },
-            // Visible when targeted at all stores or at one of the caller's.
-            OR: [{ storeIds: { isEmpty: true } }, { storeIds: { hasSome: storeIds } }],
-          }),
+      AND: [
+        ...(isAdmin
+          ? []
+          : [
+              { publishedAt: { not: null } },
+              // Visible when targeted at all stores or at one of the caller's.
+              { OR: [{ storeIds: { isEmpty: true } }, { storeIds: { hasSome: storeIds } }] },
+            ]),
+        ...(storeId
+          ? [{ OR: [{ storeIds: { isEmpty: true } }, { storeIds: { has: storeId } }] }]
+          : []),
+      ],
     },
     include: {
       authorUser: { select: { name: true, email: true } },
@@ -100,7 +114,9 @@ export async function POST(req: Request) {
   }
   const data = parsed.data
 
-  // Only keep store ids that belong to this org.
+  // Only keep store ids that belong to this org. Reject the request outright
+  // if none survive — silently falling back to [] would broadcast a store-
+  // targeted update to every location.
   let storeIds: string[] = []
   if (data.storeIds && data.storeIds.length > 0) {
     const stores = await prisma.store.findMany({
@@ -108,6 +124,9 @@ export async function POST(req: Request) {
       select: { id: true },
     })
     storeIds = stores.map((s) => s.id)
+    if (storeIds.length === 0) {
+      return NextResponse.json({ error: "Selected stores were not found" }, { status: 400 })
+    }
   }
 
   let attachmentRows

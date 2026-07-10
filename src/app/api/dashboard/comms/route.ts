@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, getUserStoreScope } from "@/lib/auth"
-import { messageInclude, serializeMessage } from "@/lib/messages"
+import { messageInclude, serializeMessage, youTubeVideoId } from "@/lib/messages"
 
 const PREVIEW_COUNT = 3
 const PREVIEW_BODY_CHARS = 140
@@ -82,6 +82,7 @@ export async function GET(req: Request) {
             kind: a.kind,
             url: a.url,
             filename: a.filename,
+            youtubeId: a.kind === "youtube" ? youTubeVideoId(a.url) : null,
           })),
         }
       : null,
