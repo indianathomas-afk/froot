@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "SalesPeriodCache" ADD COLUMN     "tipTotal" DOUBLE PRECISION NOT NULL DEFAULT 0;

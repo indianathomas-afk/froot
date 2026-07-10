@@ -54,6 +54,8 @@ model Organization {
   lossReasons          LossReason[]
   varianceAdjustments  VarianceAdjustment[]
   storeIngredientPars  StoreIngredientPar[]
+  teamMessages         TeamMessage[]
+  corporateUpdates     CorporateUpdate[]
 }
 
 model User {
@@ -68,6 +70,11 @@ model User {
   organization     Organization          @relation(fields: [organizationId], references: [id])
   storeAssignments StoreUserAssignment[]
   taskLogs         TaskLog[]
+  teamMessages     TeamMessage[]         @relation("TeamMessageAuthor")
+  resolvedMessages TeamMessage[]         @relation("TeamMessageResolver")
+  messageReactions MessageReaction[]
+  messageReads     MessageRead[]
+  corporateUpdates CorporateUpdate[]
 }
 
 model Store {
@@ -107,6 +114,7 @@ model Store {
   adjustmentGroupsTo   AdjustmentGroup[]    @relation("AdjustmentGroupToStore")
   varianceAdjustments  VarianceAdjustment[]
   ingredientPars       StoreIngredientPar[]
+  teamMessages         TeamMessage[]
 }
 
 model StoreHours {
@@ -156,6 +164,7 @@ model StaffMember {
   organization     Organization           @relation(fields: [organizationId], references: [id])
   storeAssignments StoreStaffAssignment[]
   taskLogs         TaskLog[]
+  teamMessages     TeamMessage[]
 }
 
 model StoreStaffAssignment {
@@ -189,6 +198,7 @@ model Template {
   storeAssignments TemplateStoreAssignment[]
   tasks            Task[]
   checklists       Checklist[]
+  handoffMessages  TeamMessage[]             @relation("HandoffTarget")
 }
 
 model TemplateStoreAssignment {
@@ -243,10 +253,11 @@ model Checklist {
   completedAt    DateTime?
   completionRate Float?    @default(0)
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  template     Template     @relation(fields: [templateId], references: [id])
-  store        Store        @relation(fields: [storeId], references: [id])
-  taskLogs     TaskLog[]
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+  template        Template      @relation(fields: [templateId], references: [id])
+  store           Store         @relation(fields: [storeId], references: [id])
+  taskLogs        TaskLog[]
+  handoffMessages TeamMessage[] @relation("HandoffSource")
 }
 
 model TaskLog {
@@ -595,6 +606,7 @@ model Ingredient {
   recipeLines        RecipeLine[]
   adjustments        InventoryAdjustment[]
   storePars          StoreIngredientPar[]
+  linkedMessages     TeamMessage[]
 }
 
 model IngredientCostLog {
@@ -688,9 +700,11 @@ model SalesPeriodCache {
   organizationId String
   storeId        String
   date           DateTime @db.Date
-  grossSales     Float    @default(0) // order totals incl. tax, after discounts
-  netSales       Float    @default(0) // pre-tax: gross − tax
+  grossSales     Float    @default(0) // total collected: incl. tax + tips, after discounts
+  netSales       Float    @default(0) // sales metric: gross − tax − tips (excludes tax & tips)
+  unconfirmedNet Float    @default(0) // portion of netSales from paid-but-OPEN orders (not yet confirmed in the POS)
   taxTotal       Float    @default(0)
+  tipTotal       Float    @default(0)
   discountTotal  Float    @default(0)
   orderCount     Int      @default(0)
   syncedAt       DateTime @default(now())
@@ -1027,4 +1041,124 @@ model DailyGoal {
 
   @@unique([storeId, date])
   @@index([planId])
+}
+
+// ─── PHASE I-14: TEAM MESSAGING (Phase 1) ────────────────────────────────────
+// Every post is structured data: `type` drives filtering and later automation
+// (a shortage with linkedIngredientId can flag inventory with no schema change).
+// The postedTo*/source* trio powers checklist handoff notes — NULL on regular
+// feed posts. Soft delete + editedAt keep an audit trail for staffing and
+// customer-complaint documentation.
+
+model TeamMessage {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  storeId            String
+  // authorUser = the logged-in account; authorStaff = the optional "who is
+  // posting" pick from the store roster (same split as TaskLog completedBy*).
+  authorUserId       String?
+  authorStaffId      String?
+  type               String    @default("general") // shift_note | shortage | equipment | customer_feedback | staffing | shoutout | general
+  shiftPhase         String? // opening | mid | closing — set when type = shift_note
+  body               String
+  linkedIngredientId String? // shortage → inventory tie-in (module-gated in UI)
+  // Checklist handoff: which template's instance this note renders on, for
+  // which day, and which checklist the author was working when they posted.
+  postedToTemplateId String?
+  postedForDate      DateTime? @db.Date
+  sourceChecklistId  String?
+  status             String    @default("open") // open | resolved | archived — free ticket system for shortage/equipment
+  resolvedByUserId   String?
+  resolvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  editedAt           DateTime?
+  deletedAt          DateTime?
+
+  organization     Organization        @relation(fields: [organizationId], references: [id])
+  store            Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  authorUser       User?               @relation("TeamMessageAuthor", fields: [authorUserId], references: [id])
+  authorStaff      StaffMember?        @relation(fields: [authorStaffId], references: [id])
+  resolvedByUser   User?               @relation("TeamMessageResolver", fields: [resolvedByUserId], references: [id])
+  linkedIngredient Ingredient?         @relation(fields: [linkedIngredientId], references: [id])
+  postedToTemplate Template?           @relation("HandoffTarget", fields: [postedToTemplateId], references: [id])
+  sourceChecklist  Checklist?          @relation("HandoffSource", fields: [sourceChecklistId], references: [id])
+  attachments      MessageAttachment[]
+  reactions        MessageReaction[]
+  reads            MessageRead[]
+
+  @@index([storeId, createdAt(sort: Desc)])
+  @@index([storeId, postedToTemplateId, postedForDate])
+  @@index([organizationId, createdAt(sort: Desc)])
+}
+
+// Attached to EITHER a team message or a corporate update (exactly one —
+// enforced in the routes; both FKs cascade). kind=youtube stores the canonical
+// watch URL (no blob); image/document store the Vercel Blob URL.
+model MessageAttachment {
+  id                String   @id @default(cuid())
+  messageId         String?
+  corporateUpdateId String?
+  kind              String // image | document | youtube
+  url               String
+  filename          String?
+  contentType       String?
+  sizeBytes         Int?
+  createdAt         DateTime @default(now())
+
+  message         TeamMessage?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  corporateUpdate CorporateUpdate? @relation(fields: [corporateUpdateId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([corporateUpdateId])
+}
+
+// One reaction per emoji per user, enforced by the unique. Emoji set is
+// allow-listed in the route (👍 🎉 ❤️ 😂 👀 🙏).
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message TeamMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+// Powers unread badges now; Phase 2 corporate-update acknowledgments reuse the
+// same pattern.
+model MessageRead {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message TeamMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+}
+
+// Minimal Phase 1 version — powers the dashboard CORPORATE UPDATE box.
+// Acknowledgments and Twilio notifications are Phase 2+.
+model CorporateUpdate {
+  id             String    @id @default(cuid())
+  organizationId String
+  authorUserId   String // admin only, enforced in routes
+  title          String
+  body           String
+  storeIds       String[]  @default([]) // empty = visible to all stores
+  pinnedUntil    DateTime? // stays in the dashboard box until this date
+  publishedAt    DateTime? // NULL = draft
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  authorUser   User                @relation(fields: [authorUserId], references: [id])
+  attachments  MessageAttachment[]
+
+  @@index([organizationId, publishedAt(sort: Desc)])
 }

@@ -41,25 +41,39 @@ type Summary = {
   }
 }
 
-// ─── MOCK DATA — Team Messages / Corporate Update / Instagram backends are
-// later builds. Shapes match the README "State Management" spec so the real
-// providers swap in without touching layout. ──────────────────────────────────
+// ─── Comms (mirror /api/dashboard/comms — Phase I-14) ─────────────────────────
 
-type TeamMessage = { id: string; sender: string; initial: string; timestamp: string; text: string }
-
-const MOCK_TEAM_MESSAGES: TeamMessage[] = [
-  { id: "m1", sender: "Alyssa", initial: "A", timestamp: "2h ago", text: "Walk-in restocked — strawberries and mango are up front." },
-  { id: "m2", sender: "Marcus", initial: "M", timestamp: "4h ago", text: "Blender 2 is making a grinding noise, put in a ticket." },
-  { id: "m3", sender: "Dee", initial: "D", timestamp: "Yesterday", text: "Great shift tonight team — record smoothie hour! 🎉" },
-]
-
-type CorporateUpdate = { headline: string; body: string; postedDaysAgo: number }
-
-const MOCK_CORPORATE_UPDATE: CorporateUpdate = {
-  headline: "Summer menu launches Monday",
-  body: "New Dragon Fruit Splash and Mango Chili Limeade hit all stores next week. Training materials are in your checklists.",
-  postedDaysAgo: 2,
+type Comms = {
+  teamMessagesPreview: {
+    messages: {
+      id: string
+      body: string
+      author: { name: string; initial: string }
+      createdAt: string
+    }[]
+    unreadCount: number
+  }
+  corporateUpdate: {
+    id: string
+    title: string
+    body: string
+    publishedAt: string
+  } | null
 }
+
+function timeAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return "Yesterday"
+  if (days < 7) return `${days}d ago`
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+// ─── MOCK DATA — the Instagram backend is a later build. ─────────────────────
 
 type InstagramPost = { id: string; hue: number }
 
@@ -116,6 +130,9 @@ export function DashboardClient({
   const storeId = stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
   const setStoreId = saveStoreId
   const [summary, setSummary] = useState<Summary | null>(null)
+  // Keyed by storeId (like `current` below) so switching stores shows the
+  // skeleton instead of the previous store's messages.
+  const [commsRes, setCommsRes] = useState<{ storeId: string; data: Comms | null } | null>(null)
   const [checkedOverride, setCheckedOverride] = useState<Record<string, boolean>>({})
 
   const load = useCallback(() => {
@@ -124,6 +141,10 @@ export function DashboardClient({
       .then((res): Promise<Summary | null> => (res.ok ? res.json() : Promise.resolve(null)))
       .then(setSummary)
       .catch(() => setSummary(null))
+    fetch(`/api/dashboard/comms?storeId=${storeId}`)
+      .then((res): Promise<Comms | null> => (res.ok ? res.json() : Promise.resolve(null)))
+      .then((data) => setCommsRes({ storeId, data }))
+      .catch(() => setCommsRes({ storeId, data: null }))
   }, [storeId])
 
   useEffect(() => {
@@ -132,6 +153,8 @@ export function DashboardClient({
 
   const current = summary && summary.store.id === storeId ? summary : null
   const loading = !!storeId && current === null
+  const comms = commsRes && commsRes.storeId === storeId ? commsRes.data : null
+  const commsLoading = !!storeId && (commsRes === null || commsRes.storeId !== storeId)
   const store = stores.find((s) => s.id === storeId)
 
   const headerDate = useMemo(
@@ -179,11 +202,14 @@ export function DashboardClient({
       {/* Three equal cards */}
       <div className="flex flex-wrap gap-4">
         <div className="flex-1 min-w-[280px]">
-          <TeamMessagesCard />
+          <TeamMessagesCard loading={commsLoading} comms={comms} />
         </div>
-        <div className="flex-1 min-w-[280px]">
-          <CorporateUpdateCard />
-        </div>
+        {/* The corporate box collapses entirely when no update is active */}
+        {(commsLoading || comms?.corporateUpdate) && (
+          <div className="flex-1 min-w-[280px]">
+            <CorporateUpdateCard loading={commsLoading} update={comms?.corporateUpdate ?? null} />
+          </div>
+        )}
         <div className="flex-1 min-w-[280px]">
           <ShiftChecklistCard
             loading={loading}
@@ -395,59 +421,80 @@ function MonthlyGoalCard({ loading, summary, onSaved }: { loading: boolean; summ
   )
 }
 
-// ─── Team Messages (mock — later build) ───────────────────────────────────────
+// ─── Team Messages (live — Phase I-14) ────────────────────────────────────────
 
-function TeamMessagesCard() {
+function TeamMessagesCard({ loading, comms }: { loading: boolean; comms: Comms | null }) {
+  if (loading) return <Skeleton className="h-56 w-full" />
+
+  const preview = comms?.teamMessagesPreview
   return (
-    <Card className="h-full">
-      <CardContent className="pt-5 pb-4">
+    <Card className="h-full hover:shadow-md transition-shadow">
+      <CardContent className="pt-5 pb-4 h-full flex flex-col">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[15px] font-bold text-[var(--color-foreground)]">Team Messages</p>
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)] bg-[var(--color-muted)] rounded px-1.5 py-0.5">
-            Preview
-          </span>
+          {preview && preview.unreadCount > 0 && (
+            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-[var(--color-primary)] text-white text-xs font-semibold">
+              {preview.unreadCount > 99 ? "99+" : preview.unreadCount}
+            </span>
+          )}
         </div>
-        <div className="max-h-[220px] overflow-y-auto space-y-3 pr-1">
-          {MOCK_TEAM_MESSAGES.map((m) => (
-            <div key={m.id} className="flex gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-[var(--color-primary)]/15 flex items-center justify-center text-xs font-bold text-[var(--color-primary)] shrink-0">
-                {m.initial}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-[var(--color-foreground)]">
-                  {m.sender} <span className="font-normal text-[var(--color-muted-foreground)]/70 text-xs">{m.timestamp}</span>
-                </p>
-                <p className="text-[12.5px] text-[var(--color-muted-foreground)]">{m.text}</p>
-              </div>
+        {!preview || preview.messages.length === 0 ? (
+          <div className="flex-1 flex flex-col items-start justify-center gap-2">
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              No messages yet at this store — leave the first shift note or shoutout.
+            </p>
+            <Link href="/messages">
+              <Button size="sm">Post a message</Button>
+            </Link>
+          </div>
+        ) : (
+          <Link href="/messages" className="block flex-1">
+            <div className="max-h-[220px] overflow-y-auto space-y-3 pr-1">
+              {preview.messages.map((m) => (
+                <div key={m.id} className="flex gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-[var(--color-primary)]/15 flex items-center justify-center text-xs font-bold text-[var(--color-primary)] shrink-0">
+                    {m.author.initial}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-[var(--color-foreground)]">
+                      {m.author.name}{" "}
+                      <span className="font-normal text-[var(--color-muted-foreground)]/70 text-xs">{timeAgo(m.createdAt)}</span>
+                    </p>
+                    <p className="text-[12.5px] text-[var(--color-muted-foreground)]">{m.body}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <p className="text-[11px] text-[var(--color-muted-foreground)] mt-3">
-          Team messaging ships in a later build — this is sample content.
-        </p>
+          </Link>
+        )}
+        <Link href="/messages" className="text-xs font-bold text-[var(--color-primary)] mt-3 hover:underline">
+          Open the feed →
+        </Link>
       </CardContent>
     </Card>
   )
 }
 
-// ─── Corporate Update (mock — later build) ────────────────────────────────────
+// ─── Corporate Update (live — Phase I-14) ─────────────────────────────────────
 
-function CorporateUpdateCard() {
-  const u = MOCK_CORPORATE_UPDATE
+function CorporateUpdateCard({ loading, update }: { loading: boolean; update: NonNullable<Comms["corporateUpdate"]> | null }) {
+  if (loading) return <Skeleton className="h-56 w-full" />
+  if (!update) return null
+
   return (
-    <div className="h-full rounded-xl p-5 bg-gradient-to-br from-[#FCE0CC] to-[#F6C8A6] flex flex-col">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-6 h-6 rounded bg-[var(--color-primary)] flex items-center justify-center">
-          <Megaphone className="h-3.5 w-3.5 text-white" />
+    <Link href="/messages" className="block h-full">
+      <div className="h-full rounded-xl p-5 bg-gradient-to-br from-[#FCE0CC] to-[#F6C8A6] flex flex-col hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-6 h-6 rounded bg-[var(--color-primary)] flex items-center justify-center">
+            <Megaphone className="h-3.5 w-3.5 text-white" />
+          </div>
+          <p className="text-[13px] font-extrabold tracking-wide text-[#8A3E17]">CORPORATE UPDATE</p>
         </div>
-        <p className="text-[13px] font-extrabold tracking-wide text-[#8A3E17]">CORPORATE UPDATE</p>
+        <p className="text-base font-bold text-[#1C1917] mb-1">{update.title}</p>
+        <p className="text-[13px] text-[#6B4326] flex-1 line-clamp-5 whitespace-pre-wrap">{update.body}</p>
+        <p className="text-xs font-bold text-[#8A3E17] mt-3">Posted {timeAgo(update.publishedAt)} →</p>
       </div>
-      <p className="text-base font-bold text-[#1C1917] mb-1">{u.headline}</p>
-      <p className="text-[13px] text-[#6B4326] flex-1">{u.body}</p>
-      <p className="text-xs font-bold text-[#8A3E17] mt-3">
-        Posted {u.postedDaysAgo} days ago → <span className="font-normal">(sample — corporate updates ship later)</span>
-      </p>
-    </div>
+    </Link>
   )
 }
 

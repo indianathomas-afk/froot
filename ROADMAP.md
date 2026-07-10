@@ -2,7 +2,7 @@
 
 > **Single source of truth for build status.** At the end of every phase, update this table
 > (status, commit hash, notes) and commit it along with the phase's code.
-> Last updated: 2026-07-08
+> Last updated: 2026-07-09
 
 | Order | Phase | Size | Status |
 |---|---|---|---|
@@ -20,6 +20,7 @@
 | — | F-3 Forecasting overrides + import | M | ✅ Done 7-8 (11f0b47) — day-edit dialog (`isOverride`, survives % recalcs), month-total edit redistributed by LY weekday weights, CSV/XLSX import (daily `date,amount` or monthly `month,amount` shapes, server-side parse, preview → commit, raw file to Vercel Blob), "remaining days only" mid-year raise + opt-in override reset; see `FORECASTING.md` |
 | — | F-4 Dashboard live pacing | S | 🟡 Partial 7-8 (96bc048) — Monthly Goal card is plan-driven with goal-weighted extrapolation (`MTD ÷ MTD-goal × month goal`; run-rate fallback when no plan), "Forecasting →" link replaces manual edit when a plan owns the month; deferred: Square order webhooks (15-min lazy sync + nightly reconcile cover v1), all-locations rollup + store ranking table |
 | — | F-5 Forecasting polish | S | ⬜ Not started — behind-pace notifications, CSV export, goal-edit audit log (do before external merchants) |
+| — | I-14 Team Messaging Phase 1 | M–L | ✅ Done 7-9 — TeamMessage/MessageAttachment/MessageReaction/MessageRead/CorporateUpdate schema (migration `20260709090000_i14_team_messaging`), `/messages` store feed (typed composer, photo/doc/YouTube attachments via Blob, emoji reactions, manager resolve/reopen, 15-min edit window, soft delete, cursor pagination, mark-read), checklist handoff notes (top+bottom "Leave a note for the next shift" composer w/ Post-to picker, server-side date resolution by operationalPhase, "Notes from the last shift" banner marks read), dashboard Team Messages + CORPORATE UPDATE boxes live via one `/api/dashboard/comms` call (PREVIEW/sample labels removed, corporate box collapses when none active), bare-bones admin corporate composer on `/messages`; roster sync = existing Square staff import; Phase 2+ deferred: acknowledgments, Twilio notifications, shortage→inventory alerts |
 | 8 | M-1 Keva data migration (optional) | M | ⬜ Unblocked (I-6 done) |
 | 9–11 | N-1/N-2/N-3 Nutrition | M | ⬜ Not started |
 | 12 | X-1 Activation & QA | S | ⬜ Not started |

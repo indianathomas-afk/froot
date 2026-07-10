@@ -41,5 +41,18 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
     orderBy: { displayName: "asc" },
   })
 
-  return <ChecklistExecutionClient checklist={checklist} staff={staff} />
+  // Handoff note targets (I-14): every active checklist available to this
+  // store — the "Post to…" picker in the next-shift composer.
+  const handoffTargets = await prisma.template.findMany({
+    where: {
+      organizationId: org.id,
+      isActive: true,
+      isArchived: false,
+      OR: [{ appliesTo: "all" }, { storeAssignments: { some: { storeId: checklist.storeId } } }],
+    },
+    select: { id: true, name: true, operationalPhase: true },
+    orderBy: { name: "asc" },
+  })
+
+  return <ChecklistExecutionClient checklist={checklist} staff={staff} handoffTargets={handoffTargets} />
 }

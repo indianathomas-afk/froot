@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, AlertTriangle, Camera, Printer, User } from "lucide-react"
 import Link from "next/link"
+import { HandoffBanner, HandoffComposer, type HandoffTarget } from "./handoff-notes"
 
 interface TaskAttachment {
   id: string
@@ -41,14 +42,15 @@ interface Props {
     id: string
     status: string
     storeId: string
-    template: { name: string; type: string; tasks: Task[] }
+    template: { name: string; type: string; operationalPhase: string | null; tasks: Task[] }
     store: { name: string }
     taskLogs: TaskLog[]
   }
   staff: StaffMember[]
+  handoffTargets: HandoffTarget[]
 }
 
-export function ChecklistExecutionClient({ checklist, staff }: Props) {
+export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: Props) {
   const router = useRouter()
   const tasks = checklist.template.tasks
 
@@ -167,6 +169,14 @@ export function ChecklistExecutionClient({ checklist, staff }: Props) {
 
       {/* Sections */}
       <div className="px-4 pt-4 space-y-4 max-w-2xl mx-auto">
+        {/* Handoff notes (I-14): what the last shift left for this checklist,
+            plus the top copy of the next-shift composer. */}
+        <HandoffBanner checklistId={checklist.id} />
+        <HandoffComposer
+          checklistId={checklist.id}
+          targets={handoffTargets}
+          sourcePhase={checklist.template.operationalPhase}
+        />
         {Array.from(sections.entries()).map(([sectionName, sectionTasks]) => {
           const sectionCompleted = sectionTasks.filter((t) => completed.has(t.id)).length
           return (
@@ -309,6 +319,14 @@ export function ChecklistExecutionClient({ checklist, staff }: Props) {
             </div>
           )
         })}
+
+        {/* Bottom copy of the composer — closers reach the end of a long list
+            right when they think of tomorrow's note. */}
+        <HandoffComposer
+          checklistId={checklist.id}
+          targets={handoffTargets}
+          sourcePhase={checklist.template.operationalPhase}
+        />
       </div>
 
       {/* Sticky submit bar */}

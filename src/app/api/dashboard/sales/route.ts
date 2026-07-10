@@ -68,6 +68,7 @@ type WindowData = {
   gross: number
   orders: number
   avgSale: number | null
+  unconfirmed: number
   hasData: boolean
   series: { x: string; net: number }[]
 }
@@ -80,6 +81,7 @@ async function loadWindow(storeId: string, start: string, end: string, hourly: b
   const net = dayRows.reduce((s, r) => s + r.netSales, 0)
   const gross = dayRows.reduce((s, r) => s + r.grossSales, 0)
   const orders = dayRows.reduce((s, r) => s + r.orderCount, 0)
+  const unconfirmed = dayRows.reduce((s, r) => s + r.unconfirmedNet, 0)
 
   let series: { x: string; net: number }[]
   if (hourly) {
@@ -101,6 +103,7 @@ async function loadWindow(storeId: string, start: string, end: string, hourly: b
     gross,
     orders,
     avgSale: orders > 0 ? net / orders : null,
+    unconfirmed,
     hasData: dayRows.some((r) => r.orderCount > 0 || r.netSales > 0),
     series,
   }

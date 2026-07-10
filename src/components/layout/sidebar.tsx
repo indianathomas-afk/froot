@@ -14,6 +14,7 @@ import {
   UserSquare,
   BarChart2,
   Eye,
+  MessageSquare,
   Settings,
   LogOut,
   TrendingUp,
@@ -28,6 +29,7 @@ import { setSidebarCollapsed, useSidebarCollapsed } from "./use-sidebar-collapse
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/checklists", label: "Checklists", icon: CheckSquare, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/messages", label: "Messages", icon: MessageSquare, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/templates", label: "Templates", icon: FileText, roles: ["ADMIN"] },
   { href: "/stores", label: "Stores", icon: Store, roles: ["ADMIN", "MANAGER"] },
   { href: "/users", label: "Users", icon: Users, roles: ["ADMIN"] },
