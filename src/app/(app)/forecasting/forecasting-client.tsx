@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
-import { CloudDownload, FileSpreadsheet, Pencil } from "lucide-react"
+import { CloudDownload, FileSpreadsheet, Pencil, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -38,6 +38,21 @@ type CalendarData = {
   today: string
   canEdit: boolean
   days: CalendarDay[]
+}
+
+// Live Square balancing report (mirrors /api/forecasting/day-report).
+type DayReport = {
+  date: string
+  orderCount: number
+  netSales: number
+  grossSales: number
+  discounts: number
+  tax: number
+  tips: number
+  totalCollected: number
+  tenders: { type: string; label: string; amount: number }[]
+  delivery: { netSales: number; orders: number }
+  inStore: { netSales: number; orders: number }
 }
 
 type BasisInfo = {
@@ -321,6 +336,47 @@ function GoalSettingsPanel({
     loadBasis()
   }
 
+  // Force re-sync: re-pull every cached day (basis + actuals) so a corrected
+  // sync formula reaches existing data. Cursor-driven, chunked, resumable.
+  const [resync, setResync] = useState<{ running: boolean; pct: number; error?: string; done?: boolean } | null>(null)
+  async function runResync() {
+    setResync({ running: true, pct: 0 })
+    let cursor: string | null = null
+    for (let i = 0; i < 120; i++) {
+      let data: { done?: boolean; coveredDays: number; totalDays: number; nextCursor: string | null; error?: string } | null = null
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const res = await fetch("/api/forecasting/backfill", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ storeId, year, force: true, ...(cursor ? { cursor } : {}) }),
+          })
+          const body = await res.json()
+          if (!res.ok) throw new Error(body.error ?? "Re-sync failed")
+          data = body
+          break
+        } catch (e) {
+          if (attempt === 3) {
+            setResync({ running: false, pct: 0, error: e instanceof Error ? e.message : "Re-sync failed" })
+            loadBasis()
+            return
+          }
+          await new Promise((r) => setTimeout(r, 2000 * attempt))
+        }
+      }
+      if (!data) return
+      const pct = data.totalDays > 0 ? Math.round((data.coveredDays / data.totalDays) * 100) : 100
+      setResync({ running: !data.done, pct })
+      cursor = data.nextCursor
+      if (data.done) {
+        setResync({ running: false, pct: 100, done: true })
+        break
+      }
+    }
+    loadBasis()
+    onSaved() // refresh the calendar with corrected actuals
+  }
+
   // Import state.
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
@@ -587,6 +643,34 @@ function GoalSettingsPanel({
             Commit an import above to create the plan.
           </p>
         )}
+
+        {squareLinked && (
+          <div className="border-t border-[var(--color-border)] pt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+                Sales data
+              </span>
+              <button
+                onClick={runResync}
+                disabled={resync?.running}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-primary)] hover:underline disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", resync?.running && "animate-spin")} />
+                {resync?.running ? "Refreshing…" : "Refresh from Square"}
+              </button>
+            </div>
+            {resync?.running && (
+              <div className="h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+                <div className="h-full bg-[var(--color-primary)] transition-all" style={{ width: `${resync.pct}%` }} />
+              </div>
+            )}
+            {resync?.done && <p className="text-[11px] text-[#1d7c2e] font-medium">Sales re-synced ✓</p>}
+            {resync?.error && <p className="text-[11px] text-[var(--color-destructive)]">{resync.error}</p>}
+            <p className="text-[11px] text-[var(--color-muted-foreground)]">
+              Re-pulls last year&apos;s basis and this year&apos;s actuals from Square. Use after a sales-metric change.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -769,6 +853,28 @@ function DayEditForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Live Square balancing report for this day. Fetched once; the form is keyed
+  // by date so it re-mounts. 0 orders (future or a no-sales day) → empty state.
+  const [report, setReport] = useState<DayReport | null>(null)
+  const [reportState, setReportState] = useState<"loading" | "ok" | "unavailable">("loading")
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/forecasting/day-report?storeId=${storeId}&date=${day.date}`)
+      .then(async (r) => {
+        if (cancelled) return
+        if (r.ok) {
+          setReport(await r.json())
+          setReportState("ok")
+        } else {
+          setReportState("unavailable")
+        }
+      })
+      .catch(() => !cancelled && setReportState("unavailable"))
+    return () => {
+      cancelled = true
+    }
+  }, [storeId, day.date])
+
   async function save() {
     setSaving(true)
     setError(null)
@@ -824,6 +930,9 @@ function DayEditForm({
           </Label>
           <Input id="dayGoal" type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
+
+        <SquareBalancingReport state={reportState} report={report} />
+
         {error && <p className="text-xs text-[var(--color-destructive)]">{error}</p>}
         <div className="flex gap-2 justify-end">
           <Button variant="outline" size="sm" onClick={onClose}>
@@ -835,6 +944,60 @@ function DayEditForm({
         </div>
       </div>
     </>
+  )
+}
+
+// ─── Square balancing report (live, in the day dialog) ────────────────────────
+
+function ReportRow({ label, value, strong, muted }: { label: string; value: string; strong?: boolean; muted?: boolean }) {
+  return (
+    <div className="flex justify-between text-[12px]">
+      <span className={muted ? "text-[var(--color-muted-foreground)]" : "text-[var(--color-foreground)]"}>{label}</span>
+      <span className={cn(muted ? "text-[var(--color-muted-foreground)]" : "text-[var(--color-foreground)]", strong && "font-bold")}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function SquareBalancingReport({ state, report }: { state: "loading" | "ok" | "unavailable"; report: DayReport | null }) {
+  return (
+    <div className="rounded-md border border-[var(--color-border)] p-3 space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+        Square sales — this day
+      </p>
+
+      {state === "loading" && <Skeleton className="h-24 w-full" />}
+      {state === "unavailable" && (
+        <p className="text-[12px] text-[var(--color-muted-foreground)]">
+          Live Square data isn&apos;t available (Square not connected or unreachable).
+        </p>
+      )}
+      {state === "ok" && report && report.orderCount === 0 && (
+        <p className="text-[12px] text-[var(--color-muted-foreground)]">No sales recorded for this day.</p>
+      )}
+      {state === "ok" && report && report.orderCount > 0 && (
+        <div className="space-y-1.5">
+          <ReportRow label="Gross sales" value={usd(report.grossSales, 2)} />
+          <ReportRow label="Discounts &amp; comps" value={`(${usd(report.discounts, 2)})`} muted />
+          <ReportRow label="Net sales" value={usd(report.netSales, 2)} strong />
+          <div className="border-t border-[var(--color-border)] my-1" />
+          <ReportRow label="Tax" value={usd(report.tax, 2)} muted />
+          <ReportRow label="Tips" value={usd(report.tips, 2)} muted />
+          <ReportRow label="Total collected" value={usd(report.totalCollected, 2)} />
+          <div className="border-t border-[var(--color-border)] my-1" />
+          {report.tenders.map((t) => (
+            <ReportRow key={t.type} label={t.label} value={usd(t.amount, 2)} muted />
+          ))}
+          <div className="border-t border-[var(--color-border)] my-1" />
+          <ReportRow label={`In-store / pickup (${report.inStore.orders})`} value={usd(report.inStore.netSales, 2)} muted />
+          <ReportRow label={`Delivery apps (${report.delivery.orders})`} value={usd(report.delivery.netSales, 2)} muted />
+          <p className="text-[10.5px] text-[var(--color-muted-foreground)] pt-1">
+            {report.orderCount} orders · net sales counts toward the goal and matches Square&apos;s Sales Summary.
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 

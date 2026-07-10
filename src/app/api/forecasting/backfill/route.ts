@@ -13,6 +13,11 @@ export const maxDuration = 300
 const BackfillSchema = z.object({
   storeId: z.string().min(1),
   year: z.number().int().min(2020).max(2100),
+  // force: re-sync every day in the window, not just the uncached ones — used
+  // to refresh existing caches after a sync-logic change. cursor drives the
+  // chunk to sync next (yyyy-mm-dd); the client loops until done.
+  force: z.boolean().optional(),
+  cursor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 const CHUNK_DAYS = 14
@@ -21,6 +26,10 @@ const CHUNK_DAYS = 14
 // window of a plan year. Each call fills at most one ~2-week chunk (a year of
 // orders never fits one serverless invocation); the client keeps calling until
 // done:true, showing "Importing your sales… N%". Idempotent and safe to re-run.
+//
+// force mode re-syncs every day in the window (cache is overwritten wholesale by
+// syncSalesForStore) so a corrected sync formula reaches already-cached basis
+// and actuals days; the client passes the returned nextCursor back each call.
 export async function POST(req: Request) {
   const ctx = await requireForecastContext({ write: true })
   if ("error" in ctx) return ctx.error
@@ -29,7 +38,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, { status: 400 })
   }
-  const { storeId, year } = parsed.data
+  const { storeId, year, force, cursor } = parsed.data
 
   const store = await requireForecastStore(ctx, storeId)
   if ("error" in store) return store.error
@@ -48,6 +57,39 @@ export async function POST(req: Request) {
   const rangeEnd = win.end < yesterday ? win.end : yesterday
   if (rangeStart > rangeEnd) {
     return NextResponse.json({ done: true, totalDays: 0, coveredDays: 0 })
+  }
+
+  const totalDaysFull = Math.round((dbDate(rangeEnd).getTime() - dbDate(rangeStart).getTime()) / 86400000) + 1
+
+  // ── force re-sync: re-pull the whole span one chunk at a time, cursor-driven ──
+  // Force covers basis (last year) AND this year's actuals through yesterday, so
+  // a corrected sync formula reaches both the goal basis and the calendar's
+  // green/red actuals — not just the basis window the initial import needs.
+  if (force) {
+    const forceEnd = yesterday > rangeEnd ? yesterday : rangeEnd
+    const forceTotal = Math.round((dbDate(forceEnd).getTime() - dbDate(rangeStart).getTime()) / 86400000) + 1
+    const chunkStart = cursor && cursor > rangeStart ? cursor : rangeStart
+    if (chunkStart > forceEnd) {
+      return NextResponse.json({ done: true, totalDays: forceTotal, coveredDays: forceTotal })
+    }
+    const chunkEndCandidate = addDaysStr(chunkStart, CHUNK_DAYS - 1)
+    const chunkEnd = chunkEndCandidate < forceEnd ? chunkEndCandidate : forceEnd
+    try {
+      const result = await syncSalesForStore(ctx.org, store, chunkStart, chunkEnd)
+      const nextCursor = addDaysStr(chunkEnd, 1)
+      const done = nextCursor > forceEnd
+      const coveredDays = Math.round((dbDate(chunkEnd).getTime() - dbDate(rangeStart).getTime()) / 86400000) + 1
+      return NextResponse.json({
+        done,
+        totalDays: forceTotal,
+        coveredDays: done ? forceTotal : coveredDays,
+        nextCursor: done ? null : nextCursor,
+        syncedRange: { start: chunkStart, end: chunkEnd, orders: result.orders },
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Sync failed"
+      return NextResponse.json({ error: msg }, { status: 502 })
+    }
   }
 
   const cached = await prisma.salesPeriodCache.findMany({
