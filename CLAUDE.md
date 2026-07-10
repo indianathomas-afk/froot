@@ -177,6 +177,9 @@ One OAuth connection per org. Tokens stored encrypted on `Organization.squareAcc
 - `square/inventory/adjust` — submit loss/transfer/prep adjustment
 - `square/webhooks` — handle `catalog.version.updated`, `oauth.authorization.revoked`
 
+**Shipped (F-4):** `webhooks/square` — order/payment events keep the current day's
+sales caches fresh (signature-verified; see `FORECASTING.md` § Square order webhooks).
+
 Square is entirely optional — all features work without it, import buttons only show when connected.
 
 ---
@@ -222,6 +225,7 @@ SQUARE_APPLICATION_SECRET=
 SQUARE_ENVIRONMENT=            # "sandbox" or "production"
 NEXT_PUBLIC_APP_URL=           # e.g. https://www.usefroot.com
 CRON_SECRET=                   # auth for /api/cron/* (Vercel sends it on cron invocations)
+SQUARE_WEBHOOK_SIGNATURE_KEY=  # per-app webhook subscription key (FORECASTING.md § Square order webhooks)
 ```
 
 ---

@@ -37,6 +37,22 @@ as a monthly goal with a goal-weighted month-end projection.
 - **Projection** (Dashboard Monthly Goal card): goal-weighted pacing —
   `projected = MTD actual ÷ MTD goal × month goal` — falling back to run-rate
   when no plan exists. A plan beats the legacy `StoreMonthlyGoal` for its month.
+  The formula lives in `src/lib/pacing.ts` (`projectMonthEnd`), shared by the
+  Monthly Goal card, `/api/dashboard/summary`, and the all-locations rollup.
+
+## All-locations rollup (F-4)
+
+"All locations" in the Dashboard store picker switches to a company-wide view
+backed by `GET /api/dashboard/rollup`: summed today/MTD/month-goal totals plus
+a sortable store-ranking table (pace vs MTD goal, projected month end vs goal,
+on/behind-pace pill). Scoping is the usual: admins see every active store,
+managers see their `storeAssignments`. The rollup projection is the same
+goal-weighted formula applied to the **summed** plan totals (DailyGoal rows
+summed per store — never averaged); a store with only a manual goal joins the
+pool via linear proration (mathematically identical to the card's run-rate
+fallback), and a store with no goal at all contributes sales plus a run-rate
+projection. Stores without a Square link show "—" for sales but keep their
+goal columns.
 
 ## Data model
 
@@ -66,6 +82,29 @@ load and the nightly cron covers the last 3 days.
 
 ## Ops
 
+- **Square order webhooks** (F-4): `POST /api/webhooks/square` receives
+  `order.created`, `order.updated`, `payment.created`, `payment.updated` and
+  re-pulls the affected store's local day through `sales-sync.ts`, keeping the
+  Dashboard's "today" fresh in near-real-time. Store resolution is
+  `location_id → Store.squareLocationId`; a re-sync is skipped when the day's
+  cache was already synced after the event was emitted (burst absorber). The
+  handler ACKs immediately and does the work after the response; processing
+  failures are only logged — the 15-min lazy dashboard sync and the nightly
+  reconcile remain the fallback/source of truth, so webhooks never need to be
+  perfect, just fresh. Requests are verified against Square's HMAC-SHA256
+  scheme (`x-square-hmacsha256-signature` over notification URL + raw body,
+  `src/lib/square-webhook.ts`); anything unverified gets a 401.
+  - **Setup (per Square app — production and "Froot Staging" each have their
+    own)**: Square Developer Dashboard → your app → Webhooks → Subscriptions →
+    Add subscription with notification URL
+    `${NEXT_PUBLIC_APP_URL}/api/webhooks/square` (must match that env's
+    `NEXT_PUBLIC_APP_URL` exactly — the handler derives the signed URL from it)
+    and event types `order.created`, `order.updated`, `payment.created`,
+    `payment.updated`. Copy the subscription's **Signature key** into the
+    `SQUARE_WEBHOOK_SIGNATURE_KEY` env var in Vercel for that environment.
+    Without the env var the route returns 500 and Square will keep retrying.
+  - No new OAuth scope needed — the resync reads orders via the existing
+    `ORDERS_READ` grant.
 - **Nightly reconciliation**: `vercel.json` cron hits
   `GET /api/cron/sales-reconcile` at 11:00 UTC — re-pulls the last 3 days per
   Square-linked store (all orgs) to absorb late refunds/edits. Public in

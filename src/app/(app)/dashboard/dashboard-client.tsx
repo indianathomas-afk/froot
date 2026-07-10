@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { projectMonthEnd } from "@/lib/pacing"
 import { SalesPerformanceCard } from "./sales-performance-card"
+import { RollupView } from "./rollup-view"
 
 // ─── Types (mirror /api/dashboard/summary) ────────────────────────────────────
 
@@ -95,6 +97,10 @@ const usd = (n: number | null | undefined, digits = 0) =>
 const STORE_KEY = "froot.dashboard.store"
 const STORE_EVENT = "froot-dashboard-store"
 
+// Sentinel picker value for the all-locations rollup (Phase F-4) — only
+// offered when the user can see more than one store.
+const ALL_STORES = "all"
+
 function subscribeStoreKey(callback: () => void) {
   window.addEventListener("storage", callback)
   window.addEventListener(STORE_EVENT, callback)
@@ -127,8 +133,12 @@ export function DashboardClient({
   countRecency: { storeId: string; storeName: string; days: number | null }[]
 }) {
   const savedStoreId = useSavedStoreId()
-  const storeId = stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
+  const storeId =
+    savedStoreId === ALL_STORES && stores.length > 1
+      ? ALL_STORES
+      : stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
   const setStoreId = saveStoreId
+  const isRollup = storeId === ALL_STORES
   const [summary, setSummary] = useState<Summary | null>(null)
   // Keyed by storeId (like `current` below) so switching stores shows the
   // skeleton instead of the previous store's messages.
@@ -136,7 +146,7 @@ export function DashboardClient({
   const [checkedOverride, setCheckedOverride] = useState<Record<string, boolean>>({})
 
   const load = useCallback(() => {
-    if (!storeId) return
+    if (!storeId || storeId === ALL_STORES) return
     fetch(`/api/dashboard/summary?storeId=${storeId}`)
       .then((res): Promise<Summary | null> => (res.ok ? res.json() : Promise.resolve(null)))
       .then(setSummary)
@@ -152,9 +162,9 @@ export function DashboardClient({
   }, [load])
 
   const current = summary && summary.store.id === storeId ? summary : null
-  const loading = !!storeId && current === null
+  const loading = !isRollup && !!storeId && current === null
   const comms = commsRes && commsRes.storeId === storeId ? commsRes.data : null
-  const commsLoading = !!storeId && (commsRes === null || commsRes.storeId !== storeId)
+  const commsLoading = !isRollup && !!storeId && (commsRes === null || commsRes.storeId !== storeId)
   const store = stores.find((s) => s.id === storeId)
 
   const headerDate = useMemo(
@@ -170,7 +180,7 @@ export function DashboardClient({
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Dashboard</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
             {headerDate}
-            {store ? ` · ${store.name}${store.location ? ` — ${store.location}` : ""}` : ""}
+            {isRollup ? " · All locations" : store ? ` · ${store.name}${store.location ? ` — ${store.location}` : ""}` : ""}
           </p>
         </div>
         {stores.length > 1 && (
@@ -179,6 +189,7 @@ export function DashboardClient({
               <SelectValue placeholder="Select store" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={ALL_STORES}>All locations</SelectItem>
               {stores.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -189,46 +200,53 @@ export function DashboardClient({
         )}
       </div>
 
-      {/* Sales row: Performance (2) + Monthly Goal (1) */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
-          <SalesPerformanceCard storeId={storeId} />
-        </div>
-        <div className="flex-1 min-w-[260px]">
-          <MonthlyGoalCard loading={loading} summary={current} onSaved={load} />
-        </div>
-      </div>
-
-      {/* Three equal cards */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[280px]">
-          <TeamMessagesCard loading={commsLoading} comms={comms} />
-        </div>
-        {/* The corporate box collapses entirely when no update is active */}
-        {(commsLoading || comms?.corporateUpdate) && (
-          <div className="flex-1 min-w-[280px]">
-            <CorporateUpdateCard loading={commsLoading} update={comms?.corporateUpdate ?? null} />
+      {isRollup ? (
+        /* All-locations rollup: company totals + store ranking (F-4) */
+        <RollupView />
+      ) : (
+        <>
+          {/* Sales row: Performance (2) + Monthly Goal (1) */}
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
+              <SalesPerformanceCard storeId={storeId} />
+            </div>
+            <div className="flex-1 min-w-[260px]">
+              <MonthlyGoalCard loading={loading} summary={current} onSaved={load} />
+            </div>
           </div>
-        )}
-        <div className="flex-1 min-w-[280px]">
-          <ShiftChecklistCard
-            loading={loading}
-            summary={current}
-            checkedOverride={checkedOverride}
-            onToggle={(id) =>
-              setCheckedOverride((prev) => {
-                const item = current?.checklist.items.find((i) => i.id === id)
-                const base = item?.checked ?? false
-                const cur = prev[id] ?? base
-                return { ...prev, [id]: !cur }
-              })
-            }
-          />
-        </div>
-      </div>
 
-      {/* Instagram strip */}
-      <InstagramStrip />
+          {/* Three equal cards */}
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[280px]">
+              <TeamMessagesCard loading={commsLoading} comms={comms} />
+            </div>
+            {/* The corporate box collapses entirely when no update is active */}
+            {(commsLoading || comms?.corporateUpdate) && (
+              <div className="flex-1 min-w-[280px]">
+                <CorporateUpdateCard loading={commsLoading} update={comms?.corporateUpdate ?? null} />
+              </div>
+            )}
+            <div className="flex-1 min-w-[280px]">
+              <ShiftChecklistCard
+                loading={loading}
+                summary={current}
+                checkedOverride={checkedOverride}
+                onToggle={(id) =>
+                  setCheckedOverride((prev) => {
+                    const item = current?.checklist.items.find((i) => i.id === id)
+                    const base = item?.checked ?? false
+                    const cur = prev[id] ?? base
+                    return { ...prev, [id]: !cur }
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          {/* Instagram strip */}
+          <InstagramStrip />
+        </>
+      )}
 
       {/* Days since last count (kept from I-4) */}
       {countRecency.length > 0 && (
@@ -332,14 +350,15 @@ function MonthlyGoalCard({ loading, summary, onSaved }: { loading: boolean; summ
 
   const pctOfGoal = Math.min(1, mtd / goal.goalAmount)
   const toGo = Math.max(0, goal.goalAmount - mtd)
-  // Goal-weighted pacing when a Forecasting plan provides an MTD goal (it
-  // respects the weekday mix of the remaining days); run-rate otherwise.
-  const goalWeighted = goal.mtdGoal !== null && goal.mtdGoal > 0
-  const extrapolated = goalWeighted
-    ? (mtd / goal.mtdGoal!) * goal.goalAmount
-    : goal.daysElapsed > 0
-      ? (mtd / goal.daysElapsed) * goal.daysInMonth
-      : 0
+  // Goal-weighted pacing when a Forecasting plan provides an MTD goal,
+  // run-rate otherwise — src/lib/pacing.ts, shared with the rollup.
+  const extrapolated = projectMonthEnd({
+    mtdActual: mtd,
+    mtdGoal: goal.mtdGoal,
+    monthGoal: goal.goalAmount,
+    daysElapsed: goal.daysElapsed,
+    daysInMonth: goal.daysInMonth,
+  })
   const pctToGoal = (extrapolated / goal.goalAmount) * 100
   const onTrack = pctToGoal >= 100
 
