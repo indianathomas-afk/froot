@@ -18,17 +18,22 @@ as a monthly goal with a goal-weighted month-end projection.
   recalculate manually-edited days" is checked. Mid-year raises can apply to
   **remaining days only** — past months keep the goals their actuals were
   measured against.
-- **Net sales** = total collected − tax − tips, over COMPLETED orders,
-  **bucketed by `created_at`** (the day the order was opened) — this is how
-  Square's Sales Summary assigns a sale to a reporting day. Bucketing by
-  `closed_at` (the old behavior) threw delivery/online orders opened one day but
-  closed the next into the wrong day. Verified: `created_at` + COMPLETED +
-  (total−tax−tip) reconciles to Square's Net Sales to the penny (Las Brisas,
-  July 8 2026: $2,427.67), with the tender breakdown matching line-by-line.
-  Third-party delivery (DoorDash/Uber Eats/Grubhub, `OTHER` tender) **is
-  counted** — Square includes it too. Actuals come from `SalesPeriodCache`;
-  Square is not called on a dashboard/calendar read (only the day-drilldown
-  balancing report calls it live).
+- **Net sales** = total collected − tax − tips, over **PAID orders** (any order
+  with a tender, OPEN or COMPLETED — not CANCELED/DRAFT), **bucketed by
+  `created_at`** (the day the order was opened). This mirrors Square's Sales
+  Summary exactly: Square counts a sale the moment it's paid, on the day it
+  opened. Two things this gets right that the earlier logic didn't:
+  - `closed_at` bucketing threw delivery/online orders (opened one day, closed
+    the next) into the wrong reporting day → now `created_at`.
+  - COMPLETED-only lagged the live day, because auto-accepted delivery orders
+    sit OPEN-but-paid until fulfilled → now any paid order counts immediately.
+  Verified (Las Brisas): settled days Jul 3–8 reconcile to Square's Net Sales to
+  the penny (paid == completed once a day settles; zero paid orders ever stuck
+  OPEN), and the live day now tracks Square instead of lagging. Third-party
+  delivery (DoorDash/Uber Eats/Grubhub, `OTHER` tender) is counted — Square
+  includes it too. Unpaid open tabs/drafts are excluded, as Square does. Actuals
+  come from `SalesPeriodCache`; Square is not called on a dashboard/calendar
+  read (only the day-drilldown balancing report calls it live).
 - **Projection** (Dashboard Monthly Goal card): goal-weighted pacing —
   `projected = MTD actual ÷ MTD goal × month goal` — falling back to run-rate
   when no plan exists. A plan beats the legacy `StoreMonthlyGoal` for its month.
