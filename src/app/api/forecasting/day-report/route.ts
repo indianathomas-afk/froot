@@ -82,7 +82,7 @@ export async function GET(req: Request) {
           cursor,
           query: {
             filter: {
-              state_filter: { states: ["COMPLETED"] },
+              state_filter: { states: ["OPEN", "COMPLETED"] },
               date_time_filter: { created_at: { start_at: startAt.toISOString(), end_at: endAt.toISOString() } },
             },
             sort: { sort_field: "CREATED_AT", sort_order: "ASC" },
@@ -109,7 +109,11 @@ export async function GET(req: Request) {
   let deliveryOrders = 0
   const byTender = new Map<string, number>()
 
+  let orderCount = 0
   for (const o of orders) {
+    // Paid orders only (has a tender), matching the sync and Square's Net Sales.
+    if (!o.tenders || o.tenders.length === 0) continue
+    orderCount += 1
     const orderNet = dollars(o.total_money) - dollars(o.total_tax_money) - dollars(o.total_tip_money)
     net += orderNet
     tax += dollars(o.total_tax_money)
@@ -130,7 +134,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     date,
-    orderCount: orders.length,
+    orderCount,
     netSales: round2(net),
     grossSales: round2(net + discounts), // Square "gross sales" = net + discounts
     discounts: round2(discounts),
@@ -141,6 +145,6 @@ export async function GET(req: Request) {
       .map(([type, amount]) => ({ type, label: TENDER_LABELS[type] ?? type, amount: round2(amount) }))
       .sort((a, b) => b.amount - a.amount),
     delivery: { netSales: round2(deliveryNet), orders: deliveryOrders },
-    inStore: { netSales: round2(net - deliveryNet), orders: orders.length - deliveryOrders },
+    inStore: { netSales: round2(net - deliveryNet), orders: orderCount - deliveryOrders },
   })
 }

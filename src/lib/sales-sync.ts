@@ -3,12 +3,13 @@ import { getSquareClient } from "@/lib/square"
 import type { Organization, Store } from "@prisma/client"
 
 // ─── Square sales sync ────────────────────────────────────────────────────────
-// Pulls COMPLETED orders (created_at window) for one store and aggregates them
-// into SalesPeriodCache (daily), SalesLineCache (daily × variation), and
-// SalesHourlyCache (daily × hour). Dates/hours are bucketed by each order's
-// created_at in the STORE's timezone — matching how Square's Sales Summary
-// assigns a sale to a reporting day. Idempotent per day: every local date
-// touched by the window is deleted and rewritten in one transaction.
+// Pulls PAID orders (has a tender; OPEN or COMPLETED) in the created_at window
+// for one store and aggregates them into SalesPeriodCache (daily), SalesLineCache
+// (daily × variation), and SalesHourlyCache (daily × hour). Dates/hours are
+// bucketed by each order's created_at in the STORE's timezone — matching how
+// Square's Sales Summary counts a sale (when it's paid, on the day it opened).
+// Idempotent per day: every local date touched by the window is deleted and
+// rewritten in one transaction.
 
 type SquareMoney = { amount?: number; currency?: string } | null | undefined
 
@@ -23,6 +24,8 @@ type SquareOrder = {
   id: string
   created_at?: string
   closed_at?: string
+  state?: string
+  tenders?: { id?: string }[]
   total_money?: SquareMoney
   total_tax_money?: SquareMoney
   total_tip_money?: SquareMoney
@@ -127,13 +130,18 @@ export async function syncSalesForStore(
         cursor,
         query: {
           filter: {
-            state_filter: { states: ["COMPLETED"] },
+            // OPEN + COMPLETED, then require a tender in code (see below). Square
+            // counts a sale the moment it's PAID, not when the order is marked
+            // complete — auto-accepted delivery orders sit OPEN-but-paid until
+            // fulfilled, and Square already counts them. CANCELED/DRAFT are
+            // excluded here; DRAFT has no tender anyway.
+            state_filter: { states: ["OPEN", "COMPLETED"] },
             date_time_filter: {
               // Bucket by created_at — Square's Sales Summary reports sales on
               // the day the order was OPENED, not closed. Filtering/bucketing by
               // closed_at threw delivery/online orders (opened one day, closed
               // the next) into the wrong reporting day. Verified: created_at +
-              // COMPLETED reconciles to Square's Net Sales to the penny.
+              // paid reconciles to Square's Net Sales to the penny.
               created_at: { start_at: startAt.toISOString(), end_at: endAt.toISOString() },
             },
           },
@@ -150,6 +158,11 @@ export async function syncSalesForStore(
     const data = (await res.json()) as { orders?: SquareOrder[]; cursor?: string }
     for (const order of data.orders ?? []) {
       if (!order.created_at) continue
+      // Count a sale only once it's PAID (has a tender). Skips unpaid open tabs
+      // and drafts — Square doesn't count those either. This matches Square on
+      // the live day (paid delivery orders still OPEN are included) and on
+      // settled days (where paid == completed, verified to the penny).
+      if (!order.tenders || order.tenders.length === 0) continue
       const instant = new Date(order.created_at)
       const { dateStr, hour } = localParts(instant, tz)
       // An order can be created a few minutes either side of local midnight,
