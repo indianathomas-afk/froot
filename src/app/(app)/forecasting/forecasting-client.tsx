@@ -646,19 +646,13 @@ function GoalSettingsPanel({
 
         {squareLinked && (
           <div className="border-t border-[var(--color-border)] pt-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
-                Sales data
-              </span>
-              <button
-                onClick={runResync}
-                disabled={resync?.running}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-primary)] hover:underline disabled:opacity-50"
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", resync?.running && "animate-spin")} />
-                {resync?.running ? "Refreshing…" : "Refresh from Square"}
-              </button>
-            </div>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+              Sales data
+            </Label>
+            <Button variant="outline" className="w-full" onClick={runResync} disabled={resync?.running}>
+              <RefreshCw className={cn("h-4 w-4 mr-1.5", resync?.running && "animate-spin")} />
+              {resync?.running ? `Refreshing… ${resync.pct}%` : "Refresh from Square"}
+            </Button>
             {resync?.running && (
               <div className="h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
                 <div className="h-full bg-[var(--color-primary)] transition-all" style={{ width: `${resync.pct}%` }} />
