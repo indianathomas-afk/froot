@@ -18,13 +18,17 @@ as a monthly goal with a goal-weighted month-end projection.
   recalculate manually-edited days" is checked. Mid-year raises can apply to
   **remaining days only** — past months keep the goals their actuals were
   measured against.
-- **Net sales** = total collected − tax − tips (matches Square's "Net Sales").
-  **Third-party delivery orders (DoorDash, Uber Eats, Grubhub, Orda, …) ARE
-  counted** — delivery revenue is intentionally in the goal metric, so Froot's
-  number is higher than Square's Sales Summary "Net Sales" (which excludes
-  marketplace orders Square doesn't collect). Compare Froot against a Square
-  report that includes all orders, not the Sales Summary. Actuals come from
-  `SalesPeriodCache`; Square is never called on a dashboard/calendar read.
+- **Net sales** = total collected − tax − tips, over COMPLETED orders,
+  **bucketed by `created_at`** (the day the order was opened) — this is how
+  Square's Sales Summary assigns a sale to a reporting day. Bucketing by
+  `closed_at` (the old behavior) threw delivery/online orders opened one day but
+  closed the next into the wrong day. Verified: `created_at` + COMPLETED +
+  (total−tax−tip) reconciles to Square's Net Sales to the penny (Las Brisas,
+  July 8 2026: $2,427.67), with the tender breakdown matching line-by-line.
+  Third-party delivery (DoorDash/Uber Eats/Grubhub, `OTHER` tender) **is
+  counted** — Square includes it too. Actuals come from `SalesPeriodCache`;
+  Square is not called on a dashboard/calendar read (only the day-drilldown
+  balancing report calls it live).
 - **Projection** (Dashboard Monthly Goal card): goal-weighted pacing —
   `projected = MTD actual ÷ MTD goal × month goal` — falling back to run-rate
   when no plan exists. A plan beats the legacy `StoreMonthlyGoal` for its month.
@@ -44,10 +48,16 @@ all locations), writes ADMIN-only, enforced server-side:
 |---|---|
 | `GET/PUT plan` | Plan meta / create+regenerate (scope: all year or remaining days) |
 | `GET basis` | LY basis total + cache coverage for the settings panel |
-| `POST backfill` | Resumable LY history sync, one ~2-week chunk per call |
+| `POST backfill` | Resumable LY history sync, one ~2-week chunk per call. `force:true` + `cursor` re-syncs the whole span (basis + this-year actuals) to refresh cached days after a sync-logic change |
 | `GET calendar` | Daily goals joined with actuals for the year grid |
+| `GET day-report` | Live Square balancing report for one day (gross/discounts/net/tax/tips/total collected, tender split, in-store vs delivery) — the calendar day-drilldown; only route that calls Square live |
 | `PATCH day` / `PATCH month` | Overrides (month totals redistribute by weekday weights) |
 | `POST import` | CSV/XLSX upload — `commit=0` previews, `commit=1` stores to Blob + regenerates. Daily (`date, amount`) or monthly (`month, amount`) shapes |
+
+After a sync-formula change, existing cached days keep their old numbers until
+re-pulled. "Refresh from Square" in Goal Settings (admin) drives `backfill
+force` over last year + this year to yesterday; today self-corrects on dashboard
+load and the nightly cron covers the last 3 days.
 
 ## Ops
 
