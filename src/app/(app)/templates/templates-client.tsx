@@ -5,6 +5,8 @@ import Link from "next/link"
 import Image from "next/image"
 import { Plus, Eye, Pencil, Copy, Archive, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { TemplateImportButton } from "./template-import-button"
+import { TemplateExportButton } from "./template-export-button"
 
 const TYPE_COLORS: Record<string, string> = {
   Opener: "bg-orange-100 text-orange-700 border-orange-200",
@@ -159,12 +161,16 @@ export default function TemplatesClient() {
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Checklist Templates</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Manage checklist templates for different brands and shifts</p>
         </div>
-        <Link href="/templates/new">
-          <Button>
-            <Plus className="h-4 w-4" />
-            Create Template
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <TemplateExportButton />
+          <TemplateImportButton onImported={load} />
+          <Link href="/templates/new">
+            <Button>
+              <Plus className="h-4 w-4" />
+              Create Template
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Tabs */}
