@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, CircleAlert } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ type WindowData = {
   gross: number
   orders: number
   avgSale: number | null
+  unconfirmed: number
   hasData: boolean
   series: SeriesPoint[]
 }
@@ -380,6 +381,18 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
               </div>
               <DeltaPill value={selected?.net ?? 0} baseline={hasCompare ? compareData!.net : null} />
             </div>
+
+            {range.end === data.today && (selected?.unconfirmed ?? 0) > 0 && (
+              <div
+                className="flex items-center gap-1.5 mb-3 text-[12px] font-medium text-[#a36a00]"
+                title="These sales are paid and already counted in Today's total, but their tickets are still open in Square. They finalize automatically as orders close — or confirm them in the POS."
+              >
+                <CircleAlert className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {usd(selected!.unconfirmed, 2)} in sales not confirmed in POS
+                </span>
+              </div>
+            )}
 
             {selected?.hasData || hasCompare ? (
               <>

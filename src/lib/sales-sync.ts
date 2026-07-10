@@ -112,7 +112,7 @@ export async function syncSalesForStore(
   endNext.setUTCDate(endNext.getUTCDate() + 1)
   const endAt = localMidnightUtc(endNext.toISOString().slice(0, 10), tz)
 
-  type DayAgg = { gross: number; net: number; tax: number; tip: number; discount: number; orders: number }
+  type DayAgg = { gross: number; net: number; tax: number; tip: number; discount: number; orders: number; unconfirmed: number }
   const byDay = new Map<string, DayAgg>()
   const byHour = new Map<string, { net: number; orders: number }>() // `${date}|${hour}`
   const byLine = new Map<string, { qty: number; gross: number }>() // `${date}|${variationId}`
@@ -180,13 +180,17 @@ export async function syncSalesForStore(
       const discount = dollars(order.total_discount_money)
       const net = gross - tax - tip
 
-      const day = byDay.get(dateStr) ?? { gross: 0, net: 0, tax: 0, tip: 0, discount: 0, orders: 0 }
+      const day = byDay.get(dateStr) ?? { gross: 0, net: 0, tax: 0, tip: 0, discount: 0, orders: 0, unconfirmed: 0 }
       day.gross += gross
       day.net += net
       day.tax += tax
       day.tip += tip
       day.discount += discount
       day.orders += 1
+      // Paid but still OPEN in Square = confirmed as a sale, but the ticket
+      // hasn't been closed out in the POS yet. Surfaced as a "not confirmed"
+      // teaser so stores know there are open tickets to reconcile.
+      if (order.state === "OPEN") day.unconfirmed += net
       byDay.set(dateStr, day)
 
       const hourKey = `${dateStr}|${hour}`
@@ -221,13 +225,14 @@ export async function syncSalesForStore(
 
     await tx.salesPeriodCache.createMany({
       data: [...dates].map((dateStr) => {
-        const day = byDay.get(dateStr) ?? { gross: 0, net: 0, tax: 0, tip: 0, discount: 0, orders: 0 }
+        const day = byDay.get(dateStr) ?? { gross: 0, net: 0, tax: 0, tip: 0, discount: 0, orders: 0, unconfirmed: 0 }
         return {
           organizationId: org.id,
           storeId: store.id,
           date: dbDate(dateStr),
           grossSales: day.gross,
           netSales: day.net,
+          unconfirmedNet: day.unconfirmed,
           taxTotal: day.tax,
           tipTotal: day.tip,
           discountTotal: day.discount,

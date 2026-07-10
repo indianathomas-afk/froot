@@ -702,6 +702,7 @@ model SalesPeriodCache {
   date           DateTime @db.Date
   grossSales     Float    @default(0) // total collected: incl. tax + tips, after discounts
   netSales       Float    @default(0) // sales metric: gross − tax − tips (excludes tax & tips)
+  unconfirmedNet Float    @default(0) // portion of netSales from paid-but-OPEN orders (not yet confirmed in the POS)
   taxTotal       Float    @default(0)
   tipTotal       Float    @default(0)
   discountTotal  Float    @default(0)
