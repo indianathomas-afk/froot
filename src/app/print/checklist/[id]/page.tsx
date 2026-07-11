@@ -185,6 +185,7 @@ export default async function ChecklistPrintPage({
                       )}
                       {task.requiresPhoto && <span className="badge">📷 Photo required</span>}
                       {task.requiresTemp && <span className="badge">🌡 Temp required</span>}
+                      {task.videoUrl && <span className="badge">▶ Training video in app</span>}
                       {task.estimatedTimeMinutes && (
                         <span className="badge">~{task.estimatedTimeMinutes} min</span>
                       )}
