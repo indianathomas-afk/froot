@@ -248,7 +248,7 @@ function SortableTaskRow({
                 {stores.map((s) => (
                   <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
                     <input type="checkbox" checked={editDraft.excludedStoreIds.includes(s.id)} onChange={() => toggleEditDraftExclusion(s.id)} />
-                    {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                    {s.name}
                   </label>
                 ))}
               </div>
@@ -331,7 +331,7 @@ function SortableTaskRow({
                     {stores.map((s) => (
                       <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
                         <input type="checkbox" checked={task.excludedStoreIds.includes(s.id)} onChange={() => toggleTaskExclusion(task.id, s.id)} />
-                        {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                        {s.name}
                       </label>
                     ))}
                   </div>
@@ -872,7 +872,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                       {stores.map((s) => (
                         <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
                           <input type="checkbox" checked={newTask.excludedStoreIds.includes(s.id)} onChange={() => toggleNewTaskExclusion(s.id)} />
-                          {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                          {s.name}
                         </label>
                       ))}
                     </div>
