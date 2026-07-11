@@ -21,6 +21,12 @@ model Organization {
   squareRefreshToken   String?
   squareTokenExpiresAt DateTime?
   lastCatalogSyncAt    DateTime?
+  instagramAccessToken    String?
+  instagramTokenExpiresAt DateTime?
+  instagramUserId         String?
+  instagramUsername       String?
+  instagramEnabled        Boolean   @default(false)
+  instagramConnectedAt    DateTime?
   createdAt            DateTime  @default(now())
 
   stores               Store[]

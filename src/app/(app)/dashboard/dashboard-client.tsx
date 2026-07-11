@@ -77,14 +77,23 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-// ─── MOCK DATA — the Instagram backend is a later build. ─────────────────────
+// ─── Instagram feed (mirror /api/instagram/feed) ──────────────────────────────
 
-type InstagramPost = { id: string; hue: number }
+type InstagramPost = {
+  id: string
+  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM"
+  media_url?: string
+  permalink: string
+  thumbnail_url?: string
+  caption?: string
+}
 
-const MOCK_INSTAGRAM: { handle: string; url: string; posts: InstagramPost[] } = {
-  handle: "@kevajuice_reno",
-  url: "https://instagram.com/kevajuice_reno",
-  posts: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `p${n}`, hue: (n * 37) % 60 })),
+type InstagramFeed = {
+  connected: boolean
+  enabled: boolean
+  username: string | null
+  profileUrl: string | null
+  posts: InstagramPost[]
 }
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
@@ -608,12 +617,35 @@ function ShiftChecklistCard({
   )
 }
 
-// ─── Instagram strip (mock — later build) ─────────────────────────────────────
+// ─── Instagram strip (live — /api/instagram/feed, served from server cache) ──
 
 function InstagramStrip() {
   const [offset, setOffset] = useState(0)
+  const [feed, setFeed] = useState<InstagramFeed | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/instagram/feed?limit=12")
+      .then((r): Promise<InstagramFeed | null> => (r.ok ? r.json() : Promise.resolve(null)))
+      .then((data) => {
+        if (cancelled) return
+        setFeed(data)
+        setLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Not connected or toggled off (or the feed call failed) → no card at all.
+  if (loaded && (!feed || !feed.connected || !feed.enabled || feed.posts.length === 0)) return null
+
   const visible = 6
-  const posts = MOCK_INSTAGRAM.posts
+  const posts = feed?.posts ?? []
   const maxOffset = Math.max(0, posts.length - visible)
 
   return (
@@ -629,16 +661,29 @@ function InstagramStrip() {
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="flex gap-2 overflow-hidden flex-1 min-w-[200px]">
-          {posts.slice(offset, offset + visible).map((p) => (
-            <div
-              key={p.id}
-              className="w-[72px] h-[72px] rounded-lg shrink-0"
-              style={{
-                background: `repeating-linear-gradient(45deg, hsl(${20 + p.hue} 70% 85%), hsl(${20 + p.hue} 70% 85%) 8px, hsl(${20 + p.hue} 60% 78%) 8px, hsl(${20 + p.hue} 60% 78%) 16px)`,
-              }}
-              title="Placeholder — real posts arrive when the Instagram integration ships"
-            />
-          ))}
+          {!loaded
+            ? Array.from({ length: visible }).map((_, i) => (
+                <Skeleton key={i} className="w-[72px] h-[72px] rounded-lg shrink-0" />
+              ))
+            : posts.slice(offset, offset + visible).map((p) => {
+                const src = p.media_type === "VIDEO" ? p.thumbnail_url : p.media_url
+                return (
+                  <a
+                    key={p.id}
+                    href={p.permalink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={p.caption ?? "Open on Instagram"}
+                    className="w-[72px] h-[72px] rounded-lg shrink-0 overflow-hidden bg-[var(--color-muted)] hover:opacity-90 transition-opacity"
+                  >
+                    {src && (
+                      // Plain <img>: IG CDN hostnames rotate, so next/image can't pin them.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={src} alt={p.caption ?? "Instagram post"} loading="lazy" className="w-full h-full object-cover" />
+                    )}
+                  </a>
+                )
+              })}
         </div>
         <button
           onClick={() => setOffset((o) => Math.min(maxOffset, o + 1))}
@@ -648,14 +693,16 @@ function InstagramStrip() {
         >
           <ChevronRight className="h-4 w-4" />
         </button>
-        <a
-          href={MOCK_INSTAGRAM.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[12.5px] font-bold text-[var(--color-primary)] hover:underline"
-        >
-          {MOCK_INSTAGRAM.handle} →
-        </a>
+        {feed?.username && (
+          <a
+            href={feed.profileUrl ?? `https://www.instagram.com/${feed.username}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[12.5px] font-bold text-[var(--color-primary)] hover:underline"
+          >
+            @{feed.username} →
+          </a>
+        )}
       </CardContent>
     </Card>
   )

@@ -2,10 +2,13 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle } from "lucide-react"
+import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
 import { requireAdmin } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { getInstagramTokenStatus } from "@/lib/instagram"
+import { InstagramActions, InstagramConnectButton } from "./instagram-actions"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -22,6 +25,9 @@ export default async function SettingsPage() {
 
   const org = await getOrgData()
   const isSquareConnected = !!org?.squareAccessToken
+  const isInstagramConnected = !!org?.instagramAccessToken
+  const instagramTokenStatus = org ? getInstagramTokenStatus(org) : "not_connected"
+  const needsInstagramReconnect = isInstagramConnected && instagramTokenStatus === "reconnect_required"
 
   return (
     <div>
@@ -77,6 +83,61 @@ export default async function SettingsPage() {
                   >
                     Connect Square
                   </Link>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Instagram Integration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] flex items-center justify-center text-white">
+                    <InstagramIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Instagram</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">
+                      Show your latest posts on the dashboard and an in-app Instagram page
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {isInstagramConnected ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                          <span className="text-sm text-[var(--color-success-text)] font-medium">
+                            Connected{org?.instagramUsername ? ` · @${org.instagramUsername}` : ""}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                          <span className="text-sm text-[var(--color-muted-foreground)]">Not connected</span>
+                        </>
+                      )}
+                    </div>
+                    {needsInstagramReconnect && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <AlertTriangle className="h-4 w-4 text-[var(--color-warning)]" />
+                        <span className="text-sm text-[var(--color-warning)] font-medium">
+                          Access expired — reconnect to keep posts up to date
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-xs text-[var(--color-muted-foreground)] mt-1.5">
+                      Requires an Instagram Professional (Business or Creator) account.
+                    </p>
+                  </div>
+                </div>
+                {isInstagramConnected ? (
+                  <div className="flex flex-col items-end gap-2">
+                    <InstagramActions enabled={!!org?.instagramEnabled} />
+                    {needsInstagramReconnect && <InstagramConnectButton reconnect />}
+                  </div>
+                ) : (
+                  <InstagramConnectButton />
                 )}
               </div>
             </CardContent>
