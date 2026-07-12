@@ -128,6 +128,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [storeMap, setStoreMap] = useState<Record<string, Set<string>>>({})
   const [primaryMap, setPrimaryMap] = useState<Record<string, string>>({})
+  const [locationFilter, setLocationFilter] = useState("")
   const router = useRouter()
 
   async function handleOpen() {
@@ -138,6 +139,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
       const data = await res.json()
       const fetched: SquareTeamMember[] = data.members ?? []
       setMembers(fetched)
+      setLocationFilter("")
       setSelected(new Set(fetched.filter((m) => !m.alreadyImported).map((m) => m.id)))
       // Pre-fill each member's stores and primary store from their Square assignments
       const storeInit: Record<string, Set<string>> = {}
@@ -161,12 +163,28 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
     })
   }
 
-  const available = members.filter((m) => !m.alreadyImported)
-  const alreadyDone = members.filter((m) => m.alreadyImported)
-  const allSelected = available.length > 0 && selected.size === available.length
+  // Location filter: shows only members whose Square access includes the
+  // chosen store, so a specific location's team can be imported in one go.
+  function matchesFilter(m: SquareTeamMember) {
+    return !locationFilter || m.allLocations || (m.assignedStoreIds ?? []).includes(locationFilter)
+  }
+
+  const available = members.filter((m) => !m.alreadyImported && matchesFilter(m))
+  const alreadyDone = members.filter((m) => m.alreadyImported && matchesFilter(m))
+  const allSelected = available.length > 0 && available.every((m) => selected.has(m.id))
 
   function toggleAll() {
     setSelected(allSelected ? new Set() : new Set(available.map((m) => m.id)))
+  }
+
+  // Changing the filter resets the selection to that location's members, so
+  // the import matches exactly what's listed.
+  function changeFilter(storeId: string) {
+    setLocationFilter(storeId)
+    const visible = members.filter(
+      (m) => !m.alreadyImported && (!storeId || m.allLocations || (m.assignedStoreIds ?? []).includes(storeId))
+    )
+    setSelected(new Set(visible.map((m) => m.id)))
   }
 
   function toggleMemberStore(memberId: string, storeId: string) {
@@ -227,8 +245,25 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
             <p className="text-sm text-[var(--color-muted-foreground)] py-8 text-center">Loading team members...</p>
           ) : (
             <div className="space-y-3">
+              {members.length > 0 && stores.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[var(--color-muted-foreground)]">Location:</span>
+                  <select
+                    className="flex-1 text-sm border border-[var(--color-border)] rounded-md bg-transparent px-2 py-1.5"
+                    value={locationFilter}
+                    onChange={(e) => changeFilter(e.target.value)}
+                  >
+                    <option value="">All locations</option>
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {available.length === 0 && alreadyDone.length === 0 && (
-                <p className="text-sm text-[var(--color-muted-foreground)]">No team members found in Square.</p>
+                <p className="text-sm text-[var(--color-muted-foreground)]">
+                  {locationFilter ? "No team members assigned to this location in Square." : "No team members found in Square."}
+                </p>
               )}
               {available.length > 0 && (
                 <div>
