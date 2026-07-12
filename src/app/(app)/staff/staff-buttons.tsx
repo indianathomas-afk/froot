@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Download, Trash2 } from "lucide-react"
+import { Plus, Download, RefreshCw, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -9,20 +9,35 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 
 type Store = { id: string; name: string; storeNumber: string | null }
-type SquareTeamMember = { id: string; display_name?: string; given_name?: string; family_name?: string; alreadyImported: boolean }
+type SquareTeamMember = {
+  id: string
+  display_name?: string
+  given_name?: string
+  family_name?: string
+  alreadyImported: boolean
+  assignedStoreIds: string[]
+  primaryStoreId: string | null
+  allLocations: boolean
+}
 
 // Add Staff Member Modal
 export function AddStaffButton({ stores }: { stores: Store[] }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set())
+  const [primaryStore, setPrimaryStore] = useState("")
   const [form, setForm] = useState({ displayName: "", fullName: "" })
   const router = useRouter()
 
   function toggleStore(id: string) {
     setSelectedStores((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        if (primaryStore === id) setPrimaryStore("")
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -34,11 +49,12 @@ export function AddStaffButton({ stores }: { stores: Store[] }) {
       await fetch("/api/staff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, storeIds: Array.from(selectedStores) }),
+        body: JSON.stringify({ ...form, storeIds: Array.from(selectedStores), primaryStoreId: primaryStore || null }),
       })
       setOpen(false)
       setForm({ displayName: "", fullName: "" })
       setSelectedStores(new Set())
+      setPrimaryStore("")
       router.refresh()
     } finally {
       setSaving(false)
@@ -77,6 +93,21 @@ export function AddStaffButton({ stores }: { stores: Store[] }) {
                 {stores.length === 0 && <p className="text-xs text-[var(--color-muted-foreground)] p-2">No stores yet. Add stores first.</p>}
               </div>
             </div>
+            {selectedStores.size > 0 && (
+              <div className="space-y-1.5">
+                <Label>Primary Store</Label>
+                <select
+                  className="w-full border border-[var(--color-border)] rounded-md bg-transparent px-3 py-2 text-sm"
+                  value={primaryStore}
+                  onChange={(e) => setPrimaryStore(e.target.value)}
+                >
+                  <option value="">No primary store</option>
+                  {stores.filter((s) => selectedStores.has(s.id)).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Add Staff Member"}</Button>
@@ -96,6 +127,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
   const [members, setMembers] = useState<SquareTeamMember[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [storeMap, setStoreMap] = useState<Record<string, Set<string>>>({})
+  const [primaryMap, setPrimaryMap] = useState<Record<string, string>>({})
   const router = useRouter()
 
   async function handleOpen() {
@@ -104,9 +136,18 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
     try {
       const res = await fetch("/api/square/team-members")
       const data = await res.json()
-      setMembers(data.members ?? [])
-      const unimported = (data.members ?? []).filter((m: SquareTeamMember) => !m.alreadyImported).map((m: SquareTeamMember) => m.id)
-      setSelected(new Set(unimported))
+      const fetched: SquareTeamMember[] = data.members ?? []
+      setMembers(fetched)
+      setSelected(new Set(fetched.filter((m) => !m.alreadyImported).map((m) => m.id)))
+      // Pre-fill each member's stores and primary store from their Square assignments
+      const storeInit: Record<string, Set<string>> = {}
+      const primaryInit: Record<string, string> = {}
+      for (const m of fetched) {
+        storeInit[m.id] = new Set(m.assignedStoreIds ?? [])
+        if (m.primaryStoreId) primaryInit[m.id] = m.primaryStoreId
+      }
+      setStoreMap(storeInit)
+      setPrimaryMap(primaryInit)
     } finally {
       setLoading(false)
     }
@@ -131,7 +172,12 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
   function toggleMemberStore(memberId: string, storeId: string) {
     setStoreMap((prev) => {
       const cur = new Set(prev[memberId] ?? [])
-      cur.has(storeId) ? cur.delete(storeId) : cur.add(storeId)
+      if (cur.has(storeId)) {
+        cur.delete(storeId)
+        setPrimaryMap((p) => (p[memberId] === storeId ? { ...p, [memberId]: "" } : p))
+      } else {
+        cur.add(storeId)
+      }
       return { ...prev, [memberId]: cur }
     })
   }
@@ -154,6 +200,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
               fullName: [m.given_name, m.family_name].filter(Boolean).join(" ") || null,
               squareTeamMemberId: m.id,
               storeIds: Array.from(storeMap[m.id] ?? []),
+              primaryStoreId: primaryMap[m.id] || null,
             }),
           })
         )
@@ -195,19 +242,45 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
                     <div key={m.id} className="flex items-start gap-3 p-3 rounded-lg border border-[var(--color-border)] mb-2">
                       <input type="checkbox" className="mt-0.5" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-[var(--color-foreground)]">{memberName(m)}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-[var(--color-foreground)]">{memberName(m)}</p>
+                          {m.allLocations && (
+                            <span className="text-[10px] uppercase tracking-wide font-medium text-[var(--color-muted-foreground)] border border-[var(--color-border)] rounded-full px-1.5 py-0.5">
+                              All locations in Square
+                            </span>
+                          )}
+                        </div>
                         {selected.has(m.id) && stores.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {stores.map((s) => {
-                              const checked = (storeMap[m.id] ?? new Set()).has(s.id)
-                              return (
-                                <label key={s.id} className={`flex items-center gap-1.5 text-xs cursor-pointer px-2 py-1 rounded-full border transition-colors ${checked ? "bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)]" : "border-[var(--color-border)] text-[var(--color-muted-foreground)]"}`}>
-                                  <input type="checkbox" className="hidden" checked={checked} onChange={() => toggleMemberStore(m.id, s.id)} />
-                                  {s.storeNumber ? `#${s.storeNumber}` : s.name}
-                                </label>
-                              )
-                            })}
-                          </div>
+                          <>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {stores.map((s) => {
+                                const checked = (storeMap[m.id] ?? new Set()).has(s.id)
+                                const isPrimary = primaryMap[m.id] === s.id
+                                return (
+                                  <label key={s.id} className={`flex items-center gap-1.5 text-xs cursor-pointer px-2 py-1 rounded-full border transition-colors ${isPrimary ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-white" : checked ? "bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)]" : "border-[var(--color-border)] text-[var(--color-muted-foreground)]"}`}>
+                                    <input type="checkbox" className="hidden" checked={checked} onChange={() => toggleMemberStore(m.id, s.id)} />
+                                    {isPrimary && <span aria-label="Primary store">★</span>}
+                                    {s.name}
+                                  </label>
+                                )
+                              })}
+                            </div>
+                            {(storeMap[m.id]?.size ?? 0) > 0 && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="text-xs text-[var(--color-muted-foreground)]">Primary store:</span>
+                                <select
+                                  className="text-xs border border-[var(--color-border)] rounded-md bg-transparent px-2 py-1"
+                                  value={primaryMap[m.id] ?? ""}
+                                  onChange={(e) => setPrimaryMap((p) => ({ ...p, [m.id]: e.target.value }))}
+                                >
+                                  <option value="">None</option>
+                                  {stores.filter((s) => (storeMap[m.id] ?? new Set()).has(s.id)).map((s) => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -236,6 +309,99 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+// Location chips for a staff row. Admins click a chip to set it as the
+// member's primary (home) store — the store their row is grouped under.
+export function StaffLocationChips({
+  staffId,
+  assignments,
+  canEdit,
+}: {
+  staffId: string
+  assignments: { storeId: string; storeName: string; isPrimary: boolean }[]
+  canEdit: boolean
+}) {
+  const [saving, setSaving] = useState(false)
+  const router = useRouter()
+
+  async function setPrimary(storeId: string) {
+    setSaving(true)
+    try {
+      await fetch(`/api/staff/${staffId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ primaryStoreId: storeId }),
+      })
+      router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const shown = assignments.slice(0, 8)
+  return (
+    <div className="flex flex-wrap gap-1">
+      {shown.map((a) => {
+        const cls = `inline-flex items-center gap-1 rounded-full text-xs font-medium px-2 py-0.5 ${
+          a.isPrimary ? "bg-[var(--color-primary)] text-white" : "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+        }`
+        if (!canEdit || a.isPrimary) {
+          return (
+            <span key={a.storeId} className={cls} title={a.isPrimary ? "Primary store" : undefined}>
+              {a.isPrimary && <span aria-label="Primary store">★</span>}
+              {a.storeName}
+            </span>
+          )
+        }
+        return (
+          <button
+            key={a.storeId}
+            type="button"
+            disabled={saving}
+            onClick={() => setPrimary(a.storeId)}
+            title={`Make ${a.storeName} the primary store`}
+            className={`${cls} cursor-pointer hover:bg-[var(--color-primary)]/20 disabled:opacity-50`}
+          >
+            {a.storeName}
+          </button>
+        )
+      })}
+      {assignments.length > 8 && (
+        <span className="text-xs text-[var(--color-muted-foreground)]">+{assignments.length - 8}</span>
+      )}
+    </div>
+  )
+}
+
+// Sync Locations from Square Button — re-pulls assigned locations and primary
+// store from Square for every already-imported staff member.
+export function SyncStaffButton() {
+  const [syncing, setSyncing] = useState(false)
+  const router = useRouter()
+
+  async function handleSync() {
+    if (!confirm("Update all imported staff members' store assignments and primary store to match Square? Manual location changes will be overwritten.")) return
+    setSyncing(true)
+    try {
+      const res = await fetch("/api/staff/sync-square", { method: "POST" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        alert(data?.error ?? "Sync failed")
+        return
+      }
+      router.refresh()
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <Button variant="outline" onClick={handleSync} disabled={syncing}>
+      <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+      {syncing ? "Syncing..." : "Sync Locations from Square"}
+    </Button>
   )
 }
 

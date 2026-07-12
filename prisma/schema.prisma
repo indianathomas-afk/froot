@@ -179,9 +179,10 @@ model StaffMember {
 }
 
 model StoreStaffAssignment {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   staffMemberId String
   storeId       String
+  isPrimary     Boolean @default(false)
 
   staffMember StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
   store       Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)

@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
-import { AddStaffButton, ImportStaffButton, DeleteStaffButton } from "./staff-buttons"
+import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { getUserStoreScope } from "@/lib/auth"
 
 async function getStaffData() {
@@ -18,7 +18,12 @@ async function getStaffData() {
         organizationId: org.id,
         ...(isAdmin ? {} : { storeAssignments: { some: { storeId: { in: storeIds } } } }),
       },
-      include: { storeAssignments: { include: { store: true } } },
+      include: {
+        storeAssignments: {
+          include: { store: true },
+          orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }],
+        },
+      },
       orderBy: { displayName: "asc" },
     }),
     prisma.store.findMany({ where: { organizationId: org.id, ...storeFilter }, orderBy: { name: "asc" } }),
@@ -37,6 +42,8 @@ export default async function StaffPage() {
     if (member.storeAssignments.length === 0) {
       unassigned.push(member)
     } else {
+      // Assignments are ordered primary-first, so [0] is the member's home
+      // store when one is set, else their first store alphabetically.
       const primaryStore = member.storeAssignments[0].store
       if (!byStore.has(primaryStore.id)) byStore.set(primaryStore.id, [])
       byStore.get(primaryStore.id)!.push(member)
@@ -54,6 +61,7 @@ export default async function StaffPage() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <SyncStaffButton />
             <ImportStaffButton stores={storeProps} />
             <AddStaffButton stores={storeProps} />
           </div>
@@ -76,16 +84,16 @@ export default async function StaffPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {Array.from(byStore.entries()).map(([storeId, members]) => {
-            const store = stores.find((s) => s.id === storeId)
+          {stores.filter((s) => byStore.has(s.id)).map((store) => {
+            const members = byStore.get(store.id)!
             return (
-              <div key={storeId} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+              <div key={store.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
                 <div className="px-6 py-4 border-b border-[var(--color-border)]">
                   <div className="flex items-center gap-2">
                     <span className="text-lg">🏪</span>
                     <div>
                       <h3 className="font-semibold text-[var(--color-foreground)]">
-                        {store?.storeNumber ? `#${store.storeNumber} - ` : ""}{store?.name}
+                        {store.storeNumber ? `#${store.storeNumber} - ` : ""}{store.name}
                       </h3>
                       <p className="text-xs text-[var(--color-muted-foreground)]">{members.length} team member{members.length !== 1 ? "s" : ""}</p>
                     </div>
@@ -106,16 +114,15 @@ export default async function StaffPage() {
                         <td className="px-6 py-3 text-sm font-medium text-[var(--color-foreground)]">{member.displayName}</td>
                         <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
                         <td className="px-6 py-3">
-                          <div className="flex flex-wrap gap-1">
-                            {member.storeAssignments.slice(0, 8).map((a) => (
-                              <span key={a.store.id} className="inline-flex items-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium px-2 py-0.5">
-                                #{a.store.storeNumber ?? a.store.name.slice(0, 4)}
-                              </span>
-                            ))}
-                            {member.storeAssignments.length > 8 && (
-                              <span className="text-xs text-[var(--color-muted-foreground)]">+{member.storeAssignments.length - 8}</span>
-                            )}
-                          </div>
+                          <StaffLocationChips
+                            staffId={member.id}
+                            canEdit={isAdmin}
+                            assignments={member.storeAssignments.map((a) => ({
+                              storeId: a.store.id,
+                              storeName: a.store.name,
+                              isPrimary: a.isPrimary,
+                            }))}
+                          />
                         </td>
                         <td className="px-6 py-3 text-right">
                           <DeleteStaffButton staffId={member.id} />
