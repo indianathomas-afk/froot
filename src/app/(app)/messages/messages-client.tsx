@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import {
   Camera,
+  Check,
   FileText,
   Loader2,
   Megaphone,
@@ -73,6 +74,9 @@ export type FeedMessage = {
   createdAt: string
   editedAt: string | null
   resolvedAt: string | null
+  acknowledgedAt: string | null
+  acknowledgedBy: string | null
+  expiresAt: string | null
 }
 
 type CorpUpdate = {
@@ -1059,11 +1063,22 @@ function MessageCard({
                   {message.status}
                 </Badge>
               )}
-              {message.postedToTemplate && (
+              {message.postedForDate && (
                 <span className="text-xs text-[var(--color-muted-foreground)]">
-                  → {message.postedToTemplate.name}
-                  {message.postedForDate && ` (${message.postedForDate})`}
+                  → {message.postedToTemplate?.name ?? "Everyone"} ({message.postedForDate})
                 </span>
+              )}
+              {/* Handoff lifecycle: acknowledged beats expired; an active note shows neither. */}
+              {message.postedForDate && message.acknowledgedAt && (
+                <Badge variant="secondary" className="uppercase text-[10px] gap-1" title={message.acknowledgedBy ? `Acknowledged by ${message.acknowledgedBy}` : undefined}>
+                  <Check className="h-3 w-3" />
+                  Acknowledged{message.acknowledgedBy ? ` · ${message.acknowledgedBy}` : ""}
+                </Badge>
+              )}
+              {message.postedForDate && !message.acknowledgedAt && message.expiresAt && new Date(message.expiresAt) <= new Date() && (
+                <Badge variant="outline" className="uppercase text-[10px] text-[var(--color-muted-foreground)]">
+                  Expired
+                </Badge>
               )}
             </div>
 
