@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent, closestCenter } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -352,6 +353,259 @@ function SortableTaskRow({
   )
 }
 
+// ─── Table view ───────────────────────────────────────────────────────────────
+
+type BulkField = "estimatedTimeMinutes" | "isCritical" | "requiresPhoto" | "requiresTemp" | "sectionName"
+
+interface TaskTableViewProps {
+  tasks: Task[]
+  stores: Store[]
+  updateTask: (id: string, patch: Partial<Task>) => void
+  toggleTaskExclusion: (taskId: string, storeId: string) => void
+}
+
+function TaskTableView({ tasks, stores, updateTask, toggleTaskExclusion }: TaskTableViewProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkField, setBulkField] = useState<BulkField>("estimatedTimeMinutes")
+  const [bulkMinutes, setBulkMinutes] = useState("5")
+  const [bulkBool, setBulkBool] = useState<"on" | "off">("on")
+  const [bulkSection, setBulkSection] = useState("")
+
+  const sectionNames = [...new Set(tasks.map((t) => t.sectionName).filter(Boolean))]
+  const hasExclusions = stores.length > 0
+  const colCount = hasExclusions ? 10 : 9
+  const allSelected = tasks.length > 0 && tasks.every((t) => selectedIds.has(t.id))
+  const someSelected = tasks.some((t) => selectedIds.has(t.id))
+
+  function toggleAll() {
+    setSelectedIds(allSelected ? new Set() : new Set(tasks.map((t) => t.id)))
+  }
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSection(sectionName: string) {
+    const ids = tasks.filter((t) => t.sectionName === sectionName).map((t) => t.id)
+    const all = ids.every((id) => selectedIds.has(id))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      ids.forEach((id) => (all ? next.delete(id) : next.add(id)))
+      return next
+    })
+  }
+
+  function applyBulk() {
+    let patch: Partial<Task>
+    if (bulkField === "estimatedTimeMinutes") {
+      patch = { estimatedTimeMinutes: bulkMinutes === "" ? null : Number(bulkMinutes) }
+    } else if (bulkField === "sectionName") {
+      if (!bulkSection.trim()) return
+      patch = { sectionName: bulkSection.trim() }
+    } else {
+      patch = { [bulkField]: bulkBool === "on" }
+    }
+    selectedIds.forEach((id) => updateTask(id, patch))
+  }
+
+  // Enter / arrow keys move focus down or up the Est. min column, spreadsheet-style
+  function estKeyNav(e: React.KeyboardEvent<HTMLInputElement>, idx: number) {
+    if (e.key !== "Enter" && e.key !== "ArrowDown" && e.key !== "ArrowUp") return
+    e.preventDefault()
+    const dir = e.key === "ArrowUp" ? -1 : 1
+    const next = document.querySelector<HTMLInputElement>(`input[data-est-row="${idx + dir}"]`)
+    if (next) { next.focus(); next.select() }
+  }
+
+  return (
+    <div className="space-y-2">
+      <datalist id="task-section-options">
+        {sectionNames.map((s) => <option key={s} value={s} />)}
+      </datalist>
+
+      {selectedIds.size > 0 && (
+        <div className="sticky top-2 z-10 flex items-center gap-2 flex-wrap p-2 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm">
+          <span className="text-sm font-medium text-[var(--color-foreground)]">{selectedIds.size} selected</span>
+          <span className="text-sm text-[var(--color-muted-foreground)]">Set</span>
+          <Select value={bulkField} onValueChange={(v) => setBulkField(v as BulkField)}>
+            <SelectTrigger className="h-8 w-32 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="estimatedTimeMinutes">Est. min</SelectItem>
+              <SelectItem value="isCritical">Critical</SelectItem>
+              <SelectItem value="requiresPhoto">Photo</SelectItem>
+              <SelectItem value="requiresTemp">Temp</SelectItem>
+              <SelectItem value="sectionName">Section</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-sm text-[var(--color-muted-foreground)]">to</span>
+          {bulkField === "estimatedTimeMinutes" ? (
+            <Input type="number" min={0} step={0.5} className="h-8 w-20 text-sm" aria-label="Bulk estimated minutes" value={bulkMinutes} onChange={(e) => setBulkMinutes(e.target.value)} />
+          ) : bulkField === "sectionName" ? (
+            <Input list="task-section-options" className="h-8 w-40 text-sm" placeholder="Section name" aria-label="Bulk section name" value={bulkSection} onChange={(e) => setBulkSection(e.target.value)} />
+          ) : (
+            <Select value={bulkBool} onValueChange={(v) => setBulkBool(v as "on" | "off")}>
+              <SelectTrigger className="h-8 w-20 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="on">On</SelectItem>
+                <SelectItem value="off">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          <Button size="sm" onClick={applyBulk} disabled={bulkField === "sectionName" && !bulkSection.trim()}>Apply</Button>
+          <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())}>Clear selection</Button>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-md border border-[var(--color-border)]">
+        <table className="w-full min-w-[820px] text-sm">
+          <thead>
+            <tr className="border-b border-[var(--color-border)] bg-[var(--color-muted)]/20 text-xs text-[var(--color-muted-foreground)]">
+              <th className="px-2 py-2 w-8">
+                <input
+                  type="checkbox"
+                  aria-label="Select all tasks"
+                  className="rounded"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+                  onChange={toggleAll}
+                />
+              </th>
+              <th className="px-2 py-2 w-8 text-left font-medium">#</th>
+              <th className="px-2 py-2 w-36 text-left font-medium">Section</th>
+              <th className="px-2 py-2 text-left font-medium">Task</th>
+              <th className="px-2 py-2 w-20 text-left font-medium">Est. min</th>
+              <th className="px-2 py-2 w-14 text-center font-medium">Critical</th>
+              <th className="px-2 py-2 w-14 text-center font-medium">Photo</th>
+              <th className="px-2 py-2 w-14 text-center font-medium">Temp</th>
+              {hasExclusions && <th className="px-2 py-2 w-24 text-center font-medium">Exclusions</th>}
+              <th className="px-2 py-2 w-12 text-center font-medium">Video</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tasks.map((task, idx) => {
+              const showSectionRow = idx === 0 || tasks[idx - 1].sectionName !== task.sectionName
+              const sectionIds = tasks.filter((t) => t.sectionName === task.sectionName)
+              const sectionAllSelected = sectionIds.every((t) => selectedIds.has(t.id))
+              return (
+                <Fragment key={task.id}>
+                  {showSectionRow && (
+                    <tr className="border-b border-[var(--color-border)] bg-[var(--color-muted)]/30">
+                      <td className="px-2 py-1">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select all tasks in ${task.sectionName || "untitled section"}`}
+                          className="rounded"
+                          checked={sectionAllSelected}
+                          onChange={() => toggleSection(task.sectionName)}
+                        />
+                      </td>
+                      <td colSpan={colCount - 1} className="px-2 py-1 text-xs font-medium text-[var(--color-muted-foreground)]">
+                        § {task.sectionName || "No section"}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className={`border-b border-[var(--color-border)] last:border-b-0 ${selectedIds.has(task.id) ? "bg-[var(--color-accent)]/40" : task.isCritical ? "bg-[var(--color-destructive)]/5" : ""}`}>
+                    <td className="px-2 py-1">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select task ${idx + 1}`}
+                        className="rounded"
+                        checked={selectedIds.has(task.id)}
+                        onChange={() => toggleRow(task.id)}
+                      />
+                    </td>
+                    <td className="px-2 py-1 text-xs text-[var(--color-muted-foreground)]">{idx + 1}</td>
+                    <td className="px-2 py-1">
+                      <Input
+                        list="task-section-options"
+                        className="h-7 w-full min-w-[8rem] text-sm"
+                        aria-label={`Section for task ${idx + 1}`}
+                        value={task.sectionName}
+                        onChange={(e) => updateTask(task.id, { sectionName: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-2 py-1">
+                      <Input
+                        className="h-7 w-full min-w-[16rem] text-sm"
+                        aria-label={`Description for task ${idx + 1}`}
+                        title={task.description}
+                        value={task.description}
+                        onChange={(e) => updateTask(task.id, { description: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-2 py-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        className="h-7 w-20 text-sm"
+                        aria-label={`Estimated minutes for task ${idx + 1}`}
+                        data-est-row={idx}
+                        value={task.estimatedTimeMinutes ?? ""}
+                        onChange={(e) => updateTask(task.id, { estimatedTimeMinutes: e.target.value === "" ? null : Number(e.target.value) })}
+                        onKeyDown={(e) => estKeyNav(e, idx)}
+                      />
+                    </td>
+                    {(["isCritical", "requiresPhoto", "requiresTemp"] as const).map((field) => (
+                      <td key={field} className="px-2 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`${field === "isCritical" ? "Critical" : field === "requiresPhoto" ? "Requires photo" : "Requires temp"}, task ${idx + 1}`}
+                          className="rounded"
+                          checked={task[field]}
+                          onChange={(e) => updateTask(task.id, { [field]: e.target.checked })}
+                        />
+                      </td>
+                    ))}
+                    {hasExclusions && (
+                      <td className="px-2 py-1 text-center">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
+                              {task.excludedStoreIds.length > 0 ? `${task.excludedStoreIds.length} excluded` : "None"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-3" align="end">
+                            <p className="text-xs font-medium text-[var(--color-muted-foreground)] mb-2">This task does not apply to:</p>
+                            <div className="space-y-1">
+                              {stores.map((s) => (
+                                <label key={s.id} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-[var(--color-accent)]">
+                                  <input type="checkbox" checked={task.excludedStoreIds.includes(s.id)} onChange={() => toggleTaskExclusion(task.id, s.id)} />
+                                  {s.name}
+                                </label>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </td>
+                    )}
+                    <td className="px-2 py-1 text-center">
+                      {task.videoUrl ? (
+                        <a href={task.videoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Training video for task ${idx + 1}`} className="inline-flex p-1 rounded text-[var(--color-foreground)] hover:bg-[var(--color-accent)]">
+                          <Play className="h-3.5 w-3.5" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
+                      )}
+                    </td>
+                  </tr>
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[var(--color-muted-foreground)]">
+        Order is read-only in table view — switch to Cards to drag-reorder. Press Enter or ↑/↓ in the Est. min column to move between rows. Changes are saved when you click Save Template.
+      </p>
+    </div>
+  )
+}
+
 // ─── Main form ────────────────────────────────────────────────────────────────
 
 export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
@@ -390,6 +644,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     (initialData?.tasks ?? []).map((t) => ({ ...t, excludedStoreIds: t.excludedStoreIds ?? [], videoUrl: t.videoUrl ?? "" }))
   )
   const [showAddTask, setShowAddTask] = useState(false)
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards")
   const [newTask, setNewTask] = useState(emptyTaskFields)
   const [expandedTaskExclusions, setExpandedTaskExclusions] = useState<Set<string>>(new Set())
 
@@ -489,6 +744,9 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     setNewAttachmentError("")
     setShowAddTask(false)
   }
+
+  const updateTask = (id: string, patch: Partial<Task>) =>
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
 
   function toggleTaskExclusion(taskId: string, storeId: string) {
     setTasks((prev) => prev.map((t) => {
@@ -752,10 +1010,30 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
           <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-[var(--color-foreground)]">Tasks ({tasks.length})</h2>
-              <Button size="sm" onClick={() => setShowAddTask(true)}>
-                <Plus className="h-4 w-4" />
-                Add Task
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-md border border-[var(--color-border)] overflow-hidden" role="group" aria-label="Task view mode">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("cards")}
+                    aria-pressed={viewMode === "cards"}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === "cards" ? "bg-[var(--color-accent)] text-[var(--color-foreground)]" : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)]/50"}`}
+                  >
+                    <LayoutList className="h-3.5 w-3.5" /> Cards
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    aria-pressed={viewMode === "table"}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium border-l border-[var(--color-border)] transition-colors ${viewMode === "table" ? "bg-[var(--color-accent)] text-[var(--color-foreground)]" : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)]/50"}`}
+                  >
+                    <Table2 className="h-3.5 w-3.5" /> Table
+                  </button>
+                </div>
+                <Button size="sm" onClick={() => setShowAddTask(true)}>
+                  <Plus className="h-4 w-4" />
+                  Add Task
+                </Button>
+              </div>
             </div>
 
             {tasks.length === 0 && !showAddTask ? (
@@ -763,6 +1041,13 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 <p className="text-sm">No tasks added yet</p>
                 <p className="text-xs mt-1">Click &ldquo;Add Task&rdquo; to get started</p>
               </div>
+            ) : viewMode === "table" ? (
+              <TaskTableView
+                tasks={tasks}
+                stores={stores}
+                updateTask={updateTask}
+                toggleTaskExclusion={toggleTaskExclusion}
+              />
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
