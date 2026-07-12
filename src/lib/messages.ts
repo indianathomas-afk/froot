@@ -37,7 +37,8 @@ export const HANDOFF_MAX_AGE_DAYS = 7
 
 const PHASE_ORDER: Record<string, number> = {
   "Before Opening": 0,
-  "During Hours": 1,
+  "During the Day": 1, // canonical (what the template form writes)
+  "During Hours": 1, // legacy rows from the original template import
   "After Closing": 2,
 }
 
@@ -63,6 +64,50 @@ export function resolvePostedForDate(
   const d = new Date(`${sourceDate}T00:00:00.000Z`)
   d.setUTCDate(d.getUTCDate() + 1)
   return d.toISOString().slice(0, 10)
+}
+
+// A note stays visible on checklists/dashboard through its target day plus
+// the org's handoffNoteExpireDays grace days, unless acknowledged first.
+export function handoffExpiresAt(postedForDate: string, expireDays: number): Date {
+  const d = new Date(`${postedForDate}T00:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + 1 + expireDays)
+  return d
+}
+
+// Where-clause for notes that should surface for a store on a given business
+// day (YYYY-MM-DD): unacknowledged, unexpired handoff notes whose surface date
+// has arrived — `lte` (not equals) so a note targeting a closed day simply
+// waits for the next open one. Store-wide notes have postedToTemplateId null.
+// templateIds narrows to specific checklists (banner); omit for the dashboard,
+// which shows every note surfacing today — including ones whose target
+// template no longer generates checklists, so nothing is ever silently lost.
+// Legacy rows without expiresAt fall back to the 7-day createdAt cutoff.
+export function activeHandoffNotesWhere({
+  storeId,
+  day,
+  templateIds,
+}: {
+  storeId: string
+  day: string
+  templateIds?: string[]
+}): Prisma.TeamMessageWhereInput {
+  return {
+    storeId,
+    deletedAt: null,
+    acknowledgedAt: null,
+    postedForDate: { not: null, lte: new Date(`${day}T00:00:00.000Z`) },
+    ...(templateIds
+      ? { OR: [{ postedToTemplateId: { in: templateIds } }, { postedToTemplateId: null }] }
+      : {}),
+    AND: [
+      {
+        OR: [
+          { expiresAt: { gt: new Date() } },
+          { expiresAt: null, createdAt: { gte: new Date(Date.now() - HANDOFF_MAX_AGE_DAYS * 86400000) } },
+        ],
+      },
+    ],
+  }
 }
 
 // ─── YouTube ──────────────────────────────────────────────────────────────────
@@ -128,6 +173,7 @@ export function buildAttachmentRows(attachments: z.infer<typeof attachmentSchema
 export const messageInclude = {
   authorUser: { select: { id: true, name: true, email: true } },
   authorStaff: { select: { id: true, displayName: true } },
+  acknowledgedByUser: { select: { id: true, name: true, email: true } },
   linkedIngredient: { select: { id: true, name: true } },
   postedToTemplate: { select: { id: true, name: true } },
   attachments: { orderBy: { createdAt: "asc" } },
@@ -181,6 +227,11 @@ export function serializeMessage(m: MessageWithIncludes, currentUserId: string |
     createdAt: m.createdAt.toISOString(),
     editedAt: m.editedAt?.toISOString() ?? null,
     resolvedAt: m.resolvedAt?.toISOString() ?? null,
+    acknowledgedAt: m.acknowledgedAt?.toISOString() ?? null,
+    acknowledgedBy: m.acknowledgedByUser
+      ? m.acknowledgedByUser.name ?? m.acknowledgedByUser.email.split("@")[0]
+      : null,
+    expiresAt: m.expiresAt?.toISOString() ?? null,
   }
 }
 

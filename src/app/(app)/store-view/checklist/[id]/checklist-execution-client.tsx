@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, AlertTriangle, Camera, Printer, User } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Camera, Play, Printer, User } from "lucide-react"
 import Link from "next/link"
 import { HandoffBanner, HandoffComposer, type HandoffTarget } from "./handoff-notes"
 
@@ -22,6 +22,7 @@ interface Task {
   requiresTemp: boolean
   isCritical: boolean
   orderIndex: number
+  videoUrl: string | null
   attachment: TaskAttachment | null
 }
 
@@ -78,7 +79,7 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
   const totalTasks = tasks.length
   const completedCount = completed.size
   const progress = totalTasks > 0 ? (completedCount / totalTasks) * 100 : 0
-  const totalMinutes = tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)
+  const totalMinutes = Math.round(tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0))
 
   async function logTask(taskId: string, staffId?: string) {
     await fetch(`/api/checklists/${checklist.id}/task-log`, {
@@ -236,6 +237,22 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
                           )}
                         </div>
                       </div>
+
+                      {/* Training video link */}
+                      {task.videoUrl && (
+                        <div className="mt-2 ml-8">
+                          <a
+                            href={task.videoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 min-h-[44px] py-2 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] hover:bg-[var(--color-accent)] transition-colors text-sm text-[var(--color-foreground)]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Play className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
+                            <span>Watch Training Video →</span>
+                          </a>
+                        </div>
+                      )}
 
                       {/* Attachment link */}
                       {task.attachment && (

@@ -54,6 +54,61 @@ async function refreshTokenIfNeeded(org: Organization): Promise<Organization> {
   })
 }
 
+export type SquareTeamMember = {
+  id: string
+  display_name?: string
+  given_name?: string
+  family_name?: string
+  email_address?: string
+  assigned_locations?: {
+    assignment_type?: "ALL_CURRENT_AND_FUTURE_LOCATIONS" | "EXPLICIT_LOCATIONS"
+    location_ids?: string[]
+  }
+}
+
+// Fetches active team members, trying the org OAuth token first and falling
+// back to the personal access token if the OAuth scope is insufficient.
+// Returns null if neither token can read team members.
+export async function fetchSquareTeamMembers(org: Organization): Promise<SquareTeamMember[] | null> {
+  const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]
+
+  for (const token of tokens) {
+    const res = await fetch(`${getBaseUrl()}/v2/team-members/search`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Square-Version": SQUARE_VERSION,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: { filter: { status: "ACTIVE" } }, limit: 200 }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      return (data.team_members as SquareTeamMember[]) ?? []
+    }
+  }
+  return null
+}
+
+// Maps a Square team member's assigned locations onto the org's stores.
+// Square has no primary/home-location concept — location_ids come back in
+// arbitrary (alphabetical) order — so a primary is only inferred when the
+// member has exactly one explicit location. ALL_CURRENT_AND_FUTURE_LOCATIONS
+// means access everywhere, with no single home store to infer.
+export function mapAssignedStores(
+  member: SquareTeamMember,
+  stores: { id: string; squareLocationId: string | null }[]
+): { assignedStoreIds: string[]; primaryStoreId: string | null; allLocations: boolean } {
+  const assigned = member.assigned_locations
+  const allLocations = assigned?.assignment_type === "ALL_CURRENT_AND_FUTURE_LOCATIONS" || !assigned
+  if (allLocations) {
+    return { assignedStoreIds: stores.filter((s) => s.squareLocationId).map((s) => s.id), primaryStoreId: null, allLocations: true }
+  }
+  const byLocation = new Map(stores.filter((s) => s.squareLocationId).map((s) => [s.squareLocationId as string, s.id]))
+  const assignedStoreIds = (assigned?.location_ids ?? []).map((lid) => byLocation.get(lid)).filter(Boolean) as string[]
+  return { assignedStoreIds, primaryStoreId: assignedStoreIds.length === 1 ? assignedStoreIds[0] : null, allLocations: false }
+}
+
 export async function getSquareClient(org: Organization) {
   if (!org.squareAccessToken) throw new Error("SQUARE_NOT_CONNECTED")
 

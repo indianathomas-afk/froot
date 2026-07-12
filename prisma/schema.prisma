@@ -21,6 +21,14 @@ model Organization {
   squareRefreshToken   String?
   squareTokenExpiresAt DateTime?
   lastCatalogSyncAt    DateTime?
+  instagramAccessToken    String?
+  instagramTokenExpiresAt DateTime?
+  instagramUserId         String?
+  instagramUsername       String?
+  instagramEnabled        Boolean   @default(false)
+  instagramConnectedAt    DateTime?
+  // Days an unacknowledged handoff note keeps surfacing past its target day.
+  handoffNoteExpireDays   Int       @default(2)
   createdAt            DateTime  @default(now())
 
   stores               Store[]
@@ -56,6 +64,7 @@ model Organization {
   storeIngredientPars  StoreIngredientPar[]
   teamMessages         TeamMessage[]
   corporateUpdates     CorporateUpdate[]
+  paceAlertLogs        PaceAlertLog[]
 }
 
 model User {
@@ -72,6 +81,7 @@ model User {
   taskLogs         TaskLog[]
   teamMessages     TeamMessage[]         @relation("TeamMessageAuthor")
   resolvedMessages TeamMessage[]         @relation("TeamMessageResolver")
+  acknowledgedMessages TeamMessage[]     @relation("TeamMessageAcknowledger")
   messageReactions MessageReaction[]
   messageReads     MessageRead[]
   corporateUpdates CorporateUpdate[]
@@ -115,6 +125,7 @@ model Store {
   varianceAdjustments  VarianceAdjustment[]
   ingredientPars       StoreIngredientPar[]
   teamMessages         TeamMessage[]
+  paceAlertLogs        PaceAlertLog[]
 }
 
 model StoreHours {
@@ -168,9 +179,10 @@ model StaffMember {
 }
 
 model StoreStaffAssignment {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   staffMemberId String
   storeId       String
+  isPrimary     Boolean @default(false)
 
   staffMember StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
   store       Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -288,6 +300,27 @@ model AuditLog {
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, entityType, createdAt])
+}
+
+// ─── PHASE F-5: BEHIND-PACE ALERTS ───────────────────────────────────────────
+// One row per store-month = the alert was sent; its unique constraint is the
+// idempotency lock that keeps the daily cron from re-alerting all month.
+model PaceAlertLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  month          DateTime @db.Date // first-of-month UTC date
+  pacePct        Float
+  thresholdPct   Float
+  recipients     String[]
+  sentAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, month])
 }
 
 enum Role {
@@ -1070,6 +1103,12 @@ model TeamMessage {
   status             String    @default("open") // open | resolved | archived — free ticket system for shortage/equipment
   resolvedByUserId   String?
   resolvedAt         DateTime?
+  // Handoff lifecycle: explicit Acknowledge (not viewing) clears a note from
+  // checklist banners and the dashboard; expiresAt bounds how long an
+  // unacknowledged note keeps surfacing (org-configurable, from postedForDate).
+  acknowledgedAt       DateTime?
+  acknowledgedByUserId String?
+  expiresAt            DateTime?
   createdAt          DateTime  @default(now())
   editedAt           DateTime?
   deletedAt          DateTime?
@@ -1079,6 +1118,7 @@ model TeamMessage {
   authorUser       User?               @relation("TeamMessageAuthor", fields: [authorUserId], references: [id])
   authorStaff      StaffMember?        @relation(fields: [authorStaffId], references: [id])
   resolvedByUser   User?               @relation("TeamMessageResolver", fields: [resolvedByUserId], references: [id])
+  acknowledgedByUser User?             @relation("TeamMessageAcknowledger", fields: [acknowledgedByUserId], references: [id])
   linkedIngredient Ingredient?         @relation(fields: [linkedIngredientId], references: [id])
   postedToTemplate Template?           @relation("HandoffTarget", fields: [postedToTemplateId], references: [id])
   sourceChecklist  Checklist?          @relation("HandoffSource", fields: [sourceChecklistId], references: [id])

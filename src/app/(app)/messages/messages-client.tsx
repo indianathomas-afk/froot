@@ -1,8 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import {
   Camera,
+  Check,
   FileText,
   Loader2,
   Megaphone,
@@ -73,15 +74,20 @@ export type FeedMessage = {
   createdAt: string
   editedAt: string | null
   resolvedAt: string | null
+  acknowledgedAt: string | null
+  acknowledgedBy: string | null
+  expiresAt: string | null
 }
 
 type CorpUpdate = {
   id: string
   title: string
   body: string
+  storeIds: string[]
   publishedAt: string | null
   pinnedUntil: string | null
   author: string | null
+  attachments: FeedAttachment[]
 }
 
 type PendingAttachment = {
@@ -261,7 +267,7 @@ export function MessagesClient({
         )}
       </div>
 
-      <CorporateSection isAdmin={role === "ADMIN"} storeId={storeId} />
+      <CorporateSection isAdmin={role === "ADMIN"} storeId={storeId} stores={stores} />
 
       <Composer
         storeId={storeId}
@@ -338,25 +344,42 @@ export function MessagesClient({
 
 // ─── Corporate updates ────────────────────────────────────────────────────────
 
-function CorporateSection({ isAdmin, storeId }: { isAdmin: boolean; storeId: string }) {
-  const [updates, setUpdates] = useState<CorpUpdate[] | null>(null)
+function CorporateSection({
+  isAdmin,
+  storeId,
+  stores,
+}: {
+  isAdmin: boolean
+  storeId: string
+  stores: { id: string; name: string }[]
+}) {
+  // Keyed by storeId so switching stores shows the skeleton, not stale updates.
+  const [updatesRes, setUpdatesRes] = useState<{ storeId: string; updates: CorpUpdate[] } | null>(null)
   const [expanded, setExpanded] = useState(false)
 
   const load = useCallback(() => {
-    fetch("/api/corporate-updates?limit=10")
+    if (!storeId) return
+    fetch(`/api/corporate-updates?limit=10&storeId=${storeId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setUpdates(d?.updates ?? []))
-      .catch(() => setUpdates([]))
-  }, [])
+      .then((d) => setUpdatesRes({ storeId, updates: d?.updates ?? [] }))
+      .catch(() => setUpdatesRes({ storeId, updates: [] }))
+  }, [storeId])
 
   useEffect(() => {
     load()
   }, [load])
 
+  const updates = updatesRes && updatesRes.storeId === storeId ? updatesRes.updates : null
   if (updates === null) return <Skeleton className="h-24 w-full" />
   const published = updates.filter((u) => u.publishedAt)
   const shown = expanded ? published : published.slice(0, 1)
   if (published.length === 0 && !isAdmin) return null
+
+  function targetLabel(ids: string[]): string {
+    if (ids.length === 0) return "All locations"
+    const names = ids.map((id) => stores.find((s) => s.id === id)?.name ?? "Unknown store")
+    return names.join(", ")
+  }
 
   return (
     <div className="rounded-xl p-5 bg-gradient-to-br from-[#FCE0CC] to-[#F6C8A6]">
@@ -365,7 +388,7 @@ function CorporateSection({ isAdmin, storeId }: { isAdmin: boolean; storeId: str
           <Megaphone className="h-3.5 w-3.5 text-white" />
         </div>
         <p className="text-[13px] font-extrabold tracking-wide text-[#8A3E17] flex-1">CORPORATE UPDATES</p>
-        {isAdmin && <NewUpdateDialog storeId={storeId} onCreated={load} />}
+        {isAdmin && <NewUpdateDialog stores={stores} onCreated={load} />}
       </div>
       {published.length === 0 ? (
         <p className="text-[13px] text-[#6B4326]">No updates published yet.</p>
@@ -375,8 +398,14 @@ function CorporateSection({ isAdmin, storeId }: { isAdmin: boolean; storeId: str
             <div key={u.id}>
               <p className="text-base font-bold text-[#1C1917]">{u.title}</p>
               <p className="text-[13px] text-[#6B4326] whitespace-pre-wrap">{u.body}</p>
+              <MessageAttachments attachments={u.attachments} />
               <div className="flex items-center gap-3 mt-1">
                 <p className="text-xs font-bold text-[#8A3E17]">Posted {timeAgo(u.publishedAt!)}</p>
+                {isAdmin && (
+                  <p className="text-xs text-[#8A3E17]/80" title="Which stores see this update">
+                    → {targetLabel(u.storeIds)}
+                  </p>
+                )}
                 {isAdmin && <DeleteUpdateButton id={u.id} onDeleted={load} />}
               </div>
             </div>
@@ -392,14 +421,25 @@ function CorporateSection({ isAdmin, storeId }: { isAdmin: boolean; storeId: str
   )
 }
 
-function NewUpdateDialog({ storeId, onCreated }: { storeId: string; onCreated: () => void }) {
+function NewUpdateDialog({ stores, onCreated }: { stores: { id: string; name: string }[]; onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
-  const [thisStoreOnly, setThisStoreOnly] = useState(false)
+  const [allLocations, setAllLocations] = useState(true)
+  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([])
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [uploading, setUploading] = useState(false)
   const [pinDays, setPinDays] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  function toggleStore(id: string, checked: boolean) {
+    // Picking a specific store overrides "All Locations".
+    setAllLocations(false)
+    setSelectedStoreIds((prev) => (checked ? [...prev, id] : prev.filter((s) => s !== id)))
+  }
+
+  const noTarget = !allLocations && selectedStoreIds.length === 0
 
   async function save() {
     setSaving(true)
@@ -412,9 +452,10 @@ function NewUpdateDialog({ storeId, onCreated }: { storeId: string; onCreated: (
         body: JSON.stringify({
           title,
           body,
-          storeIds: thisStoreOnly ? [storeId] : [],
+          storeIds: allLocations ? [] : selectedStoreIds,
           pinnedUntil,
           publish: true,
+          attachments,
         }),
       })
       if (!res.ok) {
@@ -425,7 +466,9 @@ function NewUpdateDialog({ storeId, onCreated }: { storeId: string; onCreated: (
       setOpen(false)
       setTitle("")
       setBody("")
-      setThisStoreOnly(false)
+      setAllLocations(true)
+      setSelectedStoreIds([])
+      setAttachments([])
       setPinDays("")
       onCreated()
     } finally {
@@ -447,12 +490,51 @@ function NewUpdateDialog({ storeId, onCreated }: { storeId: string; onCreated: (
         <div className="space-y-3">
           <Input placeholder="Title" maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} />
           <Textarea placeholder="What does every store need to know?" rows={5} maxLength={5000} value={body} onChange={(e) => setBody(e.target.value)} />
-          <div className="flex items-center gap-2">
-            <Checkbox id="this-store" checked={thisStoreOnly} onCheckedChange={(v) => setThisStoreOnly(v === true)} />
-            <Label htmlFor="this-store" className="text-sm">
-              Only the currently selected store
-            </Label>
+
+          <AttachmentComposer
+            attachments={attachments}
+            setAttachments={setAttachments}
+            uploading={uploading}
+            setUploading={setUploading}
+            onError={setError}
+          />
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">Send to</Label>
+            <div className="rounded-md border border-[var(--color-border)] p-2.5 space-y-2 max-h-44 overflow-y-auto">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="all-locations"
+                  checked={allLocations}
+                  onCheckedChange={(v) => {
+                    setAllLocations(v === true)
+                    if (v === true) setSelectedStoreIds([])
+                  }}
+                />
+                <Label htmlFor="all-locations" className="text-sm font-semibold">
+                  All Locations
+                </Label>
+              </div>
+              {stores.map((s) => (
+                <div key={s.id} className="flex items-center gap-2 pl-5">
+                  <Checkbox
+                    id={`target-store-${s.id}`}
+                    checked={!allLocations && selectedStoreIds.includes(s.id)}
+                    onCheckedChange={(v) => toggleStore(s.id, v === true)}
+                  />
+                  <Label htmlFor={`target-store-${s.id}`} className="text-sm font-normal">
+                    {s.name}
+                  </Label>
+                </div>
+              ))}
+            </div>
+            {noTarget && (
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Choose All Locations or pick at least one store.
+              </p>
+            )}
           </div>
+
           <div className="flex items-center gap-2">
             <Label htmlFor="pin-days" className="text-sm shrink-0">
               Pin on dashboard for
@@ -465,7 +547,7 @@ function NewUpdateDialog({ storeId, onCreated }: { storeId: string; onCreated: (
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={save} disabled={saving || !title.trim() || !body.trim()}>
+            <Button onClick={save} disabled={saving || uploading || !title.trim() || !body.trim() || noTarget}>
               {saving ? "Publishing…" : "Publish"}
             </Button>
           </div>
@@ -502,6 +584,136 @@ function DeleteUpdateButton({ id, onDeleted }: { id: string; onDeleted: () => vo
   )
 }
 
+// ─── Attachment composer ──────────────────────────────────────────────────────
+// Photo / File / YouTube pickers + pending-attachment badges, shared by the
+// team-message composer and the corporate-update dialog so upload behavior,
+// validation, and styling stay identical.
+
+function AttachmentComposer({
+  attachments,
+  setAttachments,
+  uploading,
+  setUploading,
+  onError,
+  trailing,
+}: {
+  attachments: PendingAttachment[]
+  setAttachments: Dispatch<SetStateAction<PendingAttachment[]>>
+  uploading: boolean
+  setUploading: (v: boolean) => void
+  onError: (msg: string | null) => void
+  trailing?: ReactNode
+}) {
+  const [youtubeOpen, setYoutubeOpen] = useState(false)
+  const [youtubeUrl, setYoutubeUrl] = useState("")
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const docInputRef = useRef<HTMLInputElement>(null)
+
+  async function uploadFile(file: File) {
+    if (attachments.length >= 4) {
+      onError("Max 4 attachments per message")
+      return
+    }
+    setUploading(true)
+    onError(null)
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch("/api/upload/message-attachment", { method: "POST", body: form })
+      const d = await res.json()
+      if (!res.ok) {
+        onError(d?.error ?? "Upload failed")
+        return
+      }
+      setAttachments((prev) => [...prev, d])
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function addYoutube() {
+    if (!youtubeUrl.trim()) return
+    if (attachments.length >= 4) {
+      onError("Max 4 attachments per message")
+      return
+    }
+    setAttachments((prev) => [...prev, { kind: "youtube", url: youtubeUrl.trim() }])
+    setYoutubeUrl("")
+    setYoutubeOpen(false)
+  }
+
+  return (
+    <>
+      {/* Pending attachments */}
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {attachments.map((a, idx) => (
+            <Badge key={idx} variant="secondary" className="gap-1 max-w-56">
+              {a.kind === "image" ? <Camera className="h-3 w-3" /> : a.kind === "youtube" ? <CirclePlay className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+              <span className="truncate">{a.filename ?? (a.kind === "youtube" ? "YouTube video" : a.url)}</span>
+              <button
+                onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                className="ml-1 hover:text-[var(--color-destructive)]"
+              >
+                ×
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {youtubeOpen && (
+        <div className="flex gap-2">
+          <Input placeholder="Paste a YouTube link" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} />
+          <Button variant="outline" onClick={addYoutube} disabled={!youtubeUrl.trim()}>
+            Add
+          </Button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) uploadFile(f)
+            e.target.value = ""
+          }}
+        />
+        <input
+          ref={docInputRef}
+          type="file"
+          accept=".pdf,.docx,.xlsx,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) uploadFile(f)
+            e.target.value = ""
+          }}
+        />
+        <Button variant="outline" size="sm" onClick={() => photoInputRef.current?.click()} disabled={uploading}>
+          <Camera className="h-4 w-4" />
+          Photo
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => docInputRef.current?.click()} disabled={uploading}>
+          <Paperclip className="h-4 w-4" />
+          File
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setYoutubeOpen((o) => !o)}>
+          <CirclePlay className="h-4 w-4" />
+          Video
+        </Button>
+        {uploading && <Loader2 className="h-4 w-4 animate-spin text-[var(--color-muted-foreground)]" />}
+        {trailing}
+      </div>
+    </>
+  )
+}
+
 // ─── Composer ─────────────────────────────────────────────────────────────────
 
 function Composer({
@@ -517,13 +729,9 @@ function Composer({
   const [body, setBody] = useState("")
   const [shiftPhase, setShiftPhase] = useState("opening")
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
-  const [youtubeOpen, setYoutubeOpen] = useState(false)
-  const [youtubeUrl, setYoutubeUrl] = useState("")
   const [uploading, setUploading] = useState(false)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const photoInputRef = useRef<HTMLInputElement>(null)
-  const docInputRef = useRef<HTMLInputElement>(null)
 
   // Shortage → optional ingredient link (inventory module only).
   const [ingredients, setIngredients] = useState<{ id: string; name: string }[] | null>(null)
@@ -537,39 +745,6 @@ function Composer({
       .then((list: { id: string; name: string }[]) => setIngredients(list.map((i) => ({ id: i.id, name: i.name }))))
       .catch(() => setIngredients([]))
   }, [type, inventoryActive, ingredients])
-
-  async function uploadFile(file: File) {
-    if (attachments.length >= 4) {
-      setError("Max 4 attachments per message")
-      return
-    }
-    setUploading(true)
-    setError(null)
-    try {
-      const form = new FormData()
-      form.append("file", file)
-      const res = await fetch("/api/upload/message-attachment", { method: "POST", body: form })
-      const d = await res.json()
-      if (!res.ok) {
-        setError(d?.error ?? "Upload failed")
-        return
-      }
-      setAttachments((prev) => [...prev, d])
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  function addYoutube() {
-    if (!youtubeUrl.trim()) return
-    if (attachments.length >= 4) {
-      setError("Max 4 attachments per message")
-      return
-    }
-    setAttachments((prev) => [...prev, { kind: "youtube", url: youtubeUrl.trim() }])
-    setYoutubeUrl("")
-    setYoutubeOpen(false)
-  }
 
   async function post() {
     setPosting(true)
@@ -695,75 +870,21 @@ function Composer({
           onChange={(e) => setBody(e.target.value)}
         />
 
-        {/* Pending attachments */}
-        {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {attachments.map((a, idx) => (
-              <Badge key={idx} variant="secondary" className="gap-1 max-w-56">
-                {a.kind === "image" ? <Camera className="h-3 w-3" /> : a.kind === "youtube" ? <CirclePlay className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
-                <span className="truncate">{a.filename ?? (a.kind === "youtube" ? "YouTube video" : a.url)}</span>
-                <button
-                  onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
-                  className="ml-1 hover:text-[var(--color-destructive)]"
-                >
-                  ×
-                </button>
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {youtubeOpen && (
-          <div className="flex gap-2">
-            <Input placeholder="Paste a YouTube link" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} />
-            <Button variant="outline" onClick={addYoutube} disabled={!youtubeUrl.trim()}>
-              Add
-            </Button>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) uploadFile(f)
-              e.target.value = ""
-            }}
-          />
-          <input
-            ref={docInputRef}
-            type="file"
-            accept=".pdf,.docx,.xlsx,application/pdf"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) uploadFile(f)
-              e.target.value = ""
-            }}
-          />
-          <Button variant="outline" size="sm" onClick={() => photoInputRef.current?.click()} disabled={uploading}>
-            <Camera className="h-4 w-4" />
-            Photo
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => docInputRef.current?.click()} disabled={uploading}>
-            <Paperclip className="h-4 w-4" />
-            File
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setYoutubeOpen((o) => !o)}>
-            <CirclePlay className="h-4 w-4" />
-            Video
-          </Button>
-          {uploading && <Loader2 className="h-4 w-4 animate-spin text-[var(--color-muted-foreground)]" />}
-          <span className="flex-1" />
-          <Button onClick={post} disabled={posting || uploading || !body.trim() || !storeId}>
-            {posting ? "Posting…" : "Post"}
-          </Button>
-        </div>
+        <AttachmentComposer
+          attachments={attachments}
+          setAttachments={setAttachments}
+          uploading={uploading}
+          setUploading={setUploading}
+          onError={setError}
+          trailing={
+            <>
+              <span className="flex-1" />
+              <Button onClick={post} disabled={posting || uploading || !body.trim() || !storeId}>
+                {posting ? "Posting…" : "Post"}
+              </Button>
+            </>
+          }
+        />
 
         {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
       </CardContent>
@@ -942,11 +1063,22 @@ function MessageCard({
                   {message.status}
                 </Badge>
               )}
-              {message.postedToTemplate && (
+              {message.postedForDate && (
                 <span className="text-xs text-[var(--color-muted-foreground)]">
-                  → {message.postedToTemplate.name}
-                  {message.postedForDate && ` (${message.postedForDate})`}
+                  → {message.postedToTemplate?.name ?? "Everyone"} ({message.postedForDate})
                 </span>
+              )}
+              {/* Handoff lifecycle: acknowledged beats expired; an active note shows neither. */}
+              {message.postedForDate && message.acknowledgedAt && (
+                <Badge variant="secondary" className="uppercase text-[10px] gap-1" title={message.acknowledgedBy ? `Acknowledged by ${message.acknowledgedBy}` : undefined}>
+                  <Check className="h-3 w-3" />
+                  Acknowledged{message.acknowledgedBy ? ` · ${message.acknowledgedBy}` : ""}
+                </Badge>
+              )}
+              {message.postedForDate && !message.acknowledgedAt && message.expiresAt && new Date(message.expiresAt) <= new Date() && (
+                <Badge variant="outline" className="uppercase text-[10px] text-[var(--color-muted-foreground)]">
+                  Expired
+                </Badge>
               )}
             </div>
 

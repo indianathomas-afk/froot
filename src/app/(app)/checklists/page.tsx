@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { businessDayWindow } from "@/lib/reports"
 import { CheckSquare } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -43,16 +44,19 @@ async function getChecklists(requestedStoreId: string | undefined) {
     effectiveStoreId = requestedStoreId
   }
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  // "Today" is each store's local business day (Store.timezone), not the
+  // server (UTC) day — stores in different timezones get different windows.
+  const now = new Date()
+  const scopedStores = effectiveStoreId ? stores.filter((s) => s.id === effectiveStoreId) : stores
+  const byTz = new Map<string, string[]>()
+  for (const s of scopedStores) byTz.set(s.timezone, [...(byTz.get(s.timezone) ?? []), s.id])
 
-  const where: Record<string, unknown> = { organizationId: org.id, date: { gte: today, lt: tomorrow } }
-  if (effectiveStoreId) {
-    where.storeId = effectiveStoreId
-  } else if (!isAdmin) {
-    where.storeId = { in: storeIds }
+  const where: Record<string, unknown> = {
+    organizationId: org.id,
+    OR: [...byTz.entries()].map(([tz, ids]) => {
+      const w = businessDayWindow(now, tz)
+      return { storeId: { in: ids }, date: { gte: w.gte, lt: w.lt } }
+    }),
   }
 
   const checklists = await prisma.checklist.findMany({

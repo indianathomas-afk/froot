@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { businessDayWindow } from "@/lib/reports"
 import { NextResponse } from "next/server"
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -36,17 +37,15 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     return true // "all" or legacy rows with no appliesTo set
   })
 
-  // Check which ones already have a checklist started today
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  // Check which ones already have a checklist started today — "today" is the
+  // store's local business day, not the server (UTC) day.
+  const w = businessDayWindow(new Date(), store.timezone)
 
   const existingToday = await prisma.checklist.findMany({
     where: {
       organizationId: org.id,
       storeId,
-      date: { gte: today, lt: tomorrow },
+      date: { gte: w.gte, lt: w.lt },
     },
     select: { id: true, templateId: true, status: true },
   })
@@ -60,7 +59,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       name: t.name,
       type: t.type,
       taskCount: t.tasks.length,
-      estimatedMinutes: t.tasks.reduce((sum, task) => sum + (task.estimatedTimeMinutes ?? 0), 0),
+      estimatedMinutes: Math.round(t.tasks.reduce((sum, task) => sum + (task.estimatedTimeMinutes ?? 0), 0)),
       existingChecklistId: existing?.id ?? null,
       existingStatus: existing?.status ?? null,
     }

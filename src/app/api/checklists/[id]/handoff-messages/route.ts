@@ -6,17 +6,20 @@ import {
   MESSAGE_TYPES,
   MAX_ATTACHMENTS,
   MAX_BODY_LENGTH,
-  HANDOFF_MAX_AGE_DAYS,
   attachmentSchema,
   buildAttachmentRows,
   phaseToShiftPhase,
   resolvePostedForDate,
+  handoffExpiresAt,
+  activeHandoffNotesWhere,
   messageInclude,
   serializeMessage,
 } from "@/lib/messages"
 
+// postedToTemplateId omitted = store-wide note ("Everyone") — it surfaces on
+// every checklist banner and the dashboard until acknowledged.
 const createSchema = z.object({
-  postedToTemplateId: z.string().min(1),
+  postedToTemplateId: z.string().min(1).nullish(),
   body: z.string().trim().min(1).max(MAX_BODY_LENGTH),
   type: z.enum(MESSAGE_TYPES).optional(),
   attachments: z.array(attachmentSchema).max(MAX_ATTACHMENTS).optional(),
@@ -34,9 +37,9 @@ async function loadScopedChecklist(id: string) {
 }
 
 // GET /api/checklists/[id]/handoff-messages — "Notes from the last shift" for
-// this instance: notes posted to its template for its date. Viewing marks them
-// read for the current user. Notes older than 7 days never render here (they
-// stay in the feed) to avoid stale banners.
+// this instance: unacknowledged notes posted to its template (or store-wide)
+// whose surface date has arrived. Viewing marks them read for the current
+// user, but only explicit Acknowledge (PATCH /api/messages/[id]) clears them.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   let scoped: Awaited<ReturnType<typeof loadScopedChecklist>>
@@ -49,18 +52,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!checklist) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (!scoped.allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const minCreatedAt = new Date(Date.now() - HANDOFF_MAX_AGE_DAYS * 86400000)
-  // Checklist.date is a DateTime; postedForDate is a DATE — normalize to the
-  // calendar day before comparing.
-  const instanceDay = new Date(`${checklist.date.toISOString().slice(0, 10)}T00:00:00.000Z`)
   const messages = await prisma.teamMessage.findMany({
-    where: {
+    where: activeHandoffNotesWhere({
       storeId: checklist.storeId,
-      postedToTemplateId: checklist.templateId,
-      postedForDate: instanceDay,
-      deletedAt: null,
-      createdAt: { gte: minCreatedAt },
-    },
+      // Checklist.date is a DateTime; postedForDate is a DATE — compare on the
+      // calendar day.
+      day: checklist.date.toISOString().slice(0, 10),
+      templateIds: [checklist.templateId],
+    }),
     include: messageInclude,
     orderBy: { createdAt: "asc" },
   })
@@ -98,17 +97,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const data = parsed.data
 
   // Target must be an active template of this org, available to this store.
-  const target = await prisma.template.findFirst({
-    where: {
-      id: data.postedToTemplateId,
-      organizationId: ctx.org.id,
-      isActive: true,
-      isArchived: false,
-      OR: [{ appliesTo: "all" }, { storeAssignments: { some: { storeId: checklist.storeId } } }],
-    },
-    select: { id: true, operationalPhase: true },
-  })
-  if (!target) return NextResponse.json({ error: "Target checklist not found" }, { status: 404 })
+  // No target = store-wide: date-wise it behaves like targeting the day's last
+  // slot (surfaces today, unless posted from the closing slot → tomorrow).
+  let target: { id: string; operationalPhase: string | null } | null = null
+  if (data.postedToTemplateId) {
+    target = await prisma.template.findFirst({
+      where: {
+        id: data.postedToTemplateId,
+        organizationId: ctx.org.id,
+        isActive: true,
+        isArchived: false,
+        OR: [{ appliesTo: "all" }, { storeAssignments: { some: { storeId: checklist.storeId } } }],
+      },
+      select: { id: true, operationalPhase: true },
+    })
+    if (!target) return NextResponse.json({ error: "Target checklist not found" }, { status: 404 })
+  }
 
   let attachmentRows
   try {
@@ -121,7 +125,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const postedForDate = resolvePostedForDate(
     sourceDate,
     checklist.template.operationalPhase,
-    target.operationalPhase
+    target ? target.operationalPhase : "After Closing"
   )
 
   const message = await prisma.teamMessage.create({
@@ -132,8 +136,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       type: data.type ?? "shift_note",
       shiftPhase: phaseToShiftPhase(checklist.template.operationalPhase),
       body: data.body,
-      postedToTemplateId: target.id,
+      postedToTemplateId: target?.id ?? null,
       postedForDate: new Date(`${postedForDate}T00:00:00.000Z`),
+      expiresAt: handoffExpiresAt(postedForDate, ctx.org.handoffNoteExpireDays),
       sourceChecklistId: checklist.id,
       attachments: { create: attachmentRows },
       ...(ctx.dbUser ? { reads: { create: { userId: ctx.dbUser.id } } } : {}),

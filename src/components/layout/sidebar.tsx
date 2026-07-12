@@ -22,11 +22,20 @@ import {
   PanelLeftOpen,
   Package,
 } from "lucide-react"
+import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
 import { useClerk, useUser } from "@clerk/nextjs"
 import { setSidebarCollapsed, useSidebarCollapsed } from "./use-sidebar-collapsed"
 
-const navItems = [
+type NavItem = {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  roles: string[]
+  requiresInstagram?: boolean
+}
+
+const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/checklists", label: "Checklists", icon: CheckSquare, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   { href: "/messages", label: "Messages", icon: MessageSquare, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
@@ -37,6 +46,8 @@ const navItems = [
   { href: "/reports", label: "Reports", icon: BarChart2, roles: ["ADMIN", "MANAGER"] },
   { href: "/forecasting", label: "Forecasting", icon: TrendingUp, roles: ["ADMIN", "MANAGER"] },
   { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  // Only rendered when the org has Instagram connected + enabled (see filter below).
+  { href: "/instagram", label: "Instagram", icon: InstagramIcon, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresInstagram: true },
 ]
 
 const inventoryNavItems = [
@@ -53,12 +64,22 @@ const inventoryNavItems = [
   { href: "/inventory/reports", label: "Reports", roles: ["ADMIN", "MANAGER"] },
 ]
 
-export function Sidebar({ role, activeModules = [] }: { role: string; activeModules?: string[] }) {
+export function Sidebar({
+  role,
+  activeModules = [],
+  instagramEnabled = false,
+}: {
+  role: string
+  activeModules?: string[]
+  instagramEnabled?: boolean
+}) {
   const pathname = usePathname()
   const { signOut } = useClerk()
   const { user } = useUser()
   const collapsed = useSidebarCollapsed()
-  const visibleNavItems = navItems.filter((item) => item.roles.includes(role))
+  const visibleNavItems = navItems.filter(
+    (item) => item.roles.includes(role) && (!item.requiresInstagram || instagramEnabled)
+  )
   const visibleInventoryItems = activeModules.includes("inventory")
     ? inventoryNavItems.filter((item) => item.roles.includes(role))
     : []

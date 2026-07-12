@@ -3,6 +3,8 @@ import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
+import { monthStart } from "@/lib/pacing"
+import { getMonthGoal } from "@/lib/month-goal"
 
 // GET /api/dashboard/summary?storeId= — everything the Dashboard needs in one
 // call. NOT module-gated (the Dashboard is the landing page); the sales block
@@ -16,15 +18,6 @@ function sameWeekdayLastYear(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00.000Z`)
   d.setUTCDate(d.getUTCDate() - 364)
   return d.toISOString().slice(0, 10)
-}
-
-function monthStart(dateStr: string): string {
-  return `${dateStr.slice(0, 7)}-01`
-}
-
-function daysInMonth(dateStr: string): number {
-  const [y, m] = dateStr.split("-").map(Number)
-  return new Date(Date.UTC(y, m, 0)).getUTCDate()
 }
 
 export async function GET(req: Request) {
@@ -53,8 +46,6 @@ export async function GET(req: Request) {
   const today = localDateStr(new Date(), tz)
   const comparisonDate = sameWeekdayLastYear(today)
   const mStart = monthStart(today)
-  const dayOfMonth = Number(today.slice(8, 10))
-  const totalDays = daysInMonth(today)
 
   // ── Sales block (inventory module + Square link required) ──
   const salesAvailable =
@@ -110,29 +101,10 @@ export async function GET(req: Request) {
   }
 
   // ── Monthly goal ──
-  // A Forecasting plan (materialized DailyGoal rows) beats the legacy manual
-  // StoreMonthlyGoal. Its MTD goal sum also enables goal-weighted pacing:
-  // projected = MTD actual ÷ MTD goal × month goal — which respects the
-  // remaining weekday mix (3 Saturdays left ≠ 1), unlike simple run-rate.
-  const monthEnd = `${mStart.slice(0, 7)}-${String(totalDays).padStart(2, "0")}`
-  const [goalRow, planMonthAgg, planMtdAgg] = await Promise.all([
-    prisma.storeMonthlyGoal.findUnique({
-      where: { storeId_month: { storeId, month: dbDate(mStart) } },
-    }),
-    prisma.dailyGoal.aggregate({
-      where: { storeId, date: { gte: dbDate(mStart), lte: dbDate(monthEnd) } },
-      _sum: { goalAmount: true },
-      _count: true,
-    }),
-    prisma.dailyGoal.aggregate({
-      where: { storeId, date: { gte: dbDate(mStart), lte: dbDate(today) } },
-      _sum: { goalAmount: true },
-    }),
-  ])
-  const round2 = (n: number) => Math.round(n * 100) / 100
-  const hasPlan = planMonthAgg._count > 0
-  const planMonthGoal = hasPlan ? round2(planMonthAgg._sum.goalAmount ?? 0) : null
-  const planMtdGoal = hasPlan ? round2(planMtdAgg._sum.goalAmount ?? 0) : null
+  // Shared with the all-locations rollup (src/lib/month-goal.ts): a
+  // Forecasting plan beats the legacy manual StoreMonthlyGoal, and its MTD
+  // goal sum enables goal-weighted pacing (projectMonthEnd in pacing.ts).
+  const monthGoal = await getMonthGoal(storeId, today)
 
   // ── Shift checklist (today, this store) ──
   const dayStartUtc = new Date(`${today}T00:00:00.000Z`)
@@ -162,13 +134,8 @@ export async function GET(req: Request) {
     salesAvailable,
     sales,
     goal: {
-      month: mStart,
-      goalAmount: planMonthGoal ?? goalRow?.goalAmount ?? null,
-      source: planMonthGoal !== null ? "plan" : goalRow ? "manual" : null,
-      mtdGoal: planMtdGoal,
+      ...monthGoal,
       monthToDate: sales?.monthToDate ?? null,
-      daysElapsed: dayOfMonth,
-      daysInMonth: totalDays,
     },
     checklist: {
       total: checklistItems.length,

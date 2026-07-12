@@ -2,7 +2,10 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireForecastContext, requireForecastStore } from "@/lib/forecasting-access"
-import { redistributeMonth } from "@/lib/goal-engine"
+import { redistributeMonth, round2 } from "@/lib/goal-engine"
+import { dbDate } from "@/lib/reports"
+import { daysInMonth } from "@/lib/pacing"
+import { writeAuditLog } from "@/lib/audit"
 
 const MonthSchema = z.object({
   storeId: z.string().min(1),
@@ -32,8 +35,30 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "No goal plan for this year — create it first." }, { status: 404 })
   }
 
+  // Capture the month's total before the redistribute for the audit trail.
+  const monthEnd = `${month}-${String(daysInMonth(`${month}-01`)).padStart(2, "0")}`
+  const beforeAgg = await prisma.dailyGoal.aggregate({
+    where: { storeId, date: { gte: dbDate(`${month}-01`), lte: dbDate(monthEnd) } },
+    _sum: { goalAmount: true },
+  })
+
   try {
     const updated = await redistributeMonth(plan.id, storeId, month, totalAmount)
+    await writeAuditLog({
+      organizationId: ctx.org.id,
+      userId: ctx.userId,
+      action: "goal.month_redistribute",
+      entityType: "goal_plan",
+      entityId: plan.id,
+      metadata: {
+        storeId,
+        storeName: store.name,
+        period: month,
+        before: round2(beforeAgg._sum.goalAmount ?? 0),
+        after: round2(totalAmount),
+        source: "month",
+      },
+    })
     return NextResponse.json({ month, totalAmount, goalTotal: updated.goalTotal })
   } catch (e) {
     if (e instanceof Error && e.message === "NO_DAYS_IN_MONTH") {

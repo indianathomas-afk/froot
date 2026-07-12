@@ -47,9 +47,8 @@ export default async function ChecklistPrintPage({
     {}
   )
 
-  const totalMinutes = checklist.template.tasks.reduce(
-    (sum, t) => sum + (t.estimatedTimeMinutes ?? 0),
-    0
+  const totalMinutes = Math.round(
+    checklist.template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)
   )
   const hours = Math.floor(totalMinutes / 60)
   const mins = totalMinutes % 60
@@ -185,6 +184,7 @@ export default async function ChecklistPrintPage({
                       )}
                       {task.requiresPhoto && <span className="badge">📷 Photo required</span>}
                       {task.requiresTemp && <span className="badge">🌡 Temp required</span>}
+                      {task.videoUrl && <span className="badge">▶ Training video in app</span>}
                       {task.estimatedTimeMinutes && (
                         <span className="badge">~{task.estimatedTimeMinutes} min</span>
                       )}

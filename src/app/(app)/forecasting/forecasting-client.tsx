@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
-import { CloudDownload, FileSpreadsheet, Pencil, RefreshCw } from "lucide-react"
+import { CloudDownload, Download, FileSpreadsheet, History, Pencil, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -193,6 +193,18 @@ export function ForecastingClient({
               ))}
             </SelectContent>
           </Select>
+          {/* Download navigation, not a fetch — the route sets Content-Disposition */}
+          <Button
+            variant="outline"
+            disabled={!calendar?.plan}
+            title={calendar?.plan ? `Download the ${year} goals as CSV` : "No plan to export yet"}
+            onClick={() => {
+              window.location.href = `/api/forecasting/export?storeId=${storeId}&year=${year}`
+            }}
+          >
+            <Download className="h-4 w-4 mr-1.5" />
+            Export CSV
+          </Button>
         </div>
       </div>
 
@@ -210,12 +222,116 @@ export function ForecastingClient({
           ) : (
             <PlanSummaryCard plan={calendar?.plan ?? null} year={year} />
           )}
+          <div className="mt-4">
+            <EditHistoryCard storeId={storeId} refreshKey={loadKey} />
+          </div>
         </div>
         <div className="flex-1 min-w-[300px]">
           <YearCalendar storeId={storeId} year={year} calendar={calendar} onChanged={reload} />
         </div>
       </div>
     </div>
+  )
+}
+
+// ─── Edit history (Phase F-5 audit log) ───────────────────────────────────────
+
+type AuditEntry = {
+  id: string
+  action: string
+  createdAt: string
+  user: { name: string | null; email: string } | null
+  metadata: {
+    period?: string
+    before?: number | null
+    after?: number | null
+    increasePct?: number
+    applyScope?: string
+    shape?: string
+    fileName?: string
+  } | null
+}
+
+function auditLabel(entry: AuditEntry): string {
+  const m = entry.metadata ?? {}
+  const period = m.period ?? ""
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(period)
+    ? new Date(`${period}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null
+  const month = /^\d{4}-\d{2}$/.test(period) ? `${MONTH_LABELS[Number(period.slice(5)) - 1]} ${period.slice(0, 4)}` : null
+  switch (entry.action) {
+    case "goal.day_override":
+      return `${day ?? period} goal`
+    case "goal.month_redistribute":
+      return `${month ?? period} total redistributed`
+    case "goal.plan_regenerate":
+      return `${period} plan regenerated${m.increasePct !== undefined ? ` at ${m.increasePct >= 0 ? "+" : ""}${m.increasePct}%` : ""}${m.applyScope === "remaining" ? " (remaining days)" : ""}`
+    case "goal.import_commit":
+      return `${period} budget imported${m.fileName ? ` (${m.fileName})` : ""}`
+    case "goal.manual_set":
+      return `${month ?? period} manual goal`
+    default:
+      return entry.action
+  }
+}
+
+function EditHistoryCard({ storeId, refreshKey }: { storeId: string; refreshKey: number }) {
+  const [result, setResult] = useState<{ storeId: string; entries: AuditEntry[] | null } | null>(null)
+
+  useEffect(() => {
+    if (!storeId) return
+    let cancelled = false
+    fetch(`/api/forecasting/audit?storeId=${storeId}&limit=20`)
+      .then((r): Promise<{ entries: AuditEntry[] } | null> => (r.ok ? r.json() : Promise.resolve(null)))
+      .then((d) => {
+        if (!cancelled) setResult({ storeId, entries: d?.entries ?? null })
+      })
+      .catch(() => {
+        if (!cancelled) setResult({ storeId, entries: null })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [storeId, refreshKey])
+
+  const entries = result?.storeId === storeId ? result.entries : null
+  const loading = !!storeId && (result === null || result.storeId !== storeId)
+
+  return (
+    <Card>
+      <CardContent className="pt-5 pb-4 space-y-3">
+        <p className="text-[15px] font-bold text-[var(--color-foreground)] flex items-center gap-1.5">
+          <History className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+          Edit history
+        </p>
+        {loading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : !entries || entries.length === 0 ? (
+          <p className="text-xs text-[var(--color-muted-foreground)]">
+            No goal edits recorded for this store yet — changes to plans, months, and days will show up here.
+          </p>
+        ) : (
+          <div className="max-h-72 overflow-y-auto space-y-2.5 pr-1">
+            {entries.map((e) => (
+              <div key={e.id} className="text-xs border-b border-[var(--color-border)] last:border-0 pb-2 last:pb-0">
+                <p className="font-medium text-[var(--color-foreground)]">{auditLabel(e)}</p>
+                {(e.metadata?.before !== undefined || e.metadata?.after !== undefined) && (
+                  <p className="text-[var(--color-muted-foreground)]">
+                    {e.metadata?.before !== null && e.metadata?.before !== undefined ? usd(e.metadata.before, 2) : "—"}
+                    {" → "}
+                    {e.metadata?.after !== null && e.metadata?.after !== undefined ? usd(e.metadata.after, 2) : "—"}
+                  </p>
+                )}
+                <p className="text-[var(--color-muted-foreground)]/80">
+                  {e.user?.name || e.user?.email || "Unknown user"} ·{" "}
+                  {new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, ClipboardList, Megaphone } from "lucide-react"
+import { ChevronLeft, ChevronRight, ClipboardList, Megaphone, StickyNote } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { projectMonthEnd } from "@/lib/pacing"
+import { MessageAttachments, type FeedAttachment } from "@/app/(app)/messages/messages-client"
 import { SalesPerformanceCard } from "./sales-performance-card"
+import { RollupView } from "./rollup-view"
 
 // ─── Types (mirror /api/dashboard/summary) ────────────────────────────────────
 
@@ -43,7 +46,17 @@ type Summary = {
 
 // ─── Comms (mirror /api/dashboard/comms — Phase I-14) ─────────────────────────
 
+type ShiftNote = {
+  id: string
+  body: string
+  author: { name: string; initial: string }
+  createdAt: string
+  postedToTemplate: { id: string; name: string } | null
+  attachments: FeedAttachment[]
+}
+
 type Comms = {
+  shiftNotes: ShiftNote[]
   teamMessagesPreview: {
     messages: {
       id: string
@@ -58,6 +71,7 @@ type Comms = {
     title: string
     body: string
     publishedAt: string
+    attachments: FeedAttachment[]
   } | null
 }
 
@@ -73,14 +87,23 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-// ─── MOCK DATA — the Instagram backend is a later build. ─────────────────────
+// ─── Instagram feed (mirror /api/instagram/feed) ──────────────────────────────
 
-type InstagramPost = { id: string; hue: number }
+type InstagramPost = {
+  id: string
+  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM"
+  media_url?: string
+  permalink: string
+  thumbnail_url?: string
+  caption?: string
+}
 
-const MOCK_INSTAGRAM: { handle: string; url: string; posts: InstagramPost[] } = {
-  handle: "@kevajuice_reno",
-  url: "https://instagram.com/kevajuice_reno",
-  posts: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `p${n}`, hue: (n * 37) % 60 })),
+type InstagramFeed = {
+  connected: boolean
+  enabled: boolean
+  username: string | null
+  profileUrl: string | null
+  posts: InstagramPost[]
 }
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
@@ -94,6 +117,10 @@ const usd = (n: number | null | undefined, digits = 0) =>
 
 const STORE_KEY = "froot.dashboard.store"
 const STORE_EVENT = "froot-dashboard-store"
+
+// Sentinel picker value for the all-locations rollup (Phase F-4) — only
+// offered when the user can see more than one store.
+const ALL_STORES = "all"
 
 function subscribeStoreKey(callback: () => void) {
   window.addEventListener("storage", callback)
@@ -127,8 +154,12 @@ export function DashboardClient({
   countRecency: { storeId: string; storeName: string; days: number | null }[]
 }) {
   const savedStoreId = useSavedStoreId()
-  const storeId = stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
+  const storeId =
+    savedStoreId === ALL_STORES && stores.length > 1
+      ? ALL_STORES
+      : stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
   const setStoreId = saveStoreId
+  const isRollup = storeId === ALL_STORES
   const [summary, setSummary] = useState<Summary | null>(null)
   // Keyed by storeId (like `current` below) so switching stores shows the
   // skeleton instead of the previous store's messages.
@@ -136,7 +167,7 @@ export function DashboardClient({
   const [checkedOverride, setCheckedOverride] = useState<Record<string, boolean>>({})
 
   const load = useCallback(() => {
-    if (!storeId) return
+    if (!storeId || storeId === ALL_STORES) return
     fetch(`/api/dashboard/summary?storeId=${storeId}`)
       .then((res): Promise<Summary | null> => (res.ok ? res.json() : Promise.resolve(null)))
       .then(setSummary)
@@ -152,9 +183,9 @@ export function DashboardClient({
   }, [load])
 
   const current = summary && summary.store.id === storeId ? summary : null
-  const loading = !!storeId && current === null
+  const loading = !isRollup && !!storeId && current === null
   const comms = commsRes && commsRes.storeId === storeId ? commsRes.data : null
-  const commsLoading = !!storeId && (commsRes === null || commsRes.storeId !== storeId)
+  const commsLoading = !isRollup && !!storeId && (commsRes === null || commsRes.storeId !== storeId)
   const store = stores.find((s) => s.id === storeId)
 
   const headerDate = useMemo(
@@ -170,7 +201,7 @@ export function DashboardClient({
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Dashboard</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
             {headerDate}
-            {store ? ` · ${store.name}${store.location ? ` — ${store.location}` : ""}` : ""}
+            {isRollup ? " · All locations" : store ? ` · ${store.name}${store.location ? ` — ${store.location}` : ""}` : ""}
           </p>
         </div>
         {stores.length > 1 && (
@@ -179,6 +210,7 @@ export function DashboardClient({
               <SelectValue placeholder="Select store" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={ALL_STORES}>All locations</SelectItem>
               {stores.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -189,46 +221,65 @@ export function DashboardClient({
         )}
       </div>
 
-      {/* Sales row: Performance (2) + Monthly Goal (1) */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
-          <SalesPerformanceCard storeId={storeId} />
-        </div>
-        <div className="flex-1 min-w-[260px]">
-          <MonthlyGoalCard loading={loading} summary={current} onSaved={load} />
-        </div>
-      </div>
-
-      {/* Three equal cards */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[280px]">
-          <TeamMessagesCard loading={commsLoading} comms={comms} />
-        </div>
-        {/* The corporate box collapses entirely when no update is active */}
-        {(commsLoading || comms?.corporateUpdate) && (
-          <div className="flex-1 min-w-[280px]">
-            <CorporateUpdateCard loading={commsLoading} update={comms?.corporateUpdate ?? null} />
+      {isRollup ? (
+        /* All-locations rollup: company totals + store ranking (F-4) */
+        <RollupView />
+      ) : (
+        <>
+          {/* Sales row: Performance (2) + Monthly Goal (1) */}
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
+              <SalesPerformanceCard storeId={storeId} />
+            </div>
+            <div className="flex-1 min-w-[260px]">
+              <MonthlyGoalCard loading={loading} summary={current} onSaved={load} />
+            </div>
           </div>
-        )}
-        <div className="flex-1 min-w-[280px]">
-          <ShiftChecklistCard
-            loading={loading}
-            summary={current}
-            checkedOverride={checkedOverride}
-            onToggle={(id) =>
-              setCheckedOverride((prev) => {
-                const item = current?.checklist.items.find((i) => i.id === id)
-                const base = item?.checked ?? false
-                const cur = prev[id] ?? base
-                return { ...prev, [id]: !cur }
-              })
-            }
-          />
-        </div>
-      </div>
 
-      {/* Instagram strip */}
-      <InstagramStrip />
+          {/* Three equal cards */}
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[280px]">
+              <TeamMessagesCard loading={commsLoading} comms={comms} />
+            </div>
+            {/* The corporate box collapses entirely when no update is active */}
+            {(commsLoading || comms?.corporateUpdate) && (
+              <div className="flex-1 min-w-[280px]">
+                <CorporateUpdateCard loading={commsLoading} update={comms?.corporateUpdate ?? null} />
+              </div>
+            )}
+            <div className="flex-1 min-w-[280px] space-y-4">
+              {/* Unacknowledged handoff notes sit above the checklist box and
+                  collapse to nothing once every note is acknowledged. */}
+              <ShiftNotesCard
+                notes={comms?.shiftNotes ?? []}
+                onAcknowledged={(id) =>
+                  setCommsRes((prev) =>
+                    prev?.data
+                      ? { ...prev, data: { ...prev.data, shiftNotes: prev.data.shiftNotes.filter((n) => n.id !== id) } }
+                      : prev
+                  )
+                }
+              />
+              <ShiftChecklistCard
+                loading={loading}
+                summary={current}
+                checkedOverride={checkedOverride}
+                onToggle={(id) =>
+                  setCheckedOverride((prev) => {
+                    const item = current?.checklist.items.find((i) => i.id === id)
+                    const base = item?.checked ?? false
+                    const cur = prev[id] ?? base
+                    return { ...prev, [id]: !cur }
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          {/* Instagram strip */}
+          <InstagramStrip />
+        </>
+      )}
 
       {/* Days since last count (kept from I-4) */}
       {countRecency.length > 0 && (
@@ -332,14 +383,15 @@ function MonthlyGoalCard({ loading, summary, onSaved }: { loading: boolean; summ
 
   const pctOfGoal = Math.min(1, mtd / goal.goalAmount)
   const toGo = Math.max(0, goal.goalAmount - mtd)
-  // Goal-weighted pacing when a Forecasting plan provides an MTD goal (it
-  // respects the weekday mix of the remaining days); run-rate otherwise.
-  const goalWeighted = goal.mtdGoal !== null && goal.mtdGoal > 0
-  const extrapolated = goalWeighted
-    ? (mtd / goal.mtdGoal!) * goal.goalAmount
-    : goal.daysElapsed > 0
-      ? (mtd / goal.daysElapsed) * goal.daysInMonth
-      : 0
+  // Goal-weighted pacing when a Forecasting plan provides an MTD goal,
+  // run-rate otherwise — src/lib/pacing.ts, shared with the rollup.
+  const extrapolated = projectMonthEnd({
+    mtdActual: mtd,
+    mtdGoal: goal.mtdGoal,
+    monthGoal: goal.goalAmount,
+    daysElapsed: goal.daysElapsed,
+    daysInMonth: goal.daysInMonth,
+  })
   const pctToGoal = (extrapolated / goal.goalAmount) * 100
   const onTrack = pctToGoal >= 100
 
@@ -481,20 +533,80 @@ function CorporateUpdateCard({ loading, update }: { loading: boolean; update: No
   if (loading) return <Skeleton className="h-56 w-full" />
   if (!update) return null
 
+  // Not wrapped in a Link — attachments carry their own links (documents,
+  // YouTube embed), which can't nest inside an anchor. The footer navigates.
   return (
-    <Link href="/messages" className="block h-full">
-      <div className="h-full rounded-xl p-5 bg-gradient-to-br from-[#FCE0CC] to-[#F6C8A6] flex flex-col hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-6 h-6 rounded bg-[var(--color-primary)] flex items-center justify-center">
-            <Megaphone className="h-3.5 w-3.5 text-white" />
-          </div>
-          <p className="text-[13px] font-extrabold tracking-wide text-[#8A3E17]">CORPORATE UPDATE</p>
+    <div className="h-full rounded-xl p-5 bg-gradient-to-br from-[#FCE0CC] to-[#F6C8A6] flex flex-col hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded bg-[var(--color-primary)] flex items-center justify-center">
+          <Megaphone className="h-3.5 w-3.5 text-white" />
         </div>
-        <p className="text-base font-bold text-[#1C1917] mb-1">{update.title}</p>
-        <p className="text-[13px] text-[#6B4326] flex-1 line-clamp-5 whitespace-pre-wrap">{update.body}</p>
-        <p className="text-xs font-bold text-[#8A3E17] mt-3">Posted {timeAgo(update.publishedAt)} →</p>
+        <p className="text-[13px] font-extrabold tracking-wide text-[#8A3E17]">CORPORATE UPDATE</p>
       </div>
-    </Link>
+      <p className="text-base font-bold text-[#1C1917] mb-1">{update.title}</p>
+      <p className="text-[13px] text-[#6B4326] flex-1 line-clamp-5 whitespace-pre-wrap">{update.body}</p>
+      <MessageAttachments attachments={update.attachments ?? []} />
+      <Link href="/messages" className="text-xs font-bold text-[#8A3E17] mt-3 hover:underline">
+        Posted {timeAgo(update.publishedAt)} →
+      </Link>
+    </div>
+  )
+}
+
+// ─── Notes for this shift (handoff notes surfacing today) ────────────────────
+
+function ShiftNotesCard({ notes, onAcknowledged }: { notes: ShiftNote[]; onAcknowledged: (id: string) => void }) {
+  const [ackingId, setAckingId] = useState<string | null>(null)
+
+  if (notes.length === 0) return null
+
+  async function acknowledge(id: string) {
+    setAckingId(id)
+    try {
+      const res = await fetch(`/api/messages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acknowledged: true }),
+      })
+      if (res.ok) onAcknowledged(id)
+    } finally {
+      setAckingId(null)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <StickyNote className="h-4 w-4 text-amber-700" />
+        <p className="text-[13px] font-extrabold tracking-wide text-amber-900">NOTES FOR THIS SHIFT</p>
+      </div>
+      <div className="space-y-3">
+        {notes.map((n) => (
+          <div key={n.id} className="flex items-start gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-amber-200 flex items-center justify-center text-xs font-bold text-amber-900 shrink-0">
+              {n.author.initial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-bold text-amber-950">
+                {n.author.name}{" "}
+                <span className="font-normal text-amber-800/70 text-xs">{timeAgo(n.createdAt)}</span>
+              </p>
+              <p className="text-[12.5px] text-amber-950/90 whitespace-pre-wrap line-clamp-3">{n.body}</p>
+              <p className="text-[11px] text-amber-800/80 mt-0.5">
+                → {n.postedToTemplate ? n.postedToTemplate.name : "Everyone"}
+              </p>
+            </div>
+            <button
+              onClick={() => acknowledge(n.id)}
+              disabled={ackingId === n.id}
+              className="min-h-[32px] px-2.5 rounded-md border border-amber-400 bg-white text-amber-900 text-[11px] font-semibold hover:bg-amber-100 disabled:opacity-50 shrink-0"
+            >
+              {ackingId === n.id ? "…" : "Acknowledge"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -584,12 +696,35 @@ function ShiftChecklistCard({
   )
 }
 
-// ─── Instagram strip (mock — later build) ─────────────────────────────────────
+// ─── Instagram strip (live — /api/instagram/feed, served from server cache) ──
 
 function InstagramStrip() {
   const [offset, setOffset] = useState(0)
+  const [feed, setFeed] = useState<InstagramFeed | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/instagram/feed?limit=12")
+      .then((r): Promise<InstagramFeed | null> => (r.ok ? r.json() : Promise.resolve(null)))
+      .then((data) => {
+        if (cancelled) return
+        setFeed(data)
+        setLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Not connected or toggled off (or the feed call failed) → no card at all.
+  if (loaded && (!feed || !feed.connected || !feed.enabled || feed.posts.length === 0)) return null
+
   const visible = 6
-  const posts = MOCK_INSTAGRAM.posts
+  const posts = feed?.posts ?? []
   const maxOffset = Math.max(0, posts.length - visible)
 
   return (
@@ -605,16 +740,29 @@ function InstagramStrip() {
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="flex gap-2 overflow-hidden flex-1 min-w-[200px]">
-          {posts.slice(offset, offset + visible).map((p) => (
-            <div
-              key={p.id}
-              className="w-[72px] h-[72px] rounded-lg shrink-0"
-              style={{
-                background: `repeating-linear-gradient(45deg, hsl(${20 + p.hue} 70% 85%), hsl(${20 + p.hue} 70% 85%) 8px, hsl(${20 + p.hue} 60% 78%) 8px, hsl(${20 + p.hue} 60% 78%) 16px)`,
-              }}
-              title="Placeholder — real posts arrive when the Instagram integration ships"
-            />
-          ))}
+          {!loaded
+            ? Array.from({ length: visible }).map((_, i) => (
+                <Skeleton key={i} className="w-[72px] h-[72px] rounded-lg shrink-0" />
+              ))
+            : posts.slice(offset, offset + visible).map((p) => {
+                const src = p.media_type === "VIDEO" ? p.thumbnail_url : p.media_url
+                return (
+                  <a
+                    key={p.id}
+                    href={p.permalink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={p.caption ?? "Open on Instagram"}
+                    className="w-[72px] h-[72px] rounded-lg shrink-0 overflow-hidden bg-[var(--color-muted)] hover:opacity-90 transition-opacity"
+                  >
+                    {src && (
+                      // Plain <img>: IG CDN hostnames rotate, so next/image can't pin them.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={src} alt={p.caption ?? "Instagram post"} loading="lazy" className="w-full h-full object-cover" />
+                    )}
+                  </a>
+                )
+              })}
         </div>
         <button
           onClick={() => setOffset((o) => Math.min(maxOffset, o + 1))}
@@ -624,14 +772,16 @@ function InstagramStrip() {
         >
           <ChevronRight className="h-4 w-4" />
         </button>
-        <a
-          href={MOCK_INSTAGRAM.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[12.5px] font-bold text-[var(--color-primary)] hover:underline"
-        >
-          {MOCK_INSTAGRAM.handle} →
-        </a>
+        {feed?.username && (
+          <a
+            href={feed.profileUrl ?? `https://www.instagram.com/${feed.username}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[12.5px] font-bold text-[var(--color-primary)] hover:underline"
+          >
+            @{feed.username} →
+          </a>
+        )}
       </CardContent>
     </Card>
   )

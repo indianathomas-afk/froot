@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { squareBaseUrl } from "@/lib/square"
+import { fetchSquareTeamMembers, mapAssignedStores } from "@/lib/square"
 
 export async function GET() {
   const { orgId } = await auth()
@@ -10,40 +10,20 @@ export async function GET() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org?.squareAccessToken) return NextResponse.json({ error: "Square not connected" }, { status: 400 })
 
-  const baseUrl = squareBaseUrl()
+  const [teamMembers, existing, stores] = await Promise.all([
+    fetchSquareTeamMembers(org),
+    prisma.staffMember.findMany({ where: { organizationId: org.id }, select: { squareTeamMemberId: true } }),
+    prisma.store.findMany({ where: { organizationId: org.id }, select: { id: true, squareLocationId: true } }),
+  ])
 
-  // Try the OAuth token first; fall back to the personal access token if scope is insufficient
-  const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]
+  if (!teamMembers) return NextResponse.json({ error: "Unable to fetch team members. TEAM_MEMBERS_READ permission may be required." }, { status: 403 })
 
-  let data: Record<string, unknown> | null = null
-  for (const token of tokens) {
-    const res = await fetch(`${baseUrl}/v2/team-members/search`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Square-Version": "2024-01-17",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query: { filter: { status: "ACTIVE" } } }),
-    })
+  const existingIds = new Set(existing.map((s) => s.squareTeamMemberId).filter(Boolean))
 
-    if (res.ok) {
-      data = await res.json()
-      break
-    }
-  }
-
-  if (!data) return NextResponse.json({ error: "Unable to fetch team members. TEAM_MEMBERS_READ permission may be required." }, { status: 403 })
-
-  const existingIds = new Set(
-    (await prisma.staffMember.findMany({ where: { organizationId: org.id }, select: { squareTeamMemberId: true } }))
-      .map((s) => s.squareTeamMemberId)
-      .filter(Boolean)
-  )
-
-  const members = ((data.team_members as Record<string, unknown>[]) ?? []).map((m) => ({
+  const members = teamMembers.map((m) => ({
     ...m,
-    alreadyImported: existingIds.has(m.id as string),
+    ...mapAssignedStores(m, stores),
+    alreadyImported: existingIds.has(m.id),
   }))
 
   return NextResponse.json({ members })

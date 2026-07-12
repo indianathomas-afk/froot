@@ -4,6 +4,7 @@ import { z } from "zod"
 import { requireForecastContext, requireForecastStore } from "@/lib/forecasting-access"
 import { buildLastYearBasis, regeneratePlan, yearDates } from "@/lib/goal-engine"
 import { localDateStr } from "@/lib/reports"
+import { writeAuditLog } from "@/lib/audit"
 
 // GET /api/forecasting/plan?storeId=&year= — plan metadata (or null).
 export async function GET(req: Request) {
@@ -90,6 +91,8 @@ export async function PUT(req: Request) {
     }
   }
 
+  const previousPlan = await prisma.goalPlan.findUnique({ where: { storeId_year: { storeId, year } } })
+
   const fromDate = applyScope === "remaining" ? localDateStr(new Date(), store.timezone) : undefined
   const plan = await regeneratePlan({
     organizationId: ctx.org.id,
@@ -101,6 +104,26 @@ export async function PUT(req: Request) {
     updatedById: ctx.userId,
     preserveOverrides: !resetOverrides,
     fromDate,
+  })
+
+  await writeAuditLog({
+    organizationId: ctx.org.id,
+    userId: ctx.userId,
+    action: "goal.plan_regenerate",
+    entityType: "goal_plan",
+    entityId: plan.id,
+    metadata: {
+      storeId,
+      storeName: store.name,
+      period: String(year),
+      before: previousPlan?.goalTotal ?? null,
+      after: plan.goalTotal,
+      source: "plan",
+      basisType,
+      increasePct,
+      applyScope,
+      resetOverrides,
+    },
   })
 
   return NextResponse.json({

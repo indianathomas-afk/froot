@@ -37,6 +37,22 @@ as a monthly goal with a goal-weighted month-end projection.
 - **Projection** (Dashboard Monthly Goal card): goal-weighted pacing —
   `projected = MTD actual ÷ MTD goal × month goal` — falling back to run-rate
   when no plan exists. A plan beats the legacy `StoreMonthlyGoal` for its month.
+  The formula lives in `src/lib/pacing.ts` (`projectMonthEnd`), shared by the
+  Monthly Goal card, `/api/dashboard/summary`, and the all-locations rollup.
+
+## All-locations rollup (F-4)
+
+"All locations" in the Dashboard store picker switches to a company-wide view
+backed by `GET /api/dashboard/rollup`: summed today/MTD/month-goal totals plus
+a sortable store-ranking table (pace vs MTD goal, projected month end vs goal,
+on/behind-pace pill). Scoping is the usual: admins see every active store,
+managers see their `storeAssignments`. The rollup projection is the same
+goal-weighted formula applied to the **summed** plan totals (DailyGoal rows
+summed per store — never averaged); a store with only a manual goal joins the
+pool via linear proration (mathematically identical to the card's run-rate
+fallback), and a store with no goal at all contributes sales plus a run-rate
+projection. Stores without a Square link show "—" for sales but keep their
+goal columns.
 
 ## Data model
 
@@ -57,15 +73,68 @@ all locations), writes ADMIN-only, enforced server-side:
 | `GET calendar` | Daily goals joined with actuals for the year grid |
 | `GET day-report` | Live Square balancing report for one day (gross/discounts/net/tax/tips/total collected, tender split, in-store vs delivery) — the calendar day-drilldown; only route that calls Square live |
 | `PATCH day` / `PATCH month` | Overrides (month totals redistribute by weekday weights) |
-| `POST import` | CSV/XLSX upload — `commit=0` previews, `commit=1` stores to Blob + regenerates. Daily (`date, amount`) or monthly (`month, amount`) shapes |
+| `POST import` | CSV/XLSX upload — `commit=0` previews, `commit=1` stores to Blob + regenerates. Daily (`date, amount`) or monthly (`month, amount`) shapes (parsing in `src/lib/forecast-import.ts`) |
+| `GET export` | CSV download (`?storeId=&year=` or `&month=yyyy-mm`, `&shape=daily\|monthly`) — columns `date/month, goal, actual, variance`; first two columns round-trip through the importer |
+| `GET audit` | Goal-edit history (`?storeId=&month=&limit=`), newest first — admins any store, managers assigned stores only |
 
 After a sync-formula change, existing cached days keep their old numbers until
 re-pulled. "Refresh from Square" in Goal Settings (admin) drives `backfill
 force` over last year + this year to yesterday; today self-corrects on dashboard
 load and the nightly cron covers the last 3 days.
 
+## Hardening (F-5)
+
+- **Goal-edit audit log**: every goal mutation (day override, month
+  redistribute, plan regenerate, import commit, legacy manual goal) writes an
+  `AuditLog` row via `src/lib/audit.ts` — who (Clerk user id), when, and
+  `before → after` dollar amounts in metadata, plus a `period`
+  (`yyyy-mm-dd` / `yyyy-mm` / `yyyy`) and `source`. Audit writes never block
+  the mutation (failures are logged and swallowed). Read it at
+  `GET /api/forecasting/audit` or the "Edit history" panel on `/forecasting`
+  (below Goal Settings; refreshes after each edit).
+- **CSV export**: "Export CSV" button on `/forecasting` (admins + managers)
+  → `GET /api/forecasting/export`. The file's first two columns match the
+  import shapes, so an exported year can be re-imported as a basis
+  (verified in the fixture).
+- **Behind-pace alerts**: daily cron (`vercel.json` → `GET
+  /api/cron/pace-alerts` at 15:00 UTC, `CRON_SECRET`-guarded, after the 11:00
+  sales-reconcile) checks every store with a current-month plan. Pace =
+  MTD actual ÷ MTD goal **through yesterday** (store-local, complete days
+  only), using the same `month-goal.ts`/`pacing.ts` helpers as the dashboard.
+  Below the threshold (`PACE_ALERT_THRESHOLD_PCT`, default 90) it emails org
+  admins + the store's assigned managers — **at most one alert per store per
+  month** (`PaceAlertLog` unique row is the idempotency lock, migration
+  `20260710220000_f5_pace_alerts_audit_index`).
+  - **Email delivery**: `src/lib/notify.ts` is a thin, swappable sender.
+    Current default is the **console sender** — alerts appear in Vercel
+    function logs, no email actually leaves. To go live, implement a provider
+    in `getEmailSender()` (e.g. Resend via fetch) — callers don't change.
+
 ## Ops
 
+- **Square order webhooks** (F-4): `POST /api/webhooks/square` receives
+  `order.created`, `order.updated`, `payment.created`, `payment.updated` and
+  re-pulls the affected store's local day through `sales-sync.ts`, keeping the
+  Dashboard's "today" fresh in near-real-time. Store resolution is
+  `location_id → Store.squareLocationId`; a re-sync is skipped when the day's
+  cache was already synced after the event was emitted (burst absorber). The
+  handler ACKs immediately and does the work after the response; processing
+  failures are only logged — the 15-min lazy dashboard sync and the nightly
+  reconcile remain the fallback/source of truth, so webhooks never need to be
+  perfect, just fresh. Requests are verified against Square's HMAC-SHA256
+  scheme (`x-square-hmacsha256-signature` over notification URL + raw body,
+  `src/lib/square-webhook.ts`); anything unverified gets a 401.
+  - **Setup (per Square app — production and "Froot Staging" each have their
+    own)**: Square Developer Dashboard → your app → Webhooks → Subscriptions →
+    Add subscription with notification URL
+    `${NEXT_PUBLIC_APP_URL}/api/webhooks/square` (must match that env's
+    `NEXT_PUBLIC_APP_URL` exactly — the handler derives the signed URL from it)
+    and event types `order.created`, `order.updated`, `payment.created`,
+    `payment.updated`. Copy the subscription's **Signature key** into the
+    `SQUARE_WEBHOOK_SIGNATURE_KEY` env var in Vercel for that environment.
+    Without the env var the route returns 500 and Square will keep retrying.
+  - No new OAuth scope needed — the resync reads orders via the existing
+    `ORDERS_READ` grant.
 - **Nightly reconciliation**: `vercel.json` cron hits
   `GET /api/cron/sales-reconcile` at 11:00 UTC — re-pulls the last 3 days per
   Square-linked store (all orgs) to absorb late refunds/edits. Public in
@@ -76,12 +145,13 @@ load and the nightly cron covers the last 3 days.
 - **Backfill**: driven from the Goal Settings panel ("Import <year> sales from
   Square") — the client loops the chunk endpoint with a progress bar. Serial,
   idempotent, resumable.
-- **Fixture**: `npx tsx scripts/verify-goal-engine.ts` — seeds a throwaway
-  store, asserts alignment/rounding/overrides/redistribution, cleans up.
+- **Fixtures**: `npx tsx scripts/verify-goal-engine.ts` (goal math),
+  `npx tsx scripts/verify-f4-rollup-webhook.ts` (rollup + webhook),
+  `npx tsx scripts/verify-f5-polish.ts` (audit log, export round-trip,
+  pace-alert thresholds/dedupe) — each seeds throwaway data and cleans up.
 
-## Deferred (F-4/F-5 backlog)
+## Deferred
 
-Square webhooks for sub-15-minute freshness (today's lazy dashboard sync +
-nightly reconcile cover v1), all-locations rollup + store ranking table,
-behind-pace alerts, CSV export, goal-edit audit log, move jobs to
-Inngest/QStash before external merchants onboard.
+Real email provider for pace alerts (console sender ships first — pick
+Resend/SMTP and implement `getEmailSender()`), move jobs to Inngest/QStash
+before external merchants onboard.

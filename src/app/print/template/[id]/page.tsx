@@ -25,7 +25,7 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
     return acc
   }, {})
 
-  const totalMinutes = template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)
+  const totalMinutes = Math.round(template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0))
   const hours = Math.floor(totalMinutes / 60)
   const mins = totalMinutes % 60
   const timeStr = totalMinutes > 0 ? (hours > 0 ? `${hours}h ` : "") + (mins > 0 ? `${mins}m` : "") : ""
@@ -105,6 +105,7 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
                     )}
                     {task.requiresPhoto && <span className="badge">📷 Photo required</span>}
                     {task.requiresTemp && <span className="badge">🌡 Temp required</span>}
+                    {task.videoUrl && <span className="badge">▶ Training video in app</span>}
                     {task.estimatedTimeMinutes && (
                       <span className="badge">~{task.estimatedTimeMinutes} min</span>
                     )}

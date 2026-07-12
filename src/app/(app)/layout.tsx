@@ -27,12 +27,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const [dbUser, org] = await Promise.all([
     userId ? prisma.user.findUnique({ where: { clerkUserId: userId } }) : null,
-    prisma.organization.findUnique({ where: { clerkOrgId: orgId }, select: { activeModules: true } }),
+    prisma.organization.findUnique({
+      where: { clerkOrgId: orgId },
+      select: { activeModules: true, instagramEnabled: true, instagramAccessToken: true },
+    }),
   ])
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar role={dbUser?.role ?? "STAFF"} activeModules={org?.activeModules ?? []} />
+      <Sidebar
+        role={dbUser?.role ?? "STAFF"}
+        activeModules={org?.activeModules ?? []}
+        instagramEnabled={!!org?.instagramEnabled && !!org?.instagramAccessToken}
+      />
       <AppShell>{children}</AppShell>
     </div>
   )

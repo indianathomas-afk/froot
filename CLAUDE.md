@@ -32,6 +32,7 @@ froot/
 │   │   │   ├── layout.tsx
 │   │   │   ├── dashboard/
 │   │   │   ├── checklists/
+│   │   │   ├── instagram/
 │   │   │   ├── templates/
 │   │   │   ├── stores/
 │   │   │   ├── users/
@@ -43,6 +44,7 @@ froot/
 │   │   ├── api/                ← All API routes
 │   │   │   ├── checklists/
 │   │   │   ├── corporate-updates/
+│   │   │   ├── instagram/
 │   │   │   ├── messages/
 │   │   │   ├── square/
 │   │   │   ├── staff/
@@ -177,7 +179,22 @@ One OAuth connection per org. Tokens stored encrypted on `Organization.squareAcc
 - `square/inventory/adjust` — submit loss/transfer/prep adjustment
 - `square/webhooks` — handle `catalog.version.updated`, `oauth.authorization.revoked`
 
+**Shipped (F-4):** `webhooks/square` — order/payment events keep the current day's
+sales caches fresh (signature-verified; see `FORECASTING.md` § Square order webhooks).
+
 Square is entirely optional — all features work without it, import buttons only show when connected.
+
+---
+
+## Instagram Integration
+
+Free org-level integration (Square pattern, **not** `activeModules`). Uses the **Instagram API with Instagram Login** (`graph.instagram.com`) — the Basic Display API is dead (Dec 2024). The connected account must be an Instagram **Professional (Business/Creator)** account. Long-lived token (~60 days) on `Organization.instagramAccessToken`, lazily refreshed (`ig_refresh_token`) when within 7 days of expiry; `instagramEnabled` is the admin on/off toggle for the sidebar item, `/instagram` page, and dashboard strip.
+
+**Routes** (`src/app/api/instagram/`): `auth` (admin, OAuth redirect, scope `instagram_business_basic`) · `callback` (code → short-lived → long-lived token + profile, auto-enables on first connect) · `disconnect` (admin, clears all six `instagram*` fields) · `toggle` (admin, flips `instagramEnabled`) · `status` · `feed` (any org user; cached).
+
+Shared service: `src/lib/instagram.ts`. **Never call Instagram on page load** — the feed is cached in-memory ~60 min per org (rate limit ~200 calls/hour/account) with stale-on-error fallback. `media_url` CDN links expire and must never be persisted; `permalink` is the stable link. instagram.com cannot be iframed — the `/instagram` page renders API data.
+
+Multi-tenant caveat: until Meta App Review grants Advanced Access for `instagram_business_basic`, only Instagram accounts with a role on the Meta app can connect.
 
 ---
 
@@ -222,6 +239,11 @@ SQUARE_APPLICATION_SECRET=
 SQUARE_ENVIRONMENT=            # "sandbox" or "production"
 NEXT_PUBLIC_APP_URL=           # e.g. https://www.usefroot.com
 CRON_SECRET=                   # auth for /api/cron/* (Vercel sends it on cron invocations)
+SQUARE_WEBHOOK_SIGNATURE_KEY=  # per-app webhook subscription key (FORECASTING.md § Square order webhooks)
+PACE_ALERT_THRESHOLD_PCT=      # optional — behind-pace alert threshold, default 90 (FORECASTING.md § Hardening)
+INSTAGRAM_APP_ID=              # Instagram app ID from the Meta app (Instagram API with Instagram Login)
+INSTAGRAM_APP_SECRET=
+INSTAGRAM_REDIRECT_URI=        # optional — defaults to ${NEXT_PUBLIC_APP_URL}/api/instagram/callback
 ```
 
 ---
