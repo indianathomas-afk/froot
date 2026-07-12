@@ -79,7 +79,7 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
   const totalTasks = tasks.length
   const completedCount = completed.size
   const progress = totalTasks > 0 ? (completedCount / totalTasks) * 100 : 0
-  const totalMinutes = tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)
+  const totalMinutes = Math.round(tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0))
 
   async function logTask(taskId: string, staffId?: string) {
     await fetch(`/api/checklists/${checklist.id}/task-log`, {

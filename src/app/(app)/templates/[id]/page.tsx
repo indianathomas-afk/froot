@@ -27,7 +27,7 @@ export default async function TemplateViewPage({ params }: { params: Promise<{ i
     return acc
   }, {})
 
-  const totalMinutes = template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)
+  const totalMinutes = Math.round(template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0))
   const hours = Math.floor(totalMinutes / 60)
   const mins = totalMinutes % 60
 

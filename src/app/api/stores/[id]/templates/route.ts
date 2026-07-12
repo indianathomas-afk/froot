@@ -59,7 +59,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       name: t.name,
       type: t.type,
       taskCount: t.tasks.length,
-      estimatedMinutes: t.tasks.reduce((sum, task) => sum + (task.estimatedTimeMinutes ?? 0), 0),
+      estimatedMinutes: Math.round(t.tasks.reduce((sum, task) => sum + (task.estimatedTimeMinutes ?? 0), 0)),
       existingChecklistId: existing?.id ?? null,
       existingStatus: existing?.status ?? null,
     }

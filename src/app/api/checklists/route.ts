@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     date: c.date,
     storeName: c.store.name,
     taskCount: c.template.tasks.length,
-    estimatedMinutes: c.template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0),
+    estimatedMinutes: Math.round(c.template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)),
     completedTaskIds: c.taskLogs.map((l) => l.taskId),
   }))
 
