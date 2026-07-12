@@ -16,9 +16,12 @@ import {
 
 export type HandoffTarget = { id: string; name: string; operationalPhase: string | null }
 
+// Mirrors PHASE_ORDER in src/lib/messages.ts (server-only module — imports the
+// Prisma runtime, so the map is duplicated here rather than imported).
 const PHASE_ORDER: Record<string, number> = {
   "Before Opening": 0,
-  "During Hours": 1,
+  "During the Day": 1, // canonical (what the template form writes)
+  "During Hours": 1, // legacy rows from the original template import
   "After Closing": 2,
 }
 const order = (phase: string | null) => PHASE_ORDER[phase ?? ""] ?? 1

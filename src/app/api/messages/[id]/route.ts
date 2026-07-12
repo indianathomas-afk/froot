@@ -13,6 +13,7 @@ import {
 const patchSchema = z.object({
   body: z.string().trim().min(1).max(MAX_BODY_LENGTH).optional(),
   status: z.enum(MESSAGE_STATUSES).optional(),
+  acknowledged: z.boolean().optional(),
 })
 
 async function loadScopedMessage(id: string) {
@@ -44,8 +45,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   return NextResponse.json(serializeMessage(full, scoped.ctx.dbUser?.id ?? null))
 }
 
-// PATCH /api/messages/[id] — edit body (author only, within 15 min) or change
-// status (manager/admin: open ↔ resolved ↔ archived).
+// PATCH /api/messages/[id] — edit body (author only, within 15 min), change
+// status (manager/admin: open ↔ resolved ↔ archived), or acknowledge a
+// handoff note (any store-scoped user — the receiving shift confirms they've
+// seen it, which clears the note from checklist banners and the dashboard).
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   let scoped: Awaited<ReturnType<typeof loadScopedMessage>>
@@ -62,11 +65,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 })
   }
-  const { body, status } = parsed.data
+  const { body, status, acknowledged } = parsed.data
   const dbUser = ctx.dbUser
   const isManager = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
 
-  const data: { body?: string; editedAt?: Date; status?: string; resolvedByUserId?: string | null; resolvedAt?: Date | null } = {}
+  const data: {
+    body?: string
+    editedAt?: Date
+    status?: string
+    resolvedByUserId?: string | null
+    resolvedAt?: Date | null
+    acknowledgedAt?: Date | null
+    acknowledgedByUserId?: string | null
+  } = {}
 
   if (body !== undefined) {
     if (!dbUser || message.authorUserId !== dbUser.id) {
@@ -93,7 +104,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
   }
 
+  if (acknowledged !== undefined) {
+    if (!message.postedForDate) {
+      return NextResponse.json({ error: "Only handoff notes can be acknowledged" }, { status: 400 })
+    }
+    if (acknowledged && !message.acknowledgedAt) {
+      data.acknowledgedAt = new Date()
+      data.acknowledgedByUserId = dbUser?.id ?? null
+    } else if (!acknowledged && message.acknowledgedAt) {
+      data.acknowledgedAt = null
+      data.acknowledgedByUserId = null
+    }
+  }
+
   if (Object.keys(data).length === 0) {
+    // Acknowledge is idempotent — a second tap returns the current state.
+    if (acknowledged !== undefined) {
+      const full = await prisma.teamMessage.findUniqueOrThrow({ where: { id }, include: messageInclude })
+      return NextResponse.json(serializeMessage(full, dbUser?.id ?? null))
+    }
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
   }
 

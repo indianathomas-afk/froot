@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, getUserStoreScope } from "@/lib/auth"
-import { messageInclude, serializeMessage, youTubeVideoId } from "@/lib/messages"
+import { messageInclude, serializeMessage, youTubeVideoId, activeHandoffNotesWhere } from "@/lib/messages"
+import { localDateStr } from "@/lib/reports"
 
 const PREVIEW_COUNT = 3
 const PREVIEW_BODY_CHARS = 140
 
-// GET /api/dashboard/comms?storeId= — one call feeds both dashboard comms
-// boxes: the Team Messages preview (latest 3 + unread count) and the active
+// GET /api/dashboard/comms?storeId= — one call feeds the dashboard comms
+// boxes: the Team Messages preview (latest 3 + unread count), the active
 // CORPORATE UPDATE (most recent published, unexpired pin, targeted at this
-// store or all stores; null collapses the box).
+// store or all stores; null collapses the box), and shiftNotes — every
+// unacknowledged handoff note surfacing today (store-local) for the "Notes
+// for this shift" card. No template filter: notes whose target template no
+// longer generates checklists still show here rather than being dropped.
 export async function GET(req: Request) {
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
   try {
@@ -31,7 +35,8 @@ export async function GET(req: Request) {
   if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
 
   const now = new Date()
-  const [latest, unreadCount, corporateUpdate] = await Promise.all([
+  const today = localDateStr(now, store.timezone)
+  const [latest, unreadCount, corporateUpdate, shiftNotes] = await Promise.all([
     prisma.teamMessage.findMany({
       where: { storeId, deletedAt: null },
       include: messageInclude,
@@ -58,9 +63,15 @@ export async function GET(req: Request) {
       include: { attachments: { orderBy: { createdAt: "asc" } } },
       orderBy: { publishedAt: "desc" },
     }),
+    prisma.teamMessage.findMany({
+      where: activeHandoffNotesWhere({ storeId, day: today }),
+      include: messageInclude,
+      orderBy: { createdAt: "asc" },
+    }),
   ])
 
   return NextResponse.json({
+    shiftNotes: shiftNotes.map((m) => serializeMessage(m, dbUser?.id ?? null)),
     teamMessagesPreview: {
       messages: latest.map((m) => {
         const s = serializeMessage(m, dbUser?.id ?? null)
