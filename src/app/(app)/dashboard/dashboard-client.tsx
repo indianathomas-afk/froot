@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, ClipboardList, Megaphone } from "lucide-react"
+import { ChevronLeft, ChevronRight, ClipboardList, Megaphone, StickyNote } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,7 +46,17 @@ type Summary = {
 
 // ─── Comms (mirror /api/dashboard/comms — Phase I-14) ─────────────────────────
 
+type ShiftNote = {
+  id: string
+  body: string
+  author: { name: string; initial: string }
+  createdAt: string
+  postedToTemplate: { id: string; name: string } | null
+  attachments: FeedAttachment[]
+}
+
 type Comms = {
+  shiftNotes: ShiftNote[]
   teamMessagesPreview: {
     messages: {
       id: string
@@ -237,7 +247,19 @@ export function DashboardClient({
                 <CorporateUpdateCard loading={commsLoading} update={comms?.corporateUpdate ?? null} />
               </div>
             )}
-            <div className="flex-1 min-w-[280px]">
+            <div className="flex-1 min-w-[280px] space-y-4">
+              {/* Unacknowledged handoff notes sit above the checklist box and
+                  collapse to nothing once every note is acknowledged. */}
+              <ShiftNotesCard
+                notes={comms?.shiftNotes ?? []}
+                onAcknowledged={(id) =>
+                  setCommsRes((prev) =>
+                    prev?.data
+                      ? { ...prev, data: { ...prev.data, shiftNotes: prev.data.shiftNotes.filter((n) => n.id !== id) } }
+                      : prev
+                  )
+                }
+              />
               <ShiftChecklistCard
                 loading={loading}
                 summary={current}
@@ -527,6 +549,63 @@ function CorporateUpdateCard({ loading, update }: { loading: boolean; update: No
       <Link href="/messages" className="text-xs font-bold text-[#8A3E17] mt-3 hover:underline">
         Posted {timeAgo(update.publishedAt)} →
       </Link>
+    </div>
+  )
+}
+
+// ─── Notes for this shift (handoff notes surfacing today) ────────────────────
+
+function ShiftNotesCard({ notes, onAcknowledged }: { notes: ShiftNote[]; onAcknowledged: (id: string) => void }) {
+  const [ackingId, setAckingId] = useState<string | null>(null)
+
+  if (notes.length === 0) return null
+
+  async function acknowledge(id: string) {
+    setAckingId(id)
+    try {
+      const res = await fetch(`/api/messages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acknowledged: true }),
+      })
+      if (res.ok) onAcknowledged(id)
+    } finally {
+      setAckingId(null)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <StickyNote className="h-4 w-4 text-amber-700" />
+        <p className="text-[13px] font-extrabold tracking-wide text-amber-900">NOTES FOR THIS SHIFT</p>
+      </div>
+      <div className="space-y-3">
+        {notes.map((n) => (
+          <div key={n.id} className="flex items-start gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-amber-200 flex items-center justify-center text-xs font-bold text-amber-900 shrink-0">
+              {n.author.initial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-bold text-amber-950">
+                {n.author.name}{" "}
+                <span className="font-normal text-amber-800/70 text-xs">{timeAgo(n.createdAt)}</span>
+              </p>
+              <p className="text-[12.5px] text-amber-950/90 whitespace-pre-wrap line-clamp-3">{n.body}</p>
+              <p className="text-[11px] text-amber-800/80 mt-0.5">
+                → {n.postedToTemplate ? n.postedToTemplate.name : "Everyone"}
+              </p>
+            </div>
+            <button
+              onClick={() => acknowledge(n.id)}
+              disabled={ackingId === n.id}
+              className="min-h-[32px] px-2.5 rounded-md border border-amber-400 bg-white text-amber-900 text-[11px] font-semibold hover:bg-amber-100 disabled:opacity-50 shrink-0"
+            >
+              {ackingId === n.id ? "…" : "Acknowledge"}
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
