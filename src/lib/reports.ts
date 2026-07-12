@@ -64,6 +64,15 @@ export function nextDateStr(dateStr: string): string {
   return d.toISOString().slice(0, 10)
 }
 
+// The store-local business day an instant falls on, as the UTC-midnight range
+// convention used by Checklist.date. Never derive a checklist's "today" from
+// server time — Vercel runs UTC, which flips to the next day at 5-6 PM local
+// for US stores and misattributes evening shifts (the I-14 handoff-note bug).
+export function businessDayWindow(instant: Date, timeZone: string): { day: string; gte: Date; lt: Date } {
+  const day = localDateStr(instant, timeZone)
+  return { day, gte: dbDate(day), lt: dbDate(nextDateStr(day)) }
+}
+
 // Sales-day window (inclusive, yyyy-mm-dd) attributed to a period.
 export function periodSalesWindow(period: InventoryPeriod, timeZone: string): { start: string; end: string } {
   return {

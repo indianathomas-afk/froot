@@ -129,10 +129,21 @@ export function HandoffComposer({
   const sorted = [...targets].sort(
     (a, b) => order(a.operationalPhase) - order(b.operationalPhase) || a.name.localeCompare(b.name)
   )
+  // Only the next cascading shifts are offered: later slots land today,
+  // opening slots wrap to tomorrow. A note can never go backward — the labels
+  // mirror the server's date resolution (resolvePostedForDate) exactly, so a
+  // closer sees "Opener Checklist (tomorrow)", never an ambiguous bare name.
+  const options = [
+    ...sorted
+      .filter((t) => order(t.operationalPhase) > order(sourcePhase))
+      .map((t) => ({ id: t.id, label: `${t.name} (today)` })),
+    ...sorted
+      .filter((t) => order(t.operationalPhase) === 0)
+      .map((t) => ({ id: t.id, label: `${t.name} (tomorrow)` })),
+  ]
   // Default to the NEXT checklist in the day's sequence so the common case is
-  // one tap + type + send; wraps to the first slot (tomorrow) after closing.
-  const defaultTarget = sorted.find((t) => order(t.operationalPhase) > order(sourcePhase)) ?? sorted[0]
-  const [targetId, setTargetId] = useState(defaultTarget?.id ?? "")
+  // one tap + type + send; wraps to tomorrow's opener after closing.
+  const [targetId, setTargetId] = useState(options[0]?.id ?? STORE_WIDE)
   const [body, setBody] = useState("")
   const [photo, setPhoto] = useState<{ kind: string; url: string; filename?: string | null } | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -219,9 +230,9 @@ export function HandoffComposer({
           onChange={(e) => setTargetId(e.target.value)}
           className="flex-1 min-h-[40px] rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-2 text-sm"
         >
-          {sorted.map((t) => (
+          {options.map((t) => (
             <option key={t.id} value={t.id}>
-              {t.name}
+              {t.label}
             </option>
           ))}
           <option value={STORE_WIDE}>Everyone (store-wide)</option>

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { businessDayWindow } from "@/lib/reports"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
@@ -25,11 +26,20 @@ export async function GET(req: Request) {
     where.storeId = storeId
   }
   if (today) {
-    const start = new Date()
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(start)
-    end.setDate(end.getDate() + 1)
-    where.date = { gte: start, lt: end }
+    // "Today" is each store's local business day, not the server (UTC) day.
+    const now = new Date()
+    const scopedStores = await prisma.store.findMany({
+      where: isAdmin
+        ? { organizationId: org.id, ...(storeId ? { id: storeId } : {}) }
+        : { organizationId: org.id, id: storeId && storeIds.includes(storeId) ? storeId : { in: storeIds } },
+      select: { id: true, timezone: true },
+    })
+    const byTz = new Map<string, string[]>()
+    for (const s of scopedStores) byTz.set(s.timezone, [...(byTz.get(s.timezone) ?? []), s.id])
+    where.OR = [...byTz.entries()].map(([tz, ids]) => {
+      const w = businessDayWindow(now, tz)
+      return { storeId: { in: ids }, date: { gte: w.gte, lt: w.lt } }
+    })
   }
 
   const checklists = await prisma.checklist.findMany({
@@ -64,18 +74,22 @@ export async function POST(req: Request) {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  const now = new Date()
 
   let body: Record<string, string> = {}
   try { body = await req.json() } catch { /* no body */ }
 
   // Single-checklist creation: {templateId, storeId}
   if (body.templateId && body.storeId) {
+    const store = await prisma.store.findFirst({
+      where: { id: body.storeId, organizationId: org.id },
+      select: { timezone: true },
+    })
+    if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
+
+    const w = businessDayWindow(now, store.timezone)
     const existing = await prisma.checklist.findFirst({
-      where: { organizationId: org.id, storeId: body.storeId, templateId: body.templateId, date: { gte: today, lt: tomorrow } },
+      where: { organizationId: org.id, storeId: body.storeId, templateId: body.templateId, date: { gte: w.gte, lt: w.lt } },
     })
     if (existing) return NextResponse.json({ id: existing.id }, { status: 200 })
 
@@ -84,7 +98,7 @@ export async function POST(req: Request) {
         organizationId: org.id,
         storeId: body.storeId,
         templateId: body.templateId,
-        date: today,
+        date: w.gte,
         status: "Pending",
       },
     })
@@ -99,6 +113,7 @@ export async function POST(req: Request) {
 
   const created: string[] = []
   for (const store of stores) {
+    const w = businessDayWindow(now, store.timezone)
     for (const template of templates) {
       const applicable =
         template.appliesTo === "selected"
@@ -107,11 +122,11 @@ export async function POST(req: Request) {
       if (!applicable) continue
 
       const existing = await prisma.checklist.findFirst({
-        where: { organizationId: org.id, storeId: store.id, templateId: template.id, date: { gte: today, lt: tomorrow } },
+        where: { organizationId: org.id, storeId: store.id, templateId: template.id, date: { gte: w.gte, lt: w.lt } },
       })
       if (!existing) {
         const checklist = await prisma.checklist.create({
-          data: { organizationId: org.id, storeId: store.id, templateId: template.id, date: today, status: "Pending" },
+          data: { organizationId: org.id, storeId: store.id, templateId: template.id, date: w.gte, status: "Pending" },
         })
         created.push(checklist.id)
       }
