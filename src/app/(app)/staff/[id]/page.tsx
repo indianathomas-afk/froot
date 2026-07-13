@@ -3,10 +3,11 @@ import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import { format } from "date-fns"
-import { ArrowLeft, FileText, GraduationCap, StickyNote, Gauge, Store } from "lucide-react"
-import { getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
+import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
+import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { ManagerNotes, type SerializedNote } from "./manager-notes"
 
 // HR-1: read-only staff detail shell. Only Overview shows real data — the
 // other tabs are placeholders that later phases populate (Notes HR-2,
@@ -71,6 +72,36 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   const member = await getStaffMember(id, orgId)
   if (!member) notFound()
 
+  // Manager notes are ADMIN/MANAGER only — STORE/STAFF never see the tab and
+  // the notes are never fetched for them. The API enforces the same gate.
+  const { dbUser } = await getCurrentUser()
+  const canSeeNotes = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+
+  let notes: SerializedNote[] = []
+  if (canSeeNotes) {
+    // ManagerNote.authorUserId has no Prisma relation to User (deliberate — no
+    // FK, so notes survive author deletion); stitch authors in a second query.
+    const rows = await prisma.managerNote.findMany({
+      where: { staffMemberId: member.id, organizationId: member.organizationId },
+      orderBy: { createdAt: "desc" },
+    })
+    const authors = await prisma.user.findMany({
+      where: { id: { in: [...new Set(rows.map((n) => n.authorUserId))] } },
+      select: { id: true, name: true, email: true },
+    })
+    const authorById = new Map(authors.map((a) => [a.id, a]))
+    notes = rows.map((n) => ({
+      id: n.id,
+      category: n.category,
+      body: n.body,
+      createdAt: n.createdAt.toISOString(),
+      updatedAt: n.updatedAt.toISOString(),
+      authorUserId: n.authorUserId,
+      authorName: authorById.get(n.authorUserId)?.name ?? null,
+      authorEmail: authorById.get(n.authorUserId)?.email ?? null,
+    }))
+  }
+
   return (
     <div>
       <Link
@@ -116,7 +147,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="training">Training</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
+          {canSeeNotes && <TabsTrigger value="notes">Notes</TabsTrigger>}
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
         </TabsList>
 
@@ -190,14 +221,16 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           />
         </TabsContent>
 
-        <TabsContent value="notes" className="mt-4">
-          <ShellTab
-            icon={StickyNote}
-            title="No manager notes"
-            copy="Private manager notes about this team member will live here."
-            phase="HR-2"
-          />
-        </TabsContent>
+        {canSeeNotes && (
+          <TabsContent value="notes" className="mt-4">
+            <ManagerNotes
+              staffId={member.id}
+              notes={notes}
+              viewerRole={dbUser?.role ?? "STAFF"}
+              viewerUserId={dbUser?.id ?? ""}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="compliance" className="mt-4">
           <ShellTab
