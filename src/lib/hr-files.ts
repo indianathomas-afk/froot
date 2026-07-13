@@ -163,12 +163,18 @@ export async function getHrFileUploadUrl({
 // size and content type from the store, sha256 computed server-side from the
 // stored bytes (never trusted from the client — HR-4 acknowledgments pin to
 // this hash). head() with our token only resolves blobs in OUR store, so a
-// URL pointing anywhere else fails here.
-export async function readHrFileMeta(urlOrPathname: string): Promise<{
+// URL pointing anywhere else fails here. Pass includeBytes when the caller
+// also needs the file contents (e.g. pdf-lib page count) — the blob is
+// fetched for hashing either way, so this avoids a second full download.
+export async function readHrFileMeta(
+  urlOrPathname: string,
+  { includeBytes = false }: { includeBytes?: boolean } = {}
+): Promise<{
   url: string
   contentType: string
   sizeBytes: number
   fileHash: string
+  bytes?: Buffer
 }> {
   const info = await head(urlOrPathname, { token: hrBlobToken() })
   const res = await fetch(info.url, {
@@ -181,6 +187,7 @@ export async function readHrFileMeta(urlOrPathname: string): Promise<{
     contentType: info.contentType,
     sizeBytes: info.size,
     fileHash: createHash("sha256").update(bytes).digest("hex"),
+    ...(includeBytes ? { bytes } : {}),
   }
 }
 
@@ -242,8 +249,12 @@ export function canReadHrDocument(
     case "Reference":
       // General HR library: readable by every authenticated member of the org.
       return true
-    // HR-4: case "Acknowledgment":
-    // HR-4: case "FillableForm":
+    case "Acknowledgment":
+      // The BLANK template: readable by every org member — staff must be able
+      // to read what they are asked to sign. Executed signed-record PDFs are
+      // not documents; canReadHrSignedRecord governs those.
+      return true
+    // HR-5: case "FillableForm":
     //   ADMIN/MANAGER, or the staff member the document is assigned to.
     default:
       return false

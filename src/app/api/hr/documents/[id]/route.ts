@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { HR_DOCUMENT_CATEGORIES } from "@/lib/hr-documents"
+import { HR_DOCUMENT_CATEGORIES, HR_DOCUMENT_KINDS } from "@/lib/hr-documents"
 import { requireHrDocumentAccess } from "../access"
 
 const patchSchema = z
@@ -12,9 +12,10 @@ const patchSchema = z
   })
   .refine((d) => Object.keys(d).length > 0, { message: "Nothing to update" })
 
-// PATCH /api/hr/documents/[id] — ADMIN edit of a library doc's title/category,
-// and soft archive via isActive:false. No hard delete and no blob deletion in
-// this phase — archived docs keep their versions (and files) intact.
+// PATCH /api/hr/documents/[id] — ADMIN edit of a doc's title/category, and
+// soft archive via isActive:false. No hard delete and no blob deletion —
+// archived docs keep their versions, files, and signed records intact.
+// Covers Reference and Acknowledgment; FillableForm gets its own flow in HR-5.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const access = await requireHrDocumentAccess({ admin: true })
@@ -25,10 +26,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Invalid body" }, { status: 400 })
   }
 
-  // Scoped to the org's Reference docs — HR-4's sensitive kinds get their own
-  // management flows.
   const doc = await prisma.hrDocument.findFirst({
-    where: { id, organizationId: access.org.id, kind: "Reference" },
+    where: { id, organizationId: access.org.id, kind: { in: [...HR_DOCUMENT_KINDS] } },
   })
   if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 })
 

@@ -34,3 +34,20 @@ export async function requireHrDocumentAccess({ admin = false }: { admin?: boole
 
   return { ok: true as const, org: viewer.org, dbUser: viewer.dbUser }
 }
+
+// A client-supplied file reference must be a private blob URL inside this
+// org's namespace — otherwise a doc/version record could be pointed at a
+// public asset or another org's file. head() with our token additionally
+// fails for any store our token doesn't own.
+export function isOrgHrBlobUrl(url: string, orgDbId: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  return (
+    parsed.hostname.endsWith(".private.blob.vercel-storage.com") &&
+    parsed.pathname.startsWith(`/hr/${orgDbId}/`)
+  )
+}

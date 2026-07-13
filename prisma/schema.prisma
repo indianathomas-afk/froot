@@ -185,6 +185,7 @@ model StaffMember {
   formSubmissions     FormSubmission[]
   trainingAssignments TrainingAssignment[]
   lessonCompletions   TrainingLessonProgress[]
+  signedRecords       HrSignedRecord[]
 }
 
 model StoreStaffAssignment {
@@ -1294,6 +1295,7 @@ model HrDocumentVersion {
   hrDocument      HrDocument                 @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
   acknowledgments HrDocumentAcknowledgment[]
   formSubmissions FormSubmission[]
+  signedRecords   HrSignedRecord[]
 
   @@unique([hrDocumentId, versionNumber])
 }
@@ -1350,6 +1352,26 @@ model HrDocumentAcknowledgment {
   version    HrDocumentVersion    @relation(fields: [hrDocumentVersionId], references: [id])
 
   @@unique([checkpointId, hrDocumentVersionId, staffMemberId])
+}
+
+// HR-4: the executed-document artifact — one per (version, staff), created
+// when every required checkpoint for that version is complete. Append-only:
+// no update/delete path exists. FKs deliberately have no cascade, so a signed
+// record blocks deletion of the version/staff it pins.
+model HrSignedRecord {
+  id                  String   @id @default(cuid())
+  hrDocumentVersionId String
+  staffMemberId       String
+  completedAt         DateTime // when the last required checkpoint was signed
+  signedPdfPathname   String // pathname in the PRIVATE froot-hr Blob store
+  signedPdfHash       String // sha256 of the generated signed PDF bytes
+  generatedAt         DateTime @default(now())
+
+  version     HrDocumentVersion @relation(fields: [hrDocumentVersionId], references: [id])
+  staffMember StaffMember       @relation(fields: [staffMemberId], references: [id])
+
+  @@unique([hrDocumentVersionId, staffMemberId])
+  @@index([staffMemberId])
 }
 
 // Field definitions for kind=FillableForm documents.

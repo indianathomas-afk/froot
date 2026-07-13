@@ -1,9 +1,10 @@
 "use client"
 
 import { useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { Archive, Download, FileText, Pencil, Plus } from "lucide-react"
+import { Archive, Download, FileText, Pencil, PenLine, Plus, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import {
@@ -23,13 +24,17 @@ import {
   HR_CATEGORY_LABELS,
   HR_CATEGORY_STYLES,
   HR_DOCUMENT_CATEGORIES,
+  HR_KIND_LABELS,
   type HrDocumentCategory,
+  type HrDocumentKind,
 } from "@/lib/hr-documents"
+import { uploadHrFileFromBrowser } from "@/lib/hr-upload-client"
 
 export interface HrDocumentRow {
   id: string
   title: string
   category: string
+  kind: HrDocumentKind
   fileName: string
   sizeBytes: number
   uploadedAt: string
@@ -121,6 +126,12 @@ export function HrDocumentsClient({
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${HR_CATEGORY_STYLES[category]}`}>
                             {HR_CATEGORY_LABELS[category]}
                           </span>
+                          {doc.kind === "Acknowledgment" && (
+                            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">
+                              <PenLine className="h-3 w-3" />
+                              {HR_KIND_LABELS.Acknowledgment}
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5 truncate">
                           {doc.fileName} · {formatSize(doc.sizeBytes)} · Uploaded {format(new Date(doc.uploadedAt), "MMM d, yyyy")}
@@ -136,6 +147,15 @@ export function HrDocumentsClient({
                           <Download className="h-4 w-4" />
                           Download
                         </a>
+                        {isAdmin && doc.kind === "Acknowledgment" && (
+                          <Link
+                            href={`/hr/documents/${doc.id}`}
+                            className="p-1.5 rounded hover:bg-[var(--color-accent)]"
+                            title="Manage versions & checkpoints"
+                          >
+                            <Settings2 className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                          </Link>
+                        )}
                         {isAdmin && <EditDocumentButton doc={doc} />}
                         {isAdmin && <ArchiveDocumentButton doc={doc} />}
                       </div>
@@ -180,6 +200,7 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
   const [error, setError] = useState("")
   const [title, setTitle] = useState("")
   const [category, setCategory] = useState<HrDocumentCategory>("Handbook")
+  const [kind, setKind] = useState<HrDocumentKind>("Reference")
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
@@ -193,37 +214,23 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
       setError("Choose a file to upload")
       return
     }
+    if (kind === "Acknowledgment" && file.type !== "application/pdf") {
+      setError("Signature documents must be PDFs")
+      return
+    }
     setSaving(true)
     setError("")
     try {
-      const urlRes = await fetch("/api/hr/documents/upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, contentType: file.type, sizeBytes: file.size }),
-      })
-      const urlData = await urlRes.json().catch(() => ({}))
-      if (!urlRes.ok) {
-        setError(urlData.error ?? "Failed to start the upload")
-        return
-      }
-
-      const putRes = await fetch(urlData.uploadUrl, {
-        method: "PUT",
-        headers: { "content-type": file.type },
-        body: file,
-      })
-      // The PUT response is a PutBlobResult — its url (with the store's own
-      // random suffix) is the real location; the presigned pathname is not.
-      const blob = await putRes.json().catch(() => ({}))
-      if (!putRes.ok || !blob.url) {
-        setError("The file upload failed — please try again")
+      const uploaded = await uploadHrFileFromBrowser(file)
+      if (!uploaded.ok) {
+        setError(uploaded.error)
         return
       }
 
       const res = await fetch("/api/hr/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, category, url: blob.url, fileName: file.name }),
+        body: JSON.stringify({ title, category, kind, url: uploaded.url, fileName: file.name }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -233,8 +240,15 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
       setOpen(false)
       setTitle("")
       setCategory("Handbook")
+      setKind("Reference")
       if (fileRef.current) fileRef.current.value = ""
-      router.refresh()
+      // A new signature document lands on its checkpoint editor so the admin
+      // can review the auto-generated defaults right away.
+      if (data.kind === "Acknowledgment") {
+        router.push(`/hr/documents/${data.id}`)
+      } else {
+        router.refresh()
+      }
     } finally {
       setSaving(false)
     }
@@ -262,6 +276,24 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
               />
             </div>
             <div className="space-y-1.5">
+              <Label>Type</Label>
+              <Select value={kind} onValueChange={(v) => setKind(v as HrDocumentKind)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Reference">Reference — read-only library document</SelectItem>
+                  <SelectItem value="Acknowledgment">Signature — staff must sign &amp; acknowledge</SelectItem>
+                </SelectContent>
+              </Select>
+              {kind === "Acknowledgment" && (
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  PDF only. Per-page initial checkpoints and a final acknowledgment are generated
+                  automatically — you can adjust them next.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
               <Label>Category</Label>
               <Select value={category} onValueChange={(v) => setCategory(v as HrDocumentCategory)}>
                 <SelectTrigger>
@@ -280,9 +312,11 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
                 required
                 ref={fileRef}
                 type="file"
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                accept={kind === "Acknowledgment" ? ".pdf" : ".pdf,.png,.jpg,.jpeg,.doc,.docx"}
               />
-              <p className="text-xs text-[var(--color-muted-foreground)]">PDF, PNG, JPG, DOC, or DOCX — up to 25 MB.</p>
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                {kind === "Acknowledgment" ? "PDF — up to 25 MB." : "PDF, PNG, JPG, DOC, or DOCX — up to 25 MB."}
+              </p>
             </div>
             {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
             <DialogFooter>
