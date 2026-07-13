@@ -138,6 +138,15 @@ export function HrDocumentsClient({
                         </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
+                        {doc.kind === "Acknowledgment" && (
+                          <Link
+                            href={`/hr/acknowledge/${doc.id}`}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity mr-2"
+                          >
+                            <PenLine className="h-4 w-4" />
+                            Sign
+                          </Link>
+                        )}
                         <a
                           href={`/api/hr/documents/${doc.id}/download`}
                           target="_blank"

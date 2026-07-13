@@ -2,6 +2,35 @@
 // compliance rollup below is a stub: pct stays null until real requirements
 // exist, and the UI renders it as "—" (never 0%, which reads as failure).
 
+import { prisma } from "@/lib/prisma"
+
+// Clerk identities (User) and StaffMember rows are separate populations —
+// most staff never get a login, and StaffMember deliberately has no userId
+// FK. The self-serve signing flow (HR-4) maps the session to a staff profile
+// by org-scoped, case-insensitive email match; a manager fixes a miss by
+// setting the staff member's email in the directory.
+export async function findStaffMemberForEmail(organizationId: string, email: string | null | undefined) {
+  if (!email) return null
+  return prisma.staffMember.findFirst({
+    where: { organizationId, email: { equals: email, mode: "insensitive" } },
+    include: {
+      storeAssignments: {
+        include: { store: true },
+        orderBy: [{ isPrimary: "desc" as const }, { store: { name: "asc" as const } }],
+      },
+    },
+  })
+}
+
+// The store recorded on signing-time snapshots: the staff member's primary
+// store, falling back to their first assignment.
+export function primaryStoreName(
+  staff: { storeAssignments: { isPrimary: boolean; store: { name: string } }[] }
+): string | null {
+  const primary = staff.storeAssignments.find((a) => a.isPrimary) ?? staff.storeAssignments[0]
+  return primary?.store.name ?? null
+}
+
 export type StaffComplianceSummary = {
   requiredTotal: number
   completed: number
