@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
-import { BriefcaseBusiness } from "lucide-react"
+import { BriefcaseBusiness, Users } from "lucide-react"
 import Link from "next/link"
 import { hrModuleAvailable } from "@/lib/auth"
 
@@ -58,6 +58,13 @@ export default async function HrPage() {
             Employee documents, e-signature acknowledgments, manager notes, and trackable training will appear
             here as they roll out.
           </p>
+          <Link
+            href="/staff"
+            className="mt-6 inline-flex items-center gap-2 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Users className="h-4 w-4" />
+            Open Staff Directory
+          </Link>
         </div>
       </div>
     </div>
