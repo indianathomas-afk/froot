@@ -8,6 +8,7 @@ import {
   HR_ESIGN_CONSENT_TEXT,
   HR_ESIGN_CONSENT_VERSION,
 } from "@/lib/hr-documents"
+import { ensureSignedRecord } from "@/lib/hr-signed-pdf"
 import { requireHrDocumentAccess } from "../../access"
 
 const bodySchema = z.object({
@@ -192,7 +193,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const ackedIds = new Set(acked.map((a) => a.checkpointId))
   const complete = doc.checkpoints.filter((c) => c.required).every((c) => ackedIds.has(c.id))
 
-  // Commit 3 wires the signed-PDF generator here when complete flips true.
+  // All required checkpoints in: produce the executed artifact synchronously
+  // (handbook-size PDFs finish well within the function timeout). A generator
+  // failure must not lose the acknowledgments we just wrote — the download
+  // path retries ensureSignedRecord lazily, so report and move on.
+  let signedRecordId: string | null = null
+  if (complete) {
+    try {
+      signedRecordId = (await ensureSignedRecord(version.id, staff.id)).id
+    } catch (err) {
+      console.error("HR-4 signed-PDF generation failed", err)
+    }
+  }
 
-  return NextResponse.json({ complete, signedCheckpoints: ackedIds.size }, { status: 201 })
+  return NextResponse.json(
+    { complete, signedCheckpoints: ackedIds.size, signedRecordId },
+    { status: 201 }
+  )
 }
