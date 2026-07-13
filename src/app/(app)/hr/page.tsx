@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
-import { BriefcaseBusiness, FileText, Users } from "lucide-react"
+import { BriefcaseBusiness, FileCheck2, FileText, Users } from "lucide-react"
 import Link from "next/link"
 import { hrModuleAvailable } from "@/lib/auth"
 
@@ -9,13 +9,17 @@ import { hrModuleAvailable } from "@/lib/auth"
 // allowlist), then the per-org activeModules toggle. While unavailable this
 // page must behave as though HR does not exist — notFound(), not an upsell.
 export default async function HrPage() {
-  const { orgId } = await auth()
+  const { orgId, userId } = await auth()
   if (!orgId) redirect("/dashboard")
 
   if (!hrModuleAvailable(orgId)) notFound()
 
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) redirect("/dashboard")
+
+  const dbUser = userId
+    ? await prisma.user.findUnique({ where: { clerkUserId: userId }, select: { role: true } })
+    : null
 
   if (!org.activeModules.includes("hr")) {
     return (
@@ -73,6 +77,20 @@ export default async function HrPage() {
             Handbooks, policies, and reference documents for the whole team
           </p>
         </Link>
+        {dbUser?.role === "ADMIN" && (
+          <Link
+            href="/hr/signed-records"
+            className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
+          >
+            <div className="w-10 h-10 mb-3 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
+              <FileCheck2 className="h-5 w-5 text-[var(--color-primary)]" />
+            </div>
+            <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Signed Records</h2>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+              Recent executed acknowledgments across the organization
+            </p>
+          </Link>
+        )}
       </div>
     </div>
   )

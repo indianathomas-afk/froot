@@ -8,10 +8,10 @@ import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } f
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ManagerNotes, type SerializedNote } from "./manager-notes"
+import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
 
-// HR-1: read-only staff detail shell. Only Overview shows real data — the
-// other tabs are placeholders that later phases populate (Notes HR-2,
-// Documents HR-4/5, Training HR-6/7, Compliance HR-8).
+// HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
+// (HR-4). Training (HR-6/7) and Compliance (HR-8) remain placeholders.
 
 async function getStaffMember(id: string, clerkOrgId: string) {
   const { isAdmin, storeIds } = await getUserStoreScope()
@@ -72,10 +72,82 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   const member = await getStaffMember(id, orgId)
   if (!member) notFound()
 
-  // Manager notes are ADMIN/MANAGER only — STORE/STAFF never see the tab and
-  // the notes are never fetched for them. The API enforces the same gate.
+  // Manager notes and document statuses are ADMIN/MANAGER only — STORE/STAFF
+  // never see the tabs' data and it is never fetched for them. The APIs
+  // enforce the same gates.
   const { dbUser } = await getCurrentUser()
   const canSeeNotes = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+
+  // HR-4 Documents tab: every required Acknowledgment doc that applies to
+  // this staff member's stores, with version-pinned status. Signed records
+  // bind to the version they were signed against — a re-upload flips the
+  // status to "needs-current" while the old record stays downloadable.
+  let documentRows: StaffDocumentRow[] = []
+  if (canSeeNotes) {
+    const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
+    const docs = await prisma.hrDocument.findMany({
+      where: {
+        organizationId: member.organizationId,
+        kind: "Acknowledgment",
+        isActive: true,
+        requiresAcknowledgment: true,
+        OR: [
+          { appliesTo: "all" },
+          { storeAssignments: { some: { storeId: { in: memberStoreIds } } } },
+        ],
+      },
+      include: {
+        checkpoints: { where: { required: true }, select: { id: true } },
+        versions: {
+          orderBy: { versionNumber: "desc" },
+          include: {
+            signedRecords: { where: { staffMemberId: member.id } },
+            acknowledgments: {
+              where: { staffMemberId: member.id },
+              select: { checkpointId: true },
+            },
+          },
+        },
+      },
+      orderBy: { title: "asc" },
+    })
+
+    documentRows = docs.flatMap((d) => {
+      const current = d.versions.find((v) => v.isCurrent)
+      if (!current) return []
+      const currentRecord = current.signedRecords[0]
+      const ackedIds = new Set(current.acknowledgments.map((a) => a.checkpointId))
+      const requiredCount = d.checkpoints.length
+      const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
+      const priorSigned = d.versions.find((v) => !v.isCurrent && v.signedRecords.length > 0)
+
+      let status: StaffDocumentRow["status"]
+      if (currentRecord) status = "signed"
+      else if (allAcked) status = "pending-record"
+      else if (priorSigned) status = "needs-current"
+      else if (ackedIds.size > 0) status = "in-progress"
+      else status = "not-started"
+
+      return [
+        {
+          documentId: d.id,
+          title: d.title,
+          category: d.category,
+          currentVersionNumber: current.versionNumber,
+          status,
+          signedVersionNumber: currentRecord
+            ? current.versionNumber
+            : allAcked
+              ? current.versionNumber
+              : priorSigned?.versionNumber ?? null,
+          completedAt: currentRecord?.completedAt.toISOString() ?? null,
+          signedRecordId: currentRecord?.id ?? priorSigned?.signedRecords[0]?.id ?? null,
+          ackedCount: ackedIds.size,
+          requiredCount,
+        },
+      ]
+    })
+  }
 
   let notes: SerializedNote[] = []
   if (canSeeNotes) {
@@ -204,12 +276,20 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         </TabsContent>
 
         <TabsContent value="documents" className="mt-4">
-          <ShellTab
-            icon={FileText}
-            title="No documents yet"
-            copy="Handbooks, agreements, and e-signature acknowledgments assigned to this team member will live here."
-            phase="HR-4/5"
-          />
+          {canSeeNotes ? (
+            <StaffDocuments staffId={member.id} rows={documentRows} />
+          ) : (
+            <div className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--color-muted)] flex items-center justify-center">
+                <FileText className="h-6 w-6 text-[var(--color-muted-foreground)]" />
+              </div>
+              <p className="font-medium text-[var(--color-foreground)] mb-1">Restricted</p>
+              <p className="text-sm text-[var(--color-muted-foreground)] max-w-md mx-auto">
+                Document acknowledgment statuses and signed records are visible to managers and
+                admins only.
+              </p>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="training" className="mt-4">
