@@ -1,43 +1,60 @@
 import { NextResponse } from "next/server"
+import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { HrFileValidationError, uploadHrFile } from "@/lib/hr-files"
-import { HR_DOCUMENT_CATEGORIES, type HrDocumentCategory } from "@/lib/hr-documents"
+import { HrFileValidationError, readHrFileMeta, validateHrFileMeta } from "@/lib/hr-files"
+import { HR_DOCUMENT_CATEGORIES } from "@/lib/hr-documents"
 import { requireHrDocumentAccess } from "./access"
 
-// POST /api/hr/documents — upload a Reference document into the org library.
-// ADMIN only. Multipart body: { file, title, category }.
+const bodySchema = z.object({
+  title: z.string().trim().min(1),
+  category: z.enum(HR_DOCUMENT_CATEGORIES),
+  url: z.string().url(),
+  fileName: z.string().trim().min(1),
+})
+
+// POST /api/hr/documents — ADMIN. Second leg of the browser upload: after the
+// client PUT the file to the presigned URL (see ./upload-url), this registers
+// the Reference document. Metadata is read back from the stored blob — size,
+// content type, and the sha256 fileHash are never trusted from the client.
 export async function POST(req: Request) {
   const access = await requireHrDocumentAccess({ admin: true })
   if (!access.ok) return access.response
   const { org, dbUser } = access
   if (!dbUser) return NextResponse.json({ error: "Admin access required" }, { status: 403 })
 
-  const form = await req.formData().catch(() => null)
-  if (!form) return NextResponse.json({ error: "Expected multipart form data" }, { status: 400 })
-
-  const file = form.get("file")
-  const title = ((form.get("title") as string | null) ?? "").trim()
-  const category = (form.get("category") as string | null) ?? ""
-
-  if (
-    !(file instanceof File) ||
-    !title ||
-    !HR_DOCUMENT_CATEGORIES.includes(category as HrDocumentCategory)
-  ) {
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "A file, a title, and a valid category are required" },
+      { error: "A title, a valid category, and an uploaded file are required" },
       { status: 400 }
     )
   }
+  const { title, category, url, fileName } = parsed.data
 
-  let uploaded
+  // The client sends the URL the presigned PUT returned. It must be a private
+  // blob URL inside this org's namespace — otherwise a doc record could be
+  // pointed at a public asset or another org's file. head() below additionally
+  // fails for any store our token doesn't own.
+  const blobUrl = new URL(url)
+  if (
+    !blobUrl.hostname.endsWith(".private.blob.vercel-storage.com") ||
+    !blobUrl.pathname.startsWith(`/hr/${org.id}/`)
+  ) {
+    return NextResponse.json({ error: "Invalid file reference" }, { status: 400 })
+  }
+
+  let meta
   try {
-    uploaded = await uploadHrFile(file, { keyPrefix: `hr/${org.id}` })
+    meta = await readHrFileMeta(url)
+    validateHrFileMeta(meta.contentType, meta.sizeBytes)
   } catch (err) {
     if (err instanceof HrFileValidationError) {
       return NextResponse.json({ error: err.message }, { status: err.status })
     }
-    throw err
+    return NextResponse.json(
+      { error: "Uploaded file not found — try the upload again" },
+      { status: 400 }
+    )
   }
 
   const doc = await prisma.hrDocument.create({
@@ -51,11 +68,11 @@ export async function POST(req: Request) {
       versions: {
         create: {
           versionNumber: 1,
-          fileUrl: uploaded.url,
-          fileName: uploaded.fileName,
-          contentType: uploaded.contentType,
-          sizeBytes: uploaded.sizeBytes,
-          fileHash: uploaded.fileHash,
+          fileUrl: meta.url,
+          fileName,
+          contentType: meta.contentType,
+          sizeBytes: meta.sizeBytes,
+          fileHash: meta.fileHash,
           isCurrent: true,
           uploadedByUserId: dbUser.id,
         },

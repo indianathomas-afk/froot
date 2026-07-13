@@ -183,6 +183,9 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
+  // Three-step upload: get a presigned URL, PUT the file straight to the Blob
+  // store (files over ~4.5 MB would 413 if sent through our API), then
+  // register the document.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const file = fileRef.current?.files?.[0]
@@ -193,14 +196,38 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
     setSaving(true)
     setError("")
     try {
-      const body = new FormData()
-      body.set("file", file)
-      body.set("title", title)
-      body.set("category", category)
-      const res = await fetch("/api/hr/documents", { method: "POST", body })
+      const urlRes = await fetch("/api/hr/documents/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, sizeBytes: file.size }),
+      })
+      const urlData = await urlRes.json().catch(() => ({}))
+      if (!urlRes.ok) {
+        setError(urlData.error ?? "Failed to start the upload")
+        return
+      }
+
+      const putRes = await fetch(urlData.uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": file.type },
+        body: file,
+      })
+      // The PUT response is a PutBlobResult — its url (with the store's own
+      // random suffix) is the real location; the presigned pathname is not.
+      const blob = await putRes.json().catch(() => ({}))
+      if (!putRes.ok || !blob.url) {
+        setError("The file upload failed — please try again")
+        return
+      }
+
+      const res = await fetch("/api/hr/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, category, url: blob.url, fileName: file.name }),
+      })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error ?? "Failed to upload document")
+        setError(data.error ?? "Failed to save the document")
         return
       }
       setOpen(false)

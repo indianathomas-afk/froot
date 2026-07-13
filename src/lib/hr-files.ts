@@ -1,5 +1,5 @@
-import { createHash } from "crypto"
-import { put, issueSignedToken, presignUrl } from "@vercel/blob"
+import { createHash, randomBytes } from "crypto"
+import { head, put, issueSignedToken, presignUrl } from "@vercel/blob"
 
 // Private HR file service (HR-3). All HR document files live in the dedicated
 // PRIVATE Blob store (froot-hr) — never the public store that serves checklist
@@ -23,6 +23,7 @@ const MAX_BYTES = 10 * 1024 * 1024 // 10 MB — matches the task-attachment limi
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000
 const DELEGATION_TTL_MS = 10 * 60 * 1000
 const DELEGATION_REFRESH_MARGIN_MS = 60 * 1000
+const UPLOAD_URL_TTL_MS = 10 * 60 * 1000
 
 export class HrFileValidationError extends Error {
   readonly status: number
@@ -62,19 +63,27 @@ export interface HrFileUploadResult {
   fileHash: string
 }
 
-export async function uploadHrFile(
-  file: File,
-  { keyPrefix }: { keyPrefix: string }
-): Promise<HrFileUploadResult> {
-  if (!ALLOWED_TYPES[file.type]) {
+export function validateHrFileMeta(contentType: string, sizeBytes: number): void {
+  if (!ALLOWED_TYPES[contentType]) {
     throw new HrFileValidationError(
       `Only ${Object.values(ALLOWED_TYPES).join(", ")} files are allowed`,
       400
     )
   }
-  if (file.size > MAX_BYTES) {
+  if (sizeBytes > MAX_BYTES) {
     throw new HrFileValidationError("File must be 10 MB or smaller", 413)
   }
+}
+
+// Server-side upload (used by scripts and future server-generated files, e.g.
+// HR-4 signed PDFs). Browser uploads must NOT come through here — a Vercel
+// Function rejects request bodies over ~4.5 MB with a 413 before our code
+// runs. The UI uses getHrFileUploadUrl + a direct PUT to the store instead.
+export async function uploadHrFile(
+  file: File,
+  { keyPrefix }: { keyPrefix: string }
+): Promise<HrFileUploadResult> {
+  validateHrFileMeta(file.type, file.size)
 
   const bytes = Buffer.from(await file.arrayBuffer())
   // sha256 of the exact stored bytes — HR-4 acknowledgments pin to this hash.
@@ -94,6 +103,81 @@ export async function uploadHrFile(
     contentType: file.type,
     sizeBytes: bytes.length,
     fileHash,
+  }
+}
+
+// Browser-upload path: mint a short-lived presigned PUT URL so the client
+// sends the file directly to the Blob store, bypassing the ~4.5 MB Vercel
+// Function body limit. The declared content type and the 10 MB cap are baked
+// into the signature (allowedContentTypes / maximumSizeInBytes), so the CDN
+// enforces them even against a dishonest client; readHrFileMeta re-reads the
+// stored blob afterwards for the authoritative metadata. Only call this AFTER
+// the request has passed the ADMIN gate.
+export async function getHrFileUploadUrl({
+  keyPrefix,
+  fileName,
+  contentType,
+  sizeBytes,
+}: {
+  keyPrefix: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+}): Promise<{ pathname: string; uploadUrl: string }> {
+  validateHrFileMeta(contentType, sizeBytes)
+
+  // The control plane appends its own random suffix on top of this pathname
+  // and returns the final URL in the PUT response (a PutBlobResult JSON) —
+  // the client must register THAT url, not this pathname. Our suffix keeps
+  // names unique either way.
+  const safe = safeFileName(fileName)
+  const suffix = randomBytes(12).toString("base64url")
+  const dot = safe.lastIndexOf(".")
+  const unique = dot > 0 ? `${safe.slice(0, dot)}-${suffix}${safe.slice(dot)}` : `${safe}-${suffix}`
+  const pathname = `${keyPrefix}/${unique}`
+  const validUntil = Date.now() + UPLOAD_URL_TTL_MS
+
+  const delegation = await issueSignedToken({
+    pathname,
+    operations: ["put"],
+    validUntil,
+    allowedContentTypes: [contentType],
+    maximumSizeInBytes: MAX_BYTES,
+    token: hrBlobToken(),
+  })
+  const { presignedUrl } = await presignUrl(delegation, {
+    operation: "put",
+    pathname,
+    access: "private",
+    validUntil,
+    allowedContentTypes: [contentType],
+    maximumSizeInBytes: MAX_BYTES,
+  })
+  return { pathname, uploadUrl: presignedUrl }
+}
+
+// Authoritative metadata for a blob the client uploaded via presigned PUT:
+// size and content type from the store, sha256 computed server-side from the
+// stored bytes (never trusted from the client — HR-4 acknowledgments pin to
+// this hash). head() with our token only resolves blobs in OUR store, so a
+// URL pointing anywhere else fails here.
+export async function readHrFileMeta(urlOrPathname: string): Promise<{
+  url: string
+  contentType: string
+  sizeBytes: number
+  fileHash: string
+}> {
+  const info = await head(urlOrPathname, { token: hrBlobToken() })
+  const res = await fetch(info.url, {
+    headers: { authorization: `Bearer ${hrBlobToken()}` },
+  })
+  if (!res.ok) throw new Error(`Failed to read HR blob for hashing (${res.status})`)
+  const bytes = Buffer.from(await res.arrayBuffer())
+  return {
+    url: info.url,
+    contentType: info.contentType,
+    sizeBytes: info.size,
+    fileHash: createHash("sha256").update(bytes).digest("hex"),
   }
 }
 
