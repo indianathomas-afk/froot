@@ -244,6 +244,8 @@ PACE_ALERT_THRESHOLD_PCT=      # optional — behind-pace alert threshold, defau
 INSTAGRAM_APP_ID=              # Instagram app ID from the Meta app (Instagram API with Instagram Login)
 INSTAGRAM_APP_SECRET=
 INSTAGRAM_REDIRECT_URI=        # optional — defaults to ${NEXT_PUBLIC_APP_URL}/api/instagram/callback
+HR_MODULE_AVAILABLE=           # optional — "true" makes the HR module exist in this environment (staging/preview yes, production unset until launch)
+HR_INTERNAL_ORG_IDS=           # optional — comma-separated Clerk org IDs allowed HR in production before launch (dogfooding)
 ```
 
 ---
