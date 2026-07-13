@@ -21,6 +21,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Package,
+  BriefcaseBusiness,
 } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
@@ -33,6 +34,7 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>
   roles: string[]
   requiresInstagram?: boolean
+  requiresHr?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -48,6 +50,9 @@ const navItems: NavItem[] = [
   { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   // Only rendered when the org has Instagram connected + enabled (see filter below).
   { href: "/instagram", label: "Instagram", icon: InstagramIcon, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresInstagram: true },
+  // Only rendered when HR is available in this environment AND the org toggle
+  // is on (hidden while off — the admin controls the toggle in Settings).
+  { href: "/hr", label: "HR", icon: BriefcaseBusiness, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresHr: true },
 ]
 
 const inventoryNavItems = [
@@ -68,17 +73,23 @@ export function Sidebar({
   role,
   activeModules = [],
   instagramEnabled = false,
+  hrAvailable = false,
 }: {
   role: string
   activeModules?: string[]
   instagramEnabled?: boolean
+  hrAvailable?: boolean
 }) {
   const pathname = usePathname()
   const { signOut } = useClerk()
   const { user } = useUser()
   const collapsed = useSidebarCollapsed()
+  const hrEnabled = hrAvailable && activeModules.includes("hr")
   const visibleNavItems = navItems.filter(
-    (item) => item.roles.includes(role) && (!item.requiresInstagram || instagramEnabled)
+    (item) =>
+      item.roles.includes(role) &&
+      (!item.requiresInstagram || instagramEnabled) &&
+      (!item.requiresHr || hrEnabled)
   )
   const visibleInventoryItems = activeModules.includes("inventory")
     ? inventoryNavItems.filter((item) => item.roles.includes(role))
