@@ -1516,6 +1516,7 @@ model TrainingResource {
   fileUrl          String
   contentType      String
   sizeBytes        Int
+  orderIndex       Int    @default(0)
 
   trainingLesson TrainingLesson @relation(fields: [trainingLessonId], references: [id], onDelete: Cascade)
 }
