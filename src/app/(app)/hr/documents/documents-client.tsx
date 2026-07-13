@@ -3,9 +3,19 @@
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { Download, FileText, Plus } from "lucide-react"
+import { Archive, Download, FileText, Pencil, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -37,14 +47,20 @@ export function HrDocumentsClient({
   documents: HrDocumentRow[]
   isAdmin: boolean
 }) {
+  const [filter, setFilter] = useState<HrDocumentCategory | "all">("all")
+
+  const presentCategories = HR_DOCUMENT_CATEGORIES.filter((c) =>
+    documents.some((d) => d.category === c)
+  )
+  const visible = filter === "all" ? documents : documents.filter((d) => d.category === filter)
   const grouped = HR_DOCUMENT_CATEGORIES.map((category) => ({
     category,
-    docs: documents.filter((d) => d.category === category),
+    docs: visible.filter((d) => d.category === category),
   })).filter((g) => g.docs.length > 0)
 
   return (
     <div>
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Document Library</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
@@ -74,46 +90,87 @@ export function HrDocumentsClient({
           </div>
         </div>
       ) : (
-        <div className="space-y-8">
-          {grouped.map(({ category, docs }) => (
-            <section key={category}>
-              <h2 className="text-sm font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wide mb-3">
-                {HR_CATEGORY_LABELS[category]}
-              </h2>
-              <div className="border border-[var(--color-border)] rounded-lg divide-y divide-[var(--color-border)] bg-[var(--color-card)]">
-                {docs.map((doc) => (
-                  <div key={doc.id} className="flex items-center gap-4 p-4">
-                    <div className="w-9 h-9 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
-                      <FileText className="h-4 w-4 text-[var(--color-primary)]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${HR_CATEGORY_STYLES[category]}`}>
-                          {HR_CATEGORY_LABELS[category]}
-                        </span>
+        <>
+          {presentCategories.length > 1 && (
+            <div className="mb-6 flex items-center gap-2 flex-wrap">
+              <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
+                All
+              </FilterChip>
+              {presentCategories.map((c) => (
+                <FilterChip key={c} active={filter === c} onClick={() => setFilter(c)}>
+                  {HR_CATEGORY_LABELS[c]}
+                </FilterChip>
+              ))}
+            </div>
+          )}
+          <div className="space-y-8">
+            {grouped.map(({ category, docs }) => (
+              <section key={category}>
+                <h2 className="text-sm font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wide mb-3">
+                  {HR_CATEGORY_LABELS[category]}
+                </h2>
+                <div className="border border-[var(--color-border)] rounded-lg divide-y divide-[var(--color-border)] bg-[var(--color-card)]">
+                  {docs.map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-4 p-4">
+                      <div className="w-9 h-9 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
+                        <FileText className="h-4 w-4 text-[var(--color-primary)]" />
                       </div>
-                      <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5 truncate">
-                        {doc.fileName} · {formatSize(doc.sizeBytes)} · Uploaded {format(new Date(doc.uploadedAt), "MMM d, yyyy")}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${HR_CATEGORY_STYLES[category]}`}>
+                            {HR_CATEGORY_LABELS[category]}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5 truncate">
+                          {doc.fileName} · {formatSize(doc.sizeBytes)} · Uploaded {format(new Date(doc.uploadedAt), "MMM d, yyyy")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <a
+                          href={`/api/hr/documents/${doc.id}/download`}
+                          target="_blank"
+                          rel="noopener"
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity mr-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </a>
+                        {isAdmin && <EditDocumentButton doc={doc} />}
+                        {isAdmin && <ArchiveDocumentButton doc={doc} />}
+                      </div>
                     </div>
-                    <a
-                      href={`/api/hr/documents/${doc.id}/download`}
-                      target="_blank"
-                      rel="noopener"
-                      className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity shrink-0"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </>
       )}
     </div>
+  )
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+        active
+          ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)]"
+          : "bg-[var(--color-card)] text-[var(--color-muted-foreground)] border-[var(--color-border)] hover:bg-[var(--color-accent)]"
+      }`}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -208,6 +265,133 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
           </form>
         </DialogContent>
       </Dialog>
+    </>
+  )
+}
+
+function EditDocumentButton({ doc }: { doc: HrDocumentRow }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [title, setTitle] = useState(doc.title)
+  const [category, setCategory] = useState(doc.category as HrDocumentCategory)
+  const router = useRouter()
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch(`/api/hr/documents/${doc.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, category }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? "Failed to save changes")
+        return
+      }
+      setOpen(false)
+      router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="p-1.5 rounded hover:bg-[var(--color-accent)]"
+        title="Edit document"
+      >
+        <Pencil className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Document</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Title *</Label>
+              <Input required value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select value={category} onValueChange={(v) => setCategory(v as HrDocumentCategory)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {HR_DOCUMENT_CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c}>{HR_CATEGORY_LABELS[c]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              The uploaded file itself can&apos;t be replaced — add a new document instead.
+            </p>
+            {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function ArchiveDocumentButton({ doc }: { doc: HrDocumentRow }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const router = useRouter()
+
+  async function handleArchive() {
+    setSaving(true)
+    try {
+      await fetch(`/api/hr/documents/${doc.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: false }),
+      })
+      setOpen(false)
+      router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="p-1.5 rounded hover:bg-[var(--color-accent)]"
+        title="Archive document"
+      >
+        <Archive className="h-4 w-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]" />
+      </button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive &ldquo;{doc.title}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The document will be removed from the library for all members. The file itself is kept
+              and nothing is permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleArchive} disabled={saving}>
+              {saving ? "Archiving..." : "Archive"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
