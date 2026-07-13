@@ -282,7 +282,7 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
                 type="file"
                 accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
               />
-              <p className="text-xs text-[var(--color-muted-foreground)]">PDF, PNG, JPG, DOC, or DOCX — up to 10 MB.</p>
+              <p className="text-xs text-[var(--color-muted-foreground)]">PDF, PNG, JPG, DOC, or DOCX — up to 25 MB.</p>
             </div>
             {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
             <DialogFooter>

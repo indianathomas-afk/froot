@@ -15,7 +15,10 @@ const ALLOWED_TYPES: Record<string, string> = {
   "application/msword": "DOC",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
 }
-const MAX_BYTES = 10 * 1024 * 1024 // 10 MB — matches the task-attachment limit
+// 25 MB — HR documents are handbook-sized PDFs (Keva's 2026 handbook is
+// 15.3 MB), not checklist photos; uploads bypass the Function body limit via
+// presigned PUT, and readHrFileMeta hashes this size comfortably in memory.
+const MAX_BYTES = 25 * 1024 * 1024
 
 // Signed GET URLs live 5 minutes; the underlying delegation token is issued
 // for 10 and cached until it is within a minute of expiry, so steady traffic
@@ -71,7 +74,7 @@ export function validateHrFileMeta(contentType: string, sizeBytes: number): void
     )
   }
   if (sizeBytes > MAX_BYTES) {
-    throw new HrFileValidationError("File must be 10 MB or smaller", 413)
+    throw new HrFileValidationError("File must be 25 MB or smaller", 413)
   }
 }
 
