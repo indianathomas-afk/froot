@@ -33,6 +33,15 @@ export interface FormFieldInput {
   options?: string[] | null
 }
 
+// Shape of the FormSubmission.values rows: self-describing (label + type +
+// value, in field order) so signed PDFs and readers never depend on live
+// FormField rows.
+export interface SubmittedFormValue {
+  label: string
+  fieldType: string
+  value: string
+}
+
 // Canonical form: keys in fixed literal order, fields re-indexed by array
 // position, options normalized to null when absent — the same definition
 // always serializes to the same bytes, so the hash is a stable pin.

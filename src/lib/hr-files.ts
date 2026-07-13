@@ -254,8 +254,13 @@ export function canReadHrDocument(
       // to read what they are asked to sign. Executed signed-record PDFs are
       // not documents; canReadHrSignedRecord governs those.
       return true
-    // HR-5: case "FillableForm":
-    //   ADMIN/MANAGER, or the staff member the document is assigned to.
+    case "FillableForm":
+      // HR-5: the template DEFINITION (no source file exists — forms render
+      // natively). Managed by ADMIN, executed by ADMIN/MANAGER; staff see the
+      // rendered form during signing on the supervisor's device (self-service
+      // arrives with /my/* in HR-7). Executed PDFs are governed by
+      // canReadHrSignedRecord via the submission download route.
+      return viewer.role === "ADMIN" || viewer.role === "MANAGER"
     default:
       return false
   }

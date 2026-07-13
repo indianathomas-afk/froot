@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { ensureFormSignedPdf } from "@/lib/hr-signed-pdf"
 import { requireHrDocumentAccess } from "../../../../documents/access"
 import { loadScopedStaff } from "../../../shared"
 
@@ -69,6 +70,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ submiss
   })
   if (count === 0) {
     return NextResponse.json({ error: "This form is already completed" }, { status: 409 })
+  }
+
+  // Countersigned — produce the executed PDF synchronously; failures fall
+  // back to the Documents tab's idempotent regenerate (HR-4 pattern).
+  try {
+    await ensureFormSignedPdf(submission.id)
+  } catch (err) {
+    console.error("HR-5 form signed-PDF generation failed", err)
   }
 
   return NextResponse.json({ id: submission.id, status: "Completed", complete: true })

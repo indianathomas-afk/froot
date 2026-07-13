@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ManagerNotes, type SerializedNote } from "./manager-notes"
 import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
+import { StaffFormDocuments, type StaffFormDocRow } from "./staff-form-documents"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4). Training (HR-6/7) and Compliance (HR-8) remain placeholders.
@@ -149,6 +150,83 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
     })
   }
 
+  // HR-5 agreement forms: every applicable FillableForm with the staff
+  // member's FULL submission history (re-execution is routine). Archived
+  // forms with history stay visible so records never disappear; linked
+  // Check-Out/Check-In pairs are grouped by the client component.
+  let formDocRows: StaffFormDocRow[] = []
+  if (canSeeNotes) {
+    const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
+    const formDocs = await prisma.hrDocument.findMany({
+      where: {
+        organizationId: member.organizationId,
+        kind: "FillableForm",
+        isActive: true,
+        OR: [
+          { appliesTo: "all" },
+          { storeAssignments: { some: { storeId: { in: memberStoreIds } } } },
+        ],
+      },
+      select: { id: true, title: true, category: true, linkedFormId: true },
+      orderBy: { title: "asc" },
+    })
+    const submissions = await prisma.formSubmission.findMany({
+      where: {
+        staffMemberId: member.id,
+        version: { hrDocument: { organizationId: member.organizationId, kind: "FillableForm" } },
+      },
+      include: {
+        version: {
+          select: {
+            versionNumber: true,
+            hrDocument: {
+              select: { id: true, title: true, category: true, linkedFormId: true, isActive: true },
+            },
+          },
+        },
+      },
+      orderBy: { signedAt: "desc" },
+    })
+
+    const rowByDocId = new Map<string, StaffFormDocRow>(
+      formDocs.map((d) => [
+        d.id,
+        {
+          documentId: d.id,
+          title: d.title,
+          category: d.category,
+          linkedFormId: d.linkedFormId,
+          active: true,
+          submissions: [],
+        },
+      ])
+    )
+    for (const sub of submissions) {
+      const subDoc = sub.version.hrDocument
+      // Submissions on archived (or store-unassigned) forms are records too —
+      // surface them with execution disabled.
+      if (!rowByDocId.has(subDoc.id)) {
+        rowByDocId.set(subDoc.id, {
+          documentId: subDoc.id,
+          title: sub.formTitle ?? subDoc.title,
+          category: subDoc.category,
+          linkedFormId: subDoc.linkedFormId,
+          active: false,
+          submissions: [],
+        })
+      }
+      rowByDocId.get(subDoc.id)!.submissions.push({
+        id: sub.id,
+        status: sub.status,
+        versionNumber: sub.formVersionNumber ?? sub.version.versionNumber,
+        employeeSignedAt: (sub.employeeSignedAt ?? sub.signedAt).toISOString(),
+        supervisorSignedAt: sub.supervisorSignedAt?.toISOString() ?? null,
+        hasPdf: !!sub.signedPdfPathname,
+      })
+    }
+    formDocRows = [...rowByDocId.values()]
+  }
+
   let notes: SerializedNote[] = []
   if (canSeeNotes) {
     // ManagerNote.authorUserId has no Prisma relation to User (deliberate — no
@@ -277,7 +355,12 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
 
         <TabsContent value="documents" className="mt-4">
           {canSeeNotes ? (
-            <StaffDocuments staffId={member.id} rows={documentRows} />
+            <div className="space-y-6">
+              <StaffDocuments staffId={member.id} rows={documentRows} />
+              {formDocRows.length > 0 && (
+                <StaffFormDocuments staffId={member.id} rows={formDocRows} />
+              )}
+            </div>
           ) : (
             <div className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
               <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--color-muted)] flex items-center justify-center">

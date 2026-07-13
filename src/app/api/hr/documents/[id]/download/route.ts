@@ -27,6 +27,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  // FillableForm versions carry a definition snapshot, not a file — there is
+  // nothing to download here (executed PDFs live on the submission route).
+  if (doc.kind === "FillableForm" || !version.fileUrl) {
+    return NextResponse.json({ error: "This document has no downloadable file" }, { status: 404 })
+  }
+
   const signedUrl = await getHrFileDownloadUrl(hrPathnameFromUrl(version.fileUrl))
   return NextResponse.redirect(signedUrl, 307)
 }

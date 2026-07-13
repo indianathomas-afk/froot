@@ -2,20 +2,29 @@ import { createHash } from "crypto"
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "pdf-lib"
 import { prisma } from "@/lib/prisma"
 import { streamHrFile, uploadHrFile } from "@/lib/hr-files"
+import type { SubmittedFormValue } from "@/lib/hr-forms"
 
-// HR-4 signed-PDF service. When a staff member completes every required
+// HR-4/HR-5 signed-PDF service — the ONE place executed HR artifacts are
+// generated.
+//
+// ensureSignedRecord (HR-4): when a staff member completes every required
 // checkpoint of a document version, this produces the executed artifact the
 // HR-0a spike validated: the ORIGINAL pdf bytes (version pin intact) with a
 // compact completion banner on page 1 and appended Certificate of
 // Acknowledgment page(s) carrying the source SHA-256, signer/store/org, auth
 // method, IP, the ESIGN consent statement, per-checkpoint capture rows with
-// timestamps, and the per-page initials grid. The certificate page is the
-// authoritative record; precise in-page stamping at each pageRef is a future
-// enhancement (pageRef is already captured).
+// timestamps, and the per-page initials grid.
 //
-// The result is uploaded to the PRIVATE froot-hr store and recorded as an
-// append-only HrSignedRecord. Reusable by HR-5 (forms) and HR-7 (training
-// certificates).
+// ensureFormSignedPdf (HR-5): a completed dual-signature FormSubmission is
+// rendered from scratch — title, agreement body text, filled field values,
+// both signature blocks — plus the same certificate language, pinned to the
+// DEFINITION hash instead of file bytes. The PDF pointer lives on the
+// FormSubmission itself (write-once), NOT on HrSignedRecord, because form
+// executions recur (key re-issues, pay changes) while HrSignedRecord is
+// one-per-(version, staff).
+//
+// Both paths upload to the PRIVATE froot-hr store. HR-7 training certificates
+// will reuse the same writer.
 
 const PAGE_W = 612 // US Letter
 const PAGE_H = 792
@@ -55,13 +64,108 @@ function utc(d: Date): string {
   return d.toISOString().replace("T", " ").slice(0, 19) + " UTC"
 }
 
-// pdf-lib's standard fonts only cover WinAnsi — replace anything outside it
-// so a stray emoji in a field value can't kill generation.
+// pdf-lib's standard fonts only cover WinAnsi — map common typographic
+// characters (dashes, curly quotes, ellipsis) to safe equivalents, then
+// replace anything else outside Latin-1 so a stray emoji in a field value
+// can't kill generation.
+const TYPOGRAPHIC: Record<string, string> = {
+  "—": "-", // em dash
+  "–": "-", // en dash
+  "‘": "'",
+  "’": "'",
+  "“": '"',
+  "”": '"',
+  "…": "...",
+  "•": "-",
+}
 function sanitize(text: string): string {
-  return text.replace(/[^\n\x20-\x7E\xA0-\xFF]/g, "?")
+  return text
+    .replace(/[—–‘’“”…•]/g, (c) => TYPOGRAPHIC[c])
+    .replace(/[^\n\x20-\x7E\xA0-\xFF]/g, "?")
 }
 
 export class SignedRecordError extends Error {}
+
+interface CertFonts {
+  helv: PDFFont
+  helvBold: PDFFont
+  courier: PDFFont
+}
+
+// Shared page scaffolding for certificate-style pages (extracted verbatim
+// from the HR-4 closures so acknowledgment output is unchanged). `page` and
+// `y` are deliberately public — table layouts drive the cursor directly.
+class CertificateWriter {
+  page!: PDFPage
+  y = 0
+
+  constructor(
+    private pdf: PDFDocument,
+    readonly fonts: CertFonts
+  ) {}
+
+  newPage() {
+    this.page = this.pdf.addPage([PAGE_W, PAGE_H])
+    this.y = PAGE_H - MARGIN
+  }
+
+  ensureRoom(needed: number) {
+    if (this.y - needed < MARGIN) this.newPage()
+  }
+
+  drawLines(
+    lines: string[],
+    {
+      x = MARGIN,
+      size = 9,
+      font = this.fonts.helv,
+      color = INK,
+      gap = 3,
+    }: { x?: number; size?: number; font?: PDFFont; color?: ReturnType<typeof rgb>; gap?: number } = {}
+  ) {
+    for (const line of lines) {
+      this.ensureRoom(size + gap)
+      this.page.drawText(sanitize(line), { x, y: this.y - size, size, font, color })
+      this.y -= size + gap
+    }
+  }
+
+  labeled(label: string, value: string, valueFont: PDFFont = this.fonts.helv) {
+    this.ensureRoom(12)
+    this.page.drawText(sanitize(label), {
+      x: MARGIN,
+      y: this.y - 9,
+      size: 8,
+      font: this.fonts.helvBold,
+      color: MUTED,
+    })
+    const lines = wrapText(sanitize(value), valueFont, 9, PAGE_W - MARGIN * 2 - 130)
+    for (const [i, line] of lines.entries()) {
+      if (i > 0) this.ensureRoom(12)
+      this.page.drawText(line, { x: MARGIN + 130, y: this.y - 9, size: 9, font: valueFont, color: INK })
+      this.y -= 12
+    }
+  }
+
+  rule() {
+    this.ensureRoom(14)
+    this.y -= 7
+    this.page.drawLine({
+      start: { x: MARGIN, y: this.y },
+      end: { x: PAGE_W - MARGIN, y: this.y },
+      thickness: 0.5,
+      color: RULE,
+    })
+    this.y -= 7
+  }
+
+  heading(title: string, generatedFor: string) {
+    this.page.drawText(title, { x: MARGIN, y: this.y - 18, size: 18, font: this.fonts.helvBold, color: INK })
+    this.y -= 26
+    this.drawLines([`Generated by Froot for ${generatedFor}`], { size: 9, color: MUTED })
+    this.rule()
+  }
+}
 
 // Idempotently generate the signed PDF + HrSignedRecord for (version, staff).
 // Returns the existing record when one is already on file — records are
@@ -139,93 +243,47 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     color: ACCENT,
   })
 
-  // Certificate page scaffolding.
-  let page: PDFPage
-  let y = 0
-  const newPage = () => {
-    page = pdf.addPage([PAGE_W, PAGE_H])
-    y = PAGE_H - MARGIN
-  }
-  const ensureRoom = (needed: number) => {
-    if (y - needed < MARGIN) newPage()
-  }
-  const drawLines = (
-    lines: string[],
-    { x = MARGIN, size = 9, font = helv, color = INK, gap = 3 }: { x?: number; size?: number; font?: PDFFont; color?: ReturnType<typeof rgb>; gap?: number } = {}
-  ) => {
-    for (const line of lines) {
-      ensureRoom(size + gap)
-      page.drawText(sanitize(line), { x, y: y - size, size, font, color })
-      y -= size + gap
-    }
-  }
-  const labeled = (label: string, value: string, valueFont: PDFFont = helv) => {
-    ensureRoom(12)
-    page.drawText(sanitize(label), { x: MARGIN, y: y - 9, size: 8, font: helvBold, color: MUTED })
-    const lines = wrapText(sanitize(value), valueFont, 9, PAGE_W - MARGIN * 2 - 130)
-    for (const [i, line] of lines.entries()) {
-      if (i > 0) ensureRoom(12)
-      page.drawText(line, { x: MARGIN + 130, y: y - 9, size: 9, font: valueFont, color: INK })
-      y -= 12
-    }
-  }
-  const rule = () => {
-    ensureRoom(14)
-    y -= 7
-    page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 0.5, color: RULE })
-    y -= 7
-  }
+  const w = new CertificateWriter(pdf, { helv, helvBold, courier })
+  w.newPage()
+  w.heading("Certificate of Acknowledgment", doc.organization.name)
 
-  newPage()
-  page!.drawText("Certificate of Acknowledgment", {
-    x: MARGIN,
-    y: y - 18,
-    size: 18,
-    font: helvBold,
-    color: INK,
-  })
-  y -= 26
-  drawLines([`Generated by Froot for ${doc.organization.name}`], { size: 9, color: MUTED })
-  rule()
+  w.labeled("Document", `${lastAck.documentTitle} (version ${lastAck.documentVersionNumber})`)
+  w.labeled("Source file", version.fileName)
+  w.labeled("Source SHA-256", lastAck.documentFileHash, courier)
+  w.rule()
+  w.labeled("Signer", lastAck.staffName)
+  w.labeled("Store", lastAck.storeName ?? "-")
+  w.labeled("Organization", doc.organization.name)
+  w.labeled("Completed at", utc(completedAt))
+  w.labeled("Auth method", lastAck.authMethod)
+  w.labeled("IP address", lastAck.ipAddress ?? "-")
+  w.labeled("Device", lastAck.userAgent ?? "-")
+  w.rule()
 
-  labeled("Document", `${lastAck.documentTitle} (version ${lastAck.documentVersionNumber})`)
-  labeled("Source file", version.fileName)
-  labeled("Source SHA-256", lastAck.documentFileHash, courier)
-  rule()
-  labeled("Signer", lastAck.staffName)
-  labeled("Store", lastAck.storeName ?? "-")
-  labeled("Organization", doc.organization.name)
-  labeled("Completed at", utc(completedAt))
-  labeled("Auth method", lastAck.authMethod)
-  labeled("IP address", lastAck.ipAddress ?? "-")
-  labeled("Device", lastAck.userAgent ?? "-")
-  rule()
-
-  drawLines(["Electronic signature consent" + (lastAck.consentVersion ? ` (${lastAck.consentVersion})` : "")], {
-    size: 8,
-    font: helvBold,
-    color: MUTED,
-  })
-  drawLines(wrapText(sanitize(lastAck.consentText ?? "-"), helv, 8.5, PAGE_W - MARGIN * 2), {
+  w.drawLines(
+    ["Electronic signature consent" + (lastAck.consentVersion ? ` (${lastAck.consentVersion})` : "")],
+    { size: 8, font: helvBold, color: MUTED }
+  )
+  w.drawLines(wrapText(sanitize(lastAck.consentText ?? "-"), helv, 8.5, PAGE_W - MARGIN * 2), {
     size: 8.5,
   })
-  rule()
+  w.rule()
 
   // ── Checkpoint table ──────────────────────────────────────────────────────
   const col = { idx: MARGIN, name: MARGIN + 24, captured: MARGIN + 208, page: MARGIN + 344, at: MARGIN + 378 }
   const nameW = col.captured - col.name - 8
   const capturedW = col.page - col.captured - 8
   const header = () => {
-    ensureRoom(16)
-    page.drawText("#", { x: col.idx, y: y - 8, size: 8, font: helvBold, color: MUTED })
-    page.drawText("CHECKPOINT", { x: col.name, y: y - 8, size: 8, font: helvBold, color: MUTED })
-    page.drawText("CAPTURED", { x: col.captured, y: y - 8, size: 8, font: helvBold, color: MUTED })
-    page.drawText("PAGE", { x: col.page, y: y - 8, size: 8, font: helvBold, color: MUTED })
-    page.drawText("SIGNED AT (UTC)", { x: col.at, y: y - 8, size: 8, font: helvBold, color: MUTED })
-    y -= 13
+    w.ensureRoom(16)
+    w.page.drawText("#", { x: col.idx, y: w.y - 8, size: 8, font: helvBold, color: MUTED })
+    w.page.drawText("CHECKPOINT", { x: col.name, y: w.y - 8, size: 8, font: helvBold, color: MUTED })
+    w.page.drawText("CAPTURED", { x: col.captured, y: w.y - 8, size: 8, font: helvBold, color: MUTED })
+    w.page.drawText("PAGE", { x: col.page, y: w.y - 8, size: 8, font: helvBold, color: MUTED })
+    w.page.drawText("SIGNED AT (UTC)", { x: col.at, y: w.y - 8, size: 8, font: helvBold, color: MUTED })
+    w.y -= 13
   }
-  drawLines(["Checkpoints"], { size: 11, font: helvBold })
-  y -= 2
+  w.drawLines(["Checkpoints"], { size: 11, font: helvBold })
+  w.y -= 2
   header()
   for (const [i, { checkpoint, ack }] of orderedAcks.entries()) {
     const captured =
@@ -238,54 +296,54 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     const capturedLines = wrapText(sanitize(captured), helv, 8, capturedW)
     const rowLines = Math.max(nameLines.length, capturedLines.length)
     const rowHeight = rowLines * 10 + 3
-    if (y - rowHeight < MARGIN) {
-      newPage()
+    if (w.y - rowHeight < MARGIN) {
+      w.newPage()
       header()
     }
-    page!.drawText(String(i + 1), { x: col.idx, y: y - 8, size: 8, font: helv, color: MUTED })
+    w.page.drawText(String(i + 1), { x: col.idx, y: w.y - 8, size: 8, font: helv, color: MUTED })
     for (const [j, line] of nameLines.entries()) {
-      page!.drawText(line, { x: col.name, y: y - 8 - j * 10, size: 8, font: helv, color: INK })
+      w.page.drawText(line, { x: col.name, y: w.y - 8 - j * 10, size: 8, font: helv, color: INK })
     }
     for (const [j, line] of capturedLines.entries()) {
-      page!.drawText(line, { x: col.captured, y: y - 8 - j * 10, size: 8, font: helv, color: INK })
+      w.page.drawText(line, { x: col.captured, y: w.y - 8 - j * 10, size: 8, font: helv, color: INK })
     }
-    page!.drawText(checkpoint.pageRef != null ? String(checkpoint.pageRef) : "-", {
+    w.page.drawText(checkpoint.pageRef != null ? String(checkpoint.pageRef) : "-", {
       x: col.page,
-      y: y - 8,
+      y: w.y - 8,
       size: 8,
       font: helv,
       color: INK,
     })
-    page!.drawText(utc(ack.signedAt).replace(" UTC", ""), { x: col.at, y: y - 8, size: 8, font: courier, color: INK })
-    y -= rowHeight
+    w.page.drawText(utc(ack.signedAt).replace(" UTC", ""), { x: col.at, y: w.y - 8, size: 8, font: courier, color: INK })
+    w.y -= rowHeight
   }
-  rule()
+  w.rule()
 
   // ── Per-page initials grid (spike layout): p1: GT   p2: GT   … ───────────
   const initialAcks = orderedAcks.filter((x) => x.checkpoint.type === "Initial" && x.checkpoint.pageRef != null)
   if (initialAcks.length > 0) {
-    drawLines(["Per-page initials"], { size: 11, font: helvBold })
-    y -= 2
+    w.drawLines(["Per-page initials"], { size: 11, font: helvBold })
+    w.y -= 2
     const cellW = 66
     const perRow = Math.floor((PAGE_W - MARGIN * 2) / cellW)
     for (let i = 0; i < initialAcks.length; i += perRow) {
-      ensureRoom(14)
+      w.ensureRoom(14)
       for (const [j, { checkpoint, ack }] of initialAcks.slice(i, i + perRow).entries()) {
         const initials = ack.method === "Attested" ? "att." : ack.typedName ?? "-"
-        page!.drawText(sanitize(`p${checkpoint.pageRef}: ${initials}`), {
+        w.page.drawText(sanitize(`p${checkpoint.pageRef}: ${initials}`), {
           x: MARGIN + j * cellW,
-          y: y - 9,
+          y: w.y - 9,
           size: 8.5,
           font: courier,
           color: INK,
         })
       }
-      y -= 13
+      w.y -= 13
     }
-    rule()
+    w.rule()
   }
 
-  drawLines(
+  w.drawLines(
     [
       `This certificate was generated at ${utc(new Date())} and is bound to the source document by its SHA-256 fingerprint above.`,
       `Acknowledgment records are append-only; altering the source document produces a new version requiring new signatures.`,
@@ -326,4 +384,184 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     if (race) return race
     throw err
   }
+}
+
+// HR-5: idempotently generate the executed-form PDF for a COMPLETED dual-
+// signature FormSubmission and stamp its write-once pointer columns. Returns
+// the submission row (with the pointer). One PDF per submission, never
+// regenerated; refuses anything not carrying both signatures.
+export async function ensureFormSignedPdf(formSubmissionId: string) {
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id: formSubmissionId },
+    include: { version: { include: { hrDocument: { include: { organization: true } } } } },
+  })
+  if (!submission) throw new SignedRecordError("Form submission not found")
+  if (submission.signedPdfPathname) return submission
+
+  if (
+    submission.status !== "Completed" ||
+    !submission.employeeTypedName ||
+    !submission.supervisorTypedName ||
+    !submission.employeeSignedAt ||
+    !submission.supervisorSignedAt
+  ) {
+    throw new SignedRecordError("Both signatures are required before the record can be generated")
+  }
+
+  const doc = submission.version.hrDocument
+  const org = doc.organization
+  const values = (submission.values ?? []) as unknown as SubmittedFormValue[]
+  const formTitle = submission.formTitle ?? doc.title
+  const versionNumber = submission.formVersionNumber ?? submission.version.versionNumber
+  const staffName = submission.staffName ?? "-"
+  const definitionHash = submission.definitionHash ?? submission.version.fileHash
+  const completedAt = submission.supervisorSignedAt
+
+  const supervisorUser = submission.supervisorUserId
+    ? await prisma.user.findUnique({
+        where: { id: submission.supervisorUserId },
+        select: { name: true, email: true },
+      })
+    : null
+  const supervisorIdentity = supervisorUser?.name ?? supervisorUser?.email ?? "-"
+
+  // ── Render the executed form from scratch ─────────────────────────────────
+  const pdf = await PDFDocument.create()
+  const helv = await pdf.embedFont(StandardFonts.Helvetica)
+  const helvBold = await pdf.embedFont(StandardFonts.HelveticaBold)
+  const helvOblique = await pdf.embedFont(StandardFonts.HelveticaOblique)
+  const courier = await pdf.embedFont(StandardFonts.Courier)
+  const w = new CertificateWriter(pdf, { helv, helvBold, courier })
+
+  w.newPage()
+  w.page.drawText(sanitize(formTitle), { x: MARGIN, y: w.y - 18, size: 18, font: helvBold, color: INK })
+  w.y -= 26
+  w.drawLines(
+    [
+      `${org.name} · version ${versionNumber} · executed for ${staffName}${submission.storeName ? ` (${submission.storeName})` : ""}`,
+    ],
+    { size: 9, color: MUTED }
+  )
+  w.rule()
+
+  const bodyText = (doc.bodyText ?? "").trim()
+  if (bodyText) {
+    w.drawLines(wrapText(sanitize(bodyText), helv, 9.5, PAGE_W - MARGIN * 2), { size: 9.5, gap: 3.5 })
+    w.rule()
+  }
+
+  if (values.length > 0) {
+    w.drawLines(["Details"], { size: 11, font: helvBold })
+    w.y -= 2
+    for (const v of values) {
+      w.labeled(v.label, v.value || "-")
+    }
+    w.rule()
+  }
+
+  // Typed-name signature blocks — the name over a line, caption underneath.
+  const signatureBlock = (typedName: string, caption: string) => {
+    w.ensureRoom(58)
+    w.page.drawText(sanitize(typedName), { x: MARGIN, y: w.y - 22, size: 14, font: helvOblique, color: INK })
+    w.page.drawLine({
+      start: { x: MARGIN, y: w.y - 28 },
+      end: { x: MARGIN + 260, y: w.y - 28 },
+      thickness: 0.75,
+      color: INK,
+    })
+    w.page.drawText(sanitize(caption), { x: MARGIN, y: w.y - 40, size: 8, font: helv, color: MUTED })
+    w.y -= 52
+  }
+  w.drawLines(["Signatures"], { size: 11, font: helvBold })
+  w.y -= 4
+  signatureBlock(
+    submission.employeeTypedName,
+    `Employee — ${staffName} · signed ${utc(submission.employeeSignedAt)}`
+  )
+  signatureBlock(
+    submission.supervisorTypedName,
+    `Supervisor — ${supervisorIdentity} · signed ${utc(submission.supervisorSignedAt)}`
+  )
+
+  // ── Certificate page (HR-4 language, definition hash as the pin) ─────────
+  w.newPage()
+  w.heading("Certificate of Execution", org.name)
+
+  w.labeled("Form", `${formTitle} (version ${versionNumber})`)
+  w.labeled("Definition SHA-256", definitionHash, courier)
+  w.labeled("Organization", org.name)
+  w.labeled("Completed at", utc(completedAt))
+  w.rule()
+  w.labeled("Employee", staffName)
+  w.labeled("Store", submission.storeName ?? "-")
+  w.labeled("Signed as", submission.employeeTypedName)
+  w.labeled("Signed at", utc(submission.employeeSignedAt))
+  w.labeled("IP address", submission.ipAddress ?? "-")
+  w.labeled("Device", submission.userAgent ?? "-")
+  w.rule()
+  w.labeled("Supervisor", supervisorIdentity)
+  w.labeled("Signed as", submission.supervisorTypedName)
+  w.labeled("Signed at", utc(submission.supervisorSignedAt))
+  w.labeled("IP address", submission.supervisorIpAddress ?? "-")
+  w.labeled("Device", submission.supervisorUserAgent ?? "-")
+  w.rule()
+  w.labeled("Auth method", "ClerkSession — employee signed in the supervisor's presence")
+  w.rule()
+
+  w.drawLines(
+    [
+      "Electronic signature consent" +
+        (submission.consentVersion ? ` (${submission.consentVersion})` : ""),
+    ],
+    { size: 8, font: helvBold, color: MUTED }
+  )
+  w.drawLines(wrapText(sanitize(submission.consentText ?? "-"), helv, 8.5, PAGE_W - MARGIN * 2), {
+    size: 8.5,
+  })
+  w.rule()
+
+  w.drawLines(
+    [
+      `This certificate was generated at ${utc(new Date())} and is bound to the form definition by its SHA-256 fingerprint above.`,
+      `Form submissions are append-only; editing the form definition produces a new version while this record stays pinned to the definition signed.`,
+    ],
+    { size: 7.5, color: MUTED }
+  )
+
+  const signedBytes = Buffer.from(await pdf.save())
+  const signedPdfHash = createHash("sha256").update(signedBytes).digest("hex")
+
+  const safeStaff = staffName.replace(/[^a-zA-Z0-9]+/g, "-").slice(0, 40)
+  const uploaded = await uploadHrFile(
+    new File(
+      [new Uint8Array(signedBytes)],
+      `signed-form-${safeStaff}-v${versionNumber}.pdf`,
+      { type: "application/pdf" }
+    ),
+    { keyPrefix: `hr/${doc.organizationId}/signed-records` }
+  )
+
+  // Write-once: only stamp the pointer if nobody else has. A concurrent
+  // generation loses the race harmlessly — the first PDF stands.
+  const { count } = await prisma.formSubmission.updateMany({
+    where: { id: submission.id, signedPdfPathname: null },
+    data: {
+      signedPdfPathname: uploaded.pathname,
+      signedPdfHash,
+      generatedAt: new Date(),
+    },
+  })
+  if (count === 0) {
+    const race = await prisma.formSubmission.findUnique({
+      where: { id: submission.id },
+      include: { version: { include: { hrDocument: { include: { organization: true } } } } },
+    })
+    if (race?.signedPdfPathname) return race
+    throw new SignedRecordError("Failed to record the generated PDF")
+  }
+
+  return (await prisma.formSubmission.findUnique({
+    where: { id: submission.id },
+    include: { version: { include: { hrDocument: { include: { organization: true } } } } },
+  }))!
 }

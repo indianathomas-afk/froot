@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { primaryStoreName } from "@/lib/hr"
 import { HR_ESIGN_CONSENT_TEXT, HR_ESIGN_CONSENT_VERSION } from "@/lib/hr-documents"
 import type { FormDefinition } from "@/lib/hr-forms"
+import { ensureFormSignedPdf } from "@/lib/hr-signed-pdf"
 import { requireHrDocumentAccess } from "../../../documents/access"
 import { loadScopedStaff } from "../../shared"
 
@@ -134,6 +135,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       consentVersion: HR_ESIGN_CONSENT_VERSION,
     },
   })
+
+  // Both signatures in: produce the executed PDF synchronously. A generator
+  // failure must not lose the submission we just wrote — the Documents tab
+  // offers an idempotent regenerate, so report and move on (HR-4 pattern).
+  if (complete) {
+    try {
+      await ensureFormSignedPdf(submission.id)
+    } catch (err) {
+      console.error("HR-5 form signed-PDF generation failed", err)
+    }
+  }
 
   return NextResponse.json(
     { id: submission.id, status: submission.status, complete },
