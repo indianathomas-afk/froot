@@ -1,0 +1,213 @@
+import { auth } from "@clerk/nextjs/server"
+import { prisma } from "@/lib/prisma"
+import { notFound, redirect } from "next/navigation"
+import Link from "next/link"
+import { format } from "date-fns"
+import { ArrowLeft, FileText, GraduationCap, StickyNote, Gauge, Store } from "lucide-react"
+import { getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+
+// HR-1: read-only staff detail shell. Only Overview shows real data — the
+// other tabs are placeholders that later phases populate (Notes HR-2,
+// Documents HR-4/5, Training HR-6/7, Compliance HR-8).
+
+async function getStaffMember(id: string, clerkOrgId: string) {
+  const { isAdmin, storeIds } = await getUserStoreScope()
+
+  const member = await prisma.staffMember.findFirst({
+    where: { id, organization: { clerkOrgId } },
+    include: {
+      storeAssignments: {
+        include: { store: true },
+        orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }],
+      },
+    },
+  })
+  if (!member) return null
+  // Non-admins may only open staff assigned to one of their own stores.
+  if (!isAdmin && !member.storeAssignments.some((a) => storeIds.includes(a.storeId))) return null
+  return member
+}
+
+// Empty-state shell for a tab whose real content ships in a later phase.
+function ShellTab({
+  icon: Icon,
+  title,
+  copy,
+  phase,
+}: {
+  icon: typeof FileText
+  title: string
+  copy: string
+  phase: string
+}) {
+  return (
+    <div className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
+      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--color-muted)] flex items-center justify-center">
+        <Icon className="h-6 w-6 text-[var(--color-muted-foreground)]" />
+      </div>
+      <p className="font-medium text-[var(--color-foreground)] mb-1">{title}</p>
+      <p className="text-sm text-[var(--color-muted-foreground)] max-w-md mx-auto">{copy}</p>
+      <p className="text-xs text-[var(--color-muted-foreground)] mt-3 uppercase tracking-wide">Coming in {phase}</p>
+    </div>
+  )
+}
+
+export default async function StaffDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { orgId } = await auth()
+  if (!orgId) redirect("/dashboard")
+
+  // Availability gate first, then the per-org add-on toggle — with either
+  // off, this page must behave as though it does not exist.
+  if (!hrModuleAvailable(orgId)) notFound()
+  try {
+    await requireModule("hr")
+  } catch {
+    notFound()
+  }
+
+  const { id } = await params
+  const member = await getStaffMember(id, orgId)
+  if (!member) notFound()
+
+  return (
+    <div>
+      <Link
+        href="/staff"
+        className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] mb-4"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Staff Members
+      </Link>
+
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[var(--color-foreground)]">{member.displayName}</h1>
+            {member.squareTeamMemberId && <Badge variant="info">Synced from Square</Badge>}
+          </div>
+          <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+            {member.fullName ?? member.displayName} · Member since {format(member.createdAt, "MMMM d, yyyy")}
+          </p>
+          {member.storeAssignments.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {member.storeAssignments.map((a) => (
+                <span
+                  key={a.id}
+                  className={`inline-flex items-center gap-1 rounded-full text-xs font-medium px-2 py-0.5 ${
+                    a.isPrimary
+                      ? "bg-[var(--color-primary)] text-white"
+                      : "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                  }`}
+                  title={a.isPrimary ? "Primary store" : undefined}
+                >
+                  {a.isPrimary && <span aria-label="Primary store">★</span>}
+                  {a.store.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="training">Training</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
+          <TabsTrigger value="compliance">Compliance</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4 space-y-4">
+          <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-6">
+            <h2 className="text-sm font-semibold text-[var(--color-foreground)] mb-4">Details</h2>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+              <div>
+                <dt className="text-[var(--color-muted-foreground)]">Display Name</dt>
+                <dd className="text-[var(--color-foreground)] font-medium">{member.displayName}</dd>
+              </div>
+              <div>
+                <dt className="text-[var(--color-muted-foreground)]">Full Name</dt>
+                <dd className="text-[var(--color-foreground)] font-medium">{member.fullName ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-[var(--color-muted-foreground)]">Email</dt>
+                <dd className="text-[var(--color-foreground)] font-medium">{member.email ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-[var(--color-muted-foreground)]">Member Since</dt>
+                <dd className="text-[var(--color-foreground)] font-medium">{format(member.createdAt, "MMMM d, yyyy")}</dd>
+              </div>
+              <div>
+                <dt className="text-[var(--color-muted-foreground)]">Source</dt>
+                <dd className="text-[var(--color-foreground)] font-medium">
+                  {member.squareTeamMemberId ? "Synced from Square" : "Added manually"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-6">
+            <h2 className="text-sm font-semibold text-[var(--color-foreground)] mb-4">Store Assignments</h2>
+            {member.storeAssignments.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted-foreground)]">
+                Not assigned to any store yet. Assign stores from the staff directory.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {member.storeAssignments.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2 text-sm text-[var(--color-foreground)]">
+                    <Store className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                    {a.store.storeNumber ? `#${a.store.storeNumber} - ` : ""}
+                    {a.store.name}
+                    {a.isPrimary && (
+                      <span className="text-xs font-medium text-[var(--color-primary)]">★ Primary</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="documents" className="mt-4">
+          <ShellTab
+            icon={FileText}
+            title="No documents yet"
+            copy="Handbooks, agreements, and e-signature acknowledgments assigned to this team member will live here."
+            phase="HR-4/5"
+          />
+        </TabsContent>
+
+        <TabsContent value="training" className="mt-4">
+          <ShellTab
+            icon={GraduationCap}
+            title="No training assigned"
+            copy="Training courses, lesson progress, and completions for this team member will live here."
+            phase="HR-6/7"
+          />
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-4">
+          <ShellTab
+            icon={StickyNote}
+            title="No manager notes"
+            copy="Private manager notes about this team member will live here."
+            phase="HR-2"
+          />
+        </TabsContent>
+
+        <TabsContent value="compliance" className="mt-4">
+          <ShellTab
+            icon={Gauge}
+            title="Compliance tracking not active"
+            copy="Compliance tracking activates once documents or training are assigned — required items, completions, and the overall percentage will roll up here."
+            phase="HR-8"
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
