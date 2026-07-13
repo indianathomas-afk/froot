@@ -1,13 +1,19 @@
 import { auth } from "@clerk/nextjs/server"
+import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
-import { getUserStoreScope } from "@/lib/auth"
+import { getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
+import { getStaffComplianceSummary } from "@/lib/hr"
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, hrActive: false }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false }
+  if (!org) return { staff: [], stores: [], isAdmin: false, hrActive: false }
+
+  // HR surfaces on this page only exist when the module is available in this
+  // environment AND the org has the add-on on — otherwise render as before.
+  const hrActive = hrModuleAvailable(orgId) && org.activeModules.includes("hr")
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   const storeFilter = isAdmin ? {} : { id: { in: storeIds } }
@@ -29,11 +35,27 @@ async function getStaffData() {
     prisma.store.findMany({ where: { organizationId: org.id, ...storeFilter }, orderBy: { name: "asc" } }),
   ])
 
-  return { staff, stores, isAdmin }
+  return { staff, stores, isAdmin, hrActive }
+}
+
+// Compliance % cell. pct is null until requirements exist for the member —
+// rendered as a muted em dash, not 0%.
+function CompliancePct({ pct }: { pct: number | null }) {
+  if (pct === null) {
+    return (
+      <span
+        className="text-sm text-[var(--color-muted-foreground)] cursor-help"
+        title="Compliance tracking activates once documents or training are assigned."
+      >
+        —
+      </span>
+    )
+  }
+  return <span className="text-sm font-medium text-[var(--color-foreground)]">{pct}%</span>
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin } = await getStaffData()
+  const { staff, stores, isAdmin, hrActive } = await getStaffData()
 
   const byStore = new Map<string, typeof staff>()
   const unassigned: typeof staff = []
@@ -105,13 +127,24 @@ export default async function StaffPage() {
                       <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
                       <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
                       <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
+                      {hrActive && (
+                        <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
+                      )}
                       <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {members.map((member) => (
                       <tr key={member.id} className="border-b border-[var(--color-border)] last:border-0">
-                        <td className="px-6 py-3 text-sm font-medium text-[var(--color-foreground)]">{member.displayName}</td>
+                        <td className="px-6 py-3 text-sm font-medium text-[var(--color-foreground)]">
+                          {hrActive ? (
+                            <Link href={`/staff/${member.id}`} className="hover:text-[var(--color-primary)] hover:underline">
+                              {member.displayName}
+                            </Link>
+                          ) : (
+                            member.displayName
+                          )}
+                        </td>
                         <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
                         <td className="px-6 py-3">
                           <StaffLocationChips
@@ -124,6 +157,11 @@ export default async function StaffPage() {
                             }))}
                           />
                         </td>
+                        {hrActive && (
+                          <td className="px-6 py-3 text-right">
+                            <CompliancePct pct={getStaffComplianceSummary(member.id).pct} />
+                          </td>
+                        )}
                         <td className="px-6 py-3 text-right">
                           <DeleteStaffButton staffId={member.id} />
                         </td>
@@ -144,9 +182,22 @@ export default async function StaffPage() {
                 <tbody>
                   {unassigned.map((member) => (
                     <tr key={member.id} className="border-b border-[var(--color-border)] last:border-0">
-                      <td className="px-6 py-3 text-sm font-medium text-[var(--color-foreground)]">{member.displayName}</td>
+                      <td className="px-6 py-3 text-sm font-medium text-[var(--color-foreground)]">
+                        {hrActive ? (
+                          <Link href={`/staff/${member.id}`} className="hover:text-[var(--color-primary)] hover:underline">
+                            {member.displayName}
+                          </Link>
+                        ) : (
+                          member.displayName
+                        )}
+                      </td>
                       <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
                       <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">—</td>
+                      {hrActive && (
+                        <td className="px-6 py-3 text-right">
+                          <CompliancePct pct={getStaffComplianceSummary(member.id).pct} />
+                        </td>
+                      )}
                       <td className="px-6 py-3 text-right">
                         <DeleteStaffButton staffId={member.id} />
                       </td>
