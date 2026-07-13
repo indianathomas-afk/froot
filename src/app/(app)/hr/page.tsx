@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
-import { BriefcaseBusiness, FileCheck2, FileText, Users } from "lucide-react"
+import { BriefcaseBusiness, FileCheck2, FileSignature, FileText, Users } from "lucide-react"
 import Link from "next/link"
 import { hrModuleAvailable } from "@/lib/auth"
 
@@ -77,6 +77,20 @@ export default async function HrPage() {
             Handbooks, policies, and reference documents for the whole team
           </p>
         </Link>
+        {dbUser?.role === "ADMIN" && (
+          <Link
+            href="/hr/forms"
+            className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
+          >
+            <div className="w-10 h-10 mb-3 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
+              <FileSignature className="h-5 w-5 text-[var(--color-primary)]" />
+            </div>
+            <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Agreement Forms</h2>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+              Fillable key &amp; pay agreements signed by staff and supervisor
+            </p>
+          </Link>
+        )}
         {dbUser?.role === "ADMIN" && (
           <Link
             href="/hr/signed-records"

@@ -27,13 +27,44 @@ export const HR_CATEGORY_STYLES: Record<HrDocumentCategory, string> = {
   Other: "bg-gray-100 text-gray-600 border border-gray-200",
 }
 
-// Document kinds shipped so far. FillableForm joins in HR-5.
+// Kinds creatable through the library upload dialog. FillableForm (HR-5) is
+// deliberately NOT here — forms are built at /hr/forms, never uploaded, and
+// never appear in the all-user library.
 export const HR_DOCUMENT_KINDS = ["Reference", "Acknowledgment"] as const
 export type HrDocumentKind = (typeof HR_DOCUMENT_KINDS)[number]
 
 export const HR_KIND_LABELS: Record<HrDocumentKind, string> = {
   Reference: "Reference",
   Acknowledgment: "Requires signature",
+}
+
+// ── HR-5: fillable agreement forms ──────────────────────────────────────────
+
+export const FORM_FIELD_TYPES = ["Text", "Date", "Email", "Phone", "Number", "Select"] as const
+export type FormFieldType = (typeof FORM_FIELD_TYPES)[number]
+
+export const FORM_FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
+  Text: "Text",
+  Date: "Date",
+  Email: "Email",
+  Phone: "Phone",
+  Number: "Number",
+  Select: "Dropdown",
+}
+
+// FormSubmission lifecycle. A submission is finalized — and its signed PDF
+// generated — only at Completed, which requires BOTH signatures.
+export const FORM_SUBMISSION_STATUSES = ["PendingSupervisor", "Completed"] as const
+export type FormSubmissionStatus = (typeof FORM_SUBMISSION_STATUSES)[number]
+
+export const FORM_STATUS_LABELS: Record<FormSubmissionStatus, string> = {
+  PendingSupervisor: "Awaiting supervisor",
+  Completed: "Completed",
+}
+
+export const FORM_STATUS_STYLES: Record<FormSubmissionStatus, string> = {
+  PendingSupervisor: "bg-amber-100 text-amber-700 border border-amber-200",
+  Completed: "bg-green-100 text-green-700 border border-green-200",
 }
 
 // Mirrors the Prisma HrCheckpointType enum — client-safe copy for the editor.

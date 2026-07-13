@@ -1254,6 +1254,7 @@ model HrDocument {
   requiresAcknowledgment Boolean  @default(false)
   isActive               Boolean  @default(true)
   linkedFormId           String? // Check-Out ↔ Check-In form pairing
+  bodyText               String? // FillableForm: the agreement's fixed language, rendered above the fields
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -1279,18 +1280,25 @@ model HrDocumentStoreAssignment {
 
 // Immutable file snapshot per upload. fileHash (sha256 of the exact bytes) is
 // the version pin acknowledgments reference — never overwrite a version's file.
+//
+// FillableForm versions (HR-5) have no uploaded file: the definition (bodyText
+// + fields) is snapshotted in definitionSnapshot, fileHash holds the sha256 of
+// the canonical definition JSON, and the file columns carry sentinels
+// (fileUrl "", contentType application/x-froot-form-definition, sizeBytes =
+// JSON byte length). Same pin semantics, no nullability change for HR-4.
 model HrDocumentVersion {
-  id               String   @id @default(cuid())
-  hrDocumentId     String
-  versionNumber    Int
-  fileUrl          String
-  fileName         String
-  contentType      String
-  sizeBytes        Int
-  fileHash         String // sha256
-  isCurrent        Boolean  @default(true)
-  uploadedByUserId String
-  createdAt        DateTime @default(now())
+  id                 String   @id @default(cuid())
+  hrDocumentId       String
+  versionNumber      Int
+  fileUrl            String
+  fileName           String
+  contentType        String
+  sizeBytes          Int
+  fileHash           String // sha256 (file bytes, or canonical form-definition JSON)
+  definitionSnapshot Json? // FillableForm: frozen { bodyText, fields } this version pins
+  isCurrent          Boolean  @default(true)
+  uploadedByUserId   String
+  createdAt          DateTime @default(now())
 
   hrDocument      HrDocument                 @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
   acknowledgments HrDocumentAcknowledgment[]
@@ -1374,35 +1382,67 @@ model HrSignedRecord {
   @@index([staffMemberId])
 }
 
-// Field definitions for kind=FillableForm documents.
+// Field definitions for kind=FillableForm documents. These rows are the
+// EDITABLE current definition; the signed copy lives in each version's
+// definitionSnapshot, so submissions never depend on these rows.
 model FormField {
   id           String  @id @default(cuid())
   hrDocumentId String
   label        String
-  fieldType    String // text | number | date | checkbox | select | signature...
+  fieldType    String // Text | Date | Email | Phone | Number | Select (FORM_FIELD_TYPES)
   required     Boolean @default(true)
   orderIndex   Int     @default(0)
+  options      Json? // Select: array of choice strings
 
   hrDocument HrDocument @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
 }
 
-// A staff member's completed fillable form. Pinned to the document VERSION they
-// filled; no cascade — submissions are records and outlive form edits.
+// A staff member's execution of a fillable form (HR-5). Pinned to the document
+// VERSION they filled; no cascade — submissions are records and outlive form
+// edits. Re-execution is first-class: NO unique on (version, staff) — pay
+// agreements and key check-outs recur, so a staff member accumulates
+// submissions over time. Append-only: after create, the only writes ever
+// allowed are the supervisor countersign block (once, while
+// PendingSupervisor) and the three write-once signedPdf* columns. The
+// executed PDF lives HERE, not on HrSignedRecord (that stays acknowledgment-
+// only, keyed one-per-version-per-staff).
 model FormSubmission {
   id                     String   @id @default(cuid())
   hrDocumentVersionId    String
   staffMemberId          String
   values                 Json
-  employeeSignatureUrl   String?
+  employeeSignatureUrl   String? // unused: HR-4/5 capture is typed-name (kept for drawn signatures later)
   supervisorSignatureUrl String?
   signedAt               DateTime @default(now())
-  ipAddress              String?
+  ipAddress              String? // employee-side audit (supervisor block below)
   userAgent              String?
+  // --- dual-signer execution (HR-5) ---
+  status                 String    @default("PendingSupervisor") // PendingSupervisor | Completed
+  supervisorUserId       String?
+  employeeTypedName      String?
+  supervisorTypedName    String?
+  employeeSignedAt       DateTime?
+  supervisorSignedAt     DateTime?
+  supervisorIpAddress    String?
+  supervisorUserAgent    String?
+  // --- snapshots frozen at signing time (survive later edits) ---
+  formTitle              String?
+  formVersionNumber      Int?
+  staffName              String?
+  storeName              String?
+  definitionHash         String? // sha256 of the definition JSON signed (version pin)
+  consentText            String?
+  consentVersion         String?
+  // --- executed artifact in the PRIVATE froot-hr store; write-once ---
+  signedPdfPathname      String?
+  signedPdfHash          String? // sha256 of the generated PDF bytes
+  generatedAt            DateTime?
 
   version     HrDocumentVersion @relation(fields: [hrDocumentVersionId], references: [id])
   staffMember StaffMember       @relation(fields: [staffMemberId], references: [id])
 
   @@index([staffMemberId])
+  @@index([hrDocumentVersionId])
 }
 
 // Private manager log per staff member (conversations, attendance, coaching).
