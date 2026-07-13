@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
-import { BriefcaseBusiness, Users } from "lucide-react"
+import { BriefcaseBusiness, FileText, Users } from "lucide-react"
 import Link from "next/link"
 import { hrModuleAvailable } from "@/lib/auth"
 
@@ -48,24 +48,31 @@ export default async function HrPage() {
           Documents, acknowledgments, manager notes, and training
         </p>
       </div>
-      <div className="flex items-center justify-center min-h-[40vh] border border-dashed border-[var(--color-border)] rounded-lg">
-        <div className="text-center max-w-md px-6">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center">
-            <BriefcaseBusiness className="h-6 w-6 text-[var(--color-primary)]" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Link
+          href="/staff"
+          className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
+        >
+          <div className="w-10 h-10 mb-3 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
+            <Users className="h-5 w-5 text-[var(--color-primary)]" />
           </div>
-          <h2 className="text-lg font-semibold text-[var(--color-foreground)] mb-2">HR module — coming online</h2>
-          <p className="text-sm text-[var(--color-muted-foreground)]">
-            Employee documents, e-signature acknowledgments, manager notes, and trackable training will appear
-            here as they roll out.
+          <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Staff Directory</h2>
+          <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+            Team roster, profiles, and manager notes
           </p>
-          <Link
-            href="/staff"
-            className="mt-6 inline-flex items-center gap-2 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Users className="h-4 w-4" />
-            Open Staff Directory
-          </Link>
-        </div>
+        </Link>
+        <Link
+          href="/hr/documents"
+          className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
+        >
+          <div className="w-10 h-10 mb-3 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
+            <FileText className="h-5 w-5 text-[var(--color-primary)]" />
+          </div>
+          <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Document Library</h2>
+          <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+            Handbooks, policies, and reference documents for the whole team
+          </p>
+        </Link>
       </div>
     </div>
   )

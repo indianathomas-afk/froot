@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import {
-  HR_DOCUMENT_CATEGORIES,
-  HrFileValidationError,
-  uploadHrFile,
-  type HrDocumentCategory,
-} from "@/lib/hr-files"
+import { HrFileValidationError, uploadHrFile } from "@/lib/hr-files"
+import { HR_DOCUMENT_CATEGORIES, type HrDocumentCategory } from "@/lib/hr-documents"
 import { requireHrDocumentAccess } from "./access"
 
 // POST /api/hr/documents — upload a Reference document into the org library.

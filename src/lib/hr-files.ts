@@ -8,15 +8,6 @@ import { put, issueSignedToken, presignUrl } from "@vercel/blob"
 // short-lived signed URL. Server-side only — the RW token must never reach the
 // client.
 
-export const HR_DOCUMENT_CATEGORIES = [
-  "Handbook",
-  "PayAgreement",
-  "Policy",
-  "HRManagement",
-  "Other",
-] as const
-export type HrDocumentCategory = (typeof HR_DOCUMENT_CATEGORIES)[number]
-
 const ALLOWED_TYPES: Record<string, string> = {
   "application/pdf": "PDF",
   "image/png": "PNG",
