@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ManagerNotes, type SerializedNote } from "./manager-notes"
 import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
 import { StaffFormDocuments, type StaffFormDocRow } from "./staff-form-documents"
+import { StaffUploadedDocuments, type StaffUploadRow } from "./staff-uploaded-documents"
 import { SelfServiceActions } from "./self-service-actions"
 import { StaffEditActions } from "./staff-edit-actions"
 import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
@@ -252,6 +253,35 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       })
     }
     formDocRows = [...rowByDocId.values()]
+  }
+
+  // HR-7.6 Uploaded Documents: manager-uploaded files for this member, with
+  // the team-visibility flag. Uploader names are stitched via a second query
+  // (uploadedByUserId has no FK — uploads survive the uploader's deletion).
+  let uploadRows: StaffUploadRow[] = []
+  if (canSeeNotes) {
+    const uploads = await prisma.staffDocument.findMany({
+      where: { staffMemberId: member.id, organizationId: member.organizationId },
+      orderBy: { createdAt: "desc" },
+    })
+    const uploaderIds = [...new Set(uploads.map((u) => u.uploadedByUserId))]
+    const uploaders = uploaderIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: uploaderIds } },
+          select: { id: true, name: true, email: true },
+        })
+      : []
+    const uploaderById = new Map(uploaders.map((u) => [u.id, u.name ?? u.email]))
+    uploadRows = uploads.map((u) => ({
+      id: u.id,
+      title: u.title,
+      category: u.category,
+      fileName: u.fileName,
+      sizeBytes: u.sizeBytes,
+      visibleToStaff: u.visibleToStaff,
+      uploadedByName: uploaderById.get(u.uploadedByUserId) ?? null,
+      createdAt: u.createdAt.toISOString(),
+    }))
   }
 
   // HR-7 Training tab: assignments with lesson progress, quiz attempts, and
@@ -532,6 +562,11 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               {formDocRows.length > 0 && (
                 <StaffFormDocuments staffId={member.id} rows={formDocRows} />
               )}
+              <StaffUploadedDocuments
+                staffId={member.id}
+                staffName={member.displayName}
+                rows={uploadRows}
+              />
             </div>
           ) : (
             <div className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">

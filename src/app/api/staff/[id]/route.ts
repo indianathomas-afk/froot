@@ -126,6 +126,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     prisma.formSubmission.count({ where: { staffMemberId: id } }),
     prisma.trainingAssignment.count({ where: { staffMemberId: id } }),
     prisma.trainingLessonProgress.count({ where: { completedByStaffId: id } }),
+    prisma.staffDocument.count({ where: { staffMemberId: id } }),
   ])
   if (counts.some((c) => c > 0)) {
     return NextResponse.json(

@@ -32,12 +32,19 @@ export default async function MyDocumentsPage() {
   if (!self.ok) return <MyDenied reason={self.reason} />
   const { staffMember, org } = self
 
-  const [rows, referenceDocs] = await Promise.all([
+  const [rows, referenceDocs, sharedDocs] = await Promise.all([
     requiredDocumentRows(staffMember),
     prisma.hrDocument.findMany({
       where: { organizationId: org.id, kind: "Reference", isActive: true },
       select: { id: true, title: true, category: true },
       orderBy: { title: "asc" },
+    }),
+    // HR-7.6: manager-uploaded documents a manager chose to share with this
+    // staff member. Not-visible uploads are never fetched here.
+    prisma.staffDocument.findMany({
+      where: { staffMemberId: staffMember.id, organizationId: org.id, visibleToStaff: true },
+      select: { id: true, title: true, category: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
     }),
   ])
 
@@ -99,6 +106,34 @@ export default async function MyDocumentsPage() {
                 </div>
                 {statusBadge(row)}
               </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {sharedDocs.length > 0 && (
+        <>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-[var(--color-muted-foreground)] mb-2">
+            Shared with you
+          </h2>
+          <div className="space-y-2 mb-6">
+            {sharedDocs.map((doc) => (
+              <a
+                key={doc.id}
+                href={`/api/staff/${staffMember.id}/documents/${doc.id}/download`}
+                target="_blank"
+                rel="noopener"
+                className="flex items-center gap-3 border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-4 min-h-11"
+              >
+                <FileText className="h-5 w-5 shrink-0 text-[var(--color-primary)]" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    {doc.category ? `${doc.category} · ` : ""}
+                    {format(new Date(doc.createdAt), "MMM d, yyyy")}
+                  </p>
+                </div>
+              </a>
             ))}
           </div>
         </>

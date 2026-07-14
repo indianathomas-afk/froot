@@ -68,6 +68,7 @@ model Organization {
   hrDocuments                   HrDocument[]
   managerNotes                  ManagerNote[]
   trainingModules               TrainingModule[]
+  staffDocuments                StaffDocument[]
 }
 
 model User {
@@ -205,6 +206,7 @@ model StaffMember {
   trainingAssignments TrainingAssignment[]
   lessonCompletions   TrainingLessonProgress[]
   signedRecords       HrSignedRecord[]
+  uploadedDocuments   StaffDocument[]
 
   @@unique([organizationId, squareTeamMemberId])
 }
@@ -1479,6 +1481,40 @@ model ManagerNote {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   staffMember  StaffMember  @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+
+  @@index([staffMemberId, createdAt(sort: Desc)])
+  @@index([organizationId])
+}
+
+// HR-7.6: a manager-uploaded file attached to ONE staff member — a scanned or
+// photographed completed paper document (signed pay agreement, write-up, etc.)
+// that lives outside the org-template system. The file is in the PRIVATE
+// froot-hr Blob store. visibleToStaff is the manager's per-document switch:
+// true → the owning staff member can view/download it in /my/documents; false
+// → managers/admins only. Distinct from the auto-generated signed-record/cert
+// tier (rule 5) — this class is manager-controlled visibility by design. No
+// cascade from the staff member: uploads are retained records that outlive the
+// employee (they also block hard-delete of the member). uploadedByUserId is a
+// plain id (no FK) so the upload survives the uploader's deletion.
+model StaffDocument {
+  id               String   @id @default(cuid())
+  organizationId   String
+  staffMemberId    String
+  uploadedByUserId String
+  title            String
+  category         String? // free label: Pay | Disciplinary | Onboarding | General...
+  fileName         String
+  fileUrl          String // full private blob URL
+  filePathname     String // store-relative pathname for presigning
+  contentType      String
+  sizeBytes        Int
+  fileHash         String // sha256 of the stored bytes
+  visibleToStaff   Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  staffMember  StaffMember  @relation(fields: [staffMemberId], references: [id])
 
   @@index([staffMemberId, createdAt(sort: Desc)])
   @@index([organizationId])
