@@ -15,3 +15,5 @@ export const quizSchema = z.object({
   passThreshold: z.number().int().min(0).max(100),
   questions: z.array(quizQuestionSchema),
 })
+
+export type QuizQuestion = z.infer<typeof quizQuestionSchema>

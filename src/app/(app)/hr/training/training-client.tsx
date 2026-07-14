@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Archive, CheckCircle, Copy, GraduationCap, ListChecks, Pencil, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { TrainingImportButton } from "./training-import-button"
+import { TrainingExportButton } from "./training-export-button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -163,12 +165,16 @@ export default function TrainingClient() {
             Build lesson-based training with videos, files, and a quiz
           </p>
         </div>
-        <Link href="/hr/training/new">
-          <Button>
-            <Plus className="h-4 w-4" />
-            Create Module
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <TrainingExportButton />
+          <TrainingImportButton onImported={load} />
+          <Link href="/hr/training/new">
+            <Button>
+              <Plus className="h-4 w-4" />
+              Create Module
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Tabs */}
