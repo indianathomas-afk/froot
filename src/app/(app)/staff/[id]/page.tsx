@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ManagerNotes, type SerializedNote } from "./manager-notes"
 import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
 import { StaffFormDocuments, type StaffFormDocRow } from "./staff-form-documents"
+import { SelfServiceActions } from "./self-service-actions"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4). Training (HR-6/7) and Compliance (HR-8) remain placeholders.
@@ -78,6 +79,15 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // enforce the same gates.
   const { dbUser } = await getCurrentUser()
   const canSeeNotes = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+
+  // HR-7 self-service state: linked login / invite still pending. Same
+  // ADMIN/MANAGER tier as the other management surfaces on this page.
+  const invitePending = canSeeNotes
+    ? (await prisma.pendingInvite.findFirst({
+        where: { organizationId: member.organizationId, staffMemberId: member.id },
+        select: { id: true },
+      })) !== null
+    : false
 
   // HR-4 Documents tab: every required Acknowledgment doc that applies to
   // this staff member's stores, with version-pinned status. Signed records
@@ -267,6 +277,11 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[var(--color-foreground)]">{member.displayName}</h1>
             {member.squareTeamMemberId && <Badge variant="info">Synced from Square</Badge>}
+            {member.status === "TERMINATED" && <Badge variant="destructive">Terminated</Badge>}
+            {member.status !== "TERMINATED" && member.userId && <Badge variant="success">Self-service login</Badge>}
+            {member.status !== "TERMINATED" && !member.userId && invitePending && (
+              <Badge variant="warning">Invite pending</Badge>
+            )}
           </div>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
             {member.fullName ?? member.displayName} · Member since {format(member.createdAt, "MMMM d, yyyy")}
@@ -289,7 +304,22 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               ))}
             </div>
           )}
+          {member.status === "TERMINATED" && member.terminatedAt && (
+            <p className="text-sm text-[var(--color-destructive)] mt-2">
+              Terminated {format(member.terminatedAt, "MMMM d, yyyy")} — records retained
+            </p>
+          )}
         </div>
+        {canSeeNotes && (
+          <SelfServiceActions
+            staffId={member.id}
+            displayName={member.displayName}
+            email={member.email}
+            hasLogin={!!member.userId}
+            invitePending={invitePending}
+            status={member.status}
+          />
+        )}
       </div>
 
       <Tabs defaultValue="overview">

@@ -88,6 +88,7 @@ model User {
   messageReactions     MessageReaction[]
   messageReads         MessageRead[]
   corporateUpdates     CorporateUpdate[]
+  staffMember          StaffMember?
 }
 
 model Store {
@@ -161,6 +162,10 @@ model PendingInvite {
   email          String
   role           Role
   storeIds       String[] @default([])
+  // HR-7: set when the invite is a staff self-service invite — the Clerk
+  // webhook links the new User to this StaffMember on acceptance. Plain id
+  // (no FK) so the invite row never blocks staff lifecycle changes.
+  staffMemberId  String?
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -169,15 +174,25 @@ model PendingInvite {
 }
 
 model StaffMember {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   organizationId     String
-  squareTeamMemberId String?  @unique
+  squareTeamMemberId String?   @unique
   displayName        String
   fullName           String?
   email              String?
-  createdAt          DateTime @default(now())
+  // HR-7 rule 1/2: offboarding sets TERMINATED (never deletes) — Square
+  // INACTIVE reconcile and the manager terminate action both land here, and
+  // every /my/* read requires ACTIVE server-side.
+  status             String    @default("ACTIVE") // ACTIVE | TERMINATED
+  terminatedAt       DateTime?
+  // Nullable link to a Clerk-backed login (HR-7 invite flow). Most staff
+  // never get one; termination revokes the Clerk side but the link remains
+  // governed by the organizationMembership.deleted webhook.
+  userId             String?   @unique
+  createdAt          DateTime  @default(now())
 
   organization        Organization             @relation(fields: [organizationId], references: [id])
+  user                User?                    @relation(fields: [userId], references: [id])
   storeAssignments    StoreStaffAssignment[]
   taskLogs            TaskLog[]
   teamMessages        TeamMessage[]
@@ -1543,27 +1558,67 @@ model TrainingAssignment {
   status           String    @default("NotStarted") // NotStarted | InProgress | Completed
   hoursLogged      Float?
   certifiedAt      DateTime?
+  // HR-7 certification (trainer co-sign): write-once pointer to the signed
+  // certificate PDF in the PRIVATE froot-hr store, HR-5 pattern — each
+  // executed thing owns its PDF. Downloads are ADMIN / in-scope MANAGER only.
+  certPdfPathname   String?
+  certPdfHash       String? // sha256 of the generated PDF bytes
+  certifiedByUserId String? // trainer who co-signed (plain id, survives user deletion)
+  trainerTypedName  String? // trainer's typed-name capture at co-sign
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   trainingModule TrainingModule           @relation(fields: [trainingModuleId], references: [id])
   staffMember    StaffMember              @relation(fields: [staffMemberId], references: [id])
   lessonProgress TrainingLessonProgress[]
+  quizAttempts   TrainingQuizAttempt[]
 
   @@index([staffMemberId])
   @@index([trainingModuleId])
 }
 
 model TrainingLessonProgress {
-  id                   String   @id @default(cuid())
+  id                   String        @id @default(cuid())
   trainingAssignmentId String
   trainingLessonId     String
-  completedAt          DateTime @default(now())
+  completedAt          DateTime      @default(now())
   completedByStaffId   String?
+  // HR-7: how this completion was captured — ClerkSession (staff self-serve
+  // at /my/training) or ManagerAttested (manager records it for login-less
+  // staff; completedByUserId is the attesting manager). Null on pre-HR-7 rows.
+  authMethod           HrAuthMethod?
+  completedByUserId    String? // attesting manager (plain id, survives user deletion)
 
   trainingAssignment TrainingAssignment @relation(fields: [trainingAssignmentId], references: [id], onDelete: Cascade)
   trainingLesson     TrainingLesson     @relation(fields: [trainingLessonId], references: [id], onDelete: Cascade)
   completedByStaff   StaffMember?       @relation(fields: [completedByStaffId], references: [id])
 
   @@unique([trainingAssignmentId, trainingLessonId])
+}
+
+// HR-7: one staff member's sitting of a module quiz. Append-only: after
+// create, the only write ever allowed is the written-answer review block
+// (once, while PendingReview). The questions and threshold are snapshotted at
+// attempt time so later quiz edits never change what an attempt meant — same
+// pin semantics as HR-4/5 signing snapshots. No cascade from the assignment:
+// attempts are records.
+model TrainingQuizAttempt {
+  id                    String       @id @default(cuid())
+  trainingAssignmentId  String
+  questionsSnapshot     Json // quiz questions as graded, frozen at submit time
+  passThresholdSnapshot Int
+  answers               Json // { [questionId]: string | string[] }
+  scorePct              Int? // null while PendingReview (written answers ungraded)
+  status                String // Passed | Failed | PendingReview
+  authMethod            HrAuthMethod
+  attestedByUserId      String? // manager who captured a ManagerAttested attempt
+  reviewedByUserId      String? // trainer who graded written answers
+  reviewedAt            DateTime?
+  ipAddress             String?
+  userAgent             String?
+  submittedAt           DateTime     @default(now())
+
+  trainingAssignment TrainingAssignment @relation(fields: [trainingAssignmentId], references: [id])
+
+  @@index([trainingAssignmentId])
 }

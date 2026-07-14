@@ -66,26 +66,41 @@ export type SquareTeamMember = {
   }
 }
 
-// Fetches active team members, trying the org OAuth token first and falling
-// back to the personal access token if the OAuth scope is insufficient.
-// Returns null if neither token can read team members.
-export async function fetchSquareTeamMembers(org: Organization): Promise<SquareTeamMember[] | null> {
+// Fetches team members by status, trying the org OAuth token first and
+// falling back to the personal access token if the OAuth scope is
+// insufficient. Square offboards by setting INACTIVE (never hard-deleting),
+// so the HR-7 termination reconcile reads that status explicitly — the search
+// filter accepts a single status per call. Follows the cursor so rosters over
+// 200 paginate. Returns null if neither token can read team members.
+export async function fetchSquareTeamMembers(
+  org: Organization,
+  status: "ACTIVE" | "INACTIVE" = "ACTIVE"
+): Promise<SquareTeamMember[] | null> {
   const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]
 
   for (const token of tokens) {
-    const res = await fetch(`${getBaseUrl()}/v2/team-members/search`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Square-Version": SQUARE_VERSION,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query: { filter: { status: "ACTIVE" } }, limit: 200 }),
-    })
-    if (res.ok) {
+    const members: SquareTeamMember[] = []
+    let cursor: string | undefined
+    let failed = false
+    do {
+      const res = await fetch(`${getBaseUrl()}/v2/team-members/search`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Square-Version": SQUARE_VERSION,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query: { filter: { status } }, limit: 200, ...(cursor ? { cursor } : {}) }),
+      })
+      if (!res.ok) {
+        failed = true
+        break
+      }
       const data = await res.json()
-      return (data.team_members as SquareTeamMember[]) ?? []
-    }
+      members.push(...((data.team_members as SquareTeamMember[]) ?? []))
+      cursor = data.cursor
+    } while (cursor)
+    if (!failed) return members
   }
   return null
 }

@@ -14,6 +14,7 @@ type SquareTeamMember = {
   display_name?: string
   given_name?: string
   family_name?: string
+  email_address?: string
   alreadyImported: boolean
   assignedStoreIds: string[]
   primaryStoreId: string | null
@@ -216,6 +217,7 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
             body: JSON.stringify({
               displayName: memberName(m),
               fullName: [m.given_name, m.family_name].filter(Boolean).join(" ") || null,
+              email: m.email_address || null,
               squareTeamMemberId: m.id,
               storeIds: Array.from(storeMap[m.id] ?? []),
               primaryStoreId: primaryMap[m.id] || null,

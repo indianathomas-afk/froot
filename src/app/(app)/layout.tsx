@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/layout/sidebar"
 import { AppShell } from "@/components/layout/app-shell"
+import { redirect } from "next/navigation"
 import { auth } from "@clerk/nextjs/server"
 import { OrganizationList } from "@clerk/nextjs"
 import Image from "next/image"
@@ -27,12 +28,33 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const [dbUser, org] = await Promise.all([
-    userId ? prisma.user.findUnique({ where: { clerkUserId: userId } }) : null,
+    userId
+      ? prisma.user.findUnique({
+          where: { clerkUserId: userId },
+          include: { staffMember: { select: { id: true } } },
+        })
+      : null,
     prisma.organization.findUnique({
       where: { clerkOrgId: orgId },
       select: { activeModules: true, instagramEnabled: true, instagramAccessToken: true },
     }),
   ])
+
+  // HR-7: employee logins (STAFF role explicitly linked to a StaffMember by
+  // the invite webhook) see only the /my/* portal — never the admin shell.
+  // Conditioned on the HR gates so production (HR_MODULE_AVAILABLE unset)
+  // stays byte-identical and an org toggling HR off falls back to the plain
+  // STAFF view instead of a dead-ended /my. UI lock only: STAFF-role API
+  // permissions are unchanged (a permission-level split is the future
+  // EMPLOYEE-role phase on the roadmap).
+  if (
+    dbUser?.role === "STAFF" &&
+    dbUser.staffMember &&
+    hrModuleAvailable(orgId) &&
+    (org?.activeModules ?? []).includes("hr")
+  ) {
+    redirect("/my")
+  }
 
   return (
     <div className="flex min-h-screen">
