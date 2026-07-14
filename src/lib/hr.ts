@@ -13,13 +13,30 @@ export async function findStaffMemberForEmail(organizationId: string, email: str
   if (!email) return null
   return prisma.staffMember.findFirst({
     where: { organizationId, email: { equals: email, mode: "insensitive" } },
-    include: {
-      storeAssignments: {
-        include: { store: true },
-        orderBy: [{ isPrimary: "desc" as const }, { store: { name: "asc" as const } }],
-      },
-    },
+    include: staffSelfInclude,
   })
+}
+
+const staffSelfInclude = {
+  storeAssignments: {
+    include: { store: true },
+    orderBy: [{ isPrimary: "desc" as const }, { store: { name: "asc" as const } }],
+  },
+}
+
+// HR-7: the invite webhook links User ⇄ StaffMember explicitly, so self
+// resolution prefers that link and falls back to the HR-4 email match for
+// staff who never got a login-linked profile.
+export async function findStaffMemberForUser(
+  organizationId: string,
+  user: { id: string; email: string }
+) {
+  const linked = await prisma.staffMember.findFirst({
+    where: { organizationId, userId: user.id },
+    include: staffSelfInclude,
+  })
+  if (linked) return linked
+  return findStaffMemberForEmail(organizationId, user.email)
 }
 
 // The store recorded on signing-time snapshots: the staff member's primary

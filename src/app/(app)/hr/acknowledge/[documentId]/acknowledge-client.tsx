@@ -40,11 +40,17 @@ export function AcknowledgeClient({
   checkpoints,
   mode,
   staff,
+  backHref,
+  backLabel,
 }: {
   doc: CaptureDoc
   checkpoints: CaptureCheckpoint[]
   mode: "self" | "attested"
   staff: { id: string; name: string }
+  // HR-7: the /my/documents flow reuses this screen with its own back link;
+  // defaults preserve the HR-4 admin-shell behavior.
+  backHref?: string
+  backLabel?: string
 }) {
   const router = useRouter()
   const attested = mode === "attested"
@@ -125,7 +131,7 @@ export function AcknowledgeClient({
   if (finished || alreadyComplete) {
     return (
       <div className="max-w-2xl mx-auto">
-        <BackLink attested={attested} staffId={staff.id} />
+        <BackLink attested={attested} staffId={staff.id} backHref={backHref} backLabel={backLabel} />
         <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
           <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--color-success-bg,#e8f8ea)] flex items-center justify-center">
             <CheckCircle2 className="h-6 w-6 text-[var(--color-success,#25ba3b)]" />
@@ -144,7 +150,7 @@ export function AcknowledgeClient({
 
   return (
     <div className="max-w-2xl mx-auto">
-      <BackLink attested={attested} staffId={staff.id} />
+      <BackLink attested={attested} staffId={staff.id} backHref={backHref} backLabel={backLabel} />
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[var(--color-foreground)]">{doc.title}</h1>
@@ -368,15 +374,25 @@ export function AcknowledgeClient({
   )
 }
 
-function BackLink({ attested, staffId }: { attested: boolean; staffId: string }) {
-  const href = attested ? `/staff/${staffId}` : "/hr/documents"
+function BackLink({
+  attested,
+  staffId,
+  backHref,
+  backLabel,
+}: {
+  attested: boolean
+  staffId: string
+  backHref?: string
+  backLabel?: string
+}) {
+  const href = backHref ?? (attested ? `/staff/${staffId}` : "/hr/documents")
   return (
     <Link
       href={href}
       className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] mb-4"
     >
       <ArrowLeft className="h-4 w-4" />
-      {attested ? "Staff Member" : "Document Library"}
+      {backLabel ?? (attested ? "Staff Member" : "Document Library")}
     </Link>
   )
 }

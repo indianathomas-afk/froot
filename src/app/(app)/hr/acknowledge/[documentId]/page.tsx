@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { FileQuestion } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
-import { findStaffMemberForEmail } from "@/lib/hr"
+import { findStaffMemberForUser } from "@/lib/hr"
 import { AcknowledgeClient } from "./acknowledge-client"
 
 // HR-4 single-document acknowledgment flow. Two entry points, one engine:
@@ -40,7 +40,7 @@ export default async function AcknowledgePage({
   if (!doc || !version) notFound()
 
   // ── Resolve the staff member being signed for ─────────────────────────────
-  const selfStaff = await findStaffMemberForEmail(org.id, dbUser.email)
+  const selfStaff = await findStaffMemberForUser(org.id, dbUser)
   const isManagerRole = dbUser.role === "ADMIN" || dbUser.role === "MANAGER"
 
   let staff = selfStaff

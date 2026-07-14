@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { findStaffMemberForEmail, primaryStoreName } from "@/lib/hr"
+import { findStaffMemberForUser, primaryStoreName } from "@/lib/hr"
 import {
   HR_ATTEST_CONSENT_TEXT,
   HR_ATTEST_CONSENT_VERSION,
@@ -77,7 +77,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   // ── Resolve who is being signed for, and under which auth method ─────────
-  const selfStaff = await findStaffMemberForEmail(org.id, dbUser.email)
+  const selfStaff = await findStaffMemberForUser(org.id, dbUser)
   const isAttested = !!staffMemberId && staffMemberId !== selfStaff?.id
 
   let staff = selfStaff
@@ -114,6 +114,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
       { status: 403 }
     )
+  }
+  // HR-7 rule 1: self-serve signing requires an ACTIVE staff profile.
+  // Attested capture stays available for terminated staff — backfilling exit
+  // paperwork is a manager call.
+  if (!isAttested && staff.status !== "ACTIVE") {
+    return NextResponse.json({ error: "Your staff profile is no longer active" }, { status: 403 })
   }
 
   // ── Validate entries against the document's checkpoints ──────────────────

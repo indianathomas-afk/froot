@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { findStaffMemberForUser } from "@/lib/hr"
 
 export async function getOrgId(): Promise<string> {
   const { orgId } = await auth()
@@ -86,18 +87,7 @@ export type StaffSelfResult =
   | { ok: false; reason: StaffSelfDeniedReason }
 
 async function findStaffSelf(orgDbId: string, dbUser: { id: string; email: string }) {
-  const include = {
-    storeAssignments: {
-      include: { store: true },
-      orderBy: [{ isPrimary: "desc" as const }, { store: { name: "asc" as const } }],
-    },
-  }
-  const linked = await prisma.staffMember.findUnique({ where: { userId: dbUser.id }, include })
-  if (linked) return linked
-  return prisma.staffMember.findFirst({
-    where: { organizationId: orgDbId, email: { equals: dbUser.email, mode: "insensitive" } },
-    include,
-  })
+  return findStaffMemberForUser(orgDbId, dbUser)
 }
 
 export async function getActiveStaffSelf(): Promise<StaffSelfResult> {
