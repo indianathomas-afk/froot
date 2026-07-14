@@ -176,7 +176,11 @@ model PendingInvite {
 model StaffMember {
   id                 String    @id @default(cuid())
   organizationId     String
-  squareTeamMemberId String?   @unique
+  // Per-ORG unique, not global: the same real Square employee can be imported
+  // by more than one tenant (Froot connects tenants to the same Square
+  // account in some setups). NULLs stay distinct, so manual members (no
+  // Square id) never collide.
+  squareTeamMemberId String?
   displayName        String
   fullName           String?
   email              String?
@@ -201,6 +205,8 @@ model StaffMember {
   trainingAssignments TrainingAssignment[]
   lessonCompletions   TrainingLessonProgress[]
   signedRecords       HrSignedRecord[]
+
+  @@unique([organizationId, squareTeamMemberId])
 }
 
 model StoreStaffAssignment {

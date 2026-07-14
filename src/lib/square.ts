@@ -105,6 +105,33 @@ export async function fetchSquareTeamMembers(
   return null
 }
 
+// Retrieves ONE team member by Square id (GET /v2/team-members/{id}), which
+// returns the member regardless of ACTIVE/INACTIVE status — used by the
+// per-member resync so a manager can pull a corrected email/name/locations
+// (or detect an offboard) for a single person. Tries the org OAuth token,
+// then the personal token. Returns null on any failure or if the id is
+// unknown to Square.
+export async function fetchSquareTeamMember(
+  org: Organization,
+  teamMemberId: string
+): Promise<(SquareTeamMember & { status?: string }) | null> {
+  const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]
+
+  for (const token of tokens) {
+    const res = await fetch(`${getBaseUrl()}/v2/team-members/${teamMemberId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Square-Version": SQUARE_VERSION,
+      },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      return (data.team_member as SquareTeamMember & { status?: string }) ?? null
+    }
+  }
+  return null
+}
+
 // Maps a Square team member's assigned locations onto the org's stores.
 // Square has no primary/home-location concept — location_ids come back in
 // arbitrary (alphabetical) order — so a primary is only inferred when the

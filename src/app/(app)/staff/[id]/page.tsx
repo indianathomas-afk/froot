@@ -11,6 +11,7 @@ import { ManagerNotes, type SerializedNote } from "./manager-notes"
 import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
 import { StaffFormDocuments, type StaffFormDocRow } from "./staff-form-documents"
 import { SelfServiceActions } from "./self-service-actions"
+import { StaffEditActions } from "./staff-edit-actions"
 import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
@@ -89,6 +90,21 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         select: { id: true },
       })) !== null
     : false
+
+  // Stores available in the Edit dialog — scoped like the rest of the app:
+  // ADMIN sees all org stores, MANAGER only their own.
+  const { isAdmin, storeIds: viewerStoreIds } = await getUserStoreScope()
+  const editStores = canSeeNotes
+    ? await prisma.store.findMany({
+        where: {
+          organizationId: member.organizationId,
+          isActive: true,
+          ...(isAdmin ? {} : { id: { in: viewerStoreIds } }),
+        },
+        select: { id: true, name: true, storeNumber: true },
+        orderBy: { name: "asc" },
+      })
+    : []
 
   // HR-4 Documents tab: every required Acknowledgment doc that applies to
   // this staff member's stores, with version-pinned status. Signed records
@@ -423,14 +439,28 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           )}
         </div>
         {canSeeNotes && (
-          <SelfServiceActions
-            staffId={member.id}
-            displayName={member.displayName}
-            email={member.email}
-            hasLogin={!!member.userId}
-            invitePending={invitePending}
-            status={member.status}
-          />
+          <div className="flex flex-col items-end gap-2">
+            <StaffEditActions
+              staffId={member.id}
+              isSquareLinked={!!member.squareTeamMemberId}
+              stores={editStores}
+              current={{
+                displayName: member.displayName,
+                fullName: member.fullName,
+                email: member.email,
+                assignedStoreIds: member.storeAssignments.map((a) => a.storeId),
+                primaryStoreId: member.storeAssignments.find((a) => a.isPrimary)?.storeId ?? null,
+              }}
+            />
+            <SelfServiceActions
+              staffId={member.id}
+              displayName={member.displayName}
+              email={member.email}
+              hasLogin={!!member.userId}
+              invitePending={invitePending}
+              status={member.status}
+            />
+          </div>
         )}
       </div>
 
