@@ -1,13 +1,17 @@
 // Client-side leg of the private HR upload (HR-3 pattern): get a presigned
 // PUT URL, send the file straight to the Blob store (files over ~4.5 MB would
 // 413 if sent through our API), and hand back the store's final URL for the
-// registration POST. Shared by the library Add dialog and the HR-4 re-upload
-// and signature flows.
+// registration POST. Shared by the library Add dialog, the HR-4 re-upload
+// and signature flows, and the HR-6 training builder (which passes its own
+// stricter upload-url endpoint).
 
 export type HrBrowserUploadResult = { ok: true; url: string } | { ok: false; error: string }
 
-export async function uploadHrFileFromBrowser(file: File): Promise<HrBrowserUploadResult> {
-  const urlRes = await fetch("/api/hr/documents/upload-url", {
+export async function uploadHrFileFromBrowser(
+  file: File,
+  uploadUrlEndpoint = "/api/hr/documents/upload-url"
+): Promise<HrBrowserUploadResult> {
+  const urlRes = await fetch(uploadUrlEndpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fileName: file.name, contentType: file.type, sizeBytes: file.size }),
