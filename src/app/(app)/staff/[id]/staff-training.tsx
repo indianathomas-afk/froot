@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { ChevronDown, ChevronRight, GraduationCap, Plus, Trash2 } from "lucide-react"
+import { Award, ChevronDown, ChevronRight, FileDown, GraduationCap, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -46,6 +46,8 @@ export type StaffTrainingAttempt = {
   status: string
   submittedAt: string
   authMethod: string
+  // Present only while PendingReview: the written Q&A the trainer grades.
+  writtenItems?: { questionId: string; prompt: string; answer: string }[]
 }
 
 export type StaffTrainingAssignment = {
@@ -55,6 +57,7 @@ export type StaffTrainingAssignment = {
   status: string
   hoursLogged: number | null
   certifiedAt: string | null
+  hasCertPdf: boolean
   trainerName: string | null
   assignedAt: string
   lessons: StaffTrainingLesson[]
@@ -112,6 +115,15 @@ export function StaffTraining({
   // Hours dialog state
   const [hoursFor, setHoursFor] = useState<StaffTrainingAssignment | null>(null)
   const [hours, setHours] = useState("")
+
+  // Certify dialog state (trainer co-sign)
+  const [certifyFor, setCertifyFor] = useState<StaffTrainingAssignment | null>(null)
+  const [certName, setCertName] = useState("")
+  const [certConsent, setCertConsent] = useState(false)
+
+  // Written-answer review dialog state
+  const [reviewFor, setReviewFor] = useState<{ assignment: StaffTrainingAssignment; attempt: StaffTrainingAttempt } | null>(null)
+  const [writtenCorrect, setWrittenCorrect] = useState<Set<string>>(new Set())
 
   async function call(path: string, init: RequestInit, busyKey: string) {
     setBusy(busyKey)
@@ -206,6 +218,9 @@ export function StaffTraining({
             const isOpen = expanded.has(a.id)
             const noProgress = done === 0 && a.attempts.length === 0 && !a.certifiedAt
             const quizPassed = a.attempts.some((t) => t.status === "Passed")
+            const pendingAttempt = a.attempts.find((t) => t.status === "PendingReview")
+            const readyToCertify =
+              staffActive && !a.certifiedAt && a.status === "Completed" && a.hoursLogged !== null
 
             return (
               <div key={a.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)]">
@@ -281,7 +296,32 @@ export function StaffTraining({
                     </ul>
 
                     <div className="flex items-center gap-2 flex-wrap pt-1">
-                      {staffActive && a.quiz && !quizPassed && (
+                      {pendingAttempt && (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setReviewFor({ assignment: a, attempt: pendingAttempt })
+                            setWrittenCorrect(new Set())
+                          }}
+                        >
+                          Review written answers
+                        </Button>
+                      )}
+                      {readyToCertify && (
+                        <Button size="sm" onClick={() => { setCertifyFor(a); setCertName(""); setCertConsent(false) }}>
+                          <Award className="h-4 w-4 mr-1.5" />
+                          Co-sign & certify
+                        </Button>
+                      )}
+                      {a.certifiedAt && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={`/api/hr/training/assignments/${a.id}/certificate`} target="_blank" rel="noopener">
+                            <FileDown className="h-4 w-4 mr-1.5" />
+                            Download certificate
+                          </a>
+                        </Button>
+                      )}
+                      {staffActive && a.quiz && !quizPassed && !pendingAttempt && (
                         <Button variant="outline" size="sm" onClick={() => { setQuizFor(a); setScore("") }}>
                           Record quiz result
                         </Button>
@@ -488,6 +528,115 @@ export function StaffTraining({
               }}
             >
               {busy === "hours" ? "Saving..." : "Save hours"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Trainer co-sign & certify dialog */}
+      <Dialog open={!!certifyFor} onOpenChange={(open) => !open && setCertifyFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Co-sign & certify</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            Certifying “{certifyFor?.moduleTitle}” ({certifyFor?.hoursLogged}h logged) generates a
+            permanent signed certificate. Downloads are manager-only — the trainee sees the status.
+          </p>
+          <label className="flex items-start gap-2 text-sm text-[var(--color-foreground)] cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={certConsent}
+              onChange={(e) => setCertConsent(e.target.checked)}
+            />
+            I attest that this team member completed every lesson, passed the quiz, and received the
+            logged training hours. My typed name below is my electronic co-signature.
+          </label>
+          <div className="space-y-1.5">
+            <Label>Your full legal name</Label>
+            <Input value={certName} onChange={(e) => setCertName(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCertifyFor(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!certConsent || certName.trim() === "" || busy === "certify"}
+              onClick={async () => {
+                const ok = await call(
+                  `/api/hr/training/assignments/${certifyFor!.id}/certify`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ typedName: certName.trim(), consent: true }),
+                  },
+                  "certify"
+                )
+                if (ok) setCertifyFor(null)
+              }}
+            >
+              {busy === "certify" ? "Certifying..." : "Certify"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Written-answer review dialog */}
+      <Dialog open={!!reviewFor} onOpenChange={(open) => !open && setReviewFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Review written answers</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            Mark each written answer for “{reviewFor?.assignment.moduleTitle}” correct or leave it
+            unchecked. Objective questions were auto-graded; the final score combines both against the{" "}
+            {reviewFor?.assignment.quiz?.passThreshold}% threshold.
+          </p>
+          <div className="space-y-3 max-h-72 overflow-y-auto">
+            {(reviewFor?.attempt.writtenItems ?? []).map((item) => (
+              <div key={item.questionId} className="border border-[var(--color-border)] rounded-md p-3">
+                <p className="text-sm font-medium text-[var(--color-foreground)] mb-1">{item.prompt}</p>
+                <p className="text-sm text-[var(--color-muted-foreground)] whitespace-pre-wrap mb-2">
+                  {item.answer || "(no answer)"}
+                </p>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={writtenCorrect.has(item.questionId)}
+                    onChange={() =>
+                      setWrittenCorrect((prev) => {
+                        const next = new Set(prev)
+                        next.has(item.questionId) ? next.delete(item.questionId) : next.add(item.questionId)
+                        return next
+                      })
+                    }
+                  />
+                  Correct
+                </label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewFor(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={busy === "review"}
+              onClick={async () => {
+                const ok = await call(
+                  `/api/hr/training/assignments/${reviewFor!.assignment.id}/attempts/${reviewFor!.attempt.id}/review`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ writtenCorrectQuestionIds: [...writtenCorrect] }),
+                  },
+                  "review"
+                )
+                if (ok) setReviewFor(null)
+              }}
+            >
+              {busy === "review" ? "Saving..." : "Submit grades"}
             </Button>
           </DialogFooter>
         </DialogContent>

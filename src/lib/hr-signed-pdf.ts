@@ -565,3 +565,156 @@ export async function ensureFormSignedPdf(formSubmissionId: string) {
     include: { version: { include: { hrDocument: { include: { organization: true } } } } },
   }))!
 }
+
+// ── HR-7: training certification ─────────────────────────────────────────────
+// Idempotently generate the signed training-certificate PDF for a co-signed
+// TrainingAssignment (each executed thing owns its PDF — HR-5 pattern; the
+// pointer lives on the assignment, write-once). Requires the certify route to
+// have stamped certifiedAt/certifiedByUserId/trainerTypedName first. Built
+// only from data already persisted, so a regeneration race is harmless.
+// Downloads are ADMIN / in-scope MANAGER only (rule 5) — /my shows status.
+export async function ensureTrainingCertPdf(trainingAssignmentId: string) {
+  const assignment = await prisma.trainingAssignment.findUnique({
+    where: { id: trainingAssignmentId },
+    include: {
+      trainingModule: {
+        include: {
+          organization: true,
+          lessons: { orderBy: { orderIndex: "asc" }, select: { id: true, title: true } },
+        },
+      },
+      staffMember: {
+        include: {
+          storeAssignments: {
+            include: { store: true },
+            orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }],
+          },
+        },
+      },
+      lessonProgress: { select: { trainingLessonId: true, completedAt: true, authMethod: true } },
+      quizAttempts: { orderBy: { submittedAt: "desc" } },
+    },
+  })
+  if (!assignment) throw new SignedRecordError("Training assignment not found")
+  if (assignment.certPdfPathname) return assignment
+
+  if (!assignment.certifiedAt || !assignment.trainerTypedName || !assignment.certifiedByUserId) {
+    throw new SignedRecordError("Trainer co-sign is required before the certificate can be generated")
+  }
+  if (assignment.status !== "Completed" || assignment.hoursLogged === null) {
+    throw new SignedRecordError("Certification requires a completed module and logged hours")
+  }
+
+  const org = assignment.trainingModule.organization
+  const staff = assignment.staffMember
+  const staffName = staff.fullName ?? staff.displayName
+  const primaryStore = staff.storeAssignments[0]?.store.name ?? null
+  const trainer = await prisma.user.findUnique({
+    where: { id: assignment.certifiedByUserId },
+    select: { name: true, email: true },
+  })
+  const trainerIdentity = trainer?.name ?? trainer?.email ?? "-"
+  const passedAttempt = assignment.quizAttempts.find((a) => a.status === "Passed")
+  const progressByLesson = new Map(assignment.lessonProgress.map((p) => [p.trainingLessonId, p]))
+
+  const pdf = await PDFDocument.create()
+  const helv = await pdf.embedFont(StandardFonts.Helvetica)
+  const helvBold = await pdf.embedFont(StandardFonts.HelveticaBold)
+  const helvOblique = await pdf.embedFont(StandardFonts.HelveticaOblique)
+  const courier = await pdf.embedFont(StandardFonts.Courier)
+  const w = new CertificateWriter(pdf, { helv, helvBold, courier })
+
+  // ── Certificate page ───────────────────────────────────────────────────────
+  w.newPage()
+  w.heading("Certificate of Training", org.name)
+
+  w.labeled("Trainee", staffName)
+  w.labeled("Store", primaryStore ?? "-")
+  w.labeled("Module", assignment.trainingModule.title)
+  w.labeled("Hours logged", `${assignment.hoursLogged}`)
+  w.labeled(
+    "Quiz result",
+    passedAttempt
+      ? `Passed${passedAttempt.scorePct !== null ? ` — ${passedAttempt.scorePct}%` : ""} (threshold ${passedAttempt.passThresholdSnapshot}%) at ${utc(passedAttempt.submittedAt)}`
+      : "No quiz on this module"
+  )
+  w.labeled("Certified at", utc(assignment.certifiedAt))
+  w.rule()
+
+  w.labeled("Trainer", trainerIdentity)
+  // Typed-name co-sign block, HR-5 signature styling.
+  w.ensureRoom(58)
+  w.page.drawText(sanitize(assignment.trainerTypedName), {
+    x: MARGIN,
+    y: w.y - 22,
+    size: 14,
+    font: helvOblique,
+    color: INK,
+  })
+  w.page.drawLine({
+    start: { x: MARGIN, y: w.y - 28 },
+    end: { x: MARGIN + 260, y: w.y - 28 },
+    thickness: 0.75,
+    color: INK,
+  })
+  w.page.drawText(
+    sanitize(`Trainer co-signature — ${trainerIdentity} · signed ${utc(assignment.certifiedAt)}`),
+    { x: MARGIN, y: w.y - 40, size: 8, font: helv, color: MUTED }
+  )
+  w.y -= 52
+  w.rule()
+
+  // ── Lesson completion table ────────────────────────────────────────────────
+  w.drawLines(["Lesson completion"], { size: 11, font: helvBold })
+  w.y -= 2
+  for (const lesson of assignment.trainingModule.lessons) {
+    const p = progressByLesson.get(lesson.id)
+    w.labeled(
+      lesson.title.slice(0, 60),
+      p
+        ? `${utc(p.completedAt)} · ${p.authMethod === "ManagerAttested" ? "manager-attested" : "self-completed (signed in)"}`
+        : "-"
+    )
+  }
+  w.rule()
+
+  w.drawLines(
+    [
+      `The trainer named above attests that ${staffName} completed every lesson of this module, passed`,
+      `the module quiz where one exists, and received ${assignment.hoursLogged} hour(s) of training.`,
+    ],
+    { size: 8.5 }
+  )
+  w.rule()
+  w.drawLines(
+    [
+      `This certificate was generated at ${utc(new Date())}. Training records are append-only; the`,
+      `completions and quiz attempts above are stored with their original timestamps and auth methods.`,
+    ],
+    { size: 7.5, color: MUTED }
+  )
+
+  const signedBytes = Buffer.from(await pdf.save())
+  const certPdfHash = createHash("sha256").update(signedBytes).digest("hex")
+
+  const safeStaff = staffName.replace(/[^a-zA-Z0-9]+/g, "-").slice(0, 40)
+  const uploaded = await uploadHrFile(
+    new File([new Uint8Array(signedBytes)], `training-cert-${safeStaff}.pdf`, {
+      type: "application/pdf",
+    }),
+    { keyPrefix: `hr/${org.id}/signed-records` }
+  )
+
+  // Write-once: only stamp the pointer if nobody else has (HR-5 race rule).
+  const { count } = await prisma.trainingAssignment.updateMany({
+    where: { id: assignment.id, certPdfPathname: null },
+    data: { certPdfPathname: uploaded.pathname, certPdfHash },
+  })
+  if (count === 0) {
+    const race = await prisma.trainingAssignment.findUnique({ where: { id: assignment.id } })
+    if (race?.certPdfPathname) return race
+    throw new SignedRecordError("Failed to record the generated certificate")
+  }
+
+  return (await prisma.trainingAssignment.findUnique({ where: { id: assignment.id } }))!
+}

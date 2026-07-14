@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { canReadHrSignedRecord, getHrFileDownloadUrl } from "@/lib/hr-files"
-import { findStaffMemberForEmail } from "@/lib/hr"
 import { requireHrDocumentAccess } from "../../../documents/access"
 
 // GET /api/hr/signed-records/[id]/download — authorized delivery of an
-// executed signed-record PDF. The sensitive tier: ADMIN, in-scope MANAGER, or
-// the owning staff member only. The stored blob is private — without this
-// route (or its short-lived signed URL) the bytes are not fetchable.
+// executed signed-record PDF. The sensitive tier, tightened by HR-7 rule 5:
+// ADMIN or in-scope MANAGER only — the owning staff member no longer
+// self-downloads; a manager provides a copy on request. The stored blob is
+// private — without this route (or its short-lived signed URL) the bytes are
+// not fetchable.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const access = await requireHrDocumentAccess()
@@ -26,7 +27,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Record not found" }, { status: 404 })
   }
 
-  const ownStaff = await findStaffMemberForEmail(org.id, dbUser?.email)
   const allowed = canReadHrSignedRecord(
     {
       organizationId: record.version.hrDocument.organizationId,
@@ -37,7 +37,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       orgDbId: org.id,
       role: dbUser?.role ?? null,
       storeIds: dbUser?.storeAssignments.map((a) => a.storeId) ?? [],
-      ownStaffMemberId: ownStaff?.id ?? null,
     }
   )
   if (!allowed) {

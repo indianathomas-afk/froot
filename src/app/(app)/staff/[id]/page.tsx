@@ -260,7 +260,15 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           lessonProgress: { select: { trainingLessonId: true, completedAt: true, authMethod: true } },
           quizAttempts: {
             orderBy: { submittedAt: "desc" },
-            select: { id: true, scorePct: true, status: true, submittedAt: true, authMethod: true },
+            select: {
+              id: true,
+              scorePct: true,
+              status: true,
+              submittedAt: true,
+              authMethod: true,
+              questionsSnapshot: true,
+              answers: true,
+            },
           },
         },
         orderBy: { createdAt: "desc" },
@@ -296,6 +304,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         status: a.status,
         hoursLogged: a.hoursLogged,
         certifiedAt: a.certifiedAt?.toISOString() ?? null,
+        hasCertPdf: !!a.certPdfPathname,
         trainerName: a.trainerUserId ? (trainerById.get(a.trainerUserId) ?? null) : null,
         assignedAt: a.createdAt.toISOString(),
         lessons: a.trainingModule.lessons.map((l) => ({
@@ -310,13 +319,29 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               questionCount: Array.isArray(quiz.questions) ? quiz.questions.length : 0,
             }
           : null,
-        attempts: a.quizAttempts.map((t) => ({
-          id: t.id,
-          scorePct: t.scorePct,
-          status: t.status,
-          submittedAt: t.submittedAt.toISOString(),
-          authMethod: t.authMethod,
-        })),
+        attempts: a.quizAttempts.map((t) => {
+          // Written Q&A travels only for attempts a trainer still needs to
+          // grade — the review dialog shows the prompt + the staff answer.
+          let writtenItems: { questionId: string; prompt: string; answer: string }[] | undefined
+          if (t.status === "PendingReview" && Array.isArray(t.questionsSnapshot)) {
+            const answers = (t.answers ?? {}) as Record<string, string | string[]>
+            writtenItems = (t.questionsSnapshot as { id?: string; type?: string; prompt?: string }[])
+              .filter((q) => q.type === "written" && q.id)
+              .map((q) => ({
+                questionId: q.id as string,
+                prompt: q.prompt ?? "",
+                answer: typeof answers[q.id as string] === "string" ? (answers[q.id as string] as string) : "",
+              }))
+          }
+          return {
+            id: t.id,
+            scorePct: t.scorePct,
+            status: t.status,
+            submittedAt: t.submittedAt.toISOString(),
+            authMethod: t.authMethod,
+            writtenItems,
+          }
+        }),
       }
     })
     const assignedModuleIds = new Set(assignments.map((a) => a.trainingModuleId))

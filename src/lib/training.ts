@@ -50,20 +50,19 @@ type GradableQuestion = {
   correctOptionIds?: string[]
 }
 
-export function gradeQuizAnswers(
+// Objective tally shared by auto-grading (below) and the trainer's
+// written-answer review (which re-derives the objective half from the
+// attempt's snapshot before adding the written marks).
+export function countObjectiveCorrect(
   questions: GradableQuestion[],
-  answers: Record<string, QuizAnswerValue>,
-  passThreshold: number
-): { scorePct: number | null; status: "Passed" | "Failed" | "PendingReview" } {
-  const total = questions.length
-  if (total === 0) return { scorePct: 100, status: "Passed" }
-
+  answers: Record<string, QuizAnswerValue>
+): { objectiveCorrect: number; writtenQuestionIds: string[] } {
   let objectiveCorrect = 0
-  let writtenCount = 0
+  const writtenQuestionIds: string[] = []
   for (const q of questions) {
     const answer = answers[q.id]
     if (q.type === "written") {
-      writtenCount++
+      writtenQuestionIds.push(q.id)
       continue
     }
     const correct = new Set(q.correctOptionIds ?? [])
@@ -76,6 +75,19 @@ export function gradeQuizAnswers(
       if (given !== undefined && correct.has(given)) objectiveCorrect++
     }
   }
+  return { objectiveCorrect, writtenQuestionIds }
+}
+
+export function gradeQuizAnswers(
+  questions: GradableQuestion[],
+  answers: Record<string, QuizAnswerValue>,
+  passThreshold: number
+): { scorePct: number | null; status: "Passed" | "Failed" | "PendingReview" } {
+  const total = questions.length
+  if (total === 0) return { scorePct: 100, status: "Passed" }
+
+  const { objectiveCorrect, writtenQuestionIds } = countObjectiveCorrect(questions, answers)
+  const writtenCount = writtenQuestionIds.length
 
   const pct = (n: number) => Math.round((n / total) * 100)
   if (writtenCount === 0) {

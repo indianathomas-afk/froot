@@ -266,23 +266,23 @@ export function canReadHrDocument(
   }
 }
 
-// Executed signed-record PDFs are the sensitive tier: ADMIN, a MANAGER whose
-// store scope overlaps the owning staff member's stores, or the owning staff
-// member themselves (session email → StaffMember match) — never other staff.
-// Every signed-record read path must resolve the record and ask this function
-// before minting a signed URL.
+// Executed signed-record PDFs are the sensitive tier: ADMIN, or a MANAGER
+// whose store scope overlaps the owning staff member's stores — nobody else.
+// HR-7 rule 5 TIGHTENED this from the HR-4 policy by removing the owning
+// staff member: no staff member (active or departing) self-downloads a signed
+// PDF — /my shows completion STATUS only, and a manager provides a copy on
+// request. Every signed-record read path must resolve the record and ask this
+// function before minting a signed URL.
 export function canReadHrSignedRecord(
   record: { organizationId: string; staffMemberId: string; staffStoreIds: string[] },
   viewer: {
     orgDbId: string
     role: string | null
     storeIds: string[]
-    ownStaffMemberId: string | null
   }
 ): boolean {
   if (record.organizationId !== viewer.orgDbId) return false
   if (viewer.role === "ADMIN") return true
-  if (record.staffMemberId === viewer.ownStaffMemberId) return true
   if (viewer.role === "MANAGER") {
     return record.staffStoreIds.some((id) => viewer.storeIds.includes(id))
   }
