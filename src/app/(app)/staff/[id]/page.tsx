@@ -11,6 +11,7 @@ import { ManagerNotes, type SerializedNote } from "./manager-notes"
 import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
 import { StaffFormDocuments, type StaffFormDocRow } from "./staff-form-documents"
 import { SelfServiceActions } from "./self-service-actions"
+import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4). Training (HR-6/7) and Compliance (HR-8) remain placeholders.
@@ -237,6 +238,92 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
     formDocRows = [...rowByDocId.values()]
   }
 
+  // HR-7 Training tab: assignments with lesson progress, quiz attempts, and
+  // certification state, plus the assignable-module and trainer lists for the
+  // Assign dialog. Same ADMIN/MANAGER tier as the other management surfaces.
+  let trainingAssignments: StaffTrainingAssignment[] = []
+  let assignableModules: { id: string; title: string }[] = []
+  let trainers: { id: string; name: string }[] = []
+  if (canSeeNotes) {
+    const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
+    const [assignments, modules, trainerUsers] = await Promise.all([
+      prisma.trainingAssignment.findMany({
+        where: { staffMemberId: member.id, trainingModule: { organizationId: member.organizationId } },
+        include: {
+          trainingModule: {
+            select: {
+              title: true,
+              lessons: { orderBy: { orderIndex: "asc" }, select: { id: true, title: true } },
+              quizzes: { select: { passThreshold: true, questions: true } },
+            },
+          },
+          lessonProgress: { select: { trainingLessonId: true, completedAt: true, authMethod: true } },
+          quizAttempts: {
+            orderBy: { submittedAt: "desc" },
+            select: { id: true, scorePct: true, status: true, submittedAt: true, authMethod: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.trainingModule.findMany({
+        where: {
+          organizationId: member.organizationId,
+          isActive: true,
+          isArchived: false,
+          OR: [
+            { appliesTo: "all" },
+            { storeAssignments: { some: { storeId: { in: memberStoreIds } } } },
+          ],
+        },
+        select: { id: true, title: true },
+        orderBy: { title: "asc" },
+      }),
+      prisma.user.findMany({
+        where: { organizationId: member.organizationId, role: { in: ["ADMIN", "MANAGER"] } },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: "asc" },
+      }),
+    ])
+
+    const trainerById = new Map(trainerUsers.map((t) => [t.id, t.name ?? t.email]))
+    trainingAssignments = assignments.map((a) => {
+      const progressByLesson = new Map(a.lessonProgress.map((p) => [p.trainingLessonId, p]))
+      const quiz = a.trainingModule.quizzes[0]
+      return {
+        id: a.id,
+        moduleTitle: a.trainingModule.title,
+        dueDate: a.dueDate?.toISOString() ?? null,
+        status: a.status,
+        hoursLogged: a.hoursLogged,
+        certifiedAt: a.certifiedAt?.toISOString() ?? null,
+        trainerName: a.trainerUserId ? (trainerById.get(a.trainerUserId) ?? null) : null,
+        assignedAt: a.createdAt.toISOString(),
+        lessons: a.trainingModule.lessons.map((l) => ({
+          id: l.id,
+          title: l.title,
+          completedAt: progressByLesson.get(l.id)?.completedAt.toISOString() ?? null,
+          authMethod: progressByLesson.get(l.id)?.authMethod ?? null,
+        })),
+        quiz: quiz
+          ? {
+              passThreshold: quiz.passThreshold,
+              questionCount: Array.isArray(quiz.questions) ? quiz.questions.length : 0,
+            }
+          : null,
+        attempts: a.quizAttempts.map((t) => ({
+          id: t.id,
+          scorePct: t.scorePct,
+          status: t.status,
+          submittedAt: t.submittedAt.toISOString(),
+          authMethod: t.authMethod,
+        })),
+      }
+    })
+    const assignedModuleIds = new Set(assignments.map((a) => a.trainingModuleId))
+    assignableModules = modules.filter((m) => !assignedModuleIds.has(m.id))
+    trainers = trainerUsers.map((t) => ({ id: t.id, name: t.name ?? t.email }))
+  }
+
   let notes: SerializedNote[] = []
   if (canSeeNotes) {
     // ManagerNote.authorUserId has no Prisma relation to User (deliberate — no
@@ -406,12 +493,23 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         </TabsContent>
 
         <TabsContent value="training" className="mt-4">
-          <ShellTab
-            icon={GraduationCap}
-            title="No training assigned"
-            copy="Training courses, lesson progress, and completions for this team member will live here."
-            phase="HR-6/7"
-          />
+          {canSeeNotes ? (
+            <StaffTraining
+              staffId={member.id}
+              staffActive={member.status === "ACTIVE"}
+              hasLogin={!!member.userId}
+              assignments={trainingAssignments}
+              assignableModules={assignableModules}
+              trainers={trainers}
+            />
+          ) : (
+            <ShellTab
+              icon={GraduationCap}
+              title="Training"
+              copy="Training statuses are visible to managers and admins."
+              phase="HR-7"
+            />
+          )}
         </TabsContent>
 
         {canSeeNotes && (
