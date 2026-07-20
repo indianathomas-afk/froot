@@ -69,6 +69,9 @@ model Organization {
   managerNotes                  ManagerNote[]
   trainingModules               TrainingModule[]
   staffDocuments                StaffDocument[]
+  laborPositions                LaborPosition[]
+  laborSettings                 LaborSettings[]
+  salesForecasts                SalesForecast[]
 }
 
 model User {
@@ -133,6 +136,8 @@ model Store {
   paceAlertLogs             PaceAlertLog[]
   hrDocumentAssignments     HrDocumentStoreAssignment[]
   trainingModuleAssignments TrainingModuleStoreAssignment[]
+  laborSettings             LaborSettings[]
+  salesForecasts            SalesForecast[]
 }
 
 model StoreHours {
@@ -1430,13 +1435,13 @@ model FormField {
 // executed PDF lives HERE, not on HrSignedRecord (that stays acknowledgment-
 // only, keyed one-per-version-per-staff).
 model FormSubmission {
-  id                     String   @id @default(cuid())
+  id                     String    @id @default(cuid())
   hrDocumentVersionId    String
   staffMemberId          String
   values                 Json
   employeeSignatureUrl   String? // unused: HR-4/5 capture is typed-name (kept for drawn signatures later)
   supervisorSignatureUrl String?
-  signedAt               DateTime @default(now())
+  signedAt               DateTime  @default(now())
   ipAddress              String? // employee-side audit (supervisor block below)
   userAgent              String?
   // --- dual-signer execution (HR-5) ---
@@ -1591,15 +1596,15 @@ model TrainingQuiz {
 // One staff member's run through a module. No cascade from the module —
 // completed/certified assignments are records.
 model TrainingAssignment {
-  id               String    @id @default(cuid())
-  trainingModuleId String
-  staffMemberId    String
-  assignedByUserId String
-  trainerUserId    String?
-  dueDate          DateTime?
-  status           String    @default("NotStarted") // NotStarted | InProgress | Completed
-  hoursLogged      Float?
-  certifiedAt      DateTime?
+  id                String    @id @default(cuid())
+  trainingModuleId  String
+  staffMemberId     String
+  assignedByUserId  String
+  trainerUserId     String?
+  dueDate           DateTime?
+  status            String    @default("NotStarted") // NotStarted | InProgress | Completed
+  hoursLogged       Float?
+  certifiedAt       DateTime?
   // HR-7 certification (trainer co-sign): write-once pointer to the signed
   // certificate PDF in the PRIVATE froot-hr store, HR-5 pattern — each
   // executed thing owns its PDF. Downloads are ADMIN / in-scope MANAGER only.
@@ -1607,8 +1612,8 @@ model TrainingAssignment {
   certPdfHash       String? // sha256 of the generated PDF bytes
   certifiedByUserId String? // trainer who co-signed (plain id, survives user deletion)
   trainerTypedName  String? // trainer's typed-name capture at co-sign
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   trainingModule TrainingModule           @relation(fields: [trainingModuleId], references: [id])
   staffMember    StaffMember              @relation(fields: [staffMemberId], references: [id])
@@ -1663,4 +1668,87 @@ model TrainingQuizAttempt {
   trainingAssignment TrainingAssignment @relation(fields: [trainingAssignmentId], references: [id])
 
   @@index([trainingAssignmentId])
+}
+
+// ─── LABOR MODEL (Phase 0) ────────────────────────────────────────────────────
+// Money is stored in DOLLARS as Decimal(10,2) to match the codebase's dollar
+// convention (SalesPeriodCache, GoalPlan, etc.) while giving exact precision.
+// Square imports (cents) convert at the boundary; the budget service computes
+// internally in integer cents to keep rounding exact. See LABOR.md.
+
+enum LaborPayType {
+  HOURLY
+  SALARIED
+}
+
+enum LaborDenominator {
+  IN_STORE
+  TOTAL_WITH_DELIVERY
+}
+
+enum SalesForecastSource {
+  MANUAL
+  LAST_YEAR
+  TREND
+}
+
+/// Org-scoped labor positions (the rate legend): Store Manager, ASM, Lead
+/// Supervisor, Supervisor, Team Member, District Manager, etc.
+model LaborPosition {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  name               String
+  payType            LaborPayType @default(HOURLY)
+  defaultHourlyRate  Decimal      @db.Decimal(10, 2) // dollars; salaried positions also carry an implied hourly rate
+  impliedWeeklyHours Int? // e.g. 40 for salaried; null for hourly
+  isSupervisory      Boolean      @default(false) // Manager/ASM/Lead/Supervisor = true (for the Phase-2 coverage rule)
+  sortOrder          Int          @default(0)
+  active             Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+/// Org default settings (storeId null) with optional per-store override rows.
+model LaborSettings {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  storeId            String? // null = org default
+  laborTargetPct     Decimal          @default(20.00) @db.Decimal(5, 2)
+  roundingIncrement  Decimal          @default(1000.00) @db.Decimal(10, 2) // dollars; default $1,000
+  denominator        LaborDenominator @default(TOTAL_WITH_DELIVERY)
+  plannedBlendedRate Decimal?         @db.Decimal(10, 2) // optional manual blended rate (dollars); else computed
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store?       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, storeId])
+  @@index([organizationId])
+}
+
+/// Weekly projected sales input. weekStart is normalized to Monday on write so
+/// week keys are stable. Reuses the SalesForecastSource seam for later
+/// LAST_YEAR/TREND derivation (Phase 3); Phase 1 writes MANUAL only.
+model SalesForecast {
+  id                  String              @id @default(cuid())
+  organizationId      String
+  storeId             String
+  weekStart           DateTime            @db.Date // Monday of the week
+  projectedStoreSales Decimal             @db.Decimal(10, 2) // dollars
+  projectedDelivery   Decimal             @default(0) @db.Decimal(10, 2) // dollars
+  source              SalesForecastSource @default(MANUAL)
+  createdById         String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, weekStart])
+  @@index([organizationId, storeId])
 }

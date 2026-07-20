@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
-import { getUserStoreScope } from "@/lib/auth"
+import { getUserStoreScope, laborModuleAvailable } from "@/lib/auth"
 import { BuildInfo } from "@/components/build-info"
 import { DashboardClient } from "./dashboard-client"
 
@@ -46,19 +46,23 @@ async function getDashboardData() {
     }))
   }
 
-  return { stores, countRecency }
+  // Labor Budget card gates on both flags (env availability + org toggle).
+  const laborEnabled = laborModuleAvailable(orgId) && org.activeModules.includes("labor")
+
+  return { stores, countRecency, laborEnabled }
 }
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
   if (!data) return null
-  const { stores, countRecency } = data
+  const { stores, countRecency, laborEnabled } = data
 
   return (
     <>
       <DashboardClient
         stores={stores.map((s) => ({ id: s.id, name: s.name, location: [s.city, s.state].filter(Boolean).join(", ") }))}
         countRecency={countRecency}
+        laborEnabled={laborEnabled}
       />
       <BuildInfo />
     </>

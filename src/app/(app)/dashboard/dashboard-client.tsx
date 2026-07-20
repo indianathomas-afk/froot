@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { projectMonthEnd } from "@/lib/pacing"
 import { MessageAttachments, type FeedAttachment } from "@/app/(app)/messages/messages-client"
 import { SalesPerformanceCard } from "./sales-performance-card"
+import { LaborBudgetCard } from "./labor-budget-card"
+import { LaborCoverageCard } from "./labor-coverage-card"
 import { RollupView } from "./rollup-view"
 
 // ─── Types (mirror /api/dashboard/summary) ────────────────────────────────────
@@ -149,9 +151,11 @@ function saveStoreId(id: string) {
 export function DashboardClient({
   stores,
   countRecency,
+  laborEnabled = false,
 }: {
   stores: { id: string; name: string; location: string }[]
   countRecency: { storeId: string; storeName: string; days: number | null }[]
+  laborEnabled?: boolean
 }) {
   const savedStoreId = useSavedStoreId()
   const storeId =
@@ -226,13 +230,18 @@ export function DashboardClient({
         <RollupView />
       ) : (
         <>
-          {/* Sales row: Performance (2) + Monthly Goal (1) */}
+          {/* Sales row: Performance (2) + Monthly Goal (1). The Labor cards
+              stack under their siblings — Coverage under Sales (aligned hourly
+              axes), the Budget hero under Monthly Goal — and only when Labor is
+              enabled (both gates). */}
           <div className="flex flex-wrap gap-4">
-            <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
+            <div className="flex-[2] min-w-[320px] md:min-w-[420px] space-y-4">
               <SalesPerformanceCard storeId={storeId} />
+              {laborEnabled && <LaborCoverageCard storeId={storeId} />}
             </div>
-            <div className="flex-1 min-w-[260px]">
+            <div className="flex-1 min-w-[260px] space-y-4">
               <MonthlyGoalCard loading={loading} summary={current} onSaved={load} />
+              {laborEnabled && <LaborBudgetCard storeId={storeId} />}
             </div>
           </div>
 

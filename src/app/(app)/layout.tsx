@@ -5,7 +5,7 @@ import { auth } from "@clerk/nextjs/server"
 import { OrganizationList } from "@clerk/nextjs"
 import Image from "next/image"
 import { prisma } from "@/lib/prisma"
-import { hrModuleAvailable } from "@/lib/auth"
+import { hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { orgId, userId } = await auth()
@@ -63,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         activeModules={org?.activeModules ?? []}
         instagramEnabled={!!org?.instagramEnabled && !!org?.instagramAccessToken}
         hrAvailable={hrModuleAvailable(orgId)}
+        laborAvailable={laborModuleAvailable(orgId)}
       />
       <AppShell>{children}</AppShell>
     </div>
