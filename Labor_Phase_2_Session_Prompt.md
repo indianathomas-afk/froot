@@ -43,6 +43,7 @@ Follow the standard Froot workflow (`CLAUDE.md`, `AGENTS.md`, `WORKFLOW.md`, `MI
 | 6 | Supervisor rule | **≥ 1 supervisory position on the floor during all open hours** (`LaborPosition.isSupervisory`). Configurable per daypart. |
 | 7 | Minimum staffing | Floor of 1 while open, plus a configurable `minHeadcount` per daypart. Under-coverage **flagged, never thrown**. |
 | 8 | Coverage card | Stays labeled **"Recommended · guidance."** Rule-satisfying, still advisory, single headcount axis. |
+| 9 | **Salaried = weekly constant** | The daily split, adjustment, and coverage operate on **hourly hours only**. Salaried hours are shown as one weekly figure, never distributed per day. |
 
 Decisions #2, #3, #6, #7 are owner-configurable — build them as settings/inputs, not constants.
 
@@ -138,10 +139,10 @@ No shift-*assignment* table — Phase 2 recommends coverage, it doesn't persist 
 
 ### 5B · Daily hour split (pure)
 ```
-splitWeeklyHoursToDays({ salariedHoursByDay?, weeklyHourlyHours, weightsByWeekday, openDays }) -> { weekday, hourlyHours }[]
+splitWeeklyHoursToDays({ weeklyHourlyHours, weightsByWeekday, openDays }) -> { weekday, hourlyHours }[]
 ```
-- `hourlyHours[d] = floor((weeklyHourlyHours × weightBps[d] / 10000) × 2) / 2`.
-- Salaried hours are a fixed weekly figure — distribute or report separately (fork: even split vs. flag as weekly-only). Missing/zero weights → even split across open days.
+- Splits **hourly hours only**: `hourlyHours[d] = floor((weeklyHourlyHours × weightBps[d] / 10000) × 2) / 2`.
+- **Salaried hours are a weekly constant — NOT distributed per day** (decided). A salaried manager's hours aren't a per-day budget line; the dashboard shows salaried as one weekly figure, and the per-day split, adjustment, and coverage all operate on the **hourly** hours. Missing/zero weights → even split across open days.
 
 ### 5C · Day adjustment (pure)
 ```
