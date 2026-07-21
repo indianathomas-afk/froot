@@ -230,20 +230,30 @@ export function DashboardClient({
         <RollupView />
       ) : (
         <>
-          {/* Sales row: Performance (2) + Monthly Goal (1). The Labor cards
-              stack under their siblings — Coverage under Sales (aligned hourly
-              axes), the Budget hero under Monthly Goal — and only when Labor is
-              enabled (both gates). */}
+          {/* Sales row: Performance (2) + Monthly Goal (1). */}
           <div className="flex flex-wrap gap-4">
-            <div className="flex-[2] min-w-[320px] md:min-w-[420px] space-y-4">
+            <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
               <SalesPerformanceCard storeId={storeId} />
-              {laborEnabled && <LaborCoverageCard storeId={storeId} />}
             </div>
-            <div className="flex-1 min-w-[260px] space-y-4">
+            <div className="flex-1 min-w-[260px]">
               <MonthlyGoalCard loading={loading} summary={current} onSaved={load} />
-              {laborEnabled && <LaborBudgetCard storeId={storeId} />}
             </div>
           </div>
+
+          {/* Labor row (both gates): its own row — NOT stacked inside the
+              sales-row columns, whose h-full cards would push these below and
+              hide them. Same column widths so Coverage sits directly beneath
+              Sales (aligned hourly axes) and the Budget hero beneath Monthly Goal. */}
+          {laborEnabled && (
+            <div className="flex flex-wrap gap-4">
+              <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
+                <LaborCoverageCard storeId={storeId} />
+              </div>
+              <div className="flex-1 min-w-[260px]">
+                <LaborBudgetCard storeId={storeId} />
+              </div>
+            </div>
+          )}
 
           {/* Three equal cards */}
           <div className="flex flex-wrap gap-4">
