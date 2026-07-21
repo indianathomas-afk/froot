@@ -13,14 +13,14 @@ import { requireLaborContext } from "@/lib/labor-access"
 const DEFAULTS = {
   laborTargetPct: 20,
   roundingIncrement: 1000,
-  denominator: "TOTAL_WITH_DELIVERY" as const,
   plannedBlendedRate: null as number | null,
 }
 
+// Phase 2: `denominator` is deprecated (total sales only) — no longer read or
+// written. The column remains in the DB (additive/no-drops) but is unused.
 const putSchema = z.object({
   laborTargetPct: z.number().positive().max(100),
   roundingIncrement: z.number().positive().max(99999999),
-  denominator: z.enum(["IN_STORE", "TOTAL_WITH_DELIVERY"]),
   plannedBlendedRate: z.number().positive().max(99999999).nullable(),
 })
 
@@ -36,7 +36,6 @@ export async function GET() {
   return NextResponse.json({
     laborTargetPct: Number(row.laborTargetPct),
     roundingIncrement: Number(row.roundingIncrement),
-    denominator: row.denominator,
     plannedBlendedRate: row.plannedBlendedRate === null ? null : Number(row.plannedBlendedRate),
     exists: true,
   })
@@ -67,7 +66,6 @@ export async function PUT(req: Request) {
   return NextResponse.json({
     laborTargetPct: Number(row.laborTargetPct),
     roundingIncrement: Number(row.roundingIncrement),
-    denominator: row.denominator,
     plannedBlendedRate: row.plannedBlendedRate === null ? null : Number(row.plannedBlendedRate),
     exists: true,
   })

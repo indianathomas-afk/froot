@@ -1,64 +1,121 @@
-// Recommended staff-on-floor by hour (Phase 1B, guidance only). PURE — turns a
-// day's hourly-sales demand shape + the day's slice of the weekly schedulable
-// hours into an integer headcount step line. Deliberately simple and heavily
-// commented so the heuristic is easy to tune later.
+// Recommended staff-on-floor by hour (Phase 2, guidance only). PURE — turns a
+// day's already-adjusted hourly person-hours + demand shape + store hours +
+// daypart rules into an integer headcount step line that satisfies the
+// minimum-staffing rules. No DB — unit-testable (scripts/verify-labor-coverage.ts).
 
 export type HourNet = { hour: number; net: number }
 
+export type DaypartRule = {
+  name: string
+  startHour: number // inclusive
+  endHour: number // exclusive
+  minHeadcount: number
+  requiresSupervisor: boolean
+}
+
 export type CoveragePoint = { hour: number; headcount: number; open: boolean }
+
+export type DaypartCoverage = {
+  name: string
+  minHeadcount: number
+  requiresSupervisor: boolean
+  metMin: boolean
+}
 
 export type CoverageResult = {
   points: CoveragePoint[] // one per hour 0–23 (headcount 0 when closed)
-  openHours: number[] // the operating window, inclusive of interior dips
-  peakHours: number[] // hours tied for the max headcount
-  dayHours: number // person-hours allocated to this day
+  openHours: number[]
+  peakHours: number[]
   peakHeadcount: number
+  dayHours: number // person-hours budgeted for the day (post-adjustment)
+  usedPersonHours: number // person-hours the recommendation actually uses
+  exceedsDayHours: boolean // min-staffing floors pushed past the budget
+  supervisorShortfall: boolean // a daypart needs a supervisor but none is defined
+  dayparts: DaypartCoverage[]
 }
 
-// ── The single tunable heuristic ────────────────────────────────────────────
-// dayShareOfWeek: this day's share of the week's sales (0–1). The caller
-// computes it from actuals (day net ÷ week net), falling back to an even split.
-// We hand it in so the weekly→daily split lives in ONE clearly-labeled place.
-export function recommendCoverage({
+// dayHours: the day's HOURLY person-hours after the day split + adjustment.
+// open: the store's operating window for that day ({startHour, endHour}, end
+// exclusive) from StoreHours; null → infer the window from the demand shape.
+export function computeDailyCoverage({
+  dayHours,
   hourly,
-  dayShareOfWeek,
-  totalSchedulableHours,
+  open,
+  dayparts,
+  hasSupervisoryPosition,
 }: {
+  dayHours: number
   hourly: HourNet[]
-  dayShareOfWeek: number
-  totalSchedulableHours: number
+  open: { startHour: number; endHour: number } | null
+  dayparts: DaypartRule[]
+  hasSupervisoryPosition: boolean
 }): CoverageResult | null {
-  // Operating window = first..last hour with any sales, keeping interior hours
-  // continuous (a mid-day dip to $0 stays "open" and floored to 1).
-  const withSales = hourly.filter((h) => h.net > 0).map((h) => h.hour)
-  if (withSales.length === 0) return null
-  const openStart = Math.min(...withSales)
-  const openEnd = Math.max(...withSales)
+  // Operating window [openStart, openEnd) — from StoreHours, else inferred.
+  let openStart: number
+  let openEnd: number
+  if (open && open.endHour > open.startHour) {
+    openStart = open.startHour
+    openEnd = open.endHour
+  } else {
+    const withSales = hourly.filter((h) => h.net > 0).map((h) => h.hour)
+    if (withSales.length === 0) return null
+    openStart = Math.min(...withSales)
+    openEnd = Math.max(...withSales) + 1
+  }
   const openHours: number[] = []
-  for (let h = openStart; h <= openEnd; h++) openHours.push(h)
+  for (let h = openStart; h < openEnd; h++) openHours.push(h)
+  if (openHours.length === 0) return null
 
   const netByHour = new Map(hourly.map((h) => [h.hour, h.net]))
   const totalNet = openHours.reduce((s, h) => s + (netByHour.get(h) ?? 0), 0)
+  const covering = (h: number) => dayparts.filter((d) => h >= d.startHour && h < d.endHour)
 
-  // Person-hours allocated to this day, then distributed across open hours
-  // proportional to demand; each 1-hour bucket's person-hours == avg headcount.
-  const dayHours = totalSchedulableHours * dayShareOfWeek
-
+  // Distribute demand, then raise each hour to its min-staffing floor.
   const headByHour = new Map<number, number>()
   for (const h of openHours) {
     const weight = totalNet > 0 ? (netByHour.get(h) ?? 0) / totalNet : 1 / openHours.length
-    // Floor of 1 whenever the store is open — never recommend an empty floor.
-    headByHour.set(h, Math.max(1, Math.round(dayHours * weight)))
+    const distributed = Math.round(dayHours * weight)
+    const cov = covering(h)
+    const daypartMin = cov.length ? Math.max(...cov.map((d) => d.minHeadcount)) : 1
+    headByHour.set(h, Math.max(1, daypartMin, distributed))
   }
 
+  const usedPersonHours = openHours.reduce((s, h) => s + (headByHour.get(h) ?? 0), 0)
   const peakHeadcount = Math.max(...openHours.map((h) => headByHour.get(h) ?? 0))
   const peakHours = openHours.filter((h) => headByHour.get(h) === peakHeadcount)
 
   const points: CoveragePoint[] = []
   for (let h = 0; h < 24; h++) {
-    const open = h >= openStart && h <= openEnd
-    points.push({ hour: h, headcount: open ? headByHour.get(h) ?? 0 : 0, open })
+    const isOpen = h >= openStart && h < openEnd
+    points.push({ hour: h, headcount: isOpen ? headByHour.get(h) ?? 0 : 0, open: isOpen })
   }
 
-  return { points, openHours, peakHours, dayHours, peakHeadcount }
+  const daypartCov: DaypartCoverage[] = dayparts.map((d) => {
+    const hrs = openHours.filter((h) => h >= d.startHour && h < d.endHour)
+    return {
+      name: d.name,
+      minHeadcount: d.minHeadcount,
+      requiresSupervisor: d.requiresSupervisor,
+      metMin: hrs.length > 0 && hrs.every((h) => (headByHour.get(h) ?? 0) >= d.minHeadcount),
+    }
+  })
+
+  // A daypart that requires a supervisor during open hours but no supervisory
+  // position is defined → shortfall the UI warns on (we recommend headcount, not
+  // people, so an existing supervisory position is assumed fillable).
+  const needsSupervisor = dayparts.some(
+    (d) => d.requiresSupervisor && openHours.some((h) => h >= d.startHour && h < d.endHour)
+  )
+
+  return {
+    points,
+    openHours,
+    peakHours,
+    peakHeadcount,
+    dayHours,
+    usedPersonHours,
+    exceedsDayHours: usedPersonHours > dayHours + 0.01,
+    supervisorShortfall: needsSupervisor && !hasSupervisoryPosition,
+    dayparts: daypartCov,
+  }
 }

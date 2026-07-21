@@ -7,7 +7,6 @@
 export type LaborBudgetSettings = {
   laborTargetPct: number // percent, e.g. 20 (= 20%)
   roundingIncrement: number // dollars, e.g. 1000
-  denominator: "IN_STORE" | "TOTAL_WITH_DELIVERY"
   plannedBlendedRate: number | null // dollars; null = compute from hourly positions
 }
 
@@ -19,8 +18,7 @@ export type LaborBudgetPosition = {
 }
 
 export type LaborBudgetForecast = {
-  projectedStoreSales: number // dollars
-  projectedDelivery: number // dollars
+  total: number // dollars — total projected sales (delivery already included; Phase 2)
 }
 
 export type LaborBudgetResult = {
@@ -54,13 +52,11 @@ export function computeWeeklyLaborBudget({
 }): LaborBudgetResult | null {
   if (!forecast) return null
 
-  const storeCents = toCents(forecast.projectedStoreSales)
-  const deliveryCents = toCents(forecast.projectedDelivery)
   const incCents = toCents(settings.roundingIncrement)
 
-  // 1. sales basis (store, plus delivery when the denominator includes it)
-  const salesBasisCents =
-    storeCents + (settings.denominator === "TOTAL_WITH_DELIVERY" ? deliveryCents : 0)
+  // 1. sales basis — total projected sales (Phase 2: delivery is already in the
+  //    total; the in-store/delivery split was dropped).
+  const salesBasisCents = toCents(forecast.total)
 
   // 2. conservative sales — round DOWN to the nearest tier (no full-step-down;
   //    a basis already on a boundary stays there). Rule locked 2026-07-20.

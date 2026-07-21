@@ -72,6 +72,9 @@ model Organization {
   laborPositions                LaborPosition[]
   laborSettings                 LaborSettings[]
   salesForecasts                SalesForecast[]
+  laborDaySplits                LaborDaySplit[]
+  laborDayparts                 LaborDaypart[]
+  laborDayAdjustments           LaborDayAdjustment[]
 }
 
 model User {
@@ -138,6 +141,9 @@ model Store {
   trainingModuleAssignments TrainingModuleStoreAssignment[]
   laborSettings             LaborSettings[]
   salesForecasts            SalesForecast[]
+  laborDaySplits            LaborDaySplit[]
+  laborDayparts             LaborDaypart[]
+  laborDayAdjustments       LaborDayAdjustment[]
 }
 
 model StoreHours {
@@ -1750,5 +1756,74 @@ model SalesForecast {
   store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, weekStart])
+  @@index([organizationId, storeId])
+}
+
+// ─── LABOR MODEL (Phase 2) ────────────────────────────────────────────────────
+// Total-sales only from Phase 2 on: LaborSettings.denominator and
+// SalesForecast.projectedDelivery are DEPRECATED (retained, never dropped) —
+// the budget basis is a single total (delivery is already in Square net sales).
+
+/// Per-store day-of-week weighting for the weekly→daily hourly-hours split.
+/// Weights are basis points (sum ≈ 10000) so the split is exact; auto-seeded
+/// from trailing sales and flips isOverride when hand-edited. Salaried hours are
+/// a weekly constant and are NOT split per day.
+model LaborDaySplit {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  weekday        Int // 0 = Monday … 6 = Sunday (matches mondayOfWeekStr)
+  weightBps      Int // basis points of the week (0–10000)
+  isOverride     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, weekday])
+  @@index([organizationId, storeId])
+}
+
+/// Shift blocks / dayparts with minimum-staffing rules. Org default (storeId
+/// null) with optional per-store overrides — same pattern as LaborSettings.
+model LaborDaypart {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  storeId            String? // null = org default
+  name               String // "Opening", "Mid", "Close"
+  startLocalMinutes  Int // minutes from local midnight (480 = 8:00a)
+  endLocalMinutes    Int // exclusive
+  minHeadcount       Int      @default(1)
+  requiresSupervisor Boolean  @default(false)
+  sortOrder          Int      @default(0)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store?       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+/// Date-specific labor adjustment (weather, holiday, event). Scales that day's
+/// HOURLY hours by adjustmentPct; salaried is untouched. Keyed by exact date,
+/// not weekday, because conditions are one-off.
+model LaborDayAdjustment {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  date           DateTime @db.Date
+  adjustmentPct  Decimal  @db.Decimal(5, 2) // e.g. -20.00 = staff 20% below
+  reason         String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
   @@index([organizationId, storeId])
 }

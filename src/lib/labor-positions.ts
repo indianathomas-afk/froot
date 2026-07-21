@@ -23,3 +23,22 @@ export async function seedDefaultLaborPositions(organizationId: string): Promise
   })
   return result.count
 }
+
+// Default org-level dayparts (Phase 2). Minutes from local midnight. Real store
+// hours override the window at coverage time; these just define the shift
+// blocks + minimum-staffing rules a new org starts with.
+export const DEFAULT_LABOR_DAYPARTS = [
+  { name: "Opening", startLocalMinutes: 480, endLocalMinutes: 660, minHeadcount: 2, requiresSupervisor: true, sortOrder: 0 }, // 8–11a
+  { name: "Midday", startLocalMinutes: 660, endLocalMinutes: 1020, minHeadcount: 3, requiresSupervisor: true, sortOrder: 1 }, // 11a–5p
+  { name: "Closing", startLocalMinutes: 1020, endLocalMinutes: 1320, minHeadcount: 2, requiresSupervisor: true, sortOrder: 2 }, // 5–10p
+] as const
+
+// Idempotent: seeds org-default dayparts (storeId null) only when none exist.
+export async function seedDefaultLaborDayparts(organizationId: string): Promise<number> {
+  const existing = await prisma.laborDaypart.count({ where: { organizationId, storeId: null } })
+  if (existing > 0) return 0
+  const result = await prisma.laborDaypart.createMany({
+    data: DEFAULT_LABOR_DAYPARTS.map((d) => ({ ...d, organizationId, storeId: null })),
+  })
+  return result.count
+}

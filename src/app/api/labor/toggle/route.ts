@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireAdmin, laborModuleAvailable } from "@/lib/auth"
-import { seedDefaultLaborPositions } from "@/lib/labor-positions"
+import { seedDefaultLaborPositions, seedDefaultLaborDayparts } from "@/lib/labor-positions"
 
 const bodySchema = z.object({ enabled: z.boolean() })
 
@@ -45,6 +45,7 @@ export async function POST(req: Request) {
   // Seed defaults on enable so a fresh org isn't staring at an empty legend.
   if (parsed.data.enabled) {
     await seedDefaultLaborPositions(org.id)
+    await seedDefaultLaborDayparts(org.id)
   }
 
   return NextResponse.json({ enabled: updated.activeModules.includes("labor") })

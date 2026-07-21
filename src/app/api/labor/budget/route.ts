@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireLaborView, requireLaborStore } from "@/lib/labor-access"
-import { localDateStr } from "@/lib/reports"
+import { localDateStr, dbDate } from "@/lib/reports"
 import { mondayOfWeekStr } from "@/lib/labor-week"
 import { computeWeeklyLaborBudget } from "@/lib/labor-budget"
+import { getWeeklyForecast } from "@/lib/labor-forecast"
+import { splitWeeklyHoursToDays, applyDayAdjustment } from "@/lib/labor-daily"
 
-// GET /api/labor/budget?storeId=&weekStart= — the derived weekly labor budget
-// for a store's week. Read-only, available to every role that can see the store
-// (STORE/STAFF get the dashboard card too); the config routes stay ADMIN/MANAGER.
-// weekStart defaults to the current week (store-local) and snaps to Monday.
-// Returns hasForecast:false + budget:null when no forecast exists — the card
-// renders the empty state rather than a broken card.
+// GET /api/labor/budget?storeId=&weekStart= — the derived weekly labor budget.
+// Phase 2: the week's projected sales are AUTO-DERIVED (getWeeklyForecast:
+// MANUAL override else the Forecasting DailyGoal sum) — no data entry. Total
+// sales only (no denominator). Per-day adjustments scale that day's hourly
+// hours; the hero shows the adjusted weekly total. Read-only, any role that can
+// see the store. hasForecast:false → the card shows its empty state.
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+// weekday index for a yyyy-mm-dd, 0 = Monday … 6 = Sunday (matches labor-week).
+function weekdayOf(dateStr: string): number {
+  const dow = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay() // 0 Sun..6 Sat
+  return (dow + 6) % 7
+}
 
 export async function GET(req: Request) {
   const ctx = await requireLaborView()
@@ -26,30 +34,23 @@ export async function GET(req: Request) {
   const today = localDateStr(new Date(), store.timezone)
   const weekStartParam = url.searchParams.get("weekStart")
   const weekStart = mondayOfWeekStr(weekStartParam && DATE_RE.test(weekStartParam) ? weekStartParam : today)
+  const weekEnd = (() => {
+    const d = new Date(`${weekStart}T00:00:00.000Z`)
+    d.setUTCDate(d.getUTCDate() + 6)
+    return d.toISOString().slice(0, 10)
+  })()
 
-  const [settingsRow, positions, forecastRow] = await Promise.all([
+  const [settingsRow, positions, forecast] = await Promise.all([
     prisma.laborSettings.findFirst({ where: { organizationId: ctx.org.id, storeId: null } }),
     prisma.laborPosition.findMany({ where: { organizationId: ctx.org.id, active: true } }),
-    prisma.salesForecast.findUnique({
-      where: { storeId_weekStart: { storeId, weekStart: new Date(`${weekStart}T00:00:00.000Z`) } },
-    }),
+    getWeeklyForecast(storeId, weekStart),
   ])
 
   const settings = {
     laborTargetPct: settingsRow ? Number(settingsRow.laborTargetPct) : 20,
     roundingIncrement: settingsRow ? Number(settingsRow.roundingIncrement) : 1000,
-    denominator: settingsRow?.denominator ?? ("TOTAL_WITH_DELIVERY" as const),
-    plannedBlendedRate:
-      settingsRow?.plannedBlendedRate == null ? null : Number(settingsRow.plannedBlendedRate),
+    plannedBlendedRate: settingsRow?.plannedBlendedRate == null ? null : Number(settingsRow.plannedBlendedRate),
   }
-
-  const forecast = forecastRow
-    ? {
-        projectedStoreSales: Number(forecastRow.projectedStoreSales),
-        projectedDelivery: Number(forecastRow.projectedDelivery),
-        source: forecastRow.source,
-      }
-    : null
 
   const budget = computeWeeklyLaborBudget({
     settings,
@@ -59,20 +60,58 @@ export async function GET(req: Request) {
       impliedWeeklyHours: p.impliedWeeklyHours,
       active: p.active,
     })),
-    forecast: forecast && { projectedStoreSales: forecast.projectedStoreSales, projectedDelivery: forecast.projectedDelivery },
+    forecast: forecast ? { total: forecast.total } : null,
   })
 
   const canManage = ctx.isAdmin || ctx.dbUser?.role === "MANAGER"
-
-  return NextResponse.json({
+  const base = {
     store: { id: store.id, name: store.name, timezone: store.timezone },
     today,
     weekStart,
     canManage,
     target: settings.laborTargetPct,
-    denominator: settings.denominator,
-    hasForecast: !!forecast,
-    forecast,
+  }
+
+  if (!budget) {
+    return NextResponse.json({ ...base, source: null, hasForecast: false, forecast: null, budget: null, adjustedTotalSchedulableHours: null, weekAdjustments: [] })
+  }
+
+  // Per-day adjustments (weather/holiday) scale HOURLY hours only. Split the
+  // weekly hourly hours by the day-split weights, apply each day's adjustment,
+  // and re-sum for the adjusted weekly total (salaried is untouched).
+  const [splitRows, adjRows] = await Promise.all([
+    prisma.laborDaySplit.findMany({ where: { storeId } }),
+    prisma.laborDayAdjustment.findMany({ where: { storeId, date: { gte: dbDate(weekStart), lte: dbDate(weekEnd) } } }),
+  ])
+
+  const weightsByWeekday =
+    splitRows.length > 0
+      ? Array.from({ length: 7 }, (_, wd) => splitRows.find((r) => r.weekday === wd)?.weightBps ?? 0)
+      : null
+  const adjByWeekday = new Map<number, { pct: number; reason: string | null; date: string }>()
+  for (const a of adjRows) {
+    const dateStr = a.date.toISOString().slice(0, 10)
+    adjByWeekday.set(weekdayOf(dateStr), { pct: Number(a.adjustmentPct), reason: a.reason, date: dateStr })
+  }
+
+  const daily = splitWeeklyHoursToDays({ weeklyHourlyHours: budget.hourlyHours, weightsByWeekday, openDays: [0, 1, 2, 3, 4, 5, 6] })
+  const adjustedHourly = daily.reduce((sum, d) => {
+    const adj = adjByWeekday.get(d.weekday)
+    return sum + (adj ? applyDayAdjustment(d.hourlyHours, adj.pct) : d.hourlyHours)
+  }, 0)
+  const adjustedTotalSchedulableHours = +(budget.salariedHours + adjustedHourly).toFixed(1)
+
+  const weekAdjustments = adjRows
+    .map((a) => ({ date: a.date.toISOString().slice(0, 10), adjustmentPct: Number(a.adjustmentPct), reason: a.reason }))
+    .sort((x, y) => x.date.localeCompare(y.date))
+
+  return NextResponse.json({
+    ...base,
+    source: forecast!.source,
+    hasForecast: true,
+    forecast: { total: forecast!.total, source: forecast!.source },
     budget,
+    adjustedTotalSchedulableHours,
+    weekAdjustments,
   })
 }

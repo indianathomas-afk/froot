@@ -33,15 +33,14 @@ const POSITIONS: LaborBudgetPosition[] = [
 const SETTINGS: LaborBudgetSettings = {
   laborTargetPct: 20,
   roundingIncrement: 1000,
-  denominator: "TOTAL_WITH_DELIVERY",
   plannedBlendedRate: 12.5,
 }
 
-console.log("1 · Acceptance case (store $14,900, delivery $0):")
+console.log("1 · Acceptance case (total sales $14,900):")
 const r = computeWeeklyLaborBudget({
   settings: SETTINGS,
   positions: POSITIONS,
-  forecast: { projectedStoreSales: 14900, projectedDelivery: 0 },
+  forecast: { total: 14900 },
 })!
 check("conservative sales", r.conservativeSales, 14000)
 check("total labor budget", r.totalLaborBudget, 2800)
@@ -57,11 +56,11 @@ console.log("\n2 · Empty-forecast state (null forecast):")
 const empty = computeWeeklyLaborBudget({ settings: SETTINGS, positions: POSITIONS, forecast: null })
 check("returns null", empty, null)
 
-console.log("\n3 · floorExceedsBudget (store $1,000 — salaried floor > budget):")
+console.log("\n3 · floorExceedsBudget (total $1,000 — salaried floor > budget):")
 const tight = computeWeeklyLaborBudget({
   settings: SETTINGS,
   positions: POSITIONS,
-  forecast: { projectedStoreSales: 1000, projectedDelivery: 0 },
+  forecast: { total: 1000 },
 })!
 check("total labor budget", tight.totalLaborBudget, 200)
 check("floorExceedsBudget", tight.floorExceedsBudget, true)
@@ -73,7 +72,7 @@ console.log("\n4 · Blended-rate fallback (no plannedBlendedRate → mean of hou
 const meanRate = computeWeeklyLaborBudget({
   settings: { ...SETTINGS, plannedBlendedRate: null },
   positions: POSITIONS,
-  forecast: { projectedStoreSales: 14900, projectedDelivery: 0 },
+  forecast: { total: 14900 },
 })!
 // mean of $15/$13/$12 = $13.333… → $13.33
 check("blended rate = mean of hourly", meanRate.blendedHourlyRate, 13.33)

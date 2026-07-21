@@ -169,3 +169,43 @@ forecasting (Phase 3) · actual labor from Square Timecards, per-employee wages,
 push-to-Square scheduling, OT modeling (Phase 4). Per-employee rate overrides
 and per-store `LaborSettings` overrides are also later. Clean seams left; not
 implemented.
+
+## Phase 2 (built 2026-07-20)
+
+Migration `20260720230000_labor2_daysplit_daypart_adjustment` — additive:
+`LaborDaySplit`, `LaborDaypart`, `LaborDayAdjustment`.
+
+- **Total sales only.** The in-store/delivery split is gone — the budget basis
+  is one total number (delivery is already in Square net sales). `LaborSettings.
+  denominator` and `SalesForecast.projectedDelivery` are **deprecated**: the
+  columns remain (no drops) but are never read/written and are removed from the
+  UI. `computeWeeklyLaborBudget` now takes `forecast: { total }`.
+- **Auto-forecast.** `getWeeklyForecast(storeId, weekStart)` returns the week's
+  total: a `MANUAL` `SalesForecast` override if present, else the sum of the
+  Forecasting module's `DailyGoal` for Mon–Sun (`TREND`) — so the Budget card
+  shows a number with no data entry. The empty state appears only when there's
+  neither a manual row nor any `DailyGoal`. The manual dialog is now an override
+  ("Revert to auto" clears it).
+- **Weekly→daily split.** `splitWeeklyHoursToDays` (pure) distributes the weekly
+  **hourly** hours across days by `LaborDaySplit.weightBps` (auto-seeded from
+  trailing sales, editable per store on `/settings/labor`, "reset to
+  sales-derived"). **Salaried hours are a weekly constant — never split.**
+- **Per-day adjustment.** `applyDayAdjustment` (pure) + `LaborDayAdjustment`
+  (unique `storeId+date`, `adjustmentPct` ±%, `reason`) scales a day's **hourly**
+  hours only; salaried untouched. Set from the Coverage card ("Adjust for
+  weather"); the Budget hero shows the adjusted weekly total + a chip per
+  adjusted day.
+- **Min-staffing coverage engine.** `computeDailyCoverage` (pure) turns the
+  adjusted day hours + demand shape into an integer step line satisfying: floor
+  of 1 while open, per-`LaborDaypart` `minHeadcount`, and a supervisor rule
+  (`requiresSupervisor` + `LaborPosition.isSupervisory`). Operating window from
+  `StoreHours` (dayOfWeek 0=Sun; falls back to demand-shape inference). Flags
+  `exceedsDayHours` and `supervisorShortfall` (never throws). Org-default
+  dayparts (Opening/Midday/Closing) seed on module enable; CRUD on
+  `/settings/labor`. The Coverage card shows per-daypart min badges + a
+  supervisor indicator, still "Recommended · guidance", single headcount axis.
+
+Fixtures: `npx tsx scripts/verify-labor-budget.ts` (total-only budget,
+182h/18.8%), `npx tsx scripts/verify-labor-coverage.ts` (split, adjustment,
+coverage invariants). Existing orgs backfill dayparts via
+`scripts/seed-labor-positions.ts` (or by re-toggling the module).

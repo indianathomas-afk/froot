@@ -12,7 +12,7 @@
  */
 import "dotenv/config"
 import { prisma } from "../src/lib/prisma"
-import { seedDefaultLaborPositions } from "../src/lib/labor-positions"
+import { seedDefaultLaborPositions, seedDefaultLaborDayparts } from "../src/lib/labor-positions"
 
 async function main() {
   const argOrgId = process.argv[2]
@@ -31,12 +31,13 @@ async function main() {
 
   let seeded = 0
   for (const org of orgs) {
-    const count = await seedDefaultLaborPositions(org.id)
-    if (count > 0) {
+    const posCount = await seedDefaultLaborPositions(org.id)
+    const dpCount = await seedDefaultLaborDayparts(org.id)
+    if (posCount > 0 || dpCount > 0) {
       seeded++
-      console.log(`  ✓ ${org.name} (${org.id}) — seeded ${count} positions`)
+      console.log(`  ✓ ${org.name} (${org.id}) — seeded ${posCount} positions, ${dpCount} dayparts`)
     } else {
-      console.log(`  · ${org.name} (${org.id}) — already has positions, skipped`)
+      console.log(`  · ${org.name} (${org.id}) — already seeded, skipped`)
     }
   }
   console.log(`\nDone. Seeded ${seeded}/${orgs.length} org(s).`)

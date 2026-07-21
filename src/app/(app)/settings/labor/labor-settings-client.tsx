@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Pencil, Trash2, Plus, ShieldCheck } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,13 +28,11 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Denominator = "IN_STORE" | "TOTAL_WITH_DELIVERY"
 type PayType = "HOURLY" | "SALARIED"
 
 type Settings = {
   laborTargetPct: number
   roundingIncrement: number
-  denominator: Denominator
   plannedBlendedRate: number | null
 }
 
@@ -57,15 +55,140 @@ const usd = (n: number) =>
 export function LaborSettingsClient({
   initialSettings,
   initialPositions,
+  stores,
 }: {
   initialSettings: Settings
   initialPositions: Position[]
+  stores: { id: string; name: string }[]
 }) {
   return (
     <div className="space-y-6 max-w-3xl">
       <SettingsCard initial={initialSettings} />
       <PositionsCard initial={initialPositions} />
+      <DaySplitCard stores={stores} />
+      <DaypartsCard />
     </div>
+  )
+}
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+// ─── Day-split weights (per store) ─────────────────────────────────────────────
+
+function DaySplitCard({ stores }: { stores: { id: string; name: string }[] }) {
+  const [storeId, setStoreId] = useState(stores[0]?.id ?? "")
+  const [weights, setWeights] = useState<string[]>(Array(7).fill(""))
+  const [isOverride, setIsOverride] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const loadSplit = useCallback((sid: string) => {
+    if (!sid) return
+    setLoading(true)
+    fetch(`/api/labor/day-split?storeId=${sid}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.weights) {
+          setWeights(d.weights.map((w: number) => ((w / 100).toFixed(1))))
+          setIsOverride(!!d.isOverride)
+        }
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    loadSplit(storeId)
+  }, [storeId, loadSplit])
+
+  const pctSum = weights.reduce((s, w) => s + (Number(w) || 0), 0)
+
+  async function save() {
+    // Inputs are percents (one decimal); convert to basis points.
+    const bps = weights.map((w) => Math.round((Number(w) || 0) * 100))
+    const total = bps.reduce((s, w) => s + w, 0)
+    if (total === 0) return setMsg("Weights can’t all be zero.")
+    setSaving(true)
+    setMsg(null)
+    const res = await fetch("/api/labor/day-split", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId, weights: bps }),
+    }).catch(() => null)
+    setSaving(false)
+    if (res?.ok) {
+      setIsOverride(true)
+      setMsg("Saved.")
+    } else setMsg("Couldn’t save — try again.")
+  }
+
+  async function resetToSales() {
+    setSaving(true)
+    const res = await fetch(`/api/labor/day-split?storeId=${storeId}`, { method: "DELETE" }).catch(() => null)
+    setSaving(false)
+    if (res?.ok) {
+      const d = await res.json()
+      setWeights(d.weights.map((w: number) => (w / 100).toFixed(1)))
+      setIsOverride(false)
+      setMsg("Reset to sales-derived.")
+    }
+  }
+
+  if (stores.length === 0) return null
+
+  return (
+    <Card>
+      <CardContent className="pt-5 pb-5">
+        <h2 className="text-[15px] font-bold text-[var(--color-foreground)] mb-1">Weekly → daily split</h2>
+        <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+          How the week’s hourly hours spread across days (percent of the week). Defaults come from recent sales; edit to override.
+          Salaried hours aren’t split — they’re a weekly constant.
+        </p>
+
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          {stores.length > 1 && (
+            <Select value={storeId} onValueChange={setStoreId}>
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {stores.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <span className={`text-xs font-medium ${isOverride ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]"}`}>
+            {isOverride ? "Manual override" : "Sales-derived"}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-7 gap-2">
+          {WEEKDAYS.map((wd, i) => (
+            <div key={wd}>
+              <Label className="text-xs">{wd}</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={weights[i]}
+                disabled={loading}
+                onChange={(e) => setWeights((prev) => prev.map((w, j) => (j === i ? e.target.value : w)))}
+                className="px-2"
+              />
+            </div>
+          ))}
+        </div>
+        <p className={`text-xs mt-2 ${Math.abs(pctSum - 100) > 0.5 ? "text-[var(--color-warning)]" : "text-[var(--color-muted-foreground)]"}`}>
+          Sum: {pctSum.toFixed(1)}% {Math.abs(pctSum - 100) > 0.5 ? "(will be normalized to 100%)" : ""}
+        </p>
+
+        <div className="flex items-center gap-3 mt-4">
+          <Button onClick={save} disabled={saving || loading}>{saving ? "Saving…" : "Save split"}</Button>
+          <Button variant="outline" onClick={resetToSales} disabled={saving || loading}>Reset to sales-derived</Button>
+          {msg && <span className="text-sm text-[var(--color-muted-foreground)]">{msg}</span>}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -74,7 +197,6 @@ export function LaborSettingsClient({
 function SettingsCard({ initial }: { initial: Settings }) {
   const [targetPct, setTargetPct] = useState(String(initial.laborTargetPct))
   const [rounding, setRounding] = useState(String(initial.roundingIncrement))
-  const [denominator, setDenominator] = useState<Denominator>(initial.denominator)
   const [blended, setBlended] = useState(initial.plannedBlendedRate == null ? "" : String(initial.plannedBlendedRate))
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -95,7 +217,6 @@ function SettingsCard({ initial }: { initial: Settings }) {
       body: JSON.stringify({
         laborTargetPct: pct,
         roundingIncrement: inc,
-        denominator,
         plannedBlendedRate: blendedNum,
       }),
     }).catch(() => null)
@@ -139,20 +260,6 @@ function SettingsCard({ initial }: { initial: Settings }) {
             <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
               Projected sales round down to this tier (conservative).
             </p>
-          </div>
-
-          <div>
-            <Label htmlFor="denominator">Labor-% denominator</Label>
-            <Select value={denominator} onValueChange={(v) => setDenominator(v as Denominator)}>
-              <SelectTrigger id="denominator">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="TOTAL_WITH_DELIVERY">Total sales (incl. delivery)</SelectItem>
-                <SelectItem value="IN_STORE">In-store sales only</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Which sales the target % is measured against.</p>
           </div>
 
           <div>
@@ -494,5 +601,250 @@ function DeletePositionDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  )
+}
+
+// ─── Dayparts (org-default shift blocks + min staffing) ────────────────────────
+
+type Daypart = {
+  id: string
+  name: string
+  startLocalMinutes: number
+  endLocalMinutes: number
+  minHeadcount: number
+  requiresSupervisor: boolean
+  sortOrder: number
+  active: boolean
+}
+
+const minToTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
+const timeToMin = (t: string) => {
+  const [h, m] = t.split(":").map(Number)
+  return (h || 0) * 60 + (m || 0)
+}
+const BLANK_DAYPART: Omit<Daypart, "id"> = {
+  name: "",
+  startLocalMinutes: 480,
+  endLocalMinutes: 660,
+  minHeadcount: 1,
+  requiresSupervisor: false,
+  sortOrder: 0,
+  active: true,
+}
+
+function DaypartsCard() {
+  const [rows, setRows] = useState<Daypart[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState<Daypart | Omit<Daypart, "id"> | null>(null)
+  const [deleting, setDeleting] = useState<Daypart | null>(null)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    fetch("/api/labor/daypart")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: Daypart[]) => setRows(d))
+      .finally(() => setLoading(false))
+  }, [])
+  useEffect(() => load(), [load])
+
+  return (
+    <Card>
+      <CardContent className="pt-5 pb-5">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-[15px] font-bold text-[var(--color-foreground)]">Shift blocks (min staffing)</h2>
+          <Button size="sm" onClick={() => setEditing({ ...BLANK_DAYPART, sortOrder: rows.length })}>
+            <Plus className="h-4 w-4 mr-1" /> Add block
+          </Button>
+        </div>
+        <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+          Dayparts and their minimum headcount / supervisor rule. Real store hours bound the coverage window; these set the floors.
+        </p>
+
+        {loading ? (
+          <p className="text-sm text-[var(--color-muted-foreground)] py-4">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted-foreground)] py-4 text-center">No shift blocks yet — add one to set minimum coverage.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--color-muted-foreground)] border-b border-[var(--color-border)]">
+                  <th className="py-2 pr-3 font-semibold">Name</th>
+                  <th className="py-2 pr-3 font-semibold">Window</th>
+                  <th className="py-2 pr-3 font-semibold">Min</th>
+                  <th className="py-2 pr-3 font-semibold">Sup.</th>
+                  <th className="py-2 pr-0 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((d) => (
+                  <tr key={d.id} className="border-b border-[var(--color-border)] last:border-0">
+                    <td className="py-2.5 pr-3 font-medium text-[var(--color-foreground)]">
+                      {d.name}
+                      {!d.active && <span className="ml-2 text-xs text-[var(--color-muted-foreground)]">(inactive)</span>}
+                    </td>
+                    <td className="py-2.5 pr-3 text-[var(--color-muted-foreground)]">{minToTime(d.startLocalMinutes)}–{minToTime(d.endLocalMinutes)}</td>
+                    <td className="py-2.5 pr-3 text-[var(--color-foreground)]">{d.minHeadcount}</td>
+                    <td className="py-2.5 pr-3">
+                      {d.requiresSupervisor ? <ShieldCheck className="h-4 w-4 text-[var(--color-primary)]" aria-label="Requires supervisor" /> : <span className="text-[var(--color-muted-foreground)]">—</span>}
+                    </td>
+                    <td className="py-2.5 pr-0 text-right whitespace-nowrap">
+                      <button onClick={() => setEditing(d)} className="p-1.5 rounded hover:bg-[var(--color-accent)] text-[var(--color-muted-foreground)]" aria-label={`Edit ${d.name}`}>
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => setDeleting(d)} className="p-1.5 rounded hover:bg-red-50 text-[var(--color-destructive)]" aria-label={`Delete ${d.name}`}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+
+      {editing && (
+        <DaypartDialog
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null)
+            load()
+          }}
+        />
+      )}
+      {deleting && (
+        <AlertDialog open onOpenChange={(o) => !o && setDeleting(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete “{deleting.name}”?</AlertDialogTitle>
+              <AlertDialogDescription>This removes the shift block and its minimum-staffing rule.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async (e) => {
+                  e.preventDefault()
+                  const res = await fetch(`/api/labor/daypart/${deleting.id}`, { method: "DELETE" }).catch(() => null)
+                  if (res?.ok) {
+                    setDeleting(null)
+                    load()
+                  }
+                }}
+                className="bg-[var(--color-destructive)] hover:opacity-90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </Card>
+  )
+}
+
+function dpHasId(d: Daypart | Omit<Daypart, "id">): d is Daypart {
+  return "id" in d && typeof (d as Daypart).id === "string"
+}
+
+function DaypartDialog({
+  initial,
+  onClose,
+  onSaved,
+}: {
+  initial: Daypart | Omit<Daypart, "id">
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const editingId = dpHasId(initial) ? initial.id : null
+  const [name, setName] = useState(initial.name)
+  const [start, setStart] = useState(minToTime(initial.startLocalMinutes))
+  const [end, setEnd] = useState(minToTime(initial.endLocalMinutes))
+  const [minHeadcount, setMinHeadcount] = useState(String(initial.minHeadcount))
+  const [requiresSupervisor, setRequiresSupervisor] = useState(initial.requiresSupervisor)
+  const [sortOrder, setSortOrder] = useState(String(initial.sortOrder))
+  const [active, setActive] = useState(initial.active)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function submit() {
+    const s = timeToMin(start)
+    const e = timeToMin(end)
+    if (name.trim() === "" || e <= s) {
+      setErr("Name is required and the end must be after the start.")
+      return
+    }
+    setSaving(true)
+    setErr(null)
+    const body = {
+      name: name.trim(),
+      startLocalMinutes: s,
+      endLocalMinutes: e,
+      minHeadcount: Number(minHeadcount) || 0,
+      requiresSupervisor,
+      sortOrder: Number(sortOrder) || 0,
+      active,
+    }
+    const res = await fetch(editingId ? `/api/labor/daypart/${editingId}` : "/api/labor/daypart", {
+      method: editingId ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => null)
+    setSaving(false)
+    if (!res?.ok) {
+      setErr("Couldn’t save — try again.")
+      return
+    }
+    onSaved()
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editingId ? "Edit shift block" : "Add shift block"}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div>
+            <Label htmlFor="d-name">Name</Label>
+            <Input id="d-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Opening" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="d-start">Start</Label>
+              <Input id="d-start" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="d-end">End</Label>
+              <Input id="d-end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="d-min">Minimum headcount</Label>
+              <Input id="d-min" type="number" min="0" step="1" value={minHeadcount} onChange={(e) => setMinHeadcount(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="d-sort">Sort order</Label>
+              <Input id="d-sort" type="number" min="0" step="1" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-[var(--color-border)] px-3 py-2">
+            <Label htmlFor="d-sup" className="cursor-pointer">Requires a supervisor on floor</Label>
+            <Switch id="d-sup" checked={requiresSupervisor} onCheckedChange={setRequiresSupervisor} />
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-[var(--color-border)] px-3 py-2">
+            <Label htmlFor="d-active" className="cursor-pointer">Active</Label>
+            <Switch id="d-active" checked={active} onCheckedChange={setActive} />
+          </div>
+          {err && <p className="text-sm text-[var(--color-destructive)]">{err}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={saving}>{saving ? "Saving…" : editingId ? "Save changes" : "Add block"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
