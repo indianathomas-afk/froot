@@ -1,8 +1,8 @@
 # Labor Model — Phase 2 Session Prompt
 
 **Module:** Weekly Labor Model
-**Phase:** 2 (daily hour split + shift templates + minimum-staffing coverage engine)
-**Builds on:** Phase 0–1 (shipped — see `LABOR.md`, commit `eb35a85` on staging)
+**Phase:** 2 (auto-forecast + total-sales simplification + daily split + labor adjustment + min-staffing coverage engine)
+**Builds on:** Phase 0–1 (shipped — see `LABOR.md`, on staging)
 **Companion doc:** `froot_docs/UseFroot_Labor_Model_Brief` (feasibility & decision brief)
 **Session type:** Single Claude Code session. Audit-first. No edits until the plan is approved.
 
@@ -12,69 +12,78 @@
 
 Follow the standard Froot workflow (`CLAUDE.md`, `AGENTS.md`, `WORKFLOW.md`, `MIGRATIONS.md`):
 
-1. **Audit first.** Read the Phase-0/1 code in the Audit Checklist below and present a written plan — files to add, files to touch, the Prisma migration, and any forks — **before changing anything**. Wait for explicit approval.
-2. **Additive-only migrations.** New models and new columns only. **No column drops, ever.** Neon is the source of truth; show any SQL and get approval before running it against the dev branch.
+1. **Audit first.** Read the Phase-0/1 code + the Forecasting module in the Audit Checklist below and present a written plan — files to add, files to touch, the Prisma migration, and any forks — **before changing anything**. Wait for explicit approval.
+2. **Additive-only migrations.** New models and new columns only. **No column drops, ever** — including the columns this phase *deprecates* (§1.2). Show any SQL and get approval before running it against the dev branch.
 3. **Match the shipped conventions.** Money is **dollars as `Decimal(10,2)`**; the budget service computes in **integer cents internally** (see `LABOR.md`). Hours round **down to the nearest 0.5**. Reuse the existing two-gate feature flag verbatim — do **not** add a new flag.
 4. **`next build` must pass** before a step is done and before any commit. **Commit `package-lock.json`** with any dependency change (none expected — reuse `recharts`, no new libs).
-5. **Recommendation-only.** Phase 2 outputs *recommended coverage*, not an assigned schedule. **No named-employee assignment, no push-to-Square, no OT math** — those are Phase 4. Leave clean seams.
+5. **Recommendation-only.** Phase 2 outputs *recommended coverage*, not an assigned schedule. **No named-employee assignment, no push-to-Square, no OT math** — Phase 4. Leave clean seams.
 6. **Scope containment.** Note unrelated bugs/drift as text at the end. Don't fix inline.
-7. **Surface forks.** If you hit a design fork not resolved here, stop and list it with a recommendation. Don't guess.
+7. **Surface forks.** Hit a fork not resolved here → stop, list it with a recommendation. Don't guess.
 
 ---
 
-## 1 · Locked decisions (defaults — confirm or override in the plan)
+## 1 · Locked decisions
 
+### 1.1 Carried from Phase 0–1
+| # | Decision | Value |
+|---|---|---|
+| a | Money | Dollars, `Decimal(10,2)`, integer-cents internally. |
+| b | Rounding | Sales floor-to-tier; hours floor to 0.5. |
+| c | Feature flag | The existing two gates — no change. |
+| d | RBAC | Read = any role (`requireLaborView`); write = ADMIN+MANAGER (`requireLaborContext`). |
+
+### 1.2 New for Phase 2
 | # | Decision | Value for this build |
 |---|---|---|
-| 1 | Build sequence | **Daily hour split first (2A)**, then the coverage engine (2B). |
-| 2 | Output granularity | **Recommended coverage only** — headcount by hour/daypart, and shift *blocks* (not people). No employee assignment. |
-| 3 | Weekly→daily split | **Auto-seed** day-of-week weights from trailing sales actuals; **owner-editable override**. This replaces the single Phase-1B heuristic. |
-| 4 | Operating hours | Use the real **`StoreHours`** model for each weekday's open/close — not inferred from sales. Fall back to the sales-shape inference only when `StoreHours` is absent. |
-| 5 | Supervisor rule | **≥ 1 supervisory position on the floor during all open hours** (uses `LaborPosition.isSupervisory`, seeded in Phase 0 for exactly this). Configurable per daypart. |
-| 6 | Minimum staffing | **Floor of 1 while open**, plus a configurable `minHeadcount` per daypart. Under-coverage is **flagged, never thrown**. |
-| 7 | Rounding | Person-hours round **down to 0.5** (matches Phase 1's conservative philosophy). |
-| 8 | Coverage card | Stays labeled **"Recommended · guidance."** It graduates from a raw heuristic to a **rule-satisfying** recommendation, but is still advisory. |
+| 1 | **Total sales only** | Drop the in-store/delivery split. The labor-% basis is a single **total** sales number (delivery is already in Square net sales — it has been for 2+ years). **Deprecate** `LaborSettings.denominator` and `SalesForecast.projectedDelivery`: keep the columns (no drops), stop reading/writing them, remove them from the UI. The budget basis becomes just the total forecast. |
+| 2 | **Auto-forecast from Forecasting** | The Budget card **derives the week's projected sales** by summing the store's `DailyGoal` rows (Mon–Sun) from the Forecasting module — `SalesForecastSource.TREND`, computed on read, **not stored**. No data entry required. A **`MANUAL` `SalesForecast` row overrides** it when the operator wants to. Empty state only when there's neither a manual row nor any `DailyGoal` for the week. |
+| 3 | **Labor adjustment knob** | A **per-day ±% adjustment** with a reason label (e.g. "Rain", "Holiday") that **scales the hourly hours only — salaried stays fixed** (you can't send a salaried manager home). Default 0%. Owner-set. Applied after the daily split, before coverage. |
+| 4 | Build sequence | **2A** (auto-forecast + total-sales + daily split + adjustment), then **2B** (dayparts + coverage engine). |
+| 5 | Operating hours | Use the real **`StoreHours`** per weekday; fall back to sales-shape inference only when absent. |
+| 6 | Supervisor rule | **≥ 1 supervisory position on the floor during all open hours** (`LaborPosition.isSupervisory`). Configurable per daypart. |
+| 7 | Minimum staffing | Floor of 1 while open, plus a configurable `minHeadcount` per daypart. Under-coverage **flagged, never thrown**. |
+| 8 | Coverage card | Stays labeled **"Recommended · guidance."** Rule-satisfying, still advisory, single headcount axis. |
 
-Decisions #3, #5, #6 are owner-configurable — build them as settings, not constants.
+Decisions #2, #3, #6, #7 are owner-configurable — build them as settings/inputs, not constants.
 
 ---
 
 ## 2 · Audit checklist (read before planning)
 
-Report what you find for each. The Phase-1 primitives are the load-bearing pieces — **extend, do not duplicate**.
+Report what you find for each. Extend the Phase-0/1 primitives — do not duplicate.
 
-1. **`src/lib/labor-budget.ts`** — `computeWeeklyLaborBudget` returns `totalSchedulableHours`, `salariedHours`, `hourlyHours`, `blendedHourlyRate`. Phase 2 consumes these. Confirm what's available for the daily split (do you split total hours, or salaried and hourly separately?).
-2. **`src/lib/labor-coverage.ts`** — `recommendCoverage` is the Phase-1B heuristic (`dayShareOfWeek` × total hours, distributed by demand, floor 1). Report exactly how it works; Phase 2's engine **generalizes/replaces** it. Keep the same demand source.
-3. **`src/lib/labor-week.ts`** — `mondayOfWeekStr` / `mondayOfWeekDate`. Reuse for week keys.
-4. **The Coverage card** (`src/app/(app)/dashboard/labor-coverage-card.tsx`) + **`/api/labor/coverage`** — the demand shape comes from `SalesHourlyCache` (same source as the Sales Performance card). Report the response shape; Phase 2 extends it.
-5. **`StoreHours` model** — confirm its exact shape (per-weekday open/close, timezone handling) and how it relates to `Store`. This is the new operating-hours source.
-6. **`LaborSettings` / `LaborPosition`** — the org-default row, `isSupervisory`, `impliedWeeklyHours`, and the partial-unique index guaranteeing one org default (`LABOR.md`). Phase-2 per-store overrides must respect that pattern.
-7. **`requireLaborView` / `requireLaborContext` / `requireLaborStore`** (`src/lib/labor-access.ts`) — reuse verbatim (view = any role read; context = ADMIN+MANAGER write).
-8. **`scripts/verify-labor-budget.ts`** — the pure-function fixture pattern (`npx tsx`, plain asserts). Phase 2's engine gets its own `verify-labor-coverage.ts`.
-9. **`prisma/schema.prisma`** money/decimal conventions and the Labor section at the end of the file (where the new models go).
+1. **`src/lib/labor-budget.ts`** — `computeWeeklyLaborBudget`: how `denominator` + `projectedDelivery` currently feed `salesBasis`. Plan the **total-only** simplification (basis = total forecast) and how salaried/hourly hours split, since the adjustment scales hourly only.
+2. **The Forecasting module** — `GoalPlan` → `DailyGoal` (`goalAmount` per store per date, unique `storeId+date`; `FORECASTING.md`). Confirm summing Mon–Sun `DailyGoal.goalAmount` yields the week's total forecast (delivery included). This is the auto-forecast source.
+3. **`src/lib/labor-coverage.ts`** — `recommendCoverage` (Phase-1B heuristic). Phase 2's engine generalizes it with min-staffing rules; keep the `SalesHourlyCache` demand source.
+4. **`SalesForecast` model + `/api/labor/forecast` + `/api/labor/budget`** — how the manual forecast is read today; Phase 2 makes it the *override* and adds the `TREND` default. Report the response shapes the Budget card consumes.
+5. **`src/lib/labor-week.ts`** (`mondayOfWeekStr`) and **`StoreHours`** — reuse for week keys and operating windows; confirm `StoreHours` shape + timezone handling.
+6. **`LaborSettings` / `LaborPosition`** — org-default row, `isSupervisory`, the partial-unique index; and the two columns being deprecated (§1.2).
+7. **`requireLaborView` / `requireLaborContext` / `requireLaborStore`** — reuse verbatim.
+8. **`scripts/verify-labor-budget.ts`** — the pure-function fixture pattern; Phase 2 adds `verify-labor-coverage.ts`.
+9. **The dashboard Labor row** (`dashboard-client.tsx`) + the Budget/Coverage cards — Phase 2 wires the auto-forecast, the adjustment control, and the rule-based coverage.
 
 ---
 
 ## 3 · Feature flag
 
-**No change.** Everything Phase 2 renders stays behind the existing two gates (`laborModuleAvailable()` env + `"labor"` in `activeModules`). New API routes reuse `requireLaborView` / `requireLaborContext` (which already 404 when either gate is off). New settings live under the existing `/settings/labor` page.
+**No change.** Everything stays behind the existing two gates; new routes reuse `requireLaborView` / `requireLaborContext`. New settings live on `/settings/labor`.
 
 ---
 
 ## 4 · Data model (additive Prisma)
 
-Match the shipped Labor conventions (relations to `Organization`/`Store`, org-default rows with `storeId` null, `@db.Decimal` where applicable). Adjust names to what the audit finds.
+Match shipped conventions (relations to `Organization`/`Store`, org-default rows with `storeId` null, `@db.Decimal`). **Deprecate but do not drop** `LaborSettings.denominator` and `SalesForecast.projectedDelivery`.
 
 ```prisma
 /// Per-store day-of-week weighting for the weekly→daily hour split.
-/// Weights are basis points (sum ≈ 10000) so the split is exact; a row is
-/// auto-seeded from trailing sales and flips isOverride when hand-edited.
+/// Weights are basis points (sum ≈ 10000). Auto-seeded from trailing sales;
+/// flips isOverride when hand-edited.
 model LaborDaySplit {
   id             String   @id @default(cuid())
   organizationId String
   storeId        String
-  weekday        Int      // 0 = Monday … 6 = Sunday (match mondayOfWeekStr)
-  weightBps      Int      // basis points of the week (0–10000)
+  weekday        Int      // 0 = Monday … 6 = Sunday
+  weightBps      Int      // basis points (0–10000)
   isOverride     Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -83,13 +92,13 @@ model LaborDaySplit {
 }
 
 /// Shift blocks / dayparts with minimum-staffing rules. Org default (storeId
-/// null) with optional per-store overrides — same pattern as LaborSettings.
+/// null) with optional per-store overrides — LaborSettings pattern.
 model LaborDaypart {
   id                 String   @id @default(cuid())
   organizationId     String
   storeId            String?  // null = org default
-  name               String   // e.g. "Opening", "Mid", "Close"
-  startLocalMinutes  Int      // minutes from local midnight (e.g. 480 = 8:00a)
+  name               String   // "Opening", "Mid", "Close"
+  startLocalMinutes  Int      // minutes from local midnight (480 = 8:00a)
   endLocalMinutes    Int      // exclusive
   minHeadcount       Int      @default(1)
   requiresSupervisor Boolean  @default(false)
@@ -99,93 +108,106 @@ model LaborDaypart {
   updatedAt          DateTime @updatedAt
   @@index([organizationId])
 }
+
+/// Date-specific labor adjustment (weather, holiday, event). Scales that day's
+/// HOURLY hours by adjustmentPct; salaried is untouched. Keyed by exact date,
+/// not weekday, because conditions are one-off.
+model LaborDayAdjustment {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  date           DateTime @db.Date
+  adjustmentPct  Decimal  @db.Decimal(5, 2) // e.g. -20.00 = staff 20% below
+  reason         String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@unique([storeId, date])
+  @@index([organizationId, storeId])
+}
 ```
 
-No shift-*assignment* table — Phase 2 recommends coverage, it does not persist an assigned schedule. Persist a snapshot only if the audit shows the dashboard needs it for performance; if so, raise it as a fork. If a partial unique index is needed for the `LaborDaypart` org-default (storeId null), add one exactly like `LaborSettings_org_default_key` and document it in `LABOR.md`.
+No shift-*assignment* table — Phase 2 recommends coverage, it doesn't persist an assigned schedule. Add partial-unique indexes for any org-default (`storeId` null) exactly like `LaborSettings_org_default_key`, documented in `LABOR.md`.
 
 ---
 
 ## 5 · The engines (pure functions — no DB, unit-testable)
 
-### 5A · Daily hour split
+### 5A · Weekly forecast source (data-layer helper, thin)
+`getWeeklyForecast(store, weekStart)`: if a `MANUAL` `SalesForecast` row exists → use its total; else sum `DailyGoal.goalAmount` for Mon–Sun (`TREND`). Return `{ total, source }`. Feeds the existing budget service as the **total basis** (no denominator).
 
+### 5B · Daily hour split (pure)
 ```
-splitWeeklyHoursToDays({ totalSchedulableHours, weightsByWeekday }) -> { weekday, hours }[]
+splitWeeklyHoursToDays({ salariedHoursByDay?, weeklyHourlyHours, weightsByWeekday, openDays }) -> { weekday, hourlyHours }[]
 ```
+- `hourlyHours[d] = floor((weeklyHourlyHours × weightBps[d] / 10000) × 2) / 2`.
+- Salaried hours are a fixed weekly figure — distribute or report separately (fork: even split vs. flag as weekly-only). Missing/zero weights → even split across open days.
 
-- `hours[d] = floor((totalSchedulableHours × weightBps[d] / 10000) × 2) / 2` (round down to 0.5).
-- Return the per-day array (sums to ≤ total; the rounding remainder is the buffer — report it).
-- If weights are missing/zero, fall back to an even split across **open** days.
-
-### 5B · Minimum-staffing coverage engine
-
+### 5C · Day adjustment (pure)
 ```
-computeDailyCoverage({ dayHours, storeHours, dayparts, demandShape, positions }) -> DailyCoverageResult
+applyDayAdjustment(dayHourlyHours, adjustmentPct) -> floor(dayHourlyHours × (1 + adjustmentPct/100) × 2) / 2
 ```
+Scales **hourly** hours only; salaried untouched. Clamp at ≥ 0.
 
-Reuse `labor-coverage.ts`'s demand distribution, then apply rules:
+### 5D · Minimum-staffing coverage (pure)
+```
+computeDailyCoverage({ adjustedDayHours, storeHours, dayparts, demandShape, positions }) -> DailyCoverageResult
+```
+Reuse `labor-coverage.ts` distribution, then enforce: `headcount ≥ max(1, daypart.minHeadcount)`; supervisor coverage where `requiresSupervisor`; if floors exceed `adjustedDayHours`, set `exceedsDailyBudget` (don't throw). Return the integer step line, peak window, per-daypart coverage vs min, supervisor flag, budget-vs-used delta.
 
-1. Operating window from `storeHours` for that weekday (fallback: demand-shape inference, as today).
-2. Distribute `dayHours` across open hours proportional to `demandShape`.
-3. **Enforce rules** per hour: `headcount ≥ max(1, daypart.minHeadcount)`; if any covering daypart `requiresSupervisor`, ensure ≥ 1 supervisory slot in that window.
-4. If enforcing the floors pushes total person-hours **over** `dayHours`, do not throw — set `exceedsDailyBudget: true` and report the overage.
-5. Return the integer step line (per hour), the peak window, per-daypart coverage vs. minimum, the supervisor-coverage flag, and the budget-vs-used delta.
-
-Return every intermediate. **Write both as unit tests** in `scripts/verify-labor-coverage.ts`.
+**Write 5B–5D as unit tests** in `scripts/verify-labor-coverage.ts`.
 
 ### Acceptance cases (must reproduce exactly)
 
-**Daily split** — `totalSchedulableHours = 182.0`, weights (bps) Mon–Sun = `1000/1200/1300/1500/1800/2000/1200`:
+**Budget (total-only, unchanged math)** — total forecast **$14,900**, target 20%, rounding $1,000, blended $12.50, SM+ASM salaried $20/$18 @40h, Lead/Sup/Team hourly $15/$13/$12 → conservative $14,000, budget $2,800, salaried $1,520/80h, hourly $1,280/**102.0h**, **total 182.0h, projected 18.8%**. (Same numbers as Phase 1; just no delivery field.)
 
-| Day | Calc | Hours |
-|---|---|---|
-| Mon | 182 × .10 = 18.2 | **18.0** |
-| Fri | 182 × .18 = 32.76 | **32.5** |
-| Sat | 182 × .20 = 36.4 | **36.0** |
+**Daily split** — `weeklyHourlyHours = 102.0`, weights (bps) Mon–Sun `1000/1200/1300/1500/1800/2000/1200` → Mon `floor(10.2×2)/2 = 10.0`, Fri `floor(18.36×2)/2 = 18.0`, Sat `floor(20.4×2)/2 = 20.0`. Assert the 7-day array and sum ≤ 102.0 with remainder reported.
 
-(Assert the full 7-day array and that the sum ≤ 182.0 with the remainder reported.)
+**Adjustment** — Fri hourly 18.0 with `adjustmentPct = -20` → `floor(18 × 0.8 × 2)/2 = floor(28.8)/2 = 14.0`. Assert salaried unchanged.
 
-**Coverage invariants** — for any day with a demand shape and open window, assert: every open hour `headcount ≥ 1`; a `requiresSupervisor` daypart always has supervisor coverage; and `exceedsDailyBudget` flips true when the summed floors exceed `dayHours` (construct a tight case, e.g. a 12-hour open day with `dayHours = 8` and three `minHeadcount ≥ 1` dayparts).
+**Coverage invariants** — every open hour `headcount ≥ 1`; `requiresSupervisor` daypart always has supervisor coverage; `exceedsDailyBudget` flips true when summed floors exceed `adjustedDayHours` (12-hour open day, `adjustedDayHours = 8`, three `minHeadcount ≥ 1` dayparts).
 
 ---
 
 ## 6 · Phase deliverables
 
-### 2A — Daily hour split (must ship)
-- `LaborDaySplit` model + additive migration. Auto-seed weights from trailing sales (reuse `SalesPeriodCache`); recompute on demand.
-- `splitWeeklyHoursToDays` pure fn + fixture.
-- **Settings › Labor:** a per-store day-of-week weight editor (ADMIN/MANAGER) — edit/override the split, "reset to sales-derived" action.
-- API: `GET/PUT /api/labor/day-split` (org-scoped, reuse the guards).
+### 2A — Auto-forecast + total-sales + daily split + adjustment (must ship)
+- **Total-sales simplification:** budget service uses the total basis; drop the denominator branch. Remove the denominator selector and the delivery input from `/settings/labor` and the forecast dialog. Deprecate (not drop) the two columns.
+- **Auto-forecast:** `getWeeklyForecast` (TREND default from `DailyGoal`, MANUAL override). Budget card shows a real number with no entry; "Set projected sales" becomes "Adjust this week." Empty state only when no `DailyGoal` and no manual row.
+- **`LaborDaySplit`** + migration; auto-seed weights from trailing sales; `splitWeeklyHoursToDays` + fixture; per-store weight editor on `/settings/labor` (edit/override, "reset to sales-derived").
+- **`LaborDayAdjustment`** + migration; `applyDayAdjustment` + fixture; a per-day adjustment control (±% + reason) reachable from the dashboard for the viewed day (ADMIN/MANAGER); the Budget hero shows the adjusted total + an "adjusted −20% (Rain)" chip.
+- API: `GET/PUT /api/labor/day-split`, `GET/PUT/DELETE /api/labor/day-adjustment` (org-scoped, reuse guards).
 
-### 2B — Shift templates + coverage engine (should ship; may defer if the session runs long)
-- `LaborDaypart` model + migration; CRUD on `/settings/labor` (name, window, min headcount, requires-supervisor, sort, active). Seed sensible defaults (Opening/Mid/Close) on enable.
-- `computeDailyCoverage` pure fn + fixture.
-- **Upgrade the dashboard Coverage card** to the rule-based engine: same step line, now with a supervisor-coverage indicator, per-daypart min badges, and an under/over-coverage flag. Keep the "Recommended · guidance" label and the single headcount axis.
-- If 2B can't land cleanly, ship 2A and leave 2B as a noted follow-up.
+### 2B — Dayparts + coverage engine (should ship; may defer if the session runs long)
+- **`LaborDaypart`** + migration; CRUD on `/settings/labor`; seed Opening/Mid/Close defaults on enable.
+- `computeDailyCoverage` + fixture.
+- **Upgrade the Coverage card** to the rule-based engine: same step line, plus a supervisor-coverage indicator, per-daypart min badges, and an under/over-coverage flag. Keep the label + single headcount axis. Respects the day's adjustment.
+- If 2B can't land cleanly, ship 2A and note 2B as a follow-up.
 
 ---
 
 ## 7 · RBAC
 
-- **ADMIN / MANAGER:** edit day-split weights and dayparts. Reuse `requireLaborContext` (write = ADMIN+MANAGER).
-- **STORE / STAFF:** read-only coverage on the dashboard (reuse `requireLaborView`).
-Enforce on both the page and the server action, matching Phase 1.
+- **ADMIN / MANAGER:** edit day-split weights, dayparts, day adjustments (`requireLaborContext`).
+- **STORE / STAFF:** read-only coverage on the dashboard (`requireLaborView`).
+Enforce on both the page and the server action.
 
 ---
 
 ## 8 · Out of scope (do not build)
 
-Named-employee assignment / actual schedules · push-to-Square scheduling · actual labor from Square Timecards · per-employee wages (Team API) · OT modeling · Square-driven auto-forecasting (that's Phase 3 — `SalesForecast.source` `LAST_YEAR`/`TREND`). Leave clean seams; don't implement.
+Named-employee assignment / actual schedules · push-to-Square scheduling · Square Timecards actuals · per-employee wages (Team API) · OT modeling · Square backfill of `DailyGoal` (that's the Forecasting module's own job; Phase 2 only *reads* it). Leave clean seams.
 
 ---
 
 ## 9 · Definition of done
 
 - Audit reported and plan approved before edits.
-- Migration is additive; no drops; applied to the dev branch only after approval.
+- Migration additive; no drops (including deprecated columns); applied to the dev branch only after approval.
 - `next build` passes; `package-lock.json` committed if deps changed (none expected).
-- Both acceptance cases pass (`scripts/verify-labor-coverage.ts`): the 182h daily split reproduces exactly, and the coverage invariants (floor 1, supervisor coverage, `exceedsDailyBudget`) hold.
+- Acceptance cases pass (`scripts/verify-labor-coverage.ts` + the updated budget fixture): total-only budget still reproduces **182.0h / 18.8%**; daily split, adjustment, and coverage invariants hold.
+- Budget card shows the **auto-derived** forecast with no data entry; manual override still works; denominator/delivery gone from the UI.
 - Both feature-flag gates verified: nothing renders when either is off.
-- Empty states handled (no forecast → no split/coverage; no `StoreHours` → documented fallback).
+- Empty/fallback states handled (no `DailyGoal` + no manual forecast; no `StoreHours`).
 - Coverage card stays guidance-labeled, single headcount axis.
 - Out-of-scope issues noticed are listed as text, not fixed.
