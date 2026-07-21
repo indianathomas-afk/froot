@@ -1,121 +1,125 @@
-// Recommended staff-on-floor by hour (Phase 2, guidance only). PURE — turns a
-// day's already-adjusted hourly person-hours + demand shape + store hours +
-// daypart rules into an integer headcount step line that satisfies the
-// minimum-staffing rules. No DB — unit-testable (scripts/verify-labor-coverage.ts).
+// Recommended staff-on-floor by hour (Phase 3, guidance only). PURE — turns a
+// day's HOURLY budget + demand shape into an integer headcount step line that
+// is DEMAND-SHAPED and BUDGET-CAPPED (no fixed daypart minimums). The salaried
+// GM counts as a body + the supervisor during their on-floor window. Floor of 1
+// while open (opener/closer). No DB — unit-testable.
 
 export type HourNet = { hour: number; net: number }
 
-export type DaypartRule = {
-  name: string
-  startHour: number // inclusive
-  endHour: number // exclusive
-  minHeadcount: number
-  requiresSupervisor: boolean
-}
-
-export type CoveragePoint = { hour: number; headcount: number; open: boolean }
-
-export type DaypartCoverage = {
-  name: string
-  minHeadcount: number
-  requiresSupervisor: boolean
-  metMin: boolean
+export type CoveragePoint = {
+  hour: number
+  headcount: number // total on floor = hourly + GM
+  hourly: number // hourly heads (what the budget pays for)
+  gm: boolean // GM on floor this hour
+  open: boolean
 }
 
 export type CoverageResult = {
-  points: CoveragePoint[] // one per hour 0–23 (headcount 0 when closed)
+  points: CoveragePoint[] // one per hour 0–23
   openHours: number[]
+  openStart: number
+  openEnd: number // exclusive
   peakHours: number[]
   peakHeadcount: number
-  dayHours: number // person-hours budgeted for the day (post-adjustment)
-  usedPersonHours: number // person-hours the recommendation actually uses
-  exceedsDayHours: boolean // min-staffing floors pushed past the budget
-  supervisorShortfall: boolean // a daypart needs a supervisor but none is defined
-  dayparts: DaypartCoverage[]
+  hourlyBudgetHours: number // the day's hourly person-hours (the cap)
+  usedHourlyHours: number // hourly heads actually recommended
+  understaffedBudget: boolean // floor-1 forced hourly above the budget
+  gmWindow: { startHour: number; endHour: number } | null
+  supervisorGap: boolean // open hours outside the GM window with no hourly supervisor
 }
 
-// dayHours: the day's HOURLY person-hours after the day split + adjustment.
-// open: the store's operating window for that day ({startHour, endHour}, end
-// exclusive) from StoreHours; null → infer the window from the demand shape.
+// hourlyBudgetHours: the day's hourly person-hours (post daily-split + adjustment).
+// The GM is salaried and counted separately — NOT from this budget.
+// gmWindow: the GM's on-floor window (end exclusive), or null if no GM.
+// hasHourlySupervisor: is there an active hourly supervisory position to cover
+// the hours the GM isn't on the floor.
 export function computeDailyCoverage({
-  dayHours,
-  hourly,
+  hourlyBudgetHours,
+  demand,
   open,
-  dayparts,
-  hasSupervisoryPosition,
+  gmWindow,
+  hasHourlySupervisor,
 }: {
-  dayHours: number
-  hourly: HourNet[]
+  hourlyBudgetHours: number
+  demand: HourNet[]
   open: { startHour: number; endHour: number } | null
-  dayparts: DaypartRule[]
-  hasSupervisoryPosition: boolean
+  gmWindow: { startHour: number; endHour: number } | null
+  hasHourlySupervisor: boolean
 }): CoverageResult | null {
-  // Operating window [openStart, openEnd) — from StoreHours, else inferred.
+  // Operating window — from StoreHours, else inferred from demand.
   let openStart: number
   let openEnd: number
   if (open && open.endHour > open.startHour) {
     openStart = open.startHour
     openEnd = open.endHour
   } else {
-    const withSales = hourly.filter((h) => h.net > 0).map((h) => h.hour)
-    if (withSales.length === 0) return null
-    openStart = Math.min(...withSales)
-    openEnd = Math.max(...withSales) + 1
+    const withDemand = demand.filter((d) => d.net > 0).map((d) => d.hour)
+    if (withDemand.length === 0) return null
+    openStart = Math.min(...withDemand)
+    openEnd = Math.max(...withDemand) + 1
   }
   const openHours: number[] = []
   for (let h = openStart; h < openEnd; h++) openHours.push(h)
   if (openHours.length === 0) return null
 
-  const netByHour = new Map(hourly.map((h) => [h.hour, h.net]))
+  const netByHour = new Map(demand.map((d) => [d.hour, d.net]))
   const totalNet = openHours.reduce((s, h) => s + (netByHour.get(h) ?? 0), 0)
-  const covering = (h: number) => dayparts.filter((d) => h >= d.startHour && h < d.endHour)
+  const gmAt = (h: number) => !!gmWindow && h >= gmWindow.startHour && h < gmWindow.endHour
 
-  // Distribute demand, then raise each hour to its min-staffing floor.
-  const headByHour = new Map<number, number>()
-  for (const h of openHours) {
+  // Distribute the hourly budget across open hours proportional to demand — this
+  // is the demand-shaped headcount, capped by the budget. Largest-remainder so
+  // the integer heads sum to ~the budget (per-hour rounding would inflate it).
+  const target = Math.round(hourlyBudgetHours) // total hourly person-hours to place
+  const alloc = openHours.map((h) => {
     const weight = totalNet > 0 ? (netByHour.get(h) ?? 0) / totalNet : 1 / openHours.length
-    const distributed = Math.round(dayHours * weight)
-    const cov = covering(h)
-    const daypartMin = cov.length ? Math.max(...cov.map((d) => d.minHeadcount)) : 1
-    headByHour.set(h, Math.max(1, daypartMin, distributed))
+    const val = target * weight
+    return { h, n: Math.floor(val), frac: val - Math.floor(val) }
+  })
+  let remaining = target - alloc.reduce((s, a) => s + a.n, 0)
+  for (const a of [...alloc].sort((x, y) => y.frac - x.frac)) {
+    if (remaining <= 0) break
+    a.n++
+    remaining--
+  }
+  const hourly = new Map(alloc.map((a) => [a.h, a.n]))
+  // Floor: at least 1 TOTAL body every open hour (the GM can be that body).
+  for (const h of openHours) {
+    const total = (hourly.get(h) ?? 0) + (gmAt(h) ? 1 : 0)
+    if (total < 1) hourly.set(h, 1)
   }
 
-  const usedPersonHours = openHours.reduce((s, h) => s + (headByHour.get(h) ?? 0), 0)
-  const peakHeadcount = Math.max(...openHours.map((h) => headByHour.get(h) ?? 0))
-  const peakHours = openHours.filter((h) => headByHour.get(h) === peakHeadcount)
+  const usedHourlyHours = openHours.reduce((s, h) => s + (hourly.get(h) ?? 0), 0)
 
   const points: CoveragePoint[] = []
   for (let h = 0; h < 24; h++) {
     const isOpen = h >= openStart && h < openEnd
-    points.push({ hour: h, headcount: isOpen ? headByHour.get(h) ?? 0 : 0, open: isOpen })
+    const hh = isOpen ? hourly.get(h) ?? 0 : 0
+    const gm = isOpen && gmAt(h)
+    points.push({ hour: h, hourly: hh, gm, headcount: hh + (gm ? 1 : 0), open: isOpen })
   }
 
-  const daypartCov: DaypartCoverage[] = dayparts.map((d) => {
-    const hrs = openHours.filter((h) => h >= d.startHour && h < d.endHour)
-    return {
-      name: d.name,
-      minHeadcount: d.minHeadcount,
-      requiresSupervisor: d.requiresSupervisor,
-      metMin: hrs.length > 0 && hrs.every((h) => (headByHour.get(h) ?? 0) >= d.minHeadcount),
-    }
-  })
+  const openPts = points.filter((p) => p.open)
+  const peakHeadcount = Math.max(...openPts.map((p) => p.headcount))
+  const peakHours = openPts.filter((p) => p.headcount === peakHeadcount).map((p) => p.hour)
 
-  // A daypart that requires a supervisor during open hours but no supervisory
-  // position is defined → shortfall the UI warns on (we recommend headcount, not
-  // people, so an existing supervisory position is assumed fillable).
-  const needsSupervisor = dayparts.some(
-    (d) => d.requiresSupervisor && openHours.some((h) => h >= d.startHour && h < d.endHour)
-  )
+  // Supervisor: the GM covers its window; any open hour outside it needs an
+  // hourly supervisory position to exist.
+  const openOutsideGm = openHours.some((h) => !gmAt(h))
+  const supervisorGap = openOutsideGm && !hasHourlySupervisor
 
   return {
     points,
     openHours,
+    openStart,
+    openEnd,
     peakHours,
     peakHeadcount,
-    dayHours,
-    usedPersonHours,
-    exceedsDayHours: usedPersonHours > dayHours + 0.01,
-    supervisorShortfall: needsSupervisor && !hasSupervisoryPosition,
-    dayparts: daypartCov,
+    hourlyBudgetHours,
+    usedHourlyHours,
+    // Only the floor-1 bumps can push hourly above budget (demand distribution
+    // sums to the budget); 0.5 tolerance absorbs rounding.
+    understaffedBudget: usedHourlyHours > hourlyBudgetHours + 0.5,
+    gmWindow: gmWindow ? { startHour: gmWindow.startHour, endHour: gmWindow.endHour } : null,
+    supervisorGap,
   }
 }

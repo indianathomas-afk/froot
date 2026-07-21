@@ -5,6 +5,7 @@ import { localDateStr, dbDate } from "@/lib/reports"
 import { mondayOfWeekStr } from "@/lib/labor-week"
 import { computeWeeklyLaborBudget } from "@/lib/labor-budget"
 import { getWeeklyForecast } from "@/lib/labor-forecast"
+import { resolveLaborSettings } from "@/lib/labor-settings"
 import { splitWeeklyHoursToDays, applyDayAdjustment } from "@/lib/labor-daily"
 
 // GET /api/labor/budget?storeId=&weekStart= — the derived weekly labor budget.
@@ -40,17 +41,11 @@ export async function GET(req: Request) {
     return d.toISOString().slice(0, 10)
   })()
 
-  const [settingsRow, positions, forecast] = await Promise.all([
-    prisma.laborSettings.findFirst({ where: { organizationId: ctx.org.id, storeId: null } }),
+  const [settings, positions, forecast] = await Promise.all([
+    resolveLaborSettings(ctx.org.id, storeId),
     prisma.laborPosition.findMany({ where: { organizationId: ctx.org.id, active: true } }),
     getWeeklyForecast(storeId, weekStart),
   ])
-
-  const settings = {
-    laborTargetPct: settingsRow ? Number(settingsRow.laborTargetPct) : 20,
-    roundingIncrement: settingsRow ? Number(settingsRow.roundingIncrement) : 1000,
-    plannedBlendedRate: settingsRow?.plannedBlendedRate == null ? null : Number(settingsRow.plannedBlendedRate),
-  }
 
   const budget = computeWeeklyLaborBudget({
     settings,

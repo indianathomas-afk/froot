@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma"
 // acceptance-case seed in the Labor brief so a fresh org is immediately usable
 // and reproduces the documented $182 / 18.7% example once a forecast is set.
 // Rates are DOLLARS (Decimal(10,2)); see LABOR.md for the money convention.
+// Phase 3: only the General Manager is salaried; everyone else is hourly.
 export const DEFAULT_LABOR_POSITIONS = [
-  { name: "Store Manager", payType: "SALARIED", defaultHourlyRate: "20.00", impliedWeeklyHours: 40, isSupervisory: true, sortOrder: 0 },
-  { name: "Assistant Store Manager", payType: "SALARIED", defaultHourlyRate: "18.00", impliedWeeklyHours: 40, isSupervisory: true, sortOrder: 1 },
+  { name: "General Manager", payType: "SALARIED", defaultHourlyRate: "20.00", impliedWeeklyHours: 40, isSupervisory: true, sortOrder: 0 },
+  { name: "Assistant Store Manager", payType: "HOURLY", defaultHourlyRate: "18.00", impliedWeeklyHours: null, isSupervisory: true, sortOrder: 1 },
   { name: "Lead Supervisor", payType: "HOURLY", defaultHourlyRate: "15.00", impliedWeeklyHours: null, isSupervisory: true, sortOrder: 2 },
   { name: "Supervisor", payType: "HOURLY", defaultHourlyRate: "13.00", impliedWeeklyHours: null, isSupervisory: true, sortOrder: 3 },
   { name: "Team Member", payType: "HOURLY", defaultHourlyRate: "12.00", impliedWeeklyHours: null, isSupervisory: false, sortOrder: 4 },

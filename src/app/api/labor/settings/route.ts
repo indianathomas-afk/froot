@@ -1,72 +1,87 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { requireLaborContext } from "@/lib/labor-access"
+import { requireLaborContext, requireLaborStore } from "@/lib/labor-access"
+import { resolveLaborSettings } from "@/lib/labor-settings"
 
-// Org-default LaborSettings (storeId = null). Per-store override rows are a
-// later phase; Phase 0 manages the single org default. Money is DOLLARS
-// (Decimal); we serialize Decimals to numbers for the client and let Prisma
-// coerce numbers back to Decimal on write. Read + write are ADMIN + MANAGER.
+// LaborSettings — org default (storeId null) or a per-store override (Phase 3).
+// GET/PUT ?storeId= targets a store; omit it for the org default. Money is
+// dollars. `denominator` is deprecated (total sales only) and no longer in IO.
+// Read + write are ADMIN + MANAGER.
 
-// Schema-mirrored defaults returned when no row exists yet, so the settings
-// form always has values to render (matching the @default()s in schema.prisma).
-const DEFAULTS = {
-  laborTargetPct: 20,
-  roundingIncrement: 1000,
-  plannedBlendedRate: null as number | null,
-}
+const DEFAULTS = { laborTargetPct: 20, roundingIncrement: 1000 }
 
-// Phase 2: `denominator` is deprecated (total sales only) — no longer read or
-// written. The column remains in the DB (additive/no-drops) but is unused.
 const putSchema = z.object({
+  storeId: z.string().min(1).nullable().optional(),
   laborTargetPct: z.number().positive().max(100),
   roundingIncrement: z.number().positive().max(99999999),
   plannedBlendedRate: z.number().positive().max(99999999).nullable(),
+  gmOnFloorStartMinutes: z.number().int().min(0).max(1440).nullable(),
+  gmOnFloorEndMinutes: z.number().int().min(0).max(1440).nullable(),
 })
 
-export async function GET() {
+export async function GET(req: Request) {
   const ctx = await requireLaborContext()
   if ("error" in ctx) return ctx.error
+  const storeId = new URL(req.url).searchParams.get("storeId")
 
-  const row = await prisma.laborSettings.findFirst({
-    where: { organizationId: ctx.org.id, storeId: null },
-  })
-  if (!row) return NextResponse.json({ ...DEFAULTS, exists: false })
+  if (storeId) {
+    const store = await requireLaborStore(ctx, storeId)
+    if ("error" in store) return store.error
+    const [storeRow, resolved] = await Promise.all([
+      prisma.laborSettings.findFirst({ where: { organizationId: ctx.org.id, storeId } }),
+      resolveLaborSettings(ctx.org.id, storeId),
+    ])
+    // Effective values (store override else inherited org default) + whether a
+    // store-specific override exists.
+    return NextResponse.json({ scope: "store", hasOverride: !!storeRow, ...resolved })
+  }
 
+  const row = await prisma.laborSettings.findFirst({ where: { organizationId: ctx.org.id, storeId: null } })
   return NextResponse.json({
-    laborTargetPct: Number(row.laborTargetPct),
-    roundingIncrement: Number(row.roundingIncrement),
-    plannedBlendedRate: row.plannedBlendedRate === null ? null : Number(row.plannedBlendedRate),
-    exists: true,
+    scope: "org",
+    hasOverride: !!row,
+    laborTargetPct: row ? Number(row.laborTargetPct) : DEFAULTS.laborTargetPct,
+    roundingIncrement: row ? Number(row.roundingIncrement) : DEFAULTS.roundingIncrement,
+    plannedBlendedRate: row?.plannedBlendedRate == null ? null : Number(row.plannedBlendedRate),
+    gmOnFloorStartMinutes: row?.gmOnFloorStartMinutes ?? null,
+    gmOnFloorEndMinutes: row?.gmOnFloorEndMinutes ?? null,
+    source: "org",
   })
 }
 
 export async function PUT(req: Request) {
   const ctx = await requireLaborContext({ write: true })
   if ("error" in ctx) return ctx.error
-
   const parsed = putSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 })
-  const data = parsed.data
+  const { storeId, ...fields } = parsed.data
 
-  // Find-then-update/create rather than upsert: the org-default row keys on a
-  // nullable storeId, which Prisma won't accept in a compound-unique upsert.
-  // The partial unique index in the migration guarantees at most one default.
+  if (storeId) {
+    const store = await requireLaborStore(ctx, storeId)
+    if ("error" in store) return store.error
+  }
+
   const existing = await prisma.laborSettings.findFirst({
-    where: { organizationId: ctx.org.id, storeId: null },
+    where: { organizationId: ctx.org.id, storeId: storeId ?? null },
     select: { id: true },
   })
+  if (existing) {
+    await prisma.laborSettings.update({ where: { id: existing.id }, data: fields })
+  } else {
+    await prisma.laborSettings.create({ data: { ...fields, organizationId: ctx.org.id, storeId: storeId ?? null } })
+  }
+  return NextResponse.json({ ok: true })
+}
 
-  const row = existing
-    ? await prisma.laborSettings.update({ where: { id: existing.id }, data })
-    : await prisma.laborSettings.create({
-        data: { ...data, organizationId: ctx.org.id, storeId: null },
-      })
-
-  return NextResponse.json({
-    laborTargetPct: Number(row.laborTargetPct),
-    roundingIncrement: Number(row.roundingIncrement),
-    plannedBlendedRate: row.plannedBlendedRate === null ? null : Number(row.plannedBlendedRate),
-    exists: true,
-  })
+// DELETE ?storeId= — remove a per-store override (revert to the org default).
+export async function DELETE(req: Request) {
+  const ctx = await requireLaborContext({ write: true })
+  if ("error" in ctx) return ctx.error
+  const storeId = new URL(req.url).searchParams.get("storeId")
+  if (!storeId) return NextResponse.json({ error: "storeId required" }, { status: 400 })
+  const store = await requireLaborStore(ctx, storeId)
+  if ("error" in store) return store.error
+  await prisma.laborSettings.deleteMany({ where: { organizationId: ctx.org.id, storeId } })
+  return NextResponse.json({ ok: true })
 }

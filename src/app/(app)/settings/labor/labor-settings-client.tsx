@@ -30,12 +30,6 @@ import {
 
 type PayType = "HOURLY" | "SALARIED"
 
-type Settings = {
-  laborTargetPct: number
-  roundingIncrement: number
-  plannedBlendedRate: number | null
-}
-
 type Position = {
   id: string
   name: string
@@ -53,17 +47,15 @@ const usd = (n: number) =>
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function LaborSettingsClient({
-  initialSettings,
   initialPositions,
   stores,
 }: {
-  initialSettings: Settings
   initialPositions: Position[]
   stores: { id: string; name: string }[]
 }) {
   return (
     <div className="space-y-6 max-w-3xl">
-      <SettingsCard initial={initialSettings} />
+      <SettingsCard stores={stores} />
       <PositionsCard initial={initialPositions} />
       <DaySplitCard stores={stores} />
       <DaypartsCard />
@@ -194,12 +186,43 @@ function DaySplitCard({ stores }: { stores: { id: string; name: string }[] }) {
 
 // ─── Settings card ────────────────────────────────────────────────────────────
 
-function SettingsCard({ initial }: { initial: Settings }) {
-  const [targetPct, setTargetPct] = useState(String(initial.laborTargetPct))
-  const [rounding, setRounding] = useState(String(initial.roundingIncrement))
-  const [blended, setBlended] = useState(initial.plannedBlendedRate == null ? "" : String(initial.plannedBlendedRate))
+const minToTimeOrBlank = (m: number | null) => (m == null ? "" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)
+const timeToMinOrNull = (t: string) => {
+  if (!t.trim()) return null
+  const [h, m] = t.split(":").map(Number)
+  return (h || 0) * 60 + (m || 0)
+}
+
+function SettingsCard({ stores }: { stores: { id: string; name: string }[] }) {
+  const [scope, setScope] = useState<string>("org") // "org" or a storeId
+  const [targetPct, setTargetPct] = useState("20")
+  const [rounding, setRounding] = useState("1000")
+  const [blended, setBlended] = useState("")
+  const [gmStart, setGmStart] = useState("")
+  const [gmEnd, setGmEnd] = useState("")
+  const [hasOverride, setHasOverride] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+
+  const load = useCallback((sc: string) => {
+    setLoading(true)
+    setMsg(null)
+    const q = sc === "org" ? "" : `?storeId=${sc}`
+    fetch(`/api/labor/settings${q}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return
+        setTargetPct(String(d.laborTargetPct))
+        setRounding(String(d.roundingIncrement))
+        setBlended(d.plannedBlendedRate == null ? "" : String(d.plannedBlendedRate))
+        setGmStart(minToTimeOrBlank(d.gmOnFloorStartMinutes))
+        setGmEnd(minToTimeOrBlank(d.gmOnFloorEndMinutes))
+        setHasOverride(!!d.hasOverride)
+      })
+      .finally(() => setLoading(false))
+  }, [])
+  useEffect(() => load(scope), [scope, load])
 
   async function save() {
     const pct = Number(targetPct)
@@ -215,74 +238,88 @@ function SettingsCard({ initial }: { initial: Settings }) {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        storeId: scope === "org" ? null : scope,
         laborTargetPct: pct,
         roundingIncrement: inc,
         plannedBlendedRate: blendedNum,
+        gmOnFloorStartMinutes: timeToMinOrNull(gmStart),
+        gmOnFloorEndMinutes: timeToMinOrNull(gmEnd),
       }),
     }).catch(() => null)
     setSaving(false)
-    setMsg(res?.ok ? "Saved." : "Couldn’t save — try again.")
+    if (res?.ok) {
+      setHasOverride(true)
+      setMsg("Saved.")
+    } else setMsg("Couldn’t save — try again.")
   }
+
+  async function revert() {
+    setSaving(true)
+    const res = await fetch(`/api/labor/settings?storeId=${scope}`, { method: "DELETE" }).catch(() => null)
+    setSaving(false)
+    if (res?.ok) {
+      load(scope)
+      setMsg("Reverted to org default.")
+    }
+  }
+
+  const isStore = scope !== "org"
 
   return (
     <Card>
       <CardContent className="pt-5 pb-5">
-        <h2 className="text-[15px] font-bold text-[var(--color-foreground)] mb-1">Budget settings</h2>
+        <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+          <h2 className="text-[15px] font-bold text-[var(--color-foreground)]">Budget settings</h2>
+          <Select value={scope} onValueChange={setScope}>
+            <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="org">Organization default</SelectItem>
+              {stores.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
-          The org default. Per-store overrides come in a later phase.
+          {isStore
+            ? hasOverride
+              ? "This store overrides the org default."
+              : "This store currently inherits the org default — saving creates an override."
+            : "The organization default, inherited by every store without its own override."}
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="targetPct">Labor target (%)</Label>
-            <Input
-              id="targetPct"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={targetPct}
-              onChange={(e) => setTargetPct(e.target.value)}
-            />
+            <Input id="targetPct" type="number" min="0" max="100" step="0.01" value={targetPct} disabled={loading} onChange={(e) => setTargetPct(e.target.value)} />
             <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Labor cost as a share of sales.</p>
           </div>
-
           <div>
             <Label htmlFor="rounding">Rounding increment ($)</Label>
-            <Input
-              id="rounding"
-              type="number"
-              min="0"
-              step="1"
-              value={rounding}
-              onChange={(e) => setRounding(e.target.value)}
-            />
-            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-              Projected sales round down to this tier (conservative).
-            </p>
+            <Input id="rounding" type="number" min="0" step="1" value={rounding} disabled={loading} onChange={(e) => setRounding(e.target.value)} />
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Projected sales round down to this tier (conservative).</p>
           </div>
-
           <div>
             <Label htmlFor="blended">Blended hourly rate ($, optional)</Label>
-            <Input
-              id="blended"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Computed from positions if blank"
-              value={blended}
-              onChange={(e) => setBlended(e.target.value)}
-            />
-            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-              Override the average hourly rate used to convert dollars to hours.
-            </p>
+            <Input id="blended" type="number" min="0" step="0.01" placeholder="Computed from positions if blank" value={blended} disabled={loading} onChange={(e) => setBlended(e.target.value)} />
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Override the average hourly rate used to convert dollars to hours.</p>
+          </div>
+          <div>
+            <Label>GM on-floor window (optional)</Label>
+            <div className="flex items-center gap-2">
+              <Input type="time" value={gmStart} disabled={loading} onChange={(e) => setGmStart(e.target.value)} />
+              <span className="text-[var(--color-muted-foreground)]">–</span>
+              <Input type="time" value={gmEnd} disabled={loading} onChange={(e) => setGmEnd(e.target.value)} />
+            </div>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">When the salaried GM is on the floor (counts as coverage + supervisor). Blank = open→2:00p.</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 mt-5">
-          <Button onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save settings"}
-          </Button>
+          <Button onClick={save} disabled={saving || loading}>{saving ? "Saving…" : "Save settings"}</Button>
+          {isStore && hasOverride && (
+            <Button variant="outline" onClick={revert} disabled={saving || loading}>Revert to org default</Button>
+          )}
           {msg && <span className="text-sm text-[var(--color-muted-foreground)]">{msg}</span>}
         </div>
       </CardContent>
@@ -657,7 +694,7 @@ function DaypartsCard() {
           </Button>
         </div>
         <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
-          Dayparts and their minimum headcount / supervisor rule. Real store hours bound the coverage window; these set the floors.
+          Named shift windows and whether each needs a supervisor on the floor. Headcount is demand-shaped and budget-capped — not a fixed minimum.
         </p>
 
         {loading ? (
@@ -671,8 +708,7 @@ function DaypartsCard() {
                 <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--color-muted-foreground)] border-b border-[var(--color-border)]">
                   <th className="py-2 pr-3 font-semibold">Name</th>
                   <th className="py-2 pr-3 font-semibold">Window</th>
-                  <th className="py-2 pr-3 font-semibold">Min</th>
-                  <th className="py-2 pr-3 font-semibold">Sup.</th>
+                  <th className="py-2 pr-3 font-semibold">Supervisor</th>
                   <th className="py-2 pr-0 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
@@ -684,7 +720,6 @@ function DaypartsCard() {
                       {!d.active && <span className="ml-2 text-xs text-[var(--color-muted-foreground)]">(inactive)</span>}
                     </td>
                     <td className="py-2.5 pr-3 text-[var(--color-muted-foreground)]">{minToTime(d.startLocalMinutes)}–{minToTime(d.endLocalMinutes)}</td>
-                    <td className="py-2.5 pr-3 text-[var(--color-foreground)]">{d.minHeadcount}</td>
                     <td className="py-2.5 pr-3">
                       {d.requiresSupervisor ? <ShieldCheck className="h-4 w-4 text-[var(--color-primary)]" aria-label="Requires supervisor" /> : <span className="text-[var(--color-muted-foreground)]">—</span>}
                     </td>
@@ -761,7 +796,6 @@ function DaypartDialog({
   const [name, setName] = useState(initial.name)
   const [start, setStart] = useState(minToTime(initial.startLocalMinutes))
   const [end, setEnd] = useState(minToTime(initial.endLocalMinutes))
-  const [minHeadcount, setMinHeadcount] = useState(String(initial.minHeadcount))
   const [requiresSupervisor, setRequiresSupervisor] = useState(initial.requiresSupervisor)
   const [sortOrder, setSortOrder] = useState(String(initial.sortOrder))
   const [active, setActive] = useState(initial.active)
@@ -781,7 +815,7 @@ function DaypartDialog({
       name: name.trim(),
       startLocalMinutes: s,
       endLocalMinutes: e,
-      minHeadcount: Number(minHeadcount) || 0,
+      minHeadcount: 1, // retained in the schema; no longer used by the coverage engine
       requiresSupervisor,
       sortOrder: Number(sortOrder) || 0,
       active,
@@ -820,15 +854,9 @@ function DaypartDialog({
               <Input id="d-end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="d-min">Minimum headcount</Label>
-              <Input id="d-min" type="number" min="0" step="1" value={minHeadcount} onChange={(e) => setMinHeadcount(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="d-sort">Sort order</Label>
-              <Input id="d-sort" type="number" min="0" step="1" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
-            </div>
+          <div>
+            <Label htmlFor="d-sort">Sort order</Label>
+            <Input id="d-sort" type="number" min="0" step="1" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
           </div>
           <div className="flex items-center justify-between rounded-md border border-[var(--color-border)] px-3 py-2">
             <Label htmlFor="d-sup" className="cursor-pointer">Requires a supervisor on floor</Label>

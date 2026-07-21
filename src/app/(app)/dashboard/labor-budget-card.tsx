@@ -1,13 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { CircleAlert, Clock, Sparkles, Pencil } from "lucide-react"
+import { CircleAlert, Clock, Sparkles, Pencil, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useLaborViewedDate, shiftDateStr, todayStr } from "./use-labor-date"
 
 // Labor Budget hero card (Dashboard). Phase 2: the week's projected sales are
 // AUTO-DERIVED from Forecasting (no data entry) — GET /api/labor/budget returns
@@ -62,16 +63,18 @@ function zone(projected: number, target: number): { bar: string; text: string } 
 }
 
 export function LaborBudgetCard({ storeId }: { storeId: string }) {
-  const [data, setData] = useState<{ storeId: string; res: BudgetResponse | null } | null>(null)
+  const [viewedDate, setViewedDate] = useLaborViewedDate()
+  const [data, setData] = useState<{ key: string; res: BudgetResponse | null } | null>(null)
   const [editing, setEditing] = useState(false)
 
+  const key = `${storeId}|${viewedDate}`
   const load = useCallback(() => {
     if (!storeId) return
-    fetch(`/api/labor/budget?storeId=${storeId}`)
+    fetch(`/api/labor/budget?storeId=${storeId}&weekStart=${viewedDate}`)
       .then((r): Promise<BudgetResponse | null> => (r.ok ? r.json() : Promise.resolve(null)))
-      .then((res) => setData({ storeId, res }))
-      .catch(() => setData({ storeId, res: null }))
-  }, [storeId])
+      .then((res) => setData({ key, res }))
+      .catch(() => setData({ key, res: null }))
+  }, [storeId, viewedDate, key])
 
   useEffect(() => {
     load()
@@ -81,9 +84,10 @@ export function LaborBudgetCard({ storeId }: { storeId: string }) {
     return () => window.removeEventListener("froot-labor-changed", onChange)
   }, [load])
 
-  const loading = !data || data.storeId !== storeId
+  const loading = !data || data.key !== key
   if (loading) return <Skeleton className="h-64 w-full" />
   const res = data.res
+  const canGoFwd = viewedDate < shiftDateStr(todayStr(), 28)
 
   return (
     <Card className="h-full">
@@ -94,9 +98,17 @@ export function LaborBudgetCard({ storeId }: { storeId: string }) {
             <p className="text-[15px] font-bold text-[var(--color-foreground)]">Labor Budget</p>
           </div>
           {res && (
-            <span className="text-[11px] font-semibold tracking-wide text-[var(--color-muted-foreground)] uppercase">
-              {weekLabel(res.weekStart)}
-            </span>
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => setViewedDate(shiftDateStr(viewedDate, -7))} className="p-0.5 rounded hover:bg-[var(--color-accent)]" aria-label="Previous week">
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <span className="text-[11px] font-semibold tracking-wide text-[var(--color-muted-foreground)] uppercase min-w-[92px] text-center">
+                {weekLabel(res.weekStart)}
+              </span>
+              <button onClick={() => setViewedDate(shiftDateStr(viewedDate, 7))} disabled={!canGoFwd} className="p-0.5 rounded hover:bg-[var(--color-accent)] disabled:opacity-40" aria-label="Next week">
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -148,8 +160,10 @@ function BudgetBody({ res, onEdit }: { res: BudgetResponse; onEdit: () => void }
   const z = projected == null ? zone(0, res.target) : zone(projected, res.target)
   const fillPct = projected == null ? 0 : Math.min(100, (projected / res.target) * 100)
   const buffer = projected == null ? null : res.target - projected
-  const adjusted = res.adjustedTotalSchedulableHours != null && res.adjustedTotalSchedulableHours !== budget.totalSchedulableHours
-  const shownHours = res.adjustedTotalSchedulableHours ?? budget.totalSchedulableHours
+  // Only call it "adjusted" when a real weather adjustment exists — not when the
+  // daily-split rounding nudges the number.
+  const adjusted = res.weekAdjustments.length > 0
+  const shownHours = adjusted ? res.adjustedTotalSchedulableHours ?? budget.totalSchedulableHours : budget.totalSchedulableHours
 
   return (
     <>

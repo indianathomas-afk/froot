@@ -209,3 +209,37 @@ Fixtures: `npx tsx scripts/verify-labor-budget.ts` (total-only budget,
 182h/18.8%), `npx tsx scripts/verify-labor-coverage.ts` (split, adjustment,
 coverage invariants). Existing orgs backfill dayparts via
 `scripts/seed-labor-positions.ts` (or by re-toggling the module).
+
+## Phase 3 (built 2026-07-20)
+
+Migration `20260721010000_labor3_gm_onfloor_window` — additive: two nullable
+`Int` columns on `LaborSettings` (`gmOnFloorStartMinutes`/`gmOnFloorEndMinutes`).
+
+- **Per-store settings.** `resolveLaborSettings(org, store)` — the store's
+  `LaborSettings` row wins field-by-field over the org default (storeId null) →
+  schema defaults. Budget + coverage read the resolved row. Editor on
+  `/settings/labor` has a scope picker (Organization default / each store) with
+  "revert to org default"; stores roll up to the org as before.
+- **Only the GM is salaried.** Default positions re-seeded to one salaried
+  **General Manager** + hourly ASM/Lead/Supervisor/Team.
+- **Coverage is demand-shaped + budget-capped** (`computeDailyCoverage`
+  rewritten). Headcount follows the hourly sales shape (largest-remainder so the
+  integer heads sum to the budget — no over-allocation), floored at 1 while open
+  (opener/closer). **No fixed daypart minimums.** The **salaried GM counts on
+  the floor** in their window (`gmOnFloor*`, default open→14:00) as a body +
+  the supervisor; `hasHourlySupervisor` covers the rest. Flags
+  `understaffedBudget` (floor-1 exceeds budget) and `supervisorGap`.
+- **Future / 4-week forward scheduling.** Coverage renders future days; the
+  demand shape for a future day is the **average of the same weekday over the
+  last 4 weeks** of `SalesHourlyCache` (falls back to inference). Budget +
+  Coverage cards share a **day/week navigator** (`use-labor-date.ts`, this week
+  … +4).
+- **`LaborDaypart` slimmed** — used only for named supervisor windows; the
+  `minHeadcount` column is retained but dropped from the UI and ignored by the
+  engine.
+- The **"adjusted from N"** hero label now shows only when a real
+  `LaborDayAdjustment` exists (not on daily-split rounding drift).
+
+Fixture: `npx tsx scripts/verify-labor-coverage.ts` covers demand-shape,
+opener/closer floor, GM on floor, budget cap, and the supervisor gap. Decisions
+in `DECISIONS.md`.

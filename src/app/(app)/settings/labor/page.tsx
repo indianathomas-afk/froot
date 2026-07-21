@@ -30,8 +30,7 @@ export default async function LaborSettingsPage() {
   }
 
   const isAdmin = dbUser?.role === "ADMIN"
-  const [settingsRow, positions, stores] = await Promise.all([
-    prisma.laborSettings.findFirst({ where: { organizationId: org.id, storeId: null } }),
+  const [positions, stores] = await Promise.all([
     prisma.laborPosition.findMany({
       where: { organizationId: org.id },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -42,13 +41,6 @@ export default async function LaborSettingsPage() {
       select: { id: true, name: true },
     }),
   ])
-
-  const settings = {
-    laborTargetPct: settingsRow ? Number(settingsRow.laborTargetPct) : 20,
-    roundingIncrement: settingsRow ? Number(settingsRow.roundingIncrement) : 1000,
-    plannedBlendedRate:
-      settingsRow?.plannedBlendedRate == null ? null : Number(settingsRow.plannedBlendedRate),
-  }
 
   return (
     <div>
@@ -67,7 +59,6 @@ export default async function LaborSettingsPage() {
       </div>
 
       <LaborSettingsClient
-        initialSettings={settings}
         stores={stores}
         initialPositions={positions.map((p) => ({
           id: p.id,
