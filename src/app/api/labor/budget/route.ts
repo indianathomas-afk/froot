@@ -14,6 +14,7 @@ import { getWeeklyDayPlan } from "@/lib/labor-plan"
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export async function GET(req: Request) {
+  const t0 = Date.now()
   const ctx = await requireLaborView()
   if ("error" in ctx) return ctx.error
 
@@ -38,6 +39,9 @@ export async function GET(req: Request) {
     .filter((d) => d.adjustmentPct !== 0)
     .map((d) => ({ date: d.date, adjustmentPct: d.adjustmentPct, reason: d.adjustmentReason }))
     .sort((x, y) => x.date.localeCompare(y.date))
+
+  // BUG-1 evidence line: request duration in the runtime logs.
+  console.log(`[api/labor/budget] ${Date.now() - t0}ms store=${storeId} week=${weekStart}`)
 
   return NextResponse.json({
     ...base,

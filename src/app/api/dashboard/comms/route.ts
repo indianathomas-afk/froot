@@ -15,10 +15,13 @@ const PREVIEW_BODY_CHARS = 140
 // for this shift" card. No template filter: notes whose target template no
 // longer generates checklists still show here rather than being dropped.
 export async function GET(req: Request) {
+  const t0 = Date.now()
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
   try {
     ctx = await getCurrentUser()
-  } catch {
+  } catch (err) {
+    // BUG-1: this catch also swallows DB/connection errors — log the real cause.
+    console.error("[api/dashboard/comms] auth/context error:", err)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const { org, dbUser } = ctx
@@ -69,6 +72,9 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "asc" },
     }),
   ])
+
+  // BUG-1 evidence line: request duration in the runtime logs.
+  console.log(`[api/dashboard/comms] ${Date.now() - t0}ms store=${storeId}`)
 
   return NextResponse.json({
     shiftNotes: shiftNotes.map((m) => serializeMessage(m, dbUser?.id ?? null)),

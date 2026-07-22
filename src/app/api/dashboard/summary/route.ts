@@ -11,6 +11,10 @@ import { getMonthGoal } from "@/lib/month-goal"
 // is null when the inventory module is off or the store isn't Square-linked,
 // and the UI renders a designed empty state instead.
 
+// BUG-1: the stale-cache path runs a synchronous Square sync — give it the
+// same headroom the rollup route already has instead of the platform default.
+export const maxDuration = 60
+
 const STALE_MS = 15 * 60 * 1000
 
 function sameWeekdayLastYear(dateStr: string): string {
@@ -21,10 +25,14 @@ function sameWeekdayLastYear(dateStr: string): string {
 }
 
 export async function GET(req: Request) {
+  const t0 = Date.now()
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
   try {
     ctx = await getCurrentUser()
-  } catch {
+  } catch (err) {
+    // BUG-1: this catch also swallows DB/connection errors — log the real
+    // cause so a Neon blip is distinguishable from an expired session.
+    console.error("[api/dashboard/summary] auth/context error:", err)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const { org, dbUser } = ctx
@@ -69,8 +77,9 @@ export async function GET(req: Request) {
       }
       await ensureSalesCached(org, store, mStart, today)
       await ensureSalesCached(org, store, comparisonDate, comparisonDate)
-    } catch {
+    } catch (err) {
       // Square being down never blanks the dashboard — serve what's cached.
+      console.error(`[api/dashboard/summary] sales sync failed (serving cache) store=${storeId}:`, err)
     }
 
     const [todayHours, lastYearHours, todayDay, lastYearDay, mtdAgg] = await Promise.all([
@@ -126,6 +135,9 @@ export async function GET(req: Request) {
       checklistItems.push({ id: task.id, checklistId: cl.id, label: task.description, checked: done.has(task.id) })
     }
   }
+
+  // BUG-1 evidence line: request duration in the runtime logs.
+  console.log(`[api/dashboard/summary] ${Date.now() - t0}ms store=${storeId}`)
 
   return NextResponse.json({
     store: { id: store.id, name: store.name, timezone: tz },

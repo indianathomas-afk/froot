@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { fetchCard } from "./card-fetch"
 import { useLaborViewedDate, shiftDateStr, todayStr } from "./use-labor-date"
 import { SplitPolicyInfo } from "@/components/labor/split-policy-info"
 
@@ -64,10 +65,9 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
   const key = `${storeId}|${viewedDate}`
   const load = useCallback(() => {
     if (!storeId) return
-    fetch(`/api/labor/coverage?storeId=${storeId}&date=${viewedDate}`)
-      .then((r): Promise<CoverageResponse | null> => (r.ok ? r.json() : Promise.resolve(null)))
-      .then((res) => setData({ key, res }))
-      .catch(() => setData({ key, res: null }))
+    fetchCard<CoverageResponse>("labor coverage", `/api/labor/coverage?storeId=${storeId}&date=${viewedDate}`).then(
+      (res) => setData({ key, res })
+    )
   }, [storeId, viewedDate, key])
 
   useEffect(() => {
@@ -130,7 +130,19 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
         </div>
 
         {!res ? (
-          <p className="text-sm text-[var(--color-muted-foreground)] py-6">Couldn’t load coverage — try again in a moment.</p>
+          <div className="py-6 flex flex-col items-start gap-2">
+            <p className="text-sm text-[var(--color-muted-foreground)]">Couldn’t load coverage — the request failed or timed out.</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setData(null)
+                load()
+              }}
+            >
+              Retry
+            </Button>
+          </div>
         ) : !res.hasForecast ? (
           <p className="text-sm text-[var(--color-muted-foreground)] py-6">No sales forecast for this week (set one up in Forecasting) — coverage needs a budget.</p>
         ) : !res.available ? (

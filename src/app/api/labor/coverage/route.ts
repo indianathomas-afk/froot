@@ -14,6 +14,7 @@ import { getWeeklyDayPlan, computeDayCoverage, addDaysStr } from "@/lib/labor-pl
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export async function GET(req: Request) {
+  const t0 = Date.now()
   const ctx = await requireLaborView()
   if ("error" in ctx) return ctx.error
 
@@ -37,6 +38,9 @@ export async function GET(req: Request) {
 
   const day = plan.days.find((d) => d.date === date) ?? plan.days[0]
   const coverage = await computeDayCoverage(storeId, day, today, plan.hasHourlySupervisor)
+
+  // BUG-1 evidence line: request duration in the runtime logs.
+  console.log(`[api/labor/coverage] ${Date.now() - t0}ms store=${storeId} date=${date}`)
 
   return NextResponse.json({
     ...base,

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { fetchCard } from "./card-fetch"
 import { useLaborViewedDate, shiftDateStr, todayStr } from "./use-labor-date"
 
 // Labor Budget hero card (Dashboard). Phase 2: the week's projected sales are
@@ -71,10 +72,9 @@ export function LaborBudgetCard({ storeId }: { storeId: string }) {
   const key = `${storeId}|${viewedDate}`
   const load = useCallback(() => {
     if (!storeId) return
-    fetch(`/api/labor/budget?storeId=${storeId}&weekStart=${viewedDate}`)
-      .then((r): Promise<BudgetResponse | null> => (r.ok ? r.json() : Promise.resolve(null)))
-      .then((res) => setData({ key, res }))
-      .catch(() => setData({ key, res: null }))
+    fetchCard<BudgetResponse>("labor budget", `/api/labor/budget?storeId=${storeId}&weekStart=${viewedDate}`).then(
+      (res) => setData({ key, res })
+    )
   }, [storeId, viewedDate, key])
 
   useEffect(() => {
@@ -114,7 +114,19 @@ export function LaborBudgetCard({ storeId }: { storeId: string }) {
         </div>
 
         {!res ? (
-          <p className="text-sm text-[var(--color-muted-foreground)] py-4">Couldn’t load the labor budget — try again in a moment.</p>
+          <div className="py-4 flex flex-col items-start gap-2">
+            <p className="text-sm text-[var(--color-muted-foreground)]">Couldn’t load the labor budget — the request failed or timed out.</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setData(null)
+                load()
+              }}
+            >
+              Retry
+            </Button>
+          </div>
         ) : !res.hasForecast || !res.budget ? (
           <EmptyState canManage={res.canManage} onSet={() => setEditing(true)} />
         ) : (

@@ -11,6 +11,10 @@ import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
 // server-side and always has the same length as the selection. Available to
 // every role that can see the store (same scope check as /api/dashboard/summary).
 
+// BUG-1: the stale-cache/gap-fill path runs a synchronous Square sync — give
+// it the same headroom the rollup route already has.
+export const maxDuration = 60
+
 const STALE_MS = 15 * 60 * 1000
 const MAX_RANGE_DAYS = 366
 
@@ -110,10 +114,13 @@ async function loadWindow(storeId: string, start: string, end: string, hourly: b
 }
 
 export async function GET(req: Request) {
+  const t0 = Date.now()
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
   try {
     ctx = await getCurrentUser()
-  } catch {
+  } catch (err) {
+    // BUG-1: this catch also swallows DB/connection errors — log the real cause.
+    console.error("[api/dashboard/sales] auth/context error:", err)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const { org, dbUser } = ctx
@@ -185,8 +192,9 @@ export async function GET(req: Request) {
     }
     await ensureSalesCached(org, store, start, end)
     await ensureSalesCached(org, store, compStart, compEnd)
-  } catch {
+  } catch (err) {
     // Square being down never blanks the card — serve what's cached.
+    console.error(`[api/dashboard/sales] sales sync failed (serving cache) store=${storeId}:`, err)
   }
 
   const hourly = start === end
@@ -194,6 +202,9 @@ export async function GET(req: Request) {
     loadWindow(storeId, start, end, hourly),
     loadWindow(storeId, compStart, compEnd, hourly),
   ])
+
+  // BUG-1 evidence line: request duration in the runtime logs.
+  console.log(`[api/dashboard/sales] ${Date.now() - t0}ms store=${storeId} ${start}..${end}`)
 
   return NextResponse.json({
     store: { id: store.id, name: store.name, timezone: tz },
