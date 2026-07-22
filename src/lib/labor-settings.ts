@@ -10,10 +10,11 @@ export type ResolvedLaborSettings = {
   plannedBlendedRate: number | null
   gmOnFloorStartMinutes: number | null // null = derive open→14:00 from StoreHours
   gmOnFloorEndMinutes: number | null
+  dailySplitPolicy: "FLOOR_FIRST" | "SALES_WEIGHTED" // L-3 weekly→daily split
   source: "store" | "org" | "default"
 }
 
-const DEFAULTS = { laborTargetPct: 20, roundingIncrement: 1000 }
+const DEFAULTS = { laborTargetPct: 20, roundingIncrement: 1000, dailySplitPolicy: "FLOOR_FIRST" as const }
 
 export async function resolveLaborSettings(organizationId: string, storeId: string): Promise<ResolvedLaborSettings> {
   const [storeRow, orgRow] = await Promise.all([
@@ -27,6 +28,7 @@ export async function resolveLaborSettings(organizationId: string, storeId: stri
     plannedBlendedRate: row?.plannedBlendedRate == null ? null : Number(row.plannedBlendedRate),
     gmOnFloorStartMinutes: row?.gmOnFloorStartMinutes ?? null,
     gmOnFloorEndMinutes: row?.gmOnFloorEndMinutes ?? null,
+    dailySplitPolicy: row?.dailySplitPolicy ?? DEFAULTS.dailySplitPolicy,
     source: storeRow ? "store" : orgRow ? "org" : "default",
   }
 }

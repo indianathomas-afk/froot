@@ -75,6 +75,7 @@ model Organization {
   laborDaySplits                LaborDaySplit[]
   laborDayparts                 LaborDaypart[]
   laborDayAdjustments           LaborDayAdjustment[]
+  weeklyDayHours                WeeklyDayHours[]
 }
 
 model User {
@@ -144,6 +145,7 @@ model Store {
   laborDaySplits            LaborDaySplit[]
   laborDayparts             LaborDaypart[]
   laborDayAdjustments       LaborDayAdjustment[]
+  weeklyDayHours            WeeklyDayHours[]
 }
 
 model StoreHours {
@@ -1698,6 +1700,41 @@ enum SalesForecastSource {
   TREND
 }
 
+/// L-3: how the weekly HOURLY hours are distributed across the days of the week.
+/// FLOOR_FIRST (default) guarantees each open day enough hours to cover its
+/// minimum floor before distributing the remainder by sales weight;
+/// SALES_WEIGHTED is the pre-L-3 behavior (pure sales-weight split, slack days
+/// may warn). Per-store via LaborSettings.dailySplitPolicy.
+enum LaborDailySplitPolicy {
+  FLOOR_FIRST
+  SALES_WEIGHTED
+}
+
+/// L-3B cross-day rebalancing: a per-DATE override of a single day's allocated
+/// hourly hours, letting ADMIN/MANAGER move hours between days WITHIN a week to
+/// fix a day the floor-first split still leaves tight. Sits ON TOP of the
+/// floor-first split (never corrupts the sales-weight defaults) and is scoped to
+/// one date, so it never leaks to the same weekday in other weeks. weekStart
+/// (Monday) is stored for week-scoped reads/clears. The route constrains the
+/// week's overrides to the weekly hourly total.
+model WeeklyDayHours {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  weekStart      DateTime @db.Date // Monday of the week (matches SalesForecast)
+  date           DateTime @db.Date
+  hoursOverride  Decimal  @db.Decimal(6, 2) // HOURLY person-hours for this day (not dollars)
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
+  @@index([organizationId, storeId, weekStart])
+}
+
 /// Org-scoped labor positions (the rate legend): Store Manager, ASM, Lead
 /// Supervisor, Supervisor, Team Member, District Manager, etc.
 model LaborPosition {
@@ -1727,6 +1764,8 @@ model LaborSettings {
   roundingIncrement     Decimal          @default(1000.00) @db.Decimal(10, 2) // dollars; default $1,000
   denominator           LaborDenominator @default(TOTAL_WITH_DELIVERY) // DEPRECATED (Phase 2): total sales only
   plannedBlendedRate    Decimal?         @db.Decimal(10, 2) // optional manual blended rate (dollars); else computed
+  // L-3: floor-first vs sales-weighted weekly→daily hourly-hours split.
+  dailySplitPolicy      LaborDailySplitPolicy @default(FLOOR_FIRST)
   // Phase 3: the salaried GM's default on-floor window (minutes from local
   // midnight). null = derive open→14:00 from StoreHours. The GM counts as a
   // body + the supervisor during this window.

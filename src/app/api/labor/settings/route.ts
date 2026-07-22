@@ -18,6 +18,7 @@ const putSchema = z.object({
   plannedBlendedRate: z.number().positive().max(99999999).nullable(),
   gmOnFloorStartMinutes: z.number().int().min(0).max(1440).nullable(),
   gmOnFloorEndMinutes: z.number().int().min(0).max(1440).nullable(),
+  dailySplitPolicy: z.enum(["FLOOR_FIRST", "SALES_WEIGHTED"]),
 })
 
 export async function GET(req: Request) {
@@ -46,6 +47,7 @@ export async function GET(req: Request) {
     plannedBlendedRate: row?.plannedBlendedRate == null ? null : Number(row.plannedBlendedRate),
     gmOnFloorStartMinutes: row?.gmOnFloorStartMinutes ?? null,
     gmOnFloorEndMinutes: row?.gmOnFloorEndMinutes ?? null,
+    dailySplitPolicy: row?.dailySplitPolicy ?? "FLOOR_FIRST",
     source: "org",
   })
 }

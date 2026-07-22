@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SplitPolicyInfo } from "@/components/labor/split-policy-info"
 import {
   Dialog,
   DialogContent,
@@ -200,6 +201,7 @@ function SettingsCard({ stores }: { stores: { id: string; name: string }[] }) {
   const [blended, setBlended] = useState("")
   const [gmStart, setGmStart] = useState("")
   const [gmEnd, setGmEnd] = useState("")
+  const [splitPolicy, setSplitPolicy] = useState<"FLOOR_FIRST" | "SALES_WEIGHTED">("FLOOR_FIRST")
   const [hasOverride, setHasOverride] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -218,6 +220,7 @@ function SettingsCard({ stores }: { stores: { id: string; name: string }[] }) {
         setBlended(d.plannedBlendedRate == null ? "" : String(d.plannedBlendedRate))
         setGmStart(minToTimeOrBlank(d.gmOnFloorStartMinutes))
         setGmEnd(minToTimeOrBlank(d.gmOnFloorEndMinutes))
+        setSplitPolicy(d.dailySplitPolicy === "SALES_WEIGHTED" ? "SALES_WEIGHTED" : "FLOOR_FIRST")
         setHasOverride(!!d.hasOverride)
       })
       .finally(() => setLoading(false))
@@ -244,6 +247,7 @@ function SettingsCard({ stores }: { stores: { id: string; name: string }[] }) {
         plannedBlendedRate: blendedNum,
         gmOnFloorStartMinutes: timeToMinOrNull(gmStart),
         gmOnFloorEndMinutes: timeToMinOrNull(gmEnd),
+        dailySplitPolicy: splitPolicy,
       }),
     }).catch(() => null)
     setSaving(false)
@@ -313,6 +317,28 @@ function SettingsCard({ stores }: { stores: { id: string; name: string }[] }) {
             </div>
             <p className="text-xs text-[var(--color-muted-foreground)] mt-1">When the salaried GM is on the floor (counts as coverage + supervisor). Blank = open→2:00p.</p>
           </div>
+        </div>
+
+        {/* L-3: floor-first vs sales-weighted daily split */}
+        <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Label htmlFor="splitPolicy">Daily hours split</Label>
+            <SplitPolicyInfo />
+          </div>
+          <div className="max-w-xs">
+            <Select value={splitPolicy} onValueChange={(v) => setSplitPolicy(v === "SALES_WEIGHTED" ? "SALES_WEIGHTED" : "FLOOR_FIRST")}>
+              <SelectTrigger id="splitPolicy" disabled={loading}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FLOOR_FIRST">Floor-first (recommended)</SelectItem>
+                <SelectItem value="SALES_WEIGHTED">Sales-weighted</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+            {splitPolicy === "FLOOR_FIRST"
+              ? "Each open day is guaranteed enough hours to keep one person on the floor before the rest are split by sales."
+              : "Hours are split purely by sales weight — slow-but-open days may be flagged as understaffed so you can rebalance."}
+          </p>
         </div>
 
         <div className="flex items-center gap-3 mt-5">

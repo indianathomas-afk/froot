@@ -1,7 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
-import { CircleAlert, Clock, Sparkles, Pencil, ChevronLeft, ChevronRight } from "lucide-react"
+import { CircleAlert, Clock, Sparkles, Pencil, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -240,6 +241,10 @@ function BudgetBody({ res, onEdit }: { res: BudgetResponse; onEdit: () => void }
         <span className="text-[var(--color-muted-foreground)]">Hourly pool</span>
         <span className="text-right text-[var(--color-foreground)]">{usd(budget.hourlyDollars)} · {budget.hourlyHours.toFixed(1)} hrs</span>
       </div>
+
+      <Link href="/labor" className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--color-primary)] hover:underline mt-3">
+        <CalendarRange className="h-3.5 w-3.5" /> Open Weekly Plan
+      </Link>
     </>
   )
 }

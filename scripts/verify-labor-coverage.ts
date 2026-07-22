@@ -6,7 +6,12 @@
  * Pure functions, no DB. Coverage is demand-shaped + budget-capped, floored at
  * 1 while open, with the salaried GM counted on floor in their window.
  */
-import { splitWeeklyHoursToDays, applyDayAdjustment } from "../src/lib/labor-daily"
+import {
+  splitWeeklyHoursToDays,
+  splitWeeklyHoursToDaysFloorFirst,
+  capGmFloorCredits,
+  applyDayAdjustment,
+} from "../src/lib/labor-daily"
 import { computeDailyCoverage, type HourNet } from "../src/lib/labor-coverage"
 
 let failures = 0
@@ -49,6 +54,37 @@ check("understaffedBudget flagged", tight.understaffedBudget, true)
 console.log("\n5 · Supervisor gap — open hours outside GM window, no hourly supervisor:")
 const gap = computeDailyCoverage({ hourlyBudgetHours: 40, demand, open, gmWindow: { startHour: 8, endHour: 14 }, hasHourlySupervisor: false })!
 check("supervisorGap flagged", gap.supervisorGap, true)
+
+console.log("\n6 · GM 40h weekly cap (capGmFloorCredits):")
+// 7 open days × a 6h GM window = 42h > 40 → scaled to exactly 40 total.
+const capped = capGmFloorCredits([6, 6, 6, 6, 6, 6, 6])
+check("weekly total capped at 40", Math.round(capped.reduce((s, h) => s + h, 0)), 40)
+check("each day scaled proportionally (6 → 40/42)", +capped[0].toFixed(3), +((6 * 40) / 42).toFixed(3))
+// Under the cap (5 open days × 6h = 30h) → unchanged.
+const uncapped = capGmFloorCredits([6, 6, 6, 6, 6, 0, 0])
+check("under 40h left unchanged", uncapped[0], 6)
+check("closed day stays 0", uncapped[5], 0)
+
+console.log("\n7 · Floor-first split (NEW DEFAULT) — floor guaranteed before sales weight:")
+// Mon–Fri open, each needs a 6h floor; weekend closed. Weekly hourly = 40, so
+// 30h of floor + a 10h remainder. All the sales weight sits on Friday.
+const floors = [6, 6, 6, 6, 6, 0, 0]
+const heavyFri = [0, 0, 0, 0, 10000, 0, 0]
+const ff = splitWeeklyHoursToDaysFloorFirst({ weeklyHourlyHours: 40, weightsByWeekday: heavyFri, floorHoursByWeekday: floors })
+check("Mon floor honored despite 0 sales weight", ff[0].hourlyHours, 6.0)
+check("Fri gets floor + all remainder (6+10)", ff[4].hourlyHours, 16.0)
+check("closed Sat stays 0", ff[5].hourlyHours, 0)
+check("sum ≤ weekly total (40)", ff.reduce((s, d) => s + d.hourlyHours, 0) <= 40, true)
+// The OLD sales-weighted split with the same weights starves Monday — the L-1
+// floor-vs-budget conflict this phase fixes.
+const sw = splitWeeklyHoursToDays({ weeklyHourlyHours: 40, weightsByWeekday: heavyFri, openDays: [0, 1, 2, 3, 4] })
+check("(contrast) sales-weighted starves Mon → 0", sw[0].hourlyHours, 0)
+
+console.log("\n8 · Floor-first under-budget — floors scale down, still ≤ weekly:")
+// Floors total 30h but only 20h of weekly hourly budget → scaled to fit.
+const tightFF = splitWeeklyHoursToDaysFloorFirst({ weeklyHourlyHours: 20, weightsByWeekday: null, floorHoursByWeekday: floors })
+check("Mon scaled to 20×6/30 = 4.0", tightFF[0].hourlyHours, 4.0)
+check("sum ≤ weekly total (20)", tightFF.reduce((s, d) => s + d.hourlyHours, 0) <= 20, true)
 
 console.log(`\n${failures === 0 ? "✅ All checks passed." : `❌ ${failures} check(s) failed.`}`)
 process.exitCode = failures === 0 ? 0 : 1

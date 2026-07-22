@@ -1,7 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Users, ShieldAlert, CircleAlert, CloudRain, ChevronLeft, ChevronRight, Crown } from "lucide-react"
+import { Users, ShieldAlert, CircleAlert, CloudRain, ChevronLeft, ChevronRight, Crown, CalendarRange } from "lucide-react"
 import { Line, LineChart, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, ReferenceArea } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useLaborViewedDate, shiftDateStr, todayStr } from "./use-labor-date"
+import { SplitPolicyInfo } from "@/components/labor/split-policy-info"
 
 // Labor Coverage card (Dashboard, Phase 3 — "Recommended · guidance"). A
 // demand-shaped, budget-capped headcount step line for the viewed day — future
@@ -166,6 +168,7 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
                 {cov.understaffedBudget && (
                   <div className="flex items-center gap-1.5 text-[12px] font-medium text-[#a36a00]">
                     <CircleAlert className="h-3.5 w-3.5 shrink-0" /> The budget can’t cover a floor of 1 all day ({cov.usedHourlyHours} hrs needed vs {cov.hourlyBudgetHours.toFixed(1)} budgeted).
+                    <SplitPolicyInfo />
                   </div>
                 )}
               </div>
@@ -192,6 +195,9 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
             <p className="text-[11px] text-[var(--color-muted-foreground)] mt-1">
               Demand-shaped and capped by the conservative budget — a guide, not a schedule. Floor of 1 while open.
             </p>
+            <Link href="/labor" className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--color-primary)] hover:underline mt-2">
+              <CalendarRange className="h-3.5 w-3.5" /> Open Weekly Plan
+            </Link>
           </>
         )}
       </CardContent>

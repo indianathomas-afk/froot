@@ -23,6 +23,7 @@ import {
   Package,
   BriefcaseBusiness,
   Clock,
+  CalendarRange,
 } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
@@ -55,6 +56,9 @@ const navItems: NavItem[] = [
   // Only rendered when HR is available in this environment AND the org toggle
   // is on (hidden while off — the admin controls the toggle in Settings).
   { href: "/hr", label: "HR", icon: BriefcaseBusiness, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresHr: true },
+  // Weekly Plan (L-3) — the schedule-writing view, gated on both Labor flags.
+  // Read-only for viewers; ADMIN/MANAGER can rebalance.
+  { href: "/labor", label: "Weekly Plan", icon: CalendarRange, roles: ["ADMIN", "MANAGER"], requiresLabor: true },
   // Config hub for the Weekly Labor Model — ADMIN/MANAGER only, gated on both
   // Labor feature flags (available in this env AND org toggle on).
   { href: "/settings/labor", label: "Labor", icon: Clock, roles: ["ADMIN", "MANAGER"], requiresLabor: true },
