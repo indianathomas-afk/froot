@@ -49,6 +49,42 @@ export function parseHourEnd(t: string | null): number | null {
   return m ? Math.ceil(Number(m[1]) + Number(m[2]) / 60) : null
 }
 
+// Fraction of a weekday's peak hourly sales below which an hour is treated as
+// noise (a one-off late-night/early order) rather than a real open hour.
+const OPEN_NOISE_FLOOR = 0.05
+
+// Infer each weekday's open window from trailing sales, for stores with no
+// StoreHours configured (StoreHours is currently never populated in Froot, so
+// this is the normal path — it mirrors the coverage engine's own demand-shape
+// inference). One query: sum the last `trailingDays` of sales per (weekday,
+// hour), drop hours below OPEN_NOISE_FLOOR of that weekday's peak so a stray
+// order doesn't stretch the window to 0–24, then take [earliest, latest + 1].
+// Returns null for a weekday with no sales history (treated as closed).
+export async function inferOpenWindowsByWeekday(
+  storeId: string,
+  today: string,
+  trailingDays = 56
+): Promise<({ startHour: number; endHour: number } | null)[]> {
+  const start = addDaysStr(today, -trailingDays)
+  const rows = await prisma.salesHourlyCache.findMany({
+    where: { storeId, date: { gte: dbDate(start), lte: dbDate(today) }, netSales: { gt: 0 } },
+    select: { date: true, hour: true, netSales: true },
+  })
+  const sums: Map<number, number>[] = Array.from({ length: 7 }, () => new Map<number, number>())
+  for (const r of rows) {
+    const wd = laborWeekdayOf(r.date.toISOString().slice(0, 10))
+    sums[wd].set(r.hour, (sums[wd].get(r.hour) ?? 0) + r.netSales)
+  }
+  return sums.map((m) => {
+    if (m.size === 0) return null
+    const peak = Math.max(...m.values())
+    const threshold = peak * OPEN_NOISE_FLOOR
+    const hours = [...m.entries()].filter(([, v]) => v >= threshold).map(([h]) => h)
+    if (hours.length === 0) return null
+    return { startHour: Math.min(...hours), endHour: Math.max(...hours) + 1 }
+  })
+}
+
 export type DayPlan = {
   date: string // yyyy-mm-dd
   weekday: number // 0 = Mon … 6 = Sun
@@ -82,8 +118,9 @@ export type WeeklyPlan = {
 }
 
 // Build the whole week's per-day hours plan for a store. `anyDateInWeek` snaps
-// to Monday. No auth here — callers gate via labor-access.
-export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string): Promise<WeeklyPlan> {
+// to Monday. `today` (store-local yyyy-mm-dd) bounds the sales-inference of open
+// windows. No auth here — callers gate via labor-access.
+export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, today: string): Promise<WeeklyPlan> {
   const weekStart = mondayOfWeekStr(anyDateInWeek)
   const weekEnd = addDaysStr(weekStart, 6)
   const dates = Array.from({ length: 7 }, (_, i) => addDaysStr(weekStart, i)) // Mon…Sun
@@ -101,6 +138,10 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string): 
     prisma.weeklyDayHours.findMany({ where: { storeId, weekStart: dbDate(weekStart) } }),
     prisma.storeHours.findMany({ where: { storeId } }),
   ])
+
+  // Open windows: StoreHours if configured, else inferred from trailing sales
+  // (StoreHours is currently never populated, so inference is the normal path).
+  const inferredOpen = await inferOpenWindowsByWeekday(storeId, today)
 
   const budget = computeWeeklyLaborBudget({
     settings,
@@ -122,10 +163,16 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string): 
     const jsDow = jsDowOf(dates[wd])
     const sh = storeHoursRows.find((r) => r.dayOfWeek === jsDow)
     let open: { startHour: number; endHour: number } | null = null
-    if (sh && !sh.isClosed) {
-      const s = parseHourStart(sh.openingTime)
-      const e = parseHourEnd(sh.closingTime)
-      if (s != null && e != null && e > s) open = { startHour: s, endHour: e }
+    if (sh) {
+      // Explicit StoreHours wins; isClosed means genuinely closed (no inference).
+      if (!sh.isClosed) {
+        const s = parseHourStart(sh.openingTime)
+        const e = parseHourEnd(sh.closingTime)
+        open = s != null && e != null && e > s ? { startHour: s, endHour: e } : inferredOpen[wd]
+      }
+    } else {
+      // No StoreHours row → fall back to the sales-inferred window.
+      open = inferredOpen[wd]
     }
     openByDay[wd] = open
     openHoursByDay[wd] = open ? open.endHour - open.startHour : 0

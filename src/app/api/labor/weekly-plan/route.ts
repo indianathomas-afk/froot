@@ -38,7 +38,7 @@ export async function GET(req: Request) {
   const weekStart = mondayOfWeekStr(weekStartParam && DATE_RE.test(weekStartParam) ? weekStartParam : today)
   const canManage = ctx.isAdmin || ctx.dbUser?.role === "MANAGER"
 
-  const plan = await getWeeklyDayPlan(storeId, weekStart)
+  const plan = await getWeeklyDayPlan(storeId, weekStart, today)
   const base = { store: { id: store.id, name: store.name, timezone: store.timezone }, today, weekStart, canManage, policy: plan.policy, target: plan.target }
 
   if (!plan.budget) {

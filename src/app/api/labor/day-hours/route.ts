@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireLaborContext, requireLaborStore } from "@/lib/labor-access"
-import { dbDate } from "@/lib/reports"
+import { dbDate, localDateStr } from "@/lib/reports"
 import { mondayOfWeekStr } from "@/lib/labor-week"
 import { getWeeklyDayPlan } from "@/lib/labor-plan"
 
@@ -50,7 +50,8 @@ export async function PUT(req: Request) {
 
   // Constraint: pinned hours can't exceed the weekly hourly total (else the
   // remaining floor-first days would go negative / over-budget).
-  const plan = await getWeeklyDayPlan(storeId, weekStart)
+  const today = localDateStr(new Date(), store.timezone)
+  const plan = await getWeeklyDayPlan(storeId, weekStart, today)
   if (!plan.budget) return NextResponse.json({ error: "No budget for this week" }, { status: 409 })
   const sum = overrides.reduce((s, o) => s + o.hours, 0)
   if (sum > plan.weeklyHourlyHours + TOLERANCE) {

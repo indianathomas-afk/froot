@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   const canManage = ctx.isAdmin || ctx.dbUser?.role === "MANAGER"
   const base = { store: { id: store.id, name: store.name, timezone: store.timezone }, today, date, weekStart, available, canManage }
 
-  const plan = await getWeeklyDayPlan(storeId, weekStart)
+  const plan = await getWeeklyDayPlan(storeId, weekStart, today)
   if (!plan.budget) return NextResponse.json({ ...base, hasForecast: false, hasShape: false, coverage: null, adjustment: null })
 
   const day = plan.days.find((d) => d.date === date) ?? plan.days[0]
