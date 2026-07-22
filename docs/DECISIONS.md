@@ -1,8 +1,37 @@
-# Labor Model — Decision Log
+# Decision Log
 
 Plain record of who decided what, so "yours vs mine" is never fuzzy. **Gary** =
 operator decision; **Claude** = implementation choice made without an explicit
-instruction. Newest scoping at top.
+instruction. Newest scoping at top. (Started as the Labor log; now records HR
+decisions too.)
+
+## HR-8 compliance rollup — 2026-07-22 (Gary)
+
+a. **Acknowledgment docs: current version only.** Compliant = every required
+   checkpoint acknowledged on the CURRENT document version. A completed set of
+   acknowledgments whose signed PDF hasn't been generated yet ("pending-record")
+   still counts as compliant — generation is mechanical and idempotent. A
+   record signed against an older version is its own **"needs re-sign"**
+   status: non-compliant, but distinct from "not started".
+b. **Agreement forms stay OUT of the compliance % (v1).** Nothing in the data
+   says who is *supposed* to hold a given form (no assignment mechanism, no
+   signing-cycle definition), so forms can't be a denominator. They surface in
+   a separate Agreements panel on `/hr/compliance`, with submissions stuck in
+   `PendingSupervisor` surfaced prominently as the actionable gap. The
+   follow-up ("required forms" flag + defined signing cycle, additive schema)
+   is logged in `ROADMAP.md` as HR-10.
+c. **Training: Completed = compliant.** Certification is a separate, stricter
+   badge — never required for the %. An assignment past its `dueDate` and not
+   Completed is **"Overdue"**, the loudest gap state on every surface.
+d. **Only ACTIVE staff count in rollups.** Terminated staff are excluded from
+   every percentage and every rollup denominator; their records remain fully
+   auditable (the profile Compliance tab renders them behind an exclusion
+   banner, signed PDFs stay downloadable).
+e. (Claude) Rollup is computed live from existing records — no stored
+   snapshots, no new schema, no migration; per-store grouping uses the
+   member's primary store (the `/staff` directory convention) so nobody is
+   double-counted. Flagged: if reminders or trend history land later, those
+   become stored per-environment data (regenerate per Neon branch).
 
 ## L-3 promotion to production — 2026-07-21 (Gary)
 

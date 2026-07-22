@@ -1,6 +1,5 @@
-// HR, Training & Compliance helpers. HR-1 ships read-only surfaces, so the
-// compliance rollup below is a stub: pct stays null until real requirements
-// exist, and the UI renders it as "—" (never 0%, which reads as failure).
+// HR, Training & Compliance helpers — staff identity resolution. The
+// compliance rollup (HR-8) lives in src/lib/hr-compliance.ts.
 
 import { prisma } from "@/lib/prisma"
 
@@ -46,17 +45,4 @@ export function primaryStoreName(
 ): string | null {
   const primary = staff.storeAssignments.find((a) => a.isPrimary) ?? staff.storeAssignments[0]
   return primary?.store.name ?? null
-}
-
-export type StaffComplianceSummary = {
-  requiredTotal: number
-  completed: number
-  pct: number | null
-}
-
-// HR-8: replace with batched query rolling up required-vs-completed across
-// document acknowledgments, form submissions, and training assignments.
-export function getStaffComplianceSummary(staffId: string): StaffComplianceSummary {
-  void staffId
-  return { requiredTotal: 0, completed: 0, pct: null }
 }

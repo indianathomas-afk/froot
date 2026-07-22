@@ -14,9 +14,11 @@ import { StaffUploadedDocuments, type StaffUploadRow } from "./staff-uploaded-do
 import { SelfServiceActions } from "./self-service-actions"
 import { StaffEditActions } from "./staff-edit-actions"
 import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
+import { StaffCompliance } from "./staff-compliance"
+import { getStaffComplianceDetail, type StaffComplianceDetail } from "@/lib/hr-compliance"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
-// (HR-4). Training (HR-6/7) and Compliance (HR-8) remain placeholders.
+// (HR-4), Training (HR-6/7), Compliance (HR-8).
 
 async function getStaffMember(id: string, clerkOrgId: string) {
   const { isAdmin, storeIds } = await getUserStoreScope()
@@ -395,6 +397,15 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
     trainers = trainerUsers.map((t) => ({ id: t.id, name: t.name ?? t.email }))
   }
 
+  // HR-8 Compliance tab: this member's required items with statuses. Same
+  // ADMIN/MANAGER tier as Documents/Training — the statuses here are derived
+  // from the same records those tabs show. Terminated members still render
+  // their records (auditable) behind an exclusion banner.
+  let complianceDetail: StaffComplianceDetail | null = null
+  if (canSeeNotes) {
+    complianceDetail = await getStaffComplianceDetail(member.organizationId, member.id)
+  }
+
   let notes: SerializedNote[] = []
   if (canSeeNotes) {
     // ManagerNote.authorUserId has no Prisma relation to User (deliberate — no
@@ -614,12 +625,19 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         )}
 
         <TabsContent value="compliance" className="mt-4">
-          <ShellTab
-            icon={Gauge}
-            title="Compliance tracking not active"
-            copy="Compliance tracking activates once documents or training are assigned — required items, completions, and the overall percentage will roll up here."
-            phase="HR-8"
-          />
+          {canSeeNotes && complianceDetail ? (
+            <StaffCompliance detail={complianceDetail} />
+          ) : (
+            <div className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--color-muted)] flex items-center justify-center">
+                <Gauge className="h-6 w-6 text-[var(--color-muted-foreground)]" />
+              </div>
+              <p className="font-medium text-[var(--color-foreground)] mb-1">Restricted</p>
+              <p className="text-sm text-[var(--color-muted-foreground)] max-w-md mx-auto">
+                Compliance statuses are visible to managers and admins only.
+              </p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

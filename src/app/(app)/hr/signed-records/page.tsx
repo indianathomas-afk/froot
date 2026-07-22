@@ -7,8 +7,8 @@ import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 
 // HR-4 admin view: the most recent executed signed records org-wide. Kept
-// deliberately light — the full compliance rollup (who HASN'T signed, per-doc
-// percentages, reminders) is HR-8.
+// deliberately light — the full compliance rollup (who HASN'T signed, the
+// percentages, the gaps) lives at /hr/compliance (HR-8).
 export default async function HrSignedRecordsPage() {
   const { orgId } = await auth()
   if (!orgId) redirect("/dashboard")
@@ -38,11 +38,19 @@ export default async function HrSignedRecordsPage() {
         HR
       </Link>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Signed Records</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
-          The 50 most recent executed acknowledgment documents across the organization
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Signed Records</h1>
+          <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+            The 50 most recent executed acknowledgment documents across the organization
+          </p>
+        </div>
+        <Link
+          href="/hr/compliance"
+          className="text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity shrink-0 mt-1"
+        >
+          Compliance rollup →
+        </Link>
       </div>
 
       {records.length === 0 ? (
