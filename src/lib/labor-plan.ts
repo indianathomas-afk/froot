@@ -85,6 +85,37 @@ export async function inferOpenWindowsByWeekday(
   })
 }
 
+const DAY_WEIGHT_TRAILING_DAYS = 56 // ~8 weeks of trailing actuals for the derived split
+
+// Even day-of-week weights (bps summing 10000), remainder pinned to Sunday.
+export function evenDayWeights(): number[] {
+  const base = Math.floor(10000 / 7)
+  const w = new Array(7).fill(base)
+  w[6] += 10000 - base * 7
+  return w
+}
+
+// Sales-derived day-of-week weights (bps summing 10000) from trailing daily
+// actuals — the SAME derivation the /settings/labor split editor shows. Used as
+// the split default when a store has no saved LaborDaySplit override, so the
+// Weekly Plan follows the day-of-week sales pattern (and matches the settings
+// page) instead of splitting the week evenly.
+export async function deriveDayWeightsFromSales(storeId: string, today: string): Promise<number[]> {
+  const start = addDaysStr(today, -DAY_WEIGHT_TRAILING_DAYS)
+  const rows = await prisma.salesPeriodCache.findMany({
+    where: { storeId, date: { gte: dbDate(start), lte: dbDate(today) } },
+    select: { date: true, netSales: true },
+  })
+  const byWd = new Array(7).fill(0)
+  for (const r of rows) byWd[laborWeekdayOf(r.date.toISOString().slice(0, 10))] += r.netSales
+  const grand = byWd.reduce((a, b) => a + b, 0)
+  if (grand <= 0) return evenDayWeights()
+  const raw = byWd.map((v) => Math.round((v / grand) * 10000))
+  // Pin rounding drift to the heaviest day so the total is exactly 10000.
+  raw[raw.indexOf(Math.max(...raw))] += 10000 - raw.reduce((a, b) => a + b, 0)
+  return raw
+}
+
 export type DayPlan = {
   date: string // yyyy-mm-dd
   weekday: number // 0 = Mon … 6 = Sun
@@ -192,7 +223,13 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
   const gmCreditByDay = capGmFloorCredits(gmHoursByDay, WEEKLY_GM_CAP_HOURS)
   const floorByDay = openHoursByDay.map((oh, wd) => Math.max(0, oh - gmCreditByDay[wd]))
 
-  const weightsByWeekday = splitRows.length > 0 ? Array.from({ length: 7 }, (_, wd) => splitRows.find((r) => r.weekday === wd)?.weightBps ?? 0) : null
+  // Saved LaborDaySplit override wins; otherwise fall back to the SAME
+  // sales-derived weights the settings split editor shows (not an even split),
+  // so the Weekly Plan follows the day-of-week pattern and matches settings.
+  const weightsByWeekday =
+    splitRows.length > 0
+      ? Array.from({ length: 7 }, (_, wd) => splitRows.find((r) => r.weekday === wd)?.weightBps ?? 0)
+      : await deriveDayWeightsFromSales(storeId, today)
 
   const weeklyHourly = budget?.hourlyHours ?? 0
 

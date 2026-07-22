@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { requireLaborView, requireLaborStore } from "@/lib/labor-access"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { mondayOfWeekStr } from "@/lib/labor-week"
-import { getWeeklyDayPlan, addDaysStr } from "@/lib/labor-plan"
+import { getWeeklyDayPlan, computeDayCoverage, addDaysStr } from "@/lib/labor-plan"
 
 // GET /api/labor/weekly-plan?storeId=&weekStart= — the Weekly Plan week strip
 // (Layer 1). Assembles the shared L-3 day plan (floor-first split + GM cap +
@@ -16,11 +16,20 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 type DayStatus = "closed" | "under" | "tight" | "slack" | "ok"
 
-function dayStatus(open: boolean, floorHours: number, allocated: number): DayStatus {
+// Status is derived from the SAME coverage engine the day-detail renders, so the
+// strip and the detail always agree. `used` = hourly person-hours the recommended
+// coverage actually needs (demand-shaped + floor-of-1); `budget` = what's
+// allocated to the day.
+//   under  = coverage can't fit the floor within budget (used > budget)
+//   tight  = coverage spends essentially all of the budget (little cushion)
+//   slack  = budget noticeably exceeds what the day needs (room to rebalance out)
+//   ok     = comfortable middle
+function dayStatus(open: boolean, cov: { understaffedBudget: boolean; usedHourlyHours: number; hourlyBudgetHours: number } | null): DayStatus {
   if (!open) return "closed"
-  if (floorHours > 0 && allocated < floorHours - 0.5) return "under"
-  if (floorHours > 0 && allocated <= floorHours + 1) return "tight"
-  if (floorHours > 0 && allocated >= floorHours * 2) return "slack"
+  if (!cov) return "ok"
+  if (cov.understaffedBudget) return "under"
+  if (cov.hourlyBudgetHours > 0 && cov.usedHourlyHours <= cov.hourlyBudgetHours * 0.8) return "slack"
+  if (cov.usedHourlyHours >= cov.hourlyBudgetHours - 0.5) return "tight"
   return "ok"
 }
 
@@ -59,6 +68,9 @@ export async function GET(req: Request) {
   const salariedCost = plan.budget.salariedCost
   const weekForecastSum = dates.reduce((s, d) => s + (goalByDate.get(d) ?? 0), 0)
 
+  // Per-day coverage from the same engine the detail renders → consistent status.
+  const covByDay = await Promise.all(plan.days.map((d) => computeDayCoverage(storeId, d, today, plan.hasHourlySupervisor)))
+
   const days = plan.days.map((d, i) => {
     const forecastSales = goalByDate.get(d.date) ?? null
     const lastYear = lastYearByDate.get(lastYearDates[i]) ?? null
@@ -87,7 +99,7 @@ export async function GET(req: Request) {
       adjustmentPct: d.adjustmentPct,
       adjustmentReason: d.adjustmentReason,
       gmWindow: d.gmWindow,
-      status: dayStatus(!!d.open, d.floorHours, d.hourlyHours),
+      status: dayStatus(!!d.open, covByDay[i]),
     }
   })
 
