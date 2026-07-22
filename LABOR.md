@@ -1,4 +1,10 @@
-# Weekly Labor Model (Phase 0 shipped · Phase 1 in progress)
+# Weekly Labor Model
+
+> **Numbering:** the sections headed "Foundation ·" below are the pre-reset
+> build (the retired 0–4 numbering; the code is shipped and on staging). The
+> live roadmap uses the reset **L- numbering** (see `froot_docs` Reset Brief and
+> `ROADMAP.md`): L-1 staging pass (done) · L-2 actuals from Square · L-3 Weekly
+> Plan report (below) · L-4 assignment layer.
 
 Operators set a labor-percentage target and a position rate legend; a weekly
 sales forecast (store + delivery, entered manually) is turned into a
@@ -149,7 +155,7 @@ $1,520/80h, hourly $1,280/102.0h, **total 182.0h, projected 18.8%**
 (`2,800 / 14,900`). The script also asserts the null-forecast (empty) state and
 the `floorExceedsBudget` flag (salaried floor > budget → hourly clamps to 0).
 
-## Phase 1 surfaces
+## Foundation · budget + dashboard surfaces
 
 - **Forecast entry** (ADMIN/MANAGER): `/api/labor/forecast` upserts on
   `(storeId, weekStart)` with `weekStart` normalized to Monday; store and
@@ -170,7 +176,7 @@ push-to-Square scheduling, OT modeling (Phase 4). Per-employee rate overrides
 and per-store `LaborSettings` overrides are also later. Clean seams left; not
 implemented.
 
-## Phase 2 (built 2026-07-20)
+## Foundation · daily split, daypart, adjustment, coverage engine (built 2026-07-20)
 
 Migration `20260720230000_labor2_daysplit_daypart_adjustment` — additive:
 `LaborDaySplit`, `LaborDaypart`, `LaborDayAdjustment`.
@@ -210,7 +216,7 @@ Fixtures: `npx tsx scripts/verify-labor-budget.ts` (total-only budget,
 coverage invariants). Existing orgs backfill dayparts via
 `scripts/seed-labor-positions.ts` (or by re-toggling the module).
 
-## Phase 3 (built 2026-07-20)
+## Foundation · per-store settings, demand-shaped coverage, GM on floor (built 2026-07-20)
 
 Migration `20260721010000_labor3_gm_onfloor_window` — additive: two nullable
 `Int` columns on `LaborSettings` (`gmOnFloorStartMinutes`/`gmOnFloorEndMinutes`).
@@ -243,3 +249,49 @@ Migration `20260721010000_labor3_gm_onfloor_window` — additive: two nullable
 Fixture: `npx tsx scripts/verify-labor-coverage.ts` covers demand-shape,
 opener/closer floor, GM on floor, budget cap, and the supervisor gap. Decisions
 in `DECISIONS.md`.
+
+## L-3 · Weekly Plan report (built 2026-07-21)
+
+First phase under the **reset L- numbering** (Reset Brief in `froot_docs`; the
+pre-reset sections above are the retired 0–4 foundation). Migration
+`20260721163612_labor3_daily_split_policy_weekly_day_hours` — additive:
+`LaborDailySplitPolicy` enum + `LaborSettings.dailySplitPolicy` (default
+`FLOOR_FIRST`) + `WeeklyDayHours` per-date override table. The partial index
+`LaborSettings_org_default_key` is preserved (SQL-only; never let a diff drop it).
+
+- **Floor-first daily split — new default.** `splitWeeklyHoursToDaysFloorFirst`
+  (pure) guarantees each open day enough hourly hours to cover its minimum floor
+  (one body every open hour, minus the GM's capped on-floor credit) BEFORE
+  distributing the remainder by sales weight. Per-store `dailySplitPolicy`
+  (`FLOOR_FIRST | SALES_WEIGHTED`, default floor-first) selects it;
+  `SALES_WEIGHTED` restores the pre-L-3 pure sales-weight split. Toggle +
+  shared info explainer (`SplitPolicyInfo`) on `/settings/labor` AND next to the
+  Coverage-card floor warning (one component, identical copy). **Defaulting
+  existing orgs to `FLOOR_FIRST` changes their day allocations — intended.**
+- **GM 40-hr weekly cap.** `capGmFloorCredits` scales the salaried GM's counted
+  floor coverage so the weekly total never exceeds 40h (can't lean on hours the
+  GM doesn't work). Floor-math only — the GM band still renders in full; which
+  days the GM is off is the L-4 assignment layer.
+- **Shared engine `getWeeklyDayPlan` (`labor-plan.ts`).** One place that turns
+  the weekly budget into a per-day plan (floor-first split + GM cap +
+  `WeeklyDayHours` overrides + adjustments). Budget/coverage routes are thin
+  wrappers over it, so all surfaces agree. Day weights fall back to the SAME
+  `deriveDayWeightsFromSales` the settings split editor shows (never an even
+  split). **Open windows are inferred from trailing sales** (`inferOpenWindowsBy
+  Weekday`, outlier-trimmed) when `StoreHours` is empty — which it always is
+  today; nothing in Froot populates `StoreHours` (flagged for a follow-up: a
+  store operating-hours source would make coverage exact).
+- **L-3B cross-day rebalancing.** `WeeklyDayHours` per-date override lets
+  ADMIN/MANAGER pin a day's hours; unpinned days re-split floor-first from the
+  remaining pool, constrained to the weekly hourly total. `PUT/DELETE
+  /api/labor/day-hours`; live recompute.
+- **Weekly Plan page** (`/labor`, both gates, `requireLaborView`): week strip
+  (forecast, last-year same-weekday actual +delta, hours, projected labor %,
+  weather chip, coverage status **from the coverage engine** so it agrees with
+  the detail) + selected-day detail (reuses `/api/labor/coverage`: hourly demand
+  + recommended step line, single headcount axis, GM band, peak + break-window
+  guidance). Empty states for no-forecast / no-history / closed. `GET
+  /api/labor/weekly-plan`; nav item + links from both dashboard cards.
+
+Fixtures: `verify-labor-coverage.ts` extended (floor-first split, GM cap);
+`verify-labor-budget.ts` unchanged at 182h/18.8%.
