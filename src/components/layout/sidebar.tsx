@@ -21,6 +21,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Package,
+  BriefcaseBusiness,
+  Clock,
+  CalendarRange,
 } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
@@ -33,6 +36,8 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>
   roles: string[]
   requiresInstagram?: boolean
+  requiresHr?: boolean
+  requiresLabor?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -48,6 +53,15 @@ const navItems: NavItem[] = [
   { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
   // Only rendered when the org has Instagram connected + enabled (see filter below).
   { href: "/instagram", label: "Instagram", icon: InstagramIcon, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresInstagram: true },
+  // Only rendered when HR is available in this environment AND the org toggle
+  // is on (hidden while off — the admin controls the toggle in Settings).
+  { href: "/hr", label: "HR", icon: BriefcaseBusiness, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresHr: true },
+  // Weekly Plan (L-3) — the schedule-writing view, gated on both Labor flags.
+  // Read-only for viewers; ADMIN/MANAGER can rebalance.
+  { href: "/labor", label: "Weekly Plan", icon: CalendarRange, roles: ["ADMIN", "MANAGER"], requiresLabor: true },
+  // Config hub for the Weekly Labor Model — ADMIN/MANAGER only, gated on both
+  // Labor feature flags (available in this env AND org toggle on).
+  { href: "/settings/labor", label: "Labor", icon: Clock, roles: ["ADMIN", "MANAGER"], requiresLabor: true },
 ]
 
 const inventoryNavItems = [
@@ -68,22 +82,37 @@ export function Sidebar({
   role,
   activeModules = [],
   instagramEnabled = false,
+  hrAvailable = false,
+  laborAvailable = false,
 }: {
   role: string
   activeModules?: string[]
   instagramEnabled?: boolean
+  hrAvailable?: boolean
+  laborAvailable?: boolean
 }) {
   const pathname = usePathname()
   const { signOut } = useClerk()
   const { user } = useUser()
   const collapsed = useSidebarCollapsed()
+  const hrEnabled = hrAvailable && activeModules.includes("hr")
+  const laborEnabled = laborAvailable && activeModules.includes("labor")
   const visibleNavItems = navItems.filter(
-    (item) => item.roles.includes(role) && (!item.requiresInstagram || instagramEnabled)
+    (item) =>
+      item.roles.includes(role) &&
+      (!item.requiresInstagram || instagramEnabled) &&
+      (!item.requiresHr || hrEnabled) &&
+      (!item.requiresLabor || laborEnabled)
   )
   const visibleInventoryItems = activeModules.includes("inventory")
     ? inventoryNavItems.filter((item) => item.roles.includes(role))
     : []
   const canSeeSettings = role === "ADMIN"
+  // Settings owns /settings, but a more specific nav item (e.g. Labor at
+  // /settings/labor) takes precedence — otherwise both would highlight.
+  const settingsActive =
+    pathname.startsWith("/settings") &&
+    !visibleNavItems.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
 
   // Low-stock alert count for the Alerts badge — fetched once per mount (the
   // count runs the expected-inventory engine server-side, so no polling).
@@ -244,12 +273,12 @@ export function Sidebar({
             className={cn(
               "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
               collapsed ? "justify-center px-2" : "",
-              pathname.startsWith("/settings")
+              settingsActive
                 ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
                 : "text-[var(--color-foreground)] hover:bg-[var(--color-accent)]"
             )}
           >
-            <Settings className={cn("h-4 w-4 shrink-0", pathname.startsWith("/settings") ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} />
+            <Settings className={cn("h-4 w-4 shrink-0", settingsActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} />
             {!collapsed && "Settings"}
           </Link>
         </div>

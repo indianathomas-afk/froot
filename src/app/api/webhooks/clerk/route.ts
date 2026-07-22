@@ -109,7 +109,40 @@ export async function POST(req: Request) {
           skipDuplicates: true,
         })
       }
+      // HR-7 self-service invite: bind the new login to its staff profile.
+      // updateMany (not update) so a staff member deleted between invite and
+      // acceptance is a no-op instead of a webhook failure; userId: null
+      // guard so an existing link is never stolen.
+      if (pending.staffMemberId) {
+        await prisma.staffMember.updateMany({
+          where: { id: pending.staffMemberId, organizationId: org.id, userId: null },
+          data: { userId: user.id },
+        })
+      }
       await prisma.pendingInvite.delete({ where: { id: pending.id } })
+    }
+  }
+
+  // HR-7 rule 1: keep app state consistent when an org membership goes away —
+  // whether from terminateStaffMember's revocation or a manual removal in the
+  // Clerk dashboard. Unlink the staff profile (no membership = no /my login)
+  // and drop the user's store assignments. Deliberately does NOT terminate
+  // the staff member: losing a login is not leaving the company — termination
+  // stays an explicit manager/Square-driven action.
+  if (type === "organizationMembership.deleted") {
+    const membership = data as {
+      organization: { id: string }
+      public_user_data: { user_id: string }
+    }
+    const org = await prisma.organization.findUnique({
+      where: { clerkOrgId: membership.organization.id },
+    })
+    const user = await prisma.user.findUnique({
+      where: { clerkUserId: membership.public_user_data.user_id },
+    })
+    if (org && user && user.organizationId === org.id) {
+      await prisma.staffMember.updateMany({ where: { userId: user.id }, data: { userId: null } })
+      await prisma.storeUserAssignment.deleteMany({ where: { userId: user.id } })
     }
   }
 

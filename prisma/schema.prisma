@@ -9,18 +9,18 @@ datasource db {
 // ─── CORE (Phase 1) ──────────────────────────────────────────────────────────
 
 model Organization {
-  id                   String    @id @default(cuid())
-  clerkOrgId           String    @unique
-  name                 String
-  slug                 String?   @unique
-  squareCustomerId     String?
-  squareSubscriptionId String?
-  subscriptionStatus   String?   @default("inactive")
-  activeModules        String[]  @default([])
-  squareAccessToken    String?
-  squareRefreshToken   String?
-  squareTokenExpiresAt DateTime?
-  lastCatalogSyncAt    DateTime?
+  id                      String    @id @default(cuid())
+  clerkOrgId              String    @unique
+  name                    String
+  slug                    String?   @unique
+  squareCustomerId        String?
+  squareSubscriptionId    String?
+  subscriptionStatus      String?   @default("inactive")
+  activeModules           String[]  @default([])
+  squareAccessToken       String?
+  squareRefreshToken      String?
+  squareTokenExpiresAt    DateTime?
+  lastCatalogSyncAt       DateTime?
   instagramAccessToken    String?
   instagramTokenExpiresAt DateTime?
   instagramUserId         String?
@@ -29,42 +29,53 @@ model Organization {
   instagramConnectedAt    DateTime?
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
-  createdAt            DateTime  @default(now())
+  createdAt               DateTime  @default(now())
 
-  stores               Store[]
-  users                User[]
-  pendingInvites       PendingInvite[]
-  staff                StaffMember[]
-  templates            Template[]
-  checklists           Checklist[]
-  storageAreas         StorageArea[]
-  inventoryCounts      InventoryCount[]
-  itemMetadata         ItemMetadata[]
-  menuItems            MenuItem[]
-  auditLogs            AuditLog[]
-  catalogCategories    CatalogCategory[]
-  catalogItems         CatalogItem[]
-  vendors              Vendor[]
-  purchaseOrders       PurchaseOrder[]
-  squareCategories     SquareCategory[]
-  salesItems           SalesItem[]
-  ingredientCategories IngredientCategory[]
-  ingredients          Ingredient[]
+  stores                        Store[]
+  users                         User[]
+  pendingInvites                PendingInvite[]
+  staff                         StaffMember[]
+  templates                     Template[]
+  checklists                    Checklist[]
+  storageAreas                  StorageArea[]
+  inventoryCounts               InventoryCount[]
+  itemMetadata                  ItemMetadata[]
+  menuItems                     MenuItem[]
+  auditLogs                     AuditLog[]
+  catalogCategories             CatalogCategory[]
+  catalogItems                  CatalogItem[]
+  vendors                       Vendor[]
+  purchaseOrders                PurchaseOrder[]
+  squareCategories              SquareCategory[]
+  salesItems                    SalesItem[]
+  ingredientCategories          IngredientCategory[]
+  ingredients                   Ingredient[]
   ingredientDuplicateDismissals IngredientDuplicateDismissal[]
-  salesPeriodCaches    SalesPeriodCache[]
-  salesLineCaches      SalesLineCache[]
-  salesHourlyCaches    SalesHourlyCache[]
-  storeMonthlyGoals    StoreMonthlyGoal[]
-  goalPlans            GoalPlan[]
-  recipes              Recipe[]
-  inventoryAdjustments InventoryAdjustment[]
-  adjustmentGroups     AdjustmentGroup[]
-  lossReasons          LossReason[]
-  varianceAdjustments  VarianceAdjustment[]
-  storeIngredientPars  StoreIngredientPar[]
-  teamMessages         TeamMessage[]
-  corporateUpdates     CorporateUpdate[]
-  paceAlertLogs        PaceAlertLog[]
+  salesPeriodCaches             SalesPeriodCache[]
+  salesLineCaches               SalesLineCache[]
+  salesHourlyCaches             SalesHourlyCache[]
+  storeMonthlyGoals             StoreMonthlyGoal[]
+  goalPlans                     GoalPlan[]
+  recipes                       Recipe[]
+  inventoryAdjustments          InventoryAdjustment[]
+  adjustmentGroups              AdjustmentGroup[]
+  lossReasons                   LossReason[]
+  varianceAdjustments           VarianceAdjustment[]
+  storeIngredientPars           StoreIngredientPar[]
+  teamMessages                  TeamMessage[]
+  corporateUpdates              CorporateUpdate[]
+  paceAlertLogs                 PaceAlertLog[]
+  hrDocuments                   HrDocument[]
+  managerNotes                  ManagerNote[]
+  trainingModules               TrainingModule[]
+  staffDocuments                StaffDocument[]
+  laborPositions                LaborPosition[]
+  laborSettings                 LaborSettings[]
+  salesForecasts                SalesForecast[]
+  laborDaySplits                LaborDaySplit[]
+  laborDayparts                 LaborDaypart[]
+  laborDayAdjustments           LaborDayAdjustment[]
+  weeklyDayHours                WeeklyDayHours[]
 }
 
 model User {
@@ -76,15 +87,16 @@ model User {
   role           Role     @default(STAFF)
   createdAt      DateTime @default(now())
 
-  organization     Organization          @relation(fields: [organizationId], references: [id])
-  storeAssignments StoreUserAssignment[]
-  taskLogs         TaskLog[]
-  teamMessages     TeamMessage[]         @relation("TeamMessageAuthor")
-  resolvedMessages TeamMessage[]         @relation("TeamMessageResolver")
-  acknowledgedMessages TeamMessage[]     @relation("TeamMessageAcknowledger")
-  messageReactions MessageReaction[]
-  messageReads     MessageRead[]
-  corporateUpdates CorporateUpdate[]
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  storeAssignments     StoreUserAssignment[]
+  taskLogs             TaskLog[]
+  teamMessages         TeamMessage[]         @relation("TeamMessageAuthor")
+  resolvedMessages     TeamMessage[]         @relation("TeamMessageResolver")
+  acknowledgedMessages TeamMessage[]         @relation("TeamMessageAcknowledger")
+  messageReactions     MessageReaction[]
+  messageReads         MessageRead[]
+  corporateUpdates     CorporateUpdate[]
+  staffMember          StaffMember?
 }
 
 model Store {
@@ -104,28 +116,36 @@ model Store {
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
 
-  organization        Organization              @relation(fields: [organizationId], references: [id])
-  hours               StoreHours[]
-  userAssignments     StoreUserAssignment[]
-  staffAssignments    StoreStaffAssignment[]
-  templateAssignments TemplateStoreAssignment[]
-  checklists          Checklist[]
-  storageAreas        StorageArea[]
-  inventoryCounts     InventoryCount[]
-  purchaseOrders      PurchaseOrder[]
-  salesPeriodCaches   SalesPeriodCache[]
-  salesLineCaches     SalesLineCache[]
-  salesHourlyCaches   SalesHourlyCache[]
-  monthlyGoals        StoreMonthlyGoal[]
-  goalPlans           GoalPlan[]
-  dailyGoals          DailyGoal[]
-  inventoryAdjustments InventoryAdjustment[]
-  adjustmentGroupsFrom AdjustmentGroup[]    @relation("AdjustmentGroupFromStore")
-  adjustmentGroupsTo   AdjustmentGroup[]    @relation("AdjustmentGroupToStore")
-  varianceAdjustments  VarianceAdjustment[]
-  ingredientPars       StoreIngredientPar[]
-  teamMessages         TeamMessage[]
-  paceAlertLogs        PaceAlertLog[]
+  organization              Organization                    @relation(fields: [organizationId], references: [id])
+  hours                     StoreHours[]
+  userAssignments           StoreUserAssignment[]
+  staffAssignments          StoreStaffAssignment[]
+  templateAssignments       TemplateStoreAssignment[]
+  checklists                Checklist[]
+  storageAreas              StorageArea[]
+  inventoryCounts           InventoryCount[]
+  purchaseOrders            PurchaseOrder[]
+  salesPeriodCaches         SalesPeriodCache[]
+  salesLineCaches           SalesLineCache[]
+  salesHourlyCaches         SalesHourlyCache[]
+  monthlyGoals              StoreMonthlyGoal[]
+  goalPlans                 GoalPlan[]
+  dailyGoals                DailyGoal[]
+  inventoryAdjustments      InventoryAdjustment[]
+  adjustmentGroupsFrom      AdjustmentGroup[]               @relation("AdjustmentGroupFromStore")
+  adjustmentGroupsTo        AdjustmentGroup[]               @relation("AdjustmentGroupToStore")
+  varianceAdjustments       VarianceAdjustment[]
+  ingredientPars            StoreIngredientPar[]
+  teamMessages              TeamMessage[]
+  paceAlertLogs             PaceAlertLog[]
+  hrDocumentAssignments     HrDocumentStoreAssignment[]
+  trainingModuleAssignments TrainingModuleStoreAssignment[]
+  laborSettings             LaborSettings[]
+  salesForecasts            SalesForecast[]
+  laborDaySplits            LaborDaySplit[]
+  laborDayparts             LaborDaypart[]
+  laborDayAdjustments       LaborDayAdjustment[]
+  weeklyDayHours            WeeklyDayHours[]
 }
 
 model StoreHours {
@@ -156,6 +176,10 @@ model PendingInvite {
   email          String
   role           Role
   storeIds       String[] @default([])
+  // HR-7: set when the invite is a staff self-service invite — the Clerk
+  // webhook links the new User to this StaffMember on acceptance. Plain id
+  // (no FK) so the invite row never blocks staff lifecycle changes.
+  staffMemberId  String?
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -164,18 +188,40 @@ model PendingInvite {
 }
 
 model StaffMember {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   organizationId     String
-  squareTeamMemberId String?  @unique
+  // Per-ORG unique, not global: the same real Square employee can be imported
+  // by more than one tenant (Froot connects tenants to the same Square
+  // account in some setups). NULLs stay distinct, so manual members (no
+  // Square id) never collide.
+  squareTeamMemberId String?
   displayName        String
   fullName           String?
   email              String?
-  createdAt          DateTime @default(now())
+  // HR-7 rule 1/2: offboarding sets TERMINATED (never deletes) — Square
+  // INACTIVE reconcile and the manager terminate action both land here, and
+  // every /my/* read requires ACTIVE server-side.
+  status             String    @default("ACTIVE") // ACTIVE | TERMINATED
+  terminatedAt       DateTime?
+  // Nullable link to a Clerk-backed login (HR-7 invite flow). Most staff
+  // never get one; termination revokes the Clerk side but the link remains
+  // governed by the organizationMembership.deleted webhook.
+  userId             String?   @unique
+  createdAt          DateTime  @default(now())
 
-  organization     Organization           @relation(fields: [organizationId], references: [id])
-  storeAssignments StoreStaffAssignment[]
-  taskLogs         TaskLog[]
-  teamMessages     TeamMessage[]
+  organization        Organization             @relation(fields: [organizationId], references: [id])
+  user                User?                    @relation(fields: [userId], references: [id])
+  storeAssignments    StoreStaffAssignment[]
+  taskLogs            TaskLog[]
+  teamMessages        TeamMessage[]
+  managerNotes        ManagerNote[]
+  formSubmissions     FormSubmission[]
+  trainingAssignments TrainingAssignment[]
+  lessonCompletions   TrainingLessonProgress[]
+  signedRecords       HrSignedRecord[]
+  uploadedDocuments   StaffDocument[]
+
+  @@unique([organizationId, squareTeamMemberId])
 }
 
 model StoreStaffAssignment {
@@ -427,15 +473,15 @@ model CatalogItemVariation {
 }
 
 model Vendor {
-  id             String   @id @default(cuid())
-  organizationId String
-  name           String
-  accountNumber  String?
-  contactName    String?
-  email          String?
-  phone          String?
-  terms          String?
-  leadTimeDays   Int?
+  id              String   @id @default(cuid())
+  organizationId  String
+  name            String
+  accountNumber   String?
+  contactName     String?
+  email           String?
+  phone           String?
+  terms           String?
+  leadTimeDays    Int?
   // I-7: minimum-order thresholds — cart review warns (never blocks) when a
   // draft PO for this vendor is under either one.
   minOrderCases   Float?
@@ -443,10 +489,10 @@ model Vendor {
   // I-7: weekday ints 0 (Sun) – 6 (Sat); new POs default expectedAt to the
   // next configured delivery day (falling back to leadTimeDays, then next
   // weekday).
-  deliveryDays   Json?
-  notes          String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  deliveryDays    Json?
+  notes           String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
 
   organization      Organization       @relation(fields: [organizationId], references: [id])
   vendorIngredients VendorIngredient[]
@@ -531,7 +577,7 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderLine {
-  id               String  @id @default(cuid())
+  id               String    @id @default(cuid())
   purchaseOrderId  String
   ingredientId     String
   ingredientName   String
@@ -836,13 +882,13 @@ model Recipe {
 // Exactly one of ingredientId/subRecipeId is set (enforced in Zod). unit is a
 // usage unit convertible to the ingredient's reporting-unit dimension.
 model RecipeLine {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   recipeId     String
   ingredientId String?
   subRecipeId  String?
   amount       Float
   unit         String
-  sortOrder    Int    @default(0)
+  sortOrder    Int     @default(0)
 
   recipe     Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
@@ -1084,47 +1130,47 @@ model DailyGoal {
 // customer-complaint documentation.
 
 model TeamMessage {
-  id                 String    @id @default(cuid())
-  organizationId     String
-  storeId            String
+  id                   String    @id @default(cuid())
+  organizationId       String
+  storeId              String
   // authorUser = the logged-in account; authorStaff = the optional "who is
   // posting" pick from the store roster (same split as TaskLog completedBy*).
-  authorUserId       String?
-  authorStaffId      String?
-  type               String    @default("general") // shift_note | shortage | equipment | customer_feedback | staffing | shoutout | general
-  shiftPhase         String? // opening | mid | closing — set when type = shift_note
-  body               String
-  linkedIngredientId String? // shortage → inventory tie-in (module-gated in UI)
+  authorUserId         String?
+  authorStaffId        String?
+  type                 String    @default("general") // shift_note | shortage | equipment | customer_feedback | staffing | shoutout | general
+  shiftPhase           String? // opening | mid | closing — set when type = shift_note
+  body                 String
+  linkedIngredientId   String? // shortage → inventory tie-in (module-gated in UI)
   // Checklist handoff: which template's instance this note renders on, for
   // which day, and which checklist the author was working when they posted.
-  postedToTemplateId String?
-  postedForDate      DateTime? @db.Date
-  sourceChecklistId  String?
-  status             String    @default("open") // open | resolved | archived — free ticket system for shortage/equipment
-  resolvedByUserId   String?
-  resolvedAt         DateTime?
+  postedToTemplateId   String?
+  postedForDate        DateTime? @db.Date
+  sourceChecklistId    String?
+  status               String    @default("open") // open | resolved | archived — free ticket system for shortage/equipment
+  resolvedByUserId     String?
+  resolvedAt           DateTime?
   // Handoff lifecycle: explicit Acknowledge (not viewing) clears a note from
   // checklist banners and the dashboard; expiresAt bounds how long an
   // unacknowledged note keeps surfacing (org-configurable, from postedForDate).
   acknowledgedAt       DateTime?
   acknowledgedByUserId String?
   expiresAt            DateTime?
-  createdAt          DateTime  @default(now())
-  editedAt           DateTime?
-  deletedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  editedAt             DateTime?
+  deletedAt            DateTime?
 
-  organization     Organization        @relation(fields: [organizationId], references: [id])
-  store            Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  authorUser       User?               @relation("TeamMessageAuthor", fields: [authorUserId], references: [id])
-  authorStaff      StaffMember?        @relation(fields: [authorStaffId], references: [id])
-  resolvedByUser   User?               @relation("TeamMessageResolver", fields: [resolvedByUserId], references: [id])
-  acknowledgedByUser User?             @relation("TeamMessageAcknowledger", fields: [acknowledgedByUserId], references: [id])
-  linkedIngredient Ingredient?         @relation(fields: [linkedIngredientId], references: [id])
-  postedToTemplate Template?           @relation("HandoffTarget", fields: [postedToTemplateId], references: [id])
-  sourceChecklist  Checklist?          @relation("HandoffSource", fields: [sourceChecklistId], references: [id])
-  attachments      MessageAttachment[]
-  reactions        MessageReaction[]
-  reads            MessageRead[]
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  store              Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  authorUser         User?               @relation("TeamMessageAuthor", fields: [authorUserId], references: [id])
+  authorStaff        StaffMember?        @relation(fields: [authorStaffId], references: [id])
+  resolvedByUser     User?               @relation("TeamMessageResolver", fields: [resolvedByUserId], references: [id])
+  acknowledgedByUser User?               @relation("TeamMessageAcknowledger", fields: [acknowledgedByUserId], references: [id])
+  linkedIngredient   Ingredient?         @relation(fields: [linkedIngredientId], references: [id])
+  postedToTemplate   Template?           @relation("HandoffTarget", fields: [postedToTemplateId], references: [id])
+  sourceChecklist    Checklist?          @relation("HandoffSource", fields: [sourceChecklistId], references: [id])
+  attachments        MessageAttachment[]
+  reactions          MessageReaction[]
+  reads              MessageRead[]
 
   @@index([storeId, createdAt(sort: Desc)])
   @@index([storeId, postedToTemplateId, postedForDate])
@@ -1201,4 +1247,627 @@ model CorporateUpdate {
   attachments  MessageAttachment[]
 
   @@index([organizationId, publishedAt(sort: Desc)])
+}
+
+// ─── HR, TRAINING & COMPLIANCE MODULE ────────────────────────────────────────
+// Forward-compat schema (HR-0): models exist; no app code reads them yet beyond
+// the availability gate + activeModules "hr" toggle. Runs PARALLEL to Square
+// Payroll — Froot never stores SSN / W-4 / I-9 / bank data. Froot owns the
+// internal-document layer: acknowledgments, signed records, fillable
+// agreements, manager notes, and trackable training.
+
+enum HrCheckpointType {
+  Field
+  Initial
+  Signature
+  Acknowledgment
+}
+
+enum HrAckMethod {
+  Field
+  Initial
+  Signature
+  ReadReceipt
+  Attested
+}
+
+enum HrAuthMethod {
+  ClerkSession
+  Kiosk
+  ManagerAttested
+}
+
+// An internal document (handbook, pay agreement, policy...). The FILE lives on
+// versions; checkpoints/fields describe what a staff member must sign or fill.
+// linkedFormId pairs Check-Out ↔ Check-In style forms.
+model HrDocument {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  kind                   String // Acknowledgment | FillableForm | Reference
+  title                  String
+  category               String // Handbook | PayAgreement | Policy | HRManagement | Other
+  appliesTo              String   @default("all") // all | selected (store assignments below)
+  requiresAcknowledgment Boolean  @default(false)
+  isActive               Boolean  @default(true)
+  linkedFormId           String? // Check-Out ↔ Check-In form pairing
+  bodyText               String? // FillableForm: the agreement's fixed language, rendered above the fields
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization     Organization                @relation(fields: [organizationId], references: [id])
+  versions         HrDocumentVersion[]
+  checkpoints      HrDocumentCheckpoint[]
+  formFields       FormField[]
+  storeAssignments HrDocumentStoreAssignment[]
+
+  @@index([organizationId])
+}
+
+model HrDocumentStoreAssignment {
+  id           String @id @default(cuid())
+  hrDocumentId String
+  storeId      String
+
+  hrDocument HrDocument @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([hrDocumentId, storeId])
+}
+
+// Immutable file snapshot per upload. fileHash (sha256 of the exact bytes) is
+// the version pin acknowledgments reference — never overwrite a version's file.
+//
+// FillableForm versions (HR-5) have no uploaded file: the definition (bodyText
+// + fields) is snapshotted in definitionSnapshot, fileHash holds the sha256 of
+// the canonical definition JSON, and the file columns carry sentinels
+// (fileUrl "", contentType application/x-froot-form-definition, sizeBytes =
+// JSON byte length). Same pin semantics, no nullability change for HR-4.
+model HrDocumentVersion {
+  id                 String   @id @default(cuid())
+  hrDocumentId       String
+  versionNumber      Int
+  fileUrl            String
+  fileName           String
+  contentType        String
+  sizeBytes          Int
+  fileHash           String // sha256 (file bytes, or canonical form-definition JSON)
+  definitionSnapshot Json? // FillableForm: frozen { bodyText, fields } this version pins
+  isCurrent          Boolean  @default(true)
+  uploadedByUserId   String
+  createdAt          DateTime @default(now())
+
+  hrDocument      HrDocument                 @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
+  acknowledgments HrDocumentAcknowledgment[]
+  formSubmissions FormSubmission[]
+  signedRecords   HrSignedRecord[]
+
+  @@unique([hrDocumentId, versionNumber])
+}
+
+// Confirmed by the HR-0a spike against the real 2026 Employee Handbook
+// (35 checkpoints: 3 Field, 27 Initial, 1 Signature, 4 Acknowledgment).
+model HrDocumentCheckpoint {
+  id              String           @id @default(cuid())
+  hrDocumentId    String
+  name            String // e.g. "Page 7 initial", "Final Employee Handbook acknowledgment"
+  type            HrCheckpointType
+  orderIndex      Int
+  pageRef         Int? // page anchor -> enables in-page stamping later
+  attestationText String? // present for Acknowledgment; the "I have read and understand..." text
+  required        Boolean          @default(true)
+
+  hrDocument      HrDocument                 @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
+  acknowledgments HrDocumentAcknowledgment[]
+}
+
+// The defensible signed record. staffMemberId/userId are intentionally plain
+// strings (no FK): the snapshot columns below are the record of who signed
+// what, frozen at signing time — they must survive any later edit or delete.
+model HrDocumentAcknowledgment {
+  id                    String       @id @default(cuid())
+  checkpointId          String
+  hrDocumentVersionId   String
+  staffMemberId         String?
+  userId                String?
+  // --- snapshots frozen at signing time (survive later edits) ---
+  checkpointName        String
+  checkpointType        String
+  documentTitle         String
+  documentVersionNumber Int
+  documentFileHash      String // sha256 of the exact bytes signed (version pin)
+  staffName             String
+  storeName             String?
+  attestationText       String?
+  // --- what was captured ---
+  method                HrAckMethod
+  typedName             String?
+  signatureImageUrl     String? // for drawn signatures (nullable)
+  fieldValue            String? // for Field checkpoints
+  // --- audit / ESIGN evidence ---
+  signedAt              DateTime     @default(now())
+  ipAddress             String?
+  userAgent             String?
+  authMethod            HrAuthMethod
+  consentGiven          Boolean
+  consentText           String?
+  consentVersion        String?
+
+  checkpoint HrDocumentCheckpoint @relation(fields: [checkpointId], references: [id])
+  version    HrDocumentVersion    @relation(fields: [hrDocumentVersionId], references: [id])
+
+  @@unique([checkpointId, hrDocumentVersionId, staffMemberId])
+}
+
+// HR-4: the executed-document artifact — one per (version, staff), created
+// when every required checkpoint for that version is complete. Append-only:
+// no update/delete path exists. FKs deliberately have no cascade, so a signed
+// record blocks deletion of the version/staff it pins.
+model HrSignedRecord {
+  id                  String   @id @default(cuid())
+  hrDocumentVersionId String
+  staffMemberId       String
+  completedAt         DateTime // when the last required checkpoint was signed
+  signedPdfPathname   String // pathname in the PRIVATE froot-hr Blob store
+  signedPdfHash       String // sha256 of the generated signed PDF bytes
+  generatedAt         DateTime @default(now())
+
+  version     HrDocumentVersion @relation(fields: [hrDocumentVersionId], references: [id])
+  staffMember StaffMember       @relation(fields: [staffMemberId], references: [id])
+
+  @@unique([hrDocumentVersionId, staffMemberId])
+  @@index([staffMemberId])
+}
+
+// Field definitions for kind=FillableForm documents. These rows are the
+// EDITABLE current definition; the signed copy lives in each version's
+// definitionSnapshot, so submissions never depend on these rows.
+model FormField {
+  id           String  @id @default(cuid())
+  hrDocumentId String
+  label        String
+  fieldType    String // Text | Date | Email | Phone | Number | Select (FORM_FIELD_TYPES)
+  required     Boolean @default(true)
+  orderIndex   Int     @default(0)
+  options      Json? // Select: array of choice strings
+
+  hrDocument HrDocument @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
+}
+
+// A staff member's execution of a fillable form (HR-5). Pinned to the document
+// VERSION they filled; no cascade — submissions are records and outlive form
+// edits. Re-execution is first-class: NO unique on (version, staff) — pay
+// agreements and key check-outs recur, so a staff member accumulates
+// submissions over time. Append-only: after create, the only writes ever
+// allowed are the supervisor countersign block (once, while
+// PendingSupervisor) and the three write-once signedPdf* columns. The
+// executed PDF lives HERE, not on HrSignedRecord (that stays acknowledgment-
+// only, keyed one-per-version-per-staff).
+model FormSubmission {
+  id                     String    @id @default(cuid())
+  hrDocumentVersionId    String
+  staffMemberId          String
+  values                 Json
+  employeeSignatureUrl   String? // unused: HR-4/5 capture is typed-name (kept for drawn signatures later)
+  supervisorSignatureUrl String?
+  signedAt               DateTime  @default(now())
+  ipAddress              String? // employee-side audit (supervisor block below)
+  userAgent              String?
+  // --- dual-signer execution (HR-5) ---
+  status                 String    @default("PendingSupervisor") // PendingSupervisor | Completed
+  supervisorUserId       String?
+  employeeTypedName      String?
+  supervisorTypedName    String?
+  employeeSignedAt       DateTime?
+  supervisorSignedAt     DateTime?
+  supervisorIpAddress    String?
+  supervisorUserAgent    String?
+  // --- snapshots frozen at signing time (survive later edits) ---
+  formTitle              String?
+  formVersionNumber      Int?
+  staffName              String?
+  storeName              String?
+  definitionHash         String? // sha256 of the definition JSON signed (version pin)
+  consentText            String?
+  consentVersion         String?
+  // --- executed artifact in the PRIVATE froot-hr store; write-once ---
+  signedPdfPathname      String?
+  signedPdfHash          String? // sha256 of the generated PDF bytes
+  generatedAt            DateTime?
+
+  version     HrDocumentVersion @relation(fields: [hrDocumentVersionId], references: [id])
+  staffMember StaffMember       @relation(fields: [staffMemberId], references: [id])
+
+  @@index([staffMemberId])
+  @@index([hrDocumentVersionId])
+}
+
+// Private manager log per staff member (conversations, attendance, coaching).
+model ManagerNote {
+  id             String   @id @default(cuid())
+  organizationId String
+  staffMemberId  String
+  authorUserId   String
+  category       String // Conversation | Attendance | Coaching | Feedback | General
+  body           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  staffMember  StaffMember  @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+
+  @@index([staffMemberId, createdAt(sort: Desc)])
+  @@index([organizationId])
+}
+
+// HR-7.6: a manager-uploaded file attached to ONE staff member — a scanned or
+// photographed completed paper document (signed pay agreement, write-up, etc.)
+// that lives outside the org-template system. The file is in the PRIVATE
+// froot-hr Blob store. visibleToStaff is the manager's per-document switch:
+// true → the owning staff member can view/download it in /my/documents; false
+// → managers/admins only. Distinct from the auto-generated signed-record/cert
+// tier (rule 5) — this class is manager-controlled visibility by design. No
+// cascade from the staff member: uploads are retained records that outlive the
+// employee (they also block hard-delete of the member). uploadedByUserId is a
+// plain id (no FK) so the upload survives the uploader's deletion.
+model StaffDocument {
+  id               String   @id @default(cuid())
+  organizationId   String
+  staffMemberId    String
+  uploadedByUserId String
+  title            String
+  category         String? // free label: Pay | Disciplinary | Onboarding | General...
+  fileName         String
+  fileUrl          String // full private blob URL
+  filePathname     String // store-relative pathname for presigning
+  contentType      String
+  sizeBytes        Int
+  fileHash         String // sha256 of the stored bytes
+  visibleToStaff   Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  staffMember  StaffMember  @relation(fields: [staffMemberId], references: [id])
+
+  @@index([staffMemberId, createdAt(sort: Desc)])
+  @@index([organizationId])
+}
+
+model TrainingModule {
+  id             String   @id @default(cuid())
+  organizationId String
+  title          String
+  subject        String?
+  description    String?
+  appliesTo      String   @default("all") // all | selected (store assignments below)
+  isActive       Boolean  @default(true)
+  isArchived     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization     Organization                    @relation(fields: [organizationId], references: [id])
+  lessons          TrainingLesson[]
+  quizzes          TrainingQuiz[]
+  assignments      TrainingAssignment[]
+  storeAssignments TrainingModuleStoreAssignment[]
+
+  @@index([organizationId])
+}
+
+model TrainingModuleStoreAssignment {
+  id               String @id @default(cuid())
+  trainingModuleId String
+  storeId          String
+
+  trainingModule TrainingModule @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+  store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([trainingModuleId, storeId])
+}
+
+model TrainingLesson {
+  id               String  @id @default(cuid())
+  trainingModuleId String
+  title            String
+  info             String?
+  videoUrl         String?
+  orderIndex       Int     @default(0)
+
+  trainingModule TrainingModule           @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+  resources      TrainingResource[]
+  progress       TrainingLessonProgress[]
+}
+
+// Downloadable attachments per lesson (UI caps at 4/lesson).
+model TrainingResource {
+  id               String @id @default(cuid())
+  trainingLessonId String
+  label            String
+  fileUrl          String
+  contentType      String
+  sizeBytes        Int
+  orderIndex       Int    @default(0)
+
+  trainingLesson TrainingLesson @relation(fields: [trainingLessonId], references: [id], onDelete: Cascade)
+}
+
+// Quiz per module; questions stay Json until the quiz builder phase.
+model TrainingQuiz {
+  id               String @id @default(cuid())
+  trainingModuleId String
+  passThreshold    Int    @default(80)
+  questions        Json
+
+  trainingModule TrainingModule @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+}
+
+// One staff member's run through a module. No cascade from the module —
+// completed/certified assignments are records.
+model TrainingAssignment {
+  id                String    @id @default(cuid())
+  trainingModuleId  String
+  staffMemberId     String
+  assignedByUserId  String
+  trainerUserId     String?
+  dueDate           DateTime?
+  status            String    @default("NotStarted") // NotStarted | InProgress | Completed
+  hoursLogged       Float?
+  certifiedAt       DateTime?
+  // HR-7 certification (trainer co-sign): write-once pointer to the signed
+  // certificate PDF in the PRIVATE froot-hr store, HR-5 pattern — each
+  // executed thing owns its PDF. Downloads are ADMIN / in-scope MANAGER only.
+  certPdfPathname   String?
+  certPdfHash       String? // sha256 of the generated PDF bytes
+  certifiedByUserId String? // trainer who co-signed (plain id, survives user deletion)
+  trainerTypedName  String? // trainer's typed-name capture at co-sign
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  trainingModule TrainingModule           @relation(fields: [trainingModuleId], references: [id])
+  staffMember    StaffMember              @relation(fields: [staffMemberId], references: [id])
+  lessonProgress TrainingLessonProgress[]
+  quizAttempts   TrainingQuizAttempt[]
+
+  @@index([staffMemberId])
+  @@index([trainingModuleId])
+}
+
+model TrainingLessonProgress {
+  id                   String        @id @default(cuid())
+  trainingAssignmentId String
+  trainingLessonId     String
+  completedAt          DateTime      @default(now())
+  completedByStaffId   String?
+  // HR-7: how this completion was captured — ClerkSession (staff self-serve
+  // at /my/training) or ManagerAttested (manager records it for login-less
+  // staff; completedByUserId is the attesting manager). Null on pre-HR-7 rows.
+  authMethod           HrAuthMethod?
+  completedByUserId    String? // attesting manager (plain id, survives user deletion)
+
+  trainingAssignment TrainingAssignment @relation(fields: [trainingAssignmentId], references: [id], onDelete: Cascade)
+  trainingLesson     TrainingLesson     @relation(fields: [trainingLessonId], references: [id], onDelete: Cascade)
+  completedByStaff   StaffMember?       @relation(fields: [completedByStaffId], references: [id])
+
+  @@unique([trainingAssignmentId, trainingLessonId])
+}
+
+// HR-7: one staff member's sitting of a module quiz. Append-only: after
+// create, the only write ever allowed is the written-answer review block
+// (once, while PendingReview). The questions and threshold are snapshotted at
+// attempt time so later quiz edits never change what an attempt meant — same
+// pin semantics as HR-4/5 signing snapshots. No cascade from the assignment:
+// attempts are records.
+model TrainingQuizAttempt {
+  id                    String       @id @default(cuid())
+  trainingAssignmentId  String
+  questionsSnapshot     Json // quiz questions as graded, frozen at submit time
+  passThresholdSnapshot Int
+  answers               Json // { [questionId]: string | string[] }
+  scorePct              Int? // null while PendingReview (written answers ungraded)
+  status                String // Passed | Failed | PendingReview
+  authMethod            HrAuthMethod
+  attestedByUserId      String? // manager who captured a ManagerAttested attempt
+  reviewedByUserId      String? // trainer who graded written answers
+  reviewedAt            DateTime?
+  ipAddress             String?
+  userAgent             String?
+  submittedAt           DateTime     @default(now())
+
+  trainingAssignment TrainingAssignment @relation(fields: [trainingAssignmentId], references: [id])
+
+  @@index([trainingAssignmentId])
+}
+
+// ─── LABOR MODEL (Phase 0) ────────────────────────────────────────────────────
+// Money is stored in DOLLARS as Decimal(10,2) to match the codebase's dollar
+// convention (SalesPeriodCache, GoalPlan, etc.) while giving exact precision.
+// Square imports (cents) convert at the boundary; the budget service computes
+// internally in integer cents to keep rounding exact. See LABOR.md.
+
+enum LaborPayType {
+  HOURLY
+  SALARIED
+}
+
+enum LaborDenominator {
+  IN_STORE
+  TOTAL_WITH_DELIVERY
+}
+
+enum SalesForecastSource {
+  MANUAL
+  LAST_YEAR
+  TREND
+}
+
+/// L-3: how the weekly HOURLY hours are distributed across the days of the week.
+/// FLOOR_FIRST (default) guarantees each open day enough hours to cover its
+/// minimum floor before distributing the remainder by sales weight;
+/// SALES_WEIGHTED is the pre-L-3 behavior (pure sales-weight split, slack days
+/// may warn). Per-store via LaborSettings.dailySplitPolicy.
+enum LaborDailySplitPolicy {
+  FLOOR_FIRST
+  SALES_WEIGHTED
+}
+
+/// L-3B cross-day rebalancing: a per-DATE override of a single day's allocated
+/// hourly hours, letting ADMIN/MANAGER move hours between days WITHIN a week to
+/// fix a day the floor-first split still leaves tight. Sits ON TOP of the
+/// floor-first split (never corrupts the sales-weight defaults) and is scoped to
+/// one date, so it never leaks to the same weekday in other weeks. weekStart
+/// (Monday) is stored for week-scoped reads/clears. The route constrains the
+/// week's overrides to the weekly hourly total.
+model WeeklyDayHours {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  weekStart      DateTime @db.Date // Monday of the week (matches SalesForecast)
+  date           DateTime @db.Date
+  hoursOverride  Decimal  @db.Decimal(6, 2) // HOURLY person-hours for this day (not dollars)
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
+  @@index([organizationId, storeId, weekStart])
+}
+
+/// Org-scoped labor positions (the rate legend): Store Manager, ASM, Lead
+/// Supervisor, Supervisor, Team Member, District Manager, etc.
+model LaborPosition {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  name               String
+  payType            LaborPayType @default(HOURLY)
+  defaultHourlyRate  Decimal      @db.Decimal(10, 2) // dollars; salaried positions also carry an implied hourly rate
+  impliedWeeklyHours Int? // e.g. 40 for salaried; null for hourly
+  isSupervisory      Boolean      @default(false) // Manager/ASM/Lead/Supervisor = true (for the Phase-2 coverage rule)
+  sortOrder          Int          @default(0)
+  active             Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+/// Org default settings (storeId null) with optional per-store override rows.
+model LaborSettings {
+  id                    String           @id @default(cuid())
+  organizationId        String
+  storeId               String? // null = org default
+  laborTargetPct        Decimal          @default(20.00) @db.Decimal(5, 2)
+  roundingIncrement     Decimal          @default(1000.00) @db.Decimal(10, 2) // dollars; default $1,000
+  denominator           LaborDenominator @default(TOTAL_WITH_DELIVERY) // DEPRECATED (Phase 2): total sales only
+  plannedBlendedRate    Decimal?         @db.Decimal(10, 2) // optional manual blended rate (dollars); else computed
+  // L-3: floor-first vs sales-weighted weekly→daily hourly-hours split.
+  dailySplitPolicy      LaborDailySplitPolicy @default(FLOOR_FIRST)
+  // Phase 3: the salaried GM's default on-floor window (minutes from local
+  // midnight). null = derive open→14:00 from StoreHours. The GM counts as a
+  // body + the supervisor during this window.
+  gmOnFloorStartMinutes Int?
+  gmOnFloorEndMinutes   Int?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store?       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, storeId])
+  @@index([organizationId])
+}
+
+/// Weekly projected sales input. weekStart is normalized to Monday on write so
+/// week keys are stable. Reuses the SalesForecastSource seam for later
+/// LAST_YEAR/TREND derivation (Phase 3); Phase 1 writes MANUAL only.
+model SalesForecast {
+  id                  String              @id @default(cuid())
+  organizationId      String
+  storeId             String
+  weekStart           DateTime            @db.Date // Monday of the week
+  projectedStoreSales Decimal             @db.Decimal(10, 2) // dollars
+  projectedDelivery   Decimal             @default(0) @db.Decimal(10, 2) // dollars
+  source              SalesForecastSource @default(MANUAL)
+  createdById         String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, weekStart])
+  @@index([organizationId, storeId])
+}
+
+// ─── LABOR MODEL (Phase 2) ────────────────────────────────────────────────────
+// Total-sales only from Phase 2 on: LaborSettings.denominator and
+// SalesForecast.projectedDelivery are DEPRECATED (retained, never dropped) —
+// the budget basis is a single total (delivery is already in Square net sales).
+
+/// Per-store day-of-week weighting for the weekly→daily hourly-hours split.
+/// Weights are basis points (sum ≈ 10000) so the split is exact; auto-seeded
+/// from trailing sales and flips isOverride when hand-edited. Salaried hours are
+/// a weekly constant and are NOT split per day.
+model LaborDaySplit {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  weekday        Int // 0 = Monday … 6 = Sunday (matches mondayOfWeekStr)
+  weightBps      Int // basis points of the week (0–10000)
+  isOverride     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, weekday])
+  @@index([organizationId, storeId])
+}
+
+/// Shift blocks / dayparts with minimum-staffing rules. Org default (storeId
+/// null) with optional per-store overrides — same pattern as LaborSettings.
+model LaborDaypart {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  storeId            String? // null = org default
+  name               String // "Opening", "Mid", "Close"
+  startLocalMinutes  Int // minutes from local midnight (480 = 8:00a)
+  endLocalMinutes    Int // exclusive
+  minHeadcount       Int      @default(1)
+  requiresSupervisor Boolean  @default(false)
+  sortOrder          Int      @default(0)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store?       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+/// Date-specific labor adjustment (weather, holiday, event). Scales that day's
+/// HOURLY hours by adjustmentPct; salaried is untouched. Keyed by exact date,
+/// not weekday, because conditions are one-off.
+model LaborDayAdjustment {
+  id             String   @id @default(cuid())
+  organizationId String
+  storeId        String
+  date           DateTime @db.Date
+  adjustmentPct  Decimal  @db.Decimal(5, 2) // e.g. -20.00 = staff 20% below
+  reason         String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
+  @@index([organizationId, storeId])
 }

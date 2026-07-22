@@ -252,6 +252,16 @@ function parseSavedSelection(raw: string | null): SavedSelection | null {
   }
 }
 
+// Exposes the currently-viewed single day so the Labor Coverage card can align
+// its hourly axis to the same day. A range selection resolves to its end day;
+// no saved selection → null (the coverage card then defaults to today).
+export function useSalesViewedDay(): string | null {
+  const raw = useSavedSelectionRaw()
+  const sel = parseSavedSelection(raw)
+  if (!sel) return null
+  return sel.start === sel.end ? sel.start : sel.end
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SalesPerformanceCard({ storeId }: { storeId: string }) {

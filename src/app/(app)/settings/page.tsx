@@ -2,13 +2,15 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, AlertTriangle } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
-import { requireAdmin } from "@/lib/auth"
+import { requireAdmin, hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getInstagramTokenStatus } from "@/lib/instagram"
 import { InstagramActions, InstagramConnectButton } from "./instagram-actions"
+import { HrModuleToggle } from "./hr-actions"
+import { LaborModuleToggle } from "./labor-actions"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -28,6 +30,23 @@ export default async function SettingsPage() {
   const isInstagramConnected = !!org?.instagramAccessToken
   const instagramTokenStatus = org ? getInstagramTokenStatus(org) : "not_connected"
   const needsInstagramReconnect = isInstagramConnected && instagramTokenStatus === "reconnect_required"
+  // Availability gate — while false, HR must not appear anywhere on this page.
+  const hrAvailable = hrModuleAvailable(org?.clerkOrgId)
+  const hrActive = !!org?.activeModules.includes("hr")
+  // Same availability gate for Labor — hidden entirely while unavailable.
+  const laborAvailable = laborModuleAvailable(org?.clerkOrgId)
+  const laborActive = !!org?.activeModules.includes("labor")
+
+  const addOns = [
+    { name: "Inventory Management", desc: "Physical counts, COGS tracking, storage areas, and adjustments", module: "inventory" },
+    { name: "Nutritional Information", desc: "Menu item nutrition facts with embeddable public page", module: "nutrition" },
+    ...(hrAvailable
+      ? [{ name: "HR, Training & Compliance", desc: "Employee handbooks, e-signature acknowledgments, agreement forms, manager notes, and trackable training.", module: "hr" }]
+      : []),
+    ...(laborAvailable
+      ? [{ name: "Weekly Labor Model", desc: "Weekly labor budget from projected sales, a schedulable-hours target, and recommended coverage on the dashboard.", module: "labor" }]
+      : []),
+  ]
 
   return (
     <div>
@@ -142,6 +161,91 @@ export default async function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {hrAvailable && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>HR, Training &amp; Compliance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                      <BriefcaseBusiness className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-[var(--color-foreground)]">HR Module</h3>
+                      <p className="text-sm text-[var(--color-muted-foreground)]">
+                        Employee handbooks, e-signature acknowledgments, agreement forms, manager notes, and trackable training
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {hrActive ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                            <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                            <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-xs text-[var(--color-muted-foreground)] mt-1.5">
+                        Runs alongside Square Payroll — Froot never stores SSN, W-4, I-9, or bank details.
+                      </p>
+                    </div>
+                  </div>
+                  <HrModuleToggle enabled={hrActive} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {laborAvailable && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Weekly Labor Model</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                      <Clock className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-[var(--color-foreground)]">Labor Module</h3>
+                      <p className="text-sm text-[var(--color-muted-foreground)]">
+                        Weekly labor budget from projected sales, a schedulable-hours target, and recommended coverage on the dashboard
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {laborActive ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                            <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                            <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                          </>
+                        )}
+                      </div>
+                      {laborActive && (
+                        <Link
+                          href="/settings/labor"
+                          className="inline-block text-xs font-medium text-[var(--color-primary)] hover:underline mt-1.5"
+                        >
+                          Manage labor settings &amp; positions →
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                  <LaborModuleToggle enabled={laborActive} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="organization">
@@ -190,10 +294,7 @@ export default async function SettingsPage() {
 
               <h3 className="font-medium text-[var(--color-foreground)] mb-3">Available Add-Ons</h3>
               <div className="space-y-3">
-                {[
-                  { name: "Inventory Management", desc: "Physical counts, COGS tracking, storage areas, and adjustments", module: "inventory" },
-                  { name: "Nutritional Information", desc: "Menu item nutrition facts with embeddable public page", module: "nutrition" },
-                ].map(({ name, desc, module }) => (
+                {addOns.map(({ name, desc, module }) => (
                   <div key={module} className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg">
                     <div>
                       <h4 className="font-medium text-[var(--color-foreground)]">{name}</h4>

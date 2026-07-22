@@ -14,6 +14,7 @@ type SquareTeamMember = {
   display_name?: string
   given_name?: string
   family_name?: string
+  email_address?: string
   alreadyImported: boolean
   assignedStoreIds: string[]
   primaryStoreId: string | null
@@ -26,7 +27,8 @@ export function AddStaffButton({ stores }: { stores: Store[] }) {
   const [saving, setSaving] = useState(false)
   const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set())
   const [primaryStore, setPrimaryStore] = useState("")
-  const [form, setForm] = useState({ displayName: "", fullName: "" })
+  const [form, setForm] = useState({ displayName: "", fullName: "", email: "" })
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   function toggleStore(id: string) {
@@ -45,14 +47,26 @@ export function AddStaffButton({ stores }: { stores: Store[] }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
+    setError(null)
     try {
-      await fetch("/api/staff", {
+      const res = await fetch("/api/staff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, storeIds: Array.from(selectedStores), primaryStoreId: primaryStore || null }),
+        body: JSON.stringify({
+          displayName: form.displayName,
+          fullName: form.fullName || null,
+          email: form.email || null,
+          storeIds: Array.from(selectedStores),
+          primaryStoreId: primaryStore || null,
+        }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? "Failed to add staff member")
+        return
+      }
       setOpen(false)
-      setForm({ displayName: "", fullName: "" })
+      setForm({ displayName: "", fullName: "", email: "" })
       setSelectedStores(new Set())
       setPrimaryStore("")
       router.refresh()
@@ -82,6 +96,11 @@ export function AddStaffButton({ stores }: { stores: Store[] }) {
               <Input value={form.fullName} onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))} placeholder="e.g. Sarah Thomas" />
             </div>
             <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="e.g. sarah@example.com" />
+              <p className="text-xs text-[var(--color-muted-foreground)]">Needed to invite them to a self-service login.</p>
+            </div>
+            <div className="space-y-1.5">
               <Label>Assign to Stores</Label>
               <div className="border border-[var(--color-border)] rounded-lg max-h-48 overflow-y-auto p-2 space-y-1">
                 {stores.map((s) => (
@@ -108,6 +127,7 @@ export function AddStaffButton({ stores }: { stores: Store[] }) {
                 </select>
               </div>
             )}
+            {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Add Staff Member"}</Button>
@@ -129,11 +149,13 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
   const [storeMap, setStoreMap] = useState<Record<string, Set<string>>>({})
   const [primaryMap, setPrimaryMap] = useState<Record<string, string>>({})
   const [locationFilter, setLocationFilter] = useState("")
+  const [failures, setFailures] = useState<{ name: string; error: string }[]>([])
   const router = useRouter()
 
   async function handleOpen() {
     setOpen(true)
     setLoading(true)
+    setFailures([])
     try {
       const res = await fetch("/api/square/team-members")
       const data = await res.json()
@@ -206,25 +228,45 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
 
   async function handleImport() {
     setImporting(true)
+    setFailures([])
     try {
       const toImport = members.filter((m) => selected.has(m.id))
-      await Promise.all(
-        toImport.map((m) =>
-          fetch("/api/staff", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              displayName: memberName(m),
-              fullName: [m.given_name, m.family_name].filter(Boolean).join(" ") || null,
-              squareTeamMemberId: m.id,
-              storeIds: Array.from(storeMap[m.id] ?? []),
-              primaryStoreId: primaryMap[m.id] || null,
-            }),
-          })
-        )
+      // Import each and record the ones that fail with their reason, instead
+      // of swallowing errors — a silent partial failure used to look like a
+      // successful import that produced nothing.
+      const results = await Promise.all(
+        toImport.map(async (m) => {
+          try {
+            const res = await fetch("/api/staff", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                displayName: memberName(m),
+                fullName: [m.given_name, m.family_name].filter(Boolean).join(" ") || null,
+                email: m.email_address || null,
+                squareTeamMemberId: m.id,
+                storeIds: Array.from(storeMap[m.id] ?? []),
+                primaryStoreId: primaryMap[m.id] || null,
+              }),
+            })
+            if (!res.ok) {
+              const data = await res.json().catch(() => null)
+              return { name: memberName(m), error: data?.error ?? `Failed (${res.status})` }
+            }
+            return null
+          } catch {
+            return { name: memberName(m), error: "Network error" }
+          }
+        })
       )
-      setOpen(false)
+      const failed = results.filter((r): r is { name: string; error: string } => r !== null)
       router.refresh()
+      if (failed.length > 0) {
+        // Keep the dialog open so the manager sees exactly who didn't import.
+        setFailures(failed)
+      } else {
+        setOpen(false)
+      }
     } finally {
       setImporting(false)
     }
@@ -333,6 +375,20 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+          {failures.length > 0 && (
+            <div className="rounded-lg border border-[var(--color-destructive)]/40 bg-[var(--color-destructive)]/5 p-3">
+              <p className="text-sm font-medium text-[var(--color-destructive)] mb-1">
+                {failures.length} member{failures.length !== 1 ? "s" : ""} couldn&apos;t be imported
+              </p>
+              <ul className="text-xs text-[var(--color-muted-foreground)] space-y-0.5">
+                {failures.map((f, i) => (
+                  <li key={i}>
+                    <span className="text-[var(--color-foreground)]">{f.name}</span> — {f.error}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           <DialogFooter>
