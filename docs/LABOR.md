@@ -12,8 +12,8 @@ sales forecast (store + delivery, entered manually) is turned into a
 config foundations (feature flag, models, settings, positions). Phase 1 adds
 the budget service and the dashboard cards.
 
-Companion decision brief: `froot_docs/UseFroot_Labor_Model_Brief.pdf`.
-Build spec: `Labor_Phase_0-1_Session_Prompt.md`.
+Companion decision brief: `../../froot_docs/UseFroot_Labor_Model_Brief.pdf`.
+Build spec: `prompts/Labor_Phase_0-1_Session_Prompt.md`.
 
 ## Feature flag (two gates)
 

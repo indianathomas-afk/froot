@@ -2,17 +2,17 @@
 
 **Module:** Weekly Labor Model
 **Phase:** 3 (per-store budgets · demand-shaped, budget-capped coverage · salaried GM on floor · 4-week forward scheduling)
-**Builds on:** Phase 0–2 (on staging — see `LABOR.md`, `DECISIONS.md`)
+**Builds on:** Phase 0–2 (on staging — see `../LABOR.md`, `../DECISIONS.md`)
 **Session type:** Single Claude Code session. Audit-first. No edits until the plan is approved.
 
 > This phase **reverses several Phase-2 behaviors** by operator decision (see
-> `DECISIONS.md` §"Phase 3 scope"). Read that file first.
+> `../DECISIONS.md` §"Phase 3 scope"). Read that file first.
 
 ---
 
 ## 0 · How to run this session
 
-Standard Froot workflow (`CLAUDE.md`, `AGENTS.md`, `WORKFLOW.md`, `MIGRATIONS.md`):
+Standard Froot workflow (`../../CLAUDE.md`, `../../AGENTS.md`, `../WORKFLOW.md`, `../MIGRATIONS.md`):
 
 1. **Audit first**, present a written plan (files, migration, forks) before changing anything. Wait for explicit approval.
 2. **Additive-only migrations. No drops** (including Phase-2 columns already deprecated).
@@ -23,7 +23,7 @@ Standard Froot workflow (`CLAUDE.md`, `AGENTS.md`, `WORKFLOW.md`, `MIGRATIONS.md
 
 ---
 
-## 1 · Locked decisions (from `DECISIONS.md`, confirmed 7-20)
+## 1 · Locked decisions (from `../DECISIONS.md`, confirmed 7-20)
 
 | # | Decision |
 |---|---|

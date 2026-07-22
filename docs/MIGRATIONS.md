@@ -129,4 +129,4 @@ no data-rewriting `UPDATE`/`DELETE`.
 
 Applied cleanly (a first redeploy hit the transient Prisma **P1002** Neon-pooler
 timeout — leaked advisory lock on the pooler; a retry went green). See
-`STAGING_DEPLOY_LOG.md` for the full promotion entry.
+`DEPLOY_LOG.md` for the full promotion entry.

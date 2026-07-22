@@ -2,7 +2,7 @@
 // unit-testable (scripts/verify-labor-budget.ts). Inputs are DOLLARS (the
 // codebase convention); internally everything converts to integer cents so the
 // tiered rounding and half-hour splits are exact and never drift by a float
-// penny, then converts back to dollars on the way out. See LABOR.md.
+// penny, then converts back to dollars on the way out. See docs/LABOR.md.
 
 export type LaborBudgetSettings = {
   laborTargetPct: number // percent, e.g. 20 (= 20%)
