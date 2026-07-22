@@ -4,6 +4,30 @@ Plain record of who decided what, so "yours vs mine" is never fuzzy. **Gary** =
 operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top.
 
+## L-3 promotion to production — 2026-07-21 (Gary)
+
+a. **Coverage stays sales-inferred for v1.** Populating `StoreHours` (real
+   open/close hours) is deferred as a future *additive* upgrade — Square always
+   provides selling hours, so there is no empty-data failure mode. Not a blocker
+   for promotion.
+b. **L-3 promoted to production** on 2026-07-21 (merge commit `9743899`). First
+   `staging → main` promotion in a while.
+c. **Prod forecast plan was STALE — and it was NOT caused by the promotion.**
+   dev / staging / production are separate Neon branches, and forecast goals are
+   *stored* data (`GoalPlan` / `dailyGoals`), not recomputed from code. A plan
+   regenerated on staging (Jul 20, +3%) was **never** regenerated on prod, so
+   prod carried the old ~$802k plan (spiky per-day goals) while staging showed
+   the smoothed ~$753k plan. Fixed by running **Refresh from Square + regenerate
+   +3%** on prod. **LESSON:** forecast/plan data is per-environment stored data —
+   promoting *code* never migrates it; each Neon branch must be regenerated
+   independently. (Code was confirmed identical: `goal-engine.ts` unchanged since
+   F-1; the only forecasting file in the promoted diff was a new labor helper.)
+d. **STRUCTURAL — keep `main` close to staging.** `main` had drifted **53
+   commits behind** staging, so "promote L-3" became "promote the whole backlog"
+   (L-3 + all of HR-0…HR-7.6 + the Labor foundation, 11 migrations). Going
+   forward, promote more often so each `staging → main` diff stays small and
+   readable.
+
 ## Phase 3 — BUILT 7-20 (Gary decisions)
 
 1. **Budget is the hard cap.** Conservative budget caps total scheduled hours;
