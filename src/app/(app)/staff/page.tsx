@@ -3,13 +3,16 @@ import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
-import { getStaffComplianceSummary } from "@/lib/hr"
+import { getStaffComplianceSummaries, type StaffComplianceSummary } from "@/lib/hr-compliance"
+import { Badge } from "@/components/ui/badge"
+
+const NO_SUMMARIES = new Map<string, StaffComplianceSummary>()
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, hrActive: false }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, hrActive: false, summaries: NO_SUMMARIES }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, hrActive: false }
+  if (!org) return { staff: [], stores: [], isAdmin: false, hrActive: false, summaries: NO_SUMMARIES }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
@@ -35,7 +38,13 @@ async function getStaffData() {
     prisma.store.findMany({ where: { organizationId: org.id, ...storeFilter }, orderBy: { name: "asc" } }),
   ])
 
-  return { staff, stores, isAdmin, hrActive }
+  // HR-8: one batched rollup for the whole roster — never a query per row.
+  // Terminated members come back with pct null (excluded from percentages).
+  const summaries = hrActive
+    ? await getStaffComplianceSummaries(org.id, staff.map((s) => s.id))
+    : NO_SUMMARIES
+
+  return { staff, stores, isAdmin, hrActive, summaries }
 }
 
 // Compliance % cell. pct is null until requirements exist for the member —
@@ -55,7 +64,7 @@ function CompliancePct({ pct }: { pct: number | null }) {
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, hrActive } = await getStaffData()
+  const { staff, stores, isAdmin, hrActive, summaries } = await getStaffData()
 
   const byStore = new Map<string, typeof staff>()
   const unassigned: typeof staff = []
@@ -144,6 +153,10 @@ export default async function StaffPage() {
                           ) : (
                             member.displayName
                           )}
+                          {/* HR-15: rehire candidates must be findable in the directory */}
+                          {member.status === "TERMINATED" && (
+                            <Badge variant="destructive" className="ml-2">Terminated</Badge>
+                          )}
                         </td>
                         <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
                         <td className="px-6 py-3">
@@ -159,7 +172,7 @@ export default async function StaffPage() {
                         </td>
                         {hrActive && (
                           <td className="px-6 py-3 text-right">
-                            <CompliancePct pct={getStaffComplianceSummary(member.id).pct} />
+                            <CompliancePct pct={summaries.get(member.id)?.pct ?? null} />
                           </td>
                         )}
                         <td className="px-6 py-3 text-right">
@@ -190,12 +203,15 @@ export default async function StaffPage() {
                         ) : (
                           member.displayName
                         )}
+                        {member.status === "TERMINATED" && (
+                          <Badge variant="destructive" className="ml-2">Terminated</Badge>
+                        )}
                       </td>
                       <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
                       <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">—</td>
                       {hrActive && (
                         <td className="px-6 py-3 text-right">
-                          <CompliancePct pct={getStaffComplianceSummary(member.id).pct} />
+                          <CompliancePct pct={summaries.get(member.id)?.pct ?? null} />
                         </td>
                       )}
                       <td className="px-6 py-3 text-right">

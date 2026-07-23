@@ -23,7 +23,10 @@ export async function requireLaborView(): Promise<LaborContext | { error: NextRe
     userId = current.userId
     org = current.org
     dbUser = current.dbUser
-  } catch {
+  } catch (err) {
+    // BUG-1: this catch also swallows DB/connection errors for every
+    // /api/labor route — log the real cause before masking it as a 401.
+    console.error("[api/labor] auth/context error:", err)
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
   if (!userId || !org) return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) }

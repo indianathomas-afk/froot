@@ -10,7 +10,7 @@ import { SQUARE_SIGNATURE_HEADER, verifySquareWebhookSignature } from "@/lib/squ
 // the 15-minute lazy dashboard sync (which stays as the fallback when webhooks
 // are missed or misconfigured; the nightly reconcile cron remains the source
 // of truth). Public in src/proxy.ts; authenticates via the Square webhook
-// signature. Setup: FORECASTING.md § Square order webhooks.
+// signature. Setup: docs/FORECASTING.md § Square order webhooks.
 //
 // The handler ACKs fast and does the resync after the response (Square retries
 // on slow/non-2xx). Processing is idempotent: it re-pulls the affected store's

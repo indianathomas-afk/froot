@@ -4,18 +4,32 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { SignOutButton } from "@clerk/nextjs"
-import { FileText, GraduationCap, Home } from "lucide-react"
+import { FileText, Home, MessageSquare } from "lucide-react"
+import { InstagramIcon } from "@/components/instagram-icon"
 
 // HR-7 staff portal chrome: slim header + fixed bottom tab bar (mobile-first,
 // ≥44px targets, store-view spirit — never the admin sidebar).
+// STAFF-1 tab set: Home · Messages · Instagram (when connected) · Documents.
+// Training dropped from the bar (F7) — the Home compliance card carries direct
+// links and /my/training/* routes stay live.
 const NAV = [
   { href: "/my", label: "Home", icon: Home, exact: true },
-  { href: "/my/training", label: "Training", icon: GraduationCap, exact: false },
+  { href: "/my/messages", label: "Messages", icon: MessageSquare, exact: false },
+  { href: "/my/instagram", label: "Instagram", icon: InstagramIcon, exact: false, instagram: true },
   { href: "/my/documents", label: "Documents", icon: FileText, exact: false },
 ]
 
-export function MyShell({ children }: { children: React.ReactNode }) {
+export function MyShell({
+  children,
+  showInstagram = false,
+}: {
+  children: React.ReactNode
+  // Passed by each page from the org record it already fetched — the tab only
+  // renders when Instagram is connected AND enabled (same rule as the sidebar).
+  showInstagram?: boolean
+}) {
   const pathname = usePathname()
+  const nav = NAV.filter((item) => !item.instagram || showInstagram)
   return (
     <div className="max-w-lg mx-auto min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-4 py-3">
@@ -36,7 +50,7 @@ export function MyShell({ children }: { children: React.ReactNode }) {
 
       <nav className="fixed bottom-0 inset-x-0 border-t border-[var(--color-border)] bg-[var(--color-card)]">
         <div className="max-w-lg mx-auto flex">
-          {NAV.map(({ href, label, icon: Icon, exact }) => {
+          {nav.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href)
             return (
               <Link

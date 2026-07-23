@@ -73,7 +73,7 @@ export default async function MyModulePage({
   }
 
   return (
-    <MyShell>
+    <MyShell showInstagram={!!self.org.instagramEnabled && !!self.org.instagramAccessToken}>
       <Link
         href="/my/training"
         className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-foreground)] mb-3 min-h-11"

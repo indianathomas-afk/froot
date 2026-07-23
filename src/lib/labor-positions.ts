@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 // The rate legend a new org starts with (Phase 0 · F5). These mirror the
 // acceptance-case seed in the Labor brief so a fresh org is immediately usable
 // and reproduces the documented $182 / 18.7% example once a forecast is set.
-// Rates are DOLLARS (Decimal(10,2)); see LABOR.md for the money convention.
+// Rates are DOLLARS (Decimal(10,2)); see docs/LABOR.md for the money convention.
 // Phase 3: only the General Manager is salaried; everyone else is hourly.
 export const DEFAULT_LABOR_POSITIONS = [
   { name: "General Manager", payType: "SALARIED", defaultHourlyRate: "20.00", impliedWeeklyHours: 40, isSupervisory: true, sortOrder: 0 },

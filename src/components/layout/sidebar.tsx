@@ -50,7 +50,8 @@ const navItems: NavItem[] = [
   { href: "/staff", label: "Staff", icon: UserSquare, roles: ["ADMIN", "MANAGER"] },
   { href: "/reports", label: "Reports", icon: BarChart2, roles: ["ADMIN", "MANAGER"] },
   { href: "/forecasting", label: "Forecasting", icon: TrendingUp, roles: ["ADMIN", "MANAGER"] },
-  { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  // STAFF-1: Store View is an operational floor surface — not for STAFF logins.
+  { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE"] },
   // Only rendered when the org has Instagram connected + enabled (see filter below).
   { href: "/instagram", label: "Instagram", icon: InstagramIcon, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresInstagram: true },
   // Only rendered when HR is available in this environment AND the org toggle
@@ -64,15 +65,17 @@ const navItems: NavItem[] = [
   { href: "/settings/labor", label: "Labor", icon: Clock, roles: ["ADMIN", "MANAGER"], requiresLabor: true },
 ]
 
+// STAFF-1: inventory is not part of the staff experience — STAFF removed from
+// every item (STORE keeps its operational subset).
 const inventoryNavItems = [
-  { href: "/inventory/ingredients", label: "Ingredients", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
-  { href: "/inventory/sales-items", label: "Sales Items", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/ingredients", label: "Ingredients", roles: ["ADMIN", "MANAGER", "STORE"] },
+  { href: "/inventory/sales-items", label: "Sales Items", roles: ["ADMIN", "MANAGER", "STORE"] },
   { href: "/inventory/recipes", label: "Recipes", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/storage-areas", label: "Storage Areas", roles: ["ADMIN", "MANAGER"] },
-  { href: "/inventory/counts", label: "Counts", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
-  { href: "/inventory/adjustments", label: "Adjustments", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/counts", label: "Counts", roles: ["ADMIN", "MANAGER", "STORE"] },
+  { href: "/inventory/adjustments", label: "Adjustments", roles: ["ADMIN", "MANAGER", "STORE"] },
   { href: "/inventory/vendors", label: "Vendors", roles: ["ADMIN", "MANAGER"] },
-  { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
+  { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE"] },
   { href: "/inventory/expected", label: "Expected Stock", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/alerts", label: "Alerts", roles: ["ADMIN", "MANAGER"] },
   { href: "/inventory/reports", label: "Reports", roles: ["ADMIN", "MANAGER"] },
@@ -84,12 +87,16 @@ export function Sidebar({
   instagramEnabled = false,
   hrAvailable = false,
   laborAvailable = false,
+  staffHasChecklists = false,
 }: {
   role: string
   activeModules?: string[]
   instagramEnabled?: boolean
   hrAvailable?: boolean
   laborAvailable?: boolean
+  // STAFF-1 (F3 store-proxy): whether any open checklist exists for the staff
+  // user's assigned stores — computed server-side in the layout.
+  staffHasChecklists?: boolean
 }) {
   const pathname = usePathname()
   const { signOut } = useClerk()
@@ -97,13 +104,23 @@ export function Sidebar({
   const collapsed = useSidebarCollapsed()
   const hrEnabled = hrAvailable && activeModules.includes("hr")
   const laborEnabled = laborAvailable && activeModules.includes("labor")
-  const visibleNavItems = navItems.filter(
-    (item) =>
-      item.roles.includes(role) &&
-      (!item.requiresInstagram || instagramEnabled) &&
-      (!item.requiresHr || hrEnabled) &&
-      (!item.requiresLabor || laborEnabled)
-  )
+  const visibleNavItems = navItems
+    .filter(
+      (item) =>
+        item.roles.includes(role) &&
+        (!item.requiresInstagram || instagramEnabled) &&
+        (!item.requiresHr || hrEnabled) &&
+        (!item.requiresLabor || laborEnabled) &&
+        // STAFF-1: Checklists only surface for STAFF when their stores have one.
+        !(role === "STAFF" && item.href === "/checklists" && !staffHasChecklists)
+    )
+    // STAFF-1: the HR entry reads "My Documents" for STAFF and points at the
+    // staff portal's own-documents surface (ADMIN/MANAGER keep "HR" → /hr).
+    .map((item) =>
+      role === "STAFF" && item.href === "/hr"
+        ? { ...item, label: "My Documents", href: "/my/documents" }
+        : item
+    )
   const visibleInventoryItems = activeModules.includes("inventory")
     ? inventoryNavItems.filter((item) => item.roles.includes(role))
     : []

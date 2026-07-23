@@ -146,9 +146,9 @@ Or use the helpers in `src/lib/auth.ts`:
 
 ## Phase Status
 
-**See `ROADMAP.md` for the current phase table — it is the single source of truth for build status.**
+**See `docs/ROADMAP.md` for the current phase table — it is the single source of truth for build status.**
 
-At the end of every phase: update `ROADMAP.md` (status, commit hash, one-line notes) and commit it with the phase's code. Do not track phase status here.
+At the end of every phase: update `docs/ROADMAP.md` (status, commit hash, one-line notes) and commit it with the phase's code. Do not track phase status here.
 
 Phase 2 modules are gated behind `activeModules` on the `Organization` record.
 
@@ -180,7 +180,7 @@ One OAuth connection per org. Tokens stored encrypted on `Organization.squareAcc
 - `square/webhooks` — handle `catalog.version.updated`, `oauth.authorization.revoked`
 
 **Shipped (F-4):** `webhooks/square` — order/payment events keep the current day's
-sales caches fresh (signature-verified; see `FORECASTING.md` § Square order webhooks).
+sales caches fresh (signature-verified; see `docs/FORECASTING.md` § Square order webhooks).
 
 Square is entirely optional — all features work without it, import buttons only show when connected.
 
@@ -200,7 +200,7 @@ Multi-tenant caveat: until Meta App Review grants Advanced Access for `instagram
 
 ## Database
 
-Schema is at `prisma/schema.prisma`. Schema changes ship as migration files committed with the code — see `MIGRATIONS.md` for the full policy and history.
+Schema is at `prisma/schema.prisma`. Schema changes ship as migration files committed with the code — see `docs/MIGRATIONS.md` for the full policy and history.
 
 **Do not use `npx prisma db push`** — retired after the 2026-07-06 staging drift incident.
 **`npx prisma migrate dev` is currently broken** — the baseline squash was never done, so shadow-DB replay fails with P3018 (and `.env` has no `SHADOW_DATABASE_URL`).
@@ -239,15 +239,15 @@ SQUARE_APPLICATION_SECRET=
 SQUARE_ENVIRONMENT=            # "sandbox" or "production"
 NEXT_PUBLIC_APP_URL=           # e.g. https://www.usefroot.com
 CRON_SECRET=                   # auth for /api/cron/* (Vercel sends it on cron invocations)
-SQUARE_WEBHOOK_SIGNATURE_KEY=  # per-app webhook subscription key (FORECASTING.md § Square order webhooks)
-PACE_ALERT_THRESHOLD_PCT=      # optional — behind-pace alert threshold, default 90 (FORECASTING.md § Hardening)
+SQUARE_WEBHOOK_SIGNATURE_KEY=  # per-app webhook subscription key (docs/FORECASTING.md § Square order webhooks)
+PACE_ALERT_THRESHOLD_PCT=      # optional — behind-pace alert threshold, default 90 (docs/FORECASTING.md § Hardening)
 INSTAGRAM_APP_ID=              # Instagram app ID from the Meta app (Instagram API with Instagram Login)
 INSTAGRAM_APP_SECRET=
 INSTAGRAM_REDIRECT_URI=        # optional — defaults to ${NEXT_PUBLIC_APP_URL}/api/instagram/callback
 HR_MODULE_AVAILABLE=           # optional — "true" makes the HR module exist in this environment (staging/preview yes, production unset until launch)
 HR_INTERNAL_ORG_IDS=           # optional — comma-separated Clerk org IDs allowed HR in production before launch (dogfooding)
 HR_BLOB_READ_WRITE_TOKEN=      # RW token for the PRIVATE froot-hr Blob store (HR documents) — distinct from BLOB_READ_WRITE_TOKEN (public store). Injected by the store connection on Vercel; src/lib/hr-files.ts passes it explicitly on every Blob call.
-LABOR_MODULE_AVAILABLE=        # optional — "true" makes the Weekly Labor Model exist in this environment (staging/preview yes, production unset until launch). See LABOR.md.
+LABOR_MODULE_AVAILABLE=        # optional — "true" makes the Weekly Labor Model exist in this environment (staging/preview yes, production unset until launch). See docs/LABOR.md.
 LABOR_INTERNAL_ORG_IDS=        # optional — comma-separated Clerk org IDs allowed Labor in production before launch (dogfooding), mirrors HR_INTERNAL_ORG_IDS
 ```
 

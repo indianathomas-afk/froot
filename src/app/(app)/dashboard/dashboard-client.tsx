@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { projectMonthEnd } from "@/lib/pacing"
 import { MessageAttachments, type FeedAttachment } from "@/app/(app)/messages/messages-client"
+import { fetchCard } from "./card-fetch"
 import { SalesPerformanceCard } from "./sales-performance-card"
 import { LaborBudgetCard } from "./labor-budget-card"
 import { LaborCoverageCard } from "./labor-coverage-card"
@@ -164,32 +165,50 @@ export function DashboardClient({
       : stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
   const setStoreId = saveStoreId
   const isRollup = storeId === ALL_STORES
-  const [summary, setSummary] = useState<Summary | null>(null)
-  // Keyed by storeId (like `current` below) so switching stores shows the
-  // skeleton instead of the previous store's messages.
+  // Both results are keyed by storeId (BUG-1): `data: null` for the CURRENT
+  // store means the request settled and failed (show a Retry state), while no
+  // entry / another store's entry means still loading (show the skeleton).
+  // Before this split, a failed summary was indistinguishable from a pending
+  // one and the goal/checklist cards skeletoned forever.
+  const [summaryRes, setSummaryRes] = useState<{ storeId: string; data: Summary | null } | null>(null)
   const [commsRes, setCommsRes] = useState<{ storeId: string; data: Comms | null } | null>(null)
   const [checkedOverride, setCheckedOverride] = useState<Record<string, boolean>>({})
 
-  const load = useCallback(() => {
+  const loadSummary = useCallback(() => {
     if (!storeId || storeId === ALL_STORES) return
-    fetch(`/api/dashboard/summary?storeId=${storeId}`)
-      .then((res): Promise<Summary | null> => (res.ok ? res.json() : Promise.resolve(null)))
-      .then(setSummary)
-      .catch(() => setSummary(null))
-    fetch(`/api/dashboard/comms?storeId=${storeId}`)
-      .then((res): Promise<Comms | null> => (res.ok ? res.json() : Promise.resolve(null)))
-      .then((data) => setCommsRes({ storeId, data }))
-      .catch(() => setCommsRes({ storeId, data: null }))
+    fetchCard<Summary>("summary", `/api/dashboard/summary?storeId=${storeId}`).then((data) =>
+      setSummaryRes({ storeId, data })
+    )
+  }, [storeId])
+
+  const loadComms = useCallback(() => {
+    if (!storeId || storeId === ALL_STORES) return
+    fetchCard<Comms>("comms", `/api/dashboard/comms?storeId=${storeId}`).then((data) =>
+      setCommsRes({ storeId, data })
+    )
   }, [storeId])
 
   useEffect(() => {
-    load()
-  }, [load])
+    loadSummary()
+    loadComms()
+  }, [loadSummary, loadComms])
 
-  const current = summary && summary.store.id === storeId ? summary : null
-  const loading = !isRollup && !!storeId && current === null
+  // Manual retry only (no auto-retry): reset to the skeleton, refetch once.
+  const retrySummary = useCallback(() => {
+    setSummaryRes(null)
+    loadSummary()
+  }, [loadSummary])
+  const retryComms = useCallback(() => {
+    setCommsRes(null)
+    loadComms()
+  }, [loadComms])
+
+  const current = summaryRes && summaryRes.storeId === storeId ? summaryRes.data : null
+  const summaryFailed = !isRollup && !!storeId && summaryRes?.storeId === storeId && summaryRes.data === null
+  const loading = !isRollup && !!storeId && !summaryFailed && current === null
   const comms = commsRes && commsRes.storeId === storeId ? commsRes.data : null
-  const commsLoading = !isRollup && !!storeId && (commsRes === null || commsRes.storeId !== storeId)
+  const commsFailed = !isRollup && !!storeId && commsRes?.storeId === storeId && commsRes.data === null
+  const commsLoading = !isRollup && !!storeId && !commsFailed && (commsRes === null || commsRes.storeId !== storeId)
   const store = stores.find((s) => s.id === storeId)
 
   const headerDate = useMemo(
@@ -236,7 +255,7 @@ export function DashboardClient({
               <SalesPerformanceCard storeId={storeId} />
             </div>
             <div className="flex-1 min-w-[260px]">
-              <MonthlyGoalCard loading={loading} summary={current} onSaved={load} />
+              <MonthlyGoalCard loading={loading} failed={summaryFailed} onRetry={retrySummary} summary={current} onSaved={loadSummary} />
             </div>
           </div>
 
@@ -258,7 +277,7 @@ export function DashboardClient({
           {/* Three equal cards */}
           <div className="flex flex-wrap gap-4">
             <div className="flex-1 min-w-[280px]">
-              <TeamMessagesCard loading={commsLoading} comms={comms} />
+              <TeamMessagesCard loading={commsLoading} failed={commsFailed} onRetry={retryComms} comms={comms} />
             </div>
             {/* The corporate box collapses entirely when no update is active */}
             {(commsLoading || comms?.corporateUpdate) && (
@@ -281,6 +300,8 @@ export function DashboardClient({
               />
               <ShiftChecklistCard
                 loading={loading}
+                failed={summaryFailed}
+                onRetry={retrySummary}
                 summary={current}
                 checkedOverride={checkedOverride}
                 onToggle={(id) =>
@@ -327,13 +348,48 @@ export function DashboardClient({
   )
 }
 
+// ─── Failed-load state (BUG-1) ────────────────────────────────────────────────
+// Replaces the old behavior where a failed fetch was indistinguishable from a
+// pending one (eternal skeleton / false empty state). Manual Retry only.
+
+function CardLoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
+  return (
+    <Card className="h-full">
+      <CardContent className="pt-5 pb-4 h-full flex flex-col">
+        <p className="text-[15px] font-bold text-[var(--color-foreground)] mb-2">{title}</p>
+        <div className="flex-1 flex flex-col items-start justify-center gap-2">
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            Couldn&apos;t load right now — the request failed or timed out.
+          </p>
+          <Button size="sm" variant="outline" onClick={onRetry}>
+            Retry
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Monthly Goal ─────────────────────────────────────────────────────────────
 
-function MonthlyGoalCard({ loading, summary, onSaved }: { loading: boolean; summary: Summary | null; onSaved: () => void }) {
+function MonthlyGoalCard({
+  loading,
+  failed,
+  onRetry,
+  summary,
+  onSaved,
+}: {
+  loading: boolean
+  failed: boolean
+  onRetry: () => void
+  summary: Summary | null
+  onSaved: () => void
+}) {
   const [editing, setEditing] = useState(false)
   const [amount, setAmount] = useState("")
   const [saving, setSaving] = useState(false)
 
+  if (failed) return <CardLoadError title="Monthly Goal" onRetry={onRetry} />
   if (loading) return <Skeleton className="h-64 w-full" />
   if (!summary) return <Skeleton className="h-64 w-full" />
 
@@ -494,7 +550,21 @@ function MonthlyGoalCard({ loading, summary, onSaved }: { loading: boolean; summ
 
 // ─── Team Messages (live — Phase I-14) ────────────────────────────────────────
 
-function TeamMessagesCard({ loading, comms }: { loading: boolean; comms: Comms | null }) {
+function TeamMessagesCard({
+  loading,
+  failed,
+  onRetry,
+  comms,
+}: {
+  loading: boolean
+  failed: boolean
+  onRetry: () => void
+  comms: Comms | null
+}) {
+  // On comms failure this card carries the single Retry for the endpoint —
+  // the corporate box and shift notes (same response) stay collapsed and
+  // reappear when the retry succeeds.
+  if (failed) return <CardLoadError title="Team Messages" onRetry={onRetry} />
   if (loading) return <Skeleton className="h-56 w-full" />
 
   const preview = comms?.teamMessagesPreview
@@ -633,15 +703,20 @@ function ShiftNotesCard({ notes, onAcknowledged }: { notes: ShiftNote[]; onAckno
 
 function ShiftChecklistCard({
   loading,
+  failed,
+  onRetry,
   summary,
   checkedOverride,
   onToggle,
 }: {
   loading: boolean
+  failed: boolean
+  onRetry: () => void
   summary: Summary | null
   checkedOverride: Record<string, boolean>
   onToggle: (taskId: string) => void
 }) {
+  if (failed) return <CardLoadError title="Shift Checklist" onRetry={onRetry} />
   if (loading || !summary) return <Skeleton className="h-56 w-full" />
 
   const cl = summary.checklist
@@ -724,16 +799,13 @@ function InstagramStrip() {
 
   useEffect(() => {
     let cancelled = false
-    fetch("/api/instagram/feed?limit=12")
-      .then((r): Promise<InstagramFeed | null> => (r.ok ? r.json() : Promise.resolve(null)))
-      .then((data) => {
-        if (cancelled) return
-        setFeed(data)
-        setLoaded(true)
-      })
-      .catch(() => {
-        if (!cancelled) setLoaded(true)
-      })
+    // On failure the strip stays hidden (a decorative card can't tell "failed"
+    // from "not connected" without a response) — fetchCard logs the reason.
+    fetchCard<InstagramFeed>("instagram feed", "/api/instagram/feed?limit=12").then((data) => {
+      if (cancelled) return
+      setFeed(data)
+      setLoaded(true)
+    })
     return () => {
       cancelled = true
     }

@@ -9,7 +9,7 @@
 
 ## 0 · How to run this session
 
-Follow the standard Froot workflow (`CLAUDE.md`, `AGENTS.md`, `WORKFLOW.md`, `MIGRATIONS.md`):
+Follow the standard Froot workflow (`../../CLAUDE.md`, `../../AGENTS.md`, `../WORKFLOW.md`, `../MIGRATIONS.md`):
 
 1. **Audit first.** Read the files in the Audit Checklist below and present a written plan — files to add, files to touch, the Prisma migration, and any forks — **before changing anything**. Wait for explicit approval.
 2. **Additive-only migrations.** New models and new columns only. **No column drops, ever.** Neon is the source of truth; do not run any SQL that mutates data without showing it and getting approval first.
@@ -39,7 +39,7 @@ Decisions #2 and #4 are owner-configurable defaults — build them as settings, 
 
 Report what you find for each. **The first two are the highest-risk items — reconcile, do not duplicate.**
 
-1. **`FORECASTING.md` + any existing forecast models/services.** If Froot already stores or computes sales forecasts, the Labor model must **reuse** that, not create a parallel forecast. Report whether `SalesForecast` below should be a new model or a view/extension of what exists.
+1. **`../FORECASTING.md` + any existing forecast models/services.** If Froot already stores or computes sales forecasts, the Labor model must **reuse** that, not create a parallel forecast. Report whether `SalesForecast` below should be a new model or a view/extension of what exists.
 2. **The Dashboard "Sales Performance" card** and its data source. Find how it gets hourly sales (today vs prior-year). The Labor Coverage card must reuse this same hourly-sales source and the same charting component/library. Report the component path, the data source, and the chart lib.
 3. **`Organization` model + `activeModules` toggle pattern** (used by the HR module and Instagram integration). The Labor module uses the identical two-gate pattern.
 4. **The server-side module env-flag pattern** (e.g. `HR_MODULE_AVAILABLE`). Mirror it as `LABOR_MODULE_AVAILABLE`.

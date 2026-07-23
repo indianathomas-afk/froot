@@ -10,11 +10,11 @@
 
 ## 0 · How to run this session
 
-Follow the standard Froot workflow (`CLAUDE.md`, `AGENTS.md`, `WORKFLOW.md`, `MIGRATIONS.md`):
+Follow the standard Froot workflow (`../../CLAUDE.md`, `../../AGENTS.md`, `../WORKFLOW.md`, `../MIGRATIONS.md`):
 
 1. **Audit first.** Read the Phase-0/1 code + the Forecasting module in the Audit Checklist below and present a written plan — files to add, files to touch, the Prisma migration, and any forks — **before changing anything**. Wait for explicit approval.
 2. **Additive-only migrations.** New models and new columns only. **No column drops, ever** — including the columns this phase *deprecates* (§1.2). Show any SQL and get approval before running it against the dev branch.
-3. **Match the shipped conventions.** Money is **dollars as `Decimal(10,2)`**; the budget service computes in **integer cents internally** (see `LABOR.md`). Hours round **down to the nearest 0.5**. Reuse the existing two-gate feature flag verbatim — do **not** add a new flag.
+3. **Match the shipped conventions.** Money is **dollars as `Decimal(10,2)`**; the budget service computes in **integer cents internally** (see `../LABOR.md`). Hours round **down to the nearest 0.5**. Reuse the existing two-gate feature flag verbatim — do **not** add a new flag.
 4. **`next build` must pass** before a step is done and before any commit. **Commit `package-lock.json`** with any dependency change (none expected — reuse `recharts`, no new libs).
 5. **Recommendation-only.** Phase 2 outputs *recommended coverage*, not an assigned schedule. **No named-employee assignment, no push-to-Square, no OT math** — Phase 4. Leave clean seams.
 6. **Scope containment.** Note unrelated bugs/drift as text at the end. Don't fix inline.
@@ -54,7 +54,7 @@ Decisions #2, #3, #6, #7 are owner-configurable — build them as settings/input
 Report what you find for each. Extend the Phase-0/1 primitives — do not duplicate.
 
 1. **`src/lib/labor-budget.ts`** — `computeWeeklyLaborBudget`: how `denominator` + `projectedDelivery` currently feed `salesBasis`. Plan the **total-only** simplification (basis = total forecast) and how salaried/hourly hours split, since the adjustment scales hourly only.
-2. **The Forecasting module** — `GoalPlan` → `DailyGoal` (`goalAmount` per store per date, unique `storeId+date`; `FORECASTING.md`). Confirm summing Mon–Sun `DailyGoal.goalAmount` yields the week's total forecast (delivery included). This is the auto-forecast source.
+2. **The Forecasting module** — `GoalPlan` → `DailyGoal` (`goalAmount` per store per date, unique `storeId+date`; `../FORECASTING.md`). Confirm summing Mon–Sun `DailyGoal.goalAmount` yields the week's total forecast (delivery included). This is the auto-forecast source.
 3. **`src/lib/labor-coverage.ts`** — `recommendCoverage` (Phase-1B heuristic). Phase 2's engine generalizes it with min-staffing rules; keep the `SalesHourlyCache` demand source.
 4. **`SalesForecast` model + `/api/labor/forecast` + `/api/labor/budget`** — how the manual forecast is read today; Phase 2 makes it the *override* and adds the `TREND` default. Report the response shapes the Budget card consumes.
 5. **`src/lib/labor-week.ts`** (`mondayOfWeekStr`) and **`StoreHours`** — reuse for week keys and operating windows; confirm `StoreHours` shape + timezone handling.
@@ -128,7 +128,7 @@ model LaborDayAdjustment {
 }
 ```
 
-No shift-*assignment* table — Phase 2 recommends coverage, it doesn't persist an assigned schedule. Add partial-unique indexes for any org-default (`storeId` null) exactly like `LaborSettings_org_default_key`, documented in `LABOR.md`.
+No shift-*assignment* table — Phase 2 recommends coverage, it doesn't persist an assigned schedule. Add partial-unique indexes for any org-default (`storeId` null) exactly like `LaborSettings_org_default_key`, documented in `../LABOR.md`.
 
 ---
 

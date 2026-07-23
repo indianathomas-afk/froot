@@ -99,9 +99,13 @@ async function igGet(org: Organization, path: string, query: string): Promise<Re
     const body = await res.json().catch(() => null)
     const type = body && typeof body === "object" ? (body as { error?: { type?: string } }).error?.type : undefined
     if (res.status !== 400 || type === "OAuthException") reconnectRequired.add(org.id)
+    console.error(`[instagram] API ${res.status} on /${path} org=${org.id}${type ? ` type=${type}` : ""}`)
     return null
   }
-  if (!res.ok) return null
+  if (!res.ok) {
+    console.error(`[instagram] API ${res.status} on /${path} org=${org.id}`)
+    return null
+  }
   reconnectRequired.delete(org.id)
   return res.json()
 }

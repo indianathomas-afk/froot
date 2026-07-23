@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { findStaffMemberForEmail } from "@/lib/hr"
+import { findStaffMemberForUser } from "@/lib/hr"
 import { ensureSignedRecord, SignedRecordError } from "@/lib/hr-signed-pdf"
 import { requireHrDocumentAccess } from "../../access"
 
@@ -34,7 +34,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Document not found" }, { status: 404 })
   }
 
-  const selfStaff = await findStaffMemberForEmail(org.id, dbUser.email)
+  // Same resolution as everywhere else: userId link first, email fallback.
+  const selfStaff = await findStaffMemberForUser(org.id, dbUser)
   const staffMemberId = parsed.data.staffMemberId ?? selfStaff?.id
   if (!staffMemberId) {
     return NextResponse.json({ error: "No staff profile is linked to your account" }, { status: 403 })

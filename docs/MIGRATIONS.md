@@ -100,3 +100,33 @@ Rules:
 - Never `db push` against staging or prod again.
 - Never run `migrate dev` against staging or prod (it's the dev-only command).
 - A migration file, once pushed, is immutable — fix mistakes with a new migration.
+
+---
+
+## 2026-07-21 — 11 migrations applied to production with the L-3 promotion
+
+The `staging → main` promotion (merge commit `9743899`) carried **11 migrations**
+that existed on staging but not on `main`, applied to production Neon by
+`prisma migrate deploy` during the Vercel build. All are **additive** (new tables
++ new nullable / `DEFAULT`ed columns; the one index change — `StaffMember`
+global-unique `squareTeamMemberId` → per-org `@@unique` — only *relaxes* a
+constraint, so it cannot fail existing data). No `DROP TABLE`, no `DROP COLUMN`,
+no data-rewriting `UPDATE`/`DELETE`.
+
+```
+20260712120000_hr0_hr_training_compliance_schema
+20260713080000_hr4_signed_record
+20260713160000_hr5_fillable_forms
+20260713200000_hr6_training_resource_order
+20260713220000_hr7_staff_identity_training_execution
+20260714120000_staff_square_id_per_org_unique
+20260714150000_staff_uploaded_documents
+20260720000000_labor0_positions_settings_forecast
+20260720230000_labor2_daysplit_daypart_adjustment
+20260721010000_labor3_gm_onfloor_window
+20260721163612_labor3_daily_split_policy_weekly_day_hours
+```
+
+Applied cleanly (a first redeploy hit the transient Prisma **P1002** Neon-pooler
+timeout — leaked advisory lock on the pooler; a retry went green). See
+`DEPLOY_LOG.md` for the full promotion entry.

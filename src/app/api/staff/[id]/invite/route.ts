@@ -2,6 +2,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { normalizeEmail } from "@/lib/clerk"
 
 // POST /api/staff/[id]/invite — HR-7 route (A): invite a staff member who has
 // an email to a Clerk STAFF login for /my/* self-service. Reuses the /users
@@ -33,8 +34,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   // Routing by email presence (A + B hybrid): no email → manager-attested is
-  // the path, there is nothing to invite.
-  if (!member.email) {
+  // the path, there is nothing to invite. Normalized at write time so the
+  // webhook's invite lookup matches exactly.
+  const email = normalizeEmail(member.email)
+  if (!email) {
     return NextResponse.json({ error: "Staff member has no email — record completions manager-attested instead" }, { status: 400 })
   }
   if (member.status !== "ACTIVE") {
@@ -48,19 +51,21 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   try {
     const invitation = await clerk.organizations.createOrganizationInvitation({
       organizationId: orgId,
-      emailAddress: member.email,
+      emailAddress: email,
       role: "org:member",
-      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/sign-up`,
+      // /accept-invite routes on __clerk_status: existing accounts (rehires)
+      // go to sign-in, new invitees to sign-up — never a dead-ended sign-up.
+      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite`,
     })
 
     // Store assignments mirror the staff member's stores so the resulting
     // User is scoped the same way the staff profile is.
     await prisma.pendingInvite.upsert({
-      where: { organizationId_email: { organizationId: org.id, email: member.email } },
+      where: { organizationId_email: { organizationId: org.id, email } },
       update: { role: "STAFF", storeIds: member.storeAssignments.map((a) => a.storeId), staffMemberId: member.id },
       create: {
         organizationId: org.id,
-        email: member.email,
+        email,
         role: "STAFF",
         storeIds: member.storeAssignments.map((a) => a.storeId),
         staffMemberId: member.id,

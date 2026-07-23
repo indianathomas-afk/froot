@@ -31,7 +31,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     userId
       ? prisma.user.findUnique({
           where: { clerkUserId: userId },
-          include: { staffMember: { select: { id: true } } },
+          include: {
+            staffMember: { select: { id: true } },
+            storeAssignments: { select: { storeId: true } },
+          },
         })
       : null,
     prisma.organization.findUnique({
@@ -56,6 +59,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/my")
   }
 
+  // STAFF-1 (F3 store-proxy): a STAFF login sees the Checklists nav item only
+  // when an open checklist exists for one of their assigned stores. There is
+  // no per-person checklist assignment in the schema — this store-level signal
+  // is the honest detection until one exists.
+  let staffHasChecklists = false
+  if (dbUser?.role === "STAFF") {
+    const storeIds = dbUser.storeAssignments.map((a) => a.storeId)
+    if (storeIds.length > 0) {
+      staffHasChecklists =
+        (await prisma.checklist.count({
+          where: { storeId: { in: storeIds }, status: { in: ["Pending", "In Progress"] } },
+        })) > 0
+    }
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar
@@ -64,6 +82,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         instagramEnabled={!!org?.instagramEnabled && !!org?.instagramAccessToken}
         hrAvailable={hrModuleAvailable(orgId)}
         laborAvailable={laborModuleAvailable(orgId)}
+        staffHasChecklists={staffHasChecklists}
       />
       <AppShell>{children}</AppShell>
     </div>

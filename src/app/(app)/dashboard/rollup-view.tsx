@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { fetchCard } from "./card-fetch"
 
 // ─── All-locations rollup (Phase F-4) ─────────────────────────────────────────
 // Company-wide totals + a store ranking table, backed by /api/dashboard/rollup.
@@ -53,12 +55,20 @@ export function RollupView() {
   const [sortKey, setSortKey] = useState<SortKey>("mtdActual")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
-  useEffect(() => {
-    fetch("/api/dashboard/rollup")
-      .then((res): Promise<Rollup | null> => (res.ok ? res.json() : Promise.resolve(null)))
-      .then((d) => (d ? setData(d) : setFailed(true)))
-      .catch(() => setFailed(true))
+  const load = useCallback(() => {
+    fetchCard<Rollup>("rollup", "/api/dashboard/rollup").then((d) => (d ? setData(d) : setFailed(true)))
   }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  // Manual retry only: back to the skeleton, then one refetch.
+  const retry = () => {
+    setFailed(false)
+    setData(null)
+    load()
+  }
 
   const sorted = useMemo(() => {
     if (!data) return []
@@ -77,8 +87,13 @@ export function RollupView() {
   if (failed) {
     return (
       <Card>
-        <CardContent className="py-8 text-center text-sm text-[var(--color-muted-foreground)]">
-          Couldn&apos;t load the all-locations rollup — try refreshing.
+        <CardContent className="py-8 flex flex-col items-center gap-3">
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            Couldn&apos;t load the all-locations rollup — the request failed or timed out.
+          </p>
+          <Button size="sm" variant="outline" onClick={retry}>
+            Retry
+          </Button>
         </CardContent>
       </Card>
     )

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Line, LineChart, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer } from "recharts"
+import { fetchCard } from "./card-fetch"
 
 // Sales Performance card (Dashboard) — date navigation + comparison baseline.
 // The selection may be a single day (hourly pace chart) or a range (daily
@@ -274,6 +275,7 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
   }, [savedRaw])
 
   const [result, setResult] = useState<{ key: string; data: SalesResponse | null } | null>(null)
+  const [retryTick, setRetryTick] = useState(0)
   const requestSeq = useRef(0)
   const requestKey = `${storeId}|${range.start}|${range.end}|${compare}`
 
@@ -281,15 +283,13 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
     if (!storeId) return
     const seq = ++requestSeq.current
     const key = `${storeId}|${range.start}|${range.end}|${compare}`
-    fetch(`/api/dashboard/sales?storeId=${storeId}&start=${range.start}&end=${range.end}&compare=${compare}`)
-      .then((res): Promise<SalesResponse | null> => (res.ok ? res.json() : Promise.resolve(null)))
-      .then((json) => {
-        if (seq === requestSeq.current) setResult({ key, data: json })
-      })
-      .catch(() => {
-        if (seq === requestSeq.current) setResult({ key, data: null })
-      })
-  }, [storeId, range.start, range.end, compare])
+    fetchCard<SalesResponse>(
+      "sales",
+      `/api/dashboard/sales?storeId=${storeId}&start=${range.start}&end=${range.end}&compare=${compare}`
+    ).then((json) => {
+      if (seq === requestSeq.current) setResult({ key, data: json })
+    })
+  }, [storeId, range.start, range.end, compare, retryTick])
 
   const loading = !result || result.key !== requestKey
   const data = result?.data ?? null
@@ -362,9 +362,21 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
             <Skeleton className="h-10 w-full" />
           </div>
         ) : !data ? (
-          <p className="text-sm text-[var(--color-muted-foreground)] py-4">
-            Couldn&apos;t load sales data — try again in a moment.
-          </p>
+          <div className="py-4 flex flex-col items-start gap-2">
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              Couldn&apos;t load sales data — the request failed or timed out.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setResult(null)
+                setRetryTick((t) => t + 1)
+              }}
+            >
+              Retry
+            </Button>
+          </div>
         ) : !data.salesAvailable ? (
           <div className="py-8 text-center">
             <p className="text-sm font-medium text-[var(--color-foreground)] mb-1">Connect Square to see sales</p>

@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import { WebhookEvent } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { slugify } from "@/lib/utils"
+import { getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
 
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
@@ -83,20 +84,38 @@ export async function POST(req: Request) {
       "org:member": "STAFF",
     }
 
-    // Check for a pending invite to recover the originally intended app role + store assignment
-    const pending = await prisma.pendingInvite.findUnique({
-      where: { organizationId_email: { organizationId: org.id, email: membership.public_user_data.identifier } },
-    })
+    // BUG-2: public_user_data.identifier is the USERNAME on username-enabled
+    // accounts — resolve the real primary email from the Backend API, or the
+    // PendingInvite lookup misses and User.email is corrupted. Fail the
+    // webhook on API errors so Svix retries instead of persisting garbage.
+    let email: string | null
+    try {
+      email = await getClerkPrimaryEmail(membership.public_user_data.user_id)
+    } catch {
+      return new Response("Failed to resolve member email", { status: 500 })
+    }
+    // Email-less accounts (phone/username only): keep the identifier as a
+    // display fallback — no email match could succeed for them anyway.
+    const userEmail = email ?? normalizeEmail(membership.public_user_data.identifier) ?? ""
+
+    // Check for a pending invite to recover the originally intended app role +
+    // store assignment. Case-insensitive: older rows may hold mixed-case emails.
+    const pending = userEmail
+      ? await prisma.pendingInvite.findFirst({
+          where: { organizationId: org.id, email: { equals: userEmail, mode: "insensitive" } },
+        })
+      : null
 
     const resolvedRole = (pending?.role ?? roleMap[membership.role] ?? "STAFF") as "ADMIN" | "MANAGER" | "STAFF" | "STORE"
 
     const user = await prisma.user.upsert({
       where: { clerkUserId: membership.public_user_data.user_id },
-      update: {},
+      // Self-healing: refresh the email on rows that predate this fix.
+      update: { email: userEmail },
       create: {
         clerkUserId: membership.public_user_data.user_id,
         organizationId: org.id,
-        email: membership.public_user_data.identifier,
+        email: userEmail,
         name: [membership.public_user_data.first_name, membership.public_user_data.last_name].filter(Boolean).join(" ") || null,
         role: resolvedRole,
       },
@@ -120,6 +139,22 @@ export async function POST(req: Request) {
         })
       }
       await prisma.pendingInvite.delete({ where: { id: pending.id } })
+    }
+  }
+
+  // BUG-2 follow-through: a changed primary email must flow into User.email,
+  // or staff resolution drifts. The event payload carries the addresses.
+  if (type === "user.updated") {
+    const u = data as {
+      id: string
+      primary_email_address_id?: string | null
+      email_addresses?: { id: string; email_address: string }[]
+    }
+    const primary =
+      u.email_addresses?.find((e) => e.id === u.primary_email_address_id) ?? u.email_addresses?.[0]
+    const email = normalizeEmail(primary?.email_address)
+    if (email) {
+      await prisma.user.updateMany({ where: { clerkUserId: u.id }, data: { email } })
     }
   }
 
