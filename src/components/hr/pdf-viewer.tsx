@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
+import Image from "next/image"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // HR-11 shared inline PDF viewer: renders every page of an authed, private
@@ -80,10 +81,26 @@ export function PdfViewer({
   return (
     <div ref={containerRef} className="space-y-3">
       {pageCount === 0 ? (
-        <>
+        // Document still downloading/parsing — cold loads through the byte
+        // proxy can take a while, so this state must LOOK alive (Gary, 7-23
+        // staging pass: a bare skeleton read as a broken page).
+        <div className="relative">
           <Skeleton className="w-full aspect-[8.5/11] rounded-lg" />
-          <Skeleton className="w-full aspect-[8.5/11] rounded-lg" />
-        </>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <Image
+              src="/logo.png"
+              alt=""
+              width={48}
+              height={48}
+              className="animate-spin"
+              style={{ animationDuration: "2.5s" }}
+            />
+            <p className="text-sm font-medium text-[var(--color-foreground)]">Loading document…</p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              This can take a minute on first open.
+            </p>
+          </div>
+        </div>
       ) : (
         Array.from({ length: pageCount }, (_, i) => (
           <PdfPage
