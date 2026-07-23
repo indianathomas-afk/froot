@@ -135,8 +135,9 @@ export function SelfServiceActions({
               <AlertDialogTitle>Reactivate {displayName}?</AlertDialogTitle>
               <AlertDialogDescription>
                 This returns them to active status as a rehire. All of their history — signed documents,
-                training, and records — is already attached and stays intact. Nothing is cloned or reset.
-                Their old login stays revoked; send a fresh invite for self-service access.
+                training, and records — stays intact and on file. As a rehire, they&apos;ll be asked to
+                re-sign the required documents (their earlier signatures are kept for the record). Their
+                old login stays revoked; send a fresh invite for self-service access.
               </AlertDialogDescription>
             </AlertDialogHeader>
             {squareInactive && (

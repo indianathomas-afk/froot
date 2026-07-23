@@ -19,6 +19,7 @@ export type MyDocumentRow = {
 export async function requiredDocumentRows(staffMember: {
   id: string
   organizationId: string
+  signingCycle: number
   storeAssignments: { storeId: string }[]
 }): Promise<MyDocumentRow[]> {
   const storeIds = staffMember.storeAssignments.map((a) => a.storeId)
@@ -38,7 +39,7 @@ export async function requiredDocumentRows(staffMember: {
           signedRecords: { where: { staffMemberId: staffMember.id } },
           acknowledgments: {
             where: { staffMemberId: staffMember.id },
-            select: { checkpointId: true },
+            select: { checkpointId: true, signingCycle: true },
           },
         },
       },
@@ -49,8 +50,18 @@ export async function requiredDocumentRows(staffMember: {
   return docs.flatMap((d) => {
     const current = d.versions.find((v) => v.isCurrent)
     if (!current) return []
-    const currentRecord = current.signedRecords[0]
-    const ackedIds = new Set(current.acknowledgments.map((a) => a.checkpointId))
+    // HR-15 Policy B: only signatures from this tenure (signing cycle) count.
+    // A rehire's prior-cycle signature on the current version reads
+    // needs-current — they re-read and re-sign the document.
+    const currentRecord = current.signedRecords.find(
+      (r) => r.signingCycle === staffMember.signingCycle
+    )
+    const priorCycleRecord = currentRecord ? undefined : current.signedRecords[0]
+    const ackedIds = new Set(
+      current.acknowledgments
+        .filter((a) => a.signingCycle === staffMember.signingCycle)
+        .map((a) => a.checkpointId)
+    )
     const requiredCount = d.checkpoints.length
     const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
     const priorSigned = d.versions.find((v) => !v.isCurrent && v.signedRecords.length > 0)
@@ -58,7 +69,7 @@ export async function requiredDocumentRows(staffMember: {
     let status: MyDocumentRow["status"]
     if (currentRecord) status = "signed"
     else if (allAcked) status = "pending-record"
-    else if (priorSigned) status = "needs-current"
+    else if (priorCycleRecord || priorSigned) status = "needs-current"
     else if (ackedIds.size > 0) status = "in-progress"
     else status = "not-started"
 

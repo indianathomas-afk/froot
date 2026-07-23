@@ -176,6 +176,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ipAddress,
       userAgent,
       authMethod,
+      // HR-15 Policy B: signatures belong to the tenure they were made in —
+      // a rehire (bumped cycle) re-acknowledges as fresh rows.
+      signingCycle: staff.signingCycle,
       consentGiven: true,
       consentText: isAttested ? HR_ATTEST_CONSENT_TEXT : HR_ESIGN_CONSENT_TEXT,
       consentVersion: isAttested ? HR_ATTEST_CONSENT_VERSION : HR_ESIGN_CONSENT_VERSION,
@@ -184,16 +187,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   })
 
   // skipDuplicates rides the @@unique([checkpointId, hrDocumentVersionId,
-  // staffMemberId]) constraint — a re-submitted checkpoint is silently
-  // skipped, so the original record (and its evidence) is never replaced.
+  // staffMemberId, signingCycle]) constraint — a re-submitted checkpoint is
+  // silently skipped within a cycle, so the original record (and its
+  // evidence) is never replaced; a rehire's new cycle inserts cleanly.
   await prisma.hrDocumentAcknowledgment.createMany({
     data: rows,
     skipDuplicates: true,
   })
 
-  // ── Completion check for the CURRENT version ──────────────────────────────
+  // ── Completion check for the CURRENT version, current cycle ───────────────
   const acked = await prisma.hrDocumentAcknowledgment.findMany({
-    where: { hrDocumentVersionId: version.id, staffMemberId: staff.id },
+    where: { hrDocumentVersionId: version.id, staffMemberId: staff.id, signingCycle: staff.signingCycle },
     select: { checkpointId: true },
   })
   const ackedIds = new Set(acked.map((a) => a.checkpointId))

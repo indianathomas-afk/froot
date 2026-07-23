@@ -29,8 +29,14 @@ export default async function MyAcknowledgePage({
   const version = doc?.versions[0]
   if (!doc || !version) notFound()
 
+  // HR-15 Policy B: resume state is per signing cycle — a rehire starts the
+  // current version fresh; their prior-cycle acknowledgments stay on file.
   const existing = await prisma.hrDocumentAcknowledgment.findMany({
-    where: { hrDocumentVersionId: version.id, staffMemberId: staffMember.id },
+    where: {
+      hrDocumentVersionId: version.id,
+      staffMemberId: staffMember.id,
+      signingCycle: staffMember.signingCycle,
+    },
     select: { checkpointId: true },
   })
   const doneIds = new Set(existing.map((a) => a.checkpointId))

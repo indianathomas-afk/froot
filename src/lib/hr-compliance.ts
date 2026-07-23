@@ -195,7 +195,7 @@ export async function computeStaffComplianceDetails(
     allVersionIds.length
       ? prisma.hrSignedRecord.findMany({
           where: { hrDocumentVersionId: { in: allVersionIds }, staffMemberId: { in: allStaffIds } },
-          select: { hrDocumentVersionId: true, staffMemberId: true, completedAt: true },
+          select: { hrDocumentVersionId: true, staffMemberId: true, completedAt: true, signingCycle: true },
         })
       : [],
     currentVersionIds.length
@@ -204,23 +204,28 @@ export async function computeStaffComplianceDetails(
             hrDocumentVersionId: { in: currentVersionIds },
             staffMemberId: { in: allStaffIds },
           },
-          select: { hrDocumentVersionId: true, staffMemberId: true, checkpointId: true },
+          select: { hrDocumentVersionId: true, staffMemberId: true, checkpointId: true, signingCycle: true },
         })
       : [],
   ])
 
-  // (versionId → staffId → record) and (versionId → staffId → Set<checkpointId>)
-  const recordByVersionStaff = new Map<string, { completedAt: Date }>()
+  // HR-15 Policy B: signatures count only under the member's current signing
+  // cycle — keyed (versionId:staffId:cycle). A record from ANY cycle still
+  // marks "was signed before" (versionId:staffId) so a rehire shows
+  // needs-resign rather than not-started.
+  const recordByVersionStaffCycle = new Map<string, { completedAt: Date }>()
+  const recordAnyCycle = new Map<string, { completedAt: Date }>()
   for (const r of signedRecords) {
-    recordByVersionStaff.set(`${r.hrDocumentVersionId}:${r.staffMemberId}`, {
+    recordByVersionStaffCycle.set(`${r.hrDocumentVersionId}:${r.staffMemberId}:${r.signingCycle}`, {
       completedAt: r.completedAt,
     })
+    recordAnyCycle.set(`${r.hrDocumentVersionId}:${r.staffMemberId}`, { completedAt: r.completedAt })
   }
-  const ackedByVersionStaff = new Map<string, Set<string>>()
+  const ackedByVersionStaffCycle = new Map<string, Set<string>>()
   for (const a of acks) {
-    const key = `${a.hrDocumentVersionId}:${a.staffMemberId}`
-    if (!ackedByVersionStaff.has(key)) ackedByVersionStaff.set(key, new Set())
-    ackedByVersionStaff.get(key)!.add(a.checkpointId)
+    const key = `${a.hrDocumentVersionId}:${a.staffMemberId}:${a.signingCycle}`
+    if (!ackedByVersionStaffCycle.has(key)) ackedByVersionStaffCycle.set(key, new Set())
+    ackedByVersionStaffCycle.get(key)!.add(a.checkpointId)
   }
 
   const assignmentsByStaff = new Map<string, typeof assignments>()
@@ -243,17 +248,22 @@ export async function computeStaffComplianceDetails(
       const current = d.versions.find((v) => v.isCurrent)
       if (!current) return []
 
-      const currentRecord = recordByVersionStaff.get(`${current.id}:${member.id}`)
-      const ackedIds = ackedByVersionStaff.get(`${current.id}:${member.id}`) ?? new Set()
+      const cycle = member.signingCycle
+      const currentRecord = recordByVersionStaffCycle.get(`${current.id}:${member.id}:${cycle}`)
+      const ackedIds = ackedByVersionStaffCycle.get(`${current.id}:${member.id}:${cycle}`) ?? new Set()
       const requiredCount = d.checkpoints.length
       const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
       const priorSigned = d.versions.find(
-        (v) => !v.isCurrent && recordByVersionStaff.has(`${v.id}:${member.id}`)
+        (v) => !v.isCurrent && recordAnyCycle.has(`${v.id}:${member.id}`)
       )
+      // Rehire: a current-version record from an earlier tenure doesn't
+      // satisfy this cycle — needs-resign, same loudness as a version bump.
+      const priorCycleRecord =
+        !currentRecord && recordAnyCycle.has(`${current.id}:${member.id}`)
 
       let status: ComplianceItemStatus
       if (currentRecord || allAcked) status = "complete"
-      else if (priorSigned) status = "needs-resign"
+      else if (priorCycleRecord || priorSigned) status = "needs-resign"
       else if (ackedIds.size > 0) status = "in-progress"
       else status = "not-started"
 
@@ -268,7 +278,11 @@ export async function computeStaffComplianceDetails(
           ackedCount: ackedIds.size,
           requiredCount,
           signedVersionNumber:
-            status === "needs-resign" ? (priorSigned?.versionNumber ?? null) : null,
+            status !== "needs-resign"
+              ? null
+              : priorCycleRecord
+                ? current.versionNumber
+                : (priorSigned?.versionNumber ?? null),
           completedAt: currentRecord?.completedAt.toISOString() ?? null,
         },
       ]

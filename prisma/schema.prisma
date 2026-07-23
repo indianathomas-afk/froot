@@ -207,6 +207,13 @@ model StaffMember {
   // never get one; termination revokes the Clerk side but the link remains
   // governed by the organizationMembership.deleted webhook.
   userId             String?   @unique
+  // HR-15 Policy B (re-sign on rehire): each tenure is a signing cycle.
+  // Reactivation bumps the cycle and stamps rehiredAt; acknowledgment and
+  // signed-record rows carry the cycle they were signed under, and only
+  // current-cycle signatures count toward compliance. Prior cycles stay
+  // untouched and auditable.
+  signingCycle       Int       @default(1)
+  rehiredAt          DateTime?
   createdAt          DateTime  @default(now())
 
   organization        Organization             @relation(fields: [organizationId], references: [id])
@@ -1391,11 +1398,14 @@ model HrDocumentAcknowledgment {
   consentGiven          Boolean
   consentText           String?
   consentVersion        String?
+  // HR-15 Policy B: the staff member's signingCycle at signing time. A rehire
+  // (cycle bump) re-acknowledges as new rows; prior-cycle rows are untouched.
+  signingCycle          Int          @default(1)
 
   checkpoint HrDocumentCheckpoint @relation(fields: [checkpointId], references: [id])
   version    HrDocumentVersion    @relation(fields: [hrDocumentVersionId], references: [id])
 
-  @@unique([checkpointId, hrDocumentVersionId, staffMemberId])
+  @@unique([checkpointId, hrDocumentVersionId, staffMemberId, signingCycle])
 }
 
 // HR-4: the executed-document artifact — one per (version, staff), created
@@ -1410,11 +1420,14 @@ model HrSignedRecord {
   signedPdfPathname   String // pathname in the PRIVATE froot-hr Blob store
   signedPdfHash       String // sha256 of the generated signed PDF bytes
   generatedAt         DateTime @default(now())
+  // HR-15 Policy B: the tenure this record belongs to — a rehire earns a new
+  // record for the same version under the new cycle; old records stand.
+  signingCycle        Int      @default(1)
 
   version     HrDocumentVersion @relation(fields: [hrDocumentVersionId], references: [id])
   staffMember StaffMember       @relation(fields: [staffMemberId], references: [id])
 
-  @@unique([hrDocumentVersionId, staffMemberId])
+  @@unique([hrDocumentVersionId, staffMemberId, signingCycle])
   @@index([staffMemberId])
 }
 

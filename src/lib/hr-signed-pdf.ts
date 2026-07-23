@@ -167,13 +167,25 @@ class CertificateWriter {
   }
 }
 
-// Idempotently generate the signed PDF + HrSignedRecord for (version, staff).
-// Returns the existing record when one is already on file — records are
-// append-only and never regenerated. Throws SignedRecordError when required
-// checkpoints are incomplete.
+// Idempotently generate the signed PDF + HrSignedRecord for (version, staff)
+// under the staff member's CURRENT signing cycle (HR-15 Policy B: a rehire's
+// prior-cycle record stands but doesn't satisfy the new tenure — completion
+// is judged, and the record keyed, per cycle). Returns the existing
+// current-cycle record when one is already on file — records are append-only
+// and never regenerated. Throws SignedRecordError when required checkpoints
+// are incomplete.
 export async function ensureSignedRecord(hrDocumentVersionId: string, staffMemberId: string) {
+  const staff = await prisma.staffMember.findUnique({
+    where: { id: staffMemberId },
+    select: { signingCycle: true },
+  })
+  if (!staff) throw new SignedRecordError("Staff member not found")
+  const signingCycle = staff.signingCycle
+
   const existing = await prisma.hrSignedRecord.findUnique({
-    where: { hrDocumentVersionId_staffMemberId: { hrDocumentVersionId, staffMemberId } },
+    where: {
+      hrDocumentVersionId_staffMemberId_signingCycle: { hrDocumentVersionId, staffMemberId, signingCycle },
+    },
   })
   if (existing) return existing
 
@@ -189,7 +201,7 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   const doc = version.hrDocument
 
   const acks = await prisma.hrDocumentAcknowledgment.findMany({
-    where: { hrDocumentVersionId, staffMemberId },
+    where: { hrDocumentVersionId, staffMemberId, signingCycle },
   })
   const ackByCheckpoint = new Map(acks.map((a) => [a.checkpointId, a]))
   const missing = doc.checkpoints.filter((c) => c.required && !ackByCheckpoint.has(c.id))
@@ -370,16 +382,19 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
       data: {
         hrDocumentVersionId,
         staffMemberId,
+        signingCycle,
         completedAt,
         signedPdfPathname: uploaded.pathname,
         signedPdfHash,
       },
     })
   } catch (err) {
-    // Concurrent completion: the unique (version, staff) pair means someone
-    // else just created it — theirs is the record.
+    // Concurrent completion: the unique (version, staff, cycle) key means
+    // someone else just created it — theirs is the record.
     const race = await prisma.hrSignedRecord.findUnique({
-      where: { hrDocumentVersionId_staffMemberId: { hrDocumentVersionId, staffMemberId } },
+      where: {
+        hrDocumentVersionId_staffMemberId_signingCycle: { hrDocumentVersionId, staffMemberId, signingCycle },
+      },
     })
     if (race) return race
     throw err

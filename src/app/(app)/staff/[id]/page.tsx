@@ -135,7 +135,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
             signedRecords: { where: { staffMemberId: member.id } },
             acknowledgments: {
               where: { staffMemberId: member.id },
-              select: { checkpointId: true },
+              select: { checkpointId: true, signingCycle: true },
             },
           },
         },
@@ -146,8 +146,18 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
     documentRows = docs.flatMap((d) => {
       const current = d.versions.find((v) => v.isCurrent)
       if (!current) return []
-      const currentRecord = current.signedRecords[0]
-      const ackedIds = new Set(current.acknowledgments.map((a) => a.checkpointId))
+      // HR-15 Policy B: only current-cycle signatures satisfy this tenure. A
+      // current-version record from a prior tenure reads "needs-current"
+      // (same lever as a version bump) with the old record still on file.
+      const currentRecord = current.signedRecords.find(
+        (r) => r.signingCycle === member.signingCycle
+      )
+      const priorCycleRecord = currentRecord ? undefined : current.signedRecords[0]
+      const ackedIds = new Set(
+        current.acknowledgments
+          .filter((a) => a.signingCycle === member.signingCycle)
+          .map((a) => a.checkpointId)
+      )
       const requiredCount = d.checkpoints.length
       const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
       const priorSigned = d.versions.find((v) => !v.isCurrent && v.signedRecords.length > 0)
@@ -155,7 +165,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       let status: StaffDocumentRow["status"]
       if (currentRecord) status = "signed"
       else if (allAcked) status = "pending-record"
-      else if (priorSigned) status = "needs-current"
+      else if (priorCycleRecord || priorSigned) status = "needs-current"
       else if (ackedIds.size > 0) status = "in-progress"
       else status = "not-started"
 
@@ -170,9 +180,15 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
             ? current.versionNumber
             : allAcked
               ? current.versionNumber
-              : priorSigned?.versionNumber ?? null,
+              : priorCycleRecord
+                ? current.versionNumber
+                : priorSigned?.versionNumber ?? null,
           completedAt: currentRecord?.completedAt.toISOString() ?? null,
-          signedRecordId: currentRecord?.id ?? priorSigned?.signedRecords[0]?.id ?? null,
+          signedRecordId:
+            currentRecord?.id ??
+            priorCycleRecord?.id ??
+            priorSigned?.signedRecords[0]?.id ??
+            null,
           ackedCount: ackedIds.size,
           requiredCount,
         },
@@ -476,6 +492,11 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           {member.status === "TERMINATED" && member.terminatedAt && (
             <p className="text-sm text-[var(--color-destructive)] mt-2">
               Terminated {format(member.terminatedAt, "MMMM d, yyyy")} — records retained
+            </p>
+          )}
+          {member.status === "ACTIVE" && member.rehiredAt && (
+            <p className="text-sm text-[var(--color-muted-foreground)] mt-2">
+              Rehired {format(member.rehiredAt, "MMMM d, yyyy")} — required documents need re-signing
             </p>
           )}
         </div>

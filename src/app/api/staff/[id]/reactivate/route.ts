@@ -77,10 +77,19 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   // Status flip only — records untouched. userId is cleared defensively for
   // rows terminated before terminateStaffMember unlinked inline (the webhook
   // path could miss), along with the dead login's store assignments.
+  // Policy B (Gary 7-23): rehire opens a new signing cycle — required
+  // acknowledgment documents flip to "needs re-sign"; prior-cycle signatures
+  // and records stay on file untouched.
   await prisma.$transaction([
     prisma.staffMember.update({
       where: { id: member.id },
-      data: { status: "ACTIVE", terminatedAt: null, userId: null },
+      data: {
+        status: "ACTIVE",
+        terminatedAt: null,
+        userId: null,
+        rehiredAt: new Date(),
+        signingCycle: { increment: 1 },
+      },
     }),
     ...(member.userId
       ? [prisma.storeUserAssignment.deleteMany({ where: { userId: member.userId } })]

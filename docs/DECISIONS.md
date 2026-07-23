@@ -5,6 +5,43 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## HR-15b re-sign on rehire (Fork 2 REVERSED: Policy A → Policy B) — 2026-07-23 (Gary)
+
+a. **Gary reversed Fork 2 during the staging pass:** rehired employees MUST
+   re-sign required acknowledgment documents ("in case things have changed"),
+   and the re-read-and-sign flow doubles as the get-back-up-to-speed
+   acknowledgment he asked for. Old signed PDFs stay manager/admin-side
+   (HR-7 rule 5 unchanged — staff still don't download records).
+b. **Mechanism: signing cycles.** The HR-4 engine's uniqueness (one ack per
+   checkpoint/version/person, one record per version/person) made same-version
+   re-signing impossible, so each tenure is now a cycle: migration
+   `20260723180000_hr15b_signing_cycles` adds `StaffMember.signingCycle`
+   (default 1) + `rehiredAt`, and `signingCycle` (default 1) on
+   HrDocumentAcknowledgment + HrSignedRecord with both unique keys widened to
+   include it. Additive columns + index swaps only; no rows touched — all
+   existing signatures are cycle 1.
+c. **Semantics.** Reactivation increments the member's cycle and stamps
+   `rehiredAt`. Signatures count only under the member's current cycle; a
+   prior-cycle signature on the current version reads **needs re-sign** (same
+   loudness as a version bump, distinct from not-started). Capture stamps the
+   current cycle; completion and `ensureSignedRecord` are judged per cycle
+   (the cycle is derived server-side from the staff row — a prior cycle can
+   never be retro-completed); the signing screens' resume state is per cycle,
+   so rehires start the document fresh. A rehire's completed re-sign mints a
+   SECOND HrSignedRecord for the same version under the new cycle — the
+   cycle-1 record is untouched, hash-intact, still downloadable.
+d. **Training deliberately NOT reset** — Gary's decision covered documents;
+   a training reset on rehire would be its own decision.
+e. (Claude) Reactivate dialog copy now discloses the re-sign requirement;
+   `/staff/[id]` header shows "Rehired {date} — required documents need
+   re-signing" while `rehiredAt` is set. Verified via fixture script vs dev
+   DB + live private store: 11/11 (cycle-1 sign → complete; bump →
+   needs-resign pinned to current version; no retro-completion; same-cycle
+   dupes still skip; cycle-2 re-sign → new record, old record byte-intact).
+f. **Timing note:** Tommy was reactivated BEFORE this shipped, so he remains
+   cycle 1 (his old signatures count). Terminate + reactivate him once more
+   on staging to exercise the rehire re-sign end-to-end.
+
 ## HR-15 rehire / reactivate terminated staff — 2026-07-22 (Gary approved plan + both forks)
 
 a. **Reactivate action.** `POST /api/staff/[id]/reactivate` + Reactivate button
