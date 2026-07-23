@@ -80,7 +80,9 @@ export async function POST(req: Request) {
       organizationId: orgId,
       emailAddress: email,
       role: role === "ADMIN" ? "org:admin" : "org:member",
-      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/sign-up`,
+      // /accept-invite routes on __clerk_status: existing accounts go to
+      // sign-in, new invitees to sign-up — never a dead-ended sign-up.
+      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite`,
     })
 
     await prisma.pendingInvite.upsert({

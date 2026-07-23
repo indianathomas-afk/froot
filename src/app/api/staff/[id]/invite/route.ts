@@ -53,7 +53,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       organizationId: orgId,
       emailAddress: email,
       role: "org:member",
-      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/sign-up`,
+      // /accept-invite routes on __clerk_status: existing accounts (rehires)
+      // go to sign-in, new invitees to sign-up — never a dead-ended sign-up.
+      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite`,
     })
 
     // Store assignments mirror the staff member's stores so the resulting

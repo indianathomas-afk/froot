@@ -57,6 +57,19 @@ e. (Claude) Directory findability: "Terminated" badge on `/staff` rows (the
 f. **Noted, no action (Gary):** the stray Clerk test account
    (corporate@keva.com / tommythomas) holds an org:admin membership in
    unrelated org "Keva Smoothie Company" — Gary cleans up in the dashboard.
+   *(Done during the staging pass — org deleted; its webhook-created fossil
+   Organization row joins the HR-14 cleanup list.)*
+g. **Invite links route by account status (staging-pass finding, Gary).**
+   Both invite routes pointed `redirectUrl` at `/sign-up`, dead-ending any
+   invitee whose email already has a Clerk account — exactly the rehire case
+   ("email already exists" / "sign up forbidden"; employees have ONE email).
+   Fix: new public `/accept-invite` route-handler; Clerk appends
+   `__clerk_ticket` + `__clerk_status` to the redirect, and it forwards —
+   `sign_in` → `/sign-in` (ticket sign-in accepts the invitation), `sign_up`
+   → `/sign-up`, `complete` → `/dashboard`, no ticket → `/sign-in`. Prebuilt
+   SignIn/SignUp consume the forwarded ticket automatically. Remaining
+   polish is Gary's, in the Clerk dashboard: the invitation email template
+   wording ("if you already have a Froot login, you'll just sign in").
    Bulk-sync wart: a TERMINATED member who is Square-ACTIVE still gets store
    assignments rewritten by the bulk sync (the "profile freezes" comment only
    holds for Square-INACTIVE members) — text-only finding, HR-14 territory.
