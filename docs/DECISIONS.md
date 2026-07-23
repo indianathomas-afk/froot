@@ -55,6 +55,12 @@ b. **Agreement forms stay OUT of the compliance % (v1).** Nothing in the data
 c. **Training: Completed = compliant.** Certification is a separate, stricter
    badge — never required for the %. An assignment past its `dueDate` and not
    Completed is **"Overdue"**, the loudest gap state on every surface.
+   **Amended 7-22 (Gary, HR-8 staging pass):** not-yet-due assignments are
+   EXCLUDED from the % denominator — an assignment only counts against
+   compliance once its dueDate passes (completing early counts immediately).
+   The % means "is anyone behind", not "is everything assigned done".
+   Implementation lands with HR-13 (as-built code still counts from
+   assignment until then).
 d. **Only ACTIVE staff count in rollups.** Terminated staff are excluded from
    every percentage and every rollup denominator; their records remain fully
    auditable (the profile Compliance tab renders them behind an exclusion
