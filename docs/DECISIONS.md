@@ -5,6 +5,38 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## BUG-2 staff-profile linking — 2026-07-22 (Gary approved fix + repair)
+
+Caught by the HR-8 staging pass: an invited staff member's `/hr/acknowledge`
+page showed "no staff profile matching your email (tommythomas)".
+
+a. **Root cause.** The Clerk webhook persisted
+   `public_user_data.identifier` as `User.email` and keyed the
+   `PendingInvite` lookup on it — but on username-enabled accounts the
+   identifier is the USERNAME, not an email. Both linking mechanisms
+   (`StaffMember.userId` via PendingInvite, and the email fallback) failed
+   for the same reason. Blast radius was wider than HR: role + store
+   assignments from PendingInvite were dropped for any affected invitee.
+b. **Fix.** Shared helper `src/lib/clerk.ts`
+   (`getClerkPrimaryEmail` — Backend API resolution; `normalizeEmail` —
+   trim + lowercase). Webhook resolves the real primary email on
+   `organizationMembership.created` (500 on API failure so Svix retries),
+   PendingInvite lookup is case-insensitive, User upserts self-heal the
+   email, new `user.updated` handler tracks primary-email changes (endpoint
+   subscription verified by Gary). Users-page auto-sync uses the helper;
+   invite routes normalize at write time; signed-record route unified onto
+   `findStaffMemberForUser`; staff email writes trimmed.
+c. **Data repair (staging).** Deleted the single orphaned
+   `email = 'tommythomas'` User row (the Clerk account behind it had been
+   deleted during dashboard investigation; the ADMIN role on it was a
+   manual test edit — both Gary). PendingInvite kept for re-invite
+   verification; StaffMember untouched.
+d. **Noted, not fixed:** no `organization.deleted` / `user.deleted`
+   handlers (5 fossil Organization rows on staging; future
+   webhook-hardening session). Clerk org display name "Microsoft" drives
+   invite-email branding — rename is backlog. Display-only `identifier`
+   reads on the users surfaces left as-is (cosmetic).
+
 ## HR-8 compliance rollup — 2026-07-22 (Gary)
 
 a. **Acknowledgment docs: current version only.** Compliant = every required

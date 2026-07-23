@@ -2,6 +2,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
+import { normalizeEmail } from "@/lib/clerk"
 
 // GET: list all org members with their DB user record + store assignments
 export async function GET() {
@@ -64,7 +65,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const { email, role, storeIds } = await req.json()
+  const { email: rawEmail, role, storeIds } = await req.json()
+  // Normalized at write time so the webhook's invite lookup matches exactly.
+  const email = normalizeEmail(rawEmail)
+  if (!email) return NextResponse.json({ error: "Email is required" }, { status: 400 })
   const clerk = await clerkClient()
 
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })

@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       organizationId: org.id,
       displayName,
       fullName: fullName || null,
-      email: email || null,
+      email: (typeof email === "string" && email.trim()) || null,
       squareTeamMemberId: squareTeamMemberId || null,
       storeAssignments: {
         create: (storeIds ?? []).map((storeId: string) => ({ storeId, isPrimary: storeId === primaryStoreId })),

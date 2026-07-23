@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { format } from "date-fns"
 import { InviteUserButton, EditUserButton, RemoveUserButton, RevokeInviteButton } from "./user-actions"
 import { requireAdmin } from "@/lib/auth"
+import { getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
 import { redirect } from "next/navigation"
 
 const ROLE_STYLES: Record<string, string> = {
@@ -45,18 +46,23 @@ async function getData() {
   })
   if (unsyncedMembers.length > 0) {
     await Promise.all(
-      unsyncedMembers.map((m) => {
+      unsyncedMembers.map(async (m) => {
         const pub = m.publicUserData!
+        // BUG-2: identifier may be a username — resolve the real email.
+        const email =
+          (await getClerkPrimaryEmail(pub.userId!).catch(() => null)) ??
+          normalizeEmail(pub.identifier) ??
+          ""
         return prisma.user.upsert({
           where: { clerkUserId: pub.userId! },
           create: {
             clerkUserId: pub.userId!,
             organizationId: org.id,
-            email: pub.identifier ?? "",
+            email,
             name: [pub.firstName, pub.lastName].filter(Boolean).join(" ") || null,
             role: m.role === "org:admin" ? "ADMIN" : "STORE",
           },
-          update: {},
+          update: { email },
         })
       })
     )

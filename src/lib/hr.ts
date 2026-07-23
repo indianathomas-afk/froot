@@ -9,9 +9,10 @@ import { prisma } from "@/lib/prisma"
 // by org-scoped, case-insensitive email match; a manager fixes a miss by
 // setting the staff member's email in the directory.
 export async function findStaffMemberForEmail(organizationId: string, email: string | null | undefined) {
-  if (!email) return null
+  const needle = email?.trim()
+  if (!needle) return null
   return prisma.staffMember.findFirst({
-    where: { organizationId, email: { equals: email, mode: "insensitive" } },
+    where: { organizationId, email: { equals: needle, mode: "insensitive" } },
     include: staffSelfInclude,
   })
 }
