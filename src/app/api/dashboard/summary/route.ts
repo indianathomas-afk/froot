@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
@@ -72,8 +72,22 @@ export async function GET(req: Request) {
         where: { storeId_date: { storeId, date: dbDate(today) } },
         select: { syncedAt: true },
       })
-      if (!todayRow || Date.now() - todayRow.syncedAt.getTime() > STALE_MS) {
+      if (!todayRow) {
+        // First-ever load for this store/day: nothing cached to serve — sync
+        // inline so the card has data.
         await syncSalesForStore(org, store, today, today)
+      } else if (Date.now() - todayRow.syncedAt.getTime() > STALE_MS) {
+        // BUG-1 step 4: stale-but-present refreshes AFTER the response. The
+        // card renders cached numbers immediately instead of hanging on a
+        // slow Square call; the next load sees the refreshed cache. Square
+        // order webhooks + the reconcile cron remain the primary freshness.
+        after(async () => {
+          try {
+            await syncSalesForStore(org, store, today, today)
+          } catch (err) {
+            console.error(`[api/dashboard/summary] background refresh failed store=${storeId}:`, err)
+          }
+        })
       }
       await ensureSalesCached(org, store, mStart, today)
       await ensureSalesCached(org, store, comparisonDate, comparisonDate)

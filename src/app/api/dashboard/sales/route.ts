@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { z } from "zod"
 import { getCurrentUser } from "@/lib/auth"
 import { localDateStr, dbDate } from "@/lib/reports"
@@ -186,8 +186,19 @@ export async function GET(req: Request) {
         where: { storeId_date: { storeId, date: dbDate(today) } },
         select: { syncedAt: true },
       })
-      if (!todayRow || Date.now() - todayRow.syncedAt.getTime() > STALE_MS) {
+      if (!todayRow) {
+        // First-ever load for this store/day: nothing cached — sync inline.
         await syncSalesForStore(org, store, today, today)
+      } else if (Date.now() - todayRow.syncedAt.getTime() > STALE_MS) {
+        // BUG-1 step 4: stale-but-present refreshes AFTER the response so the
+        // chart serves cached data immediately (webhooks + cron stay primary).
+        after(async () => {
+          try {
+            await syncSalesForStore(org, store, today, today)
+          } catch (err) {
+            console.error(`[api/dashboard/sales] background refresh failed store=${storeId}:`, err)
+          }
+        })
       }
     }
     await ensureSalesCached(org, store, start, end)

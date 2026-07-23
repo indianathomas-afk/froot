@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { format } from "date-fns"
-import { BookOpen, CheckCircle2, ChevronRight, FileText } from "lucide-react"
+import { BookOpen, CheckCircle2, ChevronRight, FileText, ShieldCheck } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { Badge } from "@/components/ui/badge"
@@ -32,8 +32,21 @@ export default async function MyDocumentsPage() {
   if (!self.ok) return <MyDenied reason={self.reason} />
   const { staffMember, org } = self
 
-  const [rows, referenceDocs, sharedDocs] = await Promise.all([
+  const [rows, signedRecords, referenceDocs, sharedDocs] = await Promise.all([
     requiredDocumentRows(staffMember),
+    // STAFF-1 (F4): every executed record this person holds — all versions and
+    // signing cycles (a rehire's records coexist) — viewable inline, never
+    // downloadable from here.
+    prisma.hrSignedRecord.findMany({
+      where: {
+        staffMemberId: staffMember.id,
+        version: { hrDocument: { organizationId: org.id } },
+      },
+      include: {
+        version: { select: { versionNumber: true, hrDocument: { select: { title: true } } } },
+      },
+      orderBy: { completedAt: "desc" },
+    }),
     prisma.hrDocument.findMany({
       where: { organizationId: org.id, kind: "Reference", isActive: true },
       select: { id: true, title: true, category: true },
@@ -52,7 +65,7 @@ export default async function MyDocumentsPage() {
   const done = rows.filter((r) => r.status === "signed" || r.status === "pending-record")
 
   return (
-    <MyShell>
+    <MyShell showInstagram={!!org.instagramEnabled && !!org.instagramAccessToken}>
       <h1 className="text-xl font-bold text-[var(--color-foreground)] mb-4">My Documents</h1>
 
       <h2 className="text-sm font-medium uppercase tracking-wide text-[var(--color-muted-foreground)] mb-2">
@@ -106,6 +119,35 @@ export default async function MyDocumentsPage() {
                 </div>
                 {statusBadge(row)}
               </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {signedRecords.length > 0 && (
+        <>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-[var(--color-muted-foreground)] mb-2">
+            Signed records
+          </h2>
+          <div className="space-y-2 mb-6">
+            {signedRecords.map((r) => (
+              <Link
+                key={r.id}
+                href={`/my/documents/records/${r.id}`}
+                className="flex items-center gap-3 border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-4 min-h-11"
+              >
+                <ShieldCheck className="h-5 w-5 shrink-0 text-[var(--color-primary)]" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-[var(--color-foreground)] truncate">
+                    {r.version.hrDocument.title}
+                  </p>
+                  <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+                    Version {r.version.versionNumber} · signed {format(r.completedAt, "MMM d, yyyy · h:mm a")}
+                  </p>
+                </div>
+                <span className="text-xs font-medium text-[var(--color-primary)] shrink-0">View</span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-[var(--color-muted-foreground)]" />
+              </Link>
             ))}
           </div>
         </>

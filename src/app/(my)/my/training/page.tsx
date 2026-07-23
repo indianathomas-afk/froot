@@ -31,7 +31,7 @@ export default async function MyTrainingPage() {
   })
 
   return (
-    <MyShell>
+    <MyShell showInstagram={!!self.org.instagramEnabled && !!self.org.instagramAccessToken}>
       <h1 className="text-xl font-bold text-[var(--color-foreground)] mb-4">My Training</h1>
 
       {assignments.length === 0 ? (

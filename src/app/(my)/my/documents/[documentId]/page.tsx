@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
-import { AcknowledgeClient } from "@/app/(app)/hr/acknowledge/[documentId]/acknowledge-client"
+import { SigningClient } from "@/app/(app)/hr/acknowledge/[documentId]/signing-client"
 import { MyShell } from "../../my-shell"
 import { MyDenied } from "../../denied"
 
@@ -42,8 +42,8 @@ export default async function MyAcknowledgePage({
   const doneIds = new Set(existing.map((a) => a.checkpointId))
 
   return (
-    <MyShell>
-      <AcknowledgeClient
+    <MyShell showInstagram={!!org.instagramEnabled && !!org.instagramAccessToken}>
+      <SigningClient
         doc={{
           id: doc.id,
           title: doc.title,
@@ -60,7 +60,6 @@ export default async function MyAcknowledgePage({
           required: c.required,
           done: doneIds.has(c.id),
         }))}
-        mode="self"
         staff={{ id: staffMember.id, name: staffMember.fullName ?? staffMember.displayName }}
         backHref="/my/documents"
         backLabel="My Documents"

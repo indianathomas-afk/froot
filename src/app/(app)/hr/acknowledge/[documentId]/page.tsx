@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { findStaffMemberForUser } from "@/lib/hr"
 import { AcknowledgeClient } from "./acknowledge-client"
+import { SigningClient } from "./signing-client"
 
 // HR-4 single-document acknowledgment flow. Two entry points, one engine:
 //   /hr/acknowledge/[documentId]              — self-serve (ClerkSession)
@@ -91,26 +92,29 @@ export default async function AcknowledgePage({
   })
   const doneIds = new Set(existing.map((a) => a.checkpointId))
 
-  return (
-    <AcknowledgeClient
-      doc={{
-        id: doc.id,
-        title: doc.title,
-        versionNumber: version.versionNumber,
-        fileHash: version.fileHash,
-        fileName: version.fileName,
-      }}
-      checkpoints={doc.checkpoints.map((c) => ({
-        id: c.id,
-        name: c.name,
-        type: c.type,
-        pageRef: c.pageRef,
-        attestationText: c.attestationText,
-        required: c.required,
-        done: doneIds.has(c.id),
-      }))}
-      mode={attested ? "attested" : "self"}
-      staff={{ id: staff.id, name: staff.fullName ?? staff.displayName }}
-    />
+  const clientDoc = {
+    id: doc.id,
+    title: doc.title,
+    versionNumber: version.versionNumber,
+    fileHash: version.fileHash,
+    fileName: version.fileName,
+  }
+  const clientCheckpoints = doc.checkpoints.map((c) => ({
+    id: c.id,
+    name: c.name,
+    type: c.type,
+    pageRef: c.pageRef,
+    attestationText: c.attestationText,
+    required: c.required,
+    done: doneIds.has(c.id),
+  }))
+  const clientStaff = { id: staff.id, name: staff.fullName ?? staff.displayName }
+
+  // HR-11: self-serve signing uses the formal inline ceremony; manager-attested
+  // capture keeps the quick form — it records, it doesn't sign.
+  return attested ? (
+    <AcknowledgeClient doc={clientDoc} checkpoints={clientCheckpoints} mode="attested" staff={clientStaff} />
+  ) : (
+    <SigningClient doc={clientDoc} checkpoints={clientCheckpoints} staff={clientStaff} />
   )
 }
