@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { ArrowLeft, Download, FileText, Pencil, PenLine, Plus, Trash2, Upload } from "lucide-react"
+import { ArrowLeft, Download, FileScan, FileText, Pencil, PenLine, Plus, RefreshCw, Trash2, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -24,12 +24,19 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  HR_ANCHOR_MARK_HINTS,
+  HR_ANCHOR_MARK_LABELS,
+  HR_ANCHOR_MARK_TYPES,
+  HR_ANCHOR_PLACEMENT_LABELS,
+  HR_ANCHOR_PLACEMENTS,
   HR_CATEGORY_LABELS,
   HR_CATEGORY_STYLES,
   HR_CHECKPOINT_TYPES,
   HR_CHECKPOINT_TYPE_LABELS,
   HR_CHECKPOINT_TYPE_STYLES,
   HR_KIND_LABELS,
+  type HrAnchorMarkTypeName,
+  type HrAnchorPlacementName,
   type HrCheckpointTypeName,
   type HrDocumentCategory,
 } from "@/lib/hr-documents"
@@ -56,6 +63,15 @@ export interface VersionRow {
   createdAt: string
 }
 
+export interface AnchorRow {
+  id: string
+  page: number
+  anchorText: string
+  markType: string
+  placement: string
+  confirmed: boolean
+}
+
 export interface DocumentDetail {
   id: string
   title: string
@@ -64,6 +80,8 @@ export interface DocumentDetail {
   isActive: boolean
   versions: VersionRow[]
   checkpoints: CheckpointRow[]
+  currentVersionId: string | null
+  anchors: AnchorRow[]
 }
 
 function formatSize(bytes: number): string {
@@ -107,6 +125,7 @@ export function DocumentDetailClient({ doc }: { doc: DocumentDetail }) {
 
       <div className="space-y-6">
         <VersionsCard doc={doc} />
+        {isSignatureDoc && <AnchorsCard doc={doc} />}
         {isSignatureDoc && <CheckpointsCard doc={doc} />}
       </div>
     </div>
@@ -241,6 +260,230 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+// HR-11b: the anchor confirm/mapping step. Detected anchors are proposals —
+// the admin adjusts the mark type + placement and keeps/discards each, grouped
+// by page, then confirms. Confirmation generates/links the checkpoints. Free
+// drag-repositioning is deliberately NOT offered (ruling U1 — that's manual
+// placement, deferred).
+interface AnchorDraft {
+  markType: HrAnchorMarkTypeName
+  placement: HrAnchorPlacementName
+  keep: boolean
+}
+
+// Re-run detection against the already-uploaded current version (no re-upload).
+// Populates documents that predate anchoring, and re-detects when detection
+// improves. Replaces only the unconfirmed set; confirmed anchors are preserved.
+function RescanButton({ docId, label = "Rescan fields" }: { docId: string; label?: string }) {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+
+  async function handleRescan() {
+    setBusy(true)
+    setError("")
+    try {
+      const res = await fetch(`/api/hr/documents/${docId}/anchors/rescan`, { method: "POST" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? "Failed to scan the document")
+        return
+      }
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Button variant="outline" onClick={handleRescan} disabled={busy}>
+        <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+        {busy ? "Scanning..." : label}
+      </Button>
+      {error && <span className="text-xs text-[var(--color-destructive)]">{error}</span>}
+    </span>
+  )
+}
+
+function AnchorsCard({ doc }: { doc: DocumentDetail }) {
+  const router = useRouter()
+  const [drafts, setDrafts] = useState<Record<string, AnchorDraft>>(() =>
+    Object.fromEntries(
+      doc.anchors.map((a) => [
+        a.id,
+        {
+          markType: a.markType as HrAnchorMarkTypeName,
+          placement: a.placement as HrAnchorPlacementName,
+          keep: true,
+        },
+      ])
+    )
+  )
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  const allConfirmed = doc.anchors.length > 0 && doc.anchors.every((a) => a.confirmed)
+
+  // Empty → image-only / no text layer → certificate-only mode.
+  if (doc.anchors.length === 0) {
+    return (
+      <section className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)]">
+        <div className="flex items-center justify-between gap-3 p-4 border-b border-[var(--color-border)]">
+          <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Detected fields</h2>
+          <RescanButton docId={doc.id} label="Scan for fields" />
+        </div>
+        <div className="flex items-start gap-3 p-6">
+          <FileScan className="h-5 w-5 text-[var(--color-muted-foreground)] shrink-0 mt-0.5" />
+          <div className="text-sm text-[var(--color-muted-foreground)]">
+            <p className="font-medium text-[var(--color-foreground)]">No fields detected yet</p>
+            <p className="mt-1 max-w-xl">
+              Nothing has been stamped onto the page body. If this is a text-based PDF (including
+              documents added before field detection existed), use{" "}
+              <span className="font-medium">Scan for fields</span> to detect them now. If it&apos;s a
+              scanned or image-only PDF there is no text layer to read — signing still works end to
+              end and execution is recorded on the appended{" "}
+              <span className="font-medium">Certificate of Acknowledgment</span>.
+            </p>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  const pages = [...new Set(doc.anchors.map((a) => a.page))].sort((x, y) => x - y)
+  const keptCount = Object.values(drafts).filter((d) => d.keep).length
+
+  function update(id: string, patch: Partial<AnchorDraft>) {
+    setDrafts((d) => ({ ...d, [id]: { ...d[id], ...patch } }))
+  }
+
+  async function handleConfirm() {
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch(`/api/hr/documents/${doc.id}/anchors`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anchors: doc.anchors.map((a) => ({
+            id: a.id,
+            markType: drafts[a.id].markType,
+            placement: drafts[a.id].placement,
+            keep: drafts[a.id].keep,
+          })),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? "Failed to confirm the fields")
+        return
+      }
+      router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)]">
+      <div className="flex items-center justify-between gap-3 p-4 border-b border-[var(--color-border)]">
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--color-foreground)] flex items-center gap-2">
+            Detected fields{" "}
+            <span className="font-normal text-[var(--color-muted-foreground)]">
+              ({doc.anchors.length} across {pages.length} page{pages.length === 1 ? "" : "s"})
+            </span>
+            {allConfirmed && <Badge variant="success">Confirmed</Badge>}
+          </h2>
+          <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5 max-w-2xl">
+            These are proposals from scanning the document text — review each one before confirming
+            (e.g. an &ldquo;Effective Date:&rdquo; inside policy text should be discarded). Confirming
+            generates the checkpoints and enables inline stamping on signed copies.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <RescanButton docId={doc.id} />
+          <Button onClick={handleConfirm} disabled={saving}>
+            {saving ? "Confirming..." : allConfirmed ? "Save changes" : `Confirm & generate (${keptCount})`}
+          </Button>
+        </div>
+      </div>
+
+      <div className="divide-y divide-[var(--color-border)]">
+        {pages.map((page) => (
+          <div key={page} className="p-4">
+            <p className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wide mb-2">
+              Page {page}
+            </p>
+            <div className="space-y-2">
+              {doc.anchors
+                .filter((a) => a.page === page)
+                .map((a) => {
+                  const draft = drafts[a.id]
+                  return (
+                    <div
+                      key={a.id}
+                      className={`flex items-center gap-3 flex-wrap rounded-md border border-[var(--color-border)] px-3 py-2 ${draft.keep ? "" : "opacity-50"}`}
+                    >
+                      <span
+                        className="font-mono text-xs text-[var(--color-foreground)] shrink-0 max-w-[16rem] truncate"
+                        title={a.anchorText}
+                      >
+                        {a.anchorText}
+                      </span>
+                      <div className="flex items-center gap-2 flex-wrap ml-auto">
+                        <Select
+                          value={draft.markType}
+                          onValueChange={(v) => update(a.id, { markType: v as HrAnchorMarkTypeName })}
+                          disabled={!draft.keep}
+                        >
+                          <SelectTrigger className="w-[15rem]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {HR_ANCHOR_MARK_TYPES.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {HR_ANCHOR_MARK_LABELS[t]}
+                                <span className="text-[var(--color-muted-foreground)]"> — {HR_ANCHOR_MARK_HINTS[t]}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={draft.placement}
+                          onValueChange={(v) => update(a.id, { placement: v as HrAnchorPlacementName })}
+                          disabled={!draft.keep}
+                        >
+                          <SelectTrigger className="w-[13rem]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {HR_ANCHOR_PLACEMENTS.map((p) => (
+                              <SelectItem key={p} value={p}>{HR_ANCHOR_PLACEMENT_LABELS[p]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <label className="flex items-center gap-1.5 text-xs text-[var(--color-foreground)] shrink-0">
+                          <Checkbox
+                            checked={draft.keep}
+                            onCheckedChange={(v) => update(a.id, { keep: v === true })}
+                          />
+                          Include
+                        </label>
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {error && <p className="px-4 pb-3 text-sm text-[var(--color-destructive)]">{error}</p>}
+    </section>
   )
 }
 

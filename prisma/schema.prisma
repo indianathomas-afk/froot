@@ -29,6 +29,10 @@ model Organization {
   instagramConnectedAt    DateTime?
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
+  // HR-11b: governs inline `Date:` field stamps ONLY ("dateOnly" | "dateTime").
+  // Validation stamps and the Certificate of Acknowledgment always render full
+  // date+time regardless (court-defensibility, per DECISIONS F5b).
+  hrDateStampFormat       String    @default("dateOnly")
   createdAt               DateTime  @default(now())
 
   stores                        Store[]
@@ -1284,6 +1288,22 @@ enum HrAuthMethod {
   ManagerAttested
 }
 
+// HR-11b: what an anchor's captured value renders as when stamped inline.
+enum HrAnchorMarkType {
+  Initial // signer initials, e.g. [TPT]
+  PrintedName // printed full name
+  DateStamp // date (or date+time per Organization.hrDateStampFormat)
+  Store // signer's store assignment
+  SignatureStamp // stylized name + "Signed electronically" + timestamp + record ref
+}
+
+// HR-11b: where the mark sits relative to the detected anchor token/line.
+enum HrAnchorPlacement {
+  Right
+  Above
+  Below
+}
+
 // An internal document (handbook, pay agreement, policy...). The FILE lives on
 // versions; checkpoints/fields describe what a staff member must sign or fill.
 // linkedFormId pairs Check-Out ↔ Check-In style forms.
@@ -1347,6 +1367,7 @@ model HrDocumentVersion {
   acknowledgments HrDocumentAcknowledgment[]
   formSubmissions FormSubmission[]
   signedRecords   HrSignedRecord[]
+  anchors         DocumentAnchor[]
 
   @@unique([hrDocumentId, versionNumber])
 }
@@ -1365,6 +1386,35 @@ model HrDocumentCheckpoint {
 
   hrDocument      HrDocument                 @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
   acknowledgments HrDocumentAcknowledgment[]
+}
+
+// HR-11b: a field anchor detected in a specific document VERSION's text layer.
+// Bound to the version (coordinates are meaningless across files); checkpoints
+// stay document-level and are generated FROM confirmed anchors. Detection is
+// metadata, not a legal record — hence onDelete: Cascade (unlike acks/signed
+// records, which block version deletion). Re-detection replaces the version's
+// UNCONFIRMED set only; confirmed anchors and any acked checkpoints are never
+// disturbed (see DECISIONS: G1 integrity rule). generatedCheckpointId is a soft
+// pointer (no FK) so checkpoint removal never cascades into anchor integrity.
+model DocumentAnchor {
+  id                    String            @id @default(cuid())
+  hrDocumentVersionId   String
+  page                  Int // 1-based
+  x                     Float // PDF user space, MediaBox-relative, bottom-left origin
+  y                     Float
+  width                 Float? // detected token width, for placement math
+  pageRotation          Int               @default(0) // page /Rotate at detection (D2)
+  anchorText            String // matched anchor token, verbatim
+  markType              HrAnchorMarkType
+  placement             HrAnchorPlacement @default(Right)
+  confirmed             Boolean           @default(false) // proposal -> admin-confirmed
+  generatedCheckpointId String? // soft link to the checkpoint this anchor created
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  version HrDocumentVersion @relation(fields: [hrDocumentVersionId], references: [id], onDelete: Cascade)
+
+  @@index([hrDocumentVersionId])
 }
 
 // The defensible signed record. staffMemberId/userId are intentionally plain
@@ -1770,13 +1820,13 @@ model LaborPosition {
 
 /// Org default settings (storeId null) with optional per-store override rows.
 model LaborSettings {
-  id                    String           @id @default(cuid())
+  id                    String                @id @default(cuid())
   organizationId        String
   storeId               String? // null = org default
-  laborTargetPct        Decimal          @default(20.00) @db.Decimal(5, 2)
-  roundingIncrement     Decimal          @default(1000.00) @db.Decimal(10, 2) // dollars; default $1,000
-  denominator           LaborDenominator @default(TOTAL_WITH_DELIVERY) // DEPRECATED (Phase 2): total sales only
-  plannedBlendedRate    Decimal?         @db.Decimal(10, 2) // optional manual blended rate (dollars); else computed
+  laborTargetPct        Decimal               @default(20.00) @db.Decimal(5, 2)
+  roundingIncrement     Decimal               @default(1000.00) @db.Decimal(10, 2) // dollars; default $1,000
+  denominator           LaborDenominator      @default(TOTAL_WITH_DELIVERY) // DEPRECATED (Phase 2): total sales only
+  plannedBlendedRate    Decimal?              @db.Decimal(10, 2) // optional manual blended rate (dollars); else computed
   // L-3: floor-first vs sales-weighted weekly→daily hourly-hours split.
   dailySplitPolicy      LaborDailySplitPolicy @default(FLOOR_FIRST)
   // Phase 3: the salaried GM's default on-floor window (minutes from local
@@ -1784,8 +1834,8 @@ model LaborSettings {
   // body + the supervisor during this window.
   gmOnFloorStartMinutes Int?
   gmOnFloorEndMinutes   Int?
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   store        Store?       @relation(fields: [storeId], references: [id], onDelete: Cascade)

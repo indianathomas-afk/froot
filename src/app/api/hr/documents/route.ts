@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { PDFDocument } from "pdf-lib"
 import { prisma } from "@/lib/prisma"
+import { detectAndStoreVersionAnchors } from "@/lib/hr-anchors"
 import { HrFileValidationError, readHrFileMeta, validateHrFileMeta } from "@/lib/hr-files"
 import {
   HR_DOCUMENT_CATEGORIES,
@@ -128,6 +129,15 @@ export async function POST(req: Request) {
     },
     include: { versions: true },
   })
+
+  // HR-11b: scan the version's text layer for field anchors and persist them as
+  // unconfirmed proposals for the admin to confirm on /hr/documents/[id]. Best
+  // effort — a scan failure or an image-only PDF just leaves zero anchors
+  // (certificate-only fallback) and never blocks the upload. Clone the bytes:
+  // pdfjs may detach the buffer during parsing.
+  if (isAcknowledgment && meta.bytes && doc.versions[0]) {
+    await detectAndStoreVersionAnchors(doc.versions[0].id, new Uint8Array(meta.bytes))
+  }
 
   return NextResponse.json(doc, { status: 201 })
 }

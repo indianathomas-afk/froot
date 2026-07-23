@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { detectAndStoreVersionAnchors } from "@/lib/hr-anchors"
 import { HrFileValidationError, readHrFileMeta, validateHrFileMeta } from "@/lib/hr-files"
 import { isOrgHrBlobUrl, requireHrDocumentAccess } from "../../access"
 
@@ -39,9 +40,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Invalid file reference" }, { status: 400 })
   }
 
+  const isAcknowledgment = doc.kind === "Acknowledgment"
   let meta
   try {
-    meta = await readHrFileMeta(url)
+    meta = await readHrFileMeta(url, { includeBytes: isAcknowledgment })
     validateHrFileMeta(meta.contentType, meta.sizeBytes)
   } catch (err) {
     if (err instanceof HrFileValidationError) {
@@ -53,7 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  if (doc.kind === "Acknowledgment" && meta.contentType !== "application/pdf") {
+  if (isAcknowledgment && meta.contentType !== "application/pdf") {
     return NextResponse.json({ error: "Signature documents must be PDFs" }, { status: 400 })
   }
 
@@ -76,6 +78,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     }),
   ])
+
+  // HR-11b: anchors are per-version — a new file needs a fresh scan (ruling #1,
+  // re-detect + re-confirm on every version). Checkpoints still carry forward
+  // (document-level); the admin re-confirms the new version's anchors before
+  // stamping uses them. Best effort — image-only / scan failure → zero anchors.
+  if (isAcknowledgment && meta.bytes) {
+    await detectAndStoreVersionAnchors(version.id, new Uint8Array(meta.bytes))
+  }
 
   return NextResponse.json(version, { status: 201 })
 }

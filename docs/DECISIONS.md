@@ -5,6 +5,96 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## HR-11b field anchoring & inline stamping — 2026-07-23 (Gary approved plan + rulings 1–7)
+
+a. **Version-binding — Option A.** `DocumentAnchor` binds to
+   `hrDocumentVersionId` (coordinates are per-file). Checkpoints stay
+   document-level and keep carrying forward across versions. Each new version
+   upload re-detects and re-confirms; an in-flight signer finishes against the
+   version's own anchors; signed records stay bound to the version signed
+   (existing rule, reaffirmed).
+
+b. **Schema — additive.** `DocumentAnchor` (page, x, y, width, pageRotation,
+   anchorText, markType, placement, confirmed, generatedCheckpointId
+   soft-pointer) with `@@index([hrDocumentVersionId])` and **no float
+   `@@unique`** (ruling 2 — float equality is unreliable); re-detection
+   idempotency is application-level (replace the version's **unconfirmed** set,
+   never confirmed). `onDelete: Cascade` on the version relation (anchors are
+   metadata, not records). `Organization.hrDateStampFormat` (**B1**, default
+   `"dateOnly"`) governs inline `Date:` fills only; validation stamps and the
+   Certificate of Acknowledgment always render full date+time (reaffirms F5b,
+   court-defensibility).
+
+c. **Anchor vocabulary + longest-match-wins.** 8 tokens (`Initial:`, `Name:`,
+   `Date:`, `Store:`, `Employee Name (Print):`, `Employee Name`,
+   `Employee Signature:`, `Employee's Signature`), matched case-insensitively,
+   longest first with a claimed-span mask so `Employee Name (Print):` never
+   also registers as `Name:` / `Employee Name`.
+
+d. **Detection server-side at upload.** pdfjs legacy build, headless in the
+   Next 16 Node runtime (D1 spike = GO; no drop-in substitute exists, so a
+   no-go would have been a re-plan, not a workaround). **D2 (ruling 7): page
+   `/Rotate` and non-zero MediaBox origin handled explicitly** in both detection
+   and stamping — pdf-lib and pdfjs share absolute content space (shifted-
+   MediaBox spike confirmed no offset needed); placement offsets rotate out of
+   the reader frame and glyphs counter-rotate. Unit-tested for all four
+   rotations.
+
+e. **Admin confirmation REQUIRED.** Detected anchors are proposals; the upload
+   flow is scan → grouped-by-page review → confirm/adjust → generate. **U1:**
+   confirm may change mark type, coarse placement side (Right/Above/Below), and
+   keep/discard — **no free-drag repositioning** (that is manual placement,
+   deferred).
+
+f. **What anchoring adds, and link-first generation.** Document creation
+   ALREADY auto-generates the checkpoint backbone — one `Initial` checkpoint per
+   page plus a final `Acknowledgment` (the handbook's 29 were hand-refinements
+   on top of that, not built from zero). Anchoring does NOT replace that
+   backbone; it adds two things the checkpoints never had: (1) the page
+   COORDINATES to stamp at (`pageRef` was page-number only), and (2) coverage of
+   the printed-name / date / signature-line fields the per-page Initial defaults
+   never captured. Generation is **link-first**: a confirmed `Initial` anchor
+   links to the page's existing Initial checkpoint (creating one only if a
+   page's default was deleted); `SignatureStamp` links to the final
+   Acknowledgment checkpoint (where the typed legal name is already captured, so
+   no new ceremony step is added); `PrintedName` / `Store` / `DateStamp` are
+   stamp-only (derived values, no checkpoint). Existing manual checkpoints and
+   documents keep working untouched (additive, not a migration).
+
+g. **G1 — hard integrity rule (ruling 5).** A checkpoint that has
+   acknowledgment rows is **never deleted or modified by re-confirmation**, full
+   stop. Re-confirmation may add/link checkpoints. **Chosen posture (Gary):**
+   re-confirm does **not** auto-delete even zero-ack generated checkpoints —
+   manual delete (already ack-count-guarded in the UI) stays the only deletion
+   path. This is a system integrity rule, not a session preference.
+
+h. **Image-only fallback.** No text layer → zero anchors → automatic
+   certificate-only mode (today's behavior) with a clear admin explanation.
+   Manual click-to-place tooling explicitly deferred.
+
+i. **Rescan.** `POST /api/hr/documents/[id]/anchors/rescan` re-detects the
+   current version's already-uploaded file (no re-upload) — for documents that
+   predate anchoring and for re-running when detection improves. Replaces the
+   unconfirmed set, preserves confirmed. ADMIN-only, like every other document-
+   configuration route (the confirm route and the `/hr/documents/[id]` manager
+   surface are ADMIN-only too; MANAGER-in-scope is for signing/attesting, not
+   document config).
+
+j. **Completed-vs-Signed fork (STAFF-1) — (c) cross-link only, no merge.** The
+   flagged overlap lives inside `staff-documents.tsx`: a document row shows both
+   a completion-state badge and a "Signed record" link, already referencing the
+   same record — no structural change needed. No second overlap found
+   (`/hr/signed-records` vs `/hr/compliance` were confirmed to have distinct
+   jobs — executed-artifact list vs who-hasn't-signed rollup).
+
+k. **(Claude) Delivery.** No new deps (`pdfjs-dist`, `pdf-lib` already
+   present). Migration `20260723220118_hr11b_document_anchors` additive-only
+   (applied to dev; Vercel `migrate deploy` applies to staging/prod). Fixture
+   `scripts/verify-hr-anchors.ts` → 20/20 (detection, longest-match, split-label
+   reassembly, D2 geometry across four rotations, image-only). `next build`
+   green each step. HR remains dark in production (`HR_MODULE_AVAILABLE` unset)
+   — unchanged by this phase.
+
 ## STAFF-1 staff experience + HR-11 inline signing — 2026-07-23 (Gary approved plan + forks F1–F8)
 
 a. **Timestamp audit finding (Defect 1 root cause).** Per-interaction times

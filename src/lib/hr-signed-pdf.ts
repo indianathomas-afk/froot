@@ -1,5 +1,5 @@
 import { createHash } from "crypto"
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "pdf-lib"
+import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from "pdf-lib"
 import { prisma } from "@/lib/prisma"
 import { streamHrFile, uploadHrFile } from "@/lib/hr-files"
 import type { SubmittedFormValue } from "@/lib/hr-forms"
@@ -62,6 +62,47 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 
 function utc(d: Date): string {
   return d.toISOString().replace("T", " ").slice(0, 19) + " UTC"
+}
+
+// HR-11b: inline `Date:` fills follow the org display setting; everything
+// court-facing (signature stamps, the certificate) always renders full
+// date+time (DECISIONS F5b). dateOnly => "2026-07-23", dateTime => full UTC.
+function formatDateStamp(d: Date, format: string): string {
+  return format === "dateTime" ? utc(d) : d.toISOString().slice(0, 10)
+}
+
+// HR-11b: turn a detected anchor (raw PDF content-space coords, bottom-left
+// origin) into a pdf-lib draw position + glyph rotation, honouring the page's
+// /Rotate (D2). pdf-lib and pdfjs share the same absolute content space — the
+// spike confirmed a shifted MediaBox needs no offset — so x/y pass straight
+// through; only the placement offset is rotated out of the reader's frame into
+// content space, and glyphs are counter-rotated to read upright on a rotated
+// page. Pure + exported for the fixture.
+export type StampPlacement = "Right" | "Above" | "Below"
+export function computeStampPlacement(
+  anchor: { x: number; y: number; width: number | null; pageRotation: number },
+  placement: StampPlacement,
+  opts: { pad?: number; lineHeight?: number } = {}
+): { x: number; y: number; rotateDeg: number } {
+  const pad = opts.pad ?? 4
+  const lh = opts.lineHeight ?? 11
+  const w = anchor.width ?? 0
+  // Offset in the reader's frame.
+  let dx = 0
+  let dy = 0
+  if (placement === "Right") dx = w + pad
+  else if (placement === "Above") dy = lh
+  else dy = -lh // Below
+  // Rotate the reader-frame offset into content space by the page's CCW rotation.
+  const r = (((anchor.pageRotation ?? 0) % 360) + 360) % 360
+  const rad = (r * Math.PI) / 180
+  const cos = Math.round(Math.cos(rad))
+  const sin = Math.round(Math.sin(rad))
+  return {
+    x: anchor.x + (cos * dx - sin * dy),
+    y: anchor.y + (sin * dx + cos * dy),
+    rotateDeg: r, // glyphs drawn at content-angle r read upright once /Rotate applies
+  }
 }
 
 // pdf-lib's standard fonts only cover WinAnsi — map common typographic
@@ -254,6 +295,102 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     font: helvBold,
     color: ACCENT,
   })
+
+  // ── HR-11b: inline field stamping ─────────────────────────────────────────
+  // Overlay the captured values at each confirmed anchor's coordinates so the
+  // document body reads as executed. Zero confirmed anchors (image-only PDFs,
+  // or documents never scanned/confirmed) => this block no-ops and the record
+  // is certificate-only, exactly the prior behavior. The certificate below is
+  // ALWAYS appended regardless.
+  const anchors = await prisma.documentAnchor.findMany({
+    where: { hrDocumentVersionId, confirmed: true },
+  })
+  if (anchors.length > 0) {
+    const STAMP_INK = rgb(0.1, 0.18, 0.5) // pen blue, so fills read as filled-in
+    const helvOblique = await pdf.embedFont(StandardFonts.HelveticaOblique)
+    const pages = pdf.getPages()
+    const dateFormat = doc.organization.hrDateStampFormat === "dateTime" ? "dateTime" : "dateOnly"
+
+    // Earliest capture time per page — the inline Date: fill for that page.
+    const dateByPage = new Map<number, Date>()
+    for (const { checkpoint, ack } of orderedAcks) {
+      if (checkpoint.pageRef != null) {
+        const cur = dateByPage.get(checkpoint.pageRef)
+        if (!cur || ack.signedAt < cur) dateByPage.set(checkpoint.pageRef, ack.signedAt)
+      }
+    }
+    // Stable, record-independent reference shown on the signature stamp.
+    const recordRef = createHash("sha256")
+      .update(`${hrDocumentVersionId}:${staffMemberId}:${signingCycle}`)
+      .digest("hex")
+      .slice(0, 12)
+      .toUpperCase()
+
+    for (const a of anchors) {
+      const page = pages[a.page - 1]
+      if (!page) continue
+      const placement = a.placement as StampPlacement
+
+      if (a.markType === "SignatureStamp") {
+        // Multi-line validation block: stylized name, notation, time, ref.
+        const lh = 9
+        const base = computeStampPlacement(a, placement, { lineHeight: 13 })
+        const rr = (((a.pageRotation ?? 0) % 360) + 360) % 360
+        const rad = (rr * Math.PI) / 180
+        const cs = Math.round(Math.cos(rad))
+        const sn = Math.round(Math.sin(rad))
+        const stepX = sn * lh // reader-down (0,-1) rotated into content space
+        const stepY = -cs * lh
+        const line = (n: number, text: string, font: PDFFont, size: number) =>
+          page.drawText(sanitize(text), {
+            x: base.x + n * stepX,
+            y: base.y + n * stepY,
+            size,
+            font,
+            color: STAMP_INK,
+            rotate: degrees(base.rotateDeg),
+          })
+        line(0, lastAck.staffName, helvOblique, 12)
+        line(1, `Signed electronically - ${utc(completedAt)}`, helv, 6.5)
+        line(2, `Record ${recordRef}`, courier, 6.5)
+        continue
+      }
+
+      let value: string | null = null
+      let font: PDFFont = helv
+      let size = 9
+      switch (a.markType) {
+        case "Initial": {
+          const ack = a.generatedCheckpointId ? ackByCheckpoint.get(a.generatedCheckpointId) : undefined
+          // Attested captures record the manager's name, not signer initials —
+          // skip the inline mark; the certificate still carries the attestation.
+          value = ack && ack.method !== "Attested" ? ack.typedName ?? null : null
+          font = helvBold
+          break
+        }
+        case "PrintedName":
+          value = lastAck.staffName
+          break
+        case "Store":
+          value = lastAck.storeName ?? null
+          break
+        case "DateStamp":
+          value = formatDateStamp(dateByPage.get(a.page) ?? completedAt, dateFormat)
+          font = courier
+          break
+      }
+      if (!value) continue
+      const pos = computeStampPlacement(a, placement, { lineHeight: 11 })
+      page.drawText(sanitize(value), {
+        x: pos.x,
+        y: pos.y,
+        size,
+        font,
+        color: STAMP_INK,
+        rotate: degrees(pos.rotateDeg),
+      })
+    }
+  }
 
   const w = new CertificateWriter(pdf, { helv, helvBold, courier })
   w.newPage()

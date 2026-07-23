@@ -23,7 +23,10 @@ export default async function HrDocumentDetailPage({
   const doc = await prisma.hrDocument.findFirst({
     where: { id: (await params).id, organizationId: org.id },
     include: {
-      versions: { orderBy: { versionNumber: "desc" } },
+      versions: {
+        orderBy: { versionNumber: "desc" },
+        include: { anchors: { orderBy: [{ page: "asc" }, { y: "desc" }] } },
+      },
       checkpoints: {
         orderBy: { orderIndex: "asc" },
         include: { _count: { select: { acknowledgments: true } } },
@@ -31,6 +34,10 @@ export default async function HrDocumentDetailPage({
     },
   })
   if (!doc) notFound()
+
+  // HR-11b: anchors are per-version — the confirm UI only ever edits the CURRENT
+  // version's set (historical versions keep what they were signed against).
+  const currentVersion = doc.versions.find((v) => v.isCurrent) ?? doc.versions[0]
 
   return (
     <DocumentDetailClient
@@ -58,6 +65,15 @@ export default async function HrDocumentDetailPage({
           attestationText: c.attestationText,
           required: c.required,
           acknowledgmentCount: c._count.acknowledgments,
+        })),
+        currentVersionId: currentVersion?.id ?? null,
+        anchors: (currentVersion?.anchors ?? []).map((a) => ({
+          id: a.id,
+          page: a.page,
+          anchorText: a.anchorText,
+          markType: a.markType,
+          placement: a.placement,
+          confirmed: a.confirmed,
         })),
       }}
     />
