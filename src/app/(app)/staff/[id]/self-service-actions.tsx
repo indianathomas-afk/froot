@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Mail, UserX } from "lucide-react"
+import { Mail, UserCheck, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -16,10 +16,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
-// HR-7 header actions on /staff/[id] (ADMIN / in-scope MANAGER only — the
-// server page passes canManage and the APIs re-enforce it):
+// HR-7/HR-15 header actions on /staff/[id] (ADMIN / in-scope MANAGER only —
+// the server page passes canManage and the APIs re-enforce it):
 // - Invite to self-service (A): staff WITH an email and no login yet.
 // - Terminate: rule 1 — flips status, revokes any Clerk login, keeps records.
+// - Reactivate (terminated members): flips back to ACTIVE with history intact,
+//   optionally chaining a fresh login invite in the same motion. The dialog
+//   preflights Square and warns when the member is still INACTIVE there,
+//   since the sync reconcile would terminate them again.
 export function SelfServiceActions({
   staffId,
   displayName,
@@ -39,6 +43,10 @@ export function SelfServiceActions({
   const [inviting, setInviting] = useState(false)
   const [terminating, setTerminating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reactivateOpen, setReactivateOpen] = useState(false)
+  const [reactivating, setReactivating] = useState(false)
+  const [sendInvite, setSendInvite] = useState(false)
+  const [squareInactive, setSquareInactive] = useState(false)
 
   async function handleInvite() {
     setInviting(true)
@@ -72,7 +80,88 @@ export function SelfServiceActions({
     }
   }
 
-  if (status === "TERMINATED") return null
+  async function openReactivate() {
+    setError(null)
+    setSendInvite(!!email)
+    setSquareInactive(false)
+    setReactivateOpen(true)
+    // Advisory preflight — a fetch failure just means no warning is shown.
+    try {
+      const res = await fetch(`/api/staff/${staffId}/reactivate`)
+      if (res.ok) {
+        const data = await res.json()
+        setSquareInactive(data.squareLinked && data.squareStatus === "INACTIVE")
+      }
+    } catch {}
+  }
+
+  async function handleReactivate() {
+    setReactivating(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/staff/${staffId}/reactivate`, { method: "POST" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? "Failed to reactivate")
+        return
+      }
+      if (sendInvite && email) {
+        const inviteRes = await fetch(`/api/staff/${staffId}/invite`, { method: "POST" })
+        if (!inviteRes.ok) {
+          const data = await inviteRes.json().catch(() => null)
+          setError(
+            `Reactivated, but the invite failed${data?.error ? `: ${data.error}` : ""} — use Invite to self-service.`
+          )
+        }
+      }
+      router.refresh()
+    } finally {
+      setReactivating(false)
+    }
+  }
+
+  if (status === "TERMINATED") {
+    return (
+      <div className="flex flex-col items-end gap-2">
+        <Button variant="outline" size="sm" onClick={openReactivate} disabled={reactivating}>
+          <UserCheck className="h-4 w-4 mr-1.5" />
+          {reactivating ? "Reactivating..." : "Reactivate"}
+        </Button>
+        {error && <p className="text-xs text-[var(--color-destructive)] max-w-xs text-right">{error}</p>}
+
+        <AlertDialog open={reactivateOpen} onOpenChange={setReactivateOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reactivate {displayName}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This returns them to active status as a rehire. All of their history — signed documents,
+                training, and records — is already attached and stays intact. Nothing is cloned or reset.
+                Their old login stays revoked; send a fresh invite for self-service access.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {squareInactive && (
+              <p className="text-sm rounded-md border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-foreground)] px-3 py-2">
+                This person is inactive in Square. Mark them active there too, or the next Square sync
+                will terminate them here again.
+              </p>
+            )}
+            {email && (
+              <label className="flex items-center gap-2 text-sm text-[var(--color-foreground)] cursor-pointer">
+                <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} />
+                Send a login invite to {email}
+              </label>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleReactivate} disabled={reactivating}>
+                {sendInvite && email ? "Reactivate & send invite" : "Reactivate"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col items-end gap-2">

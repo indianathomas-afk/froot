@@ -44,6 +44,14 @@ export async function terminateStaffMember(
         // best-effort; sessions expire on their own and the status gate holds
       }
     }
+    // HR-15: unlink here, not just in the organizationMembership.deleted
+    // webhook — delivery isn't guaranteed (a terminated member on staging kept
+    // a stale userId this way), and a stale link blocks re-invite on rehire.
+    // The webhook handler stays as the path for dashboard-initiated removals.
+    await prisma.$transaction([
+      prisma.staffMember.update({ where: { id: staff.id }, data: { userId: null } }),
+      prisma.storeUserAssignment.deleteMany({ where: { userId: staff.userId } }),
+    ])
   }
 
   // A not-yet-accepted self-service invite must not be redeemable after

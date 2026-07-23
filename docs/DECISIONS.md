@@ -5,6 +5,62 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## HR-15 rehire / reactivate terminated staff — 2026-07-22 (Gary approved plan + both forks)
+
+a. **Reactivate action.** `POST /api/staff/[id]/reactivate` + Reactivate button
+   on `/staff/[id]` for terminated members. Same tier as terminate (ADMIN
+   org-wide, MANAGER in-scope). Flips status → ACTIVE, clears `terminatedAt`.
+   Never creates a duplicate row, never touches HrSignedRecord /
+   FormSubmission / training rows — terminated-not-deleted stays inviolate in
+   both directions. The dialog offers "send a login invite" in the same motion
+   (chains the existing staff-directory invite flow, so PendingInvite carries
+   role STAFF + store assignments and the webhook links on acceptance);
+   rehire and invite stay separable — after a plain reactivation the normal
+   Invite to self-service button reappears.
+b. **Stale-userId hygiene at the source (audit finding → fix).**
+   `terminateStaffMember` relied on the `organizationMembership.deleted`
+   webhook alone to unlink `StaffMember.userId` — and staging proof showed
+   that path is not reliable: Tommy Thomas sat TERMINATED with a live stale
+   link (and his User row's store assignments intact), which dead-ends rehire
+   (invite 409s "already has a login"). Fix: terminate now unlinks inline
+   (userId → null + StoreUserAssignment cleanup) right after Clerk
+   revocation; the webhook handler stays as backup for dashboard-initiated
+   removals. Reactivate ALSO clears any stale userId defensively, for rows
+   terminated before this fix. Old logins stay dead; rehire always re-links
+   fresh via the invite flow.
+c. **Fork 1 — Square re-termination race (Gary): dialog warning, option (c).**
+   The sync reconcile stays absolute-state (Square INACTIVE → terminated);
+   the reactivate dialog preflights Square live (`GET .../reactivate` →
+   `fetchSquareTeamMember`) and warns "inactive in Square — mark them active
+   there too or the next sync will terminate them again." Rationale: sync is
+   a deliberate admin click, real rehires must be rehired in Square anyway
+   (timeclock/payroll), and both timestamp options (`squareStatus` baseline
+   for transition-only, or `manuallyReactivatedAt`) need schema additions.
+   Transition-based reconcile is the documented follow-up if Square/Froot
+   divergence ever becomes a real operational problem. Note: Square rehire
+   (INACTIVE→ACTIVE) does NOT flow into Froot — the sync ACTIVE branch never
+   touches status; reactivation is always a Froot-side action.
+d. **Fork 2 — compliance on rehire (Gary): Policy A, old signatures stand.**
+   Deliberate choice, not an oversight: a rehired member re-enters the
+   rollup denominators with prior records counting (signed record on the
+   CURRENT doc version = compliant, per HR-8). The document-version bump
+   stays the compliance-refresh lever — re-upload flips everyone, rehires
+   included, to needs-re-sign. **Documented upgrade path if customer
+   compliance policy ever demands rehire-forces-re-sign: Policy B — additive
+   `rehiredAt DateTime?` on StaffMember + compliance derivation treating doc
+   records completed before it as needs-re-sign** (training reset would need
+   its own call). Not implemented.
+e. (Claude) Directory findability: "Terminated" badge on `/staff` rows (the
+   directory previously showed terminated members indistinguishable from
+   active). This ships the badge half of HR-14(b) early; the hide-by-default
+   "Show terminated" toggle remains HR-14.
+f. **Noted, no action (Gary):** the stray Clerk test account
+   (corporate@keva.com / tommythomas) holds an org:admin membership in
+   unrelated org "Keva Smoothie Company" — Gary cleans up in the dashboard.
+   Bulk-sync wart: a TERMINATED member who is Square-ACTIVE still gets store
+   assignments rewritten by the bulk sync (the "profile freezes" comment only
+   holds for Square-INACTIVE members) — text-only finding, HR-14 territory.
+
 ## UM-1 user-management fixes (/users) — 2026-07-22 (Gary approved plan)
 
 a. **Role-mapping truth table.** Clerk memberships only distinguish

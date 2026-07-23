@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
 import { getStaffComplianceSummaries, type StaffComplianceSummary } from "@/lib/hr-compliance"
+import { Badge } from "@/components/ui/badge"
 
 const NO_SUMMARIES = new Map<string, StaffComplianceSummary>()
 
@@ -152,6 +153,10 @@ export default async function StaffPage() {
                           ) : (
                             member.displayName
                           )}
+                          {/* HR-15: rehire candidates must be findable in the directory */}
+                          {member.status === "TERMINATED" && (
+                            <Badge variant="destructive" className="ml-2">Terminated</Badge>
+                          )}
                         </td>
                         <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
                         <td className="px-6 py-3">
@@ -197,6 +202,9 @@ export default async function StaffPage() {
                           </Link>
                         ) : (
                           member.displayName
+                        )}
+                        {member.status === "TERMINATED" && (
+                          <Badge variant="destructive" className="ml-2">Terminated</Badge>
                         )}
                       </td>
                       <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
