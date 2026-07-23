@@ -16,6 +16,14 @@ const ROLE_OPTIONS = [
   { value: "STORE", label: "Store", description: "Login for a specific store location" },
 ]
 
+// STAFF is edit-only: STAFF logins are created from the Staff directory invite
+// flow (which links the staff profile); a generic invite would create an
+// unlinked STAFF user — a broken state.
+const EDIT_ROLE_OPTIONS = [
+  ...ROLE_OPTIONS,
+  { value: "STAFF", label: "Staff", description: "Personal HR access only — requires a linked staff profile" },
+]
+
 // ── Invite User Button ────────────────────────────────────────────────────────
 export function InviteUserButton({ stores }: { stores: Store[] }) {
   const [open, setOpen] = useState(false)
@@ -192,7 +200,7 @@ export function EditUserButton({
             <div className="space-y-1.5">
               <Label>Role</Label>
               <div className="space-y-2">
-                {ROLE_OPTIONS.map((r) => (
+                {EDIT_ROLE_OPTIONS.map((r) => (
                   <label key={r.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${role === r.value ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5" : "border-[var(--color-border)] hover:bg-[var(--color-accent)]"}`}>
                     <input type="radio" name="edit-role" value={r.value} checked={role === r.value} onChange={() => setRole(r.value)} className="mt-0.5" />
                     <div>

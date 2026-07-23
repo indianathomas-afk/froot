@@ -35,7 +35,8 @@ export async function GET() {
     return {
       clerkMembershipId: m.id,
       clerkUserId: clerkUser?.userId ?? null,
-      email: clerkUser?.identifier ?? "",
+      // BUG-2: identifier may be a username — prefer the self-healed DB email.
+      email: dbUser?.email || (clerkUser?.identifier ?? ""),
       name: [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(" ") || null,
       clerkRole: m.role, // org:admin or org:member
       dbUserId: dbUser?.id ?? null,

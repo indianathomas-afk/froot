@@ -26,16 +26,29 @@ async function getData() {
 
   if (!org) return { members: [], pendingInvites: [], stores: [] }
 
-  const [dbUsers, stores, pendingInviteRecords] = await Promise.all([
+  const [dbUsers, stores, pendingInviteRecords, staffMembers] = await Promise.all([
     prisma.user.findMany({
       where: { organizationId: org.id },
       include: { storeAssignments: { include: { store: true } } },
     }),
     prisma.store.findMany({ where: { organizationId: org.id }, orderBy: { name: "asc" } }),
     prisma.pendingInvite.findMany({ where: { organizationId: org.id } }),
+    // Names come from staff profiles when available — one org-scoped query,
+    // never per-member Clerk API calls.
+    prisma.staffMember.findMany({
+      where: { organizationId: org.id },
+      select: { id: true, displayName: true, fullName: true, email: true, userId: true },
+    }),
   ])
   const storeById = new Map(stores.map((s) => [s.id, s]))
   const pendingByEmail = new Map(pendingInviteRecords.map((p) => [p.email, p]))
+
+  const staffByUserId = new Map(staffMembers.filter((s) => s.userId).map((s) => [s.userId!, s]))
+  const staffByEmail = new Map<string, (typeof staffMembers)[number]>()
+  for (const s of staffMembers) {
+    const e = normalizeEmail(s.email)
+    if (e && !staffByEmail.has(e)) staffByEmail.set(e, s)
+  }
 
   const dbByClerkId = new Map(dbUsers.map((u) => [u.clerkUserId, u]))
 
@@ -60,7 +73,8 @@ async function getData() {
             organizationId: org.id,
             email,
             name: [pub.firstName, pub.lastName].filter(Boolean).join(" ") || null,
-            role: m.role === "org:admin" ? "ADMIN" : "STORE",
+            // Matches the webhook's org:member default (UM-1 alignment).
+            role: m.role === "org:admin" ? "ADMIN" : "STAFF",
           },
           update: { email },
         })
@@ -77,14 +91,30 @@ async function getData() {
   const members = memberships.data.map((m) => {
     const pub = m.publicUserData
     const dbUser = pub?.userId ? dbByClerkId.get(pub.userId) : null
+
+    // Display name: linked staff profile → email-matched staff profile →
+    // Clerk first/last (already fetched) → nothing (email renders alone).
+    let staff = dbUser ? staffByUserId.get(dbUser.id) : undefined
+    if (!staff && dbUser) {
+      const email = normalizeEmail(dbUser.email)
+      const candidate = email ? staffByEmail.get(email) : undefined
+      // An email match linked to a different login is someone else's profile.
+      if (candidate && (candidate.userId === null || candidate.userId === dbUser.id)) {
+        staff = candidate
+      }
+    }
+    const clerkName = [pub?.firstName, pub?.lastName].filter(Boolean).join(" ") || null
+
     return {
       clerkMembershipId: m.id,
       clerkUserId: pub?.userId ?? "",
-      email: pub?.identifier ?? "",
-      name: [pub?.firstName, pub?.lastName].filter(Boolean).join(" ") || null,
+      // BUG-2: identifier may be a username — the self-healed DB email is the
+      // trustworthy source; identifier is a display-only last resort.
+      email: dbUser?.email || (pub?.identifier ?? ""),
+      name: staff?.fullName || staff?.displayName || clerkName,
       clerkRole: m.role,
       dbUserId: dbUser?.id ?? null,
-      role: dbUser?.role ?? "STORE",
+      role: dbUser?.role ?? "STAFF",
       storeAssignments: dbUser?.storeAssignments ?? [],
       createdAt: new Date(m.createdAt),
     }

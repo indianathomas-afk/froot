@@ -5,6 +5,54 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## UM-1 user-management fixes (/users) — 2026-07-22 (Gary approved plan)
+
+a. **Role-mapping truth table.** Clerk memberships only distinguish
+   `org:admin` / `org:member`; the finer Froot roles live in the Froot DB
+   only. No custom `org:manager` role exists in the Clerk instance (Gary
+   confirmed) — the webhook's `org:manager` map entry is dead code, left
+   untouched.
+
+   | Froot role | Clerk membership role | Distinction lives |
+   |---|---|---|
+   | ADMIN | `org:admin` | both |
+   | MANAGER | `org:member` | Froot DB only |
+   | STORE | `org:member` | Froot DB only |
+   | STAFF | `org:member` | Froot DB only |
+
+b. **What the webhook actually overwrites (audit finding).** Narrower than
+   assumed going in: `organizationMembership.created` sets `User.role` only
+   when CREATING a row (PendingInvite role → role map → STAFF); the upsert's
+   update branch self-heals email only. There is no
+   `organizationMembership.updated` handler, so no webhook event rewrites an
+   existing row's role. Divergence bites on row re-creation (member removed
+   and re-added, or a deleted row as in the BUG-2 repair), where the role is
+   re-derived from the Clerk membership — plus the Clerk dashboard lies in
+   the meantime. Clerk sync on role edits is therefore still mandatory.
+c. **Role edits sync Clerk first.** PATCH `/api/users/[id]` updates the Clerk
+   org membership role before the Froot row; Clerk failure = no DB write. The
+   call is skipped when the mapped role is unchanged (all transitions within
+   MANAGER/STORE/STAFF are `org:member` → `org:member`) — Gary approved.
+d. **Guards, all server-side:** self-role-change blocked; last-admin blocked
+   for both demotion and removal; self-removal blocked; store IDs validated
+   as org-owned; demotion to STAFF requires a linked (or
+   linkable-by-normalized-email, then auto-linked with the HR-7 `userId:
+   null` guard) ACTIVE StaffMember, else 409 pointing at the Staff directory
+   invite flow.
+e. **Names on /users:** staff-profile name (userId link, else normalized-email
+   match not owned by another login) → Clerk first/last from data already
+   fetched → email only. One org-scoped StaffMember query; no per-member
+   Clerk API calls. Display email prefers self-healed `User.email` over
+   `identifier` (BUG-2 rule); identifier is last-resort display fallback.
+f. **STAFF appears in the Edit dialog only** — the generic Invite dialog
+   deliberately omits it (an invite-created STAFF user would be unlinked, a
+   broken state; the Staff directory invite flow is the STAFF entry point).
+   Auto-sync + display role defaults aligned to the webhook's STAFF.
+g. **Noted, not fixed (follow-up, HR-14 territory):** DELETE `/api/users/[id]`
+   still calls `clerk.users.deleteUser`, deleting the Clerk account GLOBALLY
+   rather than just the org membership; guards were added around it this
+   session but the membership-only removal fix is deferred.
+
 ## BUG-2 staff-profile linking — 2026-07-22 (Gary approved fix + repair)
 
 Caught by the HR-8 staging pass: an invited staff member's `/hr/acknowledge`
