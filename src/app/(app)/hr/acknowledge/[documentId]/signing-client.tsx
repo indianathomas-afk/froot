@@ -54,7 +54,10 @@ export function SigningClient({
 }: {
   doc: SigningDoc
   checkpoints: SigningCheckpoint[]
-  staff: { id: string; name: string }
+  // name = the LEGAL Full Name on file (read-only context; the signer types
+  // their own signature). stores = the signer's assigned stores for the
+  // select-from-assigned store picker.
+  staff: { id: string; name: string; stores: { id: string; name: string; isPrimary: boolean }[] }
   backHref?: string
   backLabel?: string
 }) {
@@ -68,6 +71,13 @@ export function SigningClient({
   const [consented, setConsented] = useState(false)
   const [typedName, setTypedName] = useState("")
   const [initialsText, setInitialsText] = useState("")
+  // Store that will be stamped — signer picks from their assigned stores,
+  // pre-selected to primary. Captured once and sent with every entry.
+  const primaryStore = staff.stores.find((s) => s.isPrimary) ?? staff.stores[0] ?? null
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(primaryStore?.id ?? "")
+  // "This isn't my name" — the signer disputes the legal name on file; signing
+  // pauses and escalates to an admin (F3 block-and-escalate).
+  const [nameDisputed, setNameDisputed] = useState(false)
   const [completed, setCompleted] = useState<Map<string, Date | null>>(
     // null Date = completed in a previous session (no local time to show).
     () => new Map(checkpoints.filter((c) => c.done).map((c) => [c.id, null]))
@@ -131,7 +141,12 @@ export function SigningClient({
       const res = await fetch(`/api/hr/documents/${doc.id}/acknowledgments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ consent: true, typedName: typedName.trim(), entries }),
+        body: JSON.stringify({
+          consent: true,
+          typedName: typedName.trim(),
+          storeId: selectedStoreId || undefined,
+          entries,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -206,7 +221,8 @@ export function SigningClient({
   if (phase === "consent") {
     const resuming = completed.size > 0
     const needsInitials = initials.some((c) => !completed.has(c.id))
-    const canBegin = consented && !!typedName.trim() && (!needsInitials || !!initialsText.trim())
+    const canBegin =
+      consented && !nameDisputed && !!typedName.trim() && (!needsInitials || !!initialsText.trim())
     return (
       <div className="max-w-2xl mx-auto">
         {back}
@@ -251,14 +267,76 @@ export function SigningClient({
               </label>
             </div>
 
+            {/* What will be stamped on the executed document — visible BEFORE
+                signing (transparency is the whole point). Name on file is
+                read-only context; store is selectable; date is display-only. */}
+            <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-foreground)]">
+                What will be stamped on this document
+              </p>
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Signing as — name on file</p>
+                <p className="text-base font-semibold text-[var(--color-foreground)]">{staff.name}</p>
+                {!nameDisputed ? (
+                  <button
+                    type="button"
+                    onClick={() => setNameDisputed(true)}
+                    className="text-xs text-[var(--color-primary)] hover:opacity-80 mt-0.5"
+                  >
+                    This isn&apos;t my name
+                  </button>
+                ) : (
+                  <p className="mt-1 text-xs text-[var(--color-warning,#efa201)]">
+                    Signing paused. Ask an admin or manager to correct your legal name on your staff
+                    profile, then reload.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setNameDisputed(false)}
+                      className="underline hover:opacity-80"
+                    >
+                      It&apos;s correct — continue
+                    </button>
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-[var(--color-muted-foreground)] font-normal">Store</Label>
+                {staff.stores.length > 0 ? (
+                  <select
+                    value={selectedStoreId}
+                    onChange={(e) => setSelectedStoreId(e.target.value)}
+                    className="w-full min-h-11 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm text-[var(--color-foreground)]"
+                  >
+                    {staff.stores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                        {s.isPrimary ? " (primary)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-sm text-[var(--color-warning,#efa201)]">
+                    No store on file — this will be left blank; ask an admin to assign your store.
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Date</p>
+                <p className="text-sm text-[var(--color-foreground)]">
+                  {format(new Date(), "MMMM d, yyyy")} — the real date and time of each step is
+                  recorded automatically.
+                </p>
+              </div>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-[1fr_130px]">
               <div className="space-y-1.5">
                 <Label>Type your full legal name *</Label>
                 <Input
                   value={typedName}
                   onChange={(e) => setTypedName(e.target.value)}
-                  placeholder={staff.name}
-                  autoComplete="name"
+                  placeholder="Type it yourself to sign"
+                  autoComplete="off"
                 />
               </div>
               {needsInitials && (
@@ -275,8 +353,8 @@ export function SigningClient({
               )}
             </div>
             <p className="text-xs text-[var(--color-muted-foreground)]">
-              Your typed name is your electronic signature. Each step you complete is recorded with
-              the date and time it occurred.
+              Type your name yourself — it is your electronic signature. Each step you complete is
+              recorded with the date and time it occurred.
             </p>
 
             <div className="flex justify-end">

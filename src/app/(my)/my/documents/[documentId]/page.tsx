@@ -42,6 +42,20 @@ export default async function MyAcknowledgePage({
   })
   const doneIds = new Set(existing.map((a) => a.checkpointId))
 
+  // Assigned stores for the store selector (getActiveStaffSelf doesn't join names).
+  const assignedStores = await prisma.store.findMany({
+    where: { id: { in: staffMember.storeAssignments.map((a) => a.storeId) } },
+    select: { id: true, name: true },
+  })
+  const primaryStoreIds = new Set(
+    staffMember.storeAssignments.filter((a) => a.isPrimary).map((a) => a.storeId)
+  )
+  const stores = assignedStores.map((s) => ({
+    id: s.id,
+    name: s.name,
+    isPrimary: primaryStoreIds.has(s.id),
+  }))
+
   // Legal identity gate: signed documents carry the Full Name only. Staff can't
   // set it themselves, so send them to their admin.
   if (!staffMember.fullName?.trim()) {
@@ -71,7 +85,7 @@ export default async function MyAcknowledgePage({
           required: c.required,
           done: doneIds.has(c.id),
         }))}
-        staff={{ id: staffMember.id, name: staffMember.fullName.trim() }}
+        staff={{ id: staffMember.id, name: staffMember.fullName.trim(), stores }}
         backHref="/my/documents"
         backLabel="My Documents"
       />

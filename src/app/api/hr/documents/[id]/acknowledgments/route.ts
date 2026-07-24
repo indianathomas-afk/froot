@@ -20,6 +20,9 @@ const bodySchema = z.object({
   // Self-serve: the signer's typed legal name (Signature/Acknowledgment
   // checkpoints). Attested: the manager's own typed name.
   typedName: z.string().trim().min(1).max(200),
+  // Self-serve: the store the signer selected to stamp (from their assigned
+  // stores). Validated against assignments below.
+  storeId: z.string().min(1).optional(),
   entries: z
     .array(
       z.object({
@@ -62,7 +65,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       { status: 400 }
     )
   }
-  const { staffMemberId, typedName, entries } = parsed.data
+  const { staffMemberId, typedName, storeId, entries } = parsed.data
 
   const doc = await prisma.hrDocument.findFirst({
     where: { id, organizationId: org.id, kind: "Acknowledgment", isActive: true },
@@ -161,7 +164,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     )
   }
   const staffName = staff.fullName.trim()
-  const storeName = primaryStoreName(staff)
+  // Store to stamp: self-serve uses the signer's SELECTED store (validated
+  // against their assignments); a missing selection stamps blank (no store on
+  // file). Manager-attested keeps the automatic primary — no selector there.
+  let storeName: string | null
+  if (isAttested) {
+    storeName = primaryStoreName(staff)
+  } else if (storeId) {
+    const selected = staff.storeAssignments.find((a) => a.storeId === storeId)
+    if (!selected) {
+      return NextResponse.json({ error: "That store isn't assigned to you" }, { status: 400 })
+    }
+    storeName = selected.store.name
+  } else {
+    storeName = null
+  }
   const ipAddress = requestIp(req)
   const userAgent = req.headers.get("user-agent")
   const signedAt = new Date()

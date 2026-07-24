@@ -114,7 +114,15 @@ export default async function AcknowledgePage({
   if (!staff.fullName?.trim()) {
     return <LegalNameRequired staffName={staff.displayName} manageHref={`/staff/${staff.id}`} />
   }
-  const clientStaff = { id: staff.id, name: staff.fullName.trim() }
+  const clientStaff = {
+    id: staff.id,
+    name: staff.fullName.trim(),
+    stores: staff.storeAssignments.map((a) => ({
+      id: a.storeId,
+      name: a.store.name,
+      isPrimary: a.isPrimary,
+    })),
+  }
 
   // HR-11: self-serve signing uses the formal inline ceremony; manager-attested
   // capture keeps the quick form — it records, it doesn't sign.

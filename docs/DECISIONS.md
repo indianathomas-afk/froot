@@ -5,6 +5,51 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## Signing ceremony — identity transparency before executing — 2026-07-24 (Gary approved case + 3 fork rulings)
+
+The identity values stamped on a signed document (name, store, date) must be
+**visible and, where appropriate, correctable BEFORE signing** — a wrong name or
+store can render the executed artifact worthless. This **revises the earlier
+"PrintedName / Store / Date are stamp-only derived values, no signer
+interaction" ruling**: Name and Store gain signer-facing treatment, Date stays
+derived. No schema change (the ack already stores `staffName` + `typedName` +
+`storeName`; the store's *source* just moves from silent-primary to
+signer-selected).
+
+- **Name — do NOT pre-fill the signature field (Gary).** Pre-filling makes
+  signing a tap, not an act, and hides typos. Instead the consent gate shows the
+  legal **name on file as prominent read-only context** ("Signing as: … — name
+  on file") and the signature stays a **deliberate type-in**. "This isn't my
+  name" pauses signing and **escalates** to an admin (the name is only corrected
+  at the source — the StaffMember record edited by someone with authority).
+- **Fork 3 — write-back is NEVER automatic from the ceremony (Gary reversed the
+  lean).** Under F2 (typed-only) the typed name *is* the signature; a difference
+  between record name and typed name isn't necessarily a correction — it may be a
+  phone typo. Auto write-back would let a mistyped signature silently rewrite the
+  staff roster **and** lock the field against Square sync — a data-integrity
+  hazard. So the divergence is **surfaced** (a flag on the staff record + the
+  certificate's dual-name row) and an ADMIN/MANAGER decides whether the roster
+  was wrong or the signature mistyped. "Correction at the source" stands — the
+  source is the record, not the signing field.
+- **Fork 2 — certificate ALWAYS shows both names (Gary).** `Name on record`
+  (the legal name snapshot) and `Name as executed` (what the signer typed),
+  every time — not only on mismatch. A row that appears only on a discrepancy
+  can't tell a reader "they matched" from "this system doesn't track that"; two
+  always-present rows make the certificate self-documenting.
+- **Fork 1 — no assigned store: don't block (Gary).** A missing store doesn't
+  invalidate the document the way a wrong legal name does, so blocking is
+  disproportionate — but a storeless staffer is an anomaly (it caused the blank
+  STAFF-1 dashboard cards) and shouldn't pass silently. The ceremony shows "no
+  store on file," stamps blank, and it's **flagged on the staff record** for an
+  admin.
+- **Store selector — as specced.** Pre-selected to the primary, **select from
+  assigned stores only, never free text**, visible before executing; captured as
+  the ack `storeName` (replacing the silent primary derivation). Manager-attested
+  capture keeps the automatic primary (no selector).
+- **Date — unchanged, display-only.** Framed as "this is what will be stamped";
+  never editable (an editable date is a backdating vector on the one artifact
+  whose value is that its timestamps are real).
+
 ## Staff Display Name vs Full Name — role split & enforcement — 2026-07-24 (Gary approved audit + plan)
 
 Not a consolidation — the two columns do different jobs and the app now says so

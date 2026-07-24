@@ -404,6 +404,15 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     }
   }
 
+  // Dual name (transparency): the LEGAL name the staff record held vs. the name
+  // the signer actually typed to execute. Always both rows — a single line
+  // couldn't distinguish "they matched" from "not tracked", and a typed-name
+  // signature that differs from the record is exactly what must be reviewable.
+  const executedName =
+    orderedAcks.find(
+      (x) => x.checkpoint.type === "Signature" || x.checkpoint.type === "Acknowledgment"
+    )?.ack.typedName ?? lastAck.staffName
+
   const w = new CertificateWriter(pdf, { helv, helvBold, courier })
   w.newPage()
   w.heading("Certificate of Acknowledgment", doc.organization.name)
@@ -412,7 +421,8 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   w.labeled("Source file", version.fileName)
   w.labeled("Source SHA-256", lastAck.documentFileHash, courier)
   w.rule()
-  w.labeled("Signer", lastAck.staffName)
+  w.labeled("Name on record", lastAck.staffName)
+  w.labeled("Name as executed", executedName)
   w.labeled("Store", lastAck.storeName ?? "-")
   w.labeled("Organization", doc.organization.name)
   w.labeled("Completed at", utc(completedAt))
