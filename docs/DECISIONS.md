@@ -132,6 +132,28 @@ m. **(Claude) Delivery.** New dep `unpdf` (serverless pdf.js for detection;
    bare-Date / under-line placement, image-only). `next build` green each step.
    HR remains dark in production (`HR_MODULE_AVAILABLE` unset) — unchanged.
 
+n. **End-to-end stamping verified (7-23).** A throwaway run of the real
+   `ensureSignedRecord` path (dev DB + dev blob store, a 28-page handbook-shaped
+   PDF with signature blocks on pages 11/22/24/28) confirmed 14/14: SignatureStamp
+   anchors detected on those pages, confirmed, and linked to the final
+   Acknowledgment checkpoint; the output PDF carries the signature stamp (name +
+   "Signed electronically" + timestamp) on 11/22/24/28, the printed name on 11,
+   the store on page 1, `TPT` initials on footers, and the certificate still
+   appended. **No separate signature UI is by design (F2 typed-only + the
+   link-to-Acknowledgment choice): one typed signature at the formal block,
+   stamped at every SignatureStamp anchor — not a per-field prompt.**
+
+o. **HR-11b test-data purge (staging, 7-23, Gary-approved).** Deliberate, scoped
+   deletion of Tommy Thomas's (`corporate@keva.com`) `HrDocumentAcknowledgment` +
+   `HrSignedRecord` rows on **staging only** — his records were polluted by a
+   second tester entering `TIKTOK` as initials across pre-HR-11/HR-11/HR-11b runs.
+   Scope: those two tables, that one staff member, all versions/cycles; his
+   `StaffMember` row, checkpoints, documents, versions, and every other staff
+   member untouched. Signed-PDF blobs are left orphaned in the private store
+   (harmless on staging). An explicit, one-time exception to the append-only /
+   G1 "never touch acked records" posture, for unreliable staging test data —
+   **not precedent** for deleting real or production records.
+
 ## STAFF-1 staff experience + HR-11 inline signing — 2026-07-23 (Gary approved plan + forks F1–F8)
 
 a. **Timestamp audit finding (Defect 1 root cause).** Per-interaction times
