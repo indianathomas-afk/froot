@@ -98,12 +98,18 @@ k. **Staging fix pass (7-23, Gary): silent-collapse was the real defect.** The
    routes run on the Node runtime (never Edge; Prisma/crypto would fail on Edge
    anyway — now pinned with `export const runtime = "nodejs"`); no `maxDuration`
    was set (a timeout would 504, not return 0) — set to 60s on the scan/upload
-   routes; the blob fetch succeeds (byte length logged before pdfjs). **Leading
-   fix:** `serverExternalPackages: ["pdfjs-dist"]` — server-side pdfjs was being
-   bundled, which breaks the legacy build's dynamic import in the Vercel
-   function; externalizing loads it from `node_modules` at runtime. The client
-   HR-11 viewer is unaffected (its browser worker asset still emits; the server
-   never require()s a worker — the legacy build uses a fake worker).
+   routes; the blob fetch succeeds (byte length logged before pdfjs). **The
+   actual fix (found via the new diagnostics):** the first staging scan then
+   reported `ReferenceError: DOMMatrix is not defined` — the direct
+   `pdfjs-dist` legacy build references browser-DOM globals (DOMMatrix, Path2D,
+   ImageData, …) that Vercel's Node runtime lacks (it worked locally only
+   because the tiny test PDFs never hit those paths; the real handbook does).
+   Server detection switched from `pdfjs-dist` to **`unpdf`** — a serverless
+   build of pdf.js with no DOM dependencies — via `getDocumentProxy` (same
+   `getTextContent`/transform API, so no detection-logic change). `unpdf` is in
+   `serverExternalPackages`; `pdfjs-dist` stays a dependency for the browser-side
+   HR-11 viewer (untouched). Proof: the fixture runs in plain Node where
+   `DOMMatrix` is undefined and passes 28/28 — a real DOM-free reproduction.
 
 l. **Vocabulary refinements (7-23, from the real handbook).** (1) Text is
    punctuation-normalized before matching, so `Employee's Signature` with a
@@ -117,8 +123,9 @@ l. **Vocabulary refinements (7-23, from the real handbook).** (1) Text is
    detection keys on underscore runs, so signature lines drawn as graphics
    (not underscores) won't gate a bare field — logged for a future pass.
 
-m. **(Claude) Delivery.** No new deps (`pdfjs-dist`, `pdf-lib` already
-   present). Migration `20260723220118_hr11b_document_anchors` additive-only
+m. **(Claude) Delivery.** New dep `unpdf` (serverless pdf.js for detection;
+   package-lock committed); `pdf-lib` and `pdfjs-dist` already present.
+   Migration `20260723220118_hr11b_document_anchors` additive-only
    (applied to dev; Vercel `migrate deploy` applies to staging/prod). Fixture
    `scripts/verify-hr-anchors.ts` → 28/28 (detection, longest-match, split-label
    reassembly, D2 geometry across four rotations, diagnostics, curly-apostrophe /

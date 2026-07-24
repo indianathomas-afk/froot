@@ -4,8 +4,10 @@
 // its page + coordinates, so the signed PDF can later stamp captured values
 // (initials, name, date, store, signature) directly onto the document body.
 //
-// Runs headless in the Node runtime via the pdfjs legacy build (confirmed by
-// the HR-11b D1 spike). pdf-lib and pdfjs share the same absolute PDF content
+// Runs headless in the Node/serverless runtime via unpdf's serverless build of
+// pdf.js (the direct pdfjs-dist legacy build threw "DOMMatrix is not defined" in
+// the Vercel function — see DECISIONS). pdf-lib and pdf.js share the same
+// absolute PDF content
 // coordinate space (origin bottom-left, y-up) — verified against a shifted
 // MediaBox in the spike — so a coordinate detected here maps straight to a
 // pdf-lib drawText call in hr-signed-pdf.ts. Page /Rotate and MediaBox origin
@@ -249,16 +251,14 @@ function resolveMatch(
  * runtime failure to load pdfjs; callers decide whether to surface or swallow.
  */
 export async function detectAnchors(pdfBytes: Uint8Array): Promise<DetectionResult> {
-  // Legacy build = no DOM, safe in the Node runtime (D1 spike). standardFontDataUrl
-  // is intentionally omitted: it only affects glyph rendering, not text extraction,
-  // so it emits a harmless warning we accept rather than bundling the font pack.
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs")
-  const loadingTask = pdfjs.getDocument({
-    data: pdfBytes,
-    useSystemFonts: false,
-    disableFontFace: true,
-  })
-  const doc = await loadingTask.promise
+  // unpdf ships a serverless build of pdf.js that does NOT reference browser DOM
+  // globals (DOMMatrix, Path2D, ImageData, …). The direct pdfjs-dist legacy
+  // build referenced those and threw "DOMMatrix is not defined" when Vercel's
+  // Node runtime evaluated it (staging 7-23). getDocumentProxy returns the same
+  // PDFDocumentProxy, so getPage/getTextContent/getViewport are unchanged.
+  const { getDocumentProxy } = await import("unpdf")
+  // Clone into a fresh Uint8Array: pdf.js may detach the underlying buffer.
+  const doc = await getDocumentProxy(new Uint8Array(pdfBytes))
 
   const candidates: AnchorCandidate[] = []
   let textItemCount = 0
@@ -300,7 +300,7 @@ export async function detectAnchors(pdfBytes: Uint8Array): Promise<DetectionResu
       }
     }
   } finally {
-    await loadingTask.destroy()
+    await doc.destroy?.()
   }
   return { anchors: candidates, pagesScanned, textItemCount }
 }
