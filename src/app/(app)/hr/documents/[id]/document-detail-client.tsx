@@ -278,7 +278,6 @@ interface AnchorDraft {
 // Populates documents that predate anchoring, and re-detects when detection
 // improves. Replaces only the unconfirmed set; confirmed anchors are preserved.
 function RescanButton({ docId, label = "Rescan fields" }: { docId: string; label?: string }) {
-  const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
@@ -297,7 +296,10 @@ function RescanButton({ docId, label = "Rescan fields" }: { docId: string; label
       }
       // Distinct success outcomes.
       if (data.detected > 0) {
-        router.refresh() // fields now render below
+        // Full reload, not router.refresh(): the soft RSC re-fetch fired right
+        // after the heavy rescan invocation intermittently fails ("page couldn't
+        // load"), while a top-level GET reliably reloads the detected fields.
+        window.location.reload()
       } else if (data.hadTextLayer) {
         setNotice(
           `Scanned ${data.pagesScanned} page(s) — a text layer was found, but none of the field labels matched.`
