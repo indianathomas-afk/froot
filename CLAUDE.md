@@ -146,17 +146,31 @@ Or use the helpers in `src/lib/auth.ts`:
 
 ## Phase Status
 
-**See `docs/ROADMAP.md` for the current phase table — it is the single source of truth for build status.**
+Phase status lives in `docs/ROADMAP.yaml` — the single source of truth. Do not
+track status here, in `docs/ROADMAP.md`, or in any external sheet. Narrative
+history for shipped phases (fixtures, migration names, decision cross-refs) is
+frozen in `docs/ROADMAP_ARCHIVE.md`.
 
-At the end of every phase: update `docs/ROADMAP.md` (status, commit hash, one-line notes) and commit it with the phase's code. Do not track phase status here.
+**Read `docs/ROADMAP.yaml` at the start of every session.** Check the
+`blockers` and `deferred` fields of any phase you touch or build on.
 
-Phase 2 modules are gated behind `activeModules` on the `Organization` record.
+**Update it before the session ends** — see "Session completion rules" in
+`docs/WORKFLOW.md`.
+
+## Module Gating
+
+Modules are gated per-org via `activeModules` on the `Organization` record.
+Some add a second server-side env gate (e.g. `HR_MODULE_AVAILABLE`,
+`LABOR_MODULE_AVAILABLE`) so in-development work can't surface in prod even if
+an org toggles it on.
 
 **Before building any module-gated route, call:**
 ```ts
 import { requireModule } from "@/lib/auth"
-await requireModule("inventory") // or "nutrition"
+await requireModule("inventory") // or "nutrition", "hr"
 ```
+
+(The feature-gated sidebar-lock convention lives under "Common Patterns" below.)
 
 ---
 

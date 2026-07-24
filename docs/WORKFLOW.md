@@ -72,3 +72,18 @@ git log --oneline -5          # last 5 commits on this branch
 ```bash
 git log --oneline main..staging
 ```
+
+## Session completion rules
+
+A session is not done until all are true:
+
+1. `next build` passes.
+2. This phase's entry in `docs/ROADMAP.yaml` is updated:
+   - `status` reflects reality (e.g. in_progress → staging → shipped)
+   - `commits` lists this session's SHAs
+   - `shipped` dated if it reached prod
+   - `blockers` lists anything left broken/unset/unverified in prod, including
+     required env vars not yet set and prod-promotion gates
+   - `deferred` lists scope explicitly cut
+3. Bugs noticed but not fixed go in the `debt:` (or `bugs:`) block in
+   ROADMAP.yaml as text — not fixed inline.
