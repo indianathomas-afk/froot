@@ -148,7 +148,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (type === "Initial") return "Initial" as const
     return "Signature" as const // Signature + Acknowledgment: typed legal name
   }
-  const staffName = staff.fullName ?? staff.displayName
+  // Legal identity: signed documents + the Certificate of Acknowledgment use the
+  // LEGAL Full Name only — never the operational Display Name. Block signing
+  // until it's set (an admin sets Full Name on the staff profile).
+  if (!staff.fullName?.trim()) {
+    return NextResponse.json(
+      {
+        error:
+          "This team member needs a legal Full Name before signing. Ask an admin to add it on the staff profile.",
+      },
+      { status: 422 }
+    )
+  }
+  const staffName = staff.fullName.trim()
   const storeName = primaryStoreName(staff)
   const ipAddress = requestIp(req)
   const userAgent = req.headers.get("user-agent")

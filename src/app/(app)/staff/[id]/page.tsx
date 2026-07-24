@@ -7,6 +7,7 @@ import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { LegalNameControls } from "./legal-name-controls"
 import { ManagerNotes, type SerializedNote } from "./manager-notes"
 import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
 import { StaffFormDocuments, type StaffFormDocRow } from "./staff-form-documents"
@@ -543,10 +544,13 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 <dt className="text-[var(--color-muted-foreground)]">Display Name</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{member.displayName}</dd>
               </div>
-              <div>
-                <dt className="text-[var(--color-muted-foreground)]">Full Name</dt>
-                <dd className="text-[var(--color-foreground)] font-medium">{member.fullName ?? "—"}</dd>
-              </div>
+              <LegalNameControls
+                staffId={member.id}
+                fullName={member.fullName}
+                fullNameLocked={member.fullNameLocked}
+                squareFullName={member.squareFullName}
+                squareLinked={!!member.squareTeamMemberId}
+              />
               <div>
                 <dt className="text-[var(--color-muted-foreground)]">Email</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{member.email ?? "—"}</dd>

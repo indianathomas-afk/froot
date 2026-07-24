@@ -5,6 +5,44 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## Staff Display Name vs Full Name — role split & enforcement — 2026-07-24 (Gary approved audit + plan)
+
+Not a consolidation — the two columns do different jobs and the app now says so
+and enforces it. **Display Name = operational identity** (rosters, checklists,
+messages; nicknames fine, freely editable, low stakes). **Full Name = legal
+identity** — the only name that lands on signed documents and the Certificate of
+Acknowledgment.
+
+a. **Defect fixed.** Legal surfaces used `fullName ?? displayName`, silently
+   leaking the casual Display Name onto signed documents when Full Name was
+   empty (it's nullable). Signature/printed-name/certificate capture
+   (`acknowledgments`, form `submissions`) now use **Full Name only**.
+b. **Block-and-escalate.** A team member with no Full Name **cannot sign** —
+   the signing routes 422 and the signing pages render a "Legal name required"
+   screen (admins get a link to set it; staff get "ask your admin"). Full Name
+   is set by ADMIN/MANAGER, so this escalates to them.
+c. **Square override (Full Name only).** `fullNameLocked` marks a
+   Froot-confirmed legal name that a Square **resync must not overwrite**;
+   `squareFullName` tracks the last given+family seen from Square to surface a
+   lock/Square **divergence** on the staff profile (never shown as the legal
+   name). **Editing Full Name in Froot auto-locks it**; a manual add locks it; a
+   Square import seeds it unlocked. "Use Square's name" adopts `squareFullName`
+   and unlocks. **Write-back** (`POST …/square-writeback`) pushes the confirmed
+   Full Name to Square (given/family split — naive, multi-part surnames land in
+   family) and locks.
+d. **Display Name is Froot-native/operational.** Resync **no longer overwrites**
+   Display Name at all (Square seeds it once at import; edits/nicknames survive).
+   Display Name gets none of the lock/write-back/escalate machinery.
+e. **No backfill.** Existing staff with a null Full Name stay blocked until an
+   admin sets a real legal name — Full Name is **never** auto-filled from Display
+   Name (that would recreate the leak). Directory shows a "No legal name" marker.
+f. **Schema: additive only.** `StaffMember.fullNameLocked Boolean @default(false)`
+   + `squareFullName String?` (migration `…_staff_legal_name_lock`). Neither
+   column dropped; signed records keep referencing their frozen name snapshots.
+   Training certificates (`ensureTrainingCertPdf`) still use `fullName ??
+   displayName` — a manager-attested certification, not a self-signature; left as
+   the scope boundary, tighten later if wanted.
+
 ## HR-11b field anchoring & inline stamping — 2026-07-23 (Gary approved plan + rulings 1–7)
 
 a. **Version-binding — Option A.** `DocumentAnchor` binds to

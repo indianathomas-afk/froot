@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import type { FormDefinition } from "@/lib/hr-forms"
+import { LegalNameRequired } from "@/components/hr/legal-name-required"
 import { FormSubmitClient, type SubmittedValue } from "./submit-client"
 
 // HR-5 execution flow: an ADMIN or in-scope MANAGER fills a fillable form
@@ -58,6 +59,13 @@ export default async function FormSubmitPage({
     orderBy: { signedAt: "desc" },
   })
 
+  // Legal identity gate: a fresh execution carries the Full Name only. A pending
+  // countersign already captured the employee's name at submit time, so it's
+  // exempt.
+  if (!pending && !staff.fullName?.trim()) {
+    return <LegalNameRequired staffName={staff.displayName} manageHref={`/staff/${staff.id}`} />
+  }
+
   return (
     <FormSubmitClient
       doc={{
@@ -67,7 +75,7 @@ export default async function FormSubmitPage({
         definitionHash: version.fileHash,
       }}
       definition={definition}
-      staff={{ id: staff.id, name: staff.fullName ?? staff.displayName }}
+      staff={{ id: staff.id, name: staff.fullName?.trim() ?? staff.displayName }}
       supervisorName={dbUser.name ?? dbUser.email}
       pending={
         pending

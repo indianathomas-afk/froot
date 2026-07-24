@@ -199,8 +199,17 @@ model StaffMember {
   // account in some setups). NULLs stay distinct, so manual members (no
   // Square id) never collide.
   squareTeamMemberId String?
+  // displayName = OPERATIONAL identity (rosters, checklists, messages). Casual,
+  // Froot-native — Square seeds it once at import and resync never overwrites it.
   displayName        String
+  // fullName = LEGAL identity. The only name that lands on signed documents and
+  // the Certificate of Acknowledgment. When fullNameLocked, it is Froot-confirmed
+  // and a Square resync must not clobber it. squareFullName tracks the last
+  // given+family seen from Square to surface a lock/Square divergence (never the
+  // legal name shown anywhere).
   fullName           String?
+  fullNameLocked     Boolean   @default(false)
+  squareFullName     String?
   email              String?
   // HR-7 rule 1/2: offboarding sets TERMINATED (never deletes) — Square
   // INACTIVE reconcile and the manager terminate action both land here, and

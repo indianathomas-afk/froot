@@ -158,7 +158,11 @@ export default async function StaffPage() {
                             <Badge variant="destructive" className="ml-2">Terminated</Badge>
                           )}
                         </td>
-                        <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
+                        <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? (
+                          <span className="text-[var(--color-warning,#efa201)]" title="No legal name — can't sign documents">
+                            No legal name
+                          </span>
+                        )}</td>
                         <td className="px-6 py-3">
                           <StaffLocationChips
                             staffId={member.id}
@@ -207,7 +211,11 @@ export default async function StaffPage() {
                           <Badge variant="destructive" className="ml-2">Terminated</Badge>
                         )}
                       </td>
-                      <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? "—"}</td>
+                      <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">{member.fullName ?? (
+                          <span className="text-[var(--color-warning,#efa201)]" title="No legal name — can't sign documents">
+                            No legal name
+                          </span>
+                        )}</td>
                       <td className="px-6 py-3 text-sm text-[var(--color-muted-foreground)]">—</td>
                       {hrActive && (
                         <td className="px-6 py-3 text-right">

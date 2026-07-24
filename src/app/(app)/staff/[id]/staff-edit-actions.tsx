@@ -171,10 +171,18 @@ export function StaffEditActions({
             <div className="space-y-1.5">
               <Label>Display Name *</Label>
               <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Operational — rosters, checklists, messages. Nicknames OK; Square resync won&apos;t
+                overwrite it.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Full Name</Label>
               <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Legal — appears on signed documents &amp; certificates. Editing it locks the name so a
+                Square resync can&apos;t change it.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Email</Label>
