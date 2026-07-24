@@ -125,7 +125,7 @@ export function DocumentDetailClient({ doc }: { doc: DocumentDetail }) {
 
       <div className="space-y-6">
         <VersionsCard doc={doc} />
-        {isSignatureDoc && <AnchorsCard doc={doc} />}
+        {isSignatureDoc && <AnchorsCard key={doc.anchors.map((a) => a.id).join("|")} doc={doc} />}
         {isSignatureDoc && <CheckpointsCard doc={doc} />}
       </div>
     </div>
@@ -278,6 +278,7 @@ interface AnchorDraft {
 // Populates documents that predate anchoring, and re-detects when detection
 // improves. Replaces only the unconfirmed set; confirmed anchors are preserved.
 function RescanButton({ docId, label = "Rescan fields" }: { docId: string; label?: string }) {
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
@@ -296,10 +297,9 @@ function RescanButton({ docId, label = "Rescan fields" }: { docId: string; label
       }
       // Distinct success outcomes.
       if (data.detected > 0) {
-        // Full reload, not router.refresh(): the soft RSC re-fetch fired right
-        // after the heavy rescan invocation intermittently fails ("page couldn't
-        // load"), while a top-level GET reliably reloads the detected fields.
-        window.location.reload()
+        // AnchorsCard is keyed on the anchor id set, so this refresh remounts it
+        // with fresh draft state for the newly-detected anchors (no stale ids).
+        router.refresh()
       } else if (data.hadTextLayer) {
         setNotice(
           `Scanned ${data.pagesScanned} page(s) — a text layer was found, but none of the field labels matched.`
