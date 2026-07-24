@@ -11,6 +11,10 @@ import {
 } from "@/lib/hr-documents"
 import { isOrgHrBlobUrl, requireHrDocumentAccess } from "./access"
 
+// pdfjs anchor detection runs inline at upload; needs Node + headroom.
+export const runtime = "nodejs"
+export const maxDuration = 60
+
 const bodySchema = z.object({
   title: z.string().trim().min(1),
   category: z.enum(HR_DOCUMENT_CATEGORIES),

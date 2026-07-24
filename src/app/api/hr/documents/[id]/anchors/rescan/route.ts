@@ -4,6 +4,10 @@ import { detectAndStoreVersionAnchors } from "@/lib/hr-anchors"
 import { streamHrFile } from "@/lib/hr-files"
 import { requireHrDocumentAccess } from "../../../access"
 
+// pdfjs needs the Node runtime; a 14.6 MB / multi-page scan can run long.
+export const runtime = "nodejs"
+export const maxDuration = 60
+
 // POST /api/hr/documents/[id]/anchors/rescan — ADMIN. Re-run field detection
 // against the CURRENT version's already-uploaded file, without a re-upload.
 // Two uses: (1) documents that predate HR-11b (or were image-only at upload)
@@ -31,10 +35,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const res = await streamHrFile(version.fileUrl)
     bytes = Buffer.from(await res.arrayBuffer())
-  } catch {
-    return NextResponse.json({ error: "Could not read the document file" }, { status: 400 })
+  } catch (err) {
+    console.error(`[hr-anchors] rescan blob fetch failed for version ${version.id}:`, err)
+    return NextResponse.json(
+      { error: "Could not read the document file from storage" },
+      { status: 502 }
+    )
+  }
+  if (bytes.byteLength === 0) {
+    return NextResponse.json({ error: "The document file was empty" }, { status: 502 })
   }
 
-  const detected = await detectAndStoreVersionAnchors(version.id, new Uint8Array(bytes))
-  return NextResponse.json({ detected }, { status: 200 })
+  const result = await detectAndStoreVersionAnchors(version.id, new Uint8Array(bytes))
+  // Surface the real outcome instead of collapsing every failure into "0 fields".
+  if (result.error) {
+    return NextResponse.json(
+      { error: `Scan failed: ${result.error}`, bytes: bytes.byteLength },
+      { status: 500 }
+    )
+  }
+  return NextResponse.json(
+    {
+      detected: result.stored,
+      hadTextLayer: result.hadTextLayer,
+      pagesScanned: result.pagesScanned,
+      bytes: bytes.byteLength,
+    },
+    { status: 200 }
+  )
 }

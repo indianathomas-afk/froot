@@ -281,18 +281,30 @@ function RescanButton({ docId, label = "Rescan fields" }: { docId: string; label
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
 
   async function handleRescan() {
     setBusy(true)
     setError("")
+    setNotice("")
     try {
       const res = await fetch(`/api/hr/documents/${docId}/anchors/rescan`, { method: "POST" })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        // Distinct failure — surface the real message, not a silent zero.
         setError(data.error ?? "Failed to scan the document")
         return
       }
-      router.refresh()
+      // Distinct success outcomes.
+      if (data.detected > 0) {
+        router.refresh() // fields now render below
+      } else if (data.hadTextLayer) {
+        setNotice(
+          `Scanned ${data.pagesScanned} page(s) — a text layer was found, but none of the field labels matched.`
+        )
+      } else {
+        setNotice("No text layer found — this looks like a scanned or image-only PDF.")
+      }
     } finally {
       setBusy(false)
     }
@@ -304,7 +316,8 @@ function RescanButton({ docId, label = "Rescan fields" }: { docId: string; label
         <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
         {busy ? "Scanning..." : label}
       </Button>
-      {error && <span className="text-xs text-[var(--color-destructive)]">{error}</span>}
+      {error && <span className="text-xs text-[var(--color-destructive)] max-w-md">{error}</span>}
+      {notice && <span className="text-xs text-[var(--color-muted-foreground)] max-w-md">{notice}</span>}
     </span>
   )
 }

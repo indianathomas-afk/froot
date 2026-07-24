@@ -5,6 +5,10 @@ import { detectAndStoreVersionAnchors } from "@/lib/hr-anchors"
 import { HrFileValidationError, readHrFileMeta, validateHrFileMeta } from "@/lib/hr-files"
 import { isOrgHrBlobUrl, requireHrDocumentAccess } from "../../access"
 
+// pdfjs anchor detection runs inline on new-version upload; needs Node + headroom.
+export const runtime = "nodejs"
+export const maxDuration = 60
+
 const bodySchema = z.object({
   url: z.string().url(),
   fileName: z.string().trim().min(1),

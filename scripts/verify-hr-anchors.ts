@@ -77,7 +77,10 @@ async function main() {
 
   // ── Full detect: text PDF ────────────────────────────────────────────────────
   console.log("\ntext PDF detection:")
-  const anchors = await detectAnchors(await textPdf())
+  const detected = await detectAnchors(await textPdf())
+  check("diagnostics: text layer detected", detected.textItemCount > 0, `items=${detected.textItemCount}`)
+  check("diagnostics: pagesScanned == 2", detected.pagesScanned === 2, `${detected.pagesScanned}`)
+  const anchors = detected.anchors
   const p1 = anchors.filter((a) => a.page === 1)
   const p2 = anchors.filter((a) => a.page === 2)
 
@@ -131,10 +134,47 @@ async function main() {
     check("rot270 Right → moves in -y, glyph rotate 270", r270.x === 100 && r270.y === 366 && r270.rotateDeg === 270)
   }
 
+  // ── Vocabulary + placement fixes (curly apostrophe, bare Date, under-line) ───
+  console.log("\nvocabulary + placement (signature block):")
+  {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const p = doc.addPage([612, 792])
+    // Signature block: an underscore rule, with bare captions BELOW it.
+    p.drawText("____________________________     ____________", { x: 72, y: 420, size: 12, font })
+    p.drawText("Employee Name", { x: 72, y: 405, size: 9, font })
+    p.drawText("Date", { x: 320, y: 405, size: 9, font })
+    // "Employee's Signature" with a TYPOGRAPHIC apostrophe (U+2019).
+    p.drawText("Employee’s Signature: ______", { x: 72, y: 300, size: 12, font })
+    // A bare "Date" inside prose — must NOT match (no fill line near it).
+    p.drawText("Please review the effective Date of this policy carefully.", { x: 72, y: 200, size: 10, font })
+    const res = await detectAnchors(await doc.save())
+    const a = res.anchors
+
+    check(
+      "curly-apostrophe ’ Employee's Signature matches",
+      a.some((x) => x.markType === "SignatureStamp"),
+      a.map((x) => x.anchorText).join(" | ")
+    )
+    const dates = a.filter((x) => x.markType === "DateStamp")
+    check("bare 'Date' under the rule is detected (1)", dates.length === 1, `got ${dates.length}`)
+    check("prose 'Date' is NOT matched", dates.length === 1)
+    check(
+      "under-line captions get Above placement",
+      a.filter((x) => x.markType === "PrintedName" || x.markType === "DateStamp").every((x) => x.placement === "Above"),
+      a.map((x) => `${x.markType}:${x.placement}`).join(" ")
+    )
+    check(
+      "fill-to-right label ('Employee's Signature:') gets Right",
+      a.find((x) => x.markType === "SignatureStamp")?.placement === "Right"
+    )
+  }
+
   // ── Image-only fallback ──────────────────────────────────────────────────────
   console.log("\nimage-only PDF:")
   const none = await detectAnchors(await imageOnlyPdf())
-  check("zero anchors → certificate-only fallback", none.length === 0, `got ${none.length}`)
+  check("zero anchors → certificate-only fallback", none.anchors.length === 0, `got ${none.anchors.length}`)
+  check("image-only: textItemCount == 0 (no text layer)", none.textItemCount === 0, `items=${none.textItemCount}`)
 
   console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass} passed, ${fail} failed`)
   process.exit(fail === 0 ? 0 : 1)

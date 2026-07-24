@@ -87,13 +87,43 @@ j. **Completed-vs-Signed fork (STAFF-1) — (c) cross-link only, no merge.** The
    (`/hr/signed-records` vs `/hr/compliance` were confirmed to have distinct
    jobs — executed-artifact list vs who-hasn't-signed rollup).
 
-k. **(Claude) Delivery.** No new deps (`pdfjs-dist`, `pdf-lib` already
+k. **Staging fix pass (7-23, Gary): silent-collapse was the real defect.** The
+   first staging scan of the handbook returned zero fields with no error.
+   Root-cause discipline (Gary): scan/rescan must **report distinctly** — (a)
+   error with the real message surfaced in the UI + logged server-side, (b) no
+   text layer found (image-only), (c) text layer found, N pages scanned, M
+   labels matched — never one bare "0 fields" standing in for all three.
+   `detectAndStoreVersionAnchors` now returns a discriminated result and logs a
+   summary; rescan surfaces errors (500) and outcomes. **Ruled out explicitly:**
+   routes run on the Node runtime (never Edge; Prisma/crypto would fail on Edge
+   anyway — now pinned with `export const runtime = "nodejs"`); no `maxDuration`
+   was set (a timeout would 504, not return 0) — set to 60s on the scan/upload
+   routes; the blob fetch succeeds (byte length logged before pdfjs). **Leading
+   fix:** `serverExternalPackages: ["pdfjs-dist"]` — server-side pdfjs was being
+   bundled, which breaks the legacy build's dynamic import in the Vercel
+   function; externalizing loads it from `node_modules` at runtime. The client
+   HR-11 viewer is unaffected (its browser worker asset still emits; the server
+   never require()s a worker — the legacy build uses a fake worker).
+
+l. **Vocabulary refinements (7-23, from the real handbook).** (1) Text is
+   punctuation-normalized before matching, so `Employee's Signature` with a
+   typographic apostrophe (U+2019) on pages 22/24 matches. (2) Bare `Date` (no
+   colon) joins the vocabulary but is **fill-gated** — accepted only when an
+   underscore run sits to its right or on the line just above it — so prose
+   "Date" is ignored. (3) **Placement is auto-derived**: a trailing underscore
+   run ⇒ Right (fill line to the right); an underscore run on the line just
+   above, roughly over the label ⇒ Above (under-line caption block); default
+   Right. Admin can still override the coarse side (U1). Limitation: fill
+   detection keys on underscore runs, so signature lines drawn as graphics
+   (not underscores) won't gate a bare field — logged for a future pass.
+
+m. **(Claude) Delivery.** No new deps (`pdfjs-dist`, `pdf-lib` already
    present). Migration `20260723220118_hr11b_document_anchors` additive-only
    (applied to dev; Vercel `migrate deploy` applies to staging/prod). Fixture
-   `scripts/verify-hr-anchors.ts` → 20/20 (detection, longest-match, split-label
-   reassembly, D2 geometry across four rotations, image-only). `next build`
-   green each step. HR remains dark in production (`HR_MODULE_AVAILABLE` unset)
-   — unchanged by this phase.
+   `scripts/verify-hr-anchors.ts` → 28/28 (detection, longest-match, split-label
+   reassembly, D2 geometry across four rotations, diagnostics, curly-apostrophe /
+   bare-Date / under-line placement, image-only). `next build` green each step.
+   HR remains dark in production (`HR_MODULE_AVAILABLE` unset) — unchanged.
 
 ## STAFF-1 staff experience + HR-11 inline signing — 2026-07-23 (Gary approved plan + forks F1–F8)
 
