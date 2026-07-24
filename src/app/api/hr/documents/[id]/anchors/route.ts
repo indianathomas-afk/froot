@@ -5,6 +5,11 @@ import { syncCheckpointsForConfirmedAnchors } from "@/lib/hr-anchors"
 import { HR_ANCHOR_MARK_TYPES, HR_ANCHOR_PLACEMENTS } from "@/lib/hr-documents"
 import { requireHrDocumentAccess } from "../../access"
 
+// Confirmation updates every submitted anchor and links checkpoints; give it
+// Node + headroom so a large anchor set can't time out mid-transaction.
+export const runtime = "nodejs"
+export const maxDuration = 60
+
 const bodySchema = z.object({
   anchors: z
     .array(

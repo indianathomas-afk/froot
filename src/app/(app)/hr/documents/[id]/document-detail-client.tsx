@@ -295,11 +295,16 @@ function RescanButton({ docId, label = "Rescan fields" }: { docId: string; label
         setError(data.error ?? "Failed to scan the document")
         return
       }
-      // Distinct success outcomes.
+      // Reflect the current DB state. AnchorsCard is keyed on the anchor id set,
+      // so this remounts it with fresh draft state (no stale ids), and it also
+      // shows the cleaned set when a rescan drops duplicate proposals.
+      router.refresh()
       if (data.detected > 0) {
-        // AnchorsCard is keyed on the anchor id set, so this refresh remounts it
-        // with fresh draft state for the newly-detected anchors (no stale ids).
-        router.refresh()
+        setNotice(`Detected ${data.matched} field(s) — ${data.detected} new to review below.`)
+      } else if (data.matched > 0) {
+        setNotice(
+          `All ${data.matched} detected field(s) are already confirmed — nothing new to review.`
+        )
       } else if (data.hadTextLayer) {
         setNotice(
           `Scanned ${data.pagesScanned} page(s) — a text layer was found, but none of the field labels matched.`

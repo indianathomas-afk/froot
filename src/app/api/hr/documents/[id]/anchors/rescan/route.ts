@@ -56,7 +56,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   return NextResponse.json(
     {
-      detected: result.stored,
+      detected: result.stored, // NEW unconfirmed proposals to review
+      matched: result.matched, // total fields found (incl. already-confirmed)
       hadTextLayer: result.hadTextLayer,
       pagesScanned: result.pagesScanned,
       bytes: bytes.byteLength,

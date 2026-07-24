@@ -340,12 +340,30 @@ export async function detectAndStoreVersionAnchors(
     return { stored: 0, matched: 0, pagesScanned: 0, hadTextLayer: false, error: message }
   }
 
+  // Don't re-propose a field that's already CONFIRMED at the same spot — else
+  // rescanning an already-confirmed document piles a duplicate unconfirmed
+  // anchor on top of every confirmed one. Same file ⇒ identical coordinates, so
+  // match on page + normalized text + near-exact position.
+  const confirmed = await prisma.documentAnchor.findMany({
+    where: { hrDocumentVersionId, confirmed: true },
+    select: { page: true, x: true, y: true, anchorText: true },
+  })
+  const isConfirmedDup = (a: AnchorCandidate) =>
+    confirmed.some(
+      (c) =>
+        c.page === a.page &&
+        normalizePunct(c.anchorText).toLowerCase() === normalizePunct(a.anchorText).toLowerCase() &&
+        Math.abs(c.x - a.x) < 1 &&
+        Math.abs(c.y - a.y) < 1
+    )
+  const fresh = result.anchors.filter((a) => !isConfirmedDup(a))
+
   await prisma.documentAnchor.deleteMany({
     where: { hrDocumentVersionId, confirmed: false },
   })
-  if (result.anchors.length > 0) {
+  if (fresh.length > 0) {
     await prisma.documentAnchor.createMany({
-      data: result.anchors.map((a) => ({
+      data: fresh.map((a) => ({
         hrDocumentVersionId,
         page: a.page,
         x: a.x,
@@ -363,10 +381,10 @@ export async function detectAndStoreVersionAnchors(
   console.info(
     `[hr-anchors] version ${hrDocumentVersionId}: ${pdfBytes.byteLength} bytes, ` +
       `${result.pagesScanned} pages, ${result.textItemCount} text items, ` +
-      `${result.anchors.length} anchors stored`
+      `${result.anchors.length} detected, ${fresh.length} new (rest already confirmed)`
   )
   return {
-    stored: result.anchors.length,
+    stored: fresh.length,
     matched: result.anchors.length,
     pagesScanned: result.pagesScanned,
     hadTextLayer: result.textItemCount > 0,
