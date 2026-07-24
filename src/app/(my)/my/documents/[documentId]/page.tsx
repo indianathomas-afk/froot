@@ -55,6 +55,11 @@ export default async function MyAcknowledgePage({
     name: s.name,
     isPrimary: primaryStoreIds.has(s.id),
   }))
+  // Confirmed anchors → inline affordance + identity-chip placement.
+  const clientAnchors = await prisma.documentAnchor.findMany({
+    where: { hrDocumentVersionId: version.id, confirmed: true },
+    select: { page: true, x: true, y: true, width: true, placement: true, markType: true, generatedCheckpointId: true },
+  })
 
   // Legal identity gate: signed documents carry the Full Name only. Staff can't
   // set it themselves, so send them to their admin.
@@ -86,6 +91,7 @@ export default async function MyAcknowledgePage({
           done: doneIds.has(c.id),
         }))}
         staff={{ id: staffMember.id, name: staffMember.fullName.trim(), stores }}
+        anchors={clientAnchors}
         backHref="/my/documents"
         backLabel="My Documents"
       />

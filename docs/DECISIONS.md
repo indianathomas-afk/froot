@@ -5,6 +5,37 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## HR-11c ceremony fixes — anchor dedup, affordance placement, inline identity — 2026-07-24 (Gary approved case + dedup rule)
+
+Three ceremony-UI defects from the mobile `/my` signing pass; the completed PDF
+already stamped correctly, so these align the ceremony with the output. No
+schema change; HR-11c per-signature checkpoints (`01c5ed9`) untouched.
+
+a. **Anchor dedup at the source (Item 3).** `detectAnchors` had no within-pass
+   dedup, so a caption drawn as two coincident runs (faux-bold/shadow/overlap)
+   minted two `SignatureStamp` anchors → two checkpoints/affordances/stamps/cert
+   rows. `dedupeAnchors` collapses anchors sharing `page` + normalized
+   `anchorText` + `markType` when **both** `|Δx| ≤ 3` and `|Δy| ≤ 3` PDF units.
+   **Deterministic survivor:** sort by `(page, normText, markType, x↑, y↑,
+   width↓, text)` keep-first — re-detecting a future version yields the same
+   survivor. **Preserved, not merged:** the same caption far apart in y (two real
+   signature lines) or x (side-by-side fields) — a difference >3 pt on either
+   axis is a distinct field. Result: one anchor → one checkpoint → one affordance
+   → one stamp → one certificate row. G1: existing v5 confirmed anchors are not
+   touched; verify on a fresh version/signer.
+
+b. **Affordances at the line (Item 2).** "Sign here" and the initials button now
+   render at their anchor via a new `PdfViewer` `PageGeom.toCss` (pdf.js
+   `convertToViewportPoint` — the same rotation-aware transform the canvas render
+   uses), lifted above the caption/rule, with a collision offset (never stack)
+   and a corner-dock fallback for legacy/no-anchor docs and pre-render frames.
+
+c. **Identity visible before signing (Item 1).** Read-only name/date/store chips
+   render at the `PrintedName` / `DateStamp` / `Store` anchors during review —
+   printed name = record (Fork 3), date = today read-only, store = the live
+   selected store. Display only; editing/write-back stays the escalation path
+   already shipped (`232d568`).
+
 ## Signing ceremony — identity transparency before executing — 2026-07-24 (Gary approved case + 3 fork rulings)
 
 The identity values stamped on a signed document (name, store, date) must be

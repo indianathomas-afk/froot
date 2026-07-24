@@ -302,7 +302,43 @@ export async function detectAnchors(pdfBytes: Uint8Array): Promise<DetectionResu
   } finally {
     await doc.destroy?.()
   }
-  return { anchors: candidates, pagesScanned, textItemCount }
+  return { anchors: dedupeAnchors(candidates), pagesScanned, textItemCount }
+}
+
+// Within-pass dedup: a caption drawn as two coincident runs (faux-bold, shadow,
+// exact overlap) otherwise mints two anchors for one visual field → two
+// checkpoints/affordances/stamps. Collapse anchors that share page + normalized
+// text + markType AND sit within DEDUP_TOL on BOTH axes. Distinct fields (lines
+// >font-size apart in y, side-by-side fields far apart in x) exceed the
+// tolerance and are preserved. Deterministic survivor: sort by
+// (page, normText, markType, x, y, width desc, text) and keep-first, so
+// re-detecting a future version always yields the same survivor.
+const DEDUP_TOL = 3
+export function dedupeAnchors(anchors: AnchorCandidate[]): AnchorCandidate[] {
+  const norm = (t: string) => normalizePunct(t).toLowerCase()
+  const sorted = [...anchors].sort(
+    (a, b) =>
+      a.page - b.page ||
+      norm(a.anchorText).localeCompare(norm(b.anchorText)) ||
+      a.markType.localeCompare(b.markType) ||
+      a.x - b.x ||
+      a.y - b.y ||
+      b.width - a.width ||
+      a.anchorText.localeCompare(b.anchorText)
+  )
+  const kept: AnchorCandidate[] = []
+  for (const c of sorted) {
+    const isDup = kept.some(
+      (k) =>
+        k.page === c.page &&
+        k.markType === c.markType &&
+        norm(k.anchorText) === norm(c.anchorText) &&
+        Math.abs(k.x - c.x) <= DEDUP_TOL &&
+        Math.abs(k.y - c.y) <= DEDUP_TOL
+    )
+    if (!isDup) kept.push(c)
+  }
+  return kept
 }
 
 export interface StoreAnchorsResult {

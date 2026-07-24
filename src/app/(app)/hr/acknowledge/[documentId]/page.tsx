@@ -123,12 +123,17 @@ export default async function AcknowledgePage({
       isPrimary: a.isPrimary,
     })),
   }
+  // Confirmed anchors → inline affordance + identity-chip placement in the ceremony.
+  const clientAnchors = await prisma.documentAnchor.findMany({
+    where: { hrDocumentVersionId: version.id, confirmed: true },
+    select: { page: true, x: true, y: true, width: true, placement: true, markType: true, generatedCheckpointId: true },
+  })
 
   // HR-11: self-serve signing uses the formal inline ceremony; manager-attested
   // capture keeps the quick form — it records, it doesn't sign.
   return attested ? (
     <AcknowledgeClient doc={clientDoc} checkpoints={clientCheckpoints} mode="attested" staff={clientStaff} />
   ) : (
-    <SigningClient doc={clientDoc} checkpoints={clientCheckpoints} staff={clientStaff} />
+    <SigningClient doc={clientDoc} checkpoints={clientCheckpoints} staff={clientStaff} anchors={clientAnchors} />
   )
 }

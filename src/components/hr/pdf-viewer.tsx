@@ -17,6 +17,17 @@ import { Skeleton } from "@/components/ui/skeleton"
 type PdfJs = typeof import("pdfjs-dist")
 type PdfDocument = Awaited<ReturnType<PdfJs["getDocument"]>["promise"]>
 
+// Geometry a rendered page hands to its overlay so callers can position markers
+// at PDF anchor coordinates. toCss maps a PDF point (bottom-left origin) to CSS
+// pixels within the page wrapper (top-left origin), rotation-aware via pdf.js's
+// convertToViewportPoint — the same transform the canvas render uses. null until
+// the page has rendered.
+export type PageGeom = {
+  toCss: (x: number, y: number) => { left: number; top: number }
+  cssWidth: number
+  cssHeight: number
+}
+
 export function PdfViewer({
   src,
   onReady,
@@ -31,8 +42,9 @@ export function PdfViewer({
   onPageViewed?: (pageNumber: number) => void
   /** Called when the document cannot be opened/rendered inline. */
   onError?: (err: unknown) => void
-  /** Rendered inside each page wrapper (absolute-position friendly). */
-  pageOverlay?: (pageNumber: number) => ReactNode
+  /** Rendered inside each page wrapper (absolute-position friendly). Receives
+   *  the page geometry once rendered (null before) for anchor positioning. */
+  pageOverlay?: (pageNumber: number, geom: PageGeom | null) => ReactNode
 }) {
   const [pageCount, setPageCount] = useState(0)
   const [failed, setFailed] = useState(false)
@@ -108,7 +120,7 @@ export function PdfViewer({
             pageNumber={i + 1}
             getDoc={() => docRef.current}
             onViewed={() => onPageViewedRef.current?.(i + 1)}
-            overlay={pageOverlay?.(i + 1)}
+            renderOverlay={pageOverlay ? (geom) => pageOverlay(i + 1, geom) : undefined}
           />
         ))
       )}
@@ -120,18 +132,19 @@ function PdfPage({
   pageNumber,
   getDoc,
   onViewed,
-  overlay,
+  renderOverlay,
 }: {
   pageNumber: number
   getDoc: () => PdfDocument | null
   onViewed: () => void
-  overlay?: ReactNode
+  renderOverlay?: (geom: PageGeom | null) => ReactNode
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const renderedRef = useRef(false)
   const viewedRef = useRef(false)
   const [rendered, setRendered] = useState(false)
+  const [geom, setGeom] = useState<PageGeom | null>(null)
 
   const render = useCallback(async () => {
     if (renderedRef.current) return
@@ -154,6 +167,16 @@ function PdfPage({
       const ctx = canvas.getContext("2d")
       if (!ctx) return
       await page.render({ canvasContext: ctx, viewport, canvas }).promise
+      // CSS-space viewport (no dpr) for positioning overlay markers at anchors.
+      const cssViewport = page.getViewport({ scale })
+      setGeom({
+        toCss: (x: number, y: number) => {
+          const [left, top] = cssViewport.convertToViewportPoint(x, y)
+          return { left, top }
+        },
+        cssWidth: cssViewport.width,
+        cssHeight: cssViewport.height,
+      })
       setRendered(true)
     } catch (err) {
       renderedRef.current = false
@@ -195,7 +218,7 @@ function PdfPage({
         {!rendered && <Skeleton className="w-full aspect-[8.5/11]" />}
         <canvas ref={canvasRef} className={rendered ? "block w-full" : "hidden"} />
       </div>
-      {overlay}
+      {renderOverlay?.(geom)}
     </div>
   )
 }

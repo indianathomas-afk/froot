@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import type { ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
@@ -49,6 +50,7 @@ export function SigningClient({
   doc,
   checkpoints,
   staff,
+  anchors = [],
   backHref,
   backLabel,
 }: {
@@ -58,6 +60,19 @@ export function SigningClient({
   // their own signature). stores = the signer's assigned stores for the
   // select-from-assigned store picker.
   staff: { id: string; name: string; stores: { id: string; name: string; isPrimary: boolean }[] }
+  // Confirmed anchors for the current version — coordinates let the ceremony
+  // place affordances (Item 2) and read-only identity chips (Item 1) AT the
+  // line, not corner-docked. Empty for docs that were never anchor-detected
+  // (falls back to the corner dock).
+  anchors?: {
+    page: number
+    x: number
+    y: number
+    width: number | null
+    placement: string
+    markType: string
+    generatedCheckpointId: string | null
+  }[]
   backHref?: string
   backLabel?: string
 }) {
@@ -120,6 +135,25 @@ export function SigningClient({
     }
     return m
   }, [signatures])
+
+  // Anchor coordinates for inline placement (Items 1 & 2): each Initial/Signature
+  // checkpoint's anchor (to place its affordance at the line), and the derived
+  // identity anchors per page (to show read-only name/date/store chips).
+  const anchorByCheckpoint = useMemo(() => {
+    const m = new Map<string, (typeof anchors)[number]>()
+    for (const a of anchors) if (a.generatedCheckpointId) m.set(a.generatedCheckpointId, a)
+    return m
+  }, [anchors])
+  const identityAnchorsByPage = useMemo(() => {
+    const m = new Map<number, (typeof anchors)[number][]>()
+    for (const a of anchors) {
+      if (a.markType === "PrintedName" || a.markType === "DateStamp" || a.markType === "Store") {
+        m.set(a.page, [...(m.get(a.page) ?? []), a])
+      }
+    }
+    return m
+  }, [anchors])
+  const selectedStoreName = staff.stores.find((s) => s.id === selectedStoreId)?.name ?? ""
 
   // Sequence pointer: the first REQUIRED initial not yet completed.
   const nextRequiredInitial = initials.find((c) => c.required && !completed.has(c.id)) ?? null
@@ -535,19 +569,77 @@ export function SigningClient({
             onReady={setPageCount}
             onPageViewed={(n) => setViewedPages((s) => (s.has(n) ? s : new Set(s).add(n)))}
             onError={() => setPdfFailed(true)}
-            pageOverlay={(pageNumber) => {
+            pageOverlay={(pageNumber, geom) => {
               const pageInitials = initialsByPage.get(pageNumber) ?? []
               const pageSignatures = signaturesByPage.get(pageNumber) ?? []
-              if (!pageInitials.length && !pageSignatures.length) return null
+              const pageIdentity = identityAnchorsByPage.get(pageNumber) ?? []
+              if (!pageInitials.length && !pageSignatures.length && !pageIdentity.length) return null
+
+              // Before the page renders (geom null) or for checkpoints whose
+              // anchor we don't have (legacy docs), corner-dock so affordances
+              // stay reachable.
+              const cornerDock = (sig: SigningCheckpoint[], init: SigningCheckpoint[]) =>
+                sig.length || init.length ? (
+                  <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2">
+                    {sig.map((c) => (
+                      <span key={c.id}>{signatureControl(c)}</span>
+                    ))}
+                    {init.map((c) => (
+                      <span key={c.id}>{initialControl(c)}</span>
+                    ))}
+                  </div>
+                ) : null
+
+              if (!geom) return cornerDock(pageSignatures, pageInitials)
+
+              // Place at the anchor, lifted above its line so it never covers the
+              // caption/rule. Nudge up on near-overlap so affordances don't stack.
+              const placed: { top: number; left: number }[] = []
+              const at = (ax: number, ay: number, node: ReactNode, key: string, lift: string) => {
+                const p = geom.toCss(ax, ay)
+                let top = p.top
+                while (placed.some((q) => Math.abs(q.top - top) < 40 && Math.abs(q.left - p.left) < 130)) top -= 46
+                placed.push({ top, left: p.left })
+                return (
+                  <div key={key} className="absolute z-10" style={{ left: p.left, top, transform: lift }}>
+                    {node}
+                  </div>
+                )
+              }
+
+              const dockSig = pageSignatures.filter((c) => !anchorByCheckpoint.get(c.id))
+              const dockInit = pageInitials.filter((c) => !anchorByCheckpoint.get(c.id))
+
               return (
-                <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2">
-                  {pageSignatures.map((c) => (
-                    <span key={c.id}>{signatureControl(c)}</span>
-                  ))}
-                  {pageInitials.map((c) => (
-                    <span key={c.id}>{initialControl(c)}</span>
-                  ))}
-                </div>
+                <>
+                  {pageIdentity.map((a, i) => {
+                    const value =
+                      a.markType === "PrintedName"
+                        ? staff.name
+                        : a.markType === "Store"
+                          ? selectedStoreName || "—"
+                          : format(new Date(), "MMM d, yyyy")
+                    const vx = a.placement === "Right" ? a.x + (a.width ?? 0) + 4 : a.x
+                    return at(
+                      vx,
+                      a.y,
+                      <span className="inline-block rounded bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/25 px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)] whitespace-nowrap">
+                        {value}
+                      </span>,
+                      `id-${i}`,
+                      "translate(0, -90%)"
+                    )
+                  })}
+                  {pageSignatures.map((c) => {
+                    const a = anchorByCheckpoint.get(c.id)
+                    return a ? at(a.x, a.y, signatureControl(c), c.id, "translate(0, -118%)") : null
+                  })}
+                  {pageInitials.map((c) => {
+                    const a = anchorByCheckpoint.get(c.id)
+                    return a ? at(a.x, a.y, initialControl(c), c.id, "translate(0, -118%)") : null
+                  })}
+                  {cornerDock(dockSig, dockInit)}
+                </>
               )
             }}
           />

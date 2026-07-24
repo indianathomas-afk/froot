@@ -14,7 +14,7 @@
  * Nothing is persisted.
  */
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib"
-import { detectAnchors, assembleLines, matchLine } from "../src/lib/hr-anchors"
+import { detectAnchors, assembleLines, matchLine, dedupeAnchors, type AnchorCandidate } from "../src/lib/hr-anchors"
 import { computeStampPlacement } from "../src/lib/hr-signed-pdf"
 
 let pass = 0
@@ -168,6 +168,42 @@ async function main() {
       "fill-to-right label ('Employee's Signature:') gets Right",
       a.find((x) => x.markType === "SignatureStamp")?.placement === "Right"
     )
+  }
+
+  // ── Item 3: within-pass dedup ────────────────────────────────────────────────
+  console.log("\ndedup (Item 3, unit):")
+  {
+    const mk = (over: Partial<{ page: number; x: number; y: number; anchorText: string; markType: string }>) => ({
+      page: 22, x: 72, y: 120, width: 100, pageRotation: 0, pageView: [0, 0, 612, 792] as [number, number, number, number],
+      anchorText: "Employee's Signature", markType: "SignatureStamp", placement: "Right", ...over,
+    }) as AnchorCandidate
+    check("coincident duplicate (Δ<3) collapses to 1", dedupeAnchors([mk({}), mk({ x: 73, y: 121 })]).length === 1)
+    check("same caption far apart in Y (Δ20) preserved", dedupeAnchors([mk({}), mk({ y: 140 })]).length === 2)
+    check("same caption side-by-side in X (Δ30) preserved", dedupeAnchors([mk({}), mk({ x: 300 })]).length === 2)
+    check("different markType not merged", dedupeAnchors([mk({}), mk({ markType: "Initial", anchorText: "Initial:" })]).length === 2)
+    // deterministic survivor = smallest x (sorted-first)
+    const survivor = dedupeAnchors([mk({ x: 74 }), mk({ x: 72 }), mk({ x: 73 })])
+    check("deterministic survivor is smallest-x", survivor.length === 1 && survivor[0].x === 72)
+    // curly vs straight apostrophe normalize to the same field → collapse
+    check(
+      "curly/straight apostrophe treated as same caption",
+      dedupeAnchors([mk({ anchorText: "Employee's Signature" }), mk({ anchorText: "Employee’s Signature", x: 73 })]).length === 1
+    )
+  }
+
+  console.log("\ndedup (Item 3, end-to-end — caption drawn twice):")
+  {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const p = doc.addPage([612, 792])
+    // faux-bold: the same caption drawn twice at ~same spot
+    p.drawText("Employee Signature: _______", { x: 72, y: 120, size: 12, font })
+    p.drawText("Employee Signature: _______", { x: 72.4, y: 120, size: 12, font })
+    // a genuine SECOND signature line far below → must survive
+    p.drawText("Employee Signature: _______", { x: 72, y: 60, size: 12, font })
+    const res = await detectAnchors(await doc.save())
+    const sigs = res.anchors.filter((a) => a.markType === "SignatureStamp")
+    check("2 visual lines (one doubled) → 2 anchors, not 3", sigs.length === 2, `got ${sigs.length}`)
   }
 
   // ── Image-only fallback ──────────────────────────────────────────────────────
