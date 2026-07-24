@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
@@ -78,7 +78,6 @@ export function SigningClient({
   const [pageCount, setPageCount] = useState(0)
   const [pdfFailed, setPdfFailed] = useState(false)
   const [error, setError] = useState("")
-  const submittingRef = useRef(false)
 
   // ── Checkpoint partitions ──────────────────────────────────────────────────
   const initials = useMemo(
@@ -101,12 +100,24 @@ export function SigningClient({
     return m
   }, [initials])
 
+  // Signatures are captured inline per page (like initials), each its own act
+  // with its own timestamp.
+  const signaturesByPage = useMemo(() => {
+    const m = new Map<number, SigningCheckpoint[]>()
+    for (const c of signatures) {
+      if (c.pageRef == null) continue
+      m.set(c.pageRef, [...(m.get(c.pageRef) ?? []), c])
+    }
+    return m
+  }, [signatures])
+
   // Sequence pointer: the first REQUIRED initial not yet completed.
   const nextRequiredInitial = initials.find((c) => c.required && !completed.has(c.id)) ?? null
 
   const initialsDone = initials.filter((c) => c.required).every((c) => completed.has(c.id))
+  const signaturesDone = signatures.filter((c) => c.required).every((c) => completed.has(c.id))
   const allPagesViewed = pdfFailed || (pageCount > 0 && viewedPages.size >= pageCount)
-  const canFinalize = initialsDone && allPagesViewed
+  const canFinalize = initialsDone && signaturesDone && allPagesViewed
 
   const fieldsDone = fields.filter((c) => c.required).every((c) => completed.has(c.id))
   const attestationsDone = attestations.filter((c) => c.required).every((c) => completed.has(c.id))
@@ -147,18 +158,6 @@ export function SigningClient({
         entries.forEach((e) => next.delete(e.checkpointId))
         return next
       })
-    }
-  }
-
-  async function handleSign() {
-    if (submittingRef.current) return
-    submittingRef.current = true
-    try {
-      const pending = signatures.filter((c) => !completed.has(c.id))
-      if (pending.length === 0) return
-      await postEntries(pending.map((c) => ({ checkpointId: c.id })))
-    } finally {
-      submittingRef.current = false
     }
   }
 
@@ -357,6 +356,51 @@ export function SigningClient({
     )
   }
 
+  // Inline per-signature capture — an explicit act on the page it belongs to,
+  // posted on its own so each carries a distinct server timestamp. Reuses the
+  // legal name typed once at the consent gate (postEntries sends typedName).
+  function signatureControl(c: SigningCheckpoint) {
+    const done = completed.has(c.id)
+    const time = completed.get(c.id)
+    const isSaving = saving.has(c.id)
+    const pageSeen = pdfFailed || c.pageRef == null || viewedPages.has(c.pageRef)
+    const enabled = !done && !isSaving && pageSeen && !!typedName.trim()
+
+    if (done) {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-success-bg,#e8f8ea)] border border-[var(--color-success,#25ba3b)]/30 px-3 py-2 text-sm font-medium text-[var(--color-success,#1c8a2e)]">
+          <CheckCircle2 className="h-4 w-4" />
+          <span
+            className="font-semibold"
+            style={{ fontFamily: "'Snell Roundhand', 'Segoe Script', 'Brush Script MT', cursive" }}
+          >
+            {typedName.trim() || staff.name}
+          </span>
+          {time && <span className="text-xs font-normal">{format(time, "h:mm:ss a")}</span>}
+        </span>
+      )
+    }
+    return (
+      <Button
+        size="sm"
+        variant={enabled ? "default" : "outline"}
+        disabled={!enabled}
+        onClick={() => postEntries([{ checkpointId: c.id }])}
+        className="min-h-11"
+        title={
+          !pageSeen
+            ? "Scroll this page into view first"
+            : !typedName.trim()
+              ? "Enter your name at the start first"
+              : undefined
+        }
+      >
+        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+        Sign here
+      </Button>
+    )
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       {back}
@@ -394,9 +438,15 @@ export function SigningClient({
                   {initialControl(c)}
                 </div>
               ))}
-              {initials.length === 0 && (
+              {signatures.map((c) => (
+                <div key={c.id} className="flex items-center justify-between gap-3 py-1">
+                  <span className="text-sm text-[var(--color-foreground)]">{c.name}</span>
+                  {signatureControl(c)}
+                </div>
+              ))}
+              {initials.length === 0 && signatures.length === 0 && (
                 <p className="text-sm text-[var(--color-muted-foreground)]">
-                  No per-page initials for this document — continue when ready.
+                  No per-page initials or signatures for this document — continue when ready.
                 </p>
               )}
             </div>
@@ -408,10 +458,14 @@ export function SigningClient({
             onPageViewed={(n) => setViewedPages((s) => (s.has(n) ? s : new Set(s).add(n)))}
             onError={() => setPdfFailed(true)}
             pageOverlay={(pageNumber) => {
-              const pageInitials = initialsByPage.get(pageNumber)
-              if (!pageInitials?.length) return null
+              const pageInitials = initialsByPage.get(pageNumber) ?? []
+              const pageSignatures = signaturesByPage.get(pageNumber) ?? []
+              if (!pageInitials.length && !pageSignatures.length) return null
               return (
                 <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2">
+                  {pageSignatures.map((c) => (
+                    <span key={c.id}>{signatureControl(c)}</span>
+                  ))}
                   {pageInitials.map((c) => (
                     <span key={c.id}>{initialControl(c)}</span>
                   ))}
@@ -544,27 +598,17 @@ export function SigningClient({
                 {typedName.trim() || staff.name}
               </p>
             </div>
-            {signatures.length > 0 ? (
-              <Button
-                className="w-full min-h-12 text-base"
-                disabled={!canSign || signatures.every((c) => completed.has(c.id)) || signatures.some((c) => saving.has(c.id))}
-                onClick={handleSign}
-              >
-                {signatures.some((c) => saving.has(c.id)) ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <PenLine className="h-5 w-5" />
-                )}
-                Sign document
-              </Button>
-            ) : (
-              <p className="text-sm text-[var(--color-muted-foreground)]">
-                This document completes when every acknowledgment above is confirmed.
-              </p>
-            )}
+            {/* Signatures are captured inline on their pages during review, each
+                with its own timestamp; the document completes on the final
+                acknowledgment below. */}
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              {attestations.length > 0
+                ? "You've signed each page above. Confirm the acknowledgment to complete this document."
+                : "You've signed each page above. Complete every step to finish."}
+            </p>
             {!canSign && (
               <p className="text-xs text-[var(--color-muted-foreground)] mt-2 text-center">
-                Complete every required step above to sign.
+                Complete every required step above to finish.
               </p>
             )}
           </section>

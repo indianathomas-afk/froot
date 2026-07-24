@@ -401,10 +401,8 @@ export async function detectAndStoreVersionAnchors(
  * Acknowledgment checkpoint.
  *
  *   Initial        → the page's Initial checkpoint (reuse by pageRef, else create)
- *   SignatureStamp → an existing Signature checkpoint, else the final
- *                    Acknowledgment checkpoint (where the typed legal name is
- *                    captured); a Signature checkpoint is created only if the
- *                    document has neither.
+ *   SignatureStamp → its OWN Signature checkpoint, one per anchor, so each is a
+ *                    distinct signer act with its own timestamp (like initials).
  *   PrintedName / Store / DateStamp → stamp-only (derived values), no checkpoint.
  *
  * G1 integrity rule: this NEVER deletes or modifies a checkpoint. Removing a
@@ -439,10 +437,18 @@ export async function syncCheckpointsForConfirmedAnchors(
       }
       await link(a.id, cp.id, a.generatedCheckpointId)
     } else if (a.markType === "SignatureStamp") {
-      let cp = checkpoints.find((c) => c.type === "Signature") ?? checkpoints.find((c) => c.type === "Acknowledgment")
+      // Each signature anchor is a DISTINCT attestation → its own Signature
+      // checkpoint the signer acts on during the ceremony, with its own
+      // per-interaction timestamp (like initials). Reuse only the Signature
+      // checkpoint already linked to THIS anchor (idempotent re-confirm); never
+      // reuse another anchor's, and never the final Acknowledgment (the prior
+      // behavior, which collapsed all signatures onto one timestamp).
+      let cp = a.generatedCheckpointId
+        ? checkpoints.find((c) => c.id === a.generatedCheckpointId && c.type === "Signature")
+        : undefined
       if (!cp) {
         cp = await prisma.hrDocumentCheckpoint.create({
-          data: { hrDocumentId, name: "Signature", type: "Signature", orderIndex: nextOrder++, pageRef: a.page, required: true },
+          data: { hrDocumentId, name: `Page ${a.page} signature`, type: "Signature", orderIndex: nextOrder++, pageRef: a.page, required: true },
         })
         checkpoints.push(cp)
       }

@@ -154,6 +154,29 @@ o. **HR-11b test-data purge (staging, 7-23, Gary-approved).** Deliberate, scoped
    G1 "never touch acked records" posture, for unreliable staging test data —
    **not precedent** for deleting real or production records.
 
+p. **Signatures become their own checkpoints (Gary, 7-24 — revises f).** Each
+   `SignatureStamp` anchor now generates its OWN `Signature` checkpoint the
+   signer acts on **inline during the ceremony** (per page, like initials), each
+   carrying its own per-interaction `signedAt` — replacing the earlier "link
+   SignatureStamp to the final Acknowledgment" choice, which collapsed all
+   signatures onto one timestamp. The handbook's four signatures (EEO/conduct,
+   confidentiality, Rules & Policies, whole handbook) are distinct attestations,
+   not repeats of one. `PrintedName` / `Date` / `Store` stay stamp-only derived
+   (no checkpoints, no signer act — only signatures and initials require an
+   explicit act). **Sequencing:** captured inline in the review phase, gated on
+   the page being viewed; `canFinalize` now also requires all signatures done.
+   **Legal name:** captured once at the consent gate and reused as each
+   signature's `typedName` — the distinct attestation is the explicit
+   per-checkpoint act + timestamp, not re-typing four times. **No schema change:**
+   `HrCheckpointType.Signature` + `method="Signature"` already exist; each
+   signature checkpoint gets its own `HrDocumentAcknowledgment`; stamping reads
+   each anchor's checkpoint ack for its `typedName` + `signedAt` (fallback to the
+   completion time only for legacy/attested records). This also flips prior
+   completions of a version to needs-re-sign once re-confirmed (4 new required
+   checkpoints) — intended; Tommy's data was purged, so nothing real is
+   disrupted. Verified E2E (dev DB + blob): 4 Signature checkpoints generated,
+   4 distinct stamped timestamps.
+
 ## STAFF-1 staff experience + HR-11 inline signing — 2026-07-23 (Gary approved plan + forks F1–F8)
 
 a. **Timestamp audit finding (Defect 1 root cause).** Per-interaction times

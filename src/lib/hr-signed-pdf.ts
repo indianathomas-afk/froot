@@ -339,8 +339,13 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
         const rad = (rr * Math.PI) / 180
         const cs = Math.round(Math.cos(rad))
         const sn = Math.round(Math.sin(rad))
-        const stepX = sn * lh // reader-down (0,-1) rotated into content space
-        const stepY = -cs * lh
+        // Sub-lines normally stack reader-DOWN below the stylized name. For an
+        // under-line caption (Above placement — the label sits BELOW the line),
+        // stack reader-UP instead so "Signed electronically…" / "Record…" clear
+        // the label rather than overprinting it.
+        const up = placement === "Above"
+        const stepX = (up ? -1 : 1) * sn * lh
+        const stepY = (up ? 1 : -1) * cs * lh
         const line = (n: number, text: string, font: PDFFont, size: number) =>
           page.drawText(sanitize(text), {
             x: base.x + n * stepX,
@@ -350,8 +355,15 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
             color: STAMP_INK,
             rotate: degrees(base.rotateDeg),
           })
-        line(0, lastAck.staffName, helvOblique, 12)
-        line(1, `Signed electronically - ${utc(completedAt)}`, helv, 6.5)
+        // Each signature anchor has its own Signature checkpoint → its own
+        // per-interaction timestamp. Fall back to the completion time only if
+        // the ack is missing (e.g. a legacy record from before per-signature
+        // checkpoints, or a manager-attested capture).
+        const sigAck = a.generatedCheckpointId ? ackByCheckpoint.get(a.generatedCheckpointId) : undefined
+        const sigName = sigAck?.typedName ?? lastAck.staffName
+        const sigTime = sigAck?.signedAt ?? completedAt
+        line(0, sigName, helvOblique, 12)
+        line(1, `Signed electronically - ${utc(sigTime)}`, helv, 6.5)
         line(2, `Record ${recordRef}`, courier, 6.5)
         continue
       }
