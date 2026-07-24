@@ -1,0 +1,631 @@
+# Froot roadmap — single source of truth for phase status.
+# Supersedes docs/ROADMAP.md (now a pointer), the old CLAUDE.md "Phase Status"
+# section, and the external sheet. If any of those disagree with this file,
+# this file wins. Narrative history (verification fixtures, migration names,
+# decision cross-refs) lives in docs/ROADMAP_ARCHIVE.md, frozen 2026-07-24.
+#
+# UPDATE RULE: every Claude Code session updates its phase's entry here before
+# the session is done. See "Session completion rules" in docs/WORKFLOW.md.
+#
+# status: planned | in_progress | staging | shipped | verified
+#   staging  — merged to `staging`, on Vercel preview, NOT in prod
+#   shipped  — merged to `main`, live in prod
+#   verified — shipped AND smoke-tested against real store data
+#
+# blockers — live problems in a phase regardless of status (unset env vars,
+#            prod-promotion gates, unverified pixel work). Anything here blocks.
+# deferred — scope intentionally cut.
+# open     — unresolved questions that aren't yet blockers.
+# tags     — [pre-launch] must close before external merchants.
+#
+# `shipped:` dates are when the work reached main/prod; where a phase was built
+# earlier and promoted later, the build date is in notes.
+
+meta:
+  updated: 2026-07-24
+  sources_retired: [docs/ROADMAP.md, "CLAUDE.md#Phase Status", external sheet]
+  note: >
+    Reconstructed 2026-07-24 from docs/ROADMAP_ARCHIVE.md, docs/prompts/*, and
+    git log. Two prod promotions to date: 9743899 (2026-07-21, L-3 + full
+    HR/Labor backlog) and 942bc59 (2026-07-23, HR-8 through STAFF-1 batch —
+    see docs/DEPLOY_LOG.md). As of 2026-07-24 only HR-11b and HR-11c are
+    staging-only.
+
+phases:
+
+  # ---- Platform / dashboard ----
+
+  - id: P-0
+    track: platform
+    size: XL
+    status: shipped
+    shipped: 2026-06-26
+    commits: [1cfdf76]
+    title: "Initial platform build — Phase 1 core (checklists, templates, stores, users, Square OAuth)"
+    notes: >
+      From-scratch build per docs/prompts/INITIAL_BUILD_PROMPT.md. The id P-0
+      was assigned during the 2026-07-24 roadmap reconstruction (the build
+      predates phase ids).
+
+  - id: D-1
+    track: platform
+    size: M
+    status: shipped
+    shipped: 2026-07-06
+    commits: [1b8160f]
+    title: "Dashboard redesign"
+
+  - id: P-1
+    track: platform
+    size: S
+    status: shipped
+    shipped: 2026-07-09
+    commits: [251c3a6]
+    title: "Templates export/import"
+    notes: Never on the original tracking sheet or ROADMAP.md.
+
+  - id: P-2
+    track: platform
+    size: S
+    status: shipped
+    shipped: 2026-07-09
+    commits: [cf9393d, e14f14b, 9c0c8d4]
+    title: "Sales-metric accuracy pass"
+    notes: >
+      Net sales excludes tips; bucket by created_at to match Square's Sales
+      Summary; PAID-order counting. Never on the original sheet or ROADMAP.md.
+      (Seed said shipped 7-10; commits are 7-09.)
+
+  - id: IG-1
+    track: platform
+    size: M
+    status: shipped
+    shipped: 2026-07-10
+    commits: [b1fce8b]
+    title: "Instagram integration — org-level connect, /instagram page, dashboard strip"
+    blockers:
+      - >
+        Meta App Review (Advanced Access for instagram_business_basic) not yet
+        granted — until then only Instagram accounts with a role on the Meta
+        app can connect. Start App Review early.
+      - >
+        INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET (optional
+        INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the callback
+        registered in the Meta app — not confirmed done for every env.
+    deferred:
+      - Posting / comments / insights / Stories
+      - Vercel-cron feed-refresh backup
+
+  - id: UM-1
+    track: platform
+    size: S
+    status: shipped
+    shipped: 2026-07-23
+    commits: [516b6da]
+    title: "User management fixes — names display, STAFF edit option, Clerk role sync, admin/self guards"
+    notes: Built 7-22; prod via 942bc59. Outstanding checks were unblocked by the HR-15 staging pass.
+
+  - id: STAFF-1
+    track: platform
+    size: L
+    status: shipped
+    shipped: 2026-07-23
+    commits: [2081401, baf4cef]
+    title: "Staff-role experience — /my home, nav matrix, staff record viewer (carried HR-11 and BUG-1 step 4)"
+    notes: >
+      Built 7-23; prod via 942bc59. ROADMAP_ARCHIVE still says "staging pass
+      pending" — no prod smoke test recorded, hence shipped, not verified.
+
+  - id: DOCS-1
+    track: platform
+    size: S
+    status: shipped
+    shipped: 2026-07-22
+    commits: [3ff8720, e01ab8e]
+    title: "Docs consolidation into docs/ + session prompt library"
+
+  - id: X-1
+    track: platform
+    size: S
+    status: planned
+    tags: [pre-launch]
+    title: "Activation & QA"
+
+  # ---- Inventory ----
+
+  - id: I-1
+    track: inventory
+    size: M-L
+    status: shipped
+    shipped: 2026-07-05
+    commits: [10794e5, 3893e62]
+    title: "Sales item sync + Ingredient library"
+    notes: 10794e5 original, 3893e62 same-day v2 rebuild (SalesItem vs Ingredient split, units.ts, CSV import).
+
+  - id: I-1b
+    track: inventory
+    size: M
+    status: shipped
+    shipped: 2026-07-05
+    commits: [2172c83]
+    title: "Ingredient parity, lifecycle & duplicates"
+    notes: ROADMAP_ARCHIVE says Done 7-6; the commit is dated 7-05.
+
+  - id: I-2
+    track: inventory
+    size: M-L
+    status: shipped
+    shipped: 2026-07-05
+    commits: [376fe38, 2e610d9]
+    title: "Vendors, POs & Receiving"
+    notes: 2e610d9 rewired POs onto Ingredient. Receipts stamp receivedAt so purchases land in the right period.
+
+  - id: I-3
+    track: inventory
+    size: S-M
+    status: shipped
+    shipped: 2026-07-06
+    commits: [432a30e]
+    title: "Storage areas"
+
+  - id: I-4
+    track: inventory
+    size: M
+    status: shipped
+    shipped: 2026-07-06
+    commits: [eb816db]
+    title: "Physical counts"
+
+  - id: I-5
+    track: inventory
+    size: M-L
+    status: shipped
+    shipped: 2026-07-06
+    commits: [b3cb378]
+    title: "Sales sync + COGS & analytics"
+
+  - id: I-6
+    track: inventory
+    size: L
+    status: shipped
+    shipped: 2026-07-06
+    commits: [4947def]
+    title: "Recipes + needs-attention + adjustments"
+
+  - id: I-7
+    track: inventory
+    size: M
+    status: shipped
+    shipped: 2026-07-07
+    commits: [1020b9e, 542cf5e, d8b73e5, 5380324]
+    title: "Reorder points & alerts (expected inventory, pars, Smart Cart, vendor minimums)"
+    notes: 6 commits total, 1020b9e…5380324; the four listed are the identified parts.
+    deferred:
+      - Emailing orders to vendor reps
+      - Alert-badge live refresh (14d staleness guard hardcoded; org-configurable later)
+
+  - id: I-14
+    track: inventory
+    size: M-L
+    status: shipped
+    shipped: 2026-07-09
+    commits: [d24d89f]
+    title: "Team Messaging (Phase 1)"
+    notes: Read acknowledgements (deferred here) shipped later in I-14b.
+    deferred:
+      - Twilio SMS delivery
+      - Shortage alerts routed into the feed
+
+  - id: I-14b
+    track: inventory
+    size: S-M
+    status: shipped
+    shipped: 2026-07-11
+    commits: [cde3b86, 8a3667c, c26e81a, 270a317, 4c0a1de]
+    title: "Shift handoff carry-over & acknowledge"
+    notes: >
+      Also fixed PHASE_ORDER to canonical "During the Day" with a legacy
+      "During Hours" alias — see DEBT-1.
+
+  # ---- Forecasting ----
+
+  - id: F-1
+    track: forecasting
+    size: S-M
+    status: shipped
+    shipped: 2026-07-08
+    commits: [b7feecb]
+    title: "Forecasting — sales-data foundation"
+    blockers:
+      - >
+        CRON_SECRET not confirmed set in Vercel (flagged at ship, never
+        confirmed closed) — nightly sales-reconcile and pace-alert crons
+        silently don't run without it.
+
+  - id: F-2
+    track: forecasting
+    size: M
+    status: shipped
+    shipped: 2026-07-08
+    commits: [11f0b47]
+    title: "Goal engine + Forecasting page"
+
+  - id: F-3
+    track: forecasting
+    size: M
+    status: shipped
+    shipped: 2026-07-08
+    commits: [11f0b47]
+    title: "Forecasting overrides + import"
+
+  - id: F-4
+    track: forecasting
+    size: S
+    status: shipped
+    shipped: 2026-07-10
+    commits: [96bc048, cd711d7]
+    title: "Dashboard live pacing — plan-driven Monthly Goal, Square order webhooks, all-locations rollup + store ranking"
+    notes: >
+      Seed correction: the items the 7-08 partial (96bc048) deferred — order
+      webhooks, rollup, store ranking — all shipped 7-10 in cd711d7. Nothing
+      remains deferred.
+    blockers:
+      - >
+        SQUARE_WEBHOOK_SIGNATURE_KEY per env + webhook subscriptions in each
+        Square app (prod + Froot Staging) were flagged at ship and never
+        confirmed closed.
+
+  - id: F-5
+    track: forecasting
+    size: S
+    status: shipped
+    shipped: 2026-07-10
+    commits: [cb3f1bb]
+    title: "Forecasting polish — goal-edit audit log, CSV export, behind-pace alerts"
+    notes: "Seed correction: seed said planned; shipped 7-10."
+    blockers:
+      - >
+        Pace alerts log to console only — no real email provider is wired into
+        src/lib/notify.ts (also blocks HR-8 reminders and HR-16).
+      - Pace-alert cron depends on the F-1 CRON_SECRET blocker.
+
+  # ---- HR / signing ----
+  # Built 7-12…7-14, promoted to prod 7-21 (9743899) with HR dark in prod:
+  # HR_MODULE_AVAILABLE is set on Preview only, unset in Production until launch.
+
+  - id: HR-0
+    track: hr
+    size: S-M
+    status: shipped
+    shipped: 2026-07-21
+    commits: [0233558, b185057, 5d44da4, 8aec033]
+    title: "HR foundation — schema, availability gate, per-org toggle, gated nav"
+    notes: >
+      Built 7-12. HR stays dark in prod by design: HR_MODULE_AVAILABLE set on
+      Vercel Preview only; Production unset until launch (HR_INTERNAL_ORG_IDS
+      is the dogfooding path).
+
+  - id: HR-1
+    track: hr
+    size: S
+    status: shipped
+    shipped: 2026-07-21
+    commits: [f85c062, d68bd09, b7d854b]
+    title: "Staff directory + detail shell"
+    notes: Built 7-12.
+
+  - id: HR-2
+    track: hr
+    size: S
+    status: shipped
+    shipped: 2026-07-21
+    commits: [30f6e26, dd5c19d, 2d3d5bb]
+    title: "Manager notes"
+    notes: Built 7-12.
+
+  - id: HR-3
+    track: hr
+    size: M
+    status: shipped
+    shipped: 2026-07-21
+    commits: [1a03dca, 129b081, 5161e1e, eb0a05a, 3756ea0]
+    title: "Reference Library + private HR file service (froot-hr Blob store)"
+    notes: Built 7-12; eb0a05a/3756ea0 are upload-size follow-up fixes.
+
+  - id: HR-4
+    track: hr
+    size: L
+    status: shipped
+    shipped: 2026-07-21
+    commits: [fa94b21, 1a80294, 9bce225, 940af81]
+    title: "Signed-record engine + acknowledgment documents"
+    notes: Built 7-13. In-page pageRef stamping (deferred here) landed via HR-11b.
+    deferred:
+      - Drawn-signature PNG capture (typed-name capture per ESIGN stands)
+
+  - id: HR-5
+    track: hr
+    size: M
+    status: shipped
+    shipped: 2026-07-21
+    commits: [2cff79e, 92d5cf5, 530310b]
+    title: "Fillable agreement forms (Key/Pay) — dual-signature execution"
+    notes: Built 7-13.
+    deferred:
+      - Conditional fields
+
+  - id: HR-6
+    track: hr
+    size: M
+    status: shipped
+    shipped: 2026-07-21
+    commits: [1c8b4d1, e4468a7, 0dde473, ec60df1]
+    title: "Training builder (Trainual-style authoring) + export/import"
+    notes: Built 7-13; ec60df1 is the post-review export/import addendum.
+
+  - id: HR-7
+    track: hr
+    size: L
+    status: shipped
+    shipped: 2026-07-21
+    commits: [de743ca, 5cea90f, 2392ec8, 5ea03e3]
+    title: "Training execution + staff self-service (/my), employee logins, termination rules"
+    notes: Built 7-13. EMPLOYEE role split deferred to HR-9.
+
+  - id: HR-7.5
+    track: hr
+    size: S
+    status: shipped
+    shipped: 2026-07-21
+    commits: [7ce16bc]
+    title: "Staff editing, per-member Square resync, import error surfacing"
+    notes: Built 7-14.
+
+  - id: HR-7.6
+    track: hr
+    size: S
+    status: shipped
+    shipped: 2026-07-21
+    commits: [edf100b]
+    title: "Manager-uploaded staff documents with team-visibility toggle"
+    notes: Built 7-14.
+
+  - id: HR-8
+    track: hr
+    size: M
+    status: shipped
+    shipped: 2026-07-23
+    commits: [61eea85]
+    title: "Compliance rollup dashboard — live-computed, /hr/compliance, real /staff column"
+    notes: >
+      Built 7-22, staging pass complete 7-22 (caught BUG-2), prod via 942bc59.
+      No prod smoke test recorded. Follow-ups spun out as HR-11/12/13/14;
+      reminder emails blocked on the notify.ts provider (see F-5 blocker).
+
+  - id: HR-9
+    track: hr
+    size: S-M
+    status: planned
+    title: "EMPLOYEE role split — cut STAFF-role API permissions off for employee logins"
+
+  - id: HR-10
+    track: hr
+    size: S-M
+    status: planned
+    title: "Required agreement forms — count forms in the compliance % (required designation + signing cycle)"
+
+  - id: HR-11
+    track: hr
+    size: M
+    status: shipped
+    shipped: 2026-07-23
+    commits: [2081401, baf4cef]
+    title: "Inline signing ceremony — 4-phase flow, pdf.js viewer, per-page initialing, real per-interaction timestamps"
+    notes: >
+      Built 7-23 inside STAFF-1 (shared commit); prod via 942bc59. New dep
+      pdfjs-dist, lazy-loaded on document routes only.
+
+  # HR-11a does not exist — numbering goes HR-11 → HR-11b → HR-11c.
+
+  - id: HR-11b
+    track: hr
+    size: M
+    status: staging
+    commits: [111fb31, 8b0f77d, c2fd8d5, 0547125, 738afa1, b31a309, 01c5ed9]
+    title: "Signed-document field anchoring & inline stamping"
+    notes: >
+      Built 7-23 on staging; NOT in prod (seed correction: seed said shipped).
+      DocumentAnchor model, server-side detection at upload, admin confirm UI,
+      stamping at anchor coords before the certificate append; 01c5ed9 adds
+      per-signature checkpoints + timestamps. Staging verification pending.
+    open:
+      - Initials-capture validation gap logged to HR-14(d) — ceremony accepts arbitrary text as initials.
+
+  - id: HR-11c
+    track: hr
+    size: M
+    status: staging
+    commits: [8a4335f, 015d23e, 232d568]
+    title: "Signing ceremony fixes — anchor dedup, affordance-at-line, identity chips, legal-name capture"
+    notes: >
+      8a4335f: dedupeAnchors collapses coincident duplicates (page + normText +
+      markType, |Δx|,|Δy| ≤ 3, deterministic survivor), affordances at the
+      anchor line, read-only identity chips during review. 015d23e/232d568
+      (folded in): signature/certificate capture uses legal Full Name and shows
+      name/store/date before signing; 232d568's certificate dual-name may bear
+      on the "Microsoft" org-name prod-promotion gate below — verify.
+      Decisions in docs/DECISIONS.md.
+    blockers:
+      - "Certificate shows 'Microsoft' as org name — hard prod-promotion gate (re-test after 232d568)."
+      - >
+        Visual QA unverified — lift offsets (−118% buttons, −90% chips) need a
+        tuning pass on staging /my mobile before promotion to main.
+    open:
+      - >
+        Does v5 handbook carry persisted duplicate anchors? If yes, upload a
+        fresh handbook version to verify dedup (G1: don't touch v5's confirmed
+        anchors).
+
+  - id: HR-12
+    track: hr
+    size: S-M
+    status: planned
+    title: "Living-document updates — re-upload without forced re-acknowledgment (per-version choice)"
+
+  - id: HR-13
+    track: hr
+    size: S
+    status: planned
+    title: "Compliance drill-down + exclude-until-due training semantics"
+
+  - id: HR-14
+    track: hr
+    size: M
+    status: planned
+    title: "Termination + identity-lifecycle hardening (zombie shell, directory toggle, webhooks, initials validation)"
+
+  - id: HR-15
+    track: hr
+    size: S
+    status: shipped
+    shipped: 2026-07-23
+    commits: [2647680, 0394a2e, 0280cb3]
+    title: "Rehire/reactivate terminated staff + HR-15b signing cycles (re-sign on rehire)"
+    notes: >
+      Built 7-22 (2647680 reactivate, 0394a2e /accept-invite routing); HR-15b
+      folded in (0280cb3, 7-23 — Gary reversed Fork 2 to Policy B: rehires
+      re-sign; migration 20260723180000_hr15b_signing_cycles). Staging passes
+      complete 7-23 (Tommy end-to-end, both cycles); prod via 942bc59. No prod
+      smoke test recorded. Follow-up spun out as HR-16.
+
+  - id: HR-16
+    track: hr
+    size: S-M
+    status: planned
+    title: "Signed-acknowledgment completion emails + org-level recipient routing"
+    notes: Prerequisite — wire a real email provider into src/lib/notify.ts (see F-5 blocker).
+
+  # ---- Labor ----
+  # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
+
+  - id: L-0
+    track: labor
+    size: L
+    status: shipped
+    shipped: 2026-07-21
+    commits: [e907e6f, 07e4597, 4b8ca0a]
+    title: "Labor foundation (pre-reset Phases 0–3) — config, budget engine, coverage, per-store budgets, 4-week forward"
+    notes: >
+      Built 7-20 under the old numbering (e907e6f Phases 0+1, 07e4597 Phase 2,
+      4b8ca0a Phase 3); consolidated into one entry at reconstruction. Prod via
+      9743899; LABOR_MODULE_AVAILABLE enabled in Production 7-21. Money is
+      Decimal dollars; rounding is floor-to-tier.
+
+  - id: L-1
+    track: labor
+    status: verified
+    title: "Manual staging pass of the shipped labor foundation"
+    notes: >
+      Verification-only phase, no code — Gary's end-to-end staging pass of
+      every shipped labor surface. Gated all further labor build work.
+
+  - id: L-2
+    track: labor
+    size: L
+    status: planned
+    title: "Team/Labor API — actual worked hours + wages, actual-vs-budget, Nevada OT warning"
+    notes: Needs additive Square OAuth scopes TIMECARDS_READ/WRITE + EMPLOYEES_READ.
+
+  - id: L-3
+    track: labor
+    size: L
+    status: shipped
+    shipped: 2026-07-21
+    commits: [a599aea, ea00f28, 0a7c1f1]
+    title: "Weekly Plan report — floor-first daily split, GM 40-hr cap, cross-day rebalancing"
+    notes: >
+      Promoted to prod 7-21 via merge 9743899 (carried the full HR/Labor
+      backlog; main was 53 commits behind). Coverage stays sales-inferred for
+      v1 per decision.
+    deferred:
+      - Populating StoreHours with real operating hours (open windows inferred from trailing sales until then)
+
+  - id: L-4
+    track: labor
+    size: L
+    status: planned
+    title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks, Square push"
+    notes: Confirm L-3/L-4 order when scoping past L-2. Shares Square OAuth scopes with L-2.
+
+  # ---- Migration / nutrition ----
+
+  - id: M-1
+    track: migration
+    size: M
+    status: planned
+    title: "Keva data migration (optional)"
+    notes: >
+      Unblocked since I-6. scripts/import-keva-templates.ts migrates checklist
+      templates only — not inventory, recipe, or vendor data.
+
+  - id: N-1
+    track: nutrition
+    size: M
+    status: planned
+    title: "Nutrition — schema & menu item manager"
+    notes: MenuItem/MenuItemNutrition/MenuItemAllergen models and module flag scaffolded; no UI or routes.
+
+  - id: N-2
+    track: nutrition
+    size: M
+    status: planned
+    title: "Nutrition — facts editor + label preview"
+
+  - id: N-3
+    track: nutrition
+    size: M
+    status: planned
+    title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
+
+bugs:
+  - id: BUG-1
+    title: "Dashboard cards intermittently fail to load"
+    status: shipped
+    shipped: 2026-07-23
+    commits: [6a14fb6, 2081401]
+    notes: >
+      Steps 1–3 in 6a14fb6 (7-22): card failure states with manual retry, 12s
+      fetch timeout, API error/duration logging, maxDuration on sales-sync
+      routes. Step 4 shipped inside STAFF-1 (2081401): request-path Square
+      sync moved behind after().
+
+  - id: BUG-2
+    title: "Staff-profile linking failed on sign/acknowledge — Clerk identifier vs email"
+    status: shipped
+    shipped: 2026-07-23
+    commits: [3c7d0a0]
+    notes: Found during the HR-8 staging pass (7-22); resolve the real Clerk email, never trust the identifier.
+
+debt:
+  - id: DEBT-1
+    title: "operationalPhase string inconsistency"
+    notes: >
+      "During the Day" vs "During Hours". I-14b fixed PHASE_ORDER to the
+      canonical "During the Day" with a legacy alias; at least one live row
+      still carries "During Hours". An audit-then-fix session prompt was
+      drafted but is NOT in docs/prompts/ yet. Neon is the source of truth;
+      SQL approval required before any mutation — backfill is the risk, not
+      code replacement.
+
+  - id: DEBT-2
+    title: "sectionName vs section field ambiguity"
+    notes: "Next candidate for the same audit-then-remediate treatment as DEBT-1."
+
+  - id: DEBT-3
+    title: "WORKFLOW.md §3 contradicts the migration policy"
+    notes: >
+      docs/WORKFLOW.md §3 still instructs `npx prisma migrate dev` for schema
+      changes, but that flow is retired: migrate dev is broken (baseline squash
+      never done, P3018) and the current policy is the hand-authored
+      `migrate diff` flow in CLAUDE.md / MIGRATIONS.md. Recorded 2026-07-24;
+      fix the doc in a future docs session — do not fix inline.
