@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, FileText, GripVertical, HelpCircle, Pencil, Play, Plus, Save, Trash2, X } from "lucide-react"
+import { ArrowLeft, Eye, FileText, GripVertical, HelpCircle, Pencil, Play, Plus, Save, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -592,7 +592,9 @@ export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
     }
   }
 
-  async function handleSave() {
+  // openPreview: HR-17 "Save & Preview" — same save, but land on the
+  // read-only trainee-renderer preview instead of the module list.
+  async function handleSave(openPreview = false) {
     setSaving(true)
     setSaveError(null)
     try {
@@ -628,6 +630,10 @@ export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
         return
       }
 
+      const saved = (await res.json().catch(() => null)) as
+        | { id: string; lessons: { id: string }[] }
+        | null
+
       // Two-phase: the API returns lessons ordered by orderIndex (= our array
       // index), so map each new lesson's local id to its real id by position.
       const pendingEntries = Object.entries(pendingResources).filter(([lid, files]) =>
@@ -635,10 +641,9 @@ export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
       )
       const failed: string[] = []
       if (pendingEntries.length) {
-        const saved = (await res.json()) as { lessons: { id: string }[] }
         const localIds = lessons.map((l) => l.id)
         for (const [lid, files] of pendingEntries) {
-          const realId = saved.lessons[localIds.indexOf(lid)]?.id
+          const realId = saved?.lessons[localIds.indexOf(lid)]?.id
           if (!realId) {
             failed.push(...files.map((f) => f.label))
             continue
@@ -653,7 +658,8 @@ export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
         alert(`The module was saved, but ${failed.length} file${failed.length !== 1 ? "s" : ""} failed to upload: ${failed.join(", ")}. Open the module and re-attach ${failed.length !== 1 ? "them" : "it"}.`)
       }
 
-      router.push("/hr/training")
+      const moduleId = initialData?.id ?? saved?.id
+      router.push(openPreview && moduleId ? `/hr/training/${moduleId}/preview` : "/hr/training")
       router.refresh()
     } catch {
       setSaveError("Failed to save module. Please check your connection and try again.")
@@ -747,7 +753,11 @@ export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button onClick={handleSave} disabled={saving || !title.trim()}>
+          <Button variant="outline" onClick={() => handleSave(true)} disabled={saving || !title.trim()}>
+            <Eye className="h-4 w-4" />
+            Save &amp; Preview
+          </Button>
+          <Button onClick={() => handleSave()} disabled={saving || !title.trim()}>
             <Save className="h-4 w-4" />
             {saving ? "Saving..." : "Save Module"}
           </Button>

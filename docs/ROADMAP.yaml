@@ -26,10 +26,12 @@ meta:
   sources_retired: [docs/ROADMAP.md, "CLAUDE.md#Phase Status", external sheet]
   note: >
     Reconstructed 2026-07-24 from docs/ROADMAP_ARCHIVE.md, docs/prompts/*, and
-    git log. Two prod promotions to date: 9743899 (2026-07-21, L-3 + full
-    HR/Labor backlog) and 942bc59 (2026-07-23, HR-8 through STAFF-1 batch —
-    see docs/DEPLOY_LOG.md). As of 2026-07-24 only HR-11b and HR-11c are
-    staging-only.
+    git log. Three prod promotions to date: 9743899 (2026-07-21, L-3 + full
+    HR/Labor backlog), 942bc59 (2026-07-23, HR-8 through STAFF-1 batch) and
+    59a6cdc (2026-07-24, HR-11b + HR-11c — see docs/DEPLOY_LOG.md). As of
+    2026-07-24 staging and main are level; nothing is staging-only. HR
+    LAUNCHED in production 2026-07-24 (HR_MODULE_AVAILABLE=true added to the
+    Vercel Production scope + redeploy).
 
 phases:
 
@@ -430,21 +432,26 @@ phases:
   - id: HR-11b
     track: hr
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-07-24
     commits: [111fb31, 8b0f77d, c2fd8d5, 0547125, 738afa1, b31a309, 01c5ed9]
     title: "Signed-document field anchoring & inline stamping"
     notes: >
-      Built 7-23 on staging; NOT in prod (seed correction: seed said shipped).
-      DocumentAnchor model, server-side detection at upload, admin confirm UI,
-      stamping at anchor coords before the certificate append; 01c5ed9 adds
-      per-signature checkpoints + timestamps. Staging verification pending.
+      Built 7-23 on staging; prod via 59a6cdc (2026-07-24, no-ff merge,
+      rollback tag pre-staging-merge-20260724-2107). Migrations
+      hr11b_document_anchors + staff_legal_name_lock, both additive.
+      DocumentAnchor model, server-side detection at upload (unpdf), admin
+      confirm UI, stamping at anchor coords before the certificate append;
+      01c5ed9 adds per-signature checkpoints + timestamps. No prod smoke test
+      recorded yet.
     open:
       - Initials-capture validation gap logged to HR-14(d) — ceremony accepts arbitrary text as initials.
 
   - id: HR-11c
     track: hr
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-07-24
     commits: [8a4335f, 015d23e, 232d568]
     title: "Signing ceremony fixes — anchor dedup, affordance-at-line, identity chips, legal-name capture"
     notes: >
@@ -452,14 +459,19 @@ phases:
       markType, |Δx|,|Δy| ≤ 3, deterministic survivor), affordances at the
       anchor line, read-only identity chips during review. 015d23e/232d568
       (folded in): signature/certificate capture uses legal Full Name and shows
-      name/store/date before signing; 232d568's certificate dual-name may bear
-      on the "Microsoft" org-name prod-promotion gate below — verify.
-      Decisions in docs/DECISIONS.md.
+      name/store/date before signing. Prod via 59a6cdc (2026-07-24); promoted
+      with the two blockers below still open — they were NOT re-verified
+      pre-promotion and are now prod-verification items. Decisions in
+      docs/DECISIONS.md.
     blockers:
-      - "Certificate shows 'Microsoft' as org name — hard prod-promotion gate (re-test after 232d568)."
       - >
-        Visual QA unverified — lift offsets (−118% buttons, −90% chips) need a
-        tuning pass on staging /my mobile before promotion to main.
+        Certificate shows 'Microsoft' as org name — was a hard prod-promotion
+        gate; shipped un-re-tested. 232d568's certificate dual-name may have
+        fixed it ("Microsoft" is the Clerk DEV-instance test org, so prod may
+        not reproduce) — verify a real signing in prod.
+      - >
+        Visual QA unverified — lift offsets (−118% buttons, −90% chips) shipped
+        without the mobile tuning pass; check /my signing on a phone in prod.
     open:
       - >
         Does v5 handbook carry persisted duplicate anchors? If yes, upload a
@@ -504,6 +516,22 @@ phases:
     status: planned
     title: "Signed-acknowledgment completion emails + org-level recipient routing"
     notes: Prerequisite — wire a real email provider into src/lib/notify.ts (see F-5 blocker).
+
+  - id: HR-17
+    track: hr
+    size: S-M
+    status: shipped
+    shipped: 2026-07-25
+    commits: [438a9ef]
+    title: "Training preview — builder Save & Preview opens the trainee renderer read-only"
+    notes: >
+      Staging pass complete 2026-07-25 (Gary). Promoted to prod same day.
+      Preview renders through the same extracted TrainingModuleView the /my
+      execution page uses (no second renderer). Read-only by construction:
+      preview has no assignmentId, so neither write endpoint is reachable.
+      Gated ADMIN/MANAGER (manager limited to modules applying to their
+      stores); resource download route's admin tier widened to the manage
+      tier for the same scope. No schema changes.
 
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.

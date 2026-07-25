@@ -4,6 +4,26 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-07-24 — PRODUCTION promotion (HR-11b + HR-11c) + HR LAUNCH
+
+- **Merge commit / rollback SHA:** `59a6cdc` — full: `59a6cdcc4a989baf32951cc0f5d3db7863b378cc`
+  (rollback: `git revert -m 1 59a6cdcc4a989baf32951cc0f5d3db7863b378cc` → push main;
+  pre-merge tag `pre-staging-merge-20260724-2107` also on origin).
+- **What shipped:** HR-11b field anchoring & inline stamping (DocumentAnchor model,
+  server-side detection via new dep `unpdf`, admin confirm/rescan UI, per-signature
+  checkpoints + timestamps), HR-11c ceremony fixes (anchor dedup, affordance-at-line,
+  identity chips, legal Full Name capture + Square writeback), DECISIONS.md.
+- **Migrations:** 2 additive (`20260723220118_hr11b_document_anchors`,
+  `20260724153903_staff_legal_name_lock`) applied via `prisma migrate deploy` in the
+  Vercel build. Pre-merge audit: no conflicts, no destructive SQL, no new env vars,
+  local `next build` green before and after the merge.
+- **HR LAUNCH:** `HR_MODULE_AVAILABLE=true` added to the Vercel **Production** scope
+  post-push + redeploy (aliased to www.usefroot.com). Per-org `activeModules` "hr"
+  toggle still flips in Settings per org.
+- **Open prod-verification items (carried from HR-11c blockers, not re-tested
+  pre-promotion):** certificate org-name ("Microsoft") re-test in prod; mobile
+  visual QA of lift offsets on /my signing.
+
 ## 2026-07-23 — PRODUCTION promotion (HR-8 → STAFF-1 batch)
 
 - **Merge commit / rollback SHA:** `942bc59` — full: `942bc591309a7f6fafee9089a9606db103a6ff6c`

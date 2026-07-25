@@ -4,9 +4,11 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
-// Quiz taking for /my/training/[assignmentId]. The server page strips
-// correctOptionIds before these props are serialized — answers never reach
-// the client. Grading happens server-side in POST /api/my/training/.../quiz.
+// Quiz taking for /my/training/[assignmentId], shared with the HR-17 admin
+// preview. The server page strips correctOptionIds before these props are
+// serialized — answers never reach the client. Grading happens server-side
+// in POST /api/my/training/.../quiz. In preview mode there is no
+// assignmentId: answers stay local and the submit path does not exist.
 export type MyQuizQuestion = {
   id: string
   type: "boolean" | "single" | "multi" | "written"
@@ -14,15 +16,15 @@ export type MyQuizQuestion = {
   options?: { id: string; text: string }[]
 }
 
-export function QuizClient({
-  assignmentId,
-  passThreshold,
-  questions,
-}: {
-  assignmentId: string
+type QuizClientProps = {
   passThreshold: number
   questions: MyQuizQuestion[]
-}) {
+} & (
+  | { preview?: false; assignmentId: string }
+  | { preview: true; assignmentId?: undefined }
+)
+
+export function QuizClient({ passThreshold, questions, ...target }: QuizClientProps) {
   const router = useRouter()
   const [started, setStarted] = useState(false)
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
@@ -50,10 +52,11 @@ export function QuizClient({
   })
 
   async function submit() {
+    if (target.preview) return
     setSubmitting(true)
     setError(null)
     try {
-      const res = await fetch(`/api/my/training/${assignmentId}/quiz`, {
+      const res = await fetch(`/api/my/training/${target.assignmentId}/quiz`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answers }),
@@ -202,13 +205,21 @@ export function QuizClient({
 
       {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
 
-      <Button onClick={submit} disabled={!allAnswered || submitting} className="w-full min-h-12">
-        {submitting ? "Submitting..." : "Submit quiz"}
-      </Button>
-      {!allAnswered && (
-        <p className="text-xs text-center text-[var(--color-muted-foreground)]">
-          Answer every question to submit.
-        </p>
+      {target.preview ? (
+        <Button disabled className="w-full min-h-12">
+          Preview — submissions disabled
+        </Button>
+      ) : (
+        <>
+          <Button onClick={submit} disabled={!allAnswered || submitting} className="w-full min-h-12">
+            {submitting ? "Submitting..." : "Submit quiz"}
+          </Button>
+          {!allAnswered && (
+            <p className="text-xs text-center text-[var(--color-muted-foreground)]">
+              Answer every question to submit.
+            </p>
+          )}
+        </>
       )}
     </div>
   )
