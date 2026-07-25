@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { SigningClient } from "@/app/(app)/hr/acknowledge/[documentId]/signing-client"
+import { LegalNameRequired } from "@/components/hr/legal-name-required"
 import { MyShell } from "../../my-shell"
 import { MyDenied } from "../../denied"
 
@@ -41,6 +42,35 @@ export default async function MyAcknowledgePage({
   })
   const doneIds = new Set(existing.map((a) => a.checkpointId))
 
+  // Assigned stores for the store selector (getActiveStaffSelf doesn't join names).
+  const assignedStores = await prisma.store.findMany({
+    where: { id: { in: staffMember.storeAssignments.map((a) => a.storeId) } },
+    select: { id: true, name: true },
+  })
+  const primaryStoreIds = new Set(
+    staffMember.storeAssignments.filter((a) => a.isPrimary).map((a) => a.storeId)
+  )
+  const stores = assignedStores.map((s) => ({
+    id: s.id,
+    name: s.name,
+    isPrimary: primaryStoreIds.has(s.id),
+  }))
+  // Confirmed anchors → inline affordance + identity-chip placement.
+  const clientAnchors = await prisma.documentAnchor.findMany({
+    where: { hrDocumentVersionId: version.id, confirmed: true },
+    select: { page: true, x: true, y: true, width: true, placement: true, markType: true, generatedCheckpointId: true },
+  })
+
+  // Legal identity gate: signed documents carry the Full Name only. Staff can't
+  // set it themselves, so send them to their admin.
+  if (!staffMember.fullName?.trim()) {
+    return (
+      <MyShell showInstagram={!!org.instagramEnabled && !!org.instagramAccessToken}>
+        <LegalNameRequired staffName={staffMember.displayName} />
+      </MyShell>
+    )
+  }
+
   return (
     <MyShell showInstagram={!!org.instagramEnabled && !!org.instagramAccessToken}>
       <SigningClient
@@ -60,7 +90,8 @@ export default async function MyAcknowledgePage({
           required: c.required,
           done: doneIds.has(c.id),
         }))}
-        staff={{ id: staffMember.id, name: staffMember.fullName ?? staffMember.displayName }}
+        staff={{ id: staffMember.id, name: staffMember.fullName.trim(), stores }}
+        anchors={clientAnchors}
         backHref="/my/documents"
         backLabel="My Documents"
       />

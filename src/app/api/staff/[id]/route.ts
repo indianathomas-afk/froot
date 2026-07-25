@@ -7,6 +7,9 @@ import { getUserStoreScope } from "@/lib/auth"
 const patchSchema = z.object({
   displayName: z.string().trim().min(1).max(200).optional(),
   fullName: z.string().trim().max(200).nullish(),
+  // Explicit lock control for the "Use Square's name" (unlock) action; omit for
+  // normal edits, where changing Full Name auto-locks it.
+  lockFullName: z.boolean().optional(),
   email: z.string().trim().email().max(320).nullish().or(z.literal("")),
   // When present, REPLACES the member's store assignments wholesale.
   storeIds: z.array(z.string().min(1)).optional(),
@@ -44,7 +47,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const parsed = patchSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
-  const { displayName, fullName, email, storeIds, primaryStoreId } = parsed.data
+  const { displayName, fullName, lockFullName, email, storeIds, primaryStoreId } = parsed.data
 
   // Resolve the assignment set this edit will end with — the new storeIds when
   // provided, else the member's current assignments — and validate the primary
@@ -63,9 +66,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Primary store must be one of the assigned stores" }, { status: 400 })
   }
 
-  const fieldData: { displayName?: string; fullName?: string | null; email?: string | null } = {}
+  const fieldData: {
+    displayName?: string
+    fullName?: string | null
+    fullNameLocked?: boolean
+    email?: string | null
+  } = {}
   if (displayName !== undefined) fieldData.displayName = displayName
-  if (fullName !== undefined) fieldData.fullName = fullName || null
+  if (fullName !== undefined) {
+    const nextFull = fullName || null
+    fieldData.fullName = nextFull
+    // A hand-corrected Full Name is authoritative → lock it against Square
+    // resync. Explicit lockFullName (the "Use Square's name" action) wins;
+    // otherwise auto-lock when the legal name actually changes to a value, and
+    // clear the lock when it's blanked.
+    if (lockFullName !== undefined) fieldData.fullNameLocked = lockFullName
+    else if (nextFull !== member.fullName) fieldData.fullNameLocked = nextFull !== null
+  } else if (lockFullName !== undefined) {
+    fieldData.fullNameLocked = lockFullName
+  }
   if (email !== undefined) fieldData.email = email || null
 
   await prisma.$transaction([

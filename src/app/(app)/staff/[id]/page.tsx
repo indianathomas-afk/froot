@@ -7,6 +7,7 @@ import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { LegalNameControls } from "./legal-name-controls"
 import { ManagerNotes, type SerializedNote } from "./manager-notes"
 import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
 import { StaffFormDocuments, type StaffFormDocRow } from "./staff-form-documents"
@@ -93,6 +94,26 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         select: { id: true },
       })) !== null
     : false
+
+  // Signing-integrity flags (Full Name / store rulings). No store assignment is
+  // an anomaly (documents stamp a blank store). A name-mismatch = a document
+  // was executed under a typed name different from the legal name on record;
+  // it's surfaced for an ADMIN/MANAGER to reconcile at the source — write-back
+  // from the ceremony is never automatic (a mistyped signature must not rewrite
+  // the roster). See DECISIONS.
+  const noStore = member.storeAssignments.length === 0
+  const nameMismatches = canSeeNotes
+    ? (
+        await prisma.hrDocumentAcknowledgment.findMany({
+          where: {
+            staffMemberId: member.id,
+            checkpointType: { in: ["Signature", "Acknowledgment"] },
+          },
+          select: { typedName: true, staffName: true, documentTitle: true, signedAt: true },
+          orderBy: { signedAt: "desc" },
+        })
+      ).filter((a) => a.typedName && a.typedName.trim() !== a.staffName.trim())
+    : []
 
   // Stores available in the Edit dialog — scoped like the rest of the app:
   // ADMIN sees all org stores, MANAGER only their own.
@@ -499,6 +520,27 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               Rehired {format(member.rehiredAt, "MMMM d, yyyy")} — required documents need re-signing
             </p>
           )}
+          {canSeeNotes && noStore && (
+            <p className="text-sm text-[var(--color-warning,#efa201)] mt-2">
+              No store assigned — signed documents stamp a blank store. Assign a store below.
+            </p>
+          )}
+          {canSeeNotes && nameMismatches.length > 0 && (
+            <div className="mt-2 rounded-md border border-[var(--color-warning,#efa201)]/40 bg-[var(--color-warning,#efa201)]/10 px-3 py-2 text-xs">
+              <p className="font-medium text-[var(--color-foreground)]">
+                Signed under a name different from the record
+              </p>
+              <p className="mt-0.5 text-[var(--color-muted-foreground)]">
+                {nameMismatches
+                  .slice(0, 3)
+                  .map((m) => `“${m.typedName}” on ${m.documentTitle}`)
+                  .join("; ")}
+                {nameMismatches.length > 3 ? ` +${nameMismatches.length - 3} more` : ""} — record says
+                “{member.fullName ?? member.displayName}”. If the roster is wrong, correct the legal
+                name here; the frozen signed records keep what was executed.
+              </p>
+            </div>
+          )}
         </div>
         {canSeeNotes && (
           <div className="flex flex-col items-end gap-2">
@@ -543,10 +585,13 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 <dt className="text-[var(--color-muted-foreground)]">Display Name</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{member.displayName}</dd>
               </div>
-              <div>
-                <dt className="text-[var(--color-muted-foreground)]">Full Name</dt>
-                <dd className="text-[var(--color-foreground)] font-medium">{member.fullName ?? "—"}</dd>
-              </div>
+              <LegalNameControls
+                staffId={member.id}
+                fullName={member.fullName}
+                fullNameLocked={member.fullNameLocked}
+                squareFullName={member.squareFullName}
+                squareLinked={!!member.squareTeamMemberId}
+              />
               <div>
                 <dt className="text-[var(--color-muted-foreground)]">Email</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{member.email ?? "—"}</dd>

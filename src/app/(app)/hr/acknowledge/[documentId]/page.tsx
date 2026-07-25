@@ -4,6 +4,7 @@ import { FileQuestion } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { findStaffMemberForUser } from "@/lib/hr"
+import { LegalNameRequired } from "@/components/hr/legal-name-required"
 import { AcknowledgeClient } from "./acknowledge-client"
 import { SigningClient } from "./signing-client"
 
@@ -108,13 +109,31 @@ export default async function AcknowledgePage({
     required: c.required,
     done: doneIds.has(c.id),
   }))
-  const clientStaff = { id: staff.id, name: staff.fullName ?? staff.displayName }
+  // Legal identity gate: no Full Name → no signing (admins/managers land here
+  // with a link to set it).
+  if (!staff.fullName?.trim()) {
+    return <LegalNameRequired staffName={staff.displayName} manageHref={`/staff/${staff.id}`} />
+  }
+  const clientStaff = {
+    id: staff.id,
+    name: staff.fullName.trim(),
+    stores: staff.storeAssignments.map((a) => ({
+      id: a.storeId,
+      name: a.store.name,
+      isPrimary: a.isPrimary,
+    })),
+  }
+  // Confirmed anchors → inline affordance + identity-chip placement in the ceremony.
+  const clientAnchors = await prisma.documentAnchor.findMany({
+    where: { hrDocumentVersionId: version.id, confirmed: true },
+    select: { page: true, x: true, y: true, width: true, placement: true, markType: true, generatedCheckpointId: true },
+  })
 
   // HR-11: self-serve signing uses the formal inline ceremony; manager-attested
   // capture keeps the quick form — it records, it doesn't sign.
   return attested ? (
     <AcknowledgeClient doc={clientDoc} checkpoints={clientCheckpoints} mode="attested" staff={clientStaff} />
   ) : (
-    <SigningClient doc={clientDoc} checkpoints={clientCheckpoints} staff={clientStaff} />
+    <SigningClient doc={clientDoc} checkpoints={clientCheckpoints} staff={clientStaff} anchors={clientAnchors} />
   )
 }

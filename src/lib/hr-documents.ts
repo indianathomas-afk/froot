@@ -85,6 +85,50 @@ export const HR_CHECKPOINT_TYPE_STYLES: Record<HrCheckpointTypeName, string> = {
   Acknowledgment: "bg-purple-100 text-purple-700 border border-purple-200",
 }
 
+// ── HR-11b: field anchors ────────────────────────────────────────────────────
+// Client-safe mirrors of the Prisma HrAnchorMarkType / HrAnchorPlacement enums,
+// so the Document Library confirm UI shares one source of truth with the
+// server-only detector (hr-anchors.ts).
+
+export const HR_ANCHOR_MARK_TYPES = [
+  "Initial",
+  "PrintedName",
+  "DateStamp",
+  "Store",
+  "SignatureStamp",
+] as const
+export type HrAnchorMarkTypeName = (typeof HR_ANCHOR_MARK_TYPES)[number]
+
+export const HR_ANCHOR_MARK_LABELS: Record<HrAnchorMarkTypeName, string> = {
+  Initial: "Signer initials",
+  PrintedName: "Printed full name",
+  DateStamp: "Date stamp",
+  Store: "Store assignment",
+  SignatureStamp: "Signature stamp",
+}
+
+export const HR_ANCHOR_MARK_HINTS: Record<HrAnchorMarkTypeName, string> = {
+  Initial: "e.g. TPT",
+  PrintedName: "e.g. Tommy Thomas",
+  DateStamp: "date, or date + time (org setting)",
+  Store: "e.g. Las Brisas",
+  SignatureStamp: "stylized name + electronic-signature notation + timestamp + record ref",
+}
+
+export const HR_ANCHOR_PLACEMENTS = ["Right", "Above", "Below"] as const
+export type HrAnchorPlacementName = (typeof HR_ANCHOR_PLACEMENTS)[number]
+
+export const HR_ANCHOR_PLACEMENT_LABELS: Record<HrAnchorPlacementName, string> = {
+  Right: "On the line (right of label)",
+  Above: "Above the line",
+  Below: "Below the line",
+}
+
+// Org-level inline Date: rendering (Organization.hrDateStampFormat). Validation
+// stamps and certificates always render full date+time regardless (DECISIONS F5b).
+export const HR_DATE_STAMP_FORMATS = ["dateOnly", "dateTime"] as const
+export type HrDateStampFormat = (typeof HR_DATE_STAMP_FORMATS)[number]
+
 // Default attestation for the auto-generated final Acknowledgment checkpoint;
 // admins can edit it per checkpoint in the editor.
 export function defaultAttestationText(documentTitle: string): string {

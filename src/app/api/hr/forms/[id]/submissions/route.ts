@@ -100,6 +100,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const userAgent = req.headers.get("user-agent")
   const complete = !!supervisorTypedName
 
+  // Legal identity: executed forms carry the LEGAL Full Name only. Block until set.
+  if (!staff.fullName?.trim()) {
+    return NextResponse.json(
+      {
+        error:
+          "This team member needs a legal Full Name before signing. Ask an admin to add it on the staff profile.",
+      },
+      { status: 422 }
+    )
+  }
+
   const submission = await prisma.formSubmission.create({
     data: {
       hrDocumentVersionId: version.id,
@@ -128,7 +139,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // --- snapshots frozen at signing time ---
       formTitle: doc.title,
       formVersionNumber: version.versionNumber,
-      staffName: staff.fullName ?? staff.displayName,
+      staffName: staff.fullName.trim(),
       storeName: primaryStoreName(staff),
       definitionHash: version.fileHash,
       consentText: HR_ESIGN_CONSENT_TEXT,

@@ -5,6 +5,292 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## HR-11c ceremony fixes — anchor dedup, affordance placement, inline identity — 2026-07-24 (Gary approved case + dedup rule)
+
+Three ceremony-UI defects from the mobile `/my` signing pass; the completed PDF
+already stamped correctly, so these align the ceremony with the output. No
+schema change; HR-11c per-signature checkpoints (`01c5ed9`) untouched.
+
+a. **Anchor dedup at the source (Item 3).** `detectAnchors` had no within-pass
+   dedup, so a caption drawn as two coincident runs (faux-bold/shadow/overlap)
+   minted two `SignatureStamp` anchors → two checkpoints/affordances/stamps/cert
+   rows. `dedupeAnchors` collapses anchors sharing `page` + normalized
+   `anchorText` + `markType` when **both** `|Δx| ≤ 3` and `|Δy| ≤ 3` PDF units.
+   **Deterministic survivor:** sort by `(page, normText, markType, x↑, y↑,
+   width↓, text)` keep-first — re-detecting a future version yields the same
+   survivor. **Preserved, not merged:** the same caption far apart in y (two real
+   signature lines) or x (side-by-side fields) — a difference >3 pt on either
+   axis is a distinct field. Result: one anchor → one checkpoint → one affordance
+   → one stamp → one certificate row. G1: existing v5 confirmed anchors are not
+   touched; verify on a fresh version/signer.
+
+b. **Affordances at the line (Item 2).** "Sign here" and the initials button now
+   render at their anchor via a new `PdfViewer` `PageGeom.toCss` (pdf.js
+   `convertToViewportPoint` — the same rotation-aware transform the canvas render
+   uses), lifted above the caption/rule, with a collision offset (never stack)
+   and a corner-dock fallback for legacy/no-anchor docs and pre-render frames.
+
+c. **Identity visible before signing (Item 1).** Read-only name/date/store chips
+   render at the `PrintedName` / `DateStamp` / `Store` anchors during review —
+   printed name = record (Fork 3), date = today read-only, store = the live
+   selected store. Display only; editing/write-back stays the escalation path
+   already shipped (`232d568`).
+
+## Signing ceremony — identity transparency before executing — 2026-07-24 (Gary approved case + 3 fork rulings)
+
+The identity values stamped on a signed document (name, store, date) must be
+**visible and, where appropriate, correctable BEFORE signing** — a wrong name or
+store can render the executed artifact worthless. This **revises the earlier
+"PrintedName / Store / Date are stamp-only derived values, no signer
+interaction" ruling**: Name and Store gain signer-facing treatment, Date stays
+derived. No schema change (the ack already stores `staffName` + `typedName` +
+`storeName`; the store's *source* just moves from silent-primary to
+signer-selected).
+
+- **Name — do NOT pre-fill the signature field (Gary).** Pre-filling makes
+  signing a tap, not an act, and hides typos. Instead the consent gate shows the
+  legal **name on file as prominent read-only context** ("Signing as: … — name
+  on file") and the signature stays a **deliberate type-in**. "This isn't my
+  name" pauses signing and **escalates** to an admin (the name is only corrected
+  at the source — the StaffMember record edited by someone with authority).
+- **Fork 3 — write-back is NEVER automatic from the ceremony (Gary reversed the
+  lean).** Under F2 (typed-only) the typed name *is* the signature; a difference
+  between record name and typed name isn't necessarily a correction — it may be a
+  phone typo. Auto write-back would let a mistyped signature silently rewrite the
+  staff roster **and** lock the field against Square sync — a data-integrity
+  hazard. So the divergence is **surfaced** (a flag on the staff record + the
+  certificate's dual-name row) and an ADMIN/MANAGER decides whether the roster
+  was wrong or the signature mistyped. "Correction at the source" stands — the
+  source is the record, not the signing field.
+- **Fork 2 — certificate ALWAYS shows both names (Gary).** `Name on record`
+  (the legal name snapshot) and `Name as executed` (what the signer typed),
+  every time — not only on mismatch. A row that appears only on a discrepancy
+  can't tell a reader "they matched" from "this system doesn't track that"; two
+  always-present rows make the certificate self-documenting.
+- **Fork 1 — no assigned store: don't block (Gary).** A missing store doesn't
+  invalidate the document the way a wrong legal name does, so blocking is
+  disproportionate — but a storeless staffer is an anomaly (it caused the blank
+  STAFF-1 dashboard cards) and shouldn't pass silently. The ceremony shows "no
+  store on file," stamps blank, and it's **flagged on the staff record** for an
+  admin.
+- **Store selector — as specced.** Pre-selected to the primary, **select from
+  assigned stores only, never free text**, visible before executing; captured as
+  the ack `storeName` (replacing the silent primary derivation). Manager-attested
+  capture keeps the automatic primary (no selector).
+- **Date — unchanged, display-only.** Framed as "this is what will be stamped";
+  never editable (an editable date is a backdating vector on the one artifact
+  whose value is that its timestamps are real).
+
+## Staff Display Name vs Full Name — role split & enforcement — 2026-07-24 (Gary approved audit + plan)
+
+Not a consolidation — the two columns do different jobs and the app now says so
+and enforces it. **Display Name = operational identity** (rosters, checklists,
+messages; nicknames fine, freely editable, low stakes). **Full Name = legal
+identity** — the only name that lands on signed documents and the Certificate of
+Acknowledgment.
+
+a. **Defect fixed.** Legal surfaces used `fullName ?? displayName`, silently
+   leaking the casual Display Name onto signed documents when Full Name was
+   empty (it's nullable). Signature/printed-name/certificate capture
+   (`acknowledgments`, form `submissions`) now use **Full Name only**.
+b. **Block-and-escalate.** A team member with no Full Name **cannot sign** —
+   the signing routes 422 and the signing pages render a "Legal name required"
+   screen (admins get a link to set it; staff get "ask your admin"). Full Name
+   is set by ADMIN/MANAGER, so this escalates to them.
+c. **Square override (Full Name only).** `fullNameLocked` marks a
+   Froot-confirmed legal name that a Square **resync must not overwrite**;
+   `squareFullName` tracks the last given+family seen from Square to surface a
+   lock/Square **divergence** on the staff profile (never shown as the legal
+   name). **Editing Full Name in Froot auto-locks it**; a manual add locks it; a
+   Square import seeds it unlocked. "Use Square's name" adopts `squareFullName`
+   and unlocks. **Write-back** (`POST …/square-writeback`) pushes the confirmed
+   Full Name to Square (given/family split — naive, multi-part surnames land in
+   family) and locks.
+d. **Display Name is Froot-native/operational.** Resync **no longer overwrites**
+   Display Name at all (Square seeds it once at import; edits/nicknames survive).
+   Display Name gets none of the lock/write-back/escalate machinery.
+e. **No backfill.** Existing staff with a null Full Name stay blocked until an
+   admin sets a real legal name — Full Name is **never** auto-filled from Display
+   Name (that would recreate the leak). Directory shows a "No legal name" marker.
+f. **Schema: additive only.** `StaffMember.fullNameLocked Boolean @default(false)`
+   + `squareFullName String?` (migration `…_staff_legal_name_lock`). Neither
+   column dropped; signed records keep referencing their frozen name snapshots.
+   Training certificates (`ensureTrainingCertPdf`) still use `fullName ??
+   displayName` — a manager-attested certification, not a self-signature; left as
+   the scope boundary, tighten later if wanted.
+
+## HR-11b field anchoring & inline stamping — 2026-07-23 (Gary approved plan + rulings 1–7)
+
+a. **Version-binding — Option A.** `DocumentAnchor` binds to
+   `hrDocumentVersionId` (coordinates are per-file). Checkpoints stay
+   document-level and keep carrying forward across versions. Each new version
+   upload re-detects and re-confirms; an in-flight signer finishes against the
+   version's own anchors; signed records stay bound to the version signed
+   (existing rule, reaffirmed).
+
+b. **Schema — additive.** `DocumentAnchor` (page, x, y, width, pageRotation,
+   anchorText, markType, placement, confirmed, generatedCheckpointId
+   soft-pointer) with `@@index([hrDocumentVersionId])` and **no float
+   `@@unique`** (ruling 2 — float equality is unreliable); re-detection
+   idempotency is application-level (replace the version's **unconfirmed** set,
+   never confirmed). `onDelete: Cascade` on the version relation (anchors are
+   metadata, not records). `Organization.hrDateStampFormat` (**B1**, default
+   `"dateOnly"`) governs inline `Date:` fills only; validation stamps and the
+   Certificate of Acknowledgment always render full date+time (reaffirms F5b,
+   court-defensibility).
+
+c. **Anchor vocabulary + longest-match-wins.** 8 tokens (`Initial:`, `Name:`,
+   `Date:`, `Store:`, `Employee Name (Print):`, `Employee Name`,
+   `Employee Signature:`, `Employee's Signature`), matched case-insensitively,
+   longest first with a claimed-span mask so `Employee Name (Print):` never
+   also registers as `Name:` / `Employee Name`.
+
+d. **Detection server-side at upload.** pdfjs legacy build, headless in the
+   Next 16 Node runtime (D1 spike = GO; no drop-in substitute exists, so a
+   no-go would have been a re-plan, not a workaround). **D2 (ruling 7): page
+   `/Rotate` and non-zero MediaBox origin handled explicitly** in both detection
+   and stamping — pdf-lib and pdfjs share absolute content space (shifted-
+   MediaBox spike confirmed no offset needed); placement offsets rotate out of
+   the reader frame and glyphs counter-rotate. Unit-tested for all four
+   rotations.
+
+e. **Admin confirmation REQUIRED.** Detected anchors are proposals; the upload
+   flow is scan → grouped-by-page review → confirm/adjust → generate. **U1:**
+   confirm may change mark type, coarse placement side (Right/Above/Below), and
+   keep/discard — **no free-drag repositioning** (that is manual placement,
+   deferred).
+
+f. **What anchoring adds, and link-first generation.** Document creation
+   ALREADY auto-generates the checkpoint backbone — one `Initial` checkpoint per
+   page plus a final `Acknowledgment` (the handbook's 29 were hand-refinements
+   on top of that, not built from zero). Anchoring does NOT replace that
+   backbone; it adds two things the checkpoints never had: (1) the page
+   COORDINATES to stamp at (`pageRef` was page-number only), and (2) coverage of
+   the printed-name / date / signature-line fields the per-page Initial defaults
+   never captured. Generation is **link-first**: a confirmed `Initial` anchor
+   links to the page's existing Initial checkpoint (creating one only if a
+   page's default was deleted); `SignatureStamp` links to the final
+   Acknowledgment checkpoint (where the typed legal name is already captured, so
+   no new ceremony step is added); `PrintedName` / `Store` / `DateStamp` are
+   stamp-only (derived values, no checkpoint). Existing manual checkpoints and
+   documents keep working untouched (additive, not a migration).
+
+g. **G1 — hard integrity rule (ruling 5).** A checkpoint that has
+   acknowledgment rows is **never deleted or modified by re-confirmation**, full
+   stop. Re-confirmation may add/link checkpoints. **Chosen posture (Gary):**
+   re-confirm does **not** auto-delete even zero-ack generated checkpoints —
+   manual delete (already ack-count-guarded in the UI) stays the only deletion
+   path. This is a system integrity rule, not a session preference.
+
+h. **Image-only fallback.** No text layer → zero anchors → automatic
+   certificate-only mode (today's behavior) with a clear admin explanation.
+   Manual click-to-place tooling explicitly deferred.
+
+i. **Rescan.** `POST /api/hr/documents/[id]/anchors/rescan` re-detects the
+   current version's already-uploaded file (no re-upload) — for documents that
+   predate anchoring and for re-running when detection improves. Replaces the
+   unconfirmed set, preserves confirmed. ADMIN-only, like every other document-
+   configuration route (the confirm route and the `/hr/documents/[id]` manager
+   surface are ADMIN-only too; MANAGER-in-scope is for signing/attesting, not
+   document config).
+
+j. **Completed-vs-Signed fork (STAFF-1) — (c) cross-link only, no merge.** The
+   flagged overlap lives inside `staff-documents.tsx`: a document row shows both
+   a completion-state badge and a "Signed record" link, already referencing the
+   same record — no structural change needed. No second overlap found
+   (`/hr/signed-records` vs `/hr/compliance` were confirmed to have distinct
+   jobs — executed-artifact list vs who-hasn't-signed rollup).
+
+k. **Staging fix pass (7-23, Gary): silent-collapse was the real defect.** The
+   first staging scan of the handbook returned zero fields with no error.
+   Root-cause discipline (Gary): scan/rescan must **report distinctly** — (a)
+   error with the real message surfaced in the UI + logged server-side, (b) no
+   text layer found (image-only), (c) text layer found, N pages scanned, M
+   labels matched — never one bare "0 fields" standing in for all three.
+   `detectAndStoreVersionAnchors` now returns a discriminated result and logs a
+   summary; rescan surfaces errors (500) and outcomes. **Ruled out explicitly:**
+   routes run on the Node runtime (never Edge; Prisma/crypto would fail on Edge
+   anyway — now pinned with `export const runtime = "nodejs"`); no `maxDuration`
+   was set (a timeout would 504, not return 0) — set to 60s on the scan/upload
+   routes; the blob fetch succeeds (byte length logged before pdfjs). **The
+   actual fix (found via the new diagnostics):** the first staging scan then
+   reported `ReferenceError: DOMMatrix is not defined` — the direct
+   `pdfjs-dist` legacy build references browser-DOM globals (DOMMatrix, Path2D,
+   ImageData, …) that Vercel's Node runtime lacks (it worked locally only
+   because the tiny test PDFs never hit those paths; the real handbook does).
+   Server detection switched from `pdfjs-dist` to **`unpdf`** — a serverless
+   build of pdf.js with no DOM dependencies — via `getDocumentProxy` (same
+   `getTextContent`/transform API, so no detection-logic change). `unpdf` is in
+   `serverExternalPackages`; `pdfjs-dist` stays a dependency for the browser-side
+   HR-11 viewer (untouched). Proof: the fixture runs in plain Node where
+   `DOMMatrix` is undefined and passes 28/28 — a real DOM-free reproduction.
+
+l. **Vocabulary refinements (7-23, from the real handbook).** (1) Text is
+   punctuation-normalized before matching, so `Employee's Signature` with a
+   typographic apostrophe (U+2019) on pages 22/24 matches. (2) Bare `Date` (no
+   colon) joins the vocabulary but is **fill-gated** — accepted only when an
+   underscore run sits to its right or on the line just above it — so prose
+   "Date" is ignored. (3) **Placement is auto-derived**: a trailing underscore
+   run ⇒ Right (fill line to the right); an underscore run on the line just
+   above, roughly over the label ⇒ Above (under-line caption block); default
+   Right. Admin can still override the coarse side (U1). Limitation: fill
+   detection keys on underscore runs, so signature lines drawn as graphics
+   (not underscores) won't gate a bare field — logged for a future pass.
+
+m. **(Claude) Delivery.** New dep `unpdf` (serverless pdf.js for detection;
+   package-lock committed); `pdf-lib` and `pdfjs-dist` already present.
+   Migration `20260723220118_hr11b_document_anchors` additive-only
+   (applied to dev; Vercel `migrate deploy` applies to staging/prod). Fixture
+   `scripts/verify-hr-anchors.ts` → 28/28 (detection, longest-match, split-label
+   reassembly, D2 geometry across four rotations, diagnostics, curly-apostrophe /
+   bare-Date / under-line placement, image-only). `next build` green each step.
+   HR remains dark in production (`HR_MODULE_AVAILABLE` unset) — unchanged.
+
+n. **End-to-end stamping verified (7-23).** A throwaway run of the real
+   `ensureSignedRecord` path (dev DB + dev blob store, a 28-page handbook-shaped
+   PDF with signature blocks on pages 11/22/24/28) confirmed 14/14: SignatureStamp
+   anchors detected on those pages, confirmed, and linked to the final
+   Acknowledgment checkpoint; the output PDF carries the signature stamp (name +
+   "Signed electronically" + timestamp) on 11/22/24/28, the printed name on 11,
+   the store on page 1, `TPT` initials on footers, and the certificate still
+   appended. **No separate signature UI is by design (F2 typed-only + the
+   link-to-Acknowledgment choice): one typed signature at the formal block,
+   stamped at every SignatureStamp anchor — not a per-field prompt.**
+
+o. **HR-11b test-data purge (staging, 7-23, Gary-approved).** Deliberate, scoped
+   deletion of Tommy Thomas's (`corporate@keva.com`) `HrDocumentAcknowledgment` +
+   `HrSignedRecord` rows on **staging only** — his records were polluted by a
+   second tester entering `TIKTOK` as initials across pre-HR-11/HR-11/HR-11b runs.
+   Scope: those two tables, that one staff member, all versions/cycles; his
+   `StaffMember` row, checkpoints, documents, versions, and every other staff
+   member untouched. Signed-PDF blobs are left orphaned in the private store
+   (harmless on staging). An explicit, one-time exception to the append-only /
+   G1 "never touch acked records" posture, for unreliable staging test data —
+   **not precedent** for deleting real or production records.
+
+p. **Signatures become their own checkpoints (Gary, 7-24 — revises f).** Each
+   `SignatureStamp` anchor now generates its OWN `Signature` checkpoint the
+   signer acts on **inline during the ceremony** (per page, like initials), each
+   carrying its own per-interaction `signedAt` — replacing the earlier "link
+   SignatureStamp to the final Acknowledgment" choice, which collapsed all
+   signatures onto one timestamp. The handbook's four signatures (EEO/conduct,
+   confidentiality, Rules & Policies, whole handbook) are distinct attestations,
+   not repeats of one. `PrintedName` / `Date` / `Store` stay stamp-only derived
+   (no checkpoints, no signer act — only signatures and initials require an
+   explicit act). **Sequencing:** captured inline in the review phase, gated on
+   the page being viewed; `canFinalize` now also requires all signatures done.
+   **Legal name:** captured once at the consent gate and reused as each
+   signature's `typedName` — the distinct attestation is the explicit
+   per-checkpoint act + timestamp, not re-typing four times. **No schema change:**
+   `HrCheckpointType.Signature` + `method="Signature"` already exist; each
+   signature checkpoint gets its own `HrDocumentAcknowledgment`; stamping reads
+   each anchor's checkpoint ack for its `typedName` + `signedAt` (fallback to the
+   completion time only for legacy/attested records). This also flips prior
+   completions of a version to needs-re-sign once re-confirmed (4 new required
+   checkpoints) — intended; Tommy's data was purged, so nothing real is
+   disrupted. Verified E2E (dev DB + blob): 4 Signature checkpoints generated,
+   4 distinct stamped timestamps.
+
 ## STAFF-1 staff experience + HR-11 inline signing — 2026-07-23 (Gary approved plan + forks F1–F8)
 
 a. **Timestamp audit finding (Defect 1 root cause).** Per-interaction times

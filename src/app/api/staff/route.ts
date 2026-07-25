@@ -32,11 +32,19 @@ export async function POST(req: Request) {
 
   const { displayName, fullName, email, storeIds, squareTeamMemberId, primaryStoreId } = await req.json()
 
+  // A manual add types the legal name directly → lock it. A Square import seeds
+  // Full Name from Square (squareFullName), unlocked, so a later resync can
+  // still track/adopt Square's value until an admin corrects it.
+  const cleanFullName = (typeof fullName === "string" && fullName.trim()) || null
+  const fromSquare = !!squareTeamMemberId
+
   const member = await prisma.staffMember.create({
     data: {
       organizationId: org.id,
       displayName,
-      fullName: fullName || null,
+      fullName: cleanFullName,
+      fullNameLocked: !fromSquare && !!cleanFullName,
+      squareFullName: fromSquare ? cleanFullName : null,
       email: (typeof email === "string" && email.trim()) || null,
       squareTeamMemberId: squareTeamMemberId || null,
       storeAssignments: {

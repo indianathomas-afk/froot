@@ -6,9 +6,10 @@ import { fetchSquareTeamMember, mapAssignedStores } from "@/lib/square"
 import { terminateStaffMember } from "@/lib/staff-termination"
 
 // POST /api/staff/[id]/resync-square — pull ONE member's current Square record
-// and make Square authoritative for this person's Square-linked fields:
-// display/full name, email, and store assignments (primary preserved if still
-// among Square's locations, else re-inferred). This is the deliberate,
+// and make Square authoritative for this person's Square-linked fields: email,
+// store assignments (primary preserved if still among Square's locations, else
+// re-inferred), and the LEGAL Full Name unless it's locked (Display Name is
+// Froot-native and never overwritten). This is the deliberate,
 // per-member counterpart to the conservative bulk "Sync Locations" — a
 // manager clicking it is saying "fix this record from Square," so it DOES
 // overwrite the email (unlike the bulk sync). It never touches documents,
@@ -71,18 +72,21 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const primary =
     existingPrimary && assignedStoreIds.includes(existingPrimary) ? existingPrimary : primaryStoreId
 
-  const displayName =
-    squareMember.display_name ||
-    [squareMember.given_name, squareMember.family_name].filter(Boolean).join(" ") ||
-    member.displayName
-  const fullName = [squareMember.given_name, squareMember.family_name].filter(Boolean).join(" ") || null
+  // Square's given+family — the source for Full Name (the LEGAL name) unless the
+  // admin has locked a Froot-confirmed value. Always tracked in squareFullName
+  // so a lock/Square divergence can be surfaced.
+  const squareFullName =
+    [squareMember.given_name, squareMember.family_name].filter(Boolean).join(" ") || null
 
   await prisma.$transaction([
     prisma.staffMember.update({
       where: { id: member.id },
       data: {
-        displayName,
-        fullName,
+        // Display Name is Froot-native/operational — resync NEVER overwrites it
+        // (Square seeded it once at import; nicknames/edits survive).
+        // Full Name is legal — adopt Square's value only when it isn't locked.
+        ...(member.fullNameLocked ? {} : { fullName: squareFullName }),
+        squareFullName,
         email: squareMember.email_address || null,
       },
     }),
@@ -96,5 +100,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     }),
   ])
 
-  return NextResponse.json({ success: true })
+  // Locked Full Name that disagrees with Square → escalate (surfaced on the
+  // staff profile), never silently overwritten.
+  const nameDiverged = member.fullNameLocked && !!squareFullName && squareFullName !== member.fullName
+  return NextResponse.json({ success: true, nameDiverged, squareFullName })
 }

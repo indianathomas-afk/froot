@@ -90,10 +90,17 @@ export function AddStaffButton({ stores }: { stores: Store[] }) {
             <div className="space-y-1.5">
               <Label>Display Name *</Label>
               <Input required value={form.displayName} onChange={(e) => setForm((p) => ({ ...p, displayName: e.target.value }))} placeholder="e.g. Sarah T." />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Operational name — shows on rosters, checklists, and messages. Nicknames are fine.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Full Name</Label>
               <Input value={form.fullName} onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))} placeholder="e.g. Sarah Thomas" />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Legal name — appears on signed documents and certificates, and is required before this
+                person can sign.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Email</Label>
