@@ -520,8 +520,14 @@ phases:
   - id: HR-17
     track: hr
     size: S-M
-    status: in_progress
+    status: staging
+    commits: [438a9ef]
     title: "Training preview — builder Save & Preview opens the trainee renderer read-only"
+    blockers:
+      - >
+        Staging pass pending — verify authed preview rendering (admin
+        Save & Preview round-trip, manager store-scope, resource links);
+        local check covered build + unauthenticated guard only.
     notes: >
       Preview renders through the same extracted TrainingModuleView the /my
       execution page uses (no second renderer). Read-only by construction:
