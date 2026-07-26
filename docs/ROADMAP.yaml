@@ -11,6 +11,7 @@
 #   staging  — merged to `staging`, on Vercel preview, NOT in prod
 #   shipped  — merged to `main`, live in prod
 #   verified — shipped AND smoke-tested against real store data
+#   GAP: no status fits an audit-only phase with no shipped code (SQ-1 sits in "verified") — a future "closed"/"documented" would.
 #
 # blockers — live problems in a phase regardless of status (unset env vars,
 #            prod-promotion gates, unverified pixel work). Anything here blocks.
@@ -22,7 +23,7 @@
 # earlier and promoted later, the build date is in notes.
 
 meta:
-  updated: 2026-07-24
+  updated: 2026-07-26
   sources_retired: [docs/ROADMAP.md, "CLAUDE.md#Phase Status", external sheet]
   note: >
     Reconstructed 2026-07-24 from docs/ROADMAP_ARCHIVE.md, docs/prompts/*, and
@@ -243,6 +244,23 @@ phases:
         CRON_SECRET not confirmed set in Vercel (flagged at ship, never
         confirmed closed) — nightly sales-reconcile and pace-alert crons
         silently don't run without it.
+    notes: >
+      SQ-1 (2026-07-26) gathered evidence against the blocker above, but did
+      not clear it — Gary to confirm and close. `vercel env ls production`
+      lists CRON_SECRET as Encrypted/Production, added 18 days ago (~2026-07-08,
+      the F-1 ship date), so the secret does exist in the Production scope; what
+      is still unconfirmed is that the crons actually invoke successfully (check
+      the Vercel Cron Jobs page → View Logs). Separately, SQ-1 corrected the
+      Pro-plan assumption in the docs: the account is on Hobby, and Hobby caps
+      crons at ONCE PER DAY with ±59 min scheduling precision. Both registered
+      crons comply — sales-reconcile `0 11 * * *` and pace-alerts `0 15 * * *`
+      are daily — but they can fire anywhere inside their hour, and any future
+      sub-daily expression will FAIL DEPLOYMENT, not fail quietly. maxDuration
+      = 300 does not exceed the Hobby cap: with Fluid compute (on by default)
+      Hobby's max duration is 300s, i.e. these routes sit exactly at the ceiling
+      with no headroom. Vercel documents no plan-tier difference in
+      CRON_SECRET handling, so F-1 is a secrets/verification problem rather
+      than a plan-tier one.
 
   - id: F-2
     track: forecasting
@@ -704,6 +722,50 @@ phases:
     status: planned
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
 
+  # ---- Square integration ----
+
+  - id: SQ-1
+    track: square
+    size: S
+    status: verified
+    title: "Audit — Square OAuth access-token refresh (read-only)"
+    notes: >
+      Refresh EXISTS and is wired: refreshTokenIfNeeded() at src/lib/square.ts:37,
+      called only from getSquareClient() (src/lib/square.ts:202), which refreshes
+      when squareTokenExpiresAt is inside 7 days. Lazy only — no refresh cron.
+      Production DB confirms Keva Juice has both an access and a REFRESH token
+      stored, expiring 2026-08-06T09:48:55Z, so the 8-06 cliff is survivable
+      without a reconnect provided one getSquareClient path runs on/after
+      2026-07-30. Residual risk is silence, not absence: a failed refresh
+      returns the stale org with no log (square.ts:56), the settings UI reports
+      "Connected" off token presence alone, and dashboard sync errors are caught
+      and served from cache. Four Square helpers bypass the wrapper entirely
+      (fetchSquareTeamMembers / fetchSquareTeamMember /
+      updateSquareTeamMemberName in square.ts, plus /api/square/locations) and
+      no oauth.authorization.revoked webhook is handled. Audit only — no code
+      changed. See docs/prompts/SQ-1_square_token_refresh_audit.md.
+
+  - id: SQ-2
+    track: square
+    size: S-M
+    status: planned
+    title: "Square token-refresh hardening — observability + refresh-ahead"
+    notes: >
+      ORDERING: next up — the most time-critical planned phase on the board.
+      DEADLINE 2026-08-06T09:48:55Z — the current Keva Juice access token
+      expires then; the lazy refresh window opens 2026-07-30. Not blocked: SQ-1
+      confirmed a refresh token is stored and the refresh path is reachable.
+      Proposed scope (not yet implemented): log refresh attempt/success/failure
+      in refreshTokenIfNeeded instead of the silent `if (!res.ok) return org`;
+      move the threshold from "inside 7 days" to Square's own guidance of
+      refreshing every 7 days or less (refresh when the token is older than ~7
+      days rather than when expiry is near); route the four bypassing helpers
+      through getSquareClient; surface expiry in the settings UI, which today
+      shows "Connected" for an expired token; handle
+      oauth.authorization.revoked. A daily refresh cron is viable on Hobby
+      (once-per-day is the cap) but should supplement, not replace, the lazy
+      path — see F-1 notes.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
@@ -761,3 +823,19 @@ debt:
       never done, P3018) and the current policy is the hand-authored
       `migrate diff` flow in CLAUDE.md / MIGRATIONS.md. Recorded 2026-07-24;
       fix the doc in a future docs session — do not fix inline.
+
+  - id: DEBT-4
+    title: "Local .env DATABASE_URL points at the PRODUCTION Neon branch"
+    notes: >
+      Found during SQ-1 (2026-07-26). `ep-green-smoke-a6xthq4r` is the
+      PRODUCTION branch — it is the host in Vercel's Production scope; staging
+      is `ep-odd-rain-a6gr4xmm`. The repo's local `.env` DATABASE_URL resolves
+      to ep-green-smoke, and `npm run build` runs `prisma migrate deploy`, so a
+      local build applies pending migrations to production outside any
+      promotion — the exact bypass the migration policy in CLAUDE.md /
+      MIGRATIONS.md exists to prevent. It also means the local dev server reads
+      and writes live Keva Juice data. Not fixed in SQ-1 (audit only). Fix
+      shape: point local `.env` at a dev/staging branch and keep production
+      credentials out of the working tree; consider guarding the build script
+      against a production host. Related: BUG-3 (DATABASE_URL_UNPOOLED),
+      DEBT-3 (WORKFLOW.md §3 still documents the retired migrate dev flow).
