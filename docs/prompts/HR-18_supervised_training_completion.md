@@ -1,7 +1,7 @@
-# HR-17 — Supervised (proctored) training completion
+# HR-18 — Supervised (proctored) training completion
 
 **Modules:** Staff + HR (training) + Users/roles
-**Roadmap:** New entry `HR-17` — "Supervised training completion under an elevated session" — status `in_progress`
+**Roadmap:** New entry `HR-18` — "Supervised training completion under an elevated session" — status `in_progress`
 **Branch/target:** staging only. Do not push. I run all git commands.
 
 ---
@@ -136,7 +136,7 @@ and Settings. Tell me:
 ## Done criterion
 
 - `next build` passes.
-- `docs/ROADMAP.yaml` HR-17 entry updated.
+- `docs/ROADMAP.yaml` HR-18 entry updated.
 - Verified on staging with the Tommy Thomas / Las Brisas test account:
   a supervised completion recorded end-to-end, distinguishable in the record from both a
   self-service completion and a `Mark complete` attestation.

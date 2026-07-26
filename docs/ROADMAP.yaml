@@ -620,7 +620,8 @@ phases:
   - id: SEC-1
     track: security
     size: S
-    status: in_progress
+    status: staging
+    commits: [ecee728]
     title: "Square OAuth callback org binding + state nonce; ADMIN gate on connect/disconnect"
     notes: >
       Closes PERMISSIONS_INVENTORY.md §2 items 2 and 3 (found by PERM-1).
@@ -634,7 +635,8 @@ phases:
       Instagram; only in-app callers are on /settings (already ADMIN).
       Existing connected orgs unaffected — no token columns touched, no
       reconnect needed. Instagram's own missing nonce logged as SEC-2.
-      Awaiting Gary's staging pass (ADMIN connect end-to-end).
+      Staging pass clean 2026-07-25 (Gary; details not itemized in the
+      pass report).
 
   - id: SEC-2
     track: security
