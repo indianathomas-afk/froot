@@ -687,7 +687,8 @@ phases:
   - id: SEC-1
     track: security
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-07-26
     commits: [ecee728]
     title: "Square OAuth callback org binding + state nonce; ADMIN gate on connect/disconnect"
     notes: >
@@ -703,7 +704,8 @@ phases:
       Existing connected orgs unaffected — no token columns touched, no
       reconnect needed. Instagram's own missing nonce logged as SEC-2.
       Staging pass clean 2026-07-25 (Gary; details not itemized in the
-      pass report).
+      pass report). Built 7-25; prod via c463af3 (2026-07-26). No prod smoke
+      test recorded, hence shipped, not verified.
 
   - id: SEC-2
     track: security
@@ -829,6 +831,11 @@ bugs:
       DECISIONS.md BUG-3. Staging proof required: build log Datasource "db"
       host without -pooler; a green deploy alone is not proof (P1002 is
       intermittent).
+      Status deliberately left in_progress at the 2026-07-26 reconcile: f6818f1
+      reached main via c463af3 (2026-07-26), so the fix is in prod on both
+      branches, but the required proof has still never been recorded. Code
+      shipped ≠ bug closed here — flip to shipped only once a build log shows
+      the unpooled host.
 
 debt:
   - id: DEBT-1
