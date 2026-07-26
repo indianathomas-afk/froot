@@ -590,7 +590,8 @@ phases:
   - id: PERM-1
     track: permissions
     size: M
-    status: in_progress
+    status: staging
+    commits: [6f70465]
     title: "Permission capability shim — enforcement inventory, capability registry, can()/scope() shim, sidebar pilot"
     notes: >
       Audit-first session (docs/prompts/PERM-1_permission_capability_shim.md).
@@ -602,7 +603,8 @@ phases:
       can(); parity verified — 192/192 role×gate permutations byte-identical
       to the old roles-array filter; next build green. Sidebar alerts-badge
       role check deliberately NOT migrated (pilot = nav filter only).
-      Awaiting Gary's staging pass (all four roles) before status moves.
+      Staging pass clean 2026-07-25 (Gary — no nav differences across all
+      four roles).
     blockers:
       - >
         Phase 2 (call-site migration) must not start until Gary rules on each
@@ -610,8 +612,8 @@ phases:
         encodes one answer per capability; migrating a contradicted site
         silently picks a side.
       - >
-        Square OAuth callback state validation (§2 gap #3) is being scoped as
-        its own session — logged, unfixed here.
+        Square OAuth callback state validation (§2 gap #3) is SEC-1, its own
+        phase — logged here, unfixed in PERM-1.
 
   # ---- Migration / nutrition ----
 

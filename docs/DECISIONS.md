@@ -5,6 +5,18 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## PERM-3 design constraint — Clerk webhook resets User-row storage on membership churn — 2026-07-25 (Gary)
+
+Recorded from the PERM-1 webhook finding (docs/PERMISSIONS_INVENTORY.md §4) as
+a **constraint, not a bug**: the Clerk `organizationMembership.created` handler
+re-creates the `User` row from defaults (PendingInvite role → role map → STAFF)
+when a member is removed and re-added, so anything stored on `User` resets on
+that churn — the same behavior UM-1 documented for `role`. Any permission
+column added in PERM-3 must be designed with that reset in mind: either
+permission assignment lives where membership churn can't reach it (keyed to
+something more durable than the `User` row), or the webhook's create path is
+explicitly taught to restore it. Deciding which is PERM-3 scope.
+
 ## HR-11c ceremony fixes — anchor dedup, affordance placement, inline identity — 2026-07-24 (Gary approved case + dedup rule)
 
 Three ceremony-UI defects from the mobile `/my` signing pass; the completed PDF
