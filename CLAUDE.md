@@ -257,7 +257,8 @@ Run `next build` — it runs `prisma generate` automatically (see `package.json`
 
 Required in `.env`:
 ```
-DATABASE_URL=                  # Neon connection string
+DATABASE_URL=                  # Neon connection string (pooled) — runtime client
+DATABASE_URL_UNPOOLED=         # direct (non-pooled) Neon endpoint — Prisma CLI/migrations only (BUG-3); strip -pooler from the DATABASE_URL host
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 CLERK_WEBHOOK_SECRET=          # Svix signature for Clerk webhooks

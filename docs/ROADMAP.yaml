@@ -704,6 +704,21 @@ bugs:
     commits: [3c7d0a0]
     notes: Found during the HR-8 staging pass (7-22); resolve the real Clerk email, never trust the identifier.
 
+  - id: BUG-3
+    title: "Migrations bypass Neon pooler via directUrl"
+    status: in_progress
+    commits: []
+    notes: >
+      Intermittent P1002 on deploy — Prisma's migration advisory lock leaked
+      onto recycled pgbouncer backends (hit ecee728, 7-25, no migration in it).
+      Prisma 7 removed schema directUrl; fix is prisma.config.ts datasource.url
+      = DATABASE_URL_UNPOOLED ?? DATABASE_URL (loud console.warn on fallback).
+      No migration, no schema change. DATABASE_URL_UNPOOLED pre-exists in all
+      Vercel envs (Neon integration); local .env gets it manually. See
+      DECISIONS.md BUG-3. Staging proof required: build log Datasource "db"
+      host without -pooler; a green deploy alone is not proof (P1002 is
+      intermittent).
+
 debt:
   - id: DEBT-1
     title: "operationalPhase string inconsistency"

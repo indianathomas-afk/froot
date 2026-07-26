@@ -72,6 +72,18 @@ git push origin staging
 
 ## 3. The new normal (every schema change)
 
+> **Connection routing (BUG-3, 2026-07-25):** all Prisma CLI commands
+> (`migrate deploy`, `migrate diff --from-config-datasource`, `db execute`,
+> `migrate status`) connect via `DATABASE_URL_UNPOOLED` — Neon's **direct**
+> (non-pooled) endpoint, the pooled host with `-pooler` stripped — falling back
+> to `DATABASE_URL` with a console warning if unset. Reason: Prisma's migration
+> advisory lock (`pg_advisory_lock(72707369)`) leaked onto recycled pgbouncer
+> backends, causing intermittent P1002 deploy failures. Local `.env` needs
+> `DATABASE_URL_UNPOOLED` (dev-branch URL minus `-pooler`); Vercel already has
+> it in all environments via the Neon integration. Runtime traffic still uses
+> pooled `DATABASE_URL` (`src/lib/prisma.ts`). Proof on deploy: the build log's
+> `Datasource "db"` line must show a host **without** `-pooler`.
+
 > `prisma migrate dev` is currently broken here: the baseline squash (step 2)
 > was never done, so shadow-DB replay of the old migration history fails with
 > P3018 (and `.env` has no `SHADOW_DATABASE_URL`). Until the baseline lands,

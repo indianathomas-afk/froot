@@ -5,7 +5,39 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## SEC-1 Square OAuth hardening — cookie nonce + session-org binding — 2026-07-25 (Gary approved plan + fork ruling)
+## BUG-3 migrations bypass the Neon pooler — 2026-07-25 (Gary approved plan + fallback ruling)
+
+Fixes the intermittent P1002 deploy failure: Prisma's migration advisory lock
+(`pg_advisory_lock(72707369)`) leaked onto recycled pgbouncer backends on
+Neon's pooled endpoint (hit `ecee728` on 7-25, a commit with no migration —
+`migrate deploy` takes the lock even just to check for pending migrations).
+
+a. **Mechanism — `prisma.config.ts`, not schema `directUrl` (finding, Gary
+   approved).** Prisma 7 removed `directUrl` from schema files entirely (the
+   installed 7.8.0 parser errors: "no longer supported in schema files. Move
+   connection URLs to `prisma.config.ts`"; `@prisma/config`'s `Datasource`
+   type is `{ url?, shadowDatabaseUrl? }`). The config's `datasource.url` is
+   the **sole** URL source for CLI commands — schema.prisma holds no URLs and
+   is untouched. Runtime is fully decoupled: `src/lib/prisma.ts` builds the
+   Neon adapter from pooled `DATABASE_URL` directly.
+b. **Fallback, not strict — with a loud warning (Gary).** `datasource.url` is
+   `DATABASE_URL_UNPOOLED ?? DATABASE_URL`. Strict would turn a missing env
+   var into a production build failure (`Error: The datasource.url property is
+   required...` — reproduced) right before the queued HR promotion; fallback
+   degrades to current pooled behavior instead. The config `console.warn`s
+   when falling back, naming the var — so a silent regression to the pooler
+   can't resurface as an unexplained P1002 years later. Detection either way:
+   the build log's `Datasource "db"` host line (must not end `-pooler`).
+c. **Env var — reuse `DATABASE_URL_UNPOOLED`, no new Vercel vars (finding,
+   Gary verified).** The Neon integration already set it in Preview (staging),
+   Production, and Development. Staging's value verified by pull: pooled host
+   minus `-pooler`, otherwise identical. Production's is Sensitive/unreadable
+   from this machine — Gary eyeballed the dashboard and confirmed both
+   Preview and Production match their `DATABASE_URL` hosts minus `-pooler`,
+   same endpoint id and branch. Local `.env` gets the var manually (Gary).
+d. **No migration, no schema change, no new deps.** One line of connection
+   routing in `prisma.config.ts` plus docs. Rollback = revert that file; the
+   env vars predate this change and can safely stay.
 
 Closes PERMISSIONS_INVENTORY.md §2 items 2–3 (found by the PERM-1 audit).
 
