@@ -707,7 +707,7 @@ bugs:
   - id: BUG-3
     title: "Migrations bypass Neon pooler via directUrl"
     status: in_progress
-    commits: []
+    commits: [f6818f1]
     notes: >
       Intermittent P1002 on deploy — Prisma's migration advisory lock leaked
       onto recycled pgbouncer backends (hit ecee728, 7-25, no migration in it).
