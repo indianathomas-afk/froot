@@ -495,6 +495,25 @@ phases:
     size: M
     status: planned
     title: "Termination + identity-lifecycle hardening (zombie shell, directory toggle, webhooks, initials validation)"
+    notes: >
+      Scope items added 2026-07-25 (audit only, nothing fixed).
+      Clerk webhook (src/app/api/webhooks/clerk/route.ts), both found while
+      checking whether a Clerk org rename reaches the Froot DB — it does, but:
+      (1) organization.updated writes name ONLY — it destructures slug from the
+      payload and never writes it, so a renamed org keeps its original slug
+      forever (only organization.created ever sets slug). (2) That handler uses
+      prisma.organization.update, not upsert, and is not wrapped in try/catch —
+      unlike organization.created and organizationMembership.created, which
+      upsert precisely because Clerk does not guarantee delivery order. A rename
+      for a missing Organization row throws P2025, the route 500s, and the
+      rename is lost unless Clerk's retries land; live risk, since the DB
+      carries fossil org rows while Clerk-side is the truth.
+      Staff-record lifecycle, promoted here from PERMISSIONS_INVENTORY §2
+      (both still unfixed): (3) item 1 — POST /api/staff has NO role check, so
+      any org member incl. STAFF/STORE can create staff members while the
+      /staff UI is ADMIN/MANAGER; this is the inventory's worst-first finding.
+      (4) item 6 — GET /api/staff exposes the staff directory (names, emails,
+      assignments) to any member, store-scoped for non-admins.
 
   - id: HR-15
     track: hr

@@ -302,10 +302,15 @@ Ordered worst-first. **None fixed in PERM-1** (recorded for a follow-up phase).
 Verified against the PERM-1 "Also check" item:
 
 - **`role` is written only in the `organizationMembership.created` upsert's CREATE branch** (PendingInvite role → Clerk role map → STAFF default). The UPDATE branch writes `{ email }` only.
-- `user.updated` writes `{ email }` only. `organization.created/updated` touch Organization name/slug only. `organizationMembership.deleted` unlinks `StaffMember.userId` and deletes the user's `StoreUserAssignment` rows — it does not touch `User` columns.
+- `user.updated` writes `{ email }` only. `organization.created` upserts Organization name + slug; `organization.updated` writes **name only** (see caveats below). `organizationMembership.deleted` unlinks `StaffMember.userId` and deletes the user's `StoreUserAssignment` rows — it does not touch `User` columns.
 - **Conclusion: a future permission-assignment column on `User` would NOT be clobbered** by any current webhook path while the row exists.
 - **Caveat (same one UM-1 recorded for `role`):** if a `User` row is deleted and re-created through the webhook (member removed + re-added), the CREATE branch rebuilds the row from PendingInvite/role-map defaults — any future permission column would come back at its default. Permission assignment should live where this churn can't reach it (or the create path must be taught about it) — a phase-3 design input, no action now.
 - The `roleMap` still contains the dead `"org:manager"` entry (no such Clerk role exists — UM-1 a). Harmless; left untouched.
+
+**Org-rename caveats (found 2026-07-25, nothing fixed — logged as HR-14 scope):**
+
+- **`organization.updated` does not propagate `slug`.** The handler destructures `slug` out of the payload and then writes `{ name: org.name }` only. A renamed Clerk org keeps its original Froot `slug` permanently — only `organization.created` ever sets one (`org.slug ?? slugify(org.name)`). Renaming *does* propagate the name, so the row ends up internally inconsistent rather than stale-everywhere.
+- **`organization.updated` uses `update`, not `upsert`, with no `try`/`catch`.** It is the only org path in the file without that protection: `organization.created` upserts, and `organizationMembership.created` upserts with an explicit comment that Clerk does not guarantee webhook delivery order. The route's only two `try`/`catch` blocks wrap signature verification and email resolution. If no `Organization` row matches `clerkOrgId` — a Clerk org predating the DB row, or a rename arriving before `organization.created` — Prisma throws P2025, the route 500s, and the rename is lost unless Clerk's retries succeed. Not theoretical: the DB is known to carry fossil org rows while Clerk-side is the source of truth.
 
 ---
 
