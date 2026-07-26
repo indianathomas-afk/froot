@@ -27,12 +27,15 @@ meta:
   sources_retired: [docs/ROADMAP.md, "CLAUDE.md#Phase Status", external sheet]
   note: >
     Reconstructed 2026-07-24 from docs/ROADMAP_ARCHIVE.md, docs/prompts/*, and
-    git log. Three prod promotions to date: 9743899 (2026-07-21, L-3 + full
-    HR/Labor backlog), 942bc59 (2026-07-23, HR-8 through STAFF-1 batch) and
-    59a6cdc (2026-07-24, HR-11b + HR-11c — see docs/DEPLOY_LOG.md). As of
-    2026-07-24 staging and main are level; nothing is staging-only. HR
-    LAUNCHED in production 2026-07-24 (HR_MODULE_AVAILABLE=true added to the
-    Vercel Production scope + redeploy).
+    git log. Five prod promotions to date: 9743899 (2026-07-21, L-3 + full
+    HR/Labor backlog), 942bc59 (2026-07-23, HR-8 through STAFF-1 batch),
+    59a6cdc (2026-07-24, HR-11b + HR-11c), 1ba059c (2026-07-25, HR-17) and
+    c463af3 (2026-07-26, PERM-1 + SEC-1 + the BUG-3 fix). Only the first three
+    are in docs/DEPLOY_LOG.md — 1ba059c and c463af3 have no entry there yet.
+    Staging is NOT level with main as of 2026-07-26: 3902d5c (P-3) and 056943f
+    (the SQ-1/SQ-2/DEBT-4 entries in this file) are staging-only. HR LAUNCHED
+    in production 2026-07-24 (HR_MODULE_AVAILABLE=true added to the Vercel
+    Production scope + redeploy).
 
 phases:
 
@@ -126,6 +129,30 @@ phases:
     shipped: 2026-07-22
     commits: [3ff8720, e01ab8e]
     title: "Docs consolidation into docs/ + session prompt library"
+
+  - id: P-3
+    track: platform
+    size: M
+    status: staging
+    commits: [3902d5c]
+    title: "Live /internal/roadmap dashboard rendered from docs/ROADMAP.yaml"
+    notes: >
+      Built 2026-07-25 per docs/prompts/ROADMAP_PAGE_SESSION.md. Replaces the
+      hand-generated froot-roadmap-dashboard.html snapshot, whose "last updated"
+      date was typed in and went stale on the first edit.
+      scripts/generate-roadmap.mjs runs on `prebuild`/`predev`: it parses this
+      file with the new `yaml` dependency, resolves the file's git commit date,
+      and emits src/generated/roadmap.ts (gitignored) — build time rather than
+      runtime because the YAML sits outside the import graph and there is no
+      .git directory inside a lambda. Timestamp fallback chain, never silent:
+      git commit date → meta.updated → unknown, logged to the build output AND
+      labelled on the page. The page is a server component (requireAdmin,
+      redirect to /dashboard, noindex) passing plain data to a client board:
+      summary strip, blockers panel, staging→prod pipeline, three columns,
+      search, track chips. Blockers render as the plain YAML strings — no
+      severity inferred. Read-only: no writes to ROADMAP.yaml, no DB access.
+      Also adds the app's first src/app/robots.ts (allow all, disallow
+      /internal/). NOT in prod — 3902d5c is on staging only.
 
   - id: X-1
     track: platform
@@ -627,7 +654,8 @@ phases:
   - id: PERM-1
     track: permissions
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-07-26
     commits: [6f70465]
     title: "Permission capability shim — enforcement inventory, capability registry, can()/scope() shim, sidebar pilot"
     notes: >
@@ -641,7 +669,9 @@ phases:
       to the old roles-array filter; next build green. Sidebar alerts-badge
       role check deliberately NOT migrated (pilot = nav filter only).
       Staging pass clean 2026-07-25 (Gary — no nav differences across all
-      four roles).
+      four roles). Built 7-25; prod via c463af3 (2026-07-26). The two blockers
+      below were NOT cleared by the promotion — they gate PERM phase 2, not
+      this one.
     blockers:
       - >
         Phase 2 (call-site migration) must not start until Gary rules on each
