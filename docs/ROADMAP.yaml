@@ -559,6 +559,10 @@ phases:
       /staff UI is ADMIN/MANAGER; this is the inventory's worst-first finding.
       (4) item 6 — GET /api/staff exposes the staff directory (names, emails,
       assignments) to any member, store-scoped for non-admins.
+      GATED ON BUILD-1 (2026-07-26): this phase touches the schema, and until
+      BUILD-1 lands a local `npm run build` runs migrate deploy against the
+      PRODUCTION branch (DEBT-4). Do not start schema work here before BUILD-1
+      is verified.
 
   - id: HR-15
     track: hr
@@ -723,6 +727,10 @@ phases:
       callback time — Instagram's equality check would error instead. Not a
       problem at one org; fix alongside the nonce work (e.g. bind the
       initiating org into the state cookie payload and reject on mismatch).
+      GATED ON BUILD-1 (2026-07-26): if the nonce work adds any schema field,
+      it must not start before BUILD-1 is verified — until then a local
+      `npm run build` runs migrate deploy against the PRODUCTION branch
+      (DEBT-4).
 
   # ---- Migration / nutrition ----
 
@@ -797,6 +805,57 @@ phases:
       oauth.authorization.revoked. A daily refresh cron is viable on Hobby
       (once-per-day is the cap) but should supplement, not replace, the lazy
       path — see F-1 notes.
+
+  # ---- Build / tooling ----
+
+  - id: BUILD-1
+    track: build
+    size: S
+    status: in_progress
+    title: "Separate local builds from production migrations (vercel-build split)"
+    notes: >
+      Config only, no product code. Before: `build` was
+      `prisma generate && prisma migrate deploy && next build`, so every local
+      `npm run build` ran migrate deploy against whatever DATABASE_URL resolved
+      to — which per DEBT-4 is the PRODUCTION branch. After: `build` is
+      `prisma generate && next build` and a new `vercel-build` is
+      `prisma migrate deploy && npm run build`. Verified at source, not assumed:
+      @vercel/next resolves the build script via
+      getScriptName(pkg, ["vercel-build", "now-build", "build"]), so vercel-build
+      wins; and the project's Vercel Build Command is the default, NOT overridden
+      (checked with `vercel project inspect`), which is what makes the approach
+      valid. vercel-build delegates to `npm run build` rather than duplicating
+      its body BECAUSE npm only fires pre-hooks matching the exact script name —
+      verified empirically that `npm run vercel-build` runs prevercel-build, not
+      prebuild. A copy-pasted vercel-build would skip
+      scripts/generate-roadmap.mjs, and src/generated/roadmap.ts is gitignored
+      and imported by the /internal/roadmap page, so the Vercel build would fail
+      outright. Side benefit of the delegation: prisma generate now runs after
+      migrations apply, not before. No CI exists (no .github/), and nothing else
+      in the repo depended on `build` running migrate deploy.
+      Local `.env` repoint is Gary's edit, not this session's — recommended a
+      dedicated Neon dev branch over reusing staging, so local work cannot
+      corrupt a staging verification run. Both DATABASE_URL (pooled) and
+      DATABASE_URL_UNPOOLED (direct) need to point at it; the unpooled key is
+      currently ABSENT from local .env entirely, so prisma.config.ts has been
+      falling back to the pooled production URL for every CLI command since
+      BUG-3 (the fix reached Vercel but never the working tree).
+      Status stays in_progress until verification step 3 — a staging build log
+      showing migrate deploy actually ran. If vercel-build were not picked up,
+      migrations would silently stop applying on deploy, which is worse than the
+      problem being fixed; a green build is not proof.
+      Related: DEBT-4 (the finding this addresses), BUG-3, SEC-2 and HR-14 (both
+      schema-touching, both gated on this landing first).
+    blockers:
+      - "Vercel DATABASE_URL is a single env row tagged Production+Preview, so
+         one value serves both. The branch-scoped Preview (staging) row overrides
+         it on staging only — any OTHER preview branch gets the production
+         database, and with no generic-Preview DATABASE_URL_UNPOOLED,
+         prisma.config.ts falls back to that same pooled production URL. A PR
+         preview build therefore runs migrate deploy against PRODUCTION. This
+         survives the package.json fix untouched: vercel-build runs migrations
+         against whatever DATABASE_URL resolves to. Untagging Preview from the
+         production row is a Vercel-console change, out of scope for BUILD-1."
 
 bugs:
   - id: BUG-1
@@ -876,3 +935,10 @@ debt:
       credentials out of the working tree; consider guarding the build script
       against a production host. Related: BUG-3 (DATABASE_URL_UNPOOLED),
       DEBT-3 (WORKFLOW.md §3 still documents the retired migrate dev flow).
+      BUILD-1 (2026-07-26) addresses the build-script half: migrate deploy now
+      lives in `vercel-build`, so a local `npm run build` no longer touches a
+      database at all. The .env half — local DATABASE_URL still resolving to
+      ep-green-smoke, so `npm run dev` still reads and writes live Keva Juice
+      data — is Gary's edit and is NOT done yet. Do NOT close DEBT-4 until both
+      halves are true AND BUILD-1 has reached production; BUILD-1 is staging-only
+      at time of writing.
