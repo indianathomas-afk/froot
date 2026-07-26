@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope, laborModuleAvailable } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { BuildInfo } from "@/components/build-info"
 import { DashboardClient } from "./dashboard-client"
 
@@ -49,13 +50,18 @@ async function getDashboardData() {
   // Labor Budget card gates on both flags (env availability + org toggle).
   const laborEnabled = laborModuleAvailable(orgId) && org.activeModules.includes("labor")
 
-  return { stores, countRecency, laborEnabled }
+  // PERM-3: the two "Forecasting →" links on this page must ask the same
+  // capability that gates the destination, or STORE/STAFF are shown a link that
+  // dead-ends in a redirect. Absent, not disabled.
+  const canViewForecasting = can({ role }, "forecasting.view")
+
+  return { stores, countRecency, laborEnabled, canViewForecasting }
 }
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
   if (!data) return null
-  const { stores, countRecency, laborEnabled } = data
+  const { stores, countRecency, laborEnabled, canViewForecasting } = data
 
   return (
     <>
@@ -63,6 +69,7 @@ export default async function DashboardPage() {
         stores={stores.map((s) => ({ id: s.id, name: s.name, location: [s.city, s.state].filter(Boolean).join(", ") }))}
         countRecency={countRecency}
         laborEnabled={laborEnabled}
+        canViewForecasting={canViewForecasting}
       />
       <BuildInfo />
     </>

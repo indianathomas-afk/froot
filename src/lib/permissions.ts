@@ -230,13 +230,38 @@ export function can(user: PermissionUser, capability: Capability): boolean {
   return granted.includes(user.role)
 }
 
-// Scoped/valued capability — returns the LIMIT, not a yes/no. In this phase
-// every granted capability is unrestricted (today's scoping — store lists,
-// manager training scope — still lives at the call sites; see header). The
-// shape exists now so retrofitting valued permissions later is additive:
-// Phase 3+ adds { access: "limited", ... } variants without touching callers.
-export type CapabilityScope = { access: "none" } | { access: "unrestricted" }
+// Scoped/valued capability — returns the LIMIT, not a yes/no. Most granted
+// capabilities are unrestricted; today's data scoping (store lists, manager
+// training scope) still lives at the call sites (see header). PERM-3 added the
+// first genuine limit: a "window" variant carrying how many months past the
+// current one a role may see.
+//
+// "window" is a DISPLAY restriction, not a confidentiality boundary — see
+// DECISIONS.md "Forecast read window is a display restriction". Callers null
+// out-of-window values; they do not treat them as secrets.
+export type CapabilityScope =
+  | { access: "none" }
+  | { access: "unrestricted" }
+  // monthsAhead: 0 = current month only, 1 = current + next.
+  | { access: "window"; monthsAhead: number }
+
+// Per-role narrowing BELOW the GRANTS ceiling. A role absent here gets
+// { access: "unrestricted" } when can() allows the capability. This table is
+// where PERM-5's per-user overrides hook in — one place, as designed.
+const SCOPE_OVERRIDES: Partial<Record<Capability, Partial<Record<PermissionRole, CapabilityScope>>>> = {
+  // PERM-3 (Gary, 2026-07-26): a manager budgets for the month they are in and
+  // the one after it. Forward FORECAST values outside that horizon are hidden
+  // so tentative numbers are not presented as authoritative; historical ACTUAL
+  // sales stay fully visible (a manager needs last July to budget this July).
+  // The window is enforced per request from the store's timezone — see
+  // src/lib/forecast-window.ts.
+  "forecasting.view": { MANAGER: { access: "window", monthsAhead: 1 } },
+}
 
 export function scope(user: PermissionUser, capability: Capability): CapabilityScope {
-  return can(user, capability) ? { access: "unrestricted" } : { access: "none" }
+  // can() first: deny-by-default, and an override can never elevate a role
+  // that lacks the capability outright.
+  if (!can(user, capability)) return { access: "none" }
+  const override = isPermissionRole(user.role) ? SCOPE_OVERRIDES[capability]?.[user.role] : undefined
+  return override ?? { access: "unrestricted" }
 }

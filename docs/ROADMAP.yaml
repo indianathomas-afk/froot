@@ -111,6 +111,27 @@ phases:
     title: "User management fixes — names display, STAFF edit option, Clerk role sync, admin/self guards"
     notes: Built 7-22; prod via 942bc59. Outstanding checks were unblocked by the HR-15 staging pass.
 
+  - id: UM-2
+    track: platform
+    size: M
+    status: planned
+    title: "Role column on organization members + read-only role-capability matrix page"
+    notes: >
+      Logged by PERM-3 (2026-07-26), explicitly scoped out of it. Two pieces:
+      (1) a role / permission-level column on the organization MEMBERS table of
+      /users. Check before building: the users page already renders role badges
+      via ROLE_STYLES in the PENDING INVITATIONS table, so confirm whether the
+      accepted-members table has the same column before treating it as new work.
+      (2) a read-only role-capability matrix page, linked from the Edit User
+      modal, rendered FROM THE LIVE REGISTRY in src/lib/permissions.ts (GRANTS
+      plus the SCOPE_OVERRIDES table PERM-3 added) — never a hand-maintained
+      table, which would drift from enforcement the first time a capability
+      moves.
+      Layout note carried from the PERM-3 prompt: PERM-5's per-user overrides
+      belong in the Edit User modal, while the role BASELINE stays on the global
+      matrix page. Build the matrix page so a per-user diff can sit beside it.
+      Numbered UM-2 because UM-1 is a shipped phase (2026-07-23, 516b6da).
+
   - id: STAFF-1
     track: platform
     size: L
@@ -722,13 +743,49 @@ phases:
   - id: PERM-3
     track: permissions
     size: M
-    status: planned
-    title: "MANAGER/STORE forecast + sales read window limited to current and next month"
+    status: staging
+    title: "MANAGER forecast read window (current + next month), forecasting store scoping, affordance visibility"
     notes: >
-      Gary's ruling during PERM-2, explicitly scoped out of it: MANAGER and
-      STORE should only SEE current-month and next-month forecast and sales
-      data. This is a read-window restriction across several forecasting and
-      dashboard endpoints, not a contradiction fix — hence its own phase.
+      Audit-first session (docs/prompts/PERM-3_forecasting_read_window.md).
+      NOTE: this entry previously said MANAGER *and STORE* get a current+next
+      month window on forecast AND sales data. Task 1 established that was
+      wrong on both counts, and Gary's ruling (option c, 2026-07-26) replaced
+      it: STORE and STAFF get NO forecasting access at all (the APIs already
+      403'd them), and MANAGER's window applies ONLY to forward forecast goals —
+      historical actual sales stay fully visible, because a manager needs last
+      July's actuals to budget this July. ADMIN unrestricted. Writes unchanged
+      and still ADMIN-only (§3 #7 deliberately not harmonized).
+      Task 1 found the phase was a pure RESTRICTION with no grants: managers
+      could read an unbounded number of forward years, and the two dashboard
+      "Forecasting →" links (Monthly Goal card, rollup Store Ranking header)
+      rendered for every role with no capability check at all, dead-ending in a
+      redirect for STORE/STAFF — the PERM-2 bug class, UI-only.
+      Enforced server-side by per-FIELD masking, never by a 4xx: rejecting or
+      clamping the requested range would also withhold the historical actuals
+      the ruling grants. /calendar and /export null `goal` outside the window
+      (and `variance` with it, since actual − goal hands the goal back);
+      /audit filters entries to window months. plan GET's annual aggregates stay
+      visible to MANAGER by ruling. No new capability — forecasting.view gained
+      a scope() window via the new SCOPE_OVERRIDES table, which is also where
+      PERM-5's per-user overrides will hook in.
+      Window is computed per request from Store.timezone in the new pure
+      src/lib/forecast-window.ts, shared by the API guards AND the client year
+      selector so they cannot drift; inclusive 1st-of-current-month through
+      last-day-of-next, crossing the year in December. The year selector's
+      forward edge derives from the window, so a manager in December can still
+      select next January's year.
+      Also fixed in scope (Gary): every forecasting read was org-scoped but not
+      assignment-scoped, so a MANAGER could read any sibling store's forecast by
+      passing its storeId — now mirrors requireLaborStore. Migrated
+      forecasting-access.ts and forecasting/page.tsx off their inline role
+      checks onto can(). See DECISIONS.md for Q1–Q4 and the accepted
+      basis-reconstruction property.
+    deferred:
+      - >
+        forecastWindowForCaller (used only by /audit, whose storeId is optional)
+        picks the window's timezone by sorting the caller's assigned stores on
+        storeNumber then name. Placeholder pending BUILD-2 (deterministic
+        primary store), which is blocked on BUILD-1.
 
   - id: PERM-4
     track: permissions
@@ -808,6 +865,33 @@ phases:
       it must not start before BUILD-1 is verified — until then a local
       `npm run build` runs migrate deploy against the PRODUCTION branch
       (DEBT-4).
+
+  - id: SEC-3
+    track: security
+    size: M
+    status: planned
+    title: "Forecasting budget-file uploads are world-readable in Vercel Blob"
+    notes: >
+      Found by PERM-3's Task 1 audit (2026-07-26), recorded not fixed on Gary's
+      instruction — it is a live data exposure, not a permissions tier, so it
+      needs its own session.
+      SEVERITY: a tenant's uploaded budget file is retrievable by URL with NO
+      authentication whatsoever. POST /api/forecasting/import writes it to
+      Vercel Blob with access: "public" at
+      forecasting/${orgId}/${storeId}/${year}-${Date.now()}.${ext}, persists
+      that URL on GoalPlan.importFileUrl and in the audit log, and
+      /api/forecasting/plan GET hands it to any MANAGER. The only thing standing
+      between the file and the public internet is the guessability of a
+      millisecond timestamp — and anyone who has ever legitimately seen the URL
+      keeps access forever, including after losing their role.
+      Fix direction: move to a PRIVATE Blob store with signed, short-lived reads,
+      the pattern HR documents already use (HR_BLOB_READ_WRITE_TOKEN +
+      src/lib/hr-files.ts passing the token explicitly on every call). Existing
+      blobs must be migrated or re-uploaded; the persisted importFileUrl values
+      become stale and need a backfill or an on-demand signing indirection.
+      Not a schema change in itself, but the backfill may want one — if so it is
+      GATED ON BUILD-1 like SEC-2 (a local build runs migrate deploy against the
+      PRODUCTION branch until then, DEBT-4).
 
   # ---- Migration / nutrition ----
 

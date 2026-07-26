@@ -153,10 +153,14 @@ export function DashboardClient({
   stores,
   countRecency,
   laborEnabled = false,
+  canViewForecasting = false,
 }: {
   stores: { id: string; name: string; location: string }[]
   countRecency: { storeId: string; storeName: string; days: number | null }[]
   laborEnabled?: boolean
+  // PERM-3: gates the "Forecasting →" links. Defaults false so a caller that
+  // forgets to pass it hides the link rather than leaking it.
+  canViewForecasting?: boolean
 }) {
   const savedStoreId = useSavedStoreId()
   const storeId =
@@ -246,7 +250,7 @@ export function DashboardClient({
 
       {isRollup ? (
         /* All-locations rollup: company totals + store ranking (F-4) */
-        <RollupView />
+        <RollupView canViewForecasting={canViewForecasting} />
       ) : (
         <>
           {/* Sales row: Performance (2) + Monthly Goal (1). */}
@@ -255,7 +259,7 @@ export function DashboardClient({
               <SalesPerformanceCard storeId={storeId} />
             </div>
             <div className="flex-1 min-w-[260px]">
-              <MonthlyGoalCard loading={loading} failed={summaryFailed} onRetry={retrySummary} summary={current} onSaved={loadSummary} />
+              <MonthlyGoalCard loading={loading} failed={summaryFailed} onRetry={retrySummary} summary={current} onSaved={loadSummary} canViewForecasting={canViewForecasting} />
             </div>
           </div>
 
@@ -378,12 +382,14 @@ function MonthlyGoalCard({
   onRetry,
   summary,
   onSaved,
+  canViewForecasting,
 }: {
   loading: boolean
   failed: boolean
   onRetry: () => void
   summary: Summary | null
   onSaved: () => void
+  canViewForecasting: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [amount, setAmount] = useState("")
@@ -476,12 +482,16 @@ function MonthlyGoalCard({
         <div className="flex items-center justify-between mb-1">
           <p className="text-[15px] font-bold text-[var(--color-foreground)]">Monthly Goal</p>
           {goal.source === "plan" ? (
-            <Link
-              href="/forecasting"
-              className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]"
-            >
-              Forecasting →
-            </Link>
+            // PERM-3: asks the same capability that gates /forecasting, so
+            // STORE/STAFF get no link at all rather than one that redirects.
+            canViewForecasting && (
+              <Link
+                href="/forecasting"
+                className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]"
+              >
+                Forecasting →
+              </Link>
+            )
           ) : (
             summary.canManageGoal && (
               <button

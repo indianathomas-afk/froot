@@ -5,6 +5,59 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## PERM-3 forecast read window — 2026-07-26 (Gary ruled on Q1–Q4 + two additions)
+
+The ruling: ADMIN unrestricted. MANAGER sees forward forecast for the **current
+and next month only**, but **full history** of actual sales. STORE and STAFF get
+no forecasting surface at all (which the server already enforced — for them this
+phase only removed two links that dead-ended in a redirect).
+
+a. **Q1 — per-field nulling, not range clamping (Gary).** `/calendar` and
+   `/export` return goals and actuals in the same rows. Clamping or rejecting the
+   requested *range* would withhold the historical actuals the ruling grants, so
+   the window nulls the `goal` field and leaves `basis` and `actual` intact.
+   `export`'s `variance` is nulled with the goal, since `actual − variance`
+   returns the goal by subtraction (Claude — a derived-field leak Gary's ruling
+   implied but did not enumerate).
+b. **Q2 — annual aggregates stay visible to MANAGER (Gary).** `plan` GET's
+   `goalTotal`, `basisTotal` and `increasePct` are context for the manager's
+   monthly number, not a planning surface.
+c. **Q3 — `/audit` filtered to the window for MANAGER (Gary).** The `before` /
+   `after` goal dollars in audit metadata were otherwise a back-door read of
+   exactly the values `/calendar` masks. Filtered in the query so `limit` still
+   returns a full page. Plan-level (bare-year) entries are kept for the window's
+   years, since (b) makes those aggregates visible anyway.
+d. **Q4 — the year selector's forward edge derives from the window, never the
+   calendar year (Gary).** In December the window is December of year N plus
+   January of N+1, so the selector must offer **both** years — a manager
+   budgeting for January in December is the primary use case for the phase.
+   Backward, `windowStartYear − 1` stays selectable because historical actuals
+   are not restricted (Claude's inference from the ruling table; the selector is
+   convenience only, and `export` / `day-report` remain unbounded backward).
+e. **Addition 1 — manager store scoping, in scope (Gary).**
+   `requireForecastStore` checked `organizationId` only, so a MANAGER assigned to
+   Las Brisas could read South Reno's forecast by passing its `storeId`. Now
+   mirrors `requireLaborStore`. §2 item 18.
+f. **Addition 2 — the public Blob budget file is SEC-3, recorded not fixed
+   (Gary).** Needs its own session and a Blob access-model change. §2 item 19.
+
+### The window is a display restriction, not a confidentiality one
+
+**Accepted by Gary, 2026-07-26.** Out-of-window goals remain *approximately
+derivable* by a manager: for any day that is not a manual override,
+`goal ≈ basis × (1 + increasePct/100)`, and (a) keeps `basis` while (b) keeps
+`increasePct`. The annual `goalTotal` is visible outright.
+
+This is acceptable because **the purpose is to avoid presenting tentative
+forward numbers as authoritative, not to keep them secret.** A manager who
+reconstructs an estimate from the basis has done arithmetic on a projection, not
+defeated an access control.
+
+Recorded explicitly so nobody reading the roadmap later believes this phase
+makes those values unavailable. If real confidentiality is ever required, hiding
+`basis` and `increasePct` would be the change — and it would cost managers the
+historical-actuals visibility this ruling deliberately protects.
+
 ## PERM-2 `POST /api/checklists` — audit finding + scope exception — 2026-07-26 (Gary ruled on all three)
 
 PERM-2's Task 1 required auditing the endpoint before applying any permission

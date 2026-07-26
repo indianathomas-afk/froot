@@ -9,7 +9,7 @@ import { round2 } from "@/lib/pacing"
 
 export type ForecastCsvRow = {
   key: string // yyyy-mm-dd (daily) or yyyy-mm (monthly)
-  goal: number
+  goal: number | null // PERM-3: null = outside the caller's forecast window
   actual: number | null // null = no sales cached for the span
 }
 
@@ -17,9 +17,11 @@ export function buildForecastCsv(shape: "daily" | "monthly", rows: ForecastCsvRo
   const header = [shape === "daily" ? "date" : "month", "goal", "actual", "variance"]
   const lines = rows.map((r) => [
     r.key,
-    round2(r.goal),
+    r.goal !== null ? round2(r.goal) : "",
     r.actual !== null ? round2(r.actual) : "",
-    r.actual !== null ? round2(r.actual - r.goal) : "",
+    // variance is actual − goal, so emitting it when the goal is withheld would
+    // hand the goal straight back by subtraction. Both or neither (PERM-3).
+    r.actual !== null && r.goal !== null ? round2(r.actual - r.goal) : "",
   ])
   return [header, ...lines].map((row) => row.map(escapeCell).join(",")).join("\n")
 }

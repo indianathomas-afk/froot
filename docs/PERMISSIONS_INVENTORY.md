@@ -37,7 +37,8 @@ Enforcement types:
 | `getActiveStaffSelf` | `src/lib/auth.ts` | The one `/my/*` gate: HR gates + linked ACTIVE StaffMember (self-scope) |
 | `requireCountsContext` / `requireCount` | `src/lib/count-access.ts` | Inventory module + `{isAdmin, canManage, storeIds}`; count resolved in scope |
 | `adjustmentRouteContext` / `canAccessStore` | `src/lib/adjustments.ts` | Inventory module + same scope shape (no role floor) |
-| `requireForecastContext` / `requireForecastStore` | `src/lib/forecasting-access.ts` | View = ADMIN+MANAGER; `{write:true}` = ADMIN only; org-scoped store |
+| `requireForecastContext` / `requireForecastStore` | `src/lib/forecasting-access.ts` | View = `can(forecasting.view)`; `{write:true}` = `can(forecasting.edit)` (ADMIN); store scoped to `StoreUserAssignment` for non-admins (PERM-3). Also exposes `viewScope` + `forecastWindowForStore` / `forecastWindowForCaller` |
+| `forecastWindowFrom` / `isDateInWindow` / `isMonthInWindow` / `windowYears` | `src/lib/forecast-window.ts` | Pure month math for the MANAGER forecast window (current + next month). No DB — shared by the API guards and the client year selector so they cannot drift |
 | `requireLaborView` / `requireLaborContext` / `requireLaborStore` | `src/lib/labor-access.ts` | Labor gates → 404; view = any member; context = ADMIN+MANAGER (write==read); store scoped for non-admin |
 | `requireHrDocumentAccess` | `src/app/api/hr/documents/access.ts` | HR gates; read = any member, `{admin:true}` = ADMIN |
 | `requireHrTrainingAccess` | `src/app/api/hr/training/access.ts` | HR gates + ADMIN (builder tier) |
@@ -115,7 +116,7 @@ referenced by the capability registry in §5.
 | PG-9 | `(app)/staff/layout.tsx` + `page.tsx` | Staff directory | ADMIN+MANAGER; list scoped; add/import ADMIN-only buttons | route-guard + data-scope + client-render |
 | PG-10 | `(app)/staff/[id]/page.tsx` | Staff detail | ADMIN org-wide, MANAGER in-scope (404 outside); HR gates; notes tab ADMIN/MANAGER | route-guard + data-scope |
 | PG-11 | `(app)/reports/layout.tsx` + `page.tsx` | Reports | ADMIN+MANAGER; data scoped | route-guard + data-scope |
-| PG-12 | `(app)/forecasting/page.tsx` | Forecasting | ADMIN+MANAGER (redirect); edit UI ADMIN (`isAdmin` prop) | route-guard + client-render |
+| PG-12 | `(app)/forecasting/page.tsx` | Forecasting | `can(forecasting.view)` (redirect); edit UI = `can(forecasting.edit)`; store list scoped to assignments for non-admins (PERM-3) | route-guard + client-render |
 | PG-13 | `(app)/store-view/page.tsx` | Store View | **Any member** (incl. STAFF), scoped | data-scope (role restriction is nav-only) |
 | PG-14 | `(app)/store-view/checklist/[id]/page.tsx` | Checklist execution | Any member, store-scoped (404 outside) | data-scope |
 | PG-15 | `(app)/settings/page.tsx` | Settings hub | ADMIN (redirect) | route-guard |
@@ -192,8 +193,19 @@ referenced by the capability registry in §5.
 
 | ID | Route(s) | What it guards | Roles allowed today | Enforcement type |
 |---|---|---|---|---|
-| FC-1 | `forecasting/plan` GET, `calendar`, `basis`, `day-report`, `export`, `audit` | Forecast reads | ADMIN + MANAGER (managers all locations, read-only — v1 decision) | handler |
-| FC-2 | `forecasting/plan` POST, `day`, `month`, `backfill`, `import` | Goal writes | ADMIN only (`{write:true}`) | handler |
+| FC-1 | `forecasting/plan` GET, `basis`, `day-report` | Forecast reads with no per-day goal payload — annual plan aggregates, last-year basis totals, live actuals | ADMIN + MANAGER (`forecasting.view`), each scoped to assigned stores | handler + data-scope |
+| FC-1w | `forecasting/calendar`, `export` | Per-day goal reads | ADMIN + MANAGER; MANAGER's `goal` (and `export`'s derived `variance`) is **nulled outside the current+next-month window** — `basis` and `actual` are not, so full sales history stays readable (PERM-3) | handler + field-mask |
+| FC-1a | `forecasting/audit` | Goal-edit history | ADMIN + MANAGER; MANAGER limited to assigned stores **and** to window months (the `before`/`after` metadata is otherwise a back-door read of masked goals) | handler + data-scope |
+| FC-2 | `forecasting/plan` PUT, `day`, `month`, `backfill`, `import` | Goal writes | ADMIN only (`{write:true}` → `forecasting.edit`) | handler |
+
+PERM-3 notes: the window is computed **per request** from `Store.timezone`, never
+cached across a month boundary, and is inclusive from the 1st of the current
+month through the last day of the next (December → next January, crossing the
+year). Out-of-window requests are **masked, never rejected** — a 4xx would both
+withhold the historical actuals managers are entitled to and reintroduce the §2
+"page renders while its API 403s" class. The window is a DISPLAY restriction,
+not a confidentiality boundary; see DECISIONS.md "Forecast read window is a
+display restriction, not a confidentiality one".
 
 ### 1g. Labor APIs (all behind both Labor gates → 404)
 
@@ -251,7 +263,9 @@ referenced by the capability registry in §5.
 |---|---|
 | `dashboard/dashboard-client.tsx` | `canManageGoal` (ADMIN/MANAGER) goal edit affordance |
 | `dashboard/labor-*.tsx`, `labor/weekly-plan-client.tsx` | `canManage` (server-computed flag) manual budget / rebalance affordances |
-| `forecasting/forecasting-client.tsx` | `isAdmin` edit vs read-only |
+| `forecasting/forecasting-client.tsx` | `isAdmin` edit vs read-only; `windowed` bounds the year selector's forward edge and labels the blanked months |
+| `dashboard/dashboard-client.tsx` (Monthly Goal card) | `canViewForecasting` gates the `Forecasting →` link — was ungated for every role (PERM-3) |
+| `dashboard/rollup-view.tsx` (Store Ranking header) | `canViewForecasting` gates the `Forecasting →` link — was ungated for every role (PERM-3) |
 | `inventory/*-client.tsx` (ingredients, counts, storage-areas, vendors, po-detail, sales-items, adjustments) | `canManage` / `isAdmin` props gate add/edit/delete/sync/import buttons |
 | `messages/messages-client.tsx` | `isManager` status/ack controls; `isAdmin` corporate-update compose/delete |
 | `hr/documents/documents-client.tsx` | `isAdmin` add/edit/archive/generate |
@@ -291,8 +305,12 @@ Ordered worst-first. **None fixed in PERM-1** (recorded for a follow-up phase).
 **D. Known-by-design (documented, listed for completeness):**
 16. STAFF `/my` confinement is a UI lock only (SH-2 comment; HR-9 "EMPLOYEE role split" is the planned fix) — a linked STAFF login retains the full STAFF-tier API surface above.
 
+**B (cont.) — found and fixed by PERM-3:**
+18. ~~**Every `/api/forecasting/*` read was org-scoped but not assignment-scoped** — `requireForecastStore` checked `organizationId` only, so a MANAGER assigned to one location could read any sibling store's forecast, sales history, live Square balancing report and CSV export by passing its `storeId`. `/audit` was the only route that filtered by assignment.~~ **RESOLVED — PERM-3 (2026-07-26):** `requireForecastStore` now mirrors `requireLaborStore` (403 for non-admins outside `StoreUserAssignment`), and `(app)/forecasting/page.tsx` scopes its store list the same way.
+
 **E. Logged as follow-up phases:**
 17. **SEC-2 (logged 2026-07-25):** Instagram OAuth has the same missing-nonce shape SEC-1 fixed for Square — its callback's org-equality check blocks cross-org token planting, but `state` is still the predictable orgId with no CSRF nonce. Deliberately untouched in SEC-1 (Instagram was the reference implementation); with Square hardened, Instagram is now the weaker flow. See ROADMAP `SEC-2`.
+19. **SEC-3 (logged 2026-07-26, found by PERM-3):** `POST /api/forecasting/import` writes the uploaded budget file to Vercel Blob with `access: "public"` at `forecasting/${orgId}/${storeId}/${year}-${Date.now()}.${ext}`, persists that URL on the plan and in the audit log, and `plan` GET hands it to any MANAGER. **A tenant's budget file is retrievable by URL with no authentication at all** — the only protection is the timestamp's guessability. Not a permissions tier, so deliberately NOT fixed in PERM-3; it needs a Blob access-model change (private store + signed reads, as HR documents already do via `HR_BLOB_READ_WRITE_TOKEN`). See ROADMAP `SEC-3`.
 
 ---
 
@@ -340,8 +358,15 @@ Convention: `domain.resource.action`. The shim exposes:
 
 ```ts
 can(user, capability): boolean       // boolean gate
-scope(user, capability): unknown     // valued gate — unrestricted for every
-                                     // capability in this phase
+scope(user, capability): CapabilityScope
+  // { access: "none" } | { access: "unrestricted" }
+  // | { access: "window"; monthsAhead: number }
+  //
+  // Unrestricted for every capability EXCEPT forecasting.view for MANAGER,
+  // which PERM-3 narrowed to a current+next-month window. Narrowing lives in
+  // the SCOPE_OVERRIDES table in src/lib/permissions.ts — gated behind can(),
+  // so an override can restrict below a role's ceiling but never elevate above
+  // it. That table is where PERM-5's per-user overrides hook in.
 ```
 
 Deny-by-default: unknown capability → `false`.
@@ -370,7 +395,7 @@ Deny-by-default: unknown capability → `false`.
 | `staff.documents.manage` | ADMIN, MANAGER (in-scope) | PL-19, PL-20 |
 | `staff.notes.use` | ADMIN, MANAGER (in-scope; delete author-or-ADMIN) | PL-21 |
 | `reports.view` | ADMIN, MANAGER | NV-8, PG-11 |
-| `forecasting.view` | ADMIN, MANAGER | NV-9, PG-12, FC-1 |
+| `forecasting.view` | ADMIN; MANAGER **scoped** — `scope()` returns `{access:"window", monthsAhead:1}`, limiting per-day forecast goals to the current and next month. Historical actuals are NOT limited. Assigned stores only for non-admins | NV-9, PG-12, FC-1, FC-1w, FC-1a |
 | `forecasting.edit` | ADMIN | FC-2 |
 | `storeview.access` | ADMIN, MANAGER, STORE (nav tier; page allows all — gap #10) | NV-10, PG-13 |
 | `instagram.view` | all roles (when enabled) | NV-11, PG-18, IG-3 |
@@ -444,3 +469,30 @@ the manager training-module scope (HR-17) — both listed so phase 3 designs
    or a leftover.
 7. `dashboard/goal` PUT (PL-9) writing a manual goal a MANAGER can set while
    Forecasting is ADMIN-only (§3 #6) — pick a tier when capabilities go live.
+
+**Found by PERM-3 (2026-07-26), recorded only — none fixed:**
+
+8. `GET /api/forecasting/day-report` runs an **uncached, paginated live Square
+   `SearchOrders` loop** (`limit: 500`, follows `cursor` to exhaustion) for any
+   date, with no rate limiting and no result caching. Cheapest endpoint to abuse
+   in the app; every other sales read goes through `SalesPeriodCache`.
+9. `POST /api/forecasting/import` validates `year` with `Number.isInteger` only,
+   while its sibling writes `/backfill` and `/plan` PUT both clamp
+   `2020..2100`. An admin can materialize a full `yearDates(year)` set of
+   `DailyGoal` rows for year `1` or `9999`.
+10. `/calendar` and `/export` interpolate an unvalidated `year` straight into a
+    date string (`dbDate(\`${year}-01-01\`)`), so a non-4-digit or fractional
+    year yields `Invalid Date` and a Prisma-layer error instead of a clean 400.
+11. §1f previously listed the plan write as `forecasting/plan` **POST**; the
+    route exports **GET** and **PUT** (there is no POST). Corrected in this
+    revision — noted because the same error may exist in other docs.
+12. Several Labor surfaces tell users to "set up sales goals in Forecasting"
+    (`labor-budget-card.tsx`, `labor-coverage-card.tsx`,
+    `labor/weekly-plan-client.tsx`). These are **text, not links**, so PERM-3's
+    affordance rule does not strictly apply — but `/labor` is `labor.view` =
+    ALL, so STAFF and STORE read a pointer to a surface they cannot open.
+13. `(app)/dashboard/page.tsx` still computes `canSeeCounts` with an inline
+    `role === "ADMIN" || role === "MANAGER"` for the inventory count-recency
+    block. Untouched by PERM-3 (it is an inventory gate, not a forecasting one);
+    it should become `can(inventory.analytics.view)` or similar when that
+    surface is migrated.

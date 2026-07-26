@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { requireForecastContext, requireForecastStore } from "@/lib/forecasting-access"
+import { requireForecastContext, requireForecastStore, forecastWindowForStore } from "@/lib/forecasting-access"
+import { isDateInWindow, isMonthInWindow } from "@/lib/forecast-window"
 import { buildForecastCsv, type ForecastCsvRow } from "@/lib/forecast-csv"
 import { dbDate, localDateStr } from "@/lib/reports"
 import { daysInMonth } from "@/lib/pacing"
@@ -55,11 +56,20 @@ export async function GET(req: Request) {
 
   const actualByDate = new Map(actuals.map((a) => [a.date.toISOString().slice(0, 10), a.netSales]))
 
+  // PERM-3: same per-field rule as /calendar — withhold out-of-window GOALS,
+  // keep every historical ACTUAL. The window is month-aligned, so in the
+  // monthly shape a month is wholly in or wholly out and never half-masked.
+  const win = forecastWindowForStore(ctx, store)
+
   let rows: ForecastCsvRow[]
   if (shape === "daily") {
     rows = goals.map((g) => {
       const key = g.date.toISOString().slice(0, 10)
-      return { key, goal: g.goalAmount, actual: actualByDate.get(key) ?? null }
+      return {
+        key,
+        goal: !win || isDateInWindow(key, win) ? g.goalAmount : null,
+        actual: actualByDate.get(key) ?? null,
+      }
     })
   } else {
     const byMonth = new Map<string, { goal: number; actual: number; hasActual: boolean }>()
@@ -74,7 +84,11 @@ export async function GET(req: Request) {
       }
       byMonth.set(key, m)
     }
-    rows = [...byMonth.entries()].map(([key, m]) => ({ key, goal: m.goal, actual: m.hasActual ? m.actual : null }))
+    rows = [...byMonth.entries()].map(([key, m]) => ({
+      key,
+      goal: !win || isMonthInWindow(key, win) ? m.goal : null,
+      actual: m.hasActual ? m.actual : null,
+    }))
   }
 
   const csv = buildForecastCsv(shape, rows)

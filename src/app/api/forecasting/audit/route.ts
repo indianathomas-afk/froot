@@ -1,14 +1,21 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import type { Prisma } from "@prisma/client"
-import { requireForecastContext } from "@/lib/forecasting-access"
+import {
+  requireForecastContext,
+  requireForecastStore,
+  forecastWindowForStore,
+  forecastWindowForCaller,
+} from "@/lib/forecasting-access"
 import { GOAL_ENTITY_TYPES } from "@/lib/audit"
+import { windowYears, type ForecastWindow } from "@/lib/forecast-window"
 
 // GET /api/forecasting/audit?storeId=&month=&limit= — read-only goal-edit
 // history (Phase F-5), newest first. Admins see any org store; managers see
-// only their assigned stores (tighter than forecasting reads on purpose —
-// the audit trail names who changed what). month= (yyyy-mm) narrows to edits
-// of that month's goals, including plan-level (whole-year) changes.
+// only their assigned stores (which PERM-3 made true of every forecasting read,
+// so this route is no longer the strict outlier it was) and only entries inside
+// their forecast window. month= (yyyy-mm) narrows to edits of that month's
+// goals, including plan-level (whole-year) changes.
 
 const MAX_LIMIT = 100
 
@@ -26,8 +33,17 @@ export async function GET(req: Request) {
   }
 
   const assignedIds = ctx.dbUser?.storeAssignments.map((a) => a.storeId) ?? []
-  if (!ctx.isAdmin && storeId && !assignedIds.includes(storeId)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
+  // storeId present → requireForecastStore enforces org + assignment (the check
+  // this route already did by hand) and hands back the row whose timezone
+  // defines the window. Absent → fall back to the caller's deterministic store.
+  let win: ForecastWindow | null
+  if (storeId) {
+    const store = await requireForecastStore(ctx, storeId)
+    if ("error" in store) return store.error
+    win = forecastWindowForStore(ctx, store)
+  } else {
+    win = await forecastWindowForCaller(ctx)
   }
 
   // Store scoping lives in metadata.storeId (AuditLog is entity-generic).
@@ -49,12 +65,35 @@ export async function GET(req: Request) {
       ]
     : []
 
+  // PERM-3: a manager's audit trail is limited to their forecast window —
+  // otherwise the before/after goal dollars in the metadata are a back-door
+  // read of exactly the values /calendar withholds. Filtered in the QUERY, not
+  // after the fetch, so `limit` still returns a full page of visible entries.
+  //
+  // A window month prefix matches both the day periods inside it ("2026-12-05")
+  // and the month period itself ("2026-12"); plan-level entries carry a bare
+  // year, and those are kept for the window's years because the annual
+  // aggregates they hold are visible to managers anyway (Gary, Q2).
+  const windowFilter: Prisma.AuditLogWhereInput[] = win
+    ? [
+        ...win.months.map((mo) => ({
+          metadata: { path: ["period"], string_starts_with: mo },
+        })) satisfies Prisma.AuditLogWhereInput[],
+        ...windowYears(win).map((y) => ({
+          metadata: { path: ["period"], equals: String(y) },
+        })) satisfies Prisma.AuditLogWhereInput[],
+      ]
+    : []
+
   const rows = await prisma.auditLog.findMany({
     where: {
       organizationId: ctx.org.id,
       entityType: { in: [...GOAL_ENTITY_TYPES] },
       ...(storeFilter.length > 0 ? { OR: storeFilter } : {}),
-      ...(monthFilter.length > 0 ? { AND: [{ OR: monthFilter }] } : {}),
+      AND: [
+        ...(monthFilter.length > 0 ? [{ OR: monthFilter }] : []),
+        ...(windowFilter.length > 0 ? [{ OR: windowFilter }] : []),
+      ],
     },
     orderBy: { createdAt: "desc" },
     take: limit,
