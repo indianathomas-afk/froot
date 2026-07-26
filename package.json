@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/generate-roadmap.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/generate-roadmap.mjs",
     "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint"
@@ -53,6 +55,7 @@
     "unpdf": "^1.6.2",
     "ws": "^8.21.0",
     "xlsx": "^0.18.5",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
