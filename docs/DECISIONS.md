@@ -5,6 +5,93 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## BUG-3 migrations bypass the Neon pooler — 2026-07-25 (Gary approved plan + fallback ruling)
+
+Fixes the intermittent P1002 deploy failure: Prisma's migration advisory lock
+(`pg_advisory_lock(72707369)`) leaked onto recycled pgbouncer backends on
+Neon's pooled endpoint (hit `ecee728` on 7-25, a commit with no migration —
+`migrate deploy` takes the lock even just to check for pending migrations).
+
+a. **Mechanism — `prisma.config.ts`, not schema `directUrl` (finding, Gary
+   approved).** Prisma 7 removed `directUrl` from schema files entirely (the
+   installed 7.8.0 parser errors: "no longer supported in schema files. Move
+   connection URLs to `prisma.config.ts`"; `@prisma/config`'s `Datasource`
+   type is `{ url?, shadowDatabaseUrl? }`). The config's `datasource.url` is
+   the **sole** URL source for CLI commands — schema.prisma holds no URLs and
+   is untouched. Runtime is fully decoupled: `src/lib/prisma.ts` builds the
+   Neon adapter from pooled `DATABASE_URL` directly.
+b. **Fallback, not strict — with a loud warning (Gary).** `datasource.url` is
+   `DATABASE_URL_UNPOOLED ?? DATABASE_URL`. Strict would turn a missing env
+   var into a production build failure (`Error: The datasource.url property is
+   required...` — reproduced) right before the queued HR promotion; fallback
+   degrades to current pooled behavior instead. The config `console.warn`s
+   when falling back, naming the var — so a silent regression to the pooler
+   can't resurface as an unexplained P1002 years later. Detection either way:
+   the build log's `Datasource "db"` host line (must not end `-pooler`).
+c. **Env var — reuse `DATABASE_URL_UNPOOLED`, no new Vercel vars (finding,
+   Gary verified).** The Neon integration already set it in Preview (staging),
+   Production, and Development. Staging's value verified by pull: pooled host
+   minus `-pooler`, otherwise identical. Production's is Sensitive/unreadable
+   from this machine — Gary eyeballed the dashboard and confirmed both
+   Preview and Production match their `DATABASE_URL` hosts minus `-pooler`,
+   same endpoint id and branch. Local `.env` gets the var manually (Gary).
+d. **No migration, no schema change, no new deps.** One line of connection
+   routing in `prisma.config.ts` plus docs. Rollback = revert that file; the
+   env vars predate this change and can safely stay.
+
+Closes PERMISSIONS_INVENTORY.md §2 items 2–3 (found by the PERM-1 audit).
+
+a. **Part B fork — Option 1, double-submit httpOnly cookie; no schema (Gary).**
+   `state` is a 32-byte crypto-random base64url nonce; `/api/square/auth` sets
+   it in an `httpOnly Secure SameSite=Lax` cookie (Max-Age 600, path-scoped to
+   `/api/square/callback`); the callback requires the query param to exactly
+   match the cookie and clears the cookie on EVERY hit, success or failure.
+   **Rationale (Gary):** Square invalidates the authorization code on
+   exchange, so the replay window a DB-table nonce would additionally close is
+   already covered upstream — not worth an additive migration riding the
+   P1002 advisory-lock path for it. The table option (true server-side
+   single-use + audit trail) is the documented upgrade if a second flow ever
+   needs shared state.
+b. **Part A goes beyond the spec — session org is the write target (Claude
+   proposed, Gary explicitly kept).** The spec (and Instagram, the reference)
+   validate `state === session org` and still write by state. SEC-1's callback
+   instead resolves the org **from the session** and never uses `state` as an
+   address — a forged or mangled state can misdirect nothing because it
+   addresses nothing; combined with (a), `state` carries zero authority and is
+   purely a CSRF nonce. Recorded so the reasoning survives: if a future
+   refactor "simplifies" the callback back to writing by state, that is a
+   regression, not a cleanup.
+c. **Part C — the session's one deliberate behavior change (Gary).**
+   `/api/square/auth` and `POST /api/square/disconnect` are now ADMIN
+   (`requireAdmin`), matching Instagram's tier. Previously any org member
+   could connect or wipe Square tokens by URL. The only in-app callers live on
+   `/settings` (already ADMIN-gated), so no legitimate flow is lost.
+d. **Instagram deliberately untouched; gap logged as SEC-2 (Gary).**
+   Instagram's org-equality check blocks cross-org planting but is not CSRF
+   protection (state is still the predictable orgId). With Square hardened,
+   Instagram is now the weaker flow — ROADMAP `SEC-2`, INVENTORY §2 item 17.
+e. **Existing connections unaffected.** No token columns, refresh logic, or
+   `squareBaseUrl()` touched — connected orgs keep working, no reconnect.
+f. (Claude) Cookie name + attributes live in `src/lib/square.ts`
+   (`SQUARE_OAUTH_STATE_COOKIE`/`_OPTIONS`) so auth and callback can't drift;
+   env finding: `NEXT_PUBLIC_SQUARE_APP_ID` (authorize URL) and
+   `SQUARE_APPLICATION_ID` (token exchange) are both Sensitive in Vercel and
+   unreadable from this machine — their match is **inferred** from the working
+   staging connect (a mismatch would 400 at token exchange), not verified;
+   Gary eyeballs the dashboard.
+
+## PERM-3 design constraint — Clerk webhook resets User-row storage on membership churn — 2026-07-25 (Gary)
+
+Recorded from the PERM-1 webhook finding (docs/PERMISSIONS_INVENTORY.md §4) as
+a **constraint, not a bug**: the Clerk `organizationMembership.created` handler
+re-creates the `User` row from defaults (PendingInvite role → role map → STAFF)
+when a member is removed and re-added, so anything stored on `User` resets on
+that churn — the same behavior UM-1 documented for `role`. Any permission
+column added in PERM-3 must be designed with that reset in mind: either
+permission assignment lives where membership churn can't reach it (keyed to
+something more durable than the `User` row), or the webhook's create path is
+explicitly taught to restore it. Deciding which is PERM-3 scope.
+
 ## HR-11c ceremony fixes — anchor dedup, affordance placement, inline identity — 2026-07-24 (Gary approved case + dedup rule)
 
 Three ceremony-UI defects from the mobile `/my` signing pass; the completed PDF

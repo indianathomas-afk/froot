@@ -495,6 +495,25 @@ phases:
     size: M
     status: planned
     title: "Termination + identity-lifecycle hardening (zombie shell, directory toggle, webhooks, initials validation)"
+    notes: >
+      Scope items added 2026-07-25 (audit only, nothing fixed).
+      Clerk webhook (src/app/api/webhooks/clerk/route.ts), both found while
+      checking whether a Clerk org rename reaches the Froot DB — it does, but:
+      (1) organization.updated writes name ONLY — it destructures slug from the
+      payload and never writes it, so a renamed org keeps its original slug
+      forever (only organization.created ever sets slug). (2) That handler uses
+      prisma.organization.update, not upsert, and is not wrapped in try/catch —
+      unlike organization.created and organizationMembership.created, which
+      upsert precisely because Clerk does not guarantee delivery order. A rename
+      for a missing Organization row throws P2025, the route 500s, and the
+      rename is lost unless Clerk's retries land; live risk, since the DB
+      carries fossil org rows while Clerk-side is the truth.
+      Staff-record lifecycle, promoted here from PERMISSIONS_INVENTORY §2
+      (both still unfixed): (3) item 1 — POST /api/staff has NO role check, so
+      any org member incl. STAFF/STORE can create staff members while the
+      /staff UI is ADMIN/MANAGER; this is the inventory's worst-first finding.
+      (4) item 6 — GET /api/staff exposes the staff directory (names, emails,
+      assignments) to any member, store-scoped for non-admins.
 
   - id: HR-15
     track: hr
@@ -585,6 +604,76 @@ phases:
     title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks, Square push"
     notes: Confirm L-3/L-4 order when scoping past L-2. Shares Square OAuth scopes with L-2.
 
+  # ---- Permissions ----
+
+  - id: PERM-1
+    track: permissions
+    size: M
+    status: staging
+    commits: [6f70465]
+    title: "Permission capability shim — enforcement inventory, capability registry, can()/scope() shim, sidebar pilot"
+    notes: >
+      Audit-first session (docs/prompts/PERM-1_permission_capability_shim.md).
+      Zero behavior change by definition. Enforcement inventory + capability
+      registry delivered 2026-07-25 in docs/PERMISSIONS_INVENTORY.md (also
+      records the security-gap and contradiction lists feeding later PERM
+      phases). Shim built: src/lib/permissions.ts (can()/scope(), deny-by-
+      default, hardcoded role grants). Pilot: sidebar nav filter migrated to
+      can(); parity verified — 192/192 role×gate permutations byte-identical
+      to the old roles-array filter; next build green. Sidebar alerts-badge
+      role check deliberately NOT migrated (pilot = nav filter only).
+      Staging pass clean 2026-07-25 (Gary — no nav differences across all
+      four roles).
+    blockers:
+      - >
+        Phase 2 (call-site migration) must not start until Gary rules on each
+        contradicted call site in PERMISSIONS_INVENTORY.md §3 — the shim
+        encodes one answer per capability; migrating a contradicted site
+        silently picks a side.
+      - >
+        Square OAuth callback state validation (§2 gap #3) is SEC-1, its own
+        phase — logged here, unfixed in PERM-1.
+
+  # ---- Security ----
+
+  - id: SEC-1
+    track: security
+    size: S
+    status: staging
+    commits: [ecee728]
+    title: "Square OAuth callback org binding + state nonce; ADMIN gate on connect/disconnect"
+    notes: >
+      Closes PERMISSIONS_INVENTORY.md §2 items 2 and 3 (found by PERM-1).
+      Part A: callback resolves the token-write org from the SESSION — state
+      is never a write address (beyond-spec improvement, kept by Gary; see
+      DECISIONS.md). Part B: state is a 32-byte crypto-random single-use
+      nonce via double-submit httpOnly cookie (Option 1, Gary's fork ruling —
+      no schema; Square's one-time auth codes already cover the replay gap a
+      table would close). Part C (the one deliberate behavior change):
+      /api/square/auth and /api/square/disconnect now ADMIN, matching
+      Instagram; only in-app callers are on /settings (already ADMIN).
+      Existing connected orgs unaffected — no token columns touched, no
+      reconnect needed. Instagram's own missing nonce logged as SEC-2.
+      Staging pass clean 2026-07-25 (Gary; details not itemized in the
+      pass report).
+
+  - id: SEC-2
+    track: security
+    size: S
+    status: planned
+    title: "Instagram OAuth state nonce — same double-submit hardening as SEC-1"
+    notes: >
+      Logged 2026-07-25 during SEC-1: Instagram's callback org-equality check
+      blocks cross-org token planting but is not CSRF protection — state is
+      still the predictable orgId, no nonce. Deliberately untouched in SEC-1
+      (Instagram was the reference implementation); now the weaker of the two.
+      Also in this phase's scope (Gary, 2026-07-25): SEC-1's session-org
+      resolution means a multi-org admin who switches orgs mid-flow gets
+      Square tokens silently written to whichever org their session is on at
+      callback time — Instagram's equality check would error instead. Not a
+      problem at one org; fix alongside the nonce work (e.g. bind the
+      initiating org into the state cookie payload and reject on mismatch).
+
   # ---- Migration / nutrition ----
 
   - id: M-1
@@ -633,6 +722,21 @@ bugs:
     shipped: 2026-07-23
     commits: [3c7d0a0]
     notes: Found during the HR-8 staging pass (7-22); resolve the real Clerk email, never trust the identifier.
+
+  - id: BUG-3
+    title: "Migrations bypass Neon pooler via directUrl"
+    status: in_progress
+    commits: [f6818f1]
+    notes: >
+      Intermittent P1002 on deploy — Prisma's migration advisory lock leaked
+      onto recycled pgbouncer backends (hit ecee728, 7-25, no migration in it).
+      Prisma 7 removed schema directUrl; fix is prisma.config.ts datasource.url
+      = DATABASE_URL_UNPOOLED ?? DATABASE_URL (loud console.warn on fallback).
+      No migration, no schema change. DATABASE_URL_UNPOOLED pre-exists in all
+      Vercel envs (Neon integration); local .env gets it manually. See
+      DECISIONS.md BUG-3. Staging proof required: build log Datasource "db"
+      host without -pooler; a green deploy alone is not proof (P1002 is
+      intermittent).
 
 debt:
   - id: DEBT-1

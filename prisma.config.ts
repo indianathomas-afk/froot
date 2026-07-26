@@ -3,13 +3,25 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+// BUG-3: Prisma CLI commands (migrate deploy/diff, db execute) connect via the
+// direct (non-pooled) Neon endpoint so the migration advisory lock never lands
+// on a pgbouncer backend (intermittent P1002). Runtime traffic keeps using the
+// pooled DATABASE_URL via the Neon adapter (src/lib/prisma.ts) — untouched.
+const directUrl = process.env["DATABASE_URL_UNPOOLED"];
+if (!directUrl) {
+  console.warn(
+    "[prisma.config] DATABASE_URL_UNPOOLED is not set — falling back to DATABASE_URL (pooled). " +
+    "Migrations will run through the Neon pooler and can hit P1002 advisory-lock timeouts (BUG-3)."
+  );
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: directUrl ?? process.env["DATABASE_URL"],
     // Needed by `prisma migrate dev` on cloud databases like Neon, which
     // can't auto-create a shadow database. Point this at a throwaway empty
     // Neon branch (local .env only — deploys never use it).

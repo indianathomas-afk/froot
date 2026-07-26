@@ -157,6 +157,19 @@ frozen in `docs/ROADMAP_ARCHIVE.md`.
 **Update it before the session ends** — see "Session completion rules" in
 `docs/WORKFLOW.md`.
 
+## Git Rules
+
+Claude Code **commits when asked and never pushes** — including when the
+target branch is obvious or already checked out. Pushes are Gary's. (Recorded
+2026-07-25 after a session pushed `6f70465` to staging unasked; written down
+rather than assumed. Everyday flow stays `docs/WORKFLOW.md`.)
+
+**Every end-of-session report ends with an explicit unpushed-commits line:**
+whether commits exist on the current branch that are not on its origin remote
+(`git log --oneline @{u}..`), listing them if so — even when the answer is
+none. This is the structural guard against unpushed work sitting unnoticed
+(the F-4 incident), now that pushing is never Claude's to do.
+
 ## Module Gating
 
 Modules are gated per-org via `activeModules` on the `Organization` record.
@@ -244,7 +257,8 @@ Run `next build` — it runs `prisma generate` automatically (see `package.json`
 
 Required in `.env`:
 ```
-DATABASE_URL=                  # Neon connection string
+DATABASE_URL=                  # Neon connection string (pooled) — runtime client
+DATABASE_URL_UNPOOLED=         # direct (non-pooled) Neon endpoint — Prisma CLI/migrations only (BUG-3); strip -pooler from the DATABASE_URL host
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 CLERK_WEBHOOK_SECRET=          # Svix signature for Clerk webhooks

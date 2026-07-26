@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
+import { can, type Capability } from "@/lib/permissions"
 import { useClerk, useUser } from "@clerk/nextjs"
 import { setSidebarCollapsed, useSidebarCollapsed } from "./use-sidebar-collapsed"
 
@@ -34,51 +35,59 @@ type NavItem = {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  roles: string[]
+  // PERM-1 pilot: each item's former roles: [...] array is now a capability
+  // (docs/PERMISSIONS_INVENTORY.md §5); the capability's role grant is
+  // identical to the array it replaced. The requires* feature gates and the
+  // STAFF checklists store-proxy below are unchanged.
+  capability: Capability
   requiresInstagram?: boolean
   requiresHr?: boolean
   requiresLabor?: boolean
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
-  { href: "/checklists", label: "Checklists", icon: CheckSquare, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
-  { href: "/messages", label: "Messages", icon: MessageSquare, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"] },
-  { href: "/templates", label: "Templates", icon: FileText, roles: ["ADMIN"] },
-  { href: "/stores", label: "Stores", icon: Store, roles: ["ADMIN", "MANAGER"] },
-  { href: "/users", label: "Users", icon: Users, roles: ["ADMIN"] },
-  { href: "/staff", label: "Staff", icon: UserSquare, roles: ["ADMIN", "MANAGER"] },
-  { href: "/reports", label: "Reports", icon: BarChart2, roles: ["ADMIN", "MANAGER"] },
-  { href: "/forecasting", label: "Forecasting", icon: TrendingUp, roles: ["ADMIN", "MANAGER"] },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, capability: "dashboard.view" },
+  { href: "/checklists", label: "Checklists", icon: CheckSquare, capability: "checklists.view" },
+  { href: "/messages", label: "Messages", icon: MessageSquare, capability: "messages.use" },
+  { href: "/templates", label: "Templates", icon: FileText, capability: "templates.manage" },
+  { href: "/stores", label: "Stores", icon: Store, capability: "stores.view" },
+  { href: "/users", label: "Users", icon: Users, capability: "users.manage" },
+  { href: "/staff", label: "Staff", icon: UserSquare, capability: "staff.view" },
+  { href: "/reports", label: "Reports", icon: BarChart2, capability: "reports.view" },
+  { href: "/forecasting", label: "Forecasting", icon: TrendingUp, capability: "forecasting.view" },
   // STAFF-1: Store View is an operational floor surface — not for STAFF logins.
-  { href: "/store-view", label: "Store View", icon: Eye, roles: ["ADMIN", "MANAGER", "STORE"] },
+  { href: "/store-view", label: "Store View", icon: Eye, capability: "storeview.access" },
   // Only rendered when the org has Instagram connected + enabled (see filter below).
-  { href: "/instagram", label: "Instagram", icon: InstagramIcon, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresInstagram: true },
+  { href: "/instagram", label: "Instagram", icon: InstagramIcon, capability: "instagram.view", requiresInstagram: true },
   // Only rendered when HR is available in this environment AND the org toggle
   // is on (hidden while off — the admin controls the toggle in Settings).
-  { href: "/hr", label: "HR", icon: BriefcaseBusiness, roles: ["ADMIN", "MANAGER", "STORE", "STAFF"], requiresHr: true },
+  { href: "/hr", label: "HR", icon: BriefcaseBusiness, capability: "hr.access", requiresHr: true },
   // Weekly Plan (L-3) — the schedule-writing view, gated on both Labor flags.
   // Read-only for viewers; ADMIN/MANAGER can rebalance.
-  { href: "/labor", label: "Weekly Plan", icon: CalendarRange, roles: ["ADMIN", "MANAGER"], requiresLabor: true },
+  { href: "/labor", label: "Weekly Plan", icon: CalendarRange, capability: "labor.view", requiresLabor: true },
   // Config hub for the Weekly Labor Model — ADMIN/MANAGER only, gated on both
   // Labor feature flags (available in this env AND org toggle on).
-  { href: "/settings/labor", label: "Labor", icon: Clock, roles: ["ADMIN", "MANAGER"], requiresLabor: true },
+  { href: "/settings/labor", label: "Labor", icon: Clock, capability: "labor.manage", requiresLabor: true },
 ]
 
 // STAFF-1: inventory is not part of the staff experience — STAFF removed from
-// every item (STORE keeps its operational subset).
-const inventoryNavItems = [
-  { href: "/inventory/ingredients", label: "Ingredients", roles: ["ADMIN", "MANAGER", "STORE"] },
-  { href: "/inventory/sales-items", label: "Sales Items", roles: ["ADMIN", "MANAGER", "STORE"] },
-  { href: "/inventory/recipes", label: "Recipes", roles: ["ADMIN", "MANAGER"] },
-  { href: "/inventory/storage-areas", label: "Storage Areas", roles: ["ADMIN", "MANAGER"] },
-  { href: "/inventory/counts", label: "Counts", roles: ["ADMIN", "MANAGER", "STORE"] },
-  { href: "/inventory/adjustments", label: "Adjustments", roles: ["ADMIN", "MANAGER", "STORE"] },
-  { href: "/inventory/vendors", label: "Vendors", roles: ["ADMIN", "MANAGER"] },
-  { href: "/inventory/purchase-orders", label: "Purchase Orders", roles: ["ADMIN", "MANAGER", "STORE"] },
-  { href: "/inventory/expected", label: "Expected Stock", roles: ["ADMIN", "MANAGER"] },
-  { href: "/inventory/alerts", label: "Alerts", roles: ["ADMIN", "MANAGER"] },
-  { href: "/inventory/reports", label: "Reports", roles: ["ADMIN", "MANAGER"] },
+// every item (STORE keeps its operational subset). The Recipes/Vendors and
+// Storage Areas entries map to the manage-tier capabilities because those
+// capabilities' role grants (ADMIN+MANAGER) match the arrays they replaced —
+// their pages have no server role guard, so the nav tier IS the enforcement
+// (PERMISSIONS_INVENTORY.md §2 #12).
+const inventoryNavItems: { href: string; label: string; capability: Capability }[] = [
+  { href: "/inventory/ingredients", label: "Ingredients", capability: "inventory.assets.view" },
+  { href: "/inventory/sales-items", label: "Sales Items", capability: "inventory.assets.view" },
+  { href: "/inventory/recipes", label: "Recipes", capability: "inventory.assets.manage" },
+  { href: "/inventory/storage-areas", label: "Storage Areas", capability: "inventory.storage.manage" },
+  { href: "/inventory/counts", label: "Counts", capability: "inventory.counts.execute" },
+  { href: "/inventory/adjustments", label: "Adjustments", capability: "inventory.adjustments.record" },
+  { href: "/inventory/vendors", label: "Vendors", capability: "inventory.assets.manage" },
+  { href: "/inventory/purchase-orders", label: "Purchase Orders", capability: "inventory.po.view" },
+  { href: "/inventory/expected", label: "Expected Stock", capability: "inventory.analytics.view" },
+  { href: "/inventory/alerts", label: "Alerts", capability: "inventory.analytics.view" },
+  { href: "/inventory/reports", label: "Reports", capability: "inventory.analytics.view" },
 ]
 
 export function Sidebar({
@@ -107,7 +116,7 @@ export function Sidebar({
   const visibleNavItems = navItems
     .filter(
       (item) =>
-        item.roles.includes(role) &&
+        can({ role }, item.capability) &&
         (!item.requiresInstagram || instagramEnabled) &&
         (!item.requiresHr || hrEnabled) &&
         (!item.requiresLabor || laborEnabled) &&
@@ -122,9 +131,9 @@ export function Sidebar({
         : item
     )
   const visibleInventoryItems = activeModules.includes("inventory")
-    ? inventoryNavItems.filter((item) => item.roles.includes(role))
+    ? inventoryNavItems.filter((item) => can({ role }, item.capability))
     : []
-  const canSeeSettings = role === "ADMIN"
+  const canSeeSettings = can({ role }, "settings.access")
   // Settings owns /settings, but a more specific nav item (e.g. Labor at
   // /settings/labor) takes precedence — otherwise both would highlight.
   const settingsActive =
