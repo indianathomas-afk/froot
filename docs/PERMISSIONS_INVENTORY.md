@@ -220,9 +220,9 @@ referenced by the capability registry in §5.
 
 | ID | Route(s) | What it guards | Roles allowed today | Enforcement type |
 |---|---|---|---|---|
-| SQ-1 | `square/auth` GET | Start Square OAuth connect | **Any member** | handler (auth only) |
-| SQ-2 | `square/callback` GET | Square token exchange + store | Session required (middleware) but **`state` (org) not validated against session org** | handler (weak) |
-| SQ-3 | `square/disconnect` POST | Clear Square tokens | **Any member** | handler (auth only) |
+| SQ-1 | `square/auth` GET | Start Square OAuth connect | ADMIN *(SEC-1; was any member)* | handler |
+| SQ-2 | `square/callback` GET | Square token exchange + store | Session org is the write target; single-use nonce cookie validated *(SEC-1; state was trusted as the org)* | handler |
+| SQ-3 | `square/disconnect` POST | Clear Square tokens | ADMIN *(SEC-1; was any member)* | handler |
 | SQ-4 | `square/status` GET | Connection status | Any member | handler |
 | SQ-5 | `square/locations`, `square/team-members` GET | Square location/team data reads | **Any member** | handler (auth only) |
 | SQ-6 | `square/catalog/sync`, `square/sales-items/sync` POST | Catalog syncs | ADMIN + inventory module | handler |
@@ -256,8 +256,8 @@ Ordered worst-first. **None fixed in PERM-1** (recorded for a follow-up phase).
 
 **A. Write APIs with no role floor:**
 1. **`POST /api/staff` (PL-16) — any org member, including STAFF and STORE, can create staff members.** No role check whatsoever; the /staff UI is ADMIN/MANAGER but the API is open.
-2. **`GET /api/square/auth` + `POST /api/square/disconnect` (SQ-1/SQ-3) — any org member can initiate the Square OAuth connect or wipe the org's Square tokens.** Instagram's identical surface is ADMIN-only.
-3. **`GET /api/square/callback` (SQ-2) — `state` is trusted as the target org and never compared to the caller's session org.** Any signed-in user (of any org) completing an OAuth dance could attach a Square token to an arbitrary org. Instagram's callback does this check; Square's doesn't.
+2. ~~**`GET /api/square/auth` + `POST /api/square/disconnect` (SQ-1/SQ-3) — any org member can initiate the Square OAuth connect or wipe the org's Square tokens.** Instagram's identical surface is ADMIN-only.~~ **RESOLVED — SEC-1 (2026-07-25):** both routes now `requireAdmin`, matching Instagram.
+3. ~~**`GET /api/square/callback` (SQ-2) — `state` is trusted as the target org and never compared to the caller's session org.** Any signed-in user (of any org) completing an OAuth dance could attach a Square token to an arbitrary org. Instagram's callback does this check; Square's doesn't.~~ **RESOLVED — SEC-1 (2026-07-25):** callback writes tokens to the *session's* org (state is never a write address) and `state` is a crypto-random single-use nonce validated against a double-submit httpOnly cookie.
 4. **`POST /api/checklists` (PL-2) — any member can create a checklist for any store in the org**, ignoring store assignment (GET is scoped; POST isn't).
 5. **`POST /api/upload/task-attachment` + `DELETE .../[taskId]` (PL-23) — any member can attach/delete files on template tasks**, though every other template mutation is ADMIN.
 
@@ -278,11 +278,14 @@ Ordered worst-first. **None fixed in PERM-1** (recorded for a follow-up phase).
 **D. Known-by-design (documented, listed for completeness):**
 16. STAFF `/my` confinement is a UI lock only (SH-2 comment; HR-9 "EMPLOYEE role split" is the planned fix) — a linked STAFF login retains the full STAFF-tier API surface above.
 
+**E. Logged as follow-up phases:**
+17. **SEC-2 (logged 2026-07-25):** Instagram OAuth has the same missing-nonce shape SEC-1 fixed for Square — its callback's org-equality check blocks cross-org token planting, but `state` is still the predictable orgId with no CSRF nonce. Deliberately untouched in SEC-1 (Instagram was the reference implementation); with Square hardened, Instagram is now the weaker flow. See ROADMAP `SEC-2`.
+
 ---
 
 ## 3. Contradiction list — enforcement points that disagree
 
-1. **Square vs Instagram integration management:** Instagram connect/disconnect/toggle = ADMIN (IG-1); Square connect/disconnect = any member (SQ-1/3); Square callback skips the state-vs-session check Instagram performs (SQ-2 vs IG-2).
+1. **Square vs Instagram integration management:** Instagram connect/disconnect/toggle = ADMIN (IG-1); Square connect/disconnect = any member (SQ-1/3); Square callback skips the state-vs-session check Instagram performs (SQ-2 vs IG-2). *(Resolved on the Square side by SEC-1, 2026-07-25 — Square now ADMIN + session-org-bound + nonce, making Instagram the weaker flow; that residue is SEC-2 / §2 item 17.)*
 2. **Templates three-way disagreement:** nav ADMIN-only (NV-4) · layout allows MANAGER (PG-4) · list page + every API ADMIN-only (PG-5, PL-10). MANAGER can open detail/edit/new pages whose actions all 403.
 3. **Staff surface:** pages ADMIN/MANAGER (PG-9) vs `GET /api/staff` any member (PL-15) vs `POST /api/staff` unguarded (PL-16) vs per-record routes correctly tiered (PL-17).
 4. **Checklists:** GET store-scoped (PL-1) vs POST org-wide for any member (PL-2).

@@ -5,6 +5,49 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## SEC-1 Square OAuth hardening — cookie nonce + session-org binding — 2026-07-25 (Gary approved plan + fork ruling)
+
+Closes PERMISSIONS_INVENTORY.md §2 items 2–3 (found by the PERM-1 audit).
+
+a. **Part B fork — Option 1, double-submit httpOnly cookie; no schema (Gary).**
+   `state` is a 32-byte crypto-random base64url nonce; `/api/square/auth` sets
+   it in an `httpOnly Secure SameSite=Lax` cookie (Max-Age 600, path-scoped to
+   `/api/square/callback`); the callback requires the query param to exactly
+   match the cookie and clears the cookie on EVERY hit, success or failure.
+   **Rationale (Gary):** Square invalidates the authorization code on
+   exchange, so the replay window a DB-table nonce would additionally close is
+   already covered upstream — not worth an additive migration riding the
+   P1002 advisory-lock path for it. The table option (true server-side
+   single-use + audit trail) is the documented upgrade if a second flow ever
+   needs shared state.
+b. **Part A goes beyond the spec — session org is the write target (Claude
+   proposed, Gary explicitly kept).** The spec (and Instagram, the reference)
+   validate `state === session org` and still write by state. SEC-1's callback
+   instead resolves the org **from the session** and never uses `state` as an
+   address — a forged or mangled state can misdirect nothing because it
+   addresses nothing; combined with (a), `state` carries zero authority and is
+   purely a CSRF nonce. Recorded so the reasoning survives: if a future
+   refactor "simplifies" the callback back to writing by state, that is a
+   regression, not a cleanup.
+c. **Part C — the session's one deliberate behavior change (Gary).**
+   `/api/square/auth` and `POST /api/square/disconnect` are now ADMIN
+   (`requireAdmin`), matching Instagram's tier. Previously any org member
+   could connect or wipe Square tokens by URL. The only in-app callers live on
+   `/settings` (already ADMIN-gated), so no legitimate flow is lost.
+d. **Instagram deliberately untouched; gap logged as SEC-2 (Gary).**
+   Instagram's org-equality check blocks cross-org planting but is not CSRF
+   protection (state is still the predictable orgId). With Square hardened,
+   Instagram is now the weaker flow — ROADMAP `SEC-2`, INVENTORY §2 item 17.
+e. **Existing connections unaffected.** No token columns, refresh logic, or
+   `squareBaseUrl()` touched — connected orgs keep working, no reconnect.
+f. (Claude) Cookie name + attributes live in `src/lib/square.ts`
+   (`SQUARE_OAUTH_STATE_COOKIE`/`_OPTIONS`) so auth and callback can't drift;
+   env finding: `NEXT_PUBLIC_SQUARE_APP_ID` (authorize URL) and
+   `SQUARE_APPLICATION_ID` (token exchange) are both Sensitive in Vercel and
+   unreadable from this machine — their match is **inferred** from the working
+   staging connect (a mismatch would 400 at token exchange), not verified;
+   Gary eyeballs the dashboard.
+
 ## PERM-3 design constraint — Clerk webhook resets User-row storage on membership churn — 2026-07-25 (Gary)
 
 Recorded from the PERM-1 webhook finding (docs/PERMISSIONS_INVENTORY.md §4) as

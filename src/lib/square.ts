@@ -3,6 +3,18 @@ import type { Organization } from "@prisma/client"
 
 const SQUARE_VERSION = "2024-01-17"
 
+// SEC-1: the OAuth state nonce travels as a double-submit httpOnly cookie —
+// set by /api/square/auth, required and cleared by /api/square/callback.
+// Shared here so the two routes can never drift on the name or attributes.
+export const SQUARE_OAUTH_STATE_COOKIE = "square_oauth_state"
+export const SQUARE_OAUTH_STATE_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax",
+  // Only the callback ever needs to read it back.
+  path: "/api/square/callback",
+} as const
+
 // The OAuth/API host must match the app's environment, and the environment is
 // already encoded in the app ID prefix: production IDs start with "sq0idp-",
 // sandbox IDs with "sandbox-". Deriving the host from the app ID (rather than a

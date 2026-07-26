@@ -615,6 +615,44 @@ phases:
         Square OAuth callback state validation (§2 gap #3) is SEC-1, its own
         phase — logged here, unfixed in PERM-1.
 
+  # ---- Security ----
+
+  - id: SEC-1
+    track: security
+    size: S
+    status: in_progress
+    title: "Square OAuth callback org binding + state nonce; ADMIN gate on connect/disconnect"
+    notes: >
+      Closes PERMISSIONS_INVENTORY.md §2 items 2 and 3 (found by PERM-1).
+      Part A: callback resolves the token-write org from the SESSION — state
+      is never a write address (beyond-spec improvement, kept by Gary; see
+      DECISIONS.md). Part B: state is a 32-byte crypto-random single-use
+      nonce via double-submit httpOnly cookie (Option 1, Gary's fork ruling —
+      no schema; Square's one-time auth codes already cover the replay gap a
+      table would close). Part C (the one deliberate behavior change):
+      /api/square/auth and /api/square/disconnect now ADMIN, matching
+      Instagram; only in-app callers are on /settings (already ADMIN).
+      Existing connected orgs unaffected — no token columns touched, no
+      reconnect needed. Instagram's own missing nonce logged as SEC-2.
+      Awaiting Gary's staging pass (ADMIN connect end-to-end).
+
+  - id: SEC-2
+    track: security
+    size: S
+    status: planned
+    title: "Instagram OAuth state nonce — same double-submit hardening as SEC-1"
+    notes: >
+      Logged 2026-07-25 during SEC-1: Instagram's callback org-equality check
+      blocks cross-org token planting but is not CSRF protection — state is
+      still the predictable orgId, no nonce. Deliberately untouched in SEC-1
+      (Instagram was the reference implementation); now the weaker of the two.
+      Also in this phase's scope (Gary, 2026-07-25): SEC-1's session-org
+      resolution means a multi-org admin who switches orgs mid-flow gets
+      Square tokens silently written to whichever org their session is on at
+      callback time — Instagram's equality check would error instead. Not a
+      problem at one org; fix alongside the nonce work (e.g. bind the
+      initiating org into the state cookie payload and reject on mismatch).
+
   # ---- Migration / nutrition ----
 
   - id: M-1
