@@ -7,7 +7,7 @@ import { computeLowStockAlerts } from "@/lib/expected-inventory"
 // stores; feeds the sidebar badge. Runs the full expected-inventory engine, so
 // callers should fetch it once per page load, not poll.
 export async function GET() {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const stores = await prisma.store.findMany({

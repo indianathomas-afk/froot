@@ -53,7 +53,16 @@ export type CountDetail = {
   activeIngredients: ActiveIngredient[]
 }
 
-export function CountClient({ countId, canManage }: { countId: string; canManage: boolean }) {
+export function CountClient({
+  countId,
+  canManage,
+  canViewSummary,
+}: {
+  countId: string
+  canManage: boolean
+  // PERM-2 §3 #5: inventory.analytics.view, resolved server-side in page.tsx.
+  canViewSummary: boolean
+}) {
   const [detail, setDetail] = useState<CountDetail | null>(null)
   const [error, setError] = useState("")
 
@@ -89,6 +98,17 @@ export function CountClient({ countId, canManage }: { countId: string; canManage
   }
 
   if (detail.status === "Finalized") {
+    // The summary is the valuation/variance review — commercial data. Without
+    // the capability, say so plainly rather than rendering a view whose only
+    // fetch 403s.
+    if (!canViewSummary) {
+      return (
+        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-16 text-center">
+          <p className="font-medium text-[var(--color-foreground)] mb-1">This count is finalized</p>
+          <p className="text-sm text-[var(--color-muted-foreground)]">Ask a manager for the summary.</p>
+        </div>
+      )
+    }
     return <SummaryView countId={countId} canManage={canManage} />
   }
   return <DraftCounting detail={detail} refresh={refresh} canManage={canManage} />

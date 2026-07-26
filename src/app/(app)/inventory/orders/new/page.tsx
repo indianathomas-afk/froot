@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { ShoppingCart } from "lucide-react"
 import Link from "next/link"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { CartClient } from "./cart-client"
 
 export default async function OrderCartPage() {
@@ -38,7 +39,8 @@ export default async function OrderCartPage() {
 
   const dbUser = userId ? await prisma.user.findUnique({ where: { clerkUserId: userId } }) : null
   const role = dbUser?.role ?? "STAFF"
-  if (role !== "ADMIN" && role !== "MANAGER") redirect("/inventory/purchase-orders")
+  // PERM-2 §3 #5: same capability its data APIs enforce.
+  if (!can({ role }, "inventory.costs.view")) redirect("/inventory/purchase-orders")
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   const stores = await prisma.store.findMany({

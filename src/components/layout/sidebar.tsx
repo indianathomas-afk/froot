@@ -63,7 +63,9 @@ const navItems: NavItem[] = [
   // is on (hidden while off — the admin controls the toggle in Settings).
   { href: "/hr", label: "HR", icon: BriefcaseBusiness, capability: "hr.access", requiresHr: true },
   // Weekly Plan (L-3) — the schedule-writing view, gated on both Labor flags.
-  // Read-only for viewers; ADMIN/MANAGER can rebalance.
+  // Read-only for viewers; ADMIN/MANAGER can rebalance. PERM-2 §3 #8: shown to
+  // all roles — staff seeing their own schedule is intended, and labor.view is
+  // now ALL to match the guard that always served them.
   { href: "/labor", label: "Weekly Plan", icon: CalendarRange, capability: "labor.view", requiresLabor: true },
   // Config hub for the Weekly Labor Model — ADMIN/MANAGER only, gated on both
   // Labor feature flags (available in this env AND org toggle on).
@@ -76,13 +78,19 @@ const navItems: NavItem[] = [
 // capabilities' role grants (ADMIN+MANAGER) match the arrays they replaced —
 // their pages have no server role guard, so the nav tier IS the enforcement
 // (PERMISSIONS_INVENTORY.md §2 #12).
+//
+// PERM-2 §3 #5: the operational entries ask inventory.nav.view, NOT the
+// operational capabilities their routes enforce. Those grants went to ALL
+// because that is who the APIs serve — pointing the nav at them would have put
+// Counts and Adjustments in the STAFF sidebar and quietly reversed STAFF-1.
+// Nav visibility and API access are separate on purpose; see permissions.ts.
 const inventoryNavItems: { href: string; label: string; capability: Capability }[] = [
-  { href: "/inventory/ingredients", label: "Ingredients", capability: "inventory.assets.view" },
-  { href: "/inventory/sales-items", label: "Sales Items", capability: "inventory.assets.view" },
+  { href: "/inventory/ingredients", label: "Ingredients", capability: "inventory.nav.view" },
+  { href: "/inventory/sales-items", label: "Sales Items", capability: "inventory.nav.view" },
   { href: "/inventory/recipes", label: "Recipes", capability: "inventory.assets.manage" },
   { href: "/inventory/storage-areas", label: "Storage Areas", capability: "inventory.storage.manage" },
-  { href: "/inventory/counts", label: "Counts", capability: "inventory.counts.execute" },
-  { href: "/inventory/adjustments", label: "Adjustments", capability: "inventory.adjustments.record" },
+  { href: "/inventory/counts", label: "Counts", capability: "inventory.nav.view" },
+  { href: "/inventory/adjustments", label: "Adjustments", capability: "inventory.nav.view" },
   { href: "/inventory/vendors", label: "Vendors", capability: "inventory.assets.manage" },
   { href: "/inventory/purchase-orders", label: "Purchase Orders", capability: "inventory.po.view" },
   { href: "/inventory/expected", label: "Expected Stock", capability: "inventory.analytics.view" },
@@ -143,7 +151,9 @@ export function Sidebar({
   // Low-stock alert count for the Alerts badge — fetched once per mount (the
   // count runs the expected-inventory engine server-side, so no polling).
   const [alertCount, setAlertCount] = useState(0)
-  const showAlertBadge = activeModules.includes("inventory") && (role === "ADMIN" || role === "MANAGER")
+  // PERM-2 §3 #5: same capability /api/inventory/alerts/count now enforces —
+  // the badge must not fire a request it will be 403'd for.
+  const showAlertBadge = activeModules.includes("inventory") && can({ role }, "inventory.analytics.view")
   useEffect(() => {
     if (!showAlertBadge) return
     let cancelled = false

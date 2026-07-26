@@ -10,7 +10,7 @@ import { computeAllRecipeCosts, loadCostGraph } from "@/lib/recipe-cost"
 // gross profit $. UNMAPPED items surface with zero cost data and a "map it"
 // link into the recipes triage queue.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

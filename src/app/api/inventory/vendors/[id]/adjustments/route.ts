@@ -2,7 +2,8 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 
 // Standing invoice adjustments for one vendor (I-7). Active ones auto-attach
 // as editable lines when receiving that vendor's POs.
@@ -36,6 +37,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const { id } = await params
   const ctx = await guard(id)
   if ("error" in ctx) return ctx.error
+
+  // Commercial: standing invoice adjustments are vendor pricing (PERM-2 §3 #5).
+  const { role } = await getUserStoreScope()
+  if (!can({ role }, "inventory.costs.view")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const adjustments = await prisma.vendorAdjustment.findMany({
     where: { vendorId: id },

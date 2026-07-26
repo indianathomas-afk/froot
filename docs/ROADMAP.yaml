@@ -686,6 +686,83 @@ phases:
         Square OAuth callback state validation (§2 gap #3) is SEC-1, its own
         phase — logged here, unfixed in PERM-1.
 
+  - id: PERM-2
+    track: permissions
+    size: L
+    status: staging
+    title: "Resolve permission contradictions — checklists, templates, staff, inventory split, dashboard goal, weekly plan"
+    notes: >
+      Audit-first session (docs/prompts/PERM-2_resolve_permission_contradictions.md),
+      clearing PERM-1's phase-2 blocker: Gary ruled on every contradicted call
+      site before migration. Task 1 audit found POST /api/checklists
+      INSTANTIATES a store's daily checklist from a template (it does not
+      create a definition) and is the ONLY way an instance is ever created —
+      no cron generates them — so the proposed ADMIN-only lock would have
+      stopped stores from opening. Resolved §3 #2 (templates ADMIN-only, layout
+      closed), #3 (GET /api/staff ADMIN/MANAGER; POST /api/staff was entirely
+      unguarded — security fix), #4 (checklist instantiation ADMIN/MANAGER/
+      STORE + StoreUserAssignment scope, bulk fan-out ADMIN-only), #5
+      (inventory split by data sensitivity — operational vs commercial, 21
+      routes gated), #6 (dashboard goal PUT ADMIN-only, matching Forecasting)
+      and #8 (Weekly Plan nav for all roles). #1, #7 and #9 deliberately
+      untouched. Two new capabilities: inventory.costs.view and
+      inventory.nav.view — the latter keeps nav visibility separate from API
+      access so STAFF-1's sidebar exclusion survives operational grants going
+      to ALL. Every decision goes through can(); no inline role check added,
+      two dead ones removed. One deliberate scope exception, logged in
+      DECISIONS.md: a cross-tenant templateId hole inside the function already
+      being changed was fixed here rather than deferred.
+    deferred:
+      - >
+        POST /api/staff accepts a storeIds array with no check that those
+        stores are in the caller's scope — a MANAGER can assign a staff member
+        to stores they do not manage. Tier is now correct; the scope hole is
+        its own fix. Found in this session, deliberately not fixed.
+
+  - id: PERM-3
+    track: permissions
+    size: M
+    status: planned
+    title: "MANAGER/STORE forecast + sales read window limited to current and next month"
+    notes: >
+      Gary's ruling during PERM-2, explicitly scoped out of it: MANAGER and
+      STORE should only SEE current-month and next-month forecast and sales
+      data. This is a read-window restriction across several forecasting and
+      dashboard endpoints, not a contradiction fix — hence its own phase.
+
+  - id: PERM-4
+    track: permissions
+    size: M
+    status: planned
+    title: "Strip cost/valuation fields from operational inventory payloads"
+    notes: >
+      PERM-2 §3 #5 split inventory by ROUTE; this splits it by FIELD. Several
+      operational payloads still carry commercial data to callers without
+      inventory.costs.view: counts GET (draftValue), purchase-orders reads and
+      receive (unit costs, line totals), and ingredients GET (purchaseCost,
+      costPerReportingUnit, vendorPriceDisplay — the route deliberately left
+      open in PERM-2 because the shortage-message picker in messages-client
+      depends on it). Deferred out of PERM-2 by Gary because field-level
+      redaction is a new pattern across three surfaces and a missed field is a
+      silent leak that looks closed; these fields are visible to any member
+      today, so deferring is not a regression. BUILD IT AS ONE SHARED
+      SERIALIZATION HELPER, not per-route logic.
+
+  - id: PERM-5
+    track: permissions
+    size: L
+    status: planned
+    title: "Per-user capability overrides — the toggle layer"
+    notes: >
+      Grant or remove a capability for ONE user against their role baseline —
+      e.g. one staff member gets inventory-count access, or the inventory nav,
+      while others do not. PERM-1's can()/scope() layer plus PERM-2's
+      discipline (every decision routed through a capability, nav visibility
+      kept separate from API access) is the substrate this depends on: there is
+      one place to hook the override. Must keep the shim's rule that a stored
+      permission set RESTRICTS BELOW the Clerk role ceiling and never elevates
+      above it.
+
   # ---- Security ----
 
   - id: SEC-1
@@ -856,6 +933,25 @@ phases:
          survives the package.json fix untouched: vercel-build runs migrations
          against whatever DATABASE_URL resolves to. Untagging Preview from the
          production row is a Vercel-console change, out of scope for BUILD-1."
+
+  - id: BUILD-2
+    track: build
+    size: S
+    status: planned
+    title: "Deterministic default/primary store for multi-store users"
+    notes: >
+      Gary's rule is that a multi-store manager's default store is "the first
+      store on their profile" — but StoreUserAssignment has no primary flag and
+      no ordering column, so "first" is currently whatever Postgres happens to
+      return and can vary between queries. Making it deterministic requires a
+      schema change (mirror StoreStaffAssignment.isPrimary, which the staff side
+      already has). Raised and deliberately deferred in PERM-2. Any code needing
+      to pick a store before this lands should sort deterministically (store
+      number, then name) and say so in a comment.
+    blockers:
+      - >
+        Gated on BUILD-1: local .env still points at the PRODUCTION Neon branch,
+        so no migration may be authored until the repoint lands.
 
 bugs:
   - id: BUG-1

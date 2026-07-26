@@ -7,7 +7,7 @@ import { computeExpectedInventory } from "@/lib/expected-inventory"
 // Expected on-hand per ingredient (reporting units + value) as of now, rolled
 // forward from the last finalized full count. See src/lib/expected-inventory.ts.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

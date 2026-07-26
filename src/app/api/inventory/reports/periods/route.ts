@@ -7,7 +7,7 @@ import { getSyncedThrough } from "@/lib/sales-sync"
 // GET /api/inventory/reports/periods?storeId= — the period picker's data:
 // inventory periods (newest first) + how far the sales cache reaches.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

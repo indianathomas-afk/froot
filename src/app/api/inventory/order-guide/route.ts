@@ -9,7 +9,7 @@ import { computeExpectedInventory, computeWeeklyUsage } from "@/lib/expected-inv
 // guides (avg weekly usage / par / reorder point), and vendor prices on file.
 // PREPARED ingredients are excluded — they're made in-house, not ordered.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.costs.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

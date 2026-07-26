@@ -49,6 +49,19 @@ Enforcement types:
 | `CRON_SECRET` bearer check | `src/app/api/cron/*` | Vercel cron auth (no session) |
 | Svix / Square signature verification | `src/app/api/webhooks/*` | Webhook authenticity (no session) |
 
+**`/robots.txt` — corrected 2026-07-26 (PERM-2).** Production returns **404**,
+not a 307 to sign-in as previously recorded; verified by request on 2026-07-26
+(`404`, empty redirect target). The reason is that `src/app/robots.ts` is
+staging-only — it arrived with P-3 (`3902d5c`), which has not been promoted.
+**Forward risk, from reading the code rather than testing:** the proxy matcher
+excludes files by extension but `.txt` is not in that list, and `/robots.txt`
+is not in `isPublicRoute`. So once P-3 promotes, an unauthenticated crawler
+should start getting a redirect to sign-in instead of the file. Adding
+`/robots.txt` to `isPublicRoute` at promotion time is the fix. Not verified
+against a live deployment — both staging aliases in `docs/STAGING_SETUP.md`
+and `docs/TEMPLATES_IMPORT_EXPORT.md` also return 404, so the staging behavior
+was not observable from here.
+
 ---
 
 ## 1. Enforcement inventory
@@ -286,13 +299,13 @@ Ordered worst-first. **None fixed in PERM-1** (recorded for a follow-up phase).
 ## 3. Contradiction list — enforcement points that disagree
 
 1. **Square vs Instagram integration management:** Instagram connect/disconnect/toggle = ADMIN (IG-1); Square connect/disconnect = any member (SQ-1/3); Square callback skips the state-vs-session check Instagram performs (SQ-2 vs IG-2). *(Resolved on the Square side by SEC-1, 2026-07-25 — Square now ADMIN + session-org-bound + nonce, making Instagram the weaker flow; that residue is SEC-2 / §2 item 17.)*
-2. **Templates three-way disagreement:** nav ADMIN-only (NV-4) · layout allows MANAGER (PG-4) · list page + every API ADMIN-only (PG-5, PL-10). MANAGER can open detail/edit/new pages whose actions all 403.
-3. **Staff surface:** pages ADMIN/MANAGER (PG-9) vs `GET /api/staff` any member (PL-15) vs `POST /api/staff` unguarded (PL-16) vs per-record routes correctly tiered (PL-17).
-4. **Checklists:** GET store-scoped (PL-1) vs POST org-wide for any member (PL-2).
-5. **Inventory pages vs APIs:** PG-22 pages redirect non-managers while their data APIs (IV-10) serve any member; PG-21 pages don't even redirect.
-6. **Goal writes:** dashboard manual monthly goal PUT = ADMIN/MANAGER (PL-9), but every Forecasting goal write = ADMIN-only (FC-2). A manager can set the dashboard goal yet not the plan it overrides.
+2. **Templates three-way disagreement:** nav ADMIN-only (NV-4) · layout allows MANAGER (PG-4) · list page + every API ADMIN-only (PG-5, PL-10). MANAGER can open detail/edit/new pages whose actions all 403. *(**RESOLVED** by PERM-2, 2026-07-26 — ADMIN only; the layout now asks `templates.manage`.)*
+3. **Staff surface:** pages ADMIN/MANAGER (PG-9) vs `GET /api/staff` any member (PL-15) vs `POST /api/staff` unguarded (PL-16) vs per-record routes correctly tiered (PL-17). *(**RESOLVED** by PERM-2, 2026-07-26 — both now ADMIN/MANAGER via `staff.view` / `staff.manage`; the unguarded POST was a security fix. Per-record routes left alone. Residue: POST still accepts a `storeIds` array it never scope-checks — logged as PERM-2 `deferred`.)*
+4. **Checklists:** GET store-scoped (PL-1) vs POST org-wide for any member (PL-2). *(**RESOLVED** by PERM-2, 2026-07-26 — the Task 1 audit established POST INSTANTIATES a store's daily checklist rather than creating a definition, and is the only path by which an instance ever exists. Single instantiation is ADMIN/MANAGER/STORE scoped to `StoreUserAssignment`; the org-wide bulk fan-out is ADMIN-only via `checklists.create.bulk`. A cross-tenant `templateId` hole found in the same function was fixed under a logged scope exception — see DECISIONS.md.)*
+5. **Inventory pages vs APIs:** PG-22 pages redirect non-managers while their data APIs (IV-10) serve any member; PG-21 pages don't even redirect. *(**RESOLVED** by PERM-2, 2026-07-26 — inventory split by data sensitivity, not by page. Operational routes (counts, adjustments, pars, storage areas, item/category reads) are granted to every role; commercial ones (all 8 reports, expected, alerts, count summary → `inventory.analytics.view`; vendor prices, vendor adjustments, recipe costs, order guide → the new `inventory.costs.view`) are ADMIN/MANAGER. Pages now ask the same capability their data APIs enforce. Nav visibility deliberately kept on the separate `inventory.nav.view` so STAFF-1's sidebar exclusion survives the operational grants going to ALL. Field-level cost redaction inside operational payloads is explicitly NOT part of this — see ROADMAP `PERM-4`.)*
+6. **Goal writes:** dashboard manual monthly goal PUT = ADMIN/MANAGER (PL-9), but every Forecasting goal write = ADMIN-only (FC-2). A manager can set the dashboard goal yet not the plan it overrides. *(**RESOLVED** by PERM-2, 2026-07-26 — dashboard goal PUT is ADMIN only; `canManageGoal` on the summary route asks the same capability so the edit affordance disappears rather than 403ing. Forecasting untouched.)*
 7. **Labor vs Forecasting write tiers:** Labor writes ADMIN+MANAGER, Forecasting writes ADMIN-only — *deliberate* per the decision log (labor-access.ts comment), listed so the registry doesn't "harmonize" it by accident.
-8. **Weekly Plan nav vs guard:** NV-13 (ADMIN/MANAGER) vs PG-17/LB-1 (any member, read-only) — the "read-only for viewers" design never got a viewer entry point.
+8. **Weekly Plan nav vs guard:** NV-13 (ADMIN/MANAGER) vs PG-17/LB-1 (any member, read-only) — the "read-only for viewers" design never got a viewer entry point. *(**RESOLVED** by PERM-2, 2026-07-26 — `labor.view` is now ALL and the nav entry renders for every role. The guard stays read-only for non-managers; `labor.manage` and item 7 above are untouched.)*
 9. **Training certificates naming:** `ensureTrainingCertPdf` still uses `fullName ?? displayName` while signature surfaces are Full-Name-only — documented scope boundary (DECISIONS "Staff Display Name vs Full Name" f), listed as an intentional inconsistency.
 
 ---
@@ -333,13 +346,17 @@ scope(user, capability): unknown     // valued gate — unrestricted for every
 
 Deny-by-default: unknown capability → `false`.
 
+
+**Updated 2026-07-26 by PERM-2.** Rows below now reflect the rulings in §3 (items 2, 3, 4, 5, 6, 8), not the pre-PERM-2 enforcement. `inventory.nav.view`, `inventory.costs.view` and `checklists.create.bulk` are new. Where a capability's grant and its nav entry differ, that is deliberate — see the comment in `src/lib/permissions.ts`.
+
 | Capability | Granted today to | Derived from |
 |---|---|---|
 | `dashboard.view` | all roles | NV-1, PG-1, PL-8 |
-| `dashboard.goal.edit` | ADMIN, MANAGER | PL-9, dashboard-client |
+| `dashboard.goal.edit` | ADMIN | PL-9, dashboard-client |
 | `checklists.view` | all roles (scoped; STAFF nav needs store-proxy) | NV-2, PG-2, PL-1, SH-3 |
 | `checklists.execute` | all roles (scoped) | PL-3, PG-14 |
-| `checklists.create` | all roles (today unscoped — gap #4) | PL-2 |
+| `checklists.create` | ADMIN, MANAGER, STORE (store-scoped — instantiate today's checklist) | PL-2 |
+| `checklists.create.bulk` | ADMIN (org-wide fan-out; cannot be store-scoped) | PL-2 |
 | `messages.use` | all roles (scoped) | NV-3, PG-3, PL-6 |
 | `messages.moderate` | ADMIN, MANAGER (delete also author) | PL-7 |
 | `corporate.updates.manage` | ADMIN | PL-5 |
@@ -347,8 +364,8 @@ Deny-by-default: unknown capability → `false`.
 | `stores.view` | ADMIN, MANAGER (page tier; list API all roles scoped) | NV-5, PG-7, PL-11 |
 | `stores.manage` | ADMIN | PL-12 |
 | `users.manage` | ADMIN | NV-6, PG-8, PL-14 |
-| `staff.view` | ADMIN, MANAGER (page tier; scoped) | NV-7, PG-9/10, PL-15* |
-| `staff.manage` | ADMIN, MANAGER (in-scope; create today unguarded — gap #1) | PL-16*, PL-17 |
+| `staff.view` | ADMIN, MANAGER (scoped) | NV-7, PG-9/10, PL-15 |
+| `staff.manage` | ADMIN, MANAGER (in-scope) | PL-16, PL-17 |
 | `staff.sync.square` | ADMIN | PL-18 |
 | `staff.documents.manage` | ADMIN, MANAGER (in-scope) | PL-19, PL-20 |
 | `staff.notes.use` | ADMIN, MANAGER (in-scope; delete author-or-ADMIN) | PL-21 |
@@ -360,17 +377,19 @@ Deny-by-default: unknown capability → `false`.
 | `instagram.manage` | ADMIN | IG-1 |
 | `square.manage` | today: any member (gap #2; catalog syncs ADMIN) | SQ-1/3/6 |
 | `settings.access` | ADMIN | NV-16, PG-15 |
-| `inventory.assets.view` | ADMIN, MANAGER, STORE (nav tier; APIs all-member — gap #8) | NV-15, PG-20/21, IV-1 |
+| `inventory.nav.view` | ADMIN, MANAGER, STORE (**nav visibility only** — deliberately separate from API access; STAFF-1) | NV-15, PG-20/21 |
+| `inventory.assets.view` | all roles (operational item/category/area/par reads) | IV-1, IV-4 reads, IV-10 pars |
 | `inventory.assets.manage` | ADMIN, MANAGER | IV-2 |
 | `inventory.import` | ADMIN | IV-3 |
 | `inventory.storage.manage` | ADMIN, MANAGER (scoped; copy ADMIN via `inventory.import`) | IV-4 |
-| `inventory.counts.execute` | ADMIN, MANAGER, STORE (scoped) | NV-15, IV-5 |
+| `inventory.counts.execute` | all roles (scoped) | IV-5 |
 | `inventory.counts.finalize` | ADMIN, MANAGER | IV-6 |
 | `inventory.po.view` | ADMIN, MANAGER, STORE (scoped; incl. receiving) | NV-15, IV-7 |
 | `inventory.po.manage` | ADMIN, MANAGER (scoped) | IV-8, IV-11, PL-24 |
-| `inventory.adjustments.record` | ADMIN, MANAGER, STORE (scoped) | NV-15, IV-9 |
-| `inventory.analytics.view` | ADMIN, MANAGER (page tier; APIs all-member — gap #8) | NV-15/17, PG-22, IV-10 |
-| `labor.view` | ADMIN, MANAGER (nav tier; API any member — gap #11) | NV-13, PG-17, LB-1 |
+| `inventory.adjustments.record` | all roles (scoped) | IV-9 |
+| `inventory.analytics.view` | ADMIN, MANAGER (reports, expected, alerts, finalized-count summary) | NV-15/17, PG-22, IV-10, IV-5 summary |
+| `inventory.costs.view` | ADMIN, MANAGER (vendor prices + adjustments, recipe costs, order guide) | IV-1 pricing rows, IV-10 order-guide |
+| `labor.view` | all roles (read-only viewer; nav now matches the guard) | NV-13, PG-17, LB-1 |
 | `labor.manage` | ADMIN, MANAGER (scoped) | NV-14, PG-16, LB-2/3 |
 | `labor.toggle` | ADMIN | LB-4 |
 | `hr.access` | all roles (HR gates on) | NV-12, PG-23 |

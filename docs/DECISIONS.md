@@ -5,6 +5,48 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## PERM-2 `POST /api/checklists` — audit finding + scope exception — 2026-07-26 (Gary ruled on all three)
+
+PERM-2's Task 1 required auditing the endpoint before applying any permission
+to it, because the proposed ADMIN-only lock would have been an operational
+outage rather than a security fix.
+
+a. **The audit answer: (A), instantiation.** `POST` never creates a checklist
+   *definition* — `prisma.template` is only read, and the only two
+   `prisma.checklist.create` call sites in the codebase are both in this route.
+   Mode 1 (`{templateId, storeId}`) creates today's instance for one store,
+   idempotent per the store's local business day. Mode 2 (empty body) fans out
+   across every active store × applicable template. No cron generates
+   instances (`vercel.json` runs only `sales-reconcile` and `pace-alerts`), so
+   this endpoint is the ONLY way a checklist instance comes into existence.
+   The sole caller is `startChecklist()` in `store-view-client.tsx` — the
+   floor's "Start checklist" tap. **ADMIN-only would have stopped Las Brisas
+   from opening.**
+b. **Mode 1 → `checklists.create` at ADMIN/MANAGER/STORE, store-scoped
+   (Gary).** The capability moves from `ALL` to `OPERATIONAL`, and the call
+   site additionally requires `body.storeId` to be in
+   `getUserStoreScope().storeIds`, ADMIN unrestricted. Closes §2 gap #4: any
+   member, including STAFF, could previously instantiate at any store in the
+   org by passing its id.
+c. **Mode 2 → new capability `checklists.create.bulk`, ADMIN only (Gary).**
+   It is org-wide by construction — there is no store to scope it to — so it
+   gets its own capability rather than a scope variant of (b). **Code kept,
+   not deleted** (Gary), even though nothing calls it.
+d. **SCOPE EXCEPTION — cross-tenant template reference fixed here (Gary).**
+   Found during the audit, outside the ruling set: Mode 1 validated that
+   `storeId` belonged to the caller's org but performed **no equivalent check
+   on `templateId`**. A member of org A passing a template id owned by org B
+   created a checklist in org A whose `template` relation crossed the tenant
+   boundary; `GET` then rendered org B's template name and task list.
+   PERM-2's standing rule is *record out-of-scope findings, do not fix them* —
+   Gary made this a deliberate exception on two grounds: it is **inside the
+   function already being changed**, and it is **tenant isolation, not a role
+   gap**, so it does not belong in a permissions phase's backlog. The fix is
+   one org-scoped `template.findFirst` returning 404. **Containment (Gary):
+   this one lookup only — the same pattern found anywhere else gets written
+   up, not fixed.** Recorded here so the deviation is on the record rather
+   than inferred later from the diff.
+
 ## BUG-3 migrations bypass the Neon pooler — 2026-07-25 (Gary approved plan + fallback ruling)
 
 Fixes the intermittent P1002 deploy failure: Prisma's migration advisory lock

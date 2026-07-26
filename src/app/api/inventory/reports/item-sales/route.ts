@@ -9,7 +9,7 @@ import { ensureSalesCached } from "@/lib/sales-sync"
 // average price, share of sales; joined to SalesItem for display name and menu
 // group. I-6 adds mapped-status / theoretical-cost columns to this report.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

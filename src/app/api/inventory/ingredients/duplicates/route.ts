@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { requireModule } from "@/lib/auth"
+import { getUserStoreScope, requireModule } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { nameSimilarity, isCloseNameMatch } from "@/lib/duplicate-match"
 
 function pairKey(a: string, b: string) {
@@ -19,6 +20,12 @@ export async function GET() {
     await requireModule("inventory")
   } catch {
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
+  }
+
+  // Its page is canManage-gated — the API now matches (PERM-2 §3 #5).
+  const { role } = await getUserStoreScope()
+  if (!can({ role }, "inventory.assets.manage")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const [ingredients, dismissals] = await Promise.all([

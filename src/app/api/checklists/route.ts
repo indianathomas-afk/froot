@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { businessDayWindow } from "@/lib/reports"
 import { NextResponse } from "next/server"
 
@@ -75,17 +76,38 @@ export async function POST(req: Request) {
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
   const now = new Date()
+  const { isAdmin, storeIds, role } = await getUserStoreScope()
 
   let body: Record<string, string> = {}
   try { body = await req.json() } catch { /* no body */ }
 
-  // Single-checklist creation: {templateId, storeId}
+  // Single-checklist creation: {templateId, storeId}. This INSTANTIATES today's
+  // checklist for one store from a template — it never creates a definition.
   if (body.templateId && body.storeId) {
+    if (!can({ role }, "checklists.create")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    // Store scope comes from StoreUserAssignment, never from the request body:
+    // a non-admin may only start a checklist at a store they're assigned to.
+    if (!isAdmin && !storeIds.includes(body.storeId)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
     const store = await prisma.store.findFirst({
       where: { id: body.storeId, organizationId: org.id },
       select: { timezone: true },
     })
     if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
+
+    // Scope the template to the caller's org too — without this, a template id
+    // belonging to ANOTHER tenant creates a checklist here whose template
+    // relation points across the org boundary, and GET then renders that org's
+    // name and task list. Tenant isolation, not a role check.
+    const template = await prisma.template.findFirst({
+      where: { id: body.templateId, organizationId: org.id },
+      select: { id: true },
+    })
+    if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 })
 
     const w = businessDayWindow(now, store.timezone)
     const existing = await prisma.checklist.findFirst({
@@ -105,7 +127,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ id: checklist.id }, { status: 201 })
   }
 
-  // Bulk: generate for all stores × all applicable templates
+  // Bulk: generate for all stores × all applicable templates. Org-wide by
+  // construction — there is no store to scope it to — so ADMIN only.
+  if (!can({ role }, "checklists.create.bulk")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   const [stores, templates] = await Promise.all([
     prisma.store.findMany({ where: { organizationId: org.id, isActive: true } }),
     prisma.template.findMany({ where: { organizationId: org.id, isActive: true }, include: { storeAssignments: true } }),

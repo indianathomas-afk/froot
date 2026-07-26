@@ -6,7 +6,7 @@ import { computeLowStockAlerts } from "@/lib/expected-inventory"
 // GET /api/inventory/alerts[?storeId=] — low-stock alerts grouped by store.
 // Without storeId, every store in the caller's scope is evaluated.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

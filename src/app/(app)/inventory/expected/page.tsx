@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { Gauge } from "lucide-react"
 import Link from "next/link"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { ExpectedClient } from "./expected-client"
 
 export default async function ExpectedInventoryPage() {
@@ -38,7 +39,8 @@ export default async function ExpectedInventoryPage() {
 
   const dbUser = userId ? await prisma.user.findUnique({ where: { clerkUserId: userId } }) : null
   const role = dbUser?.role ?? "STAFF"
-  if (role !== "ADMIN" && role !== "MANAGER") redirect("/dashboard")
+  // PERM-2 §3 #5: same capability its data APIs enforce.
+  if (!can({ role }, "inventory.analytics.view")) redirect("/dashboard")
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   const stores = await prisma.store.findMany({

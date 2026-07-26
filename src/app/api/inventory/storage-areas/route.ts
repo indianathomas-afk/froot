@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 
 const CreateSchema = z.object({
   storeId: z.string().min(1),
@@ -29,7 +30,11 @@ export async function GET(req: Request) {
   const storeId = url.searchParams.get("storeId")
   if (!storeId) return NextResponse.json({ error: "storeId is required" }, { status: 400 })
 
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  const { isAdmin, storeIds, role } = await getUserStoreScope()
+  // Operational: which areas exist and what gets counted in them (PERM-2 §3 #5).
+  if (!can({ role }, "inventory.assets.view")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
   if (!isAdmin && !storeIds.includes(storeId)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
