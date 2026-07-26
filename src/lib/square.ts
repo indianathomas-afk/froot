@@ -34,11 +34,36 @@ export function squareBaseUrl(): string {
 // Back-compat alias for internal callers in this file.
 const getBaseUrl = squareBaseUrl
 
+// SQ-2: Square issues access tokens with a 30-day life and its guidance is to
+// refresh every 7 days or less. Only squareTokenExpiresAt is stored — there is
+// no issuedAt column — so "older than 7 days" is derived from the expiry:
+// 30 − 7 = 23 days of remaining life. The previous guard did the opposite, only
+// firing inside 7 days of expiry, which let the token reach 23 days old and
+// compressed every retry opportunity into the final week before the cliff.
+const SQUARE_TOKEN_LIFETIME_DAYS = 30
+const REFRESH_WHEN_OLDER_THAN_DAYS = 7
+const REFRESH_WHEN_EXPIRING_WITHIN_DAYS = SQUARE_TOKEN_LIFETIME_DAYS - REFRESH_WHEN_OLDER_THAN_DAYS
+
+// Square's OAuth error bodies describe fields, not values — but the body is not
+// ours to guarantee, and the refresh request carries three secrets. Redact any
+// that come back in an echo so no code path can put a credential in the logs.
+function redactSquareSecrets(text: string, orgRefreshToken: string | null): string {
+  const secrets = [orgRefreshToken, process.env.SQUARE_APPLICATION_SECRET, process.env.SQUARE_ACCESS_TOKEN]
+  let out = text
+  for (const s of secrets) if (s && s.length >= 8) out = out.split(s).join("[REDACTED]")
+  return out
+}
+
 async function refreshTokenIfNeeded(org: Organization): Promise<Organization> {
   if (!org.squareRefreshToken || !org.squareTokenExpiresAt) return org
 
-  const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  if (org.squareTokenExpiresAt > sevenDaysFromNow) return org
+  const refreshWhenExpiringBefore = new Date(Date.now() + REFRESH_WHEN_EXPIRING_WITHIN_DAYS * 24 * 60 * 60 * 1000)
+  if (org.squareTokenExpiresAt > refreshWhenExpiringBefore) return org
+
+  // SQ-2: all three outcomes are logged, and none of them log a token value —
+  // expiry timestamps, org identity and HTTP status only.
+  const expiresAtBefore = org.squareTokenExpiresAt.toISOString()
+  console.info(`[square] token refresh attempt org=${org.id} name="${org.name}" expiresAt=${expiresAtBefore}`)
 
   const res = await fetch(`${getBaseUrl()}/oauth2/token`, {
     method: "POST",
@@ -52,11 +77,20 @@ async function refreshTokenIfNeeded(org: Organization): Promise<Organization> {
   })
 
   // If refresh fails, keep the existing (possibly still-valid) token — the
-  // caller's Square request will surface a 401 if it's truly expired.
-  if (!res.ok) return org
+  // caller's Square request will surface a 401 if it's truly expired. Control
+  // flow is unchanged; SQ-2 only made the failure say why. Truncated because a
+  // Square gateway error returns an HTML page, not JSON.
+  if (!res.ok) {
+    const body = await res.text().catch(() => "<unreadable>")
+    console.error(
+      `[square] token refresh FAILED org=${org.id} status=${res.status} expiresAt=${expiresAtBefore} ` +
+        `body=${redactSquareSecrets(body, org.squareRefreshToken).slice(0, 500)}`
+    )
+    return org
+  }
 
   const data = await res.json()
-  return prisma.organization.update({
+  const refreshed = await prisma.organization.update({
     where: { id: org.id },
     data: {
       squareAccessToken: data.access_token,
@@ -64,6 +98,11 @@ async function refreshTokenIfNeeded(org: Organization): Promise<Organization> {
       squareTokenExpiresAt: data.expires_at ? new Date(data.expires_at) : null,
     },
   })
+  console.info(
+    `[square] token refresh success org=${org.id} expiresAt=${expiresAtBefore} -> ` +
+      `${refreshed.squareTokenExpiresAt?.toISOString() ?? "null"}`
+  )
+  return refreshed
 }
 
 export type SquareTeamMember = {
