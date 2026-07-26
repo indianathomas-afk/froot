@@ -585,6 +585,34 @@ phases:
     title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks, Square push"
     notes: Confirm L-3/L-4 order when scoping past L-2. Shares Square OAuth scopes with L-2.
 
+  # ---- Permissions ----
+
+  - id: PERM-1
+    track: permissions
+    size: M
+    status: in_progress
+    title: "Permission capability shim — enforcement inventory, capability registry, can()/scope() shim, sidebar pilot"
+    notes: >
+      Audit-first session (docs/prompts/PERM-1_permission_capability_shim.md).
+      Zero behavior change by definition. Enforcement inventory + capability
+      registry delivered 2026-07-25 in docs/PERMISSIONS_INVENTORY.md (also
+      records the security-gap and contradiction lists feeding later PERM
+      phases). Shim built: src/lib/permissions.ts (can()/scope(), deny-by-
+      default, hardcoded role grants). Pilot: sidebar nav filter migrated to
+      can(); parity verified — 192/192 role×gate permutations byte-identical
+      to the old roles-array filter; next build green. Sidebar alerts-badge
+      role check deliberately NOT migrated (pilot = nav filter only).
+      Awaiting Gary's staging pass (all four roles) before status moves.
+    blockers:
+      - >
+        Phase 2 (call-site migration) must not start until Gary rules on each
+        contradicted call site in PERMISSIONS_INVENTORY.md §3 — the shim
+        encodes one answer per capability; migrating a contradicted site
+        silently picks a side.
+      - >
+        Square OAuth callback state validation (§2 gap #3) is being scoped as
+        its own session — logged, unfixed here.
+
   # ---- Migration / nutrition ----
 
   - id: M-1
