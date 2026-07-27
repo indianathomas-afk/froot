@@ -5,6 +5,114 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## STORE is a device, not a person — 2026-07-27 (Gary, design confirmation)
+
+Governing principle for all future role tiering, recorded because it has been
+implicit in every PERM ruling so far and was never written down.
+
+The **STORE account is a shared login on an in-store iPad or computer** — not an
+individual. It is sourced from the Square location email (e.g.
+`kevajuice14@icloud.com`) or created directly on `/users`. Individual **STAFF
+logins exist separately**, and are the identity that documents, messages and
+training attach to.
+
+The rule that follows: **STORE gets operational breadth and zero confidential or
+personal data.** Breadth because the device has to run the store — open
+checklists, take counts, complete the day. Zero confidential data because
+anything it can see is visible to whoever is standing at the counter, and
+nothing it does can be attributed to a person.
+
+**Tier inversion, noted deliberately.** PERM-2's OPERATIONAL tier is
+Admin/Manager/Store and **excludes STAFF**. So the unattributable shared device
+currently sits one tier ABOVE the identified individual employee. That is
+correct for the operational surfaces it was drawn for — the device runs the
+checklist, the employee does not — but it is an inversion, and it should be an
+explicit ruling rather than an accident of tier naming. Anyone widening a tier
+should check which of the two they are actually widening to. HR-9 (EMPLOYEE role
+split) is where this gets tested, and the 2026-07-27 verification pass did not
+exercise STAFF at all.
+
+## CSV export removal is exfiltration friction, not a confidentiality boundary — 2026-07-27 (Claude finding, recorded before PERM-4 builds on it)
+
+Recorded so a later session does not build PERM-4(b) on a false premise.
+
+PERM-3 masks a MANAGER's out-of-window `goal` values. But it returns `basis`
+**unmasked for every month**, and `/api/forecasting/plan` GET returns
+`plan.increasePct` (currently 3) to MANAGER by the Q2 ruling above. Every masked
+goal is therefore recoverable as `basis × 1.03`.
+
+**Confirmed against live staging data 2026-07-27**, not merely reasoned about:
+July's basis 2256.01 × 1.03 = 2323.69, matching the displayed July goal exactly;
+September's masked goal is derivable the same way as 1767.23.
+
+So removing the CSV export raises the **cost** of bulk extraction — it turns one
+click into a per-month arithmetic exercise — but it withholds no information
+from anyone willing to do the arithmetic. A real confidentiality boundary would
+require masking `basis` too, and that would cost managers the trend baseline the
+whole window ruling exists to preserve. Gary has not been asked to make that
+trade and it is not obviously worth making.
+
+This is consistent with the "accepted basis-reconstruction property" already
+noted in the PERM-3 entry below; it is promoted to its own decision because
+PERM-4(b) is scoped to remove the export, and that phase should be described as
+friction, not as closing a leak.
+
+## labor.view widening is being reversed for cost data — 2026-07-27 (Gary)
+
+A deliberate reversal, recorded as such so it does not read as a bug later.
+
+PERM-2 resolved the PERMISSIONS_INVENTORY §3 #8 contradiction in the
+**permissive** direction: the Weekly Plan nav was widened to match an API that
+already served any org member, rather than the API being narrowed to match the
+nav. That was the right call for the contradiction as stated — the data was
+already reachable, so hiding the link was security theater.
+
+Gary is now reversing that **for cost data specifically**, as PERM-4(c): a new
+`labor.costs.view` capability at the MANAGE tier, mirroring
+`inventory.costs.view`. The `labor.view` tier itself is untouched and stays
+wide — it governs only the sidebar link, and the 2026-07-27 verification pass
+confirmed STORE sees Weekly Plan in the nav as intended.
+
+Not a contradiction of PERM-2 and not a bug in it. PERM-2 resolved a
+tier-vs-tier inconsistency; this splits the payload by data sensitivity, which
+is the same move PERM-2 itself made for inventory. The reversal is of the
+*conclusion for costs*, not of the method.
+
+## The recorded fix for the preview-database exposure was partial — 2026-07-27 (correction)
+
+Correcting the record, and correcting a correction: the fix has been described
+as **"scope `DATABASE_URL` to Production-only."** What actually shipped on Jul 2
+was a **staging-branch override** — a branch-scoped Preview row for `staging`
+layered over a single Production+Preview row.
+
+Those are not the same fix. The override closes the **specific** hole (staging
+previews now reach the staging database) and leaves the **general** one open:
+any preview deploy from a branch other than `staging` still resolves to the
+production database, and with no generic-Preview `DATABASE_URL_UNPOOLED`,
+`prisma.config.ts` falls back to the **pooled** production URL — so a PR preview
+build runs `migrate deploy` against production through pgbouncer, which is also
+the BUG-3 P1002 advisory-lock condition.
+
+Verified in the Vercel console 2026-07-27: `DATABASE_URL` is ONE row tagged
+Production **and** Preview (Sensitive, added Jun 26) with a `staging`-only
+branch override; `DATABASE_URL_UNPOOLED` has Production, Development and
+Preview→staging rows but no generic Preview row.
+
+Latent only because Gary pushes `staging` and `main` and nothing else. It
+detonates on the first feature branch — which is precisely what the deferred
+second-developer plan requires, making this a scheduled failure rather than a
+hypothetical one. The full fix is two ordered steps, tracked on **BUILD-1**:
+scope the Jun 26 row to Production-only so preview fails **closed**, then add
+Preview-scoped `DATABASE_URL` and `DATABASE_URL_UNPOOLED` pointing at a
+throwaway Neon branch.
+
+*Housekeeping note from the 2026-07-27 reconcile:* the "Production-only" claim
+being corrected here was **not found anywhere in this file** — the nearest entry
+is BUG-3(c) below, which says something narrower and accurate. The claim appears
+to have lived only in session memory. That is the more useful finding: the Jul 2
+fix was never written down at all, which is how a partial fix came to be
+remembered as a complete one.
+
 ## PERM-3 forecast read window — 2026-07-26 (Gary ruled on Q1–Q4 + two additions)
 
 The ruling: ADMIN unrestricted. MANAGER sees forward forecast for the **current

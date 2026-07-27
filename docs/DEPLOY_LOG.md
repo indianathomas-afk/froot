@@ -4,6 +4,48 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-07-26 — PRODUCTION promotion (PERM-1 + SEC-1 + BUG-3 fix)
+
+- **Merge commit / rollback SHA:** `c463af3` — full: `c463af3482b1be4955c9e35b221e01db26f90eba`
+  (rollback: `git revert -m 1 c463af3482b1be4955c9e35b221e01db26f90eba` → push main).
+  Parents: `1ba059c` (previous main) and `95df9aa`.
+- **What shipped:** PERM-1 permission capability shim (`6f70465`: enforcement
+  inventory, capability registry, `can()`/`scope()`, sidebar nav pilot,
+  zero behavior change), SEC-1 Square OAuth hardening (`ecee728`: session-org
+  binding, 32-byte state nonce via double-submit httpOnly cookie, ADMIN gate on
+  `/api/square/auth` and `/api/square/disconnect`), and the BUG-3 fix (`f6818f1`:
+  `prisma.config.ts` routes Prisma CLI through Neon's direct endpoint).
+- **Migrations:** none. SEC-1 Part B was chosen specifically to avoid a schema
+  change, and BUG-3 is connection routing only.
+- **Open prod-verification items:** SEC-1's ADMIN gate was never smoke-tested in
+  production — verify a non-ADMIN gets 403 on `/api/square/auth`. **Do not test via
+  Disconnect**, which revokes Keva Juice's live Square token. BUG-3's required proof
+  (a build log showing the `Datasource "db"` host WITHOUT `-pooler`) is still
+  unrecorded, which is why BUG-3 remains `in_progress` despite being in prod on both
+  branches.
+- *Recorded retroactively 2026-07-27 during the DOCS-2 reconcile — this entry was
+  missing when the promotion happened.*
+
+## 2026-07-25 — PRODUCTION promotion (HR-17 training preview)
+
+- **Merge commit / rollback SHA:** `1ba059c` — full: `1ba059c03a9a2603eb1d1da3976e1e8d8ee6db1e`
+  (rollback: `git revert -m 1 1ba059c03a9a2603eb1d1da3976e1e8d8ee6db1e` → push main).
+  Parents: `59a6cdc` (previous main) and `da413bd`.
+- **What shipped:** HR-17 only (`438a9ef`, built 7-24) — training builder "Save &
+  Preview" opens the trainee renderer read-only, through the same extracted
+  `TrainingModuleView` the `/my` execution page uses. Read-only by construction:
+  preview carries no `assignmentId`, so neither write endpoint is reachable. Gated
+  ADMIN/MANAGER, manager limited to modules applying to their stores; the resource
+  download route's admin tier widened to the manage tier for the same scope.
+- **Migrations:** none — HR-17 has no schema changes.
+- **Attribution note (verified 2026-07-27):** this promotion carried HR-17 **only**.
+  PERM-1 (`6f70465`) and SEC-1 (`ecee728`) are **not** ancestors of `1ba059c` —
+  confirmed with `git merge-base --is-ancestor` (false for both) and
+  `git log --ancestry-path 6f70465..origin/main`, whose first merge is `c463af3`.
+  They shipped 07-26 in the entry above, not here.
+- *Recorded retroactively 2026-07-27 during the DOCS-2 reconcile — this entry was
+  missing when the promotion happened.*
+
 ## 2026-07-24 — PRODUCTION promotion (HR-11b + HR-11c) + HR LAUNCH
 
 - **Merge commit / rollback SHA:** `59a6cdc` — full: `59a6cdcc4a989baf32951cc0f5d3db7863b378cc`
