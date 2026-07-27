@@ -6,7 +6,7 @@ import { requireCountsContext } from "@/lib/count-access"
 // sitting inventory value per store in scope: the latest finalized, non-partial
 // count on or before the date, plus a company-wide total.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

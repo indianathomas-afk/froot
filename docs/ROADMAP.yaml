@@ -11,6 +11,7 @@
 #   staging  — merged to `staging`, on Vercel preview, NOT in prod
 #   shipped  — merged to `main`, live in prod
 #   verified — shipped AND smoke-tested against real store data
+#   GAP: no status fits an audit-only phase with no shipped code (SQ-1 sits in "verified") — a future "closed"/"documented" would.
 #
 # blockers — live problems in a phase regardless of status (unset env vars,
 #            prod-promotion gates, unverified pixel work). Anything here blocks.
@@ -22,16 +23,27 @@
 # earlier and promoted later, the build date is in notes.
 
 meta:
-  updated: 2026-07-24
+  updated: 2026-07-27
   sources_retired: [docs/ROADMAP.md, "CLAUDE.md#Phase Status", external sheet]
   note: >
     Reconstructed 2026-07-24 from docs/ROADMAP_ARCHIVE.md, docs/prompts/*, and
-    git log. Three prod promotions to date: 9743899 (2026-07-21, L-3 + full
-    HR/Labor backlog), 942bc59 (2026-07-23, HR-8 through STAFF-1 batch) and
-    59a6cdc (2026-07-24, HR-11b + HR-11c — see docs/DEPLOY_LOG.md). As of
-    2026-07-24 staging and main are level; nothing is staging-only. HR
-    LAUNCHED in production 2026-07-24 (HR_MODULE_AVAILABLE=true added to the
-    Vercel Production scope + redeploy).
+    git log. Five prod promotions to date: 9743899 (2026-07-21, L-3 + full
+    HR/Labor backlog), 942bc59 (2026-07-23, HR-8 through STAFF-1 batch),
+    59a6cdc (2026-07-24, HR-11b + HR-11c), 1ba059c (2026-07-25, HR-17) and
+    c463af3 (2026-07-26, PERM-1 + SEC-1 + the BUG-3 fix). Both 1ba059c and
+    c463af3 were written into docs/DEPLOY_LOG.md at the 2026-07-27 reconcile;
+    that log previously stopped at 59a6cdc. The promotion attribution above was
+    re-verified from git on 2026-07-27 via `git log --ancestry-path` and
+    `git merge-base --is-ancestor`: PERM-1 (6f70465) and SEC-1 (ecee728) rode
+    c463af3 on 07-26 and are NOT ancestors of 1ba059c, so they did not ship in
+    the 07-25 HR-17 promotion.
+    Staging is NOT level with main as of 2026-07-27: 3902d5c (P-3) and 056943f
+    (the SQ-1/SQ-2/DEBT-4 entries in this file) are staging-only, as are PERM-2
+    (979da0b), PERM-3 (b8f32bb) and BUILD-1 (6a77e68). Conversely SQ-2 was
+    cherry-picked to main alone as 9dc6dc0 (staging's own copy is 81be8d9), so
+    the two branches carry the same change under different SHAs. HR LAUNCHED
+    in production 2026-07-24 (HR_MODULE_AVAILABLE=true added to the Vercel
+    Production scope + redeploy).
 
 phases:
 
@@ -107,6 +119,27 @@ phases:
     title: "User management fixes — names display, STAFF edit option, Clerk role sync, admin/self guards"
     notes: Built 7-22; prod via 942bc59. Outstanding checks were unblocked by the HR-15 staging pass.
 
+  - id: UM-2
+    track: platform
+    size: M
+    status: planned
+    title: "Role column on organization members + read-only role-capability matrix page"
+    notes: >
+      Logged by PERM-3 (2026-07-26), explicitly scoped out of it. Two pieces:
+      (1) a role / permission-level column on the organization MEMBERS table of
+      /users. Check before building: the users page already renders role badges
+      via ROLE_STYLES in the PENDING INVITATIONS table, so confirm whether the
+      accepted-members table has the same column before treating it as new work.
+      (2) a read-only role-capability matrix page, linked from the Edit User
+      modal, rendered FROM THE LIVE REGISTRY in src/lib/permissions.ts (GRANTS
+      plus the SCOPE_OVERRIDES table PERM-3 added) — never a hand-maintained
+      table, which would drift from enforcement the first time a capability
+      moves.
+      Layout note carried from the PERM-3 prompt: PERM-5's per-user overrides
+      belong in the Edit User modal, while the role BASELINE stays on the global
+      matrix page. Build the matrix page so a per-user diff can sit beside it.
+      Numbered UM-2 because UM-1 is a shipped phase (2026-07-23, 516b6da).
+
   - id: STAFF-1
     track: platform
     size: L
@@ -125,6 +158,60 @@ phases:
     shipped: 2026-07-22
     commits: [3ff8720, e01ab8e]
     title: "Docs consolidation into docs/ + session prompt library"
+
+  - id: P-3
+    track: platform
+    size: M
+    status: staging
+    commits: [3902d5c]
+    title: "Live /internal/roadmap dashboard rendered from docs/ROADMAP.yaml"
+    notes: >
+      Built 2026-07-25 per docs/prompts/ROADMAP_PAGE_SESSION.md. Replaces the
+      hand-generated froot-roadmap-dashboard.html snapshot, whose "last updated"
+      date was typed in and went stale on the first edit.
+      scripts/generate-roadmap.mjs runs on `prebuild`/`predev`: it parses this
+      file with the new `yaml` dependency, resolves the file's git commit date,
+      and emits src/generated/roadmap.ts (gitignored) — build time rather than
+      runtime because the YAML sits outside the import graph and there is no
+      .git directory inside a lambda. Timestamp fallback chain, never silent:
+      git commit date → meta.updated → unknown, logged to the build output AND
+      labelled on the page. The page is a server component (requireAdmin,
+      redirect to /dashboard, noindex) passing plain data to a client board:
+      summary strip, blockers panel, staging→prod pipeline, three columns,
+      search, track chips. Blockers render as the plain YAML strings — no
+      severity inferred. Read-only: no writes to ROADMAP.yaml, no DB access.
+      Also adds the app's first src/app/robots.ts (allow all, disallow
+      /internal/). NOT in prod — 3902d5c is on staging only.
+
+  - id: UX-1
+    track: platform
+    size: S
+    status: planned
+    title: "Role-change ergonomics — Edit User dirty-state guard + role indicator in the sidebar"
+    notes: >
+      Created 2026-07-27 from friction hit during the PERM-2/PERM-3 verification
+      pass. Both items are about the same failure: the person changing a role
+      cannot tell what state they are in.
+      (a) Edit User modal — "Save Changes" sits BELOW THE FOLD with no
+      dirty-state warning, so a role change is silently discarded when the modal
+      is closed. The user's mental model says the role changed; the system says
+      nothing. This cost ~40 minutes of misdiagnosis on 2026-07-27 — time spent
+      debugging permission enforcement that was working correctly, against a
+      role that had never actually been saved. Fix: a sticky footer so the
+      action is always visible, or a dirty-close guard, or both.
+      (b) Role indicator in the sidebar footer, beside the email address already
+      rendered there, so the active permission tier is visible at a glance. The
+      whole class of confusion in (a) is only diagnosable if you can see which
+      tier you are currently acting as. Related to UM-2, which adds a role
+      column to the members table and a capability-matrix page — this is the
+      same information at a third location, the one you are looking at while
+      testing.
+      (c) Cosmetic, logged here 2026-07-27: guarded routes answer Next.js RSC
+      prefetches (`?_rsc=`) with 404 rather than a clean redirect — 13 observed
+      in the Network tab immediately after a role change. NO DATA IS RETURNED,
+      so this is not a permission hole; it is noise that makes the Network tab
+      harder to read during exactly the permission testing described above,
+      which is why it belongs with (a) and (b).
 
   - id: X-1
     track: platform
@@ -238,11 +325,33 @@ phases:
     shipped: 2026-07-08
     commits: [b7feecb]
     title: "Forecasting — sales-data foundation"
-    blockers:
-      - >
-        CRON_SECRET not confirmed set in Vercel (flagged at ship, never
-        confirmed closed) — nightly sales-reconcile and pace-alert crons
-        silently don't run without it.
+    notes: >
+      CLOSED BLOCKER (resolved 2026-07-27, text retained so the history
+      survives). The blocker read: "CRON_SECRET not confirmed set in Vercel
+      (flagged at ship, never confirmed closed) — nightly sales-reconcile and
+      pace-alert crons silently don't run without it." Verified in the Vercel
+      dashboard 2026-07-27: CRON_SECRET exists as Sensitive on BOTH Production
+      and Preview, **Added Jul 8** — the same day F-1 shipped. It was set at
+      ship time and simply never recorded. No backfill is required; the crons
+      were never running unauthenticated and never silently skipped for want of
+      the secret. This also unblocks F-5's pace-alert cron (F-5's separate
+      notify.ts email-provider blocker still stands).
+      Prior evidence, retained: SQ-1 (2026-07-26) gathered evidence against the
+      blocker but did not clear it. `vercel env ls production`
+      lists CRON_SECRET as Encrypted/Production, added 18 days ago (~2026-07-08,
+      the F-1 ship date), so the secret does exist in the Production scope; what
+      is still unconfirmed is that the crons actually invoke successfully (check
+      the Vercel Cron Jobs page → View Logs). Separately, SQ-1 corrected the
+      Pro-plan assumption in the docs: the account is on Hobby, and Hobby caps
+      crons at ONCE PER DAY with ±59 min scheduling precision. Both registered
+      crons comply — sales-reconcile `0 11 * * *` and pace-alerts `0 15 * * *`
+      are daily — but they can fire anywhere inside their hour, and any future
+      sub-daily expression will FAIL DEPLOYMENT, not fail quietly. maxDuration
+      = 300 does not exceed the Hobby cap: with Fluid compute (on by default)
+      Hobby's max duration is 300s, i.e. these routes sit exactly at the ceiling
+      with no headroom. Vercel documents no plan-tier difference in
+      CRON_SECRET handling, so F-1 is a secrets/verification problem rather
+      than a plan-tier one.
 
   - id: F-2
     track: forecasting
@@ -273,9 +382,34 @@ phases:
       remains deferred.
     blockers:
       - >
-        SQUARE_WEBHOOK_SIGNATURE_KEY per env + webhook subscriptions in each
-        Square app (prod + Froot Staging) were flagged at ship and never
-        confirmed closed.
+        CONFIRMED LIVE 2026-07-27 — not stale, and worse than "never confirmed
+        closed" implied. SQUARE_WEBHOOK_SIGNATURE_KEY is ABSENT from EVERY
+        Vercel environment. The Square vars that do exist are
+        SQUARE_ENVIRONMENT, SQUARE_APPLICATION_SECRET, SQUARE_APPLICATION_ID,
+        NEXT_PUBLIC_SQUARE_APP_ID and SQUARE_ACCESS_TOKEN. Consequence: order
+        webhooks have NEVER been signature-verified in production, so F-4's
+        headline feature — live intraday pacing — has been silently degraded to
+        the nightly sales-reconcile backfill since 2026-07-10. The dashboard has
+        been showing day-old pacing, not live pacing, for 17 days without
+        erroring.
+      - >
+        The fix is TWO parts and neither alone is sufficient: (a) set
+        SQUARE_WEBHOOK_SIGNATURE_KEY per environment, and (b) register a webhook
+        subscription in EACH Square app — the production app and the separate
+        "Froot Staging" app, which have different keys. Setting the env var
+        against an app with no subscription registered yields exactly the same
+        silence as today.
+    open:
+      - >
+        Determine whether src/app/api/webhooks/square fails CLOSED (rejects
+        every event when the key is unset — the degradation described above) or
+        fails OPEN (skips verification when the key is unset). Fail-open would
+        make it an UNAUTHENTICATED WRITE ENDPOINT reachable by anyone who knows
+        the URL, writing into the sales caches that drive pacing — a materially
+        different and more urgent finding than degraded pacing. Logged
+        2026-07-27, deliberately NOT investigated in that session; resolve this
+        before the env var is set, since fail-open would mean the endpoint has
+        been exposed since 7-10.
 
   - id: F-5
     track: forecasting
@@ -284,12 +418,17 @@ phases:
     shipped: 2026-07-10
     commits: [cb3f1bb]
     title: "Forecasting polish — goal-edit audit log, CSV export, behind-pace alerts"
-    notes: "Seed correction: seed said planned; shipped 7-10."
+    notes: >
+      Seed correction: seed said planned; shipped 7-10.
+      CLOSED BLOCKER (2026-07-27): "Pace-alert cron depends on the F-1
+      CRON_SECRET blocker" is resolved — CRON_SECRET was verified present as
+      Sensitive on Production and Preview, added Jul 8. See F-1 notes. The
+      notify.ts blocker below is untouched by this and still stands: the cron
+      can now authenticate, but it still has nowhere to send mail.
     blockers:
       - >
         Pace alerts log to console only — no real email provider is wired into
         src/lib/notify.ts (also blocks HR-8 reminders and HR-16).
-      - Pace-alert cron depends on the F-1 CRON_SECRET blocker.
 
   # ---- HR / signing ----
   # Built 7-12…7-14, promoted to prod 7-21 (9743899) with HR dark in prod:
@@ -514,6 +653,10 @@ phases:
       /staff UI is ADMIN/MANAGER; this is the inventory's worst-first finding.
       (4) item 6 — GET /api/staff exposes the staff directory (names, emails,
       assignments) to any member, store-scoped for non-admins.
+      GATED ON BUILD-1 (2026-07-26): this phase touches the schema, and until
+      BUILD-1 lands a local `npm run build` runs migrate deploy against the
+      PRODUCTION branch (DEBT-4). Do not start schema work here before BUILD-1
+      is verified.
 
   - id: HR-15
     track: hr
@@ -609,7 +752,8 @@ phases:
   - id: PERM-1
     track: permissions
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-07-26
     commits: [6f70465]
     title: "Permission capability shim — enforcement inventory, capability registry, can()/scope() shim, sidebar pilot"
     notes: >
@@ -623,7 +767,17 @@ phases:
       to the old roles-array filter; next build green. Sidebar alerts-badge
       role check deliberately NOT migrated (pilot = nav filter only).
       Staging pass clean 2026-07-25 (Gary — no nav differences across all
-      four roles).
+      four roles). Built 7-25; prod via c463af3 (2026-07-26). The two blockers
+      below were NOT cleared by the promotion — they gate PERM phase 2, not
+      this one.
+      Promotion path re-verified 2026-07-27: `git branch -a --contains 6f70465`
+      returns main and origin/main, and `git log --ancestry-path
+      6f70465..origin/main` shows the first merge on the path is c463af3
+      (2026-07-26) — NOT 1ba059c, the 2026-07-25 HR-17 promotion.
+      `git merge-base --is-ancestor 6f70465 1ba059c` returns false. The
+      shipped date below (2026-07-26) is correct as written; a 2026-07-25 /
+      HR-17 attribution was considered at the 7-27 reconcile and rejected on
+      this evidence.
     blockers:
       - >
         Phase 2 (call-site migration) must not start until Gary rules on each
@@ -634,12 +788,208 @@ phases:
         Square OAuth callback state validation (§2 gap #3) is SEC-1, its own
         phase — logged here, unfixed in PERM-1.
 
+  - id: PERM-2
+    track: permissions
+    size: L
+    status: staging
+    title: "Resolve permission contradictions — checklists, templates, staff, inventory split, dashboard goal, weekly plan"
+    notes: >
+      Audit-first session (docs/prompts/PERM-2_resolve_permission_contradictions.md),
+      clearing PERM-1's phase-2 blocker: Gary ruled on every contradicted call
+      site before migration. Task 1 audit found POST /api/checklists
+      INSTANTIATES a store's daily checklist from a template (it does not
+      create a definition) and is the ONLY way an instance is ever created —
+      no cron generates them — so the proposed ADMIN-only lock would have
+      stopped stores from opening. Resolved §3 #2 (templates ADMIN-only, layout
+      closed), #3 (GET /api/staff ADMIN/MANAGER; POST /api/staff was entirely
+      unguarded — security fix), #4 (checklist instantiation ADMIN/MANAGER/
+      STORE + StoreUserAssignment scope, bulk fan-out ADMIN-only), #5
+      (inventory split by data sensitivity — operational vs commercial, 21
+      routes gated), #6 (dashboard goal PUT ADMIN-only, matching Forecasting)
+      and #8 (Weekly Plan nav for all roles). #1, #7 and #9 deliberately
+      untouched. Two new capabilities: inventory.costs.view and
+      inventory.nav.view — the latter keeps nav visibility separate from API
+      access so STAFF-1's sidebar exclusion survives operational grants going
+      to ALL. Every decision goes through can(); no inline role check added,
+      two dead ones removed. One deliberate scope exception, logged in
+      DECISIONS.md: a cross-tenant templateId hole inside the function already
+      being changed was fixed here rather than deferred.
+      STAGING VERIFICATION PASS COMPLETE 2026-07-27 (Gary), Tommy Thomas driven
+      as STORE and then MANAGER, full results in
+      docs/prompts/verification-smoke-pass.md. Negative checks all passed:
+      S1 `POST /api/staff` as STORE → 403 (this route was ENTIRELY UNGUARDED
+      before PERM-2 — the inventory's worst-first finding, now closed by
+      observation and not just by code review); S2 `GET /api/staff` as STORE →
+      403. Regression guards passed: a STORE can still start AND complete a
+      checklist — the instantiation path Task 1 identified as the one that would
+      have stopped stores opening had the proposed ADMIN-only lock shipped — and
+      a STORE sees Weekly Plan in the nav, confirming the §3 #8 widening.
+      PARTIAL: the inventory pars and storage-areas routes returned 400
+      "storeId is required" rather than a role denial. Not denied, but not
+      proven either — role-check ORDERING on those two routes is unverified,
+      since a 400 that precedes the role check would look identical from the
+      client. Worth a targeted re-test with a valid storeId.
+      NOT COVERED: the STAFF role was not exercised at all in this pass. Known
+      coverage gap, recorded rather than glossed; pick it up with HR-9, which
+      splits EMPLOYEE off STAFF and has to re-walk these same routes anyway.
+    deferred:
+      - >
+        POST /api/staff accepts a storeIds array with no check that those
+        stores are in the caller's scope — a MANAGER can assign a staff member
+        to stores they do not manage. Tier is now correct; the scope hole is
+        its own fix. Found in this session, deliberately not fixed.
+
+  - id: PERM-3
+    track: permissions
+    size: M
+    status: staging
+    title: "MANAGER forecast read window (current + next month), forecasting store scoping, affordance visibility"
+    notes: >
+      Audit-first session (docs/prompts/PERM-3_forecasting_read_window.md).
+      NOTE: this entry previously said MANAGER *and STORE* get a current+next
+      month window on forecast AND sales data. Task 1 established that was
+      wrong on both counts, and Gary's ruling (option c, 2026-07-26) replaced
+      it: STORE and STAFF get NO forecasting access at all (the APIs already
+      403'd them), and MANAGER's window applies ONLY to forward forecast goals —
+      historical actual sales stay fully visible, because a manager needs last
+      July's actuals to budget this July. ADMIN unrestricted. Writes unchanged
+      and still ADMIN-only (§3 #7 deliberately not harmonized).
+      Task 1 found the phase was a pure RESTRICTION with no grants: managers
+      could read an unbounded number of forward years, and the two dashboard
+      "Forecasting →" links (Monthly Goal card, rollup Store Ranking header)
+      rendered for every role with no capability check at all, dead-ending in a
+      redirect for STORE/STAFF — the PERM-2 bug class, UI-only.
+      Enforced server-side by per-FIELD masking, never by a 4xx: rejecting or
+      clamping the requested range would also withhold the historical actuals
+      the ruling grants. /calendar and /export null `goal` outside the window
+      (and `variance` with it, since actual − goal hands the goal back);
+      /audit filters entries to window months. plan GET's annual aggregates stay
+      visible to MANAGER by ruling. No new capability — forecasting.view gained
+      a scope() window via the new SCOPE_OVERRIDES table, which is also where
+      PERM-5's per-user overrides will hook in.
+      Window is computed per request from Store.timezone in the new pure
+      src/lib/forecast-window.ts, shared by the API guards AND the client year
+      selector so they cannot drift; inclusive 1st-of-current-month through
+      last-day-of-next, crossing the year in December. The year selector's
+      forward edge derives from the window, so a manager in December can still
+      select next January's year.
+      Also fixed in scope (Gary): every forecasting read was org-scoped but not
+      assignment-scoped, so a MANAGER could read any sibling store's forecast by
+      passing its storeId — now mirrors requireLaborStore. Migrated
+      forecasting-access.ts and forecasting/page.tsx off their inline role
+      checks onto can(). See DECISIONS.md for Q1–Q4 and the accepted
+      basis-reconstruction property.
+      STAGING VERIFICATION PASS COMPLETE 2026-07-27 (Gary), Tommy Thomas driven
+      as STORE and then MANAGER, full results in
+      docs/prompts/verification-smoke-pass.md. Negative checks: S3 forecasting
+      calendar as STORE → 403; S4 cross-store calendar as MANAGER → 403 (the
+      assignment-scoping fix Gary added in scope — a MANAGER can no longer read
+      a sibling store's forecast by passing its storeId); S5 `PATCH
+      /api/forecasting/day` as MANAGER → 403 "Admin access required", confirming
+      writes stayed ADMIN-only.
+      MASKING CONFIRMED WORKING AS RULED, and this is the load-bearing result:
+      the calendar returned `days: Array(365)` with the window computed as
+      2026-07-01 → 2026-08-31, and June 15 came back with `goal` null while its
+      `actual` of 2582.93 was PRESENT. That is per-FIELD masking, not range
+      clamping — exactly the Q1 ruling, and the observable difference between
+      the two implementations. `/api/stores` as MANAGER returned 1 of 12 stores.
+    deferred:
+      - >
+        forecastWindowForCaller (used only by /audit, whose storeId is optional)
+        picks the window's timezone by sorting the caller's assigned stores on
+        storeNumber then name. Placeholder pending BUILD-2 (deterministic
+        primary store), which is blocked on BUILD-1.
+
+  - id: PERM-4
+    track: permissions
+    size: M
+    status: planned
+    title: "Strip cost/valuation fields from operational inventory payloads"
+    notes: >
+      PERM-2 §3 #5 split inventory by ROUTE; this splits it by FIELD. Several
+      operational payloads still carry commercial data to callers without
+      inventory.costs.view: counts GET (draftValue), purchase-orders reads and
+      receive (unit costs, line totals), and ingredients GET (purchaseCost,
+      costPerReportingUnit, vendorPriceDisplay — the route deliberately left
+      open in PERM-2 because the shortage-message picker in messages-client
+      depends on it). Deferred out of PERM-2 by Gary because field-level
+      redaction is a new pattern across three surfaces and a missed field is a
+      silent leak that looks closed; these fields are visible to any member
+      today, so deferring is not a regression. BUILD IT AS ONE SHARED
+      SERIALIZATION HELPER, not per-route logic.
+      SCOPE ADDED 2026-07-27 — three more surfaces plus one hardening idea.
+      For (a) and (b) the rule is API FIRST, then hide the affordance: hiding a
+      button while the endpoint still answers is the PERM-2 bug class inverted,
+      and PERM-3 already had to clean up two links that dead-ended in redirects.
+      (a) `/api/forecasting/audit` → 403 for MANAGER, and the audit panel
+      hidden. Before building, GREP FOR ALL AUDIT CONSUMERS — F-5 shipped a
+      goal-edit audit log and it may render in more than one place, so a single
+      panel is an assumption, not a finding. Note this SUPERSEDES PERM-3's
+      window-filtering of /audit for MANAGER: if the route 403s outright, the
+      filtering becomes dead code and should be removed rather than left as a
+      second, weaker gate.
+      (b) `/api/forecasting/export` → 403 for MANAGER, export button hidden.
+      See the CSV-export entry in DECISIONS.md (2026-07-27) before scoping this:
+      removing the export is exfiltration FRICTION, not a confidentiality
+      boundary, because masked goals stay derivable from `basis` × 1.03. Build
+      it knowing that, so the phase is not mis-sold as closing the leak.
+      (c) Labor cost split — add `labor.costs.view` at the MANAGE tier,
+      mirroring `inventory.costs.view` from PERM-2. Touch points verified in
+      source 2026-07-27: src/app/(app)/dashboard/page.tsx:51 (`laborEnabled`)
+      and src/lib/labor-access.ts:19 (`requireLaborView`). NOT the `labor.view`
+      tier — that governs only the sidebar link, and narrowing it would reverse
+      the §3 #8 nav widening the 7-27 pass just confirmed working for STORE.
+      (d) Hardening idea: export a separate `requireForecastWriteContext()`
+      alongside the existing context helper, so a write path that omits
+      `{write:true}` becomes IMPOSSIBLE to express rather than merely unlikely
+      to be written. Cheap, and it removes a whole class of silent-permissive
+      mistake at the type level.
+
+  - id: PERM-5
+    track: permissions
+    size: L
+    status: planned
+    title: "Per-user capability overrides — the toggle layer"
+    notes: >
+      Grant or remove a capability for ONE user against their role baseline —
+      e.g. one staff member gets inventory-count access, or the inventory nav,
+      while others do not. PERM-1's can()/scope() layer plus PERM-2's
+      discipline (every decision routed through a capability, nav visibility
+      kept separate from API access) is the substrate this depends on: there is
+      one place to hook the override. Must keep the shim's rule that a stored
+      permission set RESTRICTS BELOW the Clerk role ceiling and never elevates
+      above it.
+    blockers:
+      - >
+        PERMISSION FUSION — split "may write" from "may read any store" BEFORE
+        building the override layer. Verified in source 2026-07-27:
+        `ForecastContext.isAdmin` is literally `can(actor,
+        "forecasting.edit")` (src/lib/forecasting-access.ts:51), and
+        `requireForecastStore` SKIPS the StoreUserAssignment check entirely
+        whenever `isAdmin` is true (`if (!ctx.isAdmin) { ...assigned check... }`
+        in the same file). One flag is doing two unrelated jobs: "may edit
+        goals" and "is exempt from store scoping". These coincide correctly
+        TODAY only because forecasting.edit is ADMIN_ONLY, so the only callers
+        with isAdmin true are admins, who are legitimately unscoped.
+        The moment PERM-5's override layer grants forecasting.edit to a single
+        MANAGER — the exact per-user grant this phase exists to enable — that
+        user ALSO silently gains unscoped cross-store forecast READS. Nobody
+        reading the grant "give Maria goal-edit access" would predict it hands
+        her every sibling store's forecast, and it would defeat the
+        assignment-scoping fix PERM-3 shipped and the 7-27 pass verified via S4.
+        This is not a bug today; it is a trap armed for the first override.
+        Fix direction: give requireForecastStore its own capability (e.g. a
+        `forecasting.scope.all` or an explicit unscoped flag on the context)
+        rather than reusing isAdmin, so the two powers are grantable
+        independently.
+
   # ---- Security ----
 
   - id: SEC-1
     track: security
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-07-26
     commits: [ecee728]
     title: "Square OAuth callback org binding + state nonce; ADMIN gate on connect/disconnect"
     notes: >
@@ -655,7 +1005,22 @@ phases:
       Existing connected orgs unaffected — no token columns touched, no
       reconnect needed. Instagram's own missing nonce logged as SEC-2.
       Staging pass clean 2026-07-25 (Gary; details not itemized in the
-      pass report).
+      pass report). Built 7-25; prod via c463af3 (2026-07-26). No prod smoke
+      test recorded, hence shipped, not verified.
+      Promotion path re-verified 2026-07-27, same method and same result as
+      PERM-1: `git branch -a --contains ecee728` returns main and origin/main,
+      `git log --ancestry-path ecee728..origin/main` puts the first merge at
+      c463af3 (2026-07-26), and `git merge-base --is-ancestor ecee728 1ba059c`
+      is false. SEC-1 did NOT ride the 2026-07-25 HR-17 promotion; the
+      2026-07-26 date below stands.
+    open:
+      - >
+        Part C's ADMIN gate on /api/square/auth and /api/square/disconnect is
+        live in production but was never smoke-tested there. Verify by
+        confirming a non-ADMIN gets 403 on /api/square/auth. DO NOT verify via
+        the Disconnect button — that revokes and clears Keva Juice's live
+        Square token (and per SQ-1 the stored refresh token with it), which is
+        a production outage, not a test.
 
   - id: SEC-2
     track: security
@@ -673,6 +1038,37 @@ phases:
       callback time — Instagram's equality check would error instead. Not a
       problem at one org; fix alongside the nonce work (e.g. bind the
       initiating org into the state cookie payload and reject on mismatch).
+      GATED ON BUILD-1 (2026-07-26): if the nonce work adds any schema field,
+      it must not start before BUILD-1 is verified — until then a local
+      `npm run build` runs migrate deploy against the PRODUCTION branch
+      (DEBT-4).
+
+  - id: SEC-3
+    track: security
+    size: M
+    status: planned
+    title: "Forecasting budget-file uploads are world-readable in Vercel Blob"
+    notes: >
+      Found by PERM-3's Task 1 audit (2026-07-26), recorded not fixed on Gary's
+      instruction — it is a live data exposure, not a permissions tier, so it
+      needs its own session.
+      SEVERITY: a tenant's uploaded budget file is retrievable by URL with NO
+      authentication whatsoever. POST /api/forecasting/import writes it to
+      Vercel Blob with access: "public" at
+      forecasting/${orgId}/${storeId}/${year}-${Date.now()}.${ext}, persists
+      that URL on GoalPlan.importFileUrl and in the audit log, and
+      /api/forecasting/plan GET hands it to any MANAGER. The only thing standing
+      between the file and the public internet is the guessability of a
+      millisecond timestamp — and anyone who has ever legitimately seen the URL
+      keeps access forever, including after losing their role.
+      Fix direction: move to a PRIVATE Blob store with signed, short-lived reads,
+      the pattern HR documents already use (HR_BLOB_READ_WRITE_TOKEN +
+      src/lib/hr-files.ts passing the token explicitly on every call). Existing
+      blobs must be migrated or re-uploaded; the persisted importFileUrl values
+      become stale and need a backfill or an on-demand signing indirection.
+      Not a schema change in itself, but the backfill may want one — if so it is
+      GATED ON BUILD-1 like SEC-2 (a local build runs migrate deploy against the
+      PRODUCTION branch until then, DEBT-4).
 
   # ---- Migration / nutrition ----
 
@@ -704,7 +1100,28 @@ phases:
     status: planned
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
 
-  # ---- Square ----
+  # ---- Square integration ----
+
+  - id: SQ-1
+    track: square
+    size: S
+    status: verified
+    title: "Audit — Square OAuth access-token refresh (read-only)"
+    notes: >
+      Refresh EXISTS and is wired: refreshTokenIfNeeded() at src/lib/square.ts:37,
+      called only from getSquareClient() (src/lib/square.ts:202), which refreshes
+      when squareTokenExpiresAt is inside 7 days. Lazy only — no refresh cron.
+      Production DB confirms Keva Juice has both an access and a REFRESH token
+      stored, expiring 2026-08-06T09:48:55Z, so the 8-06 cliff is survivable
+      without a reconnect provided one getSquareClient path runs on/after
+      2026-07-30. Residual risk is silence, not absence: a failed refresh
+      returns the stale org with no log (square.ts:56), the settings UI reports
+      "Connected" off token presence alone, and dashboard sync errors are caught
+      and served from cache. Four Square helpers bypass the wrapper entirely
+      (fetchSquareTeamMembers / fetchSquareTeamMember /
+      updateSquareTeamMemberName in square.ts, plus /api/square/locations) and
+      no oauth.authorization.revoked webhook is handled. Audit only — no code
+      changed. See docs/prompts/SQ-1_square_token_refresh_audit.md.
 
   - id: SQ-2
     track: square
@@ -733,6 +1150,148 @@ phases:
       in the production runtime logs. Remaining SQ-1 follow-ups (cron backstop, helpers bypassing
       getSquareClient, oauth.authorization.revoked, settings UI showing expiry)
       are SQ-3 and stay on staging.
+      Note text carried verbatim from main at the 2026-07-27 reconcile to
+      pre-resolve the known merge conflict on this row; staging's own SQ-2
+      commit is 81be8d9, recorded inline above rather than in `commits:` so
+      both sides of the merge match byte-for-byte.
+
+  - id: SQ-3
+    track: square
+    size: S-M
+    status: planned
+    title: "Square integration follow-ups — cron backstop, bypassing helpers, revocation webhook, expiry in settings"
+    notes: >
+      Created 2026-07-27. The SQ-1 findings SQ-2 deliberately did not carry;
+      main's SQ-2 note already names SQ-3 as their destination, so this row
+      makes an existing forward reference real rather than opening new scope.
+      Scope: (a) a daily refresh cron as a BACKSTOP to the lazy path, never a
+      replacement — viable on Hobby, where once-per-day is the cap (see F-1);
+      (b) route the four helpers that bypass getSquareClient through it —
+      fetchSquareTeamMembers / fetchSquareTeamMember /
+      updateSquareTeamMemberName in src/lib/square.ts plus
+      /api/square/locations — since a bypassing call never triggers a refresh;
+      (c) handle the oauth.authorization.revoked webhook, so a revoked grant
+      stops presenting as "Connected"; (d) surface token expiry in the settings
+      UI, which today reports "Connected" off token presence alone.
+    open:
+      - >
+        A static SQUARE_ACCESS_TOKEN exists in Vercel Production AND Preview
+        (and in local .env). Determine whether anything still READS it — i.e. a
+        helper bypassing the per-org OAuth tokens on Organization.
+        squareAccessToken — or whether it is a stale credential to delete.
+        These are opposite conclusions with opposite fixes: if it is read, it is
+        a second, un-refreshed credential path that SQ-2's refresh work does not
+        cover and that would outlive a disconnect; if it is unread, it is a live
+        Square secret sitting in two environments for no reason. Note the
+        overlap with (b) — the bypassing helpers are the most likely readers.
+
+  # ---- Build / tooling ----
+
+  - id: BUILD-1
+    track: build
+    size: S
+    status: in_progress
+    title: "Separate local builds from production migrations (vercel-build split)"
+    notes: >
+      Config only, no product code. Before: `build` was
+      `prisma generate && prisma migrate deploy && next build`, so every local
+      `npm run build` ran migrate deploy against whatever DATABASE_URL resolved
+      to — which per DEBT-4 is the PRODUCTION branch. After: `build` is
+      `prisma generate && next build` and a new `vercel-build` is
+      `prisma migrate deploy && npm run build`. Verified at source, not assumed:
+      @vercel/next resolves the build script via
+      getScriptName(pkg, ["vercel-build", "now-build", "build"]), so vercel-build
+      wins; and the project's Vercel Build Command is the default, NOT overridden
+      (checked with `vercel project inspect`), which is what makes the approach
+      valid. vercel-build delegates to `npm run build` rather than duplicating
+      its body BECAUSE npm only fires pre-hooks matching the exact script name —
+      verified empirically that `npm run vercel-build` runs prevercel-build, not
+      prebuild. A copy-pasted vercel-build would skip
+      scripts/generate-roadmap.mjs, and src/generated/roadmap.ts is gitignored
+      and imported by the /internal/roadmap page, so the Vercel build would fail
+      outright. Side benefit of the delegation: prisma generate now runs after
+      migrations apply, not before. No CI exists (no .github/), and nothing else
+      in the repo depended on `build` running migrate deploy.
+      Local `.env` repoint is Gary's edit, not this session's — recommended a
+      dedicated Neon dev branch over reusing staging, so local work cannot
+      corrupt a staging verification run. Both DATABASE_URL (pooled) and
+      DATABASE_URL_UNPOOLED (direct) need to point at it.
+      CORRECTED 2026-07-27 — the sentence here previously read that
+      DATABASE_URL_UNPOOLED was "ABSENT from local .env entirely", so
+      prisma.config.ts had been falling back to the pooled production URL for
+      every CLI command since BUG-3. That is now stale on BOTH counts. Verified
+      2026-07-27: DATABASE_URL_UNPOOLED IS present in local .env, host
+      `ep-late-water-a6k53nv2` with no `-pooler` suffix, and DATABASE_URL is the
+      same endpoint's `-pooler` host. There is no fallback happening and
+      prisma.config.ts emits no warning. Note the endpoint id: `ep-late-water`
+      is neither production (`ep-green-smoke`) nor staging (`ep-odd-rain`), so
+      the recommended dedicated dev branch appears to have been created and
+      wired up — see DEBT-4, whose "NOT done yet" text is stale for the same
+      reason.
+      Status stays in_progress until verification step 3 — a staging build log
+      showing migrate deploy actually ran. If vercel-build were not picked up,
+      migrations would silently stop applying on deploy, which is worse than the
+      problem being fixed; a green build is not proof.
+      Related: DEBT-4 (the finding this addresses), BUG-3, SEC-2 and HR-14 (both
+      schema-touching, both gated on this landing first).
+    blockers:
+      - "Vercel DATABASE_URL is a single env row tagged Production+Preview, so
+         one value serves both. The branch-scoped Preview (staging) row overrides
+         it on staging only — any OTHER preview branch gets the production
+         database, and with no generic-Preview DATABASE_URL_UNPOOLED,
+         prisma.config.ts falls back to that same pooled production URL. A PR
+         preview build therefore runs migrate deploy against PRODUCTION. This
+         survives the package.json fix untouched: vercel-build runs migrations
+         against whatever DATABASE_URL resolves to. Untagging Preview from the
+         production row is a Vercel-console change, out of scope for BUILD-1."
+      - "RE-VERIFIED IN THE VERCEL CONSOLE 2026-07-27 — the blocker above is
+         exact, and here is the row-level detail plus the fix. DATABASE_URL is
+         ONE row tagged **Production and Preview** (Sensitive, added Jun 26),
+         with a branch-scoped override for `staging` ONLY.
+         DATABASE_URL_UNPOOLED has Production, Development and Preview→staging
+         rows but NO generic Preview row. So a preview deploy from any branch
+         other than staging gets the production database, and prisma.config.ts
+         falls back to the POOLED production URL — meaning a PR preview build
+         runs `migrate deploy` against production THROUGH PGBOUNCER, which is
+         also precisely the BUG-3 P1002 advisory-lock condition. Latent only
+         because Gary pushes staging and main and nothing else; it detonates on
+         the FIRST feature branch — which is exactly what the deferred
+         second-developer plan requires, so this is a scheduled failure, not a
+         hypothetical one. FIX (Vercel console, no code): scope the Jun 26 row
+         to Production-only so preview fails closed, THEN add Preview-scoped
+         DATABASE_URL and DATABASE_URL_UNPOOLED pointing at a throwaway Neon
+         branch. Order matters — scoping first means a preview build with no
+         database errors out instead of quietly finding production. Recorded
+         against BUILD-1 at the 2026-07-27 reconcile because this row already
+         owned the finding; BUILD-2 is the deterministic-primary-store schema
+         phase and is unrelated."
+
+  - id: BUILD-2
+    track: build
+    size: S
+    status: planned
+    title: "Deterministic default/primary store for multi-store users"
+    notes: >
+      Gary's rule is that a multi-store manager's default store is "the first
+      store on their profile" — but StoreUserAssignment has no primary flag and
+      no ordering column, so "first" is currently whatever Postgres happens to
+      return and can vary between queries. Making it deterministic requires a
+      schema change (mirror StoreStaffAssignment.isPrimary, which the staff side
+      already has). Raised and deliberately deferred in PERM-2. Any code needing
+      to pick a store before this lands should sort deterministically (store
+      number, then name) and say so in a comment.
+    blockers:
+      - >
+        Gated on BUILD-1: no migration may be authored until the repoint lands.
+        AMENDED 2026-07-27 — the stated reason ("local .env still points at the
+        PRODUCTION Neon branch") is no longer true: local now resolves to
+        `ep-late-water`, not `ep-green-smoke` (see DEBT-4). The gate itself
+        stands on the OTHER half — BUILD-1 is still `in_progress` and
+        staging-only, so its verification step 3 (a staging build log proving
+        migrate deploy actually ran under vercel-build) is unrecorded. Authoring
+        a migration before that is proven risks migrations silently not applying
+        on deploy, which BUILD-1's own notes call worse than the original
+        problem.
 
 bugs:
   - id: BUG-1
@@ -767,6 +1326,37 @@ bugs:
       DECISIONS.md BUG-3. Staging proof required: build log Datasource "db"
       host without -pooler; a green deploy alone is not proof (P1002 is
       intermittent).
+      Status deliberately left in_progress at the 2026-07-26 reconcile: f6818f1
+      reached main via c463af3 (2026-07-26), so the fix is in prod on both
+      branches, but the required proof has still never been recorded. Code
+      shipped ≠ bug closed here — flip to shipped only once a build log shows
+      the unpooled host.
+
+  - id: BUG-4
+    title: "Labor Budget card and Weekly Plan disagree on schedulable hours when no weather adjustment exists"
+    status: planned
+    notes: >
+      Logged 2026-07-27, not fixed. The dashboard Labor Budget card shows
+      `totalSchedulableHours` unless a weather adjustment exists, while the
+      Weekly Plan ALWAYS shows `adjustedTotalSchedulableHours`. Confirmed in
+      source: src/app/(app)/dashboard/labor-budget-card.tsx:179 reads
+      `adjusted ? res.adjustedTotalSchedulableHours ?? budget.totalSchedulableHours
+      : budget.totalSchedulableHours`, whereas
+      src/app/(app)/labor/weekly-plan-client.tsx:206 renders
+      `adjustedTotalSchedulableHours` unconditionally. On a week with NO weather
+      adjustment the two values still differ — they are computed by different
+      paths (src/lib/labor-budget.ts:100 sums salaried + hourly; the adjusted
+      figure at src/lib/labor-plan.ts:285 re-sums salaried + the per-day
+      hourlyHours AFTER the floor-first 0.5-step flooring), so the adjusted
+      total carries flooring residue even with no adjustment applied.
+      The card's behavior is DELIBERATE per its own inline comment, so this is
+      not a straightforward bug — but two screens showing different
+      schedulable-hour totals for the same store and the same week is a
+      correctness problem for the operator regardless of which number is
+      defensible. Decide which figure is canonical and make both surfaces say
+      it, or label them differently. Numbered BUG-4 because BUG-1…BUG-3 exist;
+      docs/prompts/verification-smoke-pass.md already referenced a "BUG-4" in
+      its holds list before any BUG-4 row existed — this fills that reference.
 
 debt:
   - id: DEBT-1
@@ -791,3 +1381,72 @@ debt:
       never done, P3018) and the current policy is the hand-authored
       `migrate diff` flow in CLAUDE.md / MIGRATIONS.md. Recorded 2026-07-24;
       fix the doc in a future docs session — do not fix inline.
+
+  - id: DEBT-4
+    title: "Local .env DATABASE_URL points at the PRODUCTION Neon branch"
+    notes: >
+      Found during SQ-1 (2026-07-26). `ep-green-smoke-a6xthq4r` is the
+      PRODUCTION branch — it is the host in Vercel's Production scope; staging
+      is `ep-odd-rain-a6gr4xmm`. The repo's local `.env` DATABASE_URL resolves
+      to ep-green-smoke, and `npm run build` runs `prisma migrate deploy`, so a
+      local build applies pending migrations to production outside any
+      promotion — the exact bypass the migration policy in CLAUDE.md /
+      MIGRATIONS.md exists to prevent. It also means the local dev server reads
+      and writes live Keva Juice data. Not fixed in SQ-1 (audit only). Fix
+      shape: point local `.env` at a dev/staging branch and keep production
+      credentials out of the working tree; consider guarding the build script
+      against a production host. Related: BUG-3 (DATABASE_URL_UNPOOLED),
+      DEBT-3 (WORKFLOW.md §3 still documents the retired migrate dev flow).
+      See also DEBT-5, DEBT-6.
+      BUILD-1 (2026-07-26) addresses the build-script half: migrate deploy now
+      lives in `vercel-build`, so a local `npm run build` no longer touches a
+      database at all.
+      .ENV HALF NOW APPEARS DONE (observed 2026-07-27, not yet ruled closed by
+      Gary): local DATABASE_URL no longer resolves to ep-green-smoke. Both keys
+      point at `ep-late-water-a6k53nv2` (pooled for DATABASE_URL, the same host
+      without `-pooler` for DATABASE_URL_UNPOOLED) — an endpoint that is neither
+      production (`ep-green-smoke`) nor staging (`ep-odd-rain`), i.e. the
+      dedicated dev branch BUILD-1 recommended. The prior text saying this was
+      "NOT done yet" is stale. Left OPEN rather than closed because the closing
+      condition was both halves true AND BUILD-1 in production: BUILD-1 is still
+      `in_progress` and staging-only, and this session verified the env vars by
+      name and host only — it did not confirm the dev branch's contents or that
+      no tooling still reaches production by another path. Gary to confirm and
+      close.
+
+  - id: DEBT-5
+    title: "10 of 12 stores have storeNumber: null, degrading PERM-3's deterministic store sort"
+    notes: >
+      Logged 2026-07-27. Only Carson #0034 and Las Brisas #0014 carry a
+      storeNumber; the other ten are null. PERM-3's no-storeId fallback
+      (`forecastWindowForCaller`, used by /api/forecasting/audit, whose storeId
+      is optional) sorts the caller's assigned stores by storeNumber THEN name,
+      so with ten nulls it degrades to a name-only sort. Harmless today —
+      name-only is still deterministic, and the sort only decides which store's
+      timezone computes the window, where every store is currently in one
+      timezone. It stops being harmless the moment stores span timezones, since
+      the window boundary would then turn on a tiebreak nobody chose.
+      The real fix is BUILD-2 (a primary-store flag mirroring
+      StoreStaffAssignment.isPrimary); backfilling storeNumber is the cheaper
+      interim and is a DATA change, not a code change — so it is gated on the
+      same migration policy, not on BUILD-1. Related: BUILD-2, PERM-3's
+      `deferred:` entry.
+
+  - id: DEBT-6
+    title: "Square sync fires from ~11 GET routes — a write path that greps as read-only"
+    notes: >
+      Logged 2026-07-27. `syncSalesForStore` / `ensureSalesCached` are invoked
+      from roughly 11 GET routes — dashboard/summary, dashboard/rollup,
+      dashboard/sales, and four inventory reports among them. Any org member's
+      READ therefore triggers outbound Square API calls and SalesPeriodCache
+      writes.
+      Pre-existing, not goal data, and NOT a permission hole — the routes are
+      gated and the cache is org-scoped. It is recorded for what it does to
+      AUDIT METHOD: a write-path audit that greps only for non-GET handlers has
+      a blind spot exactly here and would report these routes as read-only. Any
+      future permissions or data-exposure audit should grep for the sync helpers
+      BY NAME, not just for POST/PATCH/PUT/DELETE.
+      Secondary consequence, relevant when SQ-3 is scoped: because these GETs
+      reach getSquareClient, ordinary page loads are what currently triggers the
+      lazy token refresh. That makes SQ-3's backstop cron insurance against a
+      quiet week rather than a redundant addition.

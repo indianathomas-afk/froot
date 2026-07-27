@@ -85,5 +85,9 @@ A session is not done until all are true:
    - `blockers` lists anything left broken/unset/unverified in prod, including
      required env vars not yet set and prod-promotion gates
    - `deferred` lists scope explicitly cut
+   - `meta.updated` is bumped to today's date. (The `/internal/roadmap` page
+     dates itself from the file's git commit date, so the page stays honest
+     either way — but `meta.updated` is the fallback shown when a shallow
+     clone hides that commit, and it is what readers of the raw YAML see.)
 3. Bugs noticed but not fixed go in the `debt:` (or `bugs:`) block in
    ROADMAP.yaml as text — not fixed inline.

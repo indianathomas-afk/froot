@@ -47,6 +47,7 @@ export type Capability =
   | "checklists.view"
   | "checklists.execute"
   | "checklists.create"
+  | "checklists.create.bulk"
   | "messages.use"
   | "messages.moderate"
   | "corporate.updates.manage"
@@ -67,8 +68,10 @@ export type Capability =
   | "instagram.manage"
   | "square.manage"
   | "settings.access"
+  | "inventory.nav.view"
   | "inventory.assets.view"
   | "inventory.assets.manage"
+  | "inventory.costs.view"
   | "inventory.import"
   | "inventory.storage.manage"
   | "inventory.counts.execute"
@@ -106,13 +109,26 @@ const ADMIN_ONLY: readonly PermissionRole[] = ["ADMIN"]
 // header); the entry here is the ROLE tier only.
 const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   "dashboard.view": ALL,
-  "dashboard.goal.edit": MANAGE,
+  // PERM-2 §3 #6 (Gary, 2026-07-26): was MANAGE. A manager could set the
+  // dashboard goal that overrides the Forecasting plan they cannot touch
+  // (forecasting.edit is ADMIN-only), so the weaker permission won and the
+  // stricter one was decorative. ADMIN only; Forecasting stays ADMIN only.
+  "dashboard.goal.edit": ADMIN_ONLY,
   // STAFF's nav entry additionally requires the staffHasChecklists store-proxy
   // (SH-3) — a data condition, not a role grant; it stays in the sidebar.
   "checklists.view": ALL,
   "checklists.execute": ALL,
-  // Today unscoped org-wide for any member — §2 gap #4. Recorded as-is.
-  "checklists.create": ALL,
+  // PERM-2 §3 #4 (Gary, 2026-07-26): POST /api/checklists INSTANTIATES a
+  // store's checklist for today from a template — it does not create a
+  // definition. ADMIN-only would take the floor's "Start checklist" tap away,
+  // so the tier is operational; the call site additionally requires the target
+  // store to be in getUserStoreScope().storeIds (ADMIN unrestricted). Was ALL
+  // and org-wide — that was the §2 gap #4 security hole, now closed.
+  "checklists.create": OPERATIONAL,
+  // The same endpoint's second mode: fan out today's instances across EVERY
+  // active store × applicable template in the org. Inherently org-wide — it
+  // cannot be store-scoped — so it is ADMIN only (Gary, 2026-07-26).
+  "checklists.create.bulk": ADMIN_ONLY,
   "messages.use": ALL,
   "messages.moderate": MANAGE, // delete additionally allows the author (PL-7)
   "corporate.updates.manage": ADMIN_ONLY,
@@ -136,17 +152,47 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // Gary's ruling before migration.
   "square.manage": ALL,
   "settings.access": ADMIN_ONLY,
-  "inventory.assets.view": OPERATIONAL, // APIs currently serve any member (§2 #8)
+  // PERM-2 §3 #5 (Gary, 2026-07-26): inventory is not one permission — it
+  // splits by DATA SENSITIVITY. Operational data (counts, adjustments, pars,
+  // item names and units — what a person on the floor with a clipboard needs)
+  // is granted to every role; commercial data (vendor prices, COGS, margin,
+  // valuation, turnover, variance, vendor spend) is ADMIN/MANAGER via
+  // inventory.analytics.view and inventory.costs.view below.
+  //
+  // NAV VISIBILITY AND API ACCESS ARE DELIBERATELY SEPARATE. The operational
+  // grants are ALL because that is what the APIs actually serve — but STAFF-1
+  // decided inventory is not part of the staff sidebar, so the nav entries ask
+  // inventory.nav.view instead. Keeping them apart is what lets the coming
+  // per-user override layer grant one staff member the inventory nav without
+  // touching anyone's API access, and vice versa. Do not collapse them back
+  // into one capability.
+  "inventory.nav.view": OPERATIONAL,
+  "inventory.assets.view": ALL,
   "inventory.assets.manage": MANAGE,
+  // Commercial: cost and pricing data wherever it is served — vendor prices,
+  // recipe costs and cost %, the order guide's case pricing. Separate from
+  // analytics.view so the override layer can grant cost visibility without
+  // granting the reports surface (Gary, Q6).
+  "inventory.costs.view": MANAGE,
   "inventory.import": ADMIN_ONLY,
   "inventory.storage.manage": MANAGE,
-  "inventory.counts.execute": OPERATIONAL,
+  "inventory.counts.execute": ALL,
   "inventory.counts.finalize": MANAGE,
   "inventory.po.view": OPERATIONAL, // includes receiving (IV-7) by design
   "inventory.po.manage": MANAGE,
-  "inventory.adjustments.record": OPERATIONAL,
-  "inventory.analytics.view": MANAGE, // APIs currently serve any member (§2 #8)
-  "labor.view": MANAGE, // nav tier; requireLaborView serves any member read-only (§3 #8) — needs ruling
+  "inventory.adjustments.record": ALL,
+  // Commercial: the reports surface plus expected stock and low-stock alerts,
+  // and the finalized-count summary (valuation / variance / cost drift) whose
+  // reviewers are the ADMIN/MANAGER who finalize. Was served to any member —
+  // §2 gap #8, closed by PERM-2.
+  "inventory.analytics.view": MANAGE,
+  // PERM-2 §3 #8 (Gary, 2026-07-26): was MANAGE (nav tier) while
+  // requireLaborView and the /labor page have always served any member
+  // read-only — the read-only viewer design simply never got an entry point.
+  // ALL adds the nav entry; the guard stays read-only for non-managers
+  // (labor.manage below is unchanged, and §3 #7 stays deliberately
+  // unharmonized).
+  "labor.view": ALL,
   "labor.manage": MANAGE,
   "labor.toggle": ADMIN_ONLY,
   "hr.access": ALL, // HR availability + org-toggle gates stay at the call site
@@ -184,13 +230,38 @@ export function can(user: PermissionUser, capability: Capability): boolean {
   return granted.includes(user.role)
 }
 
-// Scoped/valued capability — returns the LIMIT, not a yes/no. In this phase
-// every granted capability is unrestricted (today's scoping — store lists,
-// manager training scope — still lives at the call sites; see header). The
-// shape exists now so retrofitting valued permissions later is additive:
-// Phase 3+ adds { access: "limited", ... } variants without touching callers.
-export type CapabilityScope = { access: "none" } | { access: "unrestricted" }
+// Scoped/valued capability — returns the LIMIT, not a yes/no. Most granted
+// capabilities are unrestricted; today's data scoping (store lists, manager
+// training scope) still lives at the call sites (see header). PERM-3 added the
+// first genuine limit: a "window" variant carrying how many months past the
+// current one a role may see.
+//
+// "window" is a DISPLAY restriction, not a confidentiality boundary — see
+// DECISIONS.md "Forecast read window is a display restriction". Callers null
+// out-of-window values; they do not treat them as secrets.
+export type CapabilityScope =
+  | { access: "none" }
+  | { access: "unrestricted" }
+  // monthsAhead: 0 = current month only, 1 = current + next.
+  | { access: "window"; monthsAhead: number }
+
+// Per-role narrowing BELOW the GRANTS ceiling. A role absent here gets
+// { access: "unrestricted" } when can() allows the capability. This table is
+// where PERM-5's per-user overrides hook in — one place, as designed.
+const SCOPE_OVERRIDES: Partial<Record<Capability, Partial<Record<PermissionRole, CapabilityScope>>>> = {
+  // PERM-3 (Gary, 2026-07-26): a manager budgets for the month they are in and
+  // the one after it. Forward FORECAST values outside that horizon are hidden
+  // so tentative numbers are not presented as authoritative; historical ACTUAL
+  // sales stay fully visible (a manager needs last July to budget this July).
+  // The window is enforced per request from the store's timezone — see
+  // src/lib/forecast-window.ts.
+  "forecasting.view": { MANAGER: { access: "window", monthsAhead: 1 } },
+}
 
 export function scope(user: PermissionUser, capability: Capability): CapabilityScope {
-  return can(user, capability) ? { access: "unrestricted" } : { access: "none" }
+  // can() first: deny-by-default, and an override can never elevate a role
+  // that lacks the capability outright.
+  if (!can(user, capability)) return { access: "none" }
+  const override = isPermissionRole(user.role) ? SCOPE_OVERRIDES[capability]?.[user.role] : undefined
+  return override ?? { access: "unrestricted" }
 }

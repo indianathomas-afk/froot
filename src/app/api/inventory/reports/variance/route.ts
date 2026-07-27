@@ -26,7 +26,7 @@ import { expandRecipeToIngredients, loadCostGraph } from "@/lib/recipe-cost"
 //   (miscount, negative usage, mapping mistake). Only ingredients present on a
 //   boundary count or mapped to something sold appear.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

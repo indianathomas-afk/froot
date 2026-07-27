@@ -23,7 +23,9 @@ const UpsertSchema = z.object({
 
 // GET /api/inventory/pars?storeId= → pars + average weekly usage for the store.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  // Operational: par and reorder levels carry no cost data and are what the
+  // floor reorders against (PERM-2 §3 #5, Gary Q3).
+  const ctx = await requireCountsContext("inventory.assets.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

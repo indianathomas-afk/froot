@@ -8,7 +8,12 @@ import { requireCount, userNamesById } from "@/lib/count-access"
 // corrections audit trail.
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const ctx = await requireCount(id)
+  // Commercial: valuation, variance and cost-drift review (PERM-2 §3 #5, Gary
+  // Q2 option c). Executing a count stays open to every role — reviewing the
+  // finalized dollars belongs to the ADMIN/MANAGER who finalize it, matching
+  // counts/[id]/finalize. The page renders a message state for everyone else
+  // rather than calling this and hanging.
+  const ctx = await requireCount(id, "inventory.analytics.view")
   if ("error" in ctx) return ctx.error
   const { count, org } = ctx
 

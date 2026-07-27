@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { requireModule } from "@/lib/auth"
+import { getUserStoreScope, requireModule } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
@@ -14,6 +15,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     await requireModule("inventory")
   } catch {
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
+  }
+
+  // Commercial: vendor case pricing and nothing else (PERM-2 §3 #5).
+  const { role } = await getUserStoreScope()
+  if (!can({ role }, "inventory.costs.view")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const { id } = await params

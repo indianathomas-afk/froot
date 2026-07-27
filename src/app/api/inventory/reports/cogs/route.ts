@@ -18,7 +18,7 @@ import { ensureSalesCached } from "@/lib/sales-sync"
 // defaults to every period): beginning, purchases, ending, usage, sales,
 // cost %, plus a per-GL-category breakdown with negative-usage flags.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

@@ -6,7 +6,7 @@ import { requireCountsContext } from "@/lib/count-access"
 // per vendor over the window (storeId optional = all stores in scope), monthly
 // trend, and average lead time (receivedAt − orderedAt) in days.
 export async function GET(req: Request) {
-  const ctx = await requireCountsContext()
+  const ctx = await requireCountsContext("inventory.analytics.view")
   if ("error" in ctx) return ctx.error
 
   const url = new URL(req.url)

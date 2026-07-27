@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 
 export async function GET() {
   const { orgId } = await auth()
@@ -10,7 +11,12 @@ export async function GET() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  const { isAdmin, storeIds, role } = await getUserStoreScope()
+  // PERM-2 §3 #3: matches the /staff pages (ADMIN/MANAGER). A STAFF-role user
+  // has no need for a coworker directory — that information is in Square.
+  if (!can({ role }, "staff.view")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
   const staff = await prisma.staffMember.findMany({
     where: {
       organizationId: org.id,
@@ -29,6 +35,13 @@ export async function POST(req: Request) {
 
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
+
+  // PERM-2 §3 #3: this route was entirely unguarded — any org member could
+  // create a staff record. Security fix, not a preference.
+  const { role } = await getUserStoreScope()
+  if (!can({ role }, "staff.manage")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const { displayName, fullName, email, storeIds, squareTeamMemberId, primaryStoreId } = await req.json()
 

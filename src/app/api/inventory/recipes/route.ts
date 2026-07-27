@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { loadCostGraph, computeAllRecipeCosts, costPct, recipesUsing } from "@/lib/recipe-cost"
 import { RecipeSchema, candidateFromInput, validateRecipeLines } from "@/lib/recipe-api"
 
@@ -16,6 +17,12 @@ export async function GET() {
     await requireModule("inventory")
   } catch {
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
+  }
+
+  // Commercial: returns recipe cost, cost per yield unit and cost % of menu price (PERM-2 §3 #5).
+  const { role } = await getUserStoreScope()
+  if (!can({ role }, "inventory.costs.view")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const [graph, recipes] = await Promise.all([

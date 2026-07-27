@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getCurrentUser } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { writeAuditLog } from "@/lib/audit"
 
 const GoalSchema = z.object({
@@ -10,8 +11,11 @@ const GoalSchema = z.object({
   goalAmount: z.number().positive(),
 })
 
-// PUT /api/dashboard/goal — upsert a store's monthly sales goal (manager/admin,
-// within store scope).
+// PUT /api/dashboard/goal — upsert a store's monthly sales goal. PERM-2 §3 #6:
+// ADMIN only. This goal overrides the Forecasting plan, and Forecasting writes
+// are ADMIN-only — a MANAGER able to set it here made that restriction
+// decorative. The store-scope check below is kept for when an admin acts on a
+// specific store.
 export async function PUT(req: Request) {
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
   try {
@@ -21,8 +25,8 @@ export async function PUT(req: Request) {
   }
   const { org, dbUser } = ctx
   const isAdmin = dbUser?.role === "ADMIN"
-  if (!isAdmin && dbUser?.role !== "MANAGER") {
-    return NextResponse.json({ error: "Manager or Admin access required" }, { status: 403 })
+  if (!can({ role: dbUser?.role }, "dashboard.goal.edit")) {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 })
   }
 
   const body = await req.json()

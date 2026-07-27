@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse, after } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
 import { monthStart } from "@/lib/pacing"
@@ -37,7 +38,10 @@ export async function GET(req: Request) {
   }
   const { org, dbUser } = ctx
   const isAdmin = dbUser?.role === "ADMIN"
-  const canManageGoal = isAdmin || dbUser?.role === "MANAGER"
+  // PERM-2 §3 #6: drives the goal edit affordance on the dashboard card — it
+  // must ask the same capability the PUT enforces, or a manager gets a button
+  // that 403s.
+  const canManageGoal = can({ role: dbUser?.role }, "dashboard.goal.edit")
   const scopedStoreIds = dbUser?.storeAssignments.map((a) => a.storeId) ?? []
 
   const url = new URL(req.url)

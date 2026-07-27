@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { forecastWindowFrom, windowYears } from "@/lib/forecast-window"
 import { cn } from "@/lib/utils"
 
 // ─── Types (mirror /api/forecasting/*) ────────────────────────────────────────
@@ -28,7 +29,7 @@ type PlanMeta = {
 type CalendarDay = {
   date: string
   basis: number
-  goal: number
+  goal: number | null // null = outside the caller's forecast window (PERM-3)
   isOverride: boolean
   actual: number | null
 }
@@ -37,6 +38,8 @@ type CalendarData = {
   plan: PlanMeta | null
   today: string
   canEdit: boolean
+  // Non-null only when the caller's forecast reads are windowed (MANAGER).
+  window: { start: string; end: string } | null
   days: CalendarDay[]
 }
 
@@ -83,6 +86,10 @@ const usd = (n: number | null | undefined, digits = 0) =>
 const MONTH_LABELS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 const WEEKDAY_HEADERS = ["S", "M", "T", "W", "T", "F", "S"]
 
+// "2026-12-01" → "Dec 2026", for the forecast-window note in the subheading.
+const monthLabel = (dateStr: string) =>
+  `${MONTH_LABELS[Number(dateStr.slice(5, 7)) - 1].slice(0, 3)} ${dateStr.slice(0, 4)}`
+
 // Persisted store selection — same external-store pattern as the dashboard.
 const STORE_KEY = "froot.forecasting.store"
 const STORE_EVENT = "froot-forecasting-store"
@@ -114,18 +121,39 @@ function saveStoreId(id: string) {
 export function ForecastingClient({
   stores,
   isAdmin,
+  windowed,
   squareConnected,
   currentYear,
 }: {
-  stores: { id: string; name: string; squareLinked: boolean }[]
+  stores: { id: string; name: string; squareLinked: boolean; today: string }[]
   isAdmin: boolean
+  windowed: boolean
   squareConnected: boolean
   currentYear: number
 }) {
   const savedStoreId = useSavedStoreId()
   const storeId = stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
   const setStoreId = saveStoreId
-  const [year, setYear] = useState(currentYear)
+  const store = stores.find((s) => s.id === storeId)
+
+  // PERM-3: for a windowed caller the FORWARD edge of the selector derives from
+  // the window, never from the calendar year — so a manager in December can
+  // still pick next January's year, which is the whole point of the phase.
+  // Backward, last year stays selectable because historical ACTUALS are not
+  // restricted. Uses the same forecastWindowFrom() as the API guards, off the
+  // store-local `today` the server computed, so the two cannot drift.
+  const years = useMemo(() => {
+    if (!windowed || !store) return [currentYear - 1, currentYear, currentYear + 1]
+    const ys = windowYears(forecastWindowFrom(store.today))
+    return [...new Set([ys[0] - 1, ...ys])]
+  }, [windowed, store, currentYear])
+
+  // Switching to a store in a different timezone can shift the list, so the
+  // effective year is DERIVED from what the selector offers rather than synced
+  // with an effect — never leave it on a year that is no longer on the list.
+  const [selectedYear, setYear] = useState(currentYear)
+  const year = years.includes(selectedYear) ? selectedYear : years[years.length - 1]
+
   const [result, setResult] = useState<{ key: string; data: CalendarData | null } | null>(null)
   const [loadKey, setLoadKey] = useState(0) // bump to refetch
 
@@ -153,9 +181,6 @@ export function ForecastingClient({
   // reload keeps showing current data until the fresh copy lands.
   const calendar = result?.key === viewKey ? result.data : null
 
-  const store = stores.find((s) => s.id === storeId)
-  const years = [currentYear - 1, currentYear, currentYear + 1]
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -164,6 +189,9 @@ export function ForecastingClient({
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
             Annual sales goals by day{store ? ` · ${store.name}` : ""}
             {!isAdmin && " · read-only"}
+            {/* Says why goals outside the window are blank, so a windowed
+                calendar reads as intentional rather than as missing data. */}
+            {calendar?.window && ` · goals shown for ${monthLabel(calendar.window.start)}–${monthLabel(calendar.window.end)}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -835,7 +863,11 @@ function YearCalendar({
         {MONTH_LABELS.map((label, i) => {
           const monthKey = `${year}-${String(i + 1).padStart(2, "0")}`
           const monthDays = (calendar.days ?? []).filter((d) => d.date.slice(0, 7) === monthKey)
-          const monthGoal = monthDays.reduce((s, d) => s + d.goal, 0)
+          // A windowed caller gets goal: null outside the window. The window is
+          // month-aligned, so a month is wholly visible or wholly blank — never
+          // a partial sum that would read as a real (but wrong) total.
+          const monthGoal = monthDays.reduce((s, d) => s + (d.goal ?? 0), 0)
+          const hasGoals = monthDays.some((d) => d.goal !== null)
           const monthActual = monthDays.reduce((s, d) => s + (d.actual ?? 0), 0)
           const hasActuals = monthDays.some((d) => d.actual !== null)
           const firstWeekday = new Date(`${monthKey}-01T00:00:00.000Z`).getUTCDay()
@@ -851,13 +883,13 @@ function YearCalendar({
                       "text-xs font-semibold text-[var(--color-muted-foreground)]",
                       calendar.canEdit && "hover:text-[var(--color-primary)] cursor-pointer"
                     )}
-                    onClick={() => calendar.canEdit && setMonthDialog({ month: monthKey, total: Math.round(monthGoal * 100) / 100 })}
-                    disabled={!calendar.canEdit}
-                    title={calendar.canEdit ? "Edit month total" : undefined}
+                    onClick={() => calendar.canEdit && hasGoals && setMonthDialog({ month: monthKey, total: Math.round(monthGoal * 100) / 100 })}
+                    disabled={!calendar.canEdit || !hasGoals}
+                    title={calendar.canEdit && hasGoals ? "Edit month total" : undefined}
                   >
                     {hasActuals && <span className="mr-2 font-normal">{usd(monthActual)} /</span>}
-                    {usd(monthGoal)}
-                    {calendar.canEdit && <Pencil className="inline h-3 w-3 ml-1 opacity-60" />}
+                    {hasGoals ? usd(monthGoal) : "—"}
+                    {calendar.canEdit && hasGoals && <Pencil className="inline h-3 w-3 ml-1 opacity-60" />}
                   </button>
                 </div>
 
@@ -875,14 +907,16 @@ function YearCalendar({
                     const day = byDate.get(dateStr)
                     if (!day) return <div key={dateStr} />
                     const done = day.actual !== null
-                    const hit = done && day.goal > 0 && day.actual! >= day.goal
-                    const miss = done && day.goal > 0 && day.actual! < day.goal
+                    // No goal (outside the window) → no hit/miss tinting; there
+                    // is nothing to compare the actual against.
+                    const hit = done && day.goal !== null && day.goal > 0 && day.actual! >= day.goal
+                    const miss = done && day.goal !== null && day.goal > 0 && day.actual! < day.goal
                     const isToday = dateStr === calendar.today
                     return (
                       <button
                         key={dateStr}
-                        onClick={() => calendar.canEdit && setDayDialog(day)}
-                        disabled={!calendar.canEdit}
+                        onClick={() => calendar.canEdit && day.goal !== null && setDayDialog(day)}
+                        disabled={!calendar.canEdit || day.goal === null}
                         className={cn(
                           "rounded-sm px-0.5 py-1 min-h-[38px] text-left align-top border border-transparent",
                           hit && "bg-[#25ba3b]/15",
@@ -891,14 +925,14 @@ function YearCalendar({
                           isToday && "border-[var(--color-primary)]",
                           calendar.canEdit && "hover:border-[var(--color-primary)]/50 cursor-pointer"
                         )}
-                        title={`${dateStr} · goal ${usd(day.goal, 2)}${done ? ` · actual ${usd(day.actual, 2)}` : ""}${day.isOverride ? " · manually set" : ""}`}
+                        title={`${dateStr} · ${day.goal !== null ? `goal ${usd(day.goal, 2)}` : "goal not shown for this month"}${done ? ` · actual ${usd(day.actual, 2)}` : ""}${day.isOverride ? " · manually set" : ""}`}
                       >
                         <span className="block text-[9px] leading-none text-[var(--color-muted-foreground)]">
                           {di + 1}
                           {day.isOverride && <span className="text-[var(--color-primary)]">*</span>}
                         </span>
                         <span className="block text-[10px] font-semibold leading-tight text-[var(--color-foreground)]">
-                          {Math.round(day.goal).toLocaleString()}
+                          {day.goal !== null ? Math.round(day.goal).toLocaleString() : "·"}
                         </span>
                         {done && (
                           <span
@@ -959,7 +993,9 @@ function DayEditForm({
   onClose: () => void
   onSaved: () => void
 }) {
-  const [amount, setAmount] = useState(String(day.goal))
+  // Only reachable when canEdit (ADMIN), who is never windowed — so day.goal is
+  // non-null here. ?? "" keeps it honest rather than rendering "null".
+  const [amount, setAmount] = useState(day.goal !== null ? String(day.goal) : "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

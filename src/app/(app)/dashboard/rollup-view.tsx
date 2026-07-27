@@ -49,7 +49,10 @@ const pct = (n: number | null) => (n === null ? "—" : `${n.toFixed(1)}%`)
 
 type SortKey = "name" | "todayNet" | "mtdActual" | "pace" | "projected" | "pctToGoal"
 
-export function RollupView() {
+// canViewForecasting: PERM-3 — the Store Ranking header's "Forecasting →" link
+// rendered for every role before this, including STORE/STAFF who cannot open
+// the destination. Required (not defaulted) because there is exactly one caller.
+export function RollupView({ canViewForecasting }: { canViewForecasting: boolean }) {
   const [data, setData] = useState<Rollup | null>(null)
   const [failed, setFailed] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>("mtdActual")
@@ -192,9 +195,11 @@ export function RollupView() {
         <CardContent className="pt-5 pb-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[15px] font-bold text-[var(--color-foreground)]">Store Ranking</p>
-            <Link href="/forecasting" className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]">
-              Forecasting →
-            </Link>
+            {canViewForecasting && (
+              <Link href="/forecasting" className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]">
+                Forecasting →
+              </Link>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

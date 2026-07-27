@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireManagerOrAdmin } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { adjustmentRouteContext, ensureDefaultLossReasons } from "@/lib/adjustments"
 
 const LossReasonSchema = z.object({
@@ -12,6 +13,13 @@ export async function GET() {
   const ctx = await adjustmentRouteContext()
   if (ctx.fail) return ctx.fail
   const { org } = ctx
+
+  // Operational: the reason list is what the floor picks from when recording a
+  // loss — granted to every role, but stated through the capability so the
+  // override layer has a hook (PERM-2 §3 #5).
+  if (!can({ role: ctx.dbUser.role }, "inventory.adjustments.record")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   await ensureDefaultLossReasons(org.id)
   const reasons = await prisma.lossReason.findMany({

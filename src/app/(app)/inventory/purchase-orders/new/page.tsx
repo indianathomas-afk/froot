@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { can } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 import { getUserStoreScope } from "@/lib/auth"
 import { NewPurchaseOrderClient } from "./new-po-client"
@@ -14,7 +15,8 @@ export default async function NewPurchaseOrderPage() {
   if (!org.activeModules.includes("inventory")) redirect("/inventory/purchase-orders")
 
   const dbUser = userId ? await prisma.user.findUnique({ where: { clerkUserId: userId } }) : null
-  if (dbUser?.role !== "ADMIN" && dbUser?.role !== "MANAGER") redirect("/inventory/purchase-orders")
+  // PERM-2 §3 #5: same capability its data APIs enforce.
+  if (!can({ role: dbUser?.role }, "inventory.po.manage")) redirect("/inventory/purchase-orders")
 
   const { isAdmin, storeIds } = await getUserStoreScope()
 

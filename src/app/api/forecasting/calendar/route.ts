@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { requireForecastContext, requireForecastStore } from "@/lib/forecasting-access"
+import { requireForecastContext, requireForecastStore, forecastWindowForStore } from "@/lib/forecasting-access"
+import { isDateInWindow } from "@/lib/forecast-window"
 import { dbDate, localDateStr } from "@/lib/reports"
 
 // GET /api/forecasting/calendar?storeId=&year= — one indexed read of the
@@ -38,6 +39,15 @@ export async function GET(req: Request) {
 
   const actualByDate = new Map(actuals.map((a) => [a.date.toISOString().slice(0, 10), a.netSales]))
 
+  // PERM-3: managers see forecast GOALS only inside their window. The window is
+  // applied per FIELD, not by clamping the requested range — clamping would
+  // also withhold the historical ACTUALS a manager is entitled to (last July's
+  // sales are how you budget this July), and rejecting the request outright
+  // would reintroduce the PERM-2 "page renders while its API 403s" bug class.
+  // basis and actual are deliberately left intact; the annual plan header stays
+  // visible too (Gary, 2026-07-26).
+  const win = forecastWindowForStore(ctx, store)
+
   return NextResponse.json({
     plan: plan
       ? {
@@ -50,13 +60,16 @@ export async function GET(req: Request) {
       : null,
     today,
     canEdit: ctx.isAdmin,
+    // Lets the client explain blanked goals instead of looking broken.
+    window: win ? { start: win.start, end: win.end } : null,
     days: goals.map((g) => {
       const dateStr = g.date.toISOString().slice(0, 10)
+      const goalVisible = !win || isDateInWindow(dateStr, win)
       return {
         date: dateStr,
         basis: g.basisAmount,
-        goal: g.goalAmount,
-        isOverride: g.isOverride,
+        goal: goalVisible ? g.goalAmount : null,
+        isOverride: goalVisible ? g.isOverride : false,
         // Only surface actuals for days that have started (store-local).
         actual: dateStr <= today ? actualByDate.get(dateStr) ?? null : null,
       }

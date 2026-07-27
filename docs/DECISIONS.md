@@ -5,6 +5,209 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## STORE is a device, not a person — 2026-07-27 (Gary, design confirmation)
+
+Governing principle for all future role tiering, recorded because it has been
+implicit in every PERM ruling so far and was never written down.
+
+The **STORE account is a shared login on an in-store iPad or computer** — not an
+individual. It is sourced from the Square location email (e.g.
+`kevajuice14@icloud.com`) or created directly on `/users`. Individual **STAFF
+logins exist separately**, and are the identity that documents, messages and
+training attach to.
+
+The rule that follows: **STORE gets operational breadth and zero confidential or
+personal data.** Breadth because the device has to run the store — open
+checklists, take counts, complete the day. Zero confidential data because
+anything it can see is visible to whoever is standing at the counter, and
+nothing it does can be attributed to a person.
+
+**Tier inversion, noted deliberately.** PERM-2's OPERATIONAL tier is
+Admin/Manager/Store and **excludes STAFF**. So the unattributable shared device
+currently sits one tier ABOVE the identified individual employee. That is
+correct for the operational surfaces it was drawn for — the device runs the
+checklist, the employee does not — but it is an inversion, and it should be an
+explicit ruling rather than an accident of tier naming. Anyone widening a tier
+should check which of the two they are actually widening to. HR-9 (EMPLOYEE role
+split) is where this gets tested, and the 2026-07-27 verification pass did not
+exercise STAFF at all.
+
+## CSV export removal is exfiltration friction, not a confidentiality boundary — 2026-07-27 (Claude finding, recorded before PERM-4 builds on it)
+
+Recorded so a later session does not build PERM-4(b) on a false premise.
+
+PERM-3 masks a MANAGER's out-of-window `goal` values. But it returns `basis`
+**unmasked for every month**, and `/api/forecasting/plan` GET returns
+`plan.increasePct` (currently 3) to MANAGER by the Q2 ruling above. Every masked
+goal is therefore recoverable as `basis × 1.03`.
+
+**Confirmed against live staging data 2026-07-27**, not merely reasoned about:
+July's basis 2256.01 × 1.03 = 2323.69, matching the displayed July goal exactly;
+September's masked goal is derivable the same way as 1767.23.
+
+So removing the CSV export raises the **cost** of bulk extraction — it turns one
+click into a per-month arithmetic exercise — but it withholds no information
+from anyone willing to do the arithmetic. A real confidentiality boundary would
+require masking `basis` too, and that would cost managers the trend baseline the
+whole window ruling exists to preserve. Gary has not been asked to make that
+trade and it is not obviously worth making.
+
+This is consistent with the "accepted basis-reconstruction property" already
+noted in the PERM-3 entry below; it is promoted to its own decision because
+PERM-4(b) is scoped to remove the export, and that phase should be described as
+friction, not as closing a leak.
+
+## labor.view widening is being reversed for cost data — 2026-07-27 (Gary)
+
+A deliberate reversal, recorded as such so it does not read as a bug later.
+
+PERM-2 resolved the PERMISSIONS_INVENTORY §3 #8 contradiction in the
+**permissive** direction: the Weekly Plan nav was widened to match an API that
+already served any org member, rather than the API being narrowed to match the
+nav. That was the right call for the contradiction as stated — the data was
+already reachable, so hiding the link was security theater.
+
+Gary is now reversing that **for cost data specifically**, as PERM-4(c): a new
+`labor.costs.view` capability at the MANAGE tier, mirroring
+`inventory.costs.view`. The `labor.view` tier itself is untouched and stays
+wide — it governs only the sidebar link, and the 2026-07-27 verification pass
+confirmed STORE sees Weekly Plan in the nav as intended.
+
+Not a contradiction of PERM-2 and not a bug in it. PERM-2 resolved a
+tier-vs-tier inconsistency; this splits the payload by data sensitivity, which
+is the same move PERM-2 itself made for inventory. The reversal is of the
+*conclusion for costs*, not of the method.
+
+## The recorded fix for the preview-database exposure was partial — 2026-07-27 (correction)
+
+Correcting the record, and correcting a correction: the fix has been described
+as **"scope `DATABASE_URL` to Production-only."** What actually shipped on Jul 2
+was a **staging-branch override** — a branch-scoped Preview row for `staging`
+layered over a single Production+Preview row.
+
+Those are not the same fix. The override closes the **specific** hole (staging
+previews now reach the staging database) and leaves the **general** one open:
+any preview deploy from a branch other than `staging` still resolves to the
+production database, and with no generic-Preview `DATABASE_URL_UNPOOLED`,
+`prisma.config.ts` falls back to the **pooled** production URL — so a PR preview
+build runs `migrate deploy` against production through pgbouncer, which is also
+the BUG-3 P1002 advisory-lock condition.
+
+Verified in the Vercel console 2026-07-27: `DATABASE_URL` is ONE row tagged
+Production **and** Preview (Sensitive, added Jun 26) with a `staging`-only
+branch override; `DATABASE_URL_UNPOOLED` has Production, Development and
+Preview→staging rows but no generic Preview row.
+
+Latent only because Gary pushes `staging` and `main` and nothing else. It
+detonates on the first feature branch — which is precisely what the deferred
+second-developer plan requires, making this a scheduled failure rather than a
+hypothetical one. The full fix is two ordered steps, tracked on **BUILD-1**:
+scope the Jun 26 row to Production-only so preview fails **closed**, then add
+Preview-scoped `DATABASE_URL` and `DATABASE_URL_UNPOOLED` pointing at a
+throwaway Neon branch.
+
+*Housekeeping note from the 2026-07-27 reconcile:* the "Production-only" claim
+being corrected here was **not found anywhere in this file** — the nearest entry
+is BUG-3(c) below, which says something narrower and accurate. The claim appears
+to have lived only in session memory. That is the more useful finding: the Jul 2
+fix was never written down at all, which is how a partial fix came to be
+remembered as a complete one.
+
+## PERM-3 forecast read window — 2026-07-26 (Gary ruled on Q1–Q4 + two additions)
+
+The ruling: ADMIN unrestricted. MANAGER sees forward forecast for the **current
+and next month only**, but **full history** of actual sales. STORE and STAFF get
+no forecasting surface at all (which the server already enforced — for them this
+phase only removed two links that dead-ended in a redirect).
+
+a. **Q1 — per-field nulling, not range clamping (Gary).** `/calendar` and
+   `/export` return goals and actuals in the same rows. Clamping or rejecting the
+   requested *range* would withhold the historical actuals the ruling grants, so
+   the window nulls the `goal` field and leaves `basis` and `actual` intact.
+   `export`'s `variance` is nulled with the goal, since `actual − variance`
+   returns the goal by subtraction (Claude — a derived-field leak Gary's ruling
+   implied but did not enumerate).
+b. **Q2 — annual aggregates stay visible to MANAGER (Gary).** `plan` GET's
+   `goalTotal`, `basisTotal` and `increasePct` are context for the manager's
+   monthly number, not a planning surface.
+c. **Q3 — `/audit` filtered to the window for MANAGER (Gary).** The `before` /
+   `after` goal dollars in audit metadata were otherwise a back-door read of
+   exactly the values `/calendar` masks. Filtered in the query so `limit` still
+   returns a full page. Plan-level (bare-year) entries are kept for the window's
+   years, since (b) makes those aggregates visible anyway.
+d. **Q4 — the year selector's forward edge derives from the window, never the
+   calendar year (Gary).** In December the window is December of year N plus
+   January of N+1, so the selector must offer **both** years — a manager
+   budgeting for January in December is the primary use case for the phase.
+   Backward, `windowStartYear − 1` stays selectable because historical actuals
+   are not restricted (Claude's inference from the ruling table; the selector is
+   convenience only, and `export` / `day-report` remain unbounded backward).
+e. **Addition 1 — manager store scoping, in scope (Gary).**
+   `requireForecastStore` checked `organizationId` only, so a MANAGER assigned to
+   Las Brisas could read South Reno's forecast by passing its `storeId`. Now
+   mirrors `requireLaborStore`. §2 item 18.
+f. **Addition 2 — the public Blob budget file is SEC-3, recorded not fixed
+   (Gary).** Needs its own session and a Blob access-model change. §2 item 19.
+
+### The window is a display restriction, not a confidentiality one
+
+**Accepted by Gary, 2026-07-26.** Out-of-window goals remain *approximately
+derivable* by a manager: for any day that is not a manual override,
+`goal ≈ basis × (1 + increasePct/100)`, and (a) keeps `basis` while (b) keeps
+`increasePct`. The annual `goalTotal` is visible outright.
+
+This is acceptable because **the purpose is to avoid presenting tentative
+forward numbers as authoritative, not to keep them secret.** A manager who
+reconstructs an estimate from the basis has done arithmetic on a projection, not
+defeated an access control.
+
+Recorded explicitly so nobody reading the roadmap later believes this phase
+makes those values unavailable. If real confidentiality is ever required, hiding
+`basis` and `increasePct` would be the change — and it would cost managers the
+historical-actuals visibility this ruling deliberately protects.
+
+## PERM-2 `POST /api/checklists` — audit finding + scope exception — 2026-07-26 (Gary ruled on all three)
+
+PERM-2's Task 1 required auditing the endpoint before applying any permission
+to it, because the proposed ADMIN-only lock would have been an operational
+outage rather than a security fix.
+
+a. **The audit answer: (A), instantiation.** `POST` never creates a checklist
+   *definition* — `prisma.template` is only read, and the only two
+   `prisma.checklist.create` call sites in the codebase are both in this route.
+   Mode 1 (`{templateId, storeId}`) creates today's instance for one store,
+   idempotent per the store's local business day. Mode 2 (empty body) fans out
+   across every active store × applicable template. No cron generates
+   instances (`vercel.json` runs only `sales-reconcile` and `pace-alerts`), so
+   this endpoint is the ONLY way a checklist instance comes into existence.
+   The sole caller is `startChecklist()` in `store-view-client.tsx` — the
+   floor's "Start checklist" tap. **ADMIN-only would have stopped Las Brisas
+   from opening.**
+b. **Mode 1 → `checklists.create` at ADMIN/MANAGER/STORE, store-scoped
+   (Gary).** The capability moves from `ALL` to `OPERATIONAL`, and the call
+   site additionally requires `body.storeId` to be in
+   `getUserStoreScope().storeIds`, ADMIN unrestricted. Closes §2 gap #4: any
+   member, including STAFF, could previously instantiate at any store in the
+   org by passing its id.
+c. **Mode 2 → new capability `checklists.create.bulk`, ADMIN only (Gary).**
+   It is org-wide by construction — there is no store to scope it to — so it
+   gets its own capability rather than a scope variant of (b). **Code kept,
+   not deleted** (Gary), even though nothing calls it.
+d. **SCOPE EXCEPTION — cross-tenant template reference fixed here (Gary).**
+   Found during the audit, outside the ruling set: Mode 1 validated that
+   `storeId` belonged to the caller's org but performed **no equivalent check
+   on `templateId`**. A member of org A passing a template id owned by org B
+   created a checklist in org A whose `template` relation crossed the tenant
+   boundary; `GET` then rendered org B's template name and task list.
+   PERM-2's standing rule is *record out-of-scope findings, do not fix them* —
+   Gary made this a deliberate exception on two grounds: it is **inside the
+   function already being changed**, and it is **tenant isolation, not a role
+   gap**, so it does not belong in a permissions phase's backlog. The fix is
+   one org-scoped `template.findFirst` returning 404. **Containment (Gary):
+   this one lookup only — the same pattern found anywhere else gets written
+   up, not fixed.** Recorded here so the deviation is on the record rather
+   than inferred later from the diff.
+
 ## BUG-3 migrations bypass the Neon pooler — 2026-07-25 (Gary approved plan + fallback ruling)
 
 Fixes the intermittent P1002 deploy failure: Prisma's migration advisory lock
