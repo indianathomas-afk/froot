@@ -704,6 +704,36 @@ phases:
     status: planned
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
 
+  # ---- Square ----
+
+  - id: SQ-2
+    track: square
+    size: S-M
+    status: shipped
+    shipped: 2026-07-26
+    commits: [9dc6dc0]
+    title: "Square token-refresh hardening — observability + refresh-ahead"
+    notes: >
+      Cherry-picked onto main alone (staging 81be8d9), ahead of the rest of the
+      staging queue: the 2026-08-06 production token expiry made this the one
+      time-critical item. BEHAVIOR CHANGE — the refresh trigger moved from
+      "expires within 7 days" to "expires within 23 days". Square's guidance is
+      to refresh every 7 days or less; with a 30-day token life and no issuedAt
+      column, 23 days of remaining life (30 − 7) stands in for "older than 7
+      days". Consequence: on the first production run, any token already inside
+      that window refreshes immediately rather than at the old cliff. Also
+      replaces the silent `if (!res.ok) return org` in refreshTokenIfNeeded with
+      attempt/success/failure logging; no token value is ever logged, and any
+      secret echoed back in a Square error body is redacted. VERIFIED on staging
+      2026-07-26: runtime logs recorded `[square] token refresh success` against
+      a real Square token (GET 200, org cmr54z65v000105jxczpt72w1) — the refresh
+      call itself, not just the logging. Production's token (expiry 2026-08-06)
+      was already inside the 23-day window at promotion, so the first Square
+      request after deploy refreshes immediately rather than waiting; confirm it
+      in the production runtime logs. Remaining SQ-1 follow-ups (cron backstop, helpers bypassing
+      getSquareClient, oauth.authorization.revoked, settings UI showing expiry)
+      are SQ-3 and stay on staging.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
