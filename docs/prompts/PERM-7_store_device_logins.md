@@ -269,3 +269,122 @@ indicator against Las Brisas.
 3. Whether the collision case was reproducible, and how it now fails.
 4. Anything in this prompt that contradicted the repo.
 5. The explicit unpushed-commits line.
+
+---
+
+# Re-run plan (written 2026-07-28, after a void pass)
+
+The 2026-07-28 pass tested a deployment that predated every PERM-7 commit, so
+**nothing in this phase has ever executed anywhere.** This plan is ordered so
+the cheapest, highest-information checks run first and only one step consumes a
+fresh identity.
+
+**Target org: `cmr54z65v000105jxczpt72w1` on branch `preview/staging`.** Address
+it by ID, never by its display name "Microsoft" — five orgs on that branch share
+that name (DEBT-19). It is the only org there with Square connected, which is
+what makes Tasks 0 and 5 exercisable at all.
+
+## Step 0 — the gate (blocking)
+
+Push, wait for the deploy, then:
+
+```bash
+git rev-parse --short HEAD
+npx vercel inspect <staging-alias> --json | grep -i githubCommitSha
+```
+
+**If these differ, stop.** Everything below is void otherwise — including the
+passes. See `CLAUDE.md` § Staging Verification.
+
+Record every DB result with its branch on the same line (`CLAUDE.md`
+§ Database Evidence).
+
+## Step 1 — use a plus-address on a mailbox you control
+
+**Invite `indianathomas+froot0014@gmail.com`** (or any `+tag` on a mailbox you
+own). This is the plan, not a fallback.
+
+Three reasons it is the right default rather than a workaround:
+
+1. **It is deliverable.** Accepting an org invitation requires the ticket link,
+   and the ticket arrives by email. An address with no inbox cannot complete the
+   flow.
+2. **It consumes no new account.** The whole worry about burning test identities
+   goes away — one real mailbox yields as many distinct Clerk identities as
+   needed.
+3. **It exercises the collision remedy itself.** Plus-addressing is what PERM-7
+   suggests to an operator whose Square locations share one `business_email`
+   (`DECISIONS.md` 2026-07-28). Using it here tests the recommendation instead of
+   only asserting it.
+
+> **Note on `+clerk_test`, deliberately NOT the plan.** On a development
+> instance, addresses carrying the `+clerk_test` subaddress are test addresses
+> that send no real mail. That is genuinely useful for sign-up verification
+> codes, and it was initially proposed here to avoid consuming identities. It
+> was dropped on reflection: **no email means no ticket link, and an org
+> invitation cannot be accepted without one.** If someone wants to confirm that
+> for themselves it costs one invite — but do not build a sequence around it,
+> and do not let it displace the plus-address above, which is better on every
+> axis that matters here.
+
+## Step 2 — checks needing NO sign-up (run all before any acceptance)
+
+These create nothing, or reuse `gary@keva.com` (role STORE, 1 store) which
+already exists in the target org.
+
+| # | Check | Proves | Cannot prove |
+|---|---|---|---|
+| 2a | **Collision.** Invite `gary@keva.com` again — already a member. | The 409 with the plus-address suggestion, replacing the raw "Bad Request". **Highest value: it is the check that failed, and it costs nothing.** | Nothing about the Square-derived collision (same address on N locations) |
+| 2b | **Task 0 resync.** Click Resync from Square on a store in the target org, then query `contactEmail`. | DEBT-8 end to end: allow-list → import mapping → the resync path that is the only route to already-imported stores | That the *import* mapping works for a NEW location |
+| 2c | **Task 3 warning.** Open Create device login, select Admin, read, **cancel**. | The sentence states the org's real store count — count-awareness, not a generic warning | Nothing about what the role actually grants |
+| 2d | **Task 6 badge.** Look at the store `gary@keva.com` is assigned to. | "Has Account" is gone; role-aware badge names the account and links to /users | — |
+| 2e | **Task 5 drift.** After 2b, if `contactEmail` ≠ the device login's email. | The drift chip appears — surfaced, not silently reconciled | — |
+
+**Expected in 2d, and not a bug:** the badge renders `name ?? email`, and
+`gary@keva.com` has an empty `name` because it was created before Task 7
+existed. It will show the email. That is correct, and it is a live illustration
+of why Task 7 exists.
+
+## Step 3 — the one check needing a fresh sign-up
+
+**Task 7 name derivation.** Invite a new address (per Step 1) as role **STORE**
+with **exactly one** store, accept it, then query
+`SELECT name FROM "User" WHERE ...` naming the branch. Expect the store's name.
+
+**At sign-up, DELIBERATELY TYPE a first and last name — a person's name, e.g.
+"Tommy Thomas".** This is not optional decoration. Task 7's ruling is that the
+store name *overrides* what the invitee typed; if you leave the name fields
+blank, the derivation merely fills a hole and the override — the half the ruling
+is actually about — is never exercised.
+
+- **PASS** = `User.name` is the store's name and the typed name is gone.
+- **FAIL** = the typed name survives → the derivation fills blanks rather than
+  overriding, and the ruling is not implemented.
+- **Left blank** = record as "fill verified, override UNTESTED", never as
+  "Task 7 verified".
+
+Only this step needs a new identity, because the derivation is deliberately
+create-only (`DECISIONS.md` 2026-07-28).
+
+Re-exercises PERM-6 Task 2's accepting path as a side effect — already covered,
+so it confirms rather than extends.
+
+## What a staging pass structurally CANNOT establish
+
+- **The production sign-up shape.** The development instance requires a
+  `username`; production does not. Every staging acceptance therefore exercises
+  the BUG-2 path (Clerk's `identifier` is a username, not an email). Useful —
+  that path is real — but it is not production's.
+- **PERM-6's rejecting branch** — see below.
+
+**NOT in this list, though an earlier draft put it here: Task 7's override.**
+That was an overstatement. It is not structurally impossible on staging, it just
+requires deliberate test design — `first_name`/`last_name` are enabled on both
+instances. **Step 3 above must type a person's name at sign-up**, or the pass
+proves only the fill. Full statement on the PERM-7 row's first blocker, which is
+where promotion-time readers will look.
+- **PERM-6's rejecting branch.** No UI can send an invalid or foreign-org
+  storeId (the dialog offers only the org's own stores), so the webhook's
+  filter-and-warn path stays uncovered. Closing it needs a hand-made request or
+  a store deleted between invite and acceptance — a separate deliberate
+  exercise, not part of this pass.

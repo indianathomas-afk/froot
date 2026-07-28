@@ -65,9 +65,22 @@ open question** — whether "no tooling still reaches production by another path
 > boundary it appears to be — anyone who can run `vercel env pull` against the
 > Production scope has a working production credential via the sibling variable.
 
-That is a gap in the guard, not a gap in the policy. Marking
-`DATABASE_URL_UNPOOLED` Sensitive too would close it, and belongs with DEBT-4
-when Gary rules on closing that row.
+That is a gap in the guard, not a gap in the policy.
+
+**Follow-up, 2026-07-28 — the obvious fix is unavailable, so the rule is the
+mitigation.** Marking `DATABASE_URL_UNPOOLED` Sensitive would close it, but
+Vercel will not allow it: the variable is **integration-managed by the Neon
+integration**, not a hand-created project var, and Vercel **rejects the type
+change**. There is no platform setting that closes this.
+
+So the control is procedural and lives in `CLAUDE.md` § Environment Variables:
+**never run `vercel env pull` in this repo; production reads go through the Neon
+console; no production credential is written to disk, including a scratchpad
+file intended to be deleted.** Recorded against `DEBT-4`, which this does not
+close — it converts one of that row's open questions into a known, documented
+gap that configuration cannot fix. Because the control is a convention rather
+than an enforced boundary, it is worth re-stating at review time rather than
+assumed to hold.
 
 ## Plus-addressing is the collision answer, and it rests on a Clerk dashboard setting nothing in the repo pins — 2026-07-28 (verified by Claude; handling ruled by Gary)
 
@@ -116,10 +129,112 @@ the next import.
 
 **Detection must be by error code, not message text.** `createOrganizationInvitation`
 returns HTTP 400 with `already_a_member_in_organization` or
-`organization_invitation_not_unique`; read them via `isClerkAPIResponseError(err)`
-→ `err.errors[0].code`. `POST /api/users` previously collapsed every Clerk
-failure to `err.message` with a blanket 400, which is precisely what made the
+`organization_invitation_not_unique`. `POST /api/users` previously collapsed every
+Clerk failure to `err.message` with a blanket 400, which is precisely what made the
 collision fail opaquely.
+
+> **CORRECTION 2026-07-28 — this was recorded as VERIFIED and it was not. The
+> test was invalid, and the invalidity is the lesson.**
+>
+> The original verification called Clerk's REST API directly with `fetch` and
+> asserted on the **HTTP response** — status 400, body code
+> `already_a_member_in_organization`. That is a true fact about Clerk, and it is
+> not the thing the handler depends on. The handler branches on an **error
+> object thrown by the SDK**, and the `fetch` test never constructed one. It
+> proved the half that was never in doubt and skipped the half that broke.
+>
+> The staging pass failed: the admin saw a raw `Bad Request`. That string is
+> `ClerkAPIResponseError.message` verbatim, and the only branch in
+> `src/app/api/users/route.ts` that emits it is the generic
+> `err instanceof Error ? err.message` fallback — so `isClerkAPIResponseError(err)`
+> returned FALSE in the deployed runtime, and the 409 never ran.
+>
+> **Second correction, same day — the cause stated above was ALSO wrong.** It
+> read: "the built server output carries five separate definitions of
+> `ClerkAPIResponseError` … the error is thrown by one chunk's copy while the
+> route checks another's." Withdrawn. See `DEBT-15`, demoted to an unverified
+> hazard.
+>
+> **The actual cause: the 409 handler was never deployed.** Staging was running
+> a build that predates every PERM-7 commit, so the `catch` in force was the old
+> `err instanceof Error ? err.message` with a blanket 400 — and
+> `ClerkAPIResponseError.message` is verbatim `"Bad Request"`. No bundler
+> behaviour was involved.
+>
+> **The disconfirming evidence was already in hand.** The SDK reproduction run
+> while diagnosing this returned `isClerkAPIResponseError(err) === true` and
+> produced the intended 409. That result was observed and reasoned past because
+> the five-definition count made a better story.
+>
+> **Two rules, and the second is the one that was actually missing:**
+> 1. A verification must exercise the same *shape* the code consumes, not merely
+>    the same underlying truth. The original `fetch` test asserted on an HTTP
+>    response; the handler branches on a thrown object.
+> 2. **A measurement that contradicts the theory outranks a suggestive
+>    artifact.** Both wrong diagnoses were plausible chains built past a
+>    contrary observation.
+
+## The PERM-7 staging pass tested a build that predated the feature — and every turn had said so — 2026-07-28
+
+Recorded as a process failure, not a code one, because nothing in the codebase
+caused it and nothing in the codebase would have caught it.
+
+A full staging verification of PERM-7 was run and produced two failures and
+several passes. All of them were artifacts. The deployment aliased to
+`froot-git-staging` was created at **11:59:10**; the earliest PERM-7 commit is
+**12:31:21** and the feature commit is **12:40:55**. Staging was running
+pre-PERM-7 code — confirmed against `git show 6530d8b~1`, where
+`stores/page.tsx:112` still reads `"Has Account"` and `users/route.ts` still has
+the blanket catch.
+
+**The information was never missing.** Every one of six consecutive turns ended
+with an explicit "unpushed commits: six" line — a convention adopted after the
+F-4 incident precisely so unpushed work could not sit unnoticed. It worked: the
+work was reported, every time. What was absent was any step that *consumed* that
+report before testing. Neither party connected a correct status line to the test
+plan.
+
+**The lesson is about the shape of the control, not the diligence of the
+reader.** A report line is passive; it informs. What was needed was a gate: a
+precondition that fails closed. That now lives in `CLAUDE.md` § Staging
+Verification — confirm the deployed SHA matches `HEAD` before verifying
+anything, and treat a mismatch as voiding the entire pass, passes included. The
+corollary is that since Claude never pushes, the default assumption for any
+Claude-run phase must be that staging does *not* yet have the work.
+
+**A cascade worth noticing:** the false results were then diagnosed at length,
+producing confident and wrong causal theories. Bad inputs did not announce
+themselves as bad; they produced *plausible* findings, which is more expensive
+than an obvious failure.
+
+**The second unlabelled input, found the same evening.** Three Neon branches
+(`production`, `preview/main`, `preview/staging`) were queried and the results
+reported without naming the branch beside any of them. A `role=ADMIN, stores=0`
+row from **production** was read as though it came from **staging**. Because a
+real staging device account also existed, the mismatch looked like a defect
+rather than a mix-up, and produced: a privilege-escalation investigation; an
+invented mechanism for how the row was "inherited when the staging branch was
+cut" (no inheritance ever happened); a claim that the Clerk webhook had not
+processed the event (it had, correctly); and the retraction of a *correct*
+PERM-6 coverage finding. The true `preview/staging` row was `role=STORE,
+stores=1` — **the feature had worked the whole time.** That rule now lives in
+`CLAUDE.md` § Database Evidence.
+
+**Five causal chains were wrong in one session**, every one of them internally
+coherent: (1) `User.name` display-layer theory; (2) the `DEBT-15` bundler
+theory; (3) production-fossil-inherited-into-staging; (4) webhook-never-ran, and
+the PERM-6 retraction that followed from it; (5) `DEBT-18`, filed to explain a
+contradiction that did not exist.
+
+**What connects them is not carelessness with evidence — it is what happens
+after a contradiction appears.** In each case a measurement was available that
+did not fit, and the response was to build a mechanism that reconciled it rather
+than to distrust the input. A mislabelled or stale input is indistinguishable
+from a real defect precisely *because* the resulting story hangs together. The
+operative discipline: when an observation requires a novel mechanism to explain,
+suspect the observation's provenance before inventing the mechanism. Both
+preconditions in `CLAUDE.md` — deployed SHA, named branch — exist to make
+provenance checkable instead of assumed.
 
 **Also settled, on the second unknown:** the per-location mailboxes are
 reachable. `kevajuice14@icloud.com` and `kevajuice06@icloud.com` are already

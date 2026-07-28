@@ -1326,6 +1326,28 @@ phases:
       the highest-value targets for the next staging visit. (3) The STAFF role
       was not exercised, same gap PERM-2's pass recorded. (4) The staff
       VISIBILITY path was not tested; that gap is how DEBT-13 was found.
+      GAP (2) NARROWS — THE ACCEPTING PATH IS NOW COVERED END-TO-END,
+      2026-07-28. During PERM-7's staging attempt an invite was created as role
+      STORE with one store and accepted for real. Verified by query ON BRANCH
+      preview/staging (branch named deliberately — see the retraction note
+      below): User id cms55ln6v000004jrtgs8gpx1, email gary@keva.com, role
+      STORE, clerkUserId user_3H9HEV5iN8vkRDMb71JDSjB37cm, org "Microsoft",
+      StoreUserAssignment count = 1. One valid storeId in, exactly one
+      assignment out, and the app role recovered correctly from PendingInvite
+      rather than defaulting from the Clerk org role. That is the invite half
+      and the webhook half both running for the first time outside a build.
+      THE REJECTING BRANCH IS STILL NOT COVERED. No invalid or foreign-org
+      storeId was ever sent, so the webhook's filter-and-warn path
+      (webhooks/clerk/route.ts, the `owned.length !== pending.storeIds.length`
+      console.warn) has still never executed. Covering it needs an invite
+      carrying a storeId from another org, or a store deleted between invite
+      and acceptance. GAP NARROWED, NOT CLOSED.
+      RETRACTION OF A RETRACTION — recorded because the churn is the lesson. An
+      earlier version of this row claimed gap (2) was untouched, on the basis
+      of a query returning ZERO assignments and no User row. That query was run
+      against the PRODUCTION branch while being read as staging; the branch was
+      never named beside the result. The staging row had existed and been
+      correct the whole time. See CLAUDE.md § Database Evidence.
     open:
       - >
         RESOLVED AND MOVED 2026-07-27 — kept here as a pointer only. The
@@ -1469,16 +1491,92 @@ phases:
       `create` branch of the webhook's user upsert
       (src/app/api/webhooks/clerk/route.ts) and is ABSENT from `update`, so no
       later Clerk event can reset a corrected name.
-      COLLISION CASE, reproduced live 2026-07-28 against the development Clerk
-      instance: re-inviting an existing org member returns HTTP 400
-      already_a_member_in_organization. POST /api/users now maps that code to a
-      409 naming the address and suggesting the plus-addressed variant, instead
-      of the old blanket 400 carrying err.message. The dialog ALSO pre-checks
-      against the org's known emails (Users + PendingInvite) so the suggestion
-      appears before the Clerk call, not after the failure.
+      NOTHING IN THIS PHASE HAS EVER EXECUTED, ANYWHERE. Established
+      2026-07-28. Not verified, not falsified — UNTESTED. The staging
+      deployment used for the verification pass was created at 11:59:10; the
+      earliest PERM-7 commit (6530d8b) is 12:31:21 and the feature commit
+      (bae09ed) is 12:40:55. Staging was running pre-PERM-7 code, confirmed
+      against `git show 6530d8b~1`: stores/page.tsx:112 still reads "Has
+      Account" (the badge Task 6 replaces) and users/route.ts still has the
+      blanket `err.message` catch. Every observation from that pass — the two
+      "failures" AND the "passes" — is about code that does not contain this
+      phase. Treat the whole phase as unexercised until a pass runs against a
+      deployment whose SHA matches. See CLAUDE.md § Staging Verification.
+      RE-RUN TARGET, BY ID NOT NAME: organizationId
+      cmr54z65v000105jxczpt72w1 on branch preview/staging. It is the ONLY org
+      on that branch with Square connected, it has 4 users, and gary@keva.com
+      (role STORE, 1 store) already lives in it — so Tasks 0 and 5, which need
+      Square, ARE exercisable, and the existing account covers several checks
+      without a fresh sign-up. Its display name is "Microsoft", which is NOT
+      identifying: five orgs on that branch share it. Always address this org by
+      ID. See DEBT-19.
+      Ordered re-run plan: docs/prompts/PERM-7_store_device_logins.md
+      § Re-run plan.
+      STILL TRUE AFTER THE 2026-07-28 RE-QUERIES. Correcting the branch labels
+      resolved the role and assignment questions and vindicated PERM-6, but it
+      tested NOTHING in this phase — the deployment still predated every PERM-7
+      commit. Not verified, not falsified: UNTESTED.
+      THE EMPTY User.name IS THE EXPECTED RESULT, NOT A FAILURE. Task 7's
+      derivation does not exist in the build staging was running, so the create
+      branch fell through to Clerk's first/last name, and the invitee supplied
+      a username instead. An empty name is exactly what pre-PERM-7 code
+      produces. It was logged as failure "4. NAME DERIVATION — FAILED"; that
+      line should be read as "Task 7 absent", and it is the one observation of
+      the night that is fully consistent with correct behaviour on both sides.
+      COLLISION CASE — RECORDED AS VERIFIED ON AN INVALID TEST, THEN
+      MIS-DIAGNOSED TWICE. Corrected 2026-07-28. The original note read:
+      "reproduced live 2026-07-28 against the development Clerk instance:
+      re-inviting an existing org member returns HTTP 400
+      already_a_member_in_organization." That statement is TRUE and it did not
+      test this code. It called Clerk's REST API with `fetch` and asserted on
+      the HTTP RESPONSE; the handler branches on the ERROR OBJECT the SDK
+      throws, which that test never constructed. It proved the half that was
+      never in doubt and skipped the half that broke.
+      WHAT STAGING SHOWED: the admin saw a raw "Bad Request".
+      FIRST DIAGNOSIS, WRONG: that isClerkAPIResponseError returned FALSE in the
+      deployed runtime because ClerkAPIResponseError is defined 5x across bundle
+      chunks. Withdrawn — see DEBT-15, which has been demoted to an unverified
+      hazard. The SDK reproduction had already returned TRUE, and that
+      disconfirming result was reasoned past rather than believed.
+      ACTUAL CAUSE: the 409 handler was NOT DEPLOYED. Staging was running the
+      pre-PERM-7 catch block, which is `err instanceof Error ? err.message` with
+      a blanket 400 — and ClerkAPIResponseError.message is verbatim "Bad
+      Request". The failure is fully explained by the absence of the feature,
+      with no bundler behaviour involved.
+      STILL TRUE AND UNAFFECTED: the dialog on /stores pre-checks against the
+      org's known emails (Users + PendingInvite), so for the DEVICE-LOGIN flow
+      the suggestion appears before the Clerk call. The failure above is on the
+      /users invite dialog, which has no pre-check and depended entirely on the
+      409. Not verified either way on staging.
       DEBT-11 was NOT fixed here (Ruling 2) and DEBT-14 was filed rather than
       fixed — neither route is one this phase touches.
     blockers:
+      - >
+        TASK 7: A GREEN STAGING RESULT DOES NOT MEAN "TASK 7 VERIFIED". READ
+        THIS AT PROMOTION TIME — Gary, 2026-07-28.
+        Task 7 has two halves and they are not equally testable. The FILL — an
+        empty name gets the store's name — is what a normal staging sign-up
+        exercises. The OVERRIDE — a name the invitee TYPED is replaced by the
+        store's name — is the actual ruling (DECISIONS.md 2026-07-28: "the
+        premise is not trusting the sign-up form"), and it is NOT exercised by
+        the default path. On the development instance that serves staging,
+        `username` is required and `first_name`/`last_name` are merely enabled,
+        so an invitee who types nothing leaves the name blank and `deviceName`
+        fills a hole rather than overwriting anything. That is the weaker half
+        passing while the half the ruling is about goes untouched.
+        WHAT WOULD PROVE THE OVERRIDE — it is a test-design requirement, NOT a
+        structural impossibility, and an earlier note calling it structurally
+        impossible was wrong. `first_name`/`last_name` are enabled on BOTH
+        instances (verified 2026-07-28 via Clerk's Frontend API
+        GET /v1/environment). So: invite as role STORE with EXACTLY ONE store,
+        and at sign-up DELIBERATELY TYPE a first and last name — a person's
+        name, e.g. "Tommy Thomas", the exact shape the convention exists to
+        prevent. Then query, naming the branch. PASS = User.name is the STORE's
+        name and the typed name is gone. FAIL = the typed name survives, which
+        means the derivation is filling blanks rather than overriding and the
+        ruling is not implemented.
+        If a pass is run without typing a name, record it as "Task 7 fill
+        verified, override UNTESTED" — never as "Task 7 verified".
       - >
         SINGLE PROMOTION UNIT WITH PERM-6 — Gary, 2026-07-28. NEITHER PHASE
         REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
@@ -2205,6 +2303,28 @@ debt:
       another path — and the local→dev repoint has since been shown to create
       its own hazard (see BUILD-2's blocker: a local pre-check now reads
       ep-late-water and returns a false all-clear). Gary to confirm and close.
+      "ANOTHER PATH" FOUND, 2026-07-28 — and it CANNOT be closed with a platform
+      setting. The PERM-7 pre-flight audit reached the production Neon branch
+      from this machine via `npx vercel env pull --environment=production`. The
+      guard that was assumed to prevent this does not: `DATABASE_URL` is marked
+      Sensitive and pulls as the literal `[SENSITIVE]`, but its sibling
+      `DATABASE_URL_UNPOOLED` is NOT Sensitive and pulls a live production
+      connection string. So the Sensitive marking on `DATABASE_URL` is not the
+      boundary it appears to be, and the memory note claiming "you cannot read
+      the prod Neon DB from this machine via pulled env" was simply wrong.
+      WHY THE OBVIOUS FIX IS UNAVAILABLE: `DATABASE_URL_UNPOOLED` is
+      INTEGRATION-MANAGED by the Neon integration, not a hand-created project
+      var, and Vercel REJECTS the type change on it. Marking it Sensitive is
+      therefore not an option — the platform will not allow it.
+      THE MITIGATION IS PROCEDURAL, NOT A SETTING (Gary, 2026-07-28): a standing
+      rule in CLAUDE.md § Environment Variables — never run `vercel env pull` in
+      this repo; production reads go through the Neon console; no production
+      credential is written to disk, including a scratchpad file intended to be
+      deleted. Recorded in DECISIONS.md 2026-07-28 with the reasoning. Because
+      the control is a convention rather than an enforced boundary, it is worth
+      re-stating at review time rather than assumed to hold.
+      This does NOT close DEBT-4 — it converts one of its open questions into a
+      known, documented, unfixable-by-configuration gap.
 
   - id: DEBT-5
     title: "10 of 12 stores have storeNumber: null, degrading PERM-3's deterministic store sort"
@@ -2538,3 +2658,220 @@ debt:
       re-word the heading so it does not assert "not yet fixed" over a mixed
       list. Treat a MISSING status as open — every existing debt row omits it,
       and defaulting the other way would silently hide all thirteen.
+
+  - id: DEBT-15
+    title: "ClerkAPIResponseError is defined 5x in the built output — identity-based type guards MAY be unreliable across chunks (impact unverified)"
+    notes: >
+      DEMOTED FROM CAUSE TO UNVERIFIED HAZARD, 2026-07-28, same day it was
+      filed. READ THIS PARAGRAPH BEFORE THE REST OF THE ROW.
+      This row originally asserted that duplicate class definitions CAUSED
+      PERM-7's staging collision failure. THAT WAS WRONG. The real cause was
+      that staging was running a deployment predating every PERM-7 commit — the
+      old blanket `catch` at users/route.ts returned `err.message`, and
+      ClerkAPIResponseError.message is literally "Bad Request", which is exactly
+      what the admin saw. No new code was involved at all.
+      WORSE, THE DISCONFIRMING EVIDENCE WAS ALREADY IN HAND. The SDK
+      reproduction run while diagnosing this returned
+      `isClerkAPIResponseError(err) === TRUE` and produced the intended 409.
+      That result was observed and then reasoned past, because the 5-definition
+      count looked like a better story. A measurement that contradicts the
+      theory outranks a suggestive artifact; this row is the reminder.
+      WHAT SURVIVES, as observation only: the built server output really does
+      define ClerkAPIResponseError five times — `grep -rl
+      'kind="ClerkAPIResponseError"' .next/server/chunks` returns 5 files —
+      because @clerk/shared is a transitive dependency of several @clerk/*
+      packages and Turbopack inlines it per package chunk. @clerk/shared's
+      isClerkAPIResponseError is createErrorTypeGuard(...), which ends in
+      `target instanceof ErrorClass`. Whether that ever fails INSIDE the Next
+      bundle is UNTESTED — it demonstrably does not fail outside it.
+      IMPACT: UNKNOWN. Do not cite this row as the cause of anything until
+      someone reproduces a false negative in a deployed runtime.
+      The audit below stands on its own and is still useful.
+      Audited across the whole of src/ at Gary's instruction ("if class identity
+      is unreliable across chunks, one call site isn't the whole finding").
+      THE MECHANISM: the built server output defines ClerkAPIResponseError FIVE
+      separate times — `grep -rl 'kind="ClerkAPIResponseError"' .next/server/chunks`
+      returns 5 files — because @clerk/shared is a transitive dependency of
+      several @clerk/* packages and Turbopack inlines it into each package chunk
+      rather than sharing one copy. @clerk/shared's isClerkAPIResponseError is
+      createErrorTypeGuard(...), which ends in `target instanceof ErrorClass`.
+      An error thrown from one chunk's copy fails the check in another's.
+      AUDIT RESULT — the finding is genuinely ONE call site, established rather
+      than assumed. Every `instanceof` in src/ falls into three buckets:
+      (1) INTRINSICS — `instanceof Error` (18 sites) and `instanceof Date`
+      (forecast-import.ts:30,50). Error and Date are per-realm globals, never
+      bundled, never duplicated. SAFE.
+      (2) FIRST-PARTY CLASSES — SignedRecordError (hr-signed-pdf.ts:128) and
+      HrFileValidationError (hr-files.ts:31). Referenced in the build through a
+      shared module namespace object (`e instanceof x.SignedRecordError`), i.e.
+      ONE definition imported by many chunks, not redefined per chunk. SAFE as
+      built. Prisma.PrismaClientKnownRequestError (pace-alerts.ts:118) is the
+      same shape and appears in exactly ONE chunk. SAFE as built.
+      (3) THIRD-PARTY CLASS FROM A SHARED TRANSITIVE DEP — only
+      isClerkAPIResponseError, at src/app/api/users/route.ts:127. The only site
+      with duplicated definitions, and therefore the only one where the hazard
+      is even possible. NOT known to be broken — see the demotion above.
+      THE SHARP RULE, worth more than the single fix: the risky shape is
+      `instanceof` against a class owned by a package that is a TRANSITIVE
+      dependency of MORE THAN ONE direct dependency. That is what gets inlined
+      more than once. First-party classes and intrinsics are fine, and
+      "instanceof is unreliable" as a blanket claim would be wrong.
+      CAVEAT ON BUCKET 2: safe-as-built is a bundler outcome, not a guarantee.
+      A dependency change could split Prisma's client across chunks and the
+      pace-alerts P2002 guard would begin failing — degrading a benign "already
+      alerted this month" return into a rethrow logged as "pace alert failed".
+      Worth re-running the counts above after any major dep bump.
+      FIX (approved in principle by Gary 2026-07-28, before the demotion, and
+      NOT yet applied): duck-type on the payload instead of the class — Clerk
+      errors carry `clerkError: true` and an `errors` array, both DATA rather
+      than identity, so they survive any number of duplicated class definitions.
+      Still worth doing as cheap hardening. It is NOT a fix for the staging
+      failure, because that failure had a different cause; do not let the two be
+      conflated again when this is picked up.
+
+  - id: DEBT-16
+    title: "The /users invite dialog has no email-collision pre-check — only the /stores device-login dialog does"
+    notes: >
+      Filed 2026-07-28 at Gary's instruction rather than built, because PERM-7
+      had already grown past its size and this is an optimisation, not a
+      correctness gap.
+      PERM-7 put a collision pre-check in the device-login dialog
+      (src/app/(app)/stores/create-device-login-button.tsx): the /stores page
+      passes down every email already used by a User or PendingInvite in the
+      org, so a colliding Square contact address is detected and a
+      plus-addressed suggestion prefilled BEFORE the Clerk call. The /users
+      invite dialog (src/app/(app)/users/user-actions.tsx) has none of this and
+      relies entirely on the server's 409.
+      WHY IT IS NOT URGENT (Gary's reasoning): once DEBT-15's fix lands, the
+      /users dialog renders the 409's text, and that text ALREADY carries the
+      plus-address suggestion. The pre-check saves a round trip and shows the
+      suggestion a moment sooner; it does not change what the admin can
+      ultimately do. Do not confuse this row with the DEBT-15 failure — that one
+      is a correctness bug, this one is polish.
+      NOTE: the PERM-7 staging pass exercised the /users dialog, not the device
+      dialog, which is why the missing pre-check was visible at all. Whoever
+      picks this up should verify the DEVICE dialog's pre-check works, since it
+      has never been exercised on staging either.
+
+  - id: DEBT-17
+    title: "Visiting /users can persist a role the admin never chose — the page creates User rows from Clerk membership alone, ignoring PendingInvite"
+    notes: >
+      Filed 2026-07-28 during PERM-7's staging post-mortem. INDEPENDENT OF
+      PERM-7 and SHIPS IN PRODUCTION TODAY — it is in no phase's diff and was
+      found by tracing every writer of User.role.
+      THE BUG: src/app/(app)/users/page.tsx:65-91 auto-syncs "any Clerk member
+      who has no DB User record yet" by upserting a User with
+      `role: m.role === "org:admin" ? "ADMIN" : "STAFF"` (:86). It never
+      consults PendingInvite. The Clerk webhook, which DOES consult it
+      (webhooks/clerk/route.ts, `resolvedRole = pending?.role ?? ...`), is the
+      only path that knows the admin picked MANAGER or STORE — because
+      POST /api/users maps every non-ADMIN role to the same Clerk role,
+      `org:member` (users/route.ts:102). The app role is recoverable ONLY from
+      PendingInvite.
+      CONSEQUENCE: whichever writer runs FIRST wins, and the page can win. An
+      admin who invites someone as STORE or MANAGER and then opens /users
+      before the webhook lands persists role STAFF permanently — the webhook's
+      upsert later takes its UPDATE branch, which sets only `email` and never
+      role. The invite's intended role is silently discarded, and PendingInvite
+      is not cleaned up either, so the two disagree with no signal.
+      Direction of the error is DOWNWARD (STAFF is the floor), so this is a
+      lockout/annoyance rather than an escalation — an invited manager lands
+      with no manager access and nothing explains why. An org:admin invite is
+      unaffected, since both writers agree on ADMIN.
+      NOT TRIGGERED in the 2026-07-28 staging attempt — corrected 2026-07-28.
+      An earlier version of this line said the invited account "has no User row
+      at all"; that came from a mis-branched query. On preview/staging the
+      webhook won the race and persisted role STORE correctly from
+      PendingInvite. So this remains a REAL but UNEXERCISED race, found by
+      code-reading rather than by observation. Its severity is unchanged; only
+      the claim that it had been seen is withdrawn.
+      FIX DIRECTION: have the page consult PendingInvite exactly as the webhook
+      does, or (better) stop writing roles from a render path entirely and let
+      the page display an unsynced member as pending rather than materialising
+      a guess. A GET that writes is the underlying smell.
+
+  - id: DEBT-18
+    # NO status field: the vocabulary (planned/in_progress/staging/shipped/
+    # verified) has no value for "withdrawn", and adding one is a code change to
+    # PhaseStatus in src/lib/roadmap.ts. The title carries the state instead.
+    # Note this makes DEBT-14's "a missing status means OPEN" rule wrong for
+    # exactly this row — fold a `withdrawn` status in when DEBT-14 is picked up.
+    title: "WITHDRAWN — '/users displays access an account does not have' rested on a mis-branched query"
+    notes: >
+      WITHDRAWN THE SAME DAY IT WAS FILED, 2026-07-28. Its founding
+      observation was false. The row claimed /users showed store access for an
+      account with ZERO StoreUserAssignment rows; the query behind that was run
+      against the PRODUCTION branch while being read as staging. On
+      preview/staging the account HAS one assignment (#0014) and role STORE, so
+      the "#0014" chip on /users was rendering ACTUAL access, correctly, from
+      the members table. There was never an anomaly to explain.
+      Kept rather than deleted so the retraction is visible and the row number
+      is not silently reused. Nothing here should be actioned.
+      If a real "intended vs actual access" concern ever surfaces, file it
+      fresh — do not resurrect this reasoning, which was built to reconcile a
+      contradiction that did not exist.
+      ORIGINAL TEXT BELOW, RETAINED AS THE RECORD OF THE ERROR.
+      Filed 2026-07-28, deliberately as an OPEN QUESTION rather than a
+      diagnosed bug, because the PERM-7 post-mortem could not resolve it and
+      guessing is what went wrong repeatedly that day.
+      OBSERVED on staging: /users showed the account gary@keva.com as role
+      "Store" with location chip "#0014". A direct query of the staging branch
+      returned ZERO StoreUserAssignment rows for that account, and no User row
+      at all for the accepted Clerk identity
+      (user_3H9HEV5iN8vkRDMb71JDSjB37cm). So the chip did not come from actual
+      access.
+      TWO CANDIDATE SOURCES, neither confirmed:
+      (a) the PENDING INVITES table, whose location chips come from
+      PendingInvite.storeIds via storeById
+      (src/app/(app)/users/page.tsx, the pendingInvites map) — this renders
+      INTENDED access and is labelled "Awaiting acceptance". If this is the
+      source, the finding is that an invitation Clerk reports as ACCEPTED was
+      still being listed as pending, since the page filters Clerk invitations
+      on `status: ["pending"]`.
+      (b) the MEMBERS table, whose chips come from dbUser.storeAssignments —
+      but with no User row this path renders "No locations assigned" and role
+      "STAFF", which is NOT what was seen.
+      (b) not matching what was observed is itself the puzzle. Do not resolve
+      this from the code alone; reproduce it with a screenshot and a
+      simultaneous query.
+      WHY IT MATTERS BEYOND THE COSMETICS: /users is the page an admin uses to
+      answer "what access does this person have?". If it can show intended
+      access in a way indistinguishable from actual access, the answer is
+      untrustworthy in exactly the situation where it is most consequential —
+      a half-completed invite. Related: DEBT-17 (same page, writes roles from
+      a render path).
+
+  - id: DEBT-19
+    title: "Organization NAMES are not identifying on staging — nine orgs, five called \"Microsoft\", two \"Keva Juice\""
+    notes: >
+      Found 2026-07-28 while choosing an org for PERM-7's re-run. Verified ON
+      BRANCH preview/staging (branch named per CLAUDE.md § Database Evidence).
+      Nine Organization rows:
+      cmqvpe2bf000004l1gwxafqk4 "Keva Juice" square=f users=1;
+      cmr54z65v000105jxczpt72w1 "Microsoft" square=TRUE users=4;
+      cmr54x6gp000005jx7odzwx9e "Microsoft" square=f users=0;
+      cmr57tw80000004l49xf6ft71 "Microsoft" square=f users=0;
+      6b545d5b-3ea1-442d-b16d-9089984af8b6 "Microsoft" square=f users=1;
+      cmr55fhm1000004l5az4vu73j "Microsoft" square=f users=1;
+      cmrx04zn7000004jy6mk1mmha "Keva Smoothie Company" square=f users=0;
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd "Keva Juice" square=f users=2;
+      cmrefoomo000004l7dq37gdgn "My Organization" square=f users=1.
+      Six have zero or one user; exactly ONE has Square connected.
+      THE PROBLEM: a name identifies nothing. "the Microsoft org" picks out five
+      rows, four of which are empty shells. Any instruction, prompt, decision
+      record or query result that names an org by NAME is ambiguous, and the
+      ambiguity is silent — you get A row, just not necessarily the one meant.
+      SAME SHAPE AS THE BRANCH-LABEL FAILURE the same evening (CLAUDE.md
+      § Database Evidence), one layer down: an under-specified identifier that
+      still resolves, so nothing errors and the mistake is invisible.
+      CROSS-REF, AND THE REASON THIS IS FILED RATHER THAN NOTED: HR-14 carries
+      an unresolved Clerk-org-RENAME issue (a rename reaches the DB but the slug
+      is never rewritten, and delivery order is not guaranteed). Whoever
+      resolves it MUST identify the target org by ID. A rename applied to "the
+      Microsoft org" by name has five candidates here and would silently rename
+      the wrong one — and since the slug is the part that does not update, the
+      damage would not be visible in the name column afterwards.
+      FIX DIRECTION: not a code fix. A convention — name orgs by ID (optionally
+      "ID (name)") in every doc, prompt and query result — plus a cleanup of the
+      dead single-user shells on staging, which is what makes the names
+      ambiguous in the first place. Do the cleanup deliberately and by ID.

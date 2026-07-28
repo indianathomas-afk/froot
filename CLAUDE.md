@@ -157,6 +157,58 @@ frozen in `docs/ROADMAP_ARCHIVE.md`.
 **Update it before the session ends** — see "Session completion rules" in
 `docs/WORKFLOW.md`.
 
+## Staging Verification — Precondition
+
+**Before verifying anything on staging, confirm the deployed commit SHA matches
+local `HEAD`. If it does not, STOP and push first. This is a precondition, not a
+checklist item.**
+
+```bash
+git rev-parse --short HEAD                      # what you think you are testing
+npx vercel inspect <staging-alias> --json | grep -i githubCommitSha
+```
+
+If the SHAs differ, every observation is about different code and the entire
+pass is void — including the passes, not just the failures.
+
+Recorded 2026-07-28 after a full PERM-7 staging pass was run against a
+deployment created **32 minutes before the first of six unpushed commits**. Two
+"failures" and one "pass" were diagnosed at length; all three were artifacts of
+testing code that did not contain the feature. Every turn of that session had
+correctly ended with "unpushed commits: six" — the information was present and
+never connected to the test plan. A report line is not a gate; this is the gate.
+
+Corollary: **Claude never pushes** (see Git Rules below), so on any Claude-run
+phase the default assumption is that staging does NOT have the work yet.
+
+## Database Evidence — Precondition
+
+**Every database result used as evidence must name the branch it came from, on
+the same line as the result. A result without a named branch does not count.**
+
+```
+preview/staging  User(gary@keva.com) role=STORE stores=1     ← usable
+                 User(gary@keva.com) role=ADMIN stores=0     ← not evidence
+```
+
+This applies to **all** database evidence — `production`, `preview/main`,
+`preview/staging`, local dev — not just production. It generalises the rule
+already applied to the BUILD-2 production pre-check, which named its branch
+because the answer was meaningless without it. That is true of every branch, not
+only production.
+
+Recorded 2026-07-28. Three branches were queried in one evening and the results
+reported without branch labels. A `role=ADMIN` row from `production` was read as
+though it came from `preview/staging`, which triggered a privilege-escalation
+investigation, a fabricated explanation for how the row "got there", and a
+retraction of a correct PERM-6 coverage finding. The corrected
+`preview/staging` row was `role=STORE` — the feature had worked. **Neither the
+query nor the result was wrong; only the missing label was.**
+
+Note the failure mode: a mislabelled result does not look like an error. It
+produces a coherent, urgent, entirely wrong investigation. Cheap label, expensive
+absence.
+
 ## Git Rules
 
 Claude Code **commits when asked and never pushes** — including when the
@@ -254,6 +306,30 @@ Run `next build` — it runs `prisma generate` automatically (see `package.json`
 ---
 
 ## Environment Variables
+
+**Never run `vercel env pull` in this repo. No exceptions — not staging, not
+preview, not production. Database reads for every deployed environment go
+through the Neon console.**
+
+No deployed-environment credential is written to disk — not to the working tree,
+not to a scratchpad, not to a file you intend to delete afterwards. If a task
+needs data from a deployed environment, either derive it from the code paths or
+ask Gary to run the query in the Neon console and paste the result. Read-only
+access is not an exception: the PERM-7 pre-flight audit was strictly read-only,
+produced findings that changed the phase, and was still the wrong method (Gary,
+2026-07-28 — `DECISIONS.md`).
+
+**The trap:** `DATABASE_URL` is marked Sensitive in Vercel and pulls as the
+literal `[SENSITIVE]`, so production *looks* unreachable from a dev machine.
+`DATABASE_URL_UNPOOLED` is **not** Sensitive and pulls a live production
+connection string. Vercel will not accept the type change on it — see `DEBT-4`
+— so **this rule is the mitigation. There is no platform setting behind it.**
+
+The ban is total by ruling (Gary, 2026-07-28), after a first draft of this
+section carved out staging. Staging's `DATABASE_URL` is genuinely not Sensitive
+and does pull, which is exactly why the carve-out was tempting and exactly why
+it is not allowed: a rule with an exception is one `--environment` flag away
+from the thing it forbids.
 
 Required in `.env`:
 ```
