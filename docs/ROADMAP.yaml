@@ -1343,6 +1343,7 @@ phases:
     track: permissions
     size: M
     status: staging
+    commits: [6530d8b, bae09ed]
     title: "Store device logins — provision a store account from /stores, Square-seeded email, role-aware badge"
     notes: >
       Scoped 2026-07-27 with Gary.
