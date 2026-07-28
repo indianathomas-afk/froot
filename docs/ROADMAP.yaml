@@ -278,6 +278,7 @@ phases:
       Existing sessionStorage keys "froot.dashboard.salesSelection" and
       "froot.labor.viewedDate" are date/range state, NOT store selectors —
       leave them alone.
+      Session prompt: docs/prompts/UX-2_current_store_context.md
 
   - id: X-1
     track: platform
@@ -1064,6 +1065,33 @@ phases:
       one place to hook the override. Must keep the shim's rule that a stored
       permission set RESTRICTS BELOW the Clerk role ceiling and never elevates
       above it.
+      SCOPE SHARPENED 2026-07-27 — three things changed, none of them the core
+      idea.
+      (1) RESTRICT-ONLY IS NOW A RECORDED RULING, not just an implementation
+      note. See DECISIONS.md 2026-07-27: role choice at provisioning is
+      unrestricted, while overrides stay restrict-only. Those are DIFFERENT
+      MECHANISMS and were argued as if they were the same during scoping — an
+      ADMIN device account is not an "elevated STORE user", it is a user whose
+      role is ADMIN. If a future session finds itself asking PERM-5 to grant
+      something a role does not already have, the answer is a different role,
+      not a wider override.
+      (2) PERM-7 DEVICE ACCOUNTS ARE THE FIRST REAL CONSUMER. The motivating
+      case is no longer hypothetical: an admin dials an individual store's
+      device DOWN from the STORE baseline — this location's iPad does not get
+      labor, that one does not get inventory counts. Restrict-only is exactly
+      the right direction for that, so PERM-5 and PERM-7 fit together without
+      either bending. Design the override UI knowing the population may be
+      one row per store rather than a handful of exceptional humans.
+      (3) MANAGEMENT SURFACE GREW. With a device account per location, twelve
+      stores means twelve override targets. That raises the value of UM-2's
+      capability-matrix page rendered FROM THE LIVE REGISTRY, and makes a
+      per-user diff beside the role baseline close to required rather than
+      nice-to-have.
+      SEQUENCE: after PERM-7. The devices have to exist before dialling them
+      down is a real task, and PERM-6 (which clears the blocker below) is
+      already a PERM-7 prerequisite — so the ordering falls out naturally as
+      PERM-6 → PERM-7 → PERM-5.
+      Session prompt: docs/prompts/PERM-5_per_user_capability_overrides.md
     blockers:
       - >
         PERMISSION FUSION — split "may write" from "may read any store" BEFORE
@@ -1136,6 +1164,7 @@ phases:
       Every other scoping helper (requireLaborStore, requireManageableStaff,
       findManageableStaffMember, requireNoteAccess, requireCount) was audited
       and found structurally identical and correct — no other divergence exists.
+      Session prompt: docs/prompts/PERM-6_store_assignment_integrity.md
     open:
       - >
         StoreStaffAssignment.isPrimary has NO database constraint enforcing one
@@ -1204,6 +1233,8 @@ phases:
       NOT BLOCKED ON BUILD-2 (corrected 2026-07-27 — an earlier read said it
       was). BUILD-2 solves default-store for multi-store HUMANS; a device
       account has one store.
+      Session prompt: docs/prompts/PERM-7_store_device_logins.md (carries DEBT-8
+      as its Task 0).
     blockers:
       - >
         Do not start before PERM-6. This phase adds a NEW write path that
@@ -1657,6 +1688,7 @@ phases:
       about giving users a CHOSEN default, not about fixing a random one.
       Consumed by UX-2, which is where the user-visible payoff lands; BUILD-2 is
       the schema half only. UNBLOCKED as of 2026-07-27 — BUILD-1 shipped.
+      Session prompt: docs/prompts/BUILD-2_default_store.md
 
 bugs:
   - id: BUG-1
