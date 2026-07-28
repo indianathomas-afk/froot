@@ -77,34 +77,105 @@ Run it in the **Neon console against the production branch.** That keeps
 production credentials out of the working tree (DEBT-4's own guidance), and the
 branch is visible in the UI rather than inferred from an env var.
 
-### The queries
+### The queries — as actually run, with results
 
 No `@@map` in `schema.prisma`, so identifiers are quoted PascalCase/camelCase.
+These return **names, not bare `cuid()`s**, so a hit is immediately actionable.
+
+**No org filter, deliberately** — a unique index is global, so a duplicate in any
+organization blocks it, not just Keva.
+
+#### Query A — the blocker check ✅ RUN 2026-07-27, ZERO ROWS
 
 ```sql
--- BLOCKER CHECK: any staff member with more than one primary?
-SELECT "staffMemberId", COUNT(*) AS primaries
-FROM "StoreStaffAssignment"
-WHERE "isPrimary"
-GROUP BY "staffMemberId"
-HAVING COUNT(*) > 1;
-```
-
-**Zero rows = safe to migrate. Any rows = STOP.** Reconciling them means
-deciding which store is correct for a real employee — **that is Gary's call**,
-not something a migration may silently pick.
-
-```sql
--- Worth running at the same time. NOT a migration blocker (a partial unique
--- index permits zero primaries), but it is the same arbitrary-pick bug arriving
--- through primaryStoreName()'s `?? storeAssignments[0]` fallback.
-SELECT ssa."staffMemberId", COUNT(*) AS assignments
+SELECT
+  sm."displayName",
+  sm."fullName",
+  sm."status",
+  COUNT(*) AS primary_count,
+  string_agg(
+    COALESCE(st."storeNumber" || ' – ', '') || st."name",
+    ', ' ORDER BY st."name"
+  ) AS primary_stores,
+  sm."id" AS staff_member_id
 FROM "StoreStaffAssignment" ssa
-GROUP BY ssa."staffMemberId"
-HAVING COUNT(*) FILTER (WHERE ssa."isPrimary") = 0;
+JOIN "StaffMember" sm ON sm."id" = ssa."staffMemberId"
+JOIN "Store"       st ON st."id" = ssa."storeId"
+WHERE ssa."isPrimary"
+GROUP BY sm."id", sm."displayName", sm."fullName", sm."status"
+HAVING COUNT(*) > 1
+ORDER BY COUNT(*) DESC, sm."displayName";
 ```
 
-**Bring both results to Gary, naming the host you ran them against, before any
+**RESULT: zero rows.** Run by Gary in the Neon console, project `froot`,
+database `neondb`, branch **`production`**. The index can be created; the gate on
+this phase is closed. Re-run only if a long gap opens before the migration —
+and note that staleness is fail-closed, since a later duplicate makes index
+creation fail rather than corrupt anything.
+
+#### Query B — companion, NOT a blocker ⚠️ RUN 2026-07-27, TWO ROWS
+
+```sql
+SELECT
+  sm."displayName",
+  sm."status",
+  COUNT(*) AS assignment_count
+FROM "StaffMember" sm
+JOIN "StoreStaffAssignment" ssa ON ssa."staffMemberId" = sm."id"
+GROUP BY sm."id", sm."displayName", sm."status"
+HAVING COUNT(*) FILTER (WHERE ssa."isPrimary") = 0
+ORDER BY sm."displayName";
+```
+
+**RESULT: Gary Thomas and Kelton Thomas, both ACTIVE, 9 assignments each, zero
+primary.** A partial unique index permits zero primaries, so this does not block
+the migration — but `primaryStoreName()` then falls through to
+`storeAssignments[0]`, an arbitrary one of nine. Logged as **DEBT-9**.
+
+#### Query C — is DEBT-9 already live? ✅ RUN 2026-07-27, ZERO ROWS
+
+Decides whether the missing primary has already produced signed records naming
+an arbitrary store. Written generally so it catches anyone with no primary
+rather than hardcoding the two names.
+
+```sql
+WITH no_primary AS (
+  SELECT sm."id", sm."displayName"
+  FROM "StaffMember" sm
+  JOIN "StoreStaffAssignment" ssa ON ssa."staffMemberId" = sm."id"
+  GROUP BY sm."id", sm."displayName"
+  HAVING COUNT(*) FILTER (WHERE ssa."isPrimary") = 0
+)
+SELECT np."displayName", 'Acknowledgment' AS record_type,
+       a."documentTitle" AS document, a."storeName" AS captured_store, a."signedAt"
+FROM "HrDocumentAcknowledgment" a
+JOIN no_primary np ON np."id" = a."staffMemberId"
+UNION ALL
+SELECT np."displayName", 'FormSubmission',
+       fs."formTitle", fs."storeName", fs."signedAt"
+FROM "FormSubmission" fs
+JOIN no_primary np ON np."id" = fs."staffMemberId"
+ORDER BY 1, 5;
+```
+
+Reading it:
+
+- **Zero rows** — neither has signed anything. Theoretical; fix the primaries and
+  move on.
+- **Same `captured_store` throughout** — the arbitrary pick has been stable so
+  far. That is luck, not safety.
+- **Different `captured_store` for the same person** — already live, and executed
+  documents disagree about where that person works. **Whether historical signing
+  snapshots get corrected is Gary's call**, not something to quietly rewrite.
+
+**RESULT: zero rows.** Run by Gary in the Neon console, branch **`production`**,
+116ms. Neither Gary Thomas nor Kelton Thomas has signed anything — no
+acknowledgments, no form submissions. **DEBT-9 is therefore theoretical, not
+live: no executed document carries an arbitrarily-picked store name, and there
+is nothing historical to correct.** The fix is purely forward-looking — set both
+primaries before either signs anything, and before BUILD-2's index lands.
+
+**Bring results to Gary, naming the host you ran them against, before any
 migration is authored.**
 
 ### Why this matters more than it looks

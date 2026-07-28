@@ -2063,13 +2063,15 @@ debt:
       chip-click path on /staff, which PATCHes /api/staff/[id] with
       primaryStoreId only. Do this BEFORE BUILD-2's index lands, so the
       constraint locks in real intent rather than whatever row order won.
-      UNANSWERED — run Query C (preserved in
-      docs/prompts/BUILD-2_default_store.md) before deciding anything about
-      EXISTING records: have either of these two actually SIGNED anything, and
-      what storeName was captured? Zero rows = theoretical, fix and move on.
-      Same captured_store throughout = the arbitrary pick has been stable so
-      far, which is luck rather than safety. DIFFERENT captured_store for the
-      same person = already live, and executed documents disagree about where
-      that person works. That last case is a separate decision — whether
-      historical signing snapshots get corrected is GARY'S CALL, not something
-      to quietly rewrite.
+      ANSWERED 2026-07-27 — THEORETICAL, NOT LIVE. Query C (preserved in full
+      with its result in docs/prompts/BUILD-2_default_store.md Task 1a) returned
+      ZERO ROWS against branch `production`, 116ms. Neither Gary Thomas nor
+      Kelton Thomas has signed anything — no HrDocumentAcknowledgment rows, no
+      FormSubmission rows. So NO executed document carries an arbitrarily-picked
+      store name and there is NOTHING HISTORICAL TO CORRECT. The question of
+      whether to rewrite signing snapshots, which would have been Gary's call,
+      does not arise.
+      That makes this purely forward-looking and cheap: set both primaries
+      before either account signs anything, and before BUILD-2's index lands.
+      Urgency is low; the cost of leaving it is that the first document either
+      owner signs freezes an arbitrary one of nine stores into a legal record.
