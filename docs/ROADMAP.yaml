@@ -2234,6 +2234,7 @@ debt:
     # does NOT read it yet and still lists every debt item under "Known debt —
     # recorded, not yet fixed"; see DEBT-14.
     status: staging
+    commits: [6530d8b]
     title: "Square import discards business_email — Store.contactEmail exists but is never populated"
     notes: >
       CLOSED 2026-07-28 as PERM-7 Task 0, committed separately (Ruling 1).
