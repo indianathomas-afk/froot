@@ -5,6 +5,70 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## PERM-7 Task 7 — the derived device name OVERRIDES the sign-up form, it does not fill a blank — 2026-07-28 (Gary ruled, confirming Claude's implementation)
+
+Recorded because the override is the entire point and a later session will
+otherwise read it as overreach and "fix" it into a fallback.
+
+A device login provisioned from `/stores` gets its `User.name` derived from its
+store in the Clerk webhook's user upsert. The narrow question was whether that
+derived name should *replace* whatever the invitee typed at sign-up, or only
+apply when they typed nothing.
+
+**The ruling (Gary): it overrides. The premise is not trusting the sign-up
+form.** A fill-the-blank version would be defeated by the exact behaviour the
+convention exists to prevent — a person at the counter typing their own name
+into the iPad's account. The convention has to be produced as a side effect of
+the flow, not requested from whoever happens to be standing there. `STORE is a
+device, not a person` (2026-07-27) is only enforceable if the flow enforces it.
+
+**The guards that make an override safe**, and which must survive any future
+edit:
+
+- **Create-only.** It sits in the `create` branch of `prisma.user.upsert` and is
+  deliberately ABSENT from `update`. Every later Clerk event for that user hits
+  the update branch, so deriving there would silently reset a name an admin had
+  since corrected — forever, and with no way to make it stick.
+- **Narrow conditions.** `pending.role === "STORE"` **and** exactly one
+  `storeId`. A multi-store or higher-role invite is a person and keeps the name
+  they typed.
+
+So the name is asserted exactly once, at the only moment both the invite and its
+store are in hand, and is freely correctable forever after. An admin who renames
+the account wins permanently; the sign-up form does not.
+
+## Production database reads go through the Neon console, not a local credential pull — 2026-07-28 (Gary, after the PERM-7 audit did it the other way)
+
+PERM-7's pre-flight audit needed production data — it is what established that
+the phase's founding example was wrong on every count and that
+`Store.contactEmail` was null on 10 of 10 stores. The findings were sound and the
+access was strictly read-only, but the method was not the one this repo has
+already ruled on.
+
+**What happened:** `npx vercel env pull --environment=production` wrote a
+production connection string to a scratchpad file on disk, which a local script
+then connected to. The file was deleted afterwards.
+
+**The ruling (Gary): don't repeat it. Production reads go through the Neon
+console.** `DEBT-4` already says to keep production credentials out of the
+working tree; this extends the same reasoning to anywhere on disk. The audit
+value did not depend on the method — the same queries in the Neon console would
+have produced the same answers with nothing written down. `DEBT-9` was found
+that way, in the console, which is the precedent.
+
+**One finding from this worth keeping, because it bears directly on DEBT-4's
+open question** — whether "no tooling still reaches production by another path":
+
+> `DATABASE_URL` is marked **Sensitive** in Vercel and pulls as `[SENSITIVE]`,
+> but `DATABASE_URL_UNPOOLED` is **not**, and pulls as a live production
+> connection string. So the Sensitive marking on `DATABASE_URL` is not the
+> boundary it appears to be — anyone who can run `vercel env pull` against the
+> Production scope has a working production credential via the sibling variable.
+
+That is a gap in the guard, not a gap in the policy. Marking
+`DATABASE_URL_UNPOOLED` Sensitive too would close it, and belongs with DEBT-4
+when Gary rules on closing that row.
+
 ## Plus-addressing is the collision answer, and it rests on a Clerk dashboard setting nothing in the repo pins — 2026-07-28 (verified by Claude; handling ruled by Gary)
 
 PERM-7 left two unknowns open rather than designing around them. Both are now

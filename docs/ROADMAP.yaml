@@ -1176,6 +1176,17 @@ phases:
     size: S
     status: staging
     commits: [d4a6bdc]
+    blockers:
+      - >
+        SINGLE PROMOTION UNIT WITH PERM-7 — Gary, 2026-07-28. NEITHER PHASE
+        REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
+        PERM-7 modified the same two files this phase changed — POST
+        /api/users and the Clerk webhook — and that path (invite ->
+        PendingInvite -> webhook acceptance) has NEVER been exercised
+        end-to-end. PERM-6 shipped it build-green only; see the NOT COVERED
+        list below. Promoting either phase alone would put an unexercised
+        write path into production, and promoting PERM-6 without PERM-7 would
+        do it while splitting the two changes to those files across releases.
     title: "Store-assignment integrity — validate storeIds on every write, gate the locations route, split the forecasting isAdmin fusion"
     notes: >
       SIZE: scoped S, DELIVERED ABOVE S — recorded honestly rather than left at
@@ -1468,6 +1479,24 @@ phases:
       DEBT-11 was NOT fixed here (Ruling 2) and DEBT-14 was filed rather than
       fixed — neither route is one this phase touches.
     blockers:
+      - >
+        SINGLE PROMOTION UNIT WITH PERM-6 — Gary, 2026-07-28. NEITHER PHASE
+        REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
+        This phase modified POST /api/users (Clerk error-code handling) and the
+        Clerk webhook (Task 7's create-only name derivation) — the same two
+        files PERM-6 changed, and the same path PERM-6 shipped build-green
+        without ever exercising. A staging pass of PERM-7's provisioning IS the
+        first end-to-end test of PERM-6 Task 2's webhook validation, so the two
+        phases share one verification and must share one promotion.
+        NOT YET DONE at the time this row was written: the staging pass requires
+        a deploy, which requires a push, which is Gary's alone.
+        WHEN RUNNING IT, expect a shape difference that is NOT a bug: the
+        development Clerk instance (which serves staging) has `username` as a
+        REQUIRED identity attribute and production does not, so the acceptance
+        exercises the BUG-2 path where Clerk's `identifier` is a username rather
+        than an email. getClerkPrimaryEmail already guards it. A surprise
+        anywhere else on that path is a PERM-6 bug worth reporting, not
+        something to work around.
       - >
         RESOLVED 2026-07-27 — PERM-6 is in staging (see its row). The write
         paths this phase builds on now validate storeIds. ORIGINAL TEXT:
