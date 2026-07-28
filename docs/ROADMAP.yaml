@@ -1265,6 +1265,56 @@ phases:
       answering two questions is what invited this. New capability
       forecasting.scope.all (ADMIN_ONLY) in PERMISSIONS_INVENTORY.md §5.
       Session prompt: docs/prompts/PERM-6_store_assignment_integrity.md
+      STAGING VERIFICATION PASS 2026-07-27 (Gary), driven as
+      corporate@keva.com at role MANAGER (assigned Carson + Las Brisas, 2 of
+      12 org stores) and as indianathomas@live.com at ADMIN. Evidence quoted,
+      not summarised — a row saying "verified" is not proof.
+      NEGATIVE CHECK, Task 5 scoping (this is the one that matters — it is
+      PERM-3's S4 re-run against the split flag). As MANAGER,
+      GET /api/forecasting/plan?storeId=cmrd1a4hw000004jrsgj5qah1&year=2026
+      (South Reno, NOT assigned) →
+      `STEP 3 → 403 {error: 'Forbidden'}`.
+      CONTROL, same session, same route, same year, only the store differs:
+      storeId=cmrd1a4hz000004jjl91v23nm (Las Brisas, assigned) →
+      `STEP 4 → 200 {plan: {…}, canEdit: false}`.
+      The control is what makes the 403 mean something: without it a 403 could
+      have come from a malformed request. Note `canEdit: false` in the 200 body
+      — that field was `isAdmin` before this phase, so the payload itself shows
+      the two powers now expressed separately: a MANAGER gets a successful
+      scoped READ and canEdit false in the same response.
+      TASK 5 STORE PICKER, the regression this could have caused: /forecasting
+      as MANAGER listed exactly `Carson` and `Las Brisas` in the dropdown, and
+      GET /api/stores in the same session returned exactly those two names.
+      Picker and API agree at 2 of 12 — the picker is NOT over-listing. Page
+      also rendered "· read-only" in the subtitle with the Plan Summary card
+      instead of Goal Settings, and "goals shown for Jul 2026–Aug 2026",
+      confirming PERM-3's window survived.
+      TASK 3 DELTA CHECK, the case the naive fix would have broken. Staff
+      member Jordan Pippenger (/staff/cmri2mpd6000304jol6u5r3ht) carries SEVEN
+      assignments — UNR (primary), Carson, Las Brisas, Meadowood Mall, South
+      Reno, Spanish Springs, Sparks — of which FIVE are outside this MANAGER's
+      scope. The edit dialog renders only Carson and Las Brisas as checkboxes
+      while submitting all seven ids. Opened Edit, changed nothing, saved:
+      dialog closed with no error, and a reload showed ALL SEVEN still
+      assigned with UNR STILL PRIMARY. Both halves matter — a flat subset check
+      would have 403'd this save, and a wrong delta could have succeeded while
+      silently dropping the five invisible stores, which is worse than a
+      refusal because nothing would have told anyone.
+      TASK 4 on the trimmed payload, as ADMIN: the Square import dialog listed
+      locations with name + address and greyed out the already-imported ones,
+      and Edit Store's picker read "Las Brisas — 5020 Las Brisas Blvd Ste A2".
+      Both consumers render on the allow-list.
+      NOT COVERED — recorded rather than glossed. (1) TASK 1 (POST /api/staff)
+      was NOT exercised on staging; no staff member was created during the
+      pass. Its guard was verified locally against the dev DB by running the
+      exact count query (a storeId owned by another org → count 0/1, rejected;
+      own ids → 3/3, accepted), which proves the query discriminates but is
+      NOT an end-to-end test of the route. (2) TASK 2 was NOT exercised AT ALL
+      — no invite was created and none accepted, so neither the invite-half
+      check nor the webhook re-filter has ever run outside a build. Both are
+      the highest-value targets for the next staging visit. (3) The STAFF role
+      was not exercised, same gap PERM-2's pass recorded. (4) The staff
+      VISIBILITY path was not tested; that gap is how DEBT-13 was found.
     open:
       - >
         RESOLVED AND MOVED 2026-07-27 — kept here as a pointer only. The
@@ -2236,3 +2286,49 @@ debt:
       is the one that would start failing. The import surfaces per-row failures
       with their reason (staff-buttons.tsx:246-259), so the failure mode is at
       least legible — but it should be a decision, not a surprise.
+
+  - id: DEBT-13
+    title: "A MANAGER cannot see a staff member who works at their store but is homed elsewhere — /staff groups by primary store"
+    notes: >
+      Found 2026-07-27 during PERM-6's staging verification pass, on a session
+      driven as corporate@keva.com (MANAGER, assigned Carson + Las Brisas).
+      VERIFIED PRE-EXISTING, NOT A PERM-6 REGRESSION. Gary asked for this to be
+      established before filing, because the bug surfaced on the night staff
+      scoping changed and PERM-6's check 5 only proved a MANAGER can WRITE
+      correctly — visibility is a different path and was untested that night.
+      Four independent checks, all against commit d4a6bdc:
+      (1) `git show --stat d4a6bdc -- 'src/app/(app)/staff/'` returns EMPTY —
+      the roster page is not in the commit at all.
+      (2) `git blame` on the grouping loop (page.tsx:69-80) → 1cfdf76, dated
+      2026-06-26, a month before this phase.
+      (3) `git blame` on the render filter (page.tsx:118) → e645694, dated
+      2026-07-12. The last commit to touch the file at all is 015d23e (HR
+      legal-name work), not d4a6bdc.
+      (4) Its dependencies are untouched too: src/lib/auth.ts
+      (getUserStoreScope) is not in the commit, and the GET handler in
+      api/staff/route.ts was not modified — PERM-6's diff there is the Zod
+      schema and POST only. The roster queries Prisma directly in
+      getStaffData(), so that API is not even in its path.
+      THE BUG: src/app/(app)/staff/page.tsx groups members by their PRIMARY
+      store (`member.storeAssignments[0].store`, :78) and then renders only
+      groups whose store is in the caller's scoped list
+      (`stores.filter((s) => byStore.has(s.id))`, :118). The QUERY is correct —
+      getStaffData fetches any member with `some` assignment in the caller's
+      stores — so the member is fetched and then silently discarded at render.
+      OBSERVED: Jordan Pippenger is assigned to Carson AND Las Brisas, both of
+      this manager's stores, but is homed at UNR. He appears nowhere on the
+      manager's /staff roster. His DETAIL page at /staff/<id> loads fine
+      (staff/[id]/page.tsx:38 authorises on `some` assignment), so he is
+      reachable by direct URL but not discoverable — the worst combination,
+      because nothing signals he is missing.
+      WHY IT MATTERS: a manager cannot see a person who works at their store.
+      Not cosmetic — it is a roster with silent omissions, and the manager has
+      no way to know the list is incomplete. Multi-store staff at operators
+      with a shared labour pool are exactly the population affected, and
+      Jordan (7 stores) is a real example in staging today.
+      FIX DIRECTION: render a member under EVERY in-scope store they are
+      assigned to, or add an "Also works here" line per store group. Do NOT
+      simply change the grouping key to "first in-scope assignment" — that
+      moves the member under a heading which contradicts the Primary star
+      shown on their own row and chips. This needs NO permissions change: the
+      query already returns the right people, so it is a display decision.
