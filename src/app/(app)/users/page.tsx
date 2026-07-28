@@ -4,6 +4,8 @@ import { format } from "date-fns"
 import { InviteUserButton, EditUserButton, RemoveUserButton, RevokeInviteButton } from "./user-actions"
 import { requireAdmin } from "@/lib/auth"
 import { getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
+import { isAboveStore } from "@/lib/device-login"
+import { ShieldAlert, Tablet } from "lucide-react"
 import { redirect } from "next/navigation"
 
 const ROLE_STYLES: Record<string, string> = {
@@ -42,6 +44,13 @@ async function getData() {
   ])
   const storeById = new Map(stores.map((s) => [s.id, s]))
   const pendingByEmail = new Map(pendingInviteRecords.map((p) => [p.email, p]))
+  // PERM-7 Task 4: location contact address -> store, so a login signing in as
+  // a location can be recognised as a device rather than a person.
+  const storeByContactEmail = new Map<string, (typeof stores)[number]>()
+  for (const s of stores) {
+    const e = normalizeEmail(s.contactEmail)
+    if (e && !storeByContactEmail.has(e)) storeByContactEmail.set(e, s)
+  }
 
   const staffByUserId = new Map(staffMembers.filter((s) => s.userId).map((s) => [s.userId!, s]))
   const staffByEmail = new Map<string, (typeof staffMembers)[number]>()
@@ -117,6 +126,20 @@ async function getData() {
       role: dbUser?.role ?? "STAFF",
       storeAssignments: dbUser?.storeAssignments ?? [],
       createdAt: new Date(m.createdAt),
+      // PERM-7 Task 4 — ambient, not a moment. A one-time warning at
+      // provisioning is forgotten in a week; the next admin needs the fact
+      // sitting on the page. This is the /users half of the badge.
+      //
+      // A device login has no schema flag (PERM-7 ships none), so it is
+      // identified by the one CHECKABLE signal available: the account signs in
+      // as a location's own contact address. Deliberately not a guess from role
+      // + assignment count — an ADMIN device account has NO assignments at all
+      // (the store picker is hidden for ADMIN), so counting would miss exactly
+      // the case that matters most.
+      deviceForStore: (() => {
+        const e = normalizeEmail(dbUser?.email)
+        return e ? (storeByContactEmail.get(e)?.name ?? null) : null
+      })(),
     }
   })
 
@@ -182,6 +205,25 @@ export default async function UsersPage() {
                     <td className="px-6 py-4">
                       <p className="text-sm font-medium text-[var(--color-foreground)]">{member.name || member.email}</p>
                       {member.name && <p className="text-xs text-[var(--color-muted-foreground)]">{member.email}</p>}
+                      {member.deviceForStore && (
+                        <span
+                          className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border ${
+                            isAboveStore(member.role)
+                              ? "text-[var(--color-warning-text)] bg-[var(--color-warning-bg)] border-[var(--color-warning-border)]"
+                              : "text-[var(--color-muted-foreground)] bg-[var(--color-muted)] border-[var(--color-border)]"
+                          }`}
+                          title={
+                            isAboveStore(member.role)
+                              ? `Shared device at ${member.deviceForStore}, signed in at ${member.role.toLowerCase()} level — anything it can see is visible to whoever is standing at the counter, and nothing it does can be attributed to a person.`
+                              : `Shared device at ${member.deviceForStore}.`
+                          }
+                        >
+                          {isAboveStore(member.role) ? <ShieldAlert className="h-3 w-3" /> : <Tablet className="h-3 w-3" />}
+                          {isAboveStore(member.role)
+                            ? `Device at ${member.deviceForStore} — ${member.role.toLowerCase()} level`
+                            : `Device at ${member.deviceForStore}`}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${ROLE_STYLES[member.role] ?? ROLE_STYLES.STAFF}`}>

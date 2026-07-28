@@ -108,15 +108,49 @@ export async function POST(req: Request) {
 
     const resolvedRole = (pending?.role ?? roleMap[membership.role] ?? "STAFF") as "ADMIN" | "MANAGER" | "STAFF" | "STORE"
 
+    // PERM-7 Task 7 — "STORE is a device, not a person" (DECISIONS.md
+    // 2026-07-27), enforced by the flow rather than by whoever fills in the
+    // form. A device account provisioned from /stores should be named for its
+    // STORE, but the invite carries only email + role: Clerk owns the name, and
+    // it is whatever a human types at sign-up. PendingInvite has no name column
+    // and PERM-7 ships no schema change, so the name is DERIVED here instead,
+    // at the one moment both the invite and the store are in hand.
+    //
+    // Conditions are deliberately narrow (Gary's Ruling 4, 2026-07-28): the
+    // invite must be role STORE and carry EXACTLY ONE store. A multi-store or
+    // higher-role invite is a person, and keeps the name they typed.
+    //
+    // It OVERRIDES the typed name rather than filling a blank one — that is the
+    // enforcement. The live counterexample the ruling was written against was a
+    // device login called "Tommy Thomas".
+    let deviceName: string | null = null
+    if (pending?.role === "STORE" && pending.storeIds.length === 1) {
+      const deviceStore = await prisma.store.findFirst({
+        where: { id: pending.storeIds[0], organizationId: org.id },
+        select: { name: true, storeNumber: true },
+      })
+      if (deviceStore) {
+        deviceName = deviceStore.storeNumber
+          ? `#${deviceStore.storeNumber} — ${deviceStore.name}`
+          : deviceStore.name
+      }
+    }
+
     const user = await prisma.user.upsert({
       where: { clerkUserId: membership.public_user_data.user_id },
       // Self-healing: refresh the email on rows that predate this fix.
+      // CREATE-ONLY for the name (Ruling 4): deviceName is deliberately ABSENT
+      // from this update branch. Every later Clerk event for this user hits it,
+      // so deriving the name here would reset a name an admin has since
+      // corrected — silently, and forever.
       update: { email: userEmail },
       create: {
         clerkUserId: membership.public_user_data.user_id,
         organizationId: org.id,
         email: userEmail,
-        name: [membership.public_user_data.first_name, membership.public_user_data.last_name].filter(Boolean).join(" ") || null,
+        name:
+          deviceName ??
+          ([membership.public_user_data.first_name, membership.public_user_data.last_name].filter(Boolean).join(" ") || null),
         role: resolvedRole,
       },
     })

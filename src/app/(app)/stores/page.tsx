@@ -1,8 +1,11 @@
-import { MapPin, Clock, Mail, Phone, CheckCircle, Link2 } from "lucide-react"
+import { MapPin, Clock, Mail, Phone, CheckCircle, Link2, Tablet, ShieldAlert, AlertTriangle } from "lucide-react"
+import Link from "next/link"
 import { StoreActions } from "./store-actions"
 import { AddStoreButton } from "./add-store-button"
 import { ImportSquareButton } from "./import-square-button"
+import { CreateDeviceLoginButton } from "./create-device-login-button"
 import { getUserStoreScope } from "@/lib/auth"
+import { isDeviceLogin, isAboveStore } from "@/lib/device-login"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@clerk/nextjs/server"
 
@@ -36,23 +39,58 @@ function formatHours(hours: { dayOfWeek: number; openingTime: string | null; clo
 
 async function getStores() {
   const { orgId } = await auth()
-  if (!orgId) return { stores: [], isAdmin: false }
+  if (!orgId) return { stores: [], isAdmin: false, orgStoreCount: 0, takenEmails: [] as string[] }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { stores: [], isAdmin: false }
+  if (!org) return { stores: [], isAdmin: false, orgStoreCount: 0, takenEmails: [] as string[] }
   const { isAdmin, storeIds } = await getUserStoreScope()
   const stores = await prisma.store.findMany({
     where: {
       organizationId: org.id,
       ...(isAdmin ? {} : { id: { in: storeIds } }),
     },
-    include: { hours: true, userAssignments: true },
+    // PERM-7 Task 6: the old "Has Account" badge was userAssignments.length > 0
+    // — a COUNT, not a concept — so it could not tell a device login from a
+    // manager who happens to be assigned here. The badge now needs WHO and at
+    // WHAT ROLE, which means pulling the user through.
+    include: {
+      hours: true,
+      userAssignments: {
+        include: {
+          user: {
+            select: {
+              id: true, name: true, email: true, role: true,
+              _count: { select: { storeAssignments: true } },
+            },
+          },
+        },
+      },
+    },
     orderBy: { name: "asc" },
   })
-  return { stores, isAdmin }
+
+  // PERM-7 Task 3 needs the org-wide count for the blast-radius sentence — the
+  // WHOLE org, not the caller's scoped list, because that is the real exposure
+  // an ADMIN device account gets.
+  const orgStoreCount = await prisma.store.count({ where: { organizationId: org.id } })
+
+  // PERM-7 collision pre-check. Emails already spoken for in this org, so the
+  // provisioning dialog can suggest a plus-addressed variant BEFORE the Clerk
+  // call rather than surfacing a failure after it. PendingInvite counts: an
+  // unaccepted invite still reserves the address.
+  const [existingUsers, pendingInvites] = await Promise.all([
+    prisma.user.findMany({ where: { organizationId: org.id }, select: { email: true } }),
+    prisma.pendingInvite.findMany({ where: { organizationId: org.id }, select: { email: true } }),
+  ])
+  const takenEmails = [...existingUsers, ...pendingInvites]
+    .map((r) => r.email)
+    .filter(Boolean)
+    .map((e) => e.toLowerCase())
+
+  return { stores, isAdmin, orgStoreCount, takenEmails }
 }
 
 export default async function StoresPage() {
-  const { stores, isAdmin } = await getStores()
+  const { stores, isAdmin, orgStoreCount, takenEmails } = await getStores()
 
   return (
     <div>
@@ -81,7 +119,36 @@ export default async function StoresPage() {
         <div className="space-y-4">
           {stores.map((store) => {
             const hoursGroups = formatHours(store.hours)
-            const hasAccount = store.userAssignments.length > 0
+
+            // PERM-7 Task 6. Replaces `hasAccount = store.userAssignments.length > 0`
+            // — a count that lit up identically for a device login and for a
+            // manager assigned to three stores, so the page could not answer
+            // the question it was being asked: "does this store have a login,
+            // and whose is it?"
+            const deviceLogins = store.userAssignments
+              .map((a) => a.user)
+              .filter((u) => isDeviceLogin({ role: u.role, assignmentCount: u._count.storeAssignments }))
+            const otherAccess = store.userAssignments
+              .map((a) => a.user)
+              .filter((u) => !isDeviceLogin({ role: u.role, assignmentCount: u._count.storeAssignments }))
+
+            // Task 4 — ambient, not a moment. A one-time modal is forgotten in
+            // a week; the next admin (or Gary in six months) needs the fact to
+            // be sitting on the page. Any account holding this store at a role
+            // above STORE is surfaced permanently.
+            const elevated = store.userAssignments
+              .map((a) => a.user)
+              .filter((u) => isAboveStore(u.role))
+
+            // Task 5 — drift, surfaced rather than silently reconciled or
+            // silently ignored. The seed is ONE-WAY: after provisioning, Clerk
+            // owns the credential, so a later divergence between the location's
+            // contact email and the device's login is expected and must be
+            // visible. Existing accounts are never retro-repointed.
+            const drifted =
+              store.contactEmail &&
+              deviceLogins.length > 0 &&
+              !deviceLogins.some((u) => u.email.toLowerCase() === store.contactEmail!.toLowerCase())
 
             return (
               <div key={store.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-6">
@@ -106,11 +173,56 @@ export default async function StoresPage() {
                         Square Linked
                       </span>
                     )}
-                    {hasAccount && (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-success-text)] bg-[var(--color-success-bg)] border border-[var(--color-success-border)] px-2 py-0.5 rounded-full">
+                    {deviceLogins.length > 0 && (
+                      <Link
+                        href="/users"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-success-text)] bg-[var(--color-success-bg)] border border-[var(--color-success-border)] px-2 py-0.5 rounded-full hover:opacity-80"
+                        title={deviceLogins.map((u) => u.email).join(", ")}
+                      >
+                        <Tablet className="h-3 w-3" />
+                        Device login: {deviceLogins[0].name ?? deviceLogins[0].email}
+                        {deviceLogins.length > 1 ? ` +${deviceLogins.length - 1}` : ""}
+                      </Link>
+                    )}
+                    {otherAccess.length > 0 && (
+                      <Link
+                        href="/users"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-muted-foreground)] bg-[var(--color-muted)] border border-[var(--color-border)] px-2 py-0.5 rounded-full hover:opacity-80"
+                        title={otherAccess.map((u) => `${u.email} (${u.role})`).join(", ")}
+                      >
                         <CheckCircle className="h-3 w-3" />
-                        Has Account
+                        {otherAccess.length} with access
+                      </Link>
+                    )}
+                    {elevated.length > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-warning-text)] bg-[var(--color-warning-bg)] border border-[var(--color-warning-border)] px-2 py-0.5 rounded-full"
+                        title={elevated.map((u) => `${u.email} (${u.role})`).join(", ")}
+                      >
+                        <ShieldAlert className="h-3 w-3" />
+                        {elevated.some((u) => u.role === "ADMIN") ? "Admin-level login" : "Manager-level login"}
                       </span>
+                    )}
+                    {drifted && (
+                      <span
+                        className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-warning-text)] bg-[var(--color-warning-bg)] border border-[var(--color-warning-border)] px-2 py-0.5 rounded-full"
+                        title={`Square contact: ${store.contactEmail} · device login: ${deviceLogins.map((u) => u.email).join(", ")}`}
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        Email differs from Square
+                      </span>
+                    )}
+                    {isAdmin && (
+                      <CreateDeviceLoginButton
+                        store={{
+                          id: store.id,
+                          name: store.name,
+                          storeNumber: store.storeNumber,
+                          contactEmail: store.contactEmail,
+                        }}
+                        orgStoreCount={orgStoreCount}
+                        takenEmails={takenEmails}
+                      />
                     )}
                     {isAdmin && (
                       <StoreActions

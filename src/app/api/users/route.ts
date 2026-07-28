@@ -1,8 +1,12 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
+// Subpath export, not the package root — @clerk/backend exposes this only via
+// "./errors" (see its package.json exports map).
+import { isClerkAPIResponseError } from "@clerk/backend/errors"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
 import { normalizeEmail } from "@/lib/clerk"
+import { plusAddress } from "@/lib/device-login"
 
 // GET: list all org members with their DB user record + store assignments
 export async function GET() {
@@ -113,6 +117,38 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ invitation }, { status: 201 })
   } catch (err: unknown) {
+    // PERM-7. This used to be `err.message` with a blanket 400, which is what
+    // made the collision case fail opaquely — Square's business_email is free
+    // text and is NOT unique per location (production has corporate@keva.com on
+    // four locations), so provisioning the second device login for a shared
+    // address is a routine failure, not an exotic one. Switch on the Clerk
+    // error CODE, never the message text: the message is prose Clerk is free to
+    // reword. See DECISIONS.md 2026-07-28.
+    if (isClerkAPIResponseError(err)) {
+      const code = err.errors[0]?.code
+      if (code === "already_a_member_in_organization") {
+        return NextResponse.json(
+          {
+            error: `${email} already has a login in this organization. Each login needs its own email address — try a plus-address like ${plusAddress(email)}, which Clerk treats as a separate identity.`,
+            code,
+          },
+          { status: 409 }
+        )
+      }
+      if (code === "organization_invitation_not_unique") {
+        return NextResponse.json(
+          {
+            error: `${email} already has an invitation pending for this organization. Resend or revoke it from Clerk before inviting again.`,
+            code,
+          },
+          { status: 409 }
+        )
+      }
+      return NextResponse.json(
+        { error: err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "Failed to invite user", code },
+        { status: err.status >= 400 && err.status < 500 ? err.status : 400 }
+      )
+    }
     const msg = err instanceof Error ? err.message : "Failed to invite user"
     return NextResponse.json({ error: msg }, { status: 400 })
   }

@@ -251,6 +251,7 @@ display restriction, not a confidentiality one".
 | SQ-4 | `square/status` GET | Connection status | Any member | handler |
 | SQ-5a | `square/locations` GET | Square location list for the store import dialog and the Edit Store location picker | ADMIN (`stores.manage`) *(PERM-6 Task 4; was **any member** with the entire Square object spread to the client — now an explicit field allow-list)* | handler |
 | SQ-5b | `square/team-members` GET | Square team-member reads for the staff import dialog | **Any member** — same hole PERM-6 Task 4 closed on `square/locations`, deliberately out of that phase's scope. See ROADMAP `DEBT-10` | handler (auth only) |
+| SQ-5c | `stores/[id]/resync-square` POST | Re-pull ONE store's Square location record onto its mirrored fields (name, address, phone, timezone, contactEmail) | ADMIN (`stores.manage`) | handler |
 | SQ-6 | `square/catalog/sync`, `square/sales-items/sync` POST | Catalog syncs | ADMIN + inventory module | handler |
 | SQ-7 | `square/catalog/status` GET | Catalog sync status | Any member + module | handler |
 | SQ-8 | `square/sales/sync` POST | Sales sync trigger | Any member + module + store scope | handler + data-scope |
@@ -388,7 +389,7 @@ Deny-by-default: unknown capability → `false`.
 | `corporate.updates.manage` | ADMIN | PL-5 |
 | `templates.manage` | ADMIN | NV-4, PG-5, PL-10 |
 | `stores.view` | ADMIN, MANAGER (page tier; list API all roles scoped) | NV-5, PG-7, PL-11 |
-| `stores.manage` | ADMIN | PL-12, SQ-5a |
+| `stores.manage` | ADMIN | PL-12, SQ-5a, SQ-5c |
 | `users.manage` | ADMIN | NV-6, PG-8, PL-14 |
 | `staff.view` | ADMIN, MANAGER (scoped) | NV-7, PG-9/10, PL-15 |
 | `staff.manage` | ADMIN, MANAGER (in-scope) | PL-16, PL-17 |
