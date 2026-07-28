@@ -17,6 +17,10 @@
 #            prod-promotion gates, unverified pixel work). Anything here blocks.
 # deferred — scope intentionally cut.
 # open     — unresolved questions that aren't yet blockers.
+#   NOTE: blockers/deferred/open/tags exist ONLY on `phases`. `bugs:` accepts
+#   id/title/status/shipped/commits/notes; `debt:` accepts id/title/notes ONLY.
+#   Adding `open:` to a debt row type-errors the build (see src/lib/roadmap.ts)
+#   — fold it into notes instead. Learned the hard way 2026-07-27.
 # tags     — [pre-launch] must close before external merchants.
 #
 # `shipped:` dates are when the work reached main/prod; where a phase was built
@@ -1749,51 +1753,40 @@ phases:
       deterministic under duplicates; primaryStoreName() has no tie-break.
       The realistic cause is a future writer, not concurrency — see PERM-6.
       Session prompt: docs/prompts/BUILD-2_default_store.md
-    blockers:
-      - >
-        CHECK BY 2026-07-29 — OWNER: GARY. Dated deliberately at logging time.
-        F-1 sat unverified for 18 days and F-4 for 17; this blocker has the same
-        shape (an external state nobody re-reads) and must not become the third.
-        If this date passes with no result recorded, that IS the finding — say so
-        in the next reconcile rather than letting it age silently.
-        HARD GATE (Gary, 2026-07-27) — THE DUPLICATE PRE-CHECK RUNS AGAINST
-        PRODUCTION, AND THE RESULTS COME TO GARY BEFORE ANYTHING MIGRATES.
-        A partial unique index FAILS TO CREATE if any staff member already has
-        two `isPrimary` rows, so the data must be known-clean first. Checking
-        the wrong database and reporting "clear" is the failure mode this gate
-        exists to prevent.
-        THE TRAP, AND IT IS NEW: local `.env` DATABASE_URL now resolves to
-        `ep-late-water-a6k53nv2` — the DEV branch. Production is
-        `ep-green-smoke-a6xthq4r`; staging is `ep-odd-rain-a6gr4xmm`. So
-        `npx prisma studio`, `prisma db execute`, or any local tsx script reads
-        DEV and returns a FALSE ALL-CLEAR. Before BUILD-1/DEBT-4 the local
-        repoint had not happened and local pointed AT production, so this
-        specific mistake was not possible. The repoint — which is otherwise
-        correct and desirable — made it possible. Whoever runs the check must
-        confirm the host they are actually connected to before trusting a
-        result, and a result with no host recorded beside it does not count.
-        PREFERRED METHOD: run it in the NEON CONSOLE against the production
-        branch. That keeps production credentials out of the working tree,
-        which is DEBT-4's own guidance, and the branch is visible in the UI
-        rather than inferred from an env var.
-        THE QUERY (no @@map in schema.prisma, so identifiers are quoted
-        PascalCase / camelCase):
-          SELECT "staffMemberId", COUNT(*) AS primaries
-          FROM "StoreStaffAssignment"
-          WHERE "isPrimary"
-          GROUP BY "staffMemberId"
-          HAVING COUNT(*) > 1;
-        Zero rows returned = safe to migrate. ANY rows = STOP: reconciling them
-        means deciding which store is correct for a real employee, which is
-        GARY'S CALL and not something a migration may silently pick.
-        WORTH RUNNING AT THE SAME TIME (not a migration blocker — a partial
-        unique index permits zero primaries — but it is the same arbitrary-pick
-        bug arriving through primaryStoreName()'s `?? storeAssignments[0]`
-        fallback):
-          SELECT ssa."staffMemberId", COUNT(*) AS assignments
-          FROM "StoreStaffAssignment" ssa
-          GROUP BY ssa."staffMemberId"
-          HAVING COUNT(*) FILTER (WHERE ssa."isPrimary") = 0;
+      PRE-CHECK RUN AND CLEARED 2026-07-27 — the blocker below is CLOSED, text
+      retained per this file's convention because the method and the trap it
+      documents apply to EVERY future production check, not just this one.
+      RESULT: Query A (duplicate primaries) returned ZERO ROWS. Run by Gary in
+      the Neon console, project `froot` (Keva Brands), database `neondb`,
+      **branch `production`**, compute Primary/Active — branch confirmed from
+      the console UI, not inferred from an env var. 72ms, "Statement executed
+      successfully", no rows. The partial unique index can therefore be created.
+      WHAT THAT ALSO ESTABLISHES: across all four write paths the "at most one
+      primary" invariant has held in production. There is no existing
+      corruption, which independently confirms the correction recorded on
+      PERM-6 — the risk here is a FUTURE writer, not a race and not damage
+      already done. A clean table is the cheapest moment to lock an invariant,
+      and every new write path (PERM-7, any bulk edit) narrows that window.
+      STALENESS IS SAFE, not a hazard: if a duplicate appears between now and
+      the migration, index creation FAILS rather than corrupting anything. The
+      cost is a failed deploy, not data damage. Re-run only if a long gap opens.
+      SEPARATE FINDING FROM THE SAME PASS — see DEBT-9. Query B returned two
+      ACTIVE staff (Gary Thomas, Kelton Thomas) with 9 store assignments and
+      ZERO primary. NOT a migration blocker — a partial unique index permits
+      zero — but a live data-quality problem feeding signed documents.
+      CLOSED BLOCKER, retained for method (was: the hard gate requiring this
+      check). THE TRAP, still true and still worth reading before any future
+      production check: local `.env` DATABASE_URL resolves to
+      `ep-late-water-a6k53nv2` — the DEV branch. Production is
+      `ep-green-smoke-a6xthq4r`; staging is `ep-odd-rain-a6gr4xmm`. So
+      `npx prisma studio`, `prisma db execute`, or any local tsx script reads
+      DEV and returns a FALSE ALL-CLEAR. Before BUILD-1/DEBT-4 local pointed AT
+      production, so this mistake was not possible; the repoint — otherwise
+      correct — created it. A result with no host recorded beside it does not
+      count. PREFERRED METHOD: the Neon console against the production branch,
+      which keeps production credentials out of the working tree (DEBT-4's own
+      guidance) and shows the branch in the UI. The two queries used are
+      preserved in docs/prompts/BUILD-2_default_store.md Task 1a.
 
 bugs:
   - id: BUG-1
@@ -2046,3 +2039,37 @@ debt:
       PERM-7(d), which seeds a device login's email from it — a seed cannot come
       from a column nothing populates. See DECISIONS.md 2026-07-27 for why that
       seeding is one-way and never a live sync.
+
+  - id: DEBT-9
+    title: "Two ACTIVE staff have 9 store assignments and NO primary — signed documents capture an arbitrary store"
+    notes: >
+      Found 2026-07-27 by the BUILD-2 production pre-check (Query B), run in the
+      Neon console against branch `production`. Gary Thomas and Kelton Thomas,
+      both ACTIVE, each with 9 StoreStaffAssignment rows and ZERO isPrimary.
+      NOT a migration blocker — a partial unique index permits zero primaries,
+      and BUILD-2's Query A returned clean. A data-quality problem sitting next
+      to that one, not the gate.
+      WHY IT MATTERS: primaryStoreName() (src/lib/hr.ts:44-49) is
+      `.find(a => a.isPrimary) ?? staff.storeAssignments[0]`. With no primary,
+      `.find` returns undefined and the fallback takes THE FIRST ROW OF AN
+      UNORDERED QUERY — an arbitrary one of NINE stores, potentially a different
+      one per request. That value is frozen at signing time onto
+      HrDocumentAcknowledgment.storeName and FormSubmission.storeName, then
+      stamped into the signed PDF (src/lib/hr-signed-pdf.ts:615, :426, :670).
+      Worse than the duplicate case BUILD-2 guards against on two counts: nine
+      candidates rather than two, and these are the OWNER accounts — the people
+      most likely to sign or countersign.
+      FIX (one minute, no code, no migration): set a primary for each via the
+      chip-click path on /staff, which PATCHes /api/staff/[id] with
+      primaryStoreId only. Do this BEFORE BUILD-2's index lands, so the
+      constraint locks in real intent rather than whatever row order won.
+      UNANSWERED — run Query C (preserved in
+      docs/prompts/BUILD-2_default_store.md) before deciding anything about
+      EXISTING records: have either of these two actually SIGNED anything, and
+      what storeName was captured? Zero rows = theoretical, fix and move on.
+      Same captured_store throughout = the arbitrary pick has been stable so
+      far, which is luck rather than safety. DIFFERENT captured_store for the
+      same person = already live, and executed documents disagree about where
+      that person works. That last case is a separate decision — whether
+      historical signing snapshots get corrected is GARY'S CALL, not something
+      to quietly rewrite.
