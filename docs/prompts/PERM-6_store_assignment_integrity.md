@@ -113,19 +113,26 @@ After this lands, clear PERM-5's blocker in `ROADMAP.yaml`.
 
 ---
 
-## Open question to resolve (do not skip — decide it either way)
+## Moved out — do NOT do this here
 
-`StoreStaffAssignment.isPrimary` has **no DB constraint** enforcing one primary
-per staff member (`prisma/schema.prisma:247-257` — no partial unique index). All
-four write paths currently preserve the invariant through their own
-`storeId === primaryStoreId` equality logic, so nothing is broken.
+The `StoreStaffAssignment.isPrimary` constraint question **now lives on
+BUILD-2**, which is already the migration phase. That keeps PERM-6 no-schema and
+size S, and batches both DDL changes into one deploy.
 
-Decide: add the constraint here, or leave it application-enforced and record
-why. A future direct `update`/`upsert`, or a race between two concurrent PATCHes
-on the two-step false-then-true branch, is not blocked at the DB level today.
+**This phase must not author a migration.** If one seems necessary, stop and
+re-scope.
 
-**If you add the constraint it becomes a migration** — follow the hand-authored
-`migrate diff` flow in `CLAUDE.md`, and the phase is no longer size S.
+Two corrections carried over, so nobody re-litigates them here:
+
+1. An earlier draft claimed a **race** between two concurrent PATCHes on the
+   two-step false-then-true branch could produce two primaries. **Overstated** —
+   the two-step runs inside `$transaction` and Postgres row locks serialise the
+   second writer, so it resolves to one primary correctly. Don't hunt that race.
+2. The real risk is a **future writer** doing the obvious
+   `storeStaffAssignment.update({ ..., data: { isPrimary: true } })`, which sets
+   the new primary without clearing the old. The existing chip-click path only
+   avoids this because someone wrote the two-step deliberately — reasoning that
+   lives in code, not the schema, so a new writer can't inherit it.
 
 ---
 

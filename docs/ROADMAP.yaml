@@ -103,6 +103,16 @@ phases:
     title: "Instagram integration — org-level connect, /instagram page, dashboard strip"
     blockers:
       - >
+        UNVERIFIED SINCE 2026-07-10 — flagged 2026-07-27 (reconcile Pass 2a).
+        Both blockers below have sat 17 days with no verification date and no
+        owner. That is the same shape as F-1 (18 days) and F-4 (17 days), both
+        of which turned out to be materially wrong when finally checked — F-1
+        had been satisfied all along, F-4 was worse than recorded. Neither can
+        be verified from the repo: #1 needs the Meta App Review status in the
+        Meta dashboard, #2 needs a Vercel env check for INSTAGRAM_APP_ID /
+        INSTAGRAM_APP_SECRET across every environment. Assign an owner and a
+        check-by date at the next reconcile; do not carry them another 17 days.
+      - >
         Meta App Review (Advanced Access for instagram_business_basic) not yet
         granted — until then only Instagram accounts with a role on the Meta
         app can connect. Start App Review early.
@@ -522,8 +532,14 @@ phases:
       can now authenticate, but it still has nowhere to send mail.
     blockers:
       - >
-        Pace alerts log to console only — no real email provider is wired into
-        src/lib/notify.ts (also blocks HR-8 reminders and HR-16).
+        VERIFIED STILL TRUE 2026-07-27 (reconcile Pass 2a) — re-read at source,
+        not assumed. src/lib/notify.ts:21 is still
+        `console.log("[notify:console] ...")` and :26 documents
+        NOTIFY_EMAIL_PROVIDER as "console" (default), with "resend" | "smtp"
+        listed as future options. Pace alerts log to console only — no real
+        email provider is wired into src/lib/notify.ts (also blocks HR-8
+        reminders and HR-16). Re-verify at the next reconcile; a blocker with no
+        verification date is a blocker nobody owns.
 
   # ---- HR / signing ----
   # Built 7-12…7-14, promoted to prod 7-21 (9743899) with HR dark in prod:
@@ -699,6 +715,14 @@ phases:
       docs/DECISIONS.md.
     blockers:
       - >
+        UNVERIFIED SINCE 2026-07-24 — flagged 2026-07-27 (reconcile Pass 2a).
+        Both blockers below are PROD-VERIFICATION items with no owner and no
+        check-by date, 3 days old. Neither is checkable from the repo: both
+        require a real signing ceremony in production. They are also cheap to
+        fold into the next prod visit rather than scheduled on their own.
+        Related: SEC-1's open item asks for a production test account, and the
+        same visit could settle several of these at once.
+      - >
         Certificate shows 'Microsoft' as org name — was a hard prod-promotion
         gate; shipped un-re-tested. 232d568's certificate dual-name may have
         fixed it ("Microsoft" is the Clerk DEV-instance test org, so prod may
@@ -873,15 +897,21 @@ phases:
       shipped date below (2026-07-26) is correct as written; a 2026-07-25 /
       HR-17 attribution was considered at the 7-27 reconcile and rejected on
       this evidence.
-    blockers:
-      - >
-        Phase 2 (call-site migration) must not start until Gary rules on each
-        contradicted call site in PERMISSIONS_INVENTORY.md §3 — the shim
-        encodes one answer per capability; migrating a contradicted site
-        silently picks a side.
-      - >
-        Square OAuth callback state validation (§2 gap #3) is SEC-1, its own
-        phase — logged here, unfixed in PERM-1.
+      BOTH BLOCKERS CLOSED 2026-07-27 (reconcile Pass 2a). Text retained here
+      rather than deleted, per this file's convention — the history is the
+      point.
+      CLOSED #1 — was: "Phase 2 (call-site migration) must not start until Gary
+      rules on each contradicted call site in PERMISSIONS_INVENTORY.md §3 — the
+      shim encodes one answer per capability; migrating a contradicted site
+      silently picks a side." SATISFIED BY PERM-2, which shipped to production
+      2026-07-27 (979da0b, promoted in 06b1561) and whose own notes state it was
+      "clearing PERM-1's phase-2 blocker: Gary ruled on every contradicted call
+      site before migration." The condition was met on 07-26 and nobody returned
+      to close the blocker — precisely the drift Pass 2a exists to catch.
+      CLOSED #2 — was: "Square OAuth callback state validation (§2 gap #3) is
+      SEC-1, its own phase — logged here, unfixed in PERM-1." This was a pointer,
+      never a gate on PERM-1's own work, and SEC-1 shipped 2026-07-26 (ecee728,
+      via c463af3). Nothing outstanding.
 
   - id: PERM-2
     track: permissions
@@ -1167,14 +1197,27 @@ phases:
       Session prompt: docs/prompts/PERM-6_store_assignment_integrity.md
     open:
       - >
-        StoreStaffAssignment.isPrimary has NO database constraint enforcing one
-        primary per staff member (prisma/schema.prisma:247-257 — no partial
-        unique index). All four write paths currently preserve the invariant
-        through their own `storeId === primaryStoreId` equality logic, so
-        nothing is broken today. Decide whether to add the constraint here or
-        leave it application-enforced; a future direct update/upsert added
-        elsewhere, or a race between two concurrent PATCHes on the two-step
-        false-then-true branch, is not blocked at the DB level.
+        RESOLVED AND MOVED 2026-07-27 — kept here as a pointer only. The
+        `StoreStaffAssignment.isPrimary` constraint question now lives on
+        BUILD-2, which is already the migration phase; that keeps PERM-6
+        no-schema and size S, and batches both DDL changes into one deploy.
+        BUILD-2 carries the hard gate: the duplicate pre-check runs against
+        PRODUCTION and its results go to Gary before anything migrates.
+        TWO CORRECTIONS to how this was originally written here, so the next
+        reader does not chase the wrong thing. (1) The original text said a
+        RACE between two concurrent PATCHes on the two-step false-then-true
+        branch could produce two primaries. That is OVERSTATED — the two-step
+        runs inside `$transaction`, and Postgres row locks serialise the second
+        writer behind the first, so it resolves to a single primary correctly.
+        Do not spend a session hunting that race; it cannot happen as written.
+        (2) The real risk is a FUTURE WRITER, and it is mundane: a new call
+        site doing the obvious
+        `storeStaffAssignment.update({ where: {...}, data: { isPrimary: true } })`
+        sets the new primary without clearing the old one. The existing
+        chip-click path avoids this only because someone deliberately wrote the
+        two-step; that reasoning lives in code, not in the schema, so a new
+        writer cannot inherit it — and PERM-7 plus any bulk-edit or import
+        feature are exactly such new writers.
 
   - id: PERM-7
     track: permissions
@@ -1688,7 +1731,69 @@ phases:
       about giving users a CHOSEN default, not about fixing a random one.
       Consumed by UX-2, which is where the user-visible payoff lands; BUILD-2 is
       the schema half only. UNBLOCKED as of 2026-07-27 — BUILD-1 shipped.
+      SECOND MIGRATION FOLDED IN 2026-07-27: the partial unique index on
+      StoreStaffAssignment.isPrimary, moved here from PERM-6 so that PERM-6
+      stays a no-schema size-S phase and both DDL changes ride one deploy.
+      WHY IT MATTERS — the consequence is a legal document, not a pixel.
+      `primaryStoreName()` (src/lib/hr.ts:44-49) picks with
+      `.find(a => a.isPrimary) ?? storeAssignments[0]` on an unordered query, so
+      with TWO primaries it returns an arbitrary one, and may return a different
+      one per request. That value is persisted at signing time
+      (api/hr/documents/[id]/acknowledgments/route.ts:172,
+      api/hr/forms/[id]/submissions/route.ts:143) and stamped into the signed
+      PDF, including the certificate line at src/lib/hr-signed-pdf.ts:615. Two
+      documents signed by the same person the same afternoon could therefore
+      name different stores, permanently. Note the codebase is already split on
+      this: hr-signed-pdf.ts:764 queries with
+      `orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }]` and IS
+      deterministic under duplicates; primaryStoreName() has no tie-break.
+      The realistic cause is a future writer, not concurrency — see PERM-6.
       Session prompt: docs/prompts/BUILD-2_default_store.md
+    blockers:
+      - >
+        CHECK BY 2026-07-29 — OWNER: GARY. Dated deliberately at logging time.
+        F-1 sat unverified for 18 days and F-4 for 17; this blocker has the same
+        shape (an external state nobody re-reads) and must not become the third.
+        If this date passes with no result recorded, that IS the finding — say so
+        in the next reconcile rather than letting it age silently.
+        HARD GATE (Gary, 2026-07-27) — THE DUPLICATE PRE-CHECK RUNS AGAINST
+        PRODUCTION, AND THE RESULTS COME TO GARY BEFORE ANYTHING MIGRATES.
+        A partial unique index FAILS TO CREATE if any staff member already has
+        two `isPrimary` rows, so the data must be known-clean first. Checking
+        the wrong database and reporting "clear" is the failure mode this gate
+        exists to prevent.
+        THE TRAP, AND IT IS NEW: local `.env` DATABASE_URL now resolves to
+        `ep-late-water-a6k53nv2` — the DEV branch. Production is
+        `ep-green-smoke-a6xthq4r`; staging is `ep-odd-rain-a6gr4xmm`. So
+        `npx prisma studio`, `prisma db execute`, or any local tsx script reads
+        DEV and returns a FALSE ALL-CLEAR. Before BUILD-1/DEBT-4 the local
+        repoint had not happened and local pointed AT production, so this
+        specific mistake was not possible. The repoint — which is otherwise
+        correct and desirable — made it possible. Whoever runs the check must
+        confirm the host they are actually connected to before trusting a
+        result, and a result with no host recorded beside it does not count.
+        PREFERRED METHOD: run it in the NEON CONSOLE against the production
+        branch. That keeps production credentials out of the working tree,
+        which is DEBT-4's own guidance, and the branch is visible in the UI
+        rather than inferred from an env var.
+        THE QUERY (no @@map in schema.prisma, so identifiers are quoted
+        PascalCase / camelCase):
+          SELECT "staffMemberId", COUNT(*) AS primaries
+          FROM "StoreStaffAssignment"
+          WHERE "isPrimary"
+          GROUP BY "staffMemberId"
+          HAVING COUNT(*) > 1;
+        Zero rows returned = safe to migrate. ANY rows = STOP: reconciling them
+        means deciding which store is correct for a real employee, which is
+        GARY'S CALL and not something a migration may silently pick.
+        WORTH RUNNING AT THE SAME TIME (not a migration blocker — a partial
+        unique index permits zero primaries — but it is the same arbitrary-pick
+        bug arriving through primaryStoreName()'s `?? storeAssignments[0]`
+        fallback):
+          SELECT ssa."staffMemberId", COUNT(*) AS assignments
+          FROM "StoreStaffAssignment" ssa
+          GROUP BY ssa."staffMemberId"
+          HAVING COUNT(*) FILTER (WHERE ssa."isPrimary") = 0;
 
 bugs:
   - id: BUG-1
@@ -1820,11 +1925,19 @@ debt:
       production (`ep-green-smoke`) nor staging (`ep-odd-rain`), i.e. the
       dedicated dev branch BUILD-1 recommended. The prior text saying this was
       "NOT done yet" is stale. Left OPEN rather than closed because the closing
-      condition was both halves true AND BUILD-1 in production: BUILD-1 is still
-      `in_progress` and staging-only, and this session verified the env vars by
-      name and host only — it did not confirm the dev branch's contents or that
-      no tooling still reaches production by another path. Gary to confirm and
-      close.
+      condition was both halves true AND BUILD-1 in production.
+      STALE REFERENCE CORRECTED 2026-07-27 (reconcile Pass 2c) — this row went
+      on to say "BUILD-1 is still `in_progress` and staging-only". That is no
+      longer true: BUILD-1 flipped to `shipped` on 2026-07-27, promoted in
+      06b1561, and its vercel-build split was verified IN PRODUCTION (deployment
+      EHfDfAKJR logged `Running "npm run vercel-build"` and `31 migrations
+      found`). So the second half of DEBT-4's closing condition is now MET.
+      STILL LEFT OPEN, deliberately and narrowly: the 2026-07-27 session
+      verified the local env vars by NAME AND HOST ONLY. It did not confirm the
+      dev branch's contents, nor that no tooling still reaches production by
+      another path — and the local→dev repoint has since been shown to create
+      its own hazard (see BUILD-2's blocker: a local pre-check now reads
+      ep-late-water and returns a false all-clear). Gary to confirm and close.
 
   - id: DEBT-5
     title: "10 of 12 stores have storeNumber: null, degrading PERM-3's deterministic store sort"
