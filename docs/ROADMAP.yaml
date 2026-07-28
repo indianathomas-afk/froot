@@ -1175,7 +1175,7 @@ phases:
     track: permissions
     size: S
     status: staging
-    commits: [PENDING-SHA]
+    commits: [d4a6bdc]
     title: "Store-assignment integrity — validate storeIds on every write, gate the locations route, split the forecasting isAdmin fusion"
     notes: >
       SIZE: scoped S, DELIVERED ABOVE S — recorded honestly rather than left at
