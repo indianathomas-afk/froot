@@ -172,3 +172,113 @@ Local `.env` now resolves to `ep-late-water-a6k53nv2` — neither production
 present and `-pooler`-free. Verified by env-var name and host only on 2026-07-27;
 the dev branch's contents were not inspected. DEBT-4 stays open pending Gary's
 confirmation and BUILD-1 reaching production.
+
+---
+
+# PRODUCTION verification — promotion `06b1561`, 2026-07-27
+
+The staging pass above cleared the way for the promotion; this section records
+what was checked **in production afterward**. Recorded during DOCS-3. Full
+promotion detail in `docs/DEPLOY_LOG.md`.
+
+Promotion: merge `06b1561`, parents `0363b2f` + `5e8effc`, rollback tag
+`pre-staging-merge-20260727-1427`. 74 files, +4002/−179. **No migrations** —
+`git diff --stat <tag>..HEAD -- prisma/` was empty. One conflict
+(`docs/ROADMAP.yaml`), resolved by taking staging's superset.
+
+## BUILD-1 — vercel-build split VERIFIED in production ✅
+
+Production deployment `EHfDfAKJR`, 14:49:
+
+```
+Running "npm run vercel-build"
+> prisma migrate deploy && npm run build
+Loaded Prisma config from prisma.config.ts
+31 migrations found; No pending migrations to apply.
+```
+
+Both risks answered: `vercel-build` **was** picked up (invoked by name, so the
+@vercel/next script precedence held against a real deploy, not just a source
+reading), and migrate deploy **actually ran** (it enumerated the ledger). The
+feared failure was migrations silently ceasing to apply while builds stayed
+green — this is the opposite. Satisfies BUILD-1's own verification step 3.
+
+## BUG-3 — unpooled datasource PROVEN; bug closed ✅
+
+| Env | Time | Datasource host | `-pooler`? |
+|---|---|---|---|
+| staging | 13:14 | `ep-odd-rain-a6gr4xmm` | no |
+| production | 14:49 | `ep-green-smoke-a6xthq4r.us-west-2.aws.neon.tech` | no |
+
+**The decisive evidence is negative:** neither log contains
+`[prisma.config] DATABASE_URL_UNPOOLED is not set`. Because the fix is a `??`
+fallback rather than strict, a pooled connection would still have deployed
+green — so the *absence of the warning* is the only thing distinguishing "fix
+working" from "fix silently degraded." This is exactly why BUG-3's notes
+insisted a green deploy was not proof.
+
+## F-1 — crons genuinely execute ✅
+
+Vercel → Observability → Cron Jobs, Production, last 12 hours:
+
+| Route | Schedule | Invocations | P75 |
+|---|---|---|---|
+| `/api/cron/sales-reconcile` | `0 11 * * *` | 1 | 14s |
+| `/api/cron/pace-alerts` | `0 15 * * *` | 1 | 30s |
+
+One invocation each is correct for daily crons under the Hobby cap. The
+**durations** are the proof: a cron rejected at the `CRON_SECRET` check returns
+a 401 in milliseconds. Tens of seconds is the profile of routes doing real work.
+
+## SQ-2 — token refresh CONFIRMED in production; 08-06 risk CLOSED ✅
+
+Vercel Logs, Production, 2026-07-26 21:39:15 — on both
+`/api/dashboard/summary` and `/api/dashboard/sales`:
+
+```
+[square] token refresh success org=cf888f2d-f234-48c7-8097-fd5b44b5b3dd
+expiresAt=2026-08-06T02:48:55.000Z -> 2026-08-26T04:39:18.000Z
+```
+
+Fired on the first Square-touching request after promotion, exactly as the
+23-day window predicted. **The 2026-08-06 expiry deadline is gone** — the token
+now runs to 08-26.
+
+Note this line *is* the observability SQ-2 added: under the old silent
+`if (!res.ok) return org`, success and failure both produced nothing, so a
+failure would have been invisible until expiry. The phase verified itself. That
+two dashboard GETs triggered it is consistent with DEBT-6.
+
+## SEC-1 — PARTIAL ⚠️
+
+- **Positive half — done.** As ADMIN in production,
+  `fetch('/api/square/auth', {redirect:'manual'})` → `0 opaqueredirect`. The
+  redirect to Square still fires, so the deny-by-default change did **not**
+  break the legitimate connect path.
+- **Negative half — untested and currently untestable.** Confirming a non-ADMIN
+  gets 403 needs a non-ADMIN production account, and none exists in the
+  production Clerk instance.
+
+**Still prohibited:** do not test via Disconnect — it revokes Keva's live Square
+token. Now more costly than before, since that token was just refreshed out to
+2026-08-26.
+
+## Roadmap dashboard (P-3) — renders in production ✅
+
+`/internal/roadmap` shows "Jul 27, 2026 · from the git commit date of
+docs/ROADMAP.yaml" — the first link of the fallback chain resolved, so the
+shallow-clone `unknown` fallback did **not** fire.
+
+## Carried forward
+
+- **Create a production test account** (STORE or MANAGER, one store). Blocks the
+  SEC-1 403 check, and is the general gap: every role verification to date has
+  run through Tommy on staging's Clerk **DEV** instance. Also unblocks the STAFF
+  coverage gap and the outstanding prod smoke tests on STAFF-1, HR-8, HR-11b/c,
+  HR-15.
+- **Inventory pars / storage-areas role-check ordering** — still unverified from
+  the staging pass above (400 before any role check). Re-test with a valid
+  `storeId`.
+- **BUILD-1's remaining half** — non-staging preview builds now have no database
+  and fail at build time. Deliberate and fail-closed; fix when collaboration
+  work starts.

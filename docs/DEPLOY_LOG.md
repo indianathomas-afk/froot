@@ -4,6 +4,68 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-07-27 — PRODUCTION promotion (PERM-2 + PERM-3 + BUILD-1 + SQ-1 docs + roadmap dashboard)
+
+- **Merge commit / rollback SHA:** `06b1561` — full: `06b156108688061a8a4bfdb56af1d945a8a56676`
+  (rollback: `git revert -m 1 06b156108688061a8a4bfdb56af1d945a8a56676` → push main;
+  pre-merge tag `pre-staging-merge-20260727-1427` also on origin). Parents `0363b2f`
+  (main) and `5e8effc` (staging). **74 files changed, +4002 / −179.**
+- **What shipped:** PERM-2 permission-contradiction resolution (`979da0b` — §3 #2/#3/#4/#5/#6/#8
+  via the capability layer, incl. the security fix for a completely unguarded
+  `POST /api/staff`), PERM-3 MANAGER forecast read window + forecasting store scoping
+  + affordance gating (`b8f32bb`), BUILD-1 vercel-build split (`6a77e68`), the SQ-1
+  token-refresh audit write-up (`f93b906`/`9bd61c7`/`056943f`), the P-3 live
+  `/internal/roadmap` dashboard (`3902d5c`), and the DOCS-2 roadmap reconcile
+  (`5e8effc`).
+- **Migrations:** **none.** `git diff --stat pre-staging-merge-20260727-1427..HEAD -- prisma/`
+  returned empty. Production build log confirms: `31 migrations found; No pending
+  migrations to apply.`
+- **Merge conflict:** one, `docs/ROADMAP.yaml` — expected, since main carried the SQ-2
+  cherry-pick (`9dc6dc0`) while staging carried its own SQ-2 row plus the whole DOCS-2
+  reconcile. Resolved by taking **staging's superset**, which had already been written
+  to match main's SQ-2 note verbatim for exactly this reason. No content lost from
+  either side.
+- **Verification results (5):**
+  - **BUILD-1 — verified in production.** Log shows `Running "npm run vercel-build"` →
+    `prisma migrate deploy && npm run build`, then `31 migrations found`. Proves both
+    that `vercel-build` is picked up by @vercel/next AND that migrate deploy actually
+    runs. This satisfies BUILD-1's own verification step 3, in prod rather than the
+    staging log it asked for. Status flipped `in_progress` → `shipped`.
+  - **BUG-3 — proof finally recorded; closed.** Datasource resolved to the DIRECT
+    endpoint in both logs, neither host ending `-pooler`: staging (13:14)
+    `ep-odd-rain-a6gr4xmm`, production (14:49)
+    `ep-green-smoke-a6xthq4r.us-west-2.aws.neon.tech`. Decisively, **neither log
+    contains the `[prisma.config] DATABASE_URL_UNPOOLED is not set` fallback
+    warning** — the negative evidence a green deploy alone could never provide,
+    since the fix is a `??` fallback that would have deployed green either way.
+  - **F-1 — cron execution confirmed.** Vercel → Observability → Cron Jobs, Production,
+    last 12h: `/api/cron/sales-reconcile` (0 11 * * *) 1 invocation P75 **14s**;
+    `/api/cron/pace-alerts` (0 15 * * *) 1 invocation P75 **30s**. Durations in the tens
+    of seconds prove completion, not a millisecond 401 rejection.
+  - **SQ-2 — token refresh confirmed in production; the 08-06 expiry risk is CLOSED.**
+    Production logs 2026-07-26 21:39:15, on both `/api/dashboard/summary` and
+    `/api/dashboard/sales`: `[square] token refresh success org=cf888f2d-…`
+    `expiresAt=2026-08-06T02:48:55.000Z -> 2026-08-26T04:39:18.000Z`. Fired on the first
+    Square-touching request after promotion, exactly as the 23-day window predicted.
+  - **SEC-1 — PARTIAL.** As ADMIN in prod, `fetch('/api/square/auth',{redirect:'manual'})`
+    returned `0 opaqueredirect`, so the legitimate connect path still works and the
+    deny-by-default change caused no regression. The **403-for-non-ADMIN half remains
+    untested and is currently untestable** — no non-ADMIN account exists in the
+    production Clerk instance. Logged as a new open item (create a production test
+    account); every role verification to date has run through staging's Clerk DEV
+    instance.
+- **Also verified:** the P-3 roadmap dashboard renders at `/internal/roadmap` with
+  "Jul 27, 2026 · from the git commit date of docs/ROADMAP.yaml" — the shallow-clone
+  `unknown` fallback did **not** fire.
+- **Post-promotion env change:** Gary scoped the Jun 26 `DATABASE_URL` row from
+  *Production and Preview* to **Production only**; production redeployed successfully
+  afterward (Datasource still `ep-green-smoke`), proving the value survived the edit.
+  This closes the fail-open half of BUILD-1's blocker. The remaining half — no
+  generic Preview-scoped `DATABASE_URL`/`DATABASE_URL_UNPOOLED`, so non-staging
+  preview builds now fail at build time — is **deliberately deferred**; it costs
+  nothing while only `staging` and `main` are pushed, and blocks only the deferred
+  second-developer plan.
+
 ## 2026-07-26 — PRODUCTION promotion (PERM-1 + SEC-1 + BUG-3 fix)
 
 - **Merge commit / rollback SHA:** `c463af3` — full: `c463af3482b1be4955c9e35b221e01db26f90eba`

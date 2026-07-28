@@ -27,21 +27,25 @@ meta:
   sources_retired: [docs/ROADMAP.md, "CLAUDE.md#Phase Status", external sheet]
   note: >
     Reconstructed 2026-07-24 from docs/ROADMAP_ARCHIVE.md, docs/prompts/*, and
-    git log. Five prod promotions to date: 9743899 (2026-07-21, L-3 + full
+    git log. Six prod promotions to date: 9743899 (2026-07-21, L-3 + full
     HR/Labor backlog), 942bc59 (2026-07-23, HR-8 through STAFF-1 batch),
-    59a6cdc (2026-07-24, HR-11b + HR-11c), 1ba059c (2026-07-25, HR-17) and
-    c463af3 (2026-07-26, PERM-1 + SEC-1 + the BUG-3 fix). Both 1ba059c and
+    59a6cdc (2026-07-24, HR-11b + HR-11c), 1ba059c (2026-07-25, HR-17),
+    c463af3 (2026-07-26, PERM-1 + SEC-1 + the BUG-3 fix) and 06b1561
+    (2026-07-27, PERM-2 + PERM-3 + BUILD-1 + SQ-1 docs + the P-3 roadmap
+    dashboard). Both 1ba059c and
     c463af3 were written into docs/DEPLOY_LOG.md at the 2026-07-27 reconcile;
     that log previously stopped at 59a6cdc. The promotion attribution above was
     re-verified from git on 2026-07-27 via `git log --ancestry-path` and
     `git merge-base --is-ancestor`: PERM-1 (6f70465) and SEC-1 (ecee728) rode
     c463af3 on 07-26 and are NOT ancestors of 1ba059c, so they did not ship in
     the 07-25 HR-17 promotion.
-    Staging is NOT level with main as of 2026-07-27: 3902d5c (P-3) and 056943f
-    (the SQ-1/SQ-2/DEBT-4 entries in this file) are staging-only, as are PERM-2
-    (979da0b), PERM-3 (b8f32bb) and BUILD-1 (6a77e68). Conversely SQ-2 was
-    cherry-picked to main alone as 9dc6dc0 (staging's own copy is 81be8d9), so
-    the two branches carry the same change under different SHAs. HR LAUNCHED
+    Staging and main are LEVEL again as of 2026-07-27 at 06b1561 — the
+    staging-only backlog noted here previously (P-3 3902d5c, the SQ-1 entries
+    056943f, PERM-2 979da0b, PERM-3 b8f32bb, BUILD-1 6a77e68) all promoted in
+    that merge. Rollback tag `pre-staging-merge-20260727-1427`. SQ-2 remains the
+    one divergence of record: cherry-picked to main alone as 9dc6dc0 while
+    staging carried 81be8d9, so the same change exists under two SHAs and both
+    are now ancestors of HEAD. HR LAUNCHED
     in production 2026-07-24 (HR_MODULE_AVAILABLE=true added to the Vercel
     Production scope + redeploy).
 
@@ -162,8 +166,9 @@ phases:
   - id: P-3
     track: platform
     size: M
-    status: staging
-    commits: [3902d5c]
+    status: shipped
+    shipped: 2026-07-27
+    commits: [3902d5c, 06b1561]
     title: "Live /internal/roadmap dashboard rendered from docs/ROADMAP.yaml"
     notes: >
       Built 2026-07-25 per docs/prompts/ROADMAP_PAGE_SESSION.md. Replaces the
@@ -181,7 +186,15 @@ phases:
       search, track chips. Blockers render as the plain YAML strings — no
       severity inferred. Read-only: no writes to ROADMAP.yaml, no DB access.
       Also adds the app's first src/app/robots.ts (allow all, disallow
-      /internal/). NOT in prod — 3902d5c is on staging only.
+      /internal/).
+      PROD VERIFIED 2026-07-27 (promotion 06b1561): the page renders at
+      www.usefroot.com/internal/roadmap with the timestamp "Jul 27, 2026 · from
+      the git commit date of docs/ROADMAP.yaml". That specific label is the
+      result that mattered — it proves the FIRST link of the fallback chain
+      resolved, i.e. Vercel's shallow clone still exposed a usable git commit
+      date and the `unknown` fallback did NOT fire. Had it fired, the page would
+      have rendered anyway (by design, never silently) and the staleness the
+      phase exists to eliminate would have come straight back.
 
   - id: UX-1
     track: platform
@@ -336,6 +349,18 @@ phases:
       were never running unauthenticated and never silently skipped for want of
       the secret. This also unblocks F-5's pace-alert cron (F-5's separate
       notify.ts email-provider blocker still stands).
+      EXECUTION EVIDENCE ADDED 2026-07-27. DOCS-2 closed this on env-var
+      evidence — the secret exists. This supplies the missing half: proof the
+      crons actually RUN. Vercel → Observability → Cron Jobs, Production, last
+      12 hours:
+        /api/cron/sales-reconcile  (0 11 * * *)  1 invocation, P75 14s
+        /api/cron/pace-alerts      (0 15 * * *)  1 invocation, P75 30s
+      One invocation each is exactly right for daily crons under the Hobby
+      once-per-day cap. The DURATIONS are what actually close it: 14s and 30s
+      are the profile of routes that did their work — pulling Square orders,
+      walking stores. A cron rejected at the CRON_SECRET check would return a
+      401 in milliseconds. Tens of seconds therefore rules out the precise
+      failure mode this blocker described, crons that "silently don't run".
       Prior evidence, retained: SQ-1 (2026-07-26) gathered evidence against the
       blocker but did not clear it. `vercel env ls production`
       lists CRON_SECRET as Encrypted/Production, added 18 days ago (~2026-07-08,
@@ -410,6 +435,22 @@ phases:
         2026-07-27, deliberately NOT investigated in that session; resolve this
         before the env var is set, since fail-open would mean the endpoint has
         been exposed since 7-10.
+        LIKELY RESOLVED IN F-4's FAVOUR — FAILS CLOSED (2026-07-27).
+        docs/FORECASTING.md:135 states, of SQUARE_WEBHOOK_SIGNATURE_KEY:
+        "Without the env var the route returns 500 and Square will keep
+        retrying." A 500 on every unverified event is fail-CLOSED. If that
+        holds, this is a BROKEN FEATURE, not an unauthenticated write endpoint,
+        and the urgency drops back to the degraded-pacing reading above — no
+        exposure window since 7-10, nothing to remediate beyond setting the key
+        and registering the subscriptions.
+        CAVEAT, deliberately not glossed: this is a DOCS CLAIM, not a source
+        reading. It has NOT been verified against
+        src/app/api/webhooks/square/route.ts, and docs drift — DEBT-3 and the
+        STAGING_SETUP.md debt row are both live examples of Froot docs asserting
+        things the code no longer does. Treat this as strong evidence, not proof.
+        VERIFY IN THE F-4 SESSION, by reading the route, before relying on it —
+        and do that before setting the env var, since the fail-open reading
+        would still change the remediation order.
 
   - id: F-5
     track: forecasting
@@ -791,7 +832,9 @@ phases:
   - id: PERM-2
     track: permissions
     size: L
-    status: staging
+    status: shipped
+    shipped: 2026-07-27
+    commits: [979da0b, 06b1561]
     title: "Resolve permission contradictions — checklists, templates, staff, inventory split, dashboard goal, weekly plan"
     notes: >
       Audit-first session (docs/prompts/PERM-2_resolve_permission_contradictions.md),
@@ -842,7 +885,9 @@ phases:
   - id: PERM-3
     track: permissions
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-07-27
+    commits: [b8f32bb, 06b1561]
     title: "MANAGER forecast read window (current + next month), forecasting store scoping, affordance visibility"
     notes: >
       Audit-first session (docs/prompts/PERM-3_forecasting_read_window.md).
@@ -1015,12 +1060,37 @@ phases:
       2026-07-26 date below stands.
     open:
       - >
-        Part C's ADMIN gate on /api/square/auth and /api/square/disconnect is
-        live in production but was never smoke-tested there. Verify by
-        confirming a non-ADMIN gets 403 on /api/square/auth. DO NOT verify via
-        the Disconnect button — that revokes and clears Keva Juice's live
-        Square token (and per SQ-1 the stored refresh token with it), which is
-        a production outage, not a test.
+        HALF-CLOSED 2026-07-27. Part C's ADMIN gate was partially smoke-tested
+        in production.
+        POSITIVE HALF — DONE. As ADMIN in production,
+        `fetch('/api/square/auth', {redirect:'manual'})` returned
+        `0 opaqueredirect`, i.e. the redirect to Square still fires. That
+        confirms the deny-by-default change did NOT break the legitimate connect
+        path — the regression risk of a tightening change, and the one that
+        would have stranded Gary without a way to reconnect Square.
+        NEGATIVE HALF — STILL UNTESTED, AND CURRENTLY UNTESTABLE. Confirming a
+        non-ADMIN gets 403 requires a non-ADMIN production account, and none
+        exists in the production Clerk instance that Gary controls. This is not
+        an oversight to be scheduled away; it is blocked on the item below.
+        The standing prohibition remains: DO NOT verify via the Disconnect
+        button — that revokes and clears Keva Juice's live Square token (and per
+        SQ-1 the stored refresh token with it), which is a production outage,
+        not a test. Note this is now more costly than before: the 2026-07-26
+        refresh moved the live token to a 2026-08-26 expiry, and a disconnect
+        would discard that.
+      - >
+        CREATE A PRODUCTION TEST ACCOUNT — a STORE or MANAGER user assigned to
+        one store. Currently blocking the SEC-1 403 check above, but the gap is
+        broader than one item: EVERY role-based verification to date has run
+        through Tommy Thomas on STAGING's Clerk DEV instance
+        (verified-snapper-7). Production has never had a non-ADMIN identity at
+        all, so nothing in PERM-1/PERM-2/PERM-3 has been observed behaving in
+        the environment that actually holds customer data — and per the
+        DECISIONS.md ruling of 2026-07-27, prod is also where the STORE-is-a-
+        device model has real consequences. Standing capability, not a one-off:
+        the same account unblocks the STAFF-role coverage gap recorded on
+        PERM-2 and the prod smoke tests still outstanding on STAFF-1, HR-8,
+        HR-11b/c and HR-15.
 
   - id: SEC-2
     track: security
@@ -1070,6 +1140,36 @@ phases:
       GATED ON BUILD-1 like SEC-2 (a local build runs migrate deploy against the
       PRODUCTION branch until then, DEBT-4).
 
+  - id: SEC-4
+    track: security
+    size: S
+    status: planned
+    title: "Verify and rotate a possible plaintext GitHub PAT in the repo's git remote"
+    notes: >
+      Logged 2026-07-27 from a SECONDHAND claim, deliberately unverified.
+      docs/STAGING_SETUP.md's housekeeping note states that this repo's git
+      remote has a GitHub personal access token embedded in plaintext in the
+      remote URL, and therefore sitting in .git/config.
+      NOT CHECKED IN THIS SESSION, BY INSTRUCTION: the DOCS-3 session was told
+      not to run `git remote -v` or read .git/config, and did not. So the claim
+      is recorded as a claim. Note the source is the same file as DEBT-7, which
+      is materially wrong in at least three other places — its accuracy here is
+      not established either way, and it may equally describe a state that was
+      already remediated.
+      WHY IT STILL MATTERS IF TRUE: a PAT in .git/config is not encrypted, is
+      readable by any process running as the user, and survives in any copy of
+      the working tree. Depending on scope it may grant push access to this repo
+      or to every repo on the account.
+      HANDLING RULES for whoever picks this up: never echo, paste, log or commit
+      the token value — not into a terminal, a report, this file, or a commit
+      message. Establish presence without printing the secret. If present:
+      rotate the token on GitHub FIRST (rotation invalidates it regardless of
+      where copies have spread), then switch the remote to SSH or a credential
+      manager, then confirm .git/config no longer carries it. Rotating before
+      cleaning is the right order — cleanup without rotation leaves a live
+      credential in any copy already made.
+      Related: DEBT-7 (same source file).
+
   # ---- Migration / nutrition ----
 
   - id: M-1
@@ -1106,6 +1206,8 @@ phases:
     track: square
     size: S
     status: verified
+    shipped: 2026-07-27
+    commits: [f93b906, 9bd61c7, 056943f, 06b1561]
     title: "Audit — Square OAuth access-token refresh (read-only)"
     notes: >
       Refresh EXISTS and is wired: refreshTokenIfNeeded() at src/lib/square.ts:37,
@@ -1122,6 +1224,18 @@ phases:
       updateSquareTeamMemberName in square.ts, plus /api/square/locations) and
       no oauth.authorization.revoked webhook is handled. Audit only — no code
       changed. See docs/prompts/SQ-1_square_token_refresh_audit.md.
+      Docs reached prod 2026-07-27 via promotion 06b1561; `shipped:` is recorded
+      for that date even though this phase changed no product code, which is the
+      status GAP noted in this file's header. The three listed SHAs carry the
+      same commit message — they are amend/re-commit iterations of one audit
+      write-up, not three separate pieces of work.
+      SQ-1's central prediction was CONFIRMED in production 2026-07-26 21:39:15:
+      the lazy refresh fired on a real request and moved the token off the
+      2026-08-06 cliff. See SQ-2, which shipped the observability that made the
+      confirmation legible. The residual risks SQ-1 flagged and SQ-2 did not
+      close — the four helpers bypassing getSquareClient, the missing
+      oauth.authorization.revoked handler, and the settings UI reporting
+      "Connected" off token presence alone — are SQ-3.
 
   - id: SQ-2
     track: square
@@ -1150,6 +1264,24 @@ phases:
       in the production runtime logs. Remaining SQ-1 follow-ups (cron backstop, helpers bypassing
       getSquareClient, oauth.authorization.revoked, settings UI showing expiry)
       are SQ-3 and stay on staging.
+      CONFIRMED IN PRODUCTION 2026-07-27 — the follow-up above is CLOSED. Vercel
+      Logs, Production, 2026-07-26 21:39:15, on both /api/dashboard/summary and
+      /api/dashboard/sales:
+        [square] token refresh success org=cf888f2d-f234-48c7-8097-fd5b44b5b3dd
+        expiresAt=2026-08-06T02:48:55.000Z -> 2026-08-26T04:39:18.000Z
+      The refresh fired on the FIRST Square-touching request after the SQ-2
+      promotion, exactly as the 23-day window predicted. Production's token moved
+      off the 08-06 cliff to 08-26, so **the 2026-08-06 expiry risk is CLOSED** —
+      the deadline that made this the most time-critical item on the board is
+      gone, and nothing now depends on a getSquareClient path running before
+      2026-07-30.
+      Worth recording WHY this was legible at all: that log line IS the
+      observability SQ-2 added. Under the pre-SQ-2 silent
+      `if (!res.ok) return org`, a successful refresh and a failed one both
+      produced no output, so a failure would have been indistinguishable from a
+      no-op until the token expired. The phase verified itself.
+      That two dashboard routes both logged it is consistent with DEBT-6 —
+      ordinary GET reads are what reach getSquareClient today.
       Note text carried verbatim from main at the 2026-07-27 reconcile to
       pre-resolve the known merge conflict on this row; staging's own SQ-2
       commit is 81be8d9, recorded inline above rather than in `commits:` so
@@ -1190,7 +1322,9 @@ phases:
   - id: BUILD-1
     track: build
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-07-27
+    commits: [6a77e68, 06b1561]
     title: "Separate local builds from production migrations (vercel-build split)"
     notes: >
       Config only, no product code. Before: `build` was
@@ -1228,43 +1362,61 @@ phases:
       the recommended dedicated dev branch appears to have been created and
       wired up — see DEBT-4, whose "NOT done yet" text is stale for the same
       reason.
-      Status stays in_progress until verification step 3 — a staging build log
-      showing migrate deploy actually ran. If vercel-build were not picked up,
-      migrations would silently stop applying on deploy, which is worse than the
-      problem being fixed; a green build is not proof.
-      Related: DEBT-4 (the finding this addresses), BUG-3, SEC-2 and HR-14 (both
-      schema-touching, both gated on this landing first).
+      VERIFICATION STEP 3 SATISFIED 2026-07-27, IN PRODUCTION — stronger than
+      the staging log this phase asked for. Production deployment EHfDfAKJR
+      (14:49) logged:
+        Running "npm run vercel-build"
+        > prisma migrate deploy && npm run build
+        Loaded Prisma config from prisma.config.ts
+        31 migrations found; No pending migrations to apply.
+      Both halves of the risk are answered by those four lines. `vercel-build`
+      WAS picked up — Vercel invoked it by name, confirming the @vercel/next
+      getScriptName precedence held against a real deployment rather than
+      against a source reading. And migrate deploy ACTUALLY RAN — it enumerated
+      31 migrations. The failure mode this phase feared was migrations silently
+      ceasing to apply while builds stayed green, and a run that finds and
+      reports the ledger is the opposite of that.
+      STATUS CALL (Claude, 2026-07-27 — flag for Gary to overrule): flipped to
+      `shipped`, blocker retained below. Reasoning: the code is in production
+      via 06b1561 and this phase's own stated exit criterion is now met. The one
+      remaining item is a Vercel-console configuration change that BUILD-1
+      explicitly scoped OUT of itself ("out of scope for BUILD-1"), so holding
+      `in_progress` would leave the phase permanently unclosable on work it
+      disclaimed. Per this file's header, `blockers` are live problems "in a
+      phase regardless of status" — a shipped row carrying an open blocker is
+      the schema working as designed, not a contradiction. If Gary would rather
+      the row stay open until the Preview vars exist, `in_progress` is the
+      defensible alternative and only this line changes.
+      Related: DEBT-4 (the finding this addresses), BUG-3 (closed by the same
+      pair of build logs), SEC-2 and HR-14 (both schema-touching, both gated on
+      this landing first — that gate is now lifted).
     blockers:
-      - "Vercel DATABASE_URL is a single env row tagged Production+Preview, so
-         one value serves both. The branch-scoped Preview (staging) row overrides
-         it on staging only — any OTHER preview branch gets the production
-         database, and with no generic-Preview DATABASE_URL_UNPOOLED,
-         prisma.config.ts falls back to that same pooled production URL. A PR
-         preview build therefore runs migrate deploy against PRODUCTION. This
-         survives the package.json fix untouched: vercel-build runs migrations
-         against whatever DATABASE_URL resolves to. Untagging Preview from the
-         production row is a Vercel-console change, out of scope for BUILD-1."
-      - "RE-VERIFIED IN THE VERCEL CONSOLE 2026-07-27 — the blocker above is
-         exact, and here is the row-level detail plus the fix. DATABASE_URL is
-         ONE row tagged **Production and Preview** (Sensitive, added Jun 26),
-         with a branch-scoped override for `staging` ONLY.
-         DATABASE_URL_UNPOOLED has Production, Development and Preview→staging
-         rows but NO generic Preview row. So a preview deploy from any branch
-         other than staging gets the production database, and prisma.config.ts
-         falls back to the POOLED production URL — meaning a PR preview build
-         runs `migrate deploy` against production THROUGH PGBOUNCER, which is
-         also precisely the BUG-3 P1002 advisory-lock condition. Latent only
-         because Gary pushes staging and main and nothing else; it detonates on
-         the FIRST feature branch — which is exactly what the deferred
-         second-developer plan requires, so this is a scheduled failure, not a
-         hypothetical one. FIX (Vercel console, no code): scope the Jun 26 row
-         to Production-only so preview fails closed, THEN add Preview-scoped
-         DATABASE_URL and DATABASE_URL_UNPOOLED pointing at a throwaway Neon
-         branch. Order matters — scoping first means a preview build with no
-         database errors out instead of quietly finding production. Recorded
-         against BUILD-1 at the 2026-07-27 reconcile because this row already
-         owned the finding; BUILD-2 is the deterministic-primary-store schema
-         phase and is unrelated."
+      - "CHANGED SHAPE 2026-07-27 — HALF CLOSED, HALF DEFERRED. This blocker is
+         NOT the same problem it was this morning; read the new state before
+         acting on it.
+         CLOSED — step 1 of the two-step fix is DONE. Gary edited the Jun 26
+         `DATABASE_URL` row in the Vercel console from **Production and
+         Preview** to **Production only**. Preview deploys from non-staging
+         branches therefore no longer resolve to the production database, and
+         the original danger — a PR preview build running `migrate deploy`
+         against production through pgbouncer, which was also the BUG-3 P1002
+         condition — is gone. The edit was proven non-destructive: production
+         redeployed successfully afterward with the Datasource still resolving
+         to ep-green-smoke, so scoping the row did not disturb its value.
+         STILL OPEN — step 2 is deliberately deferred. No generic
+         Preview-scoped `DATABASE_URL` or `DATABASE_URL_UNPOOLED` exists, so a
+         preview build from any branch other than `staging` now has NO database
+         and FAILS AT BUILD TIME. That is the intended fail-closed posture and
+         is strictly better than the previous fail-open one — a loud build
+         failure beats a silent write to production. It costs nothing today
+         because Gary pushes only `staging` and `main`.
+         WHAT IT BLOCKS: the deferred second-developer plan. PR previews are
+         preview deploys, so the first collaborator's first PR gets a failed
+         build. FIX WHEN COLLABORATION WORK STARTS: create a throwaway Neon
+         branch, then add BOTH vars Preview-scoped with NO branch restriction.
+         UNTOUCHED: the staging branch-scoped override still exists and still
+         wins for `staging`, which is why the 13:14 staging build resolved to
+         ep-odd-rain rather than failing."
 
   - id: BUILD-2
     track: build
@@ -1314,7 +1466,8 @@ bugs:
 
   - id: BUG-3
     title: "Migrations bypass Neon pooler via directUrl"
-    status: in_progress
+    status: shipped
+    shipped: 2026-07-27
     commits: [f6818f1]
     notes: >
       Intermittent P1002 on deploy — Prisma's migration advisory lock leaked
@@ -1326,11 +1479,25 @@ bugs:
       DECISIONS.md BUG-3. Staging proof required: build log Datasource "db"
       host without -pooler; a green deploy alone is not proof (P1002 is
       intermittent).
-      Status deliberately left in_progress at the 2026-07-26 reconcile: f6818f1
-      reached main via c463af3 (2026-07-26), so the fix is in prod on both
-      branches, but the required proof has still never been recorded. Code
-      shipped ≠ bug closed here — flip to shipped only once a build log shows
-      the unpooled host.
+      History: f6818f1 reached main via c463af3 (2026-07-26), but status was
+      deliberately held at in_progress through the 2026-07-26 reconcile because
+      the required proof had never been recorded. Code shipped ≠ bug closed.
+      PROOF SATISFIED 2026-07-27 — flipped to shipped. Both build logs show the
+      Datasource resolving to the DIRECT endpoint, neither host ending
+      `-pooler`:
+        staging    (13:14): Datasource "db": ... at "ep-odd-rain-a6gr4xmm..."
+        production (14:49): Datasource "db": ... at
+                            "ep-green-smoke-a6xthq4r.us-west-2.aws.neon.tech"
+      The production log (deployment EHfDfAKJR) also reads "31 migrations found;
+      No pending migrations to apply."
+      The NEGATIVE evidence is what closes it, and it is the half a green deploy
+      could never supply: NEITHER log contains the
+      `[prisma.config] DATABASE_URL_UNPOOLED is not set` warning that
+      prisma.config.ts emits on fallback. Because the fix is a `??` fallback
+      rather than strict, a pooled connection would still have deployed
+      green — so "no warning" is the only thing that distinguishes the fix
+      working from the fix silently degrading. That is precisely why the notes
+      above insisted a green deploy was not proof.
 
   - id: BUG-4
     title: "Labor Budget card and Weekly Plan disagree on schedulable hours when no weather adjustment exists"
@@ -1450,3 +1617,34 @@ debt:
       reach getSquareClient, ordinary page loads are what currently triggers the
       lazy token refresh. That makes SQ-3's backstop cron insurance against a
       quiet week rather than a redundant addition.
+
+  - id: DEBT-7
+    title: "docs/STAGING_SETUP.md describes an environment that was never built — and now gives dangerous advice"
+    notes: >
+      Logged 2026-07-27. Not merely stale: one of its instructions would now
+      REVERSE the fail-closed fix recorded on BUILD-1.
+      (1) §2 claims the Neon-Vercel integration auto-creates an isolated
+      database branch per Preview deployment. It does not, and never did here —
+      Neon's own console reports "You don't have any preview branches yet."
+      Staging is served by one long-lived branch, ep-odd-rain, wired by hand.
+      (2) §2 step 4 instructs the reader to "remove any manually-set
+      DATABASE_URL under Preview scope so there's no conflict", and §5's table
+      lists Preview DATABASE_URL as "auto-injected by Neon integration". This is
+      the DANGEROUS line. Following it today would delete the branch-scoped
+      staging override — the very row that makes staging deploys hit ep-odd-rain
+      instead of failing — and it directly contradicts BUILD-1's deferred step 2,
+      which says to ADD Preview-scoped vars when collaboration work starts.
+      A reader trusting this file would undo the 2026-07-27 fix.
+      (3) §4 and §5 say staging uses Square SANDBOX
+      (`SQUARE_ENVIRONMENT=sandbox`, sandbox app credentials). Staging actually
+      connects to a separate "Froot Staging" PRODUCTION app against the real
+      Square account — which is why staging token refreshes act on real tokens.
+      The file's promise that "no real charges can happen from staging even by
+      accident" is therefore not something this environment guarantees.
+      (4) Consequently §8's verification checklist can never pass as written.
+      FIX SHAPE — pick one, do not leave it as is: either correct the file to
+      describe the environment that exists, or add a prominent header marking it
+      ASPIRATIONAL/HISTORICAL (the plan as drafted, not the system as built).
+      The header is the cheap option and removes the danger in (2) immediately.
+      Related: DEBT-3 (the other doc contradicting current policy), BUILD-1,
+      SEC-4 (logged from this same file's housekeeping note).
