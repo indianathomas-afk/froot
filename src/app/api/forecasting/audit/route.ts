@@ -47,12 +47,14 @@ export async function GET(req: Request) {
   }
 
   // Store scoping lives in metadata.storeId (AuditLog is entity-generic).
+  // PERM-6 Task 5: this filter is a SCOPING decision, so it asks unscoped —
+  // not canEdit. It read ctx.isAdmin when that one flag meant both.
   const storeFilter: Prisma.AuditLogWhereInput[] = storeId
     ? [{ metadata: { path: ["storeId"], equals: storeId } }]
-    : ctx.isAdmin
+    : ctx.unscoped
       ? []
       : assignedIds.map((id) => ({ metadata: { path: ["storeId"], equals: id } }))
-  if (!ctx.isAdmin && !storeId && assignedIds.length === 0) {
+  if (!ctx.unscoped && !storeId && assignedIds.length === 0) {
     return NextResponse.json({ entries: [] })
   }
 

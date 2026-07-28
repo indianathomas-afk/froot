@@ -12,7 +12,13 @@ export type ForecastContext = {
   org: Organization
   dbUser: (User & { storeAssignments: { storeId: string }[] }) | null
   userId: string
-  isAdmin: boolean
+  // PERM-6 Task 5: these two were ONE field called `isAdmin`, and the name is
+  // what invited the fusion. canEdit answers "may write goals"; unscoped
+  // answers "is exempt from StoreUserAssignment scoping". Both are ADMIN today,
+  // so nothing changes now — but they are separately grantable, which is what
+  // PERM-5's override layer needs. Never reintroduce a single flag for both.
+  canEdit: boolean
+  unscoped: boolean
   // scope(dbUser, "forecasting.view") — { access: "window" } for MANAGER.
   viewScope: CapabilityScope
 }
@@ -48,7 +54,8 @@ export async function requireForecastContext(
     org,
     dbUser,
     userId,
-    isAdmin: can(actor, "forecasting.edit"),
+    canEdit: can(actor, "forecasting.edit"),
+    unscoped: can(actor, "forecasting.scope.all"),
     viewScope: scope(actor, "forecasting.view"),
   }
 }
@@ -63,7 +70,7 @@ export async function requireForecastStore(
 ): Promise<Store | { error: NextResponse }> {
   const store = await prisma.store.findFirst({ where: { id: storeId, organizationId: ctx.org.id } })
   if (!store) return { error: NextResponse.json({ error: "Store not found" }, { status: 404 }) }
-  if (!ctx.isAdmin) {
+  if (!ctx.unscoped) {
     const assigned = ctx.dbUser?.storeAssignments.some((a) => a.storeId === storeId)
     if (!assigned) return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
   }

@@ -75,6 +75,26 @@ export async function POST(req: Request) {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
+  // PERM-6 Task 2, invite half. storeIds went into PendingInvite.storeIds with
+  // no ownership check, and the Clerk webhook materialised them later with no
+  // re-check — so a foreign-org storeId survived all the way to a real
+  // StoreUserAssignment. Checked HERE, before the Clerk invitation is created,
+  // so a bad request fails fast at the point of admin intent rather than
+  // half-applying silently days later on acceptance. The webhook carries the
+  // second half of this check (see webhooks/clerk/route.ts). This route is
+  // requireAdmin, so org ownership is the whole rule — admins are unscoped.
+  const inviteStoreIds = [
+    ...new Set((Array.isArray(storeIds) ? storeIds : []).filter((s: unknown): s is string => typeof s === "string" && s.length > 0)),
+  ]
+  if (inviteStoreIds.length > 0) {
+    const ownedCount = await prisma.store.count({
+      where: { id: { in: inviteStoreIds }, organizationId: org.id },
+    })
+    if (ownedCount !== inviteStoreIds.length) {
+      return NextResponse.json({ error: "One or more stores do not belong to this organization" }, { status: 400 })
+    }
+  }
+
   try {
     const invitation = await clerk.organizations.createOrganizationInvitation({
       organizationId: orgId,
@@ -87,8 +107,8 @@ export async function POST(req: Request) {
 
     await prisma.pendingInvite.upsert({
       where: { organizationId_email: { organizationId: org.id, email } },
-      update: { role, storeIds: storeIds ?? [] },
-      create: { organizationId: org.id, email, role, storeIds: storeIds ?? [] },
+      update: { role, storeIds: inviteStoreIds },
+      create: { organizationId: org.id, email, role, storeIds: inviteStoreIds },
     })
 
     return NextResponse.json({ invitation }, { status: 201 })

@@ -5,6 +5,34 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## PERM-6 Task 2 — validate invite `storeIds` at BOTH the invite and the webhook — 2026-07-27 (Gary ruled, on Claude's recommendation)
+
+`POST /api/users` wrote `storeIds` into `PendingInvite.storeIds` with no
+org-ownership check, and the Clerk webhook later materialised them into real
+`StoreUserAssignment` rows with no re-check. Three options were on the table:
+validate at the invite, at the webhook, or both.
+
+**The ruling (Gary): both.**
+
+- **The invite is where the error is legible.** It is the point of admin intent,
+  and the only place a human sees a response. Webhook-only validation means the
+  admin gets a 201, the invite goes out, and the assignment silently
+  half-applies days later on acceptance — a failure with no audience.
+- **The webhook is the last writer before real rows exist.** A `PendingInvite`
+  can sit for days; a store can be deleted or moved between orgs in that window;
+  and a future writer of `PendingInvite` (PERM-7 provisioning, a bulk import)
+  may not pass through that route at all. "Both" is the only option where a
+  stale row cannot materialise a bad assignment.
+- Cost is one indexed query on a path that already runs several.
+
+**Implementation note that follows from the ruling:** the webhook **filters,
+never throws**. It materialises the valid subset and `console.warn`s the
+dropped ids. A 500 there is retried by Clerk and would block the entire
+acceptance — user upsert, staff binding, invite cleanup — over one stale store
+id. Failing the whole acceptance is strictly worse than dropping the assignment
+an admin can re-add. If a future session is tempted to make the webhook strict,
+that is the reason not to.
+
 ## Role choice at provisioning is unrestricted; capability overrides stay restrict-only — 2026-07-27 (Gary ruled; Claude's initial objection was wrong)
 
 The scenario: a family-owned single-location business wants the in-store device

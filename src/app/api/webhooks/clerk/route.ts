@@ -123,10 +123,30 @@ export async function POST(req: Request) {
 
     if (pending) {
       if (pending.storeIds.length > 0) {
-        await prisma.storeUserAssignment.createMany({
-          data: pending.storeIds.map((storeId) => ({ userId: user.id, storeId })),
-          skipDuplicates: true,
+        // PERM-6 Task 2, webhook half. POST /api/users now validates ownership
+        // at invite time, which is where an admin can actually see the error.
+        // This is the second half: a PendingInvite row can sit for days, a
+        // store can be deleted or moved between orgs in the meantime, and a
+        // future writer of PendingInvite may not go through that route at all.
+        // This is the LAST writer before real assignments exist, so it
+        // re-filters rather than trusts. Filter, never throw — a 500 here is
+        // retried by Clerk and would block the whole acceptance (user upsert,
+        // staff binding) over a stale store id.
+        const owned = await prisma.store.findMany({
+          where: { id: { in: pending.storeIds }, organizationId: org.id },
+          select: { id: true },
         })
+        if (owned.length !== pending.storeIds.length) {
+          console.warn(
+            `[clerk-webhook] PendingInvite ${pending.id}: dropped ${pending.storeIds.length - owned.length} storeId(s) not owned by org ${org.id}`
+          )
+        }
+        if (owned.length > 0) {
+          await prisma.storeUserAssignment.createMany({
+            data: owned.map((s) => ({ userId: user.id, storeId: s.id })),
+            skipDuplicates: true,
+          })
+        }
       }
       // HR-7 self-service invite: bind the new login to its staff profile.
       // updateMany (not update) so a staff member deleted between invite and

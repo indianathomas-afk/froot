@@ -59,7 +59,7 @@ export async function GET(req: Request) {
         }
       : null,
     today,
-    canEdit: ctx.isAdmin,
+    canEdit: ctx.canEdit,
     // Lets the client explain blanked goals instead of looking broken.
     window: win ? { start: win.start, end: win.end } : null,
     days: goals.map((g) => {

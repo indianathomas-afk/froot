@@ -249,7 +249,8 @@ display restriction, not a confidentiality one".
 | SQ-2 | `square/callback` GET | Square token exchange + store | Session org is the write target; single-use nonce cookie validated *(SEC-1; state was trusted as the org)* | handler |
 | SQ-3 | `square/disconnect` POST | Clear Square tokens | ADMIN *(SEC-1; was any member)* | handler |
 | SQ-4 | `square/status` GET | Connection status | Any member | handler |
-| SQ-5 | `square/locations`, `square/team-members` GET | Square location/team data reads | **Any member** | handler (auth only) |
+| SQ-5a | `square/locations` GET | Square location list for the store import dialog and the Edit Store location picker | ADMIN (`stores.manage`) *(PERM-6 Task 4; was **any member** with the entire Square object spread to the client — now an explicit field allow-list)* | handler |
+| SQ-5b | `square/team-members` GET | Square team-member reads for the staff import dialog | **Any member** — same hole PERM-6 Task 4 closed on `square/locations`, deliberately out of that phase's scope. See ROADMAP `DEBT-10` | handler (auth only) |
 | SQ-6 | `square/catalog/sync`, `square/sales-items/sync` POST | Catalog syncs | ADMIN + inventory module | handler |
 | SQ-7 | `square/catalog/status` GET | Catalog sync status | Any member + module | handler |
 | SQ-8 | `square/sales/sync` POST | Sales sync trigger | Any member + module + store scope | handler + data-scope |
@@ -387,7 +388,7 @@ Deny-by-default: unknown capability → `false`.
 | `corporate.updates.manage` | ADMIN | PL-5 |
 | `templates.manage` | ADMIN | NV-4, PG-5, PL-10 |
 | `stores.view` | ADMIN, MANAGER (page tier; list API all roles scoped) | NV-5, PG-7, PL-11 |
-| `stores.manage` | ADMIN | PL-12 |
+| `stores.manage` | ADMIN | PL-12, SQ-5a |
 | `users.manage` | ADMIN | NV-6, PG-8, PL-14 |
 | `staff.view` | ADMIN, MANAGER (scoped) | NV-7, PG-9/10, PL-15 |
 | `staff.manage` | ADMIN, MANAGER (in-scope) | PL-16, PL-17 |
@@ -397,6 +398,7 @@ Deny-by-default: unknown capability → `false`.
 | `reports.view` | ADMIN, MANAGER | NV-8, PG-11 |
 | `forecasting.view` | ADMIN; MANAGER **scoped** — `scope()` returns `{access:"window", monthsAhead:1}`, limiting per-day forecast goals to the current and next month. Historical actuals are NOT limited. Assigned stores only for non-admins | NV-9, PG-12, FC-1, FC-1w, FC-1a |
 | `forecasting.edit` | ADMIN | FC-2 |
+| `forecasting.scope.all` | ADMIN | FC-1, FC-1a, PG-12 — **added by PERM-6 Task 5.** "Exempt from `StoreUserAssignment` scoping on forecasting reads", split out of `forecasting.edit`, which was doing this job *and* "may write goals" under one context flag named `isAdmin`. Both are ADMIN today, so behaviour is unchanged; the point is that PERM-5 can grant one without the other. Consumed by `requireForecastStore`, `forecasting/audit`'s store filter, and the `/forecasting` store picker — the three sites that read the fused flag |
 | `storeview.access` | ADMIN, MANAGER, STORE (nav tier; page allows all — gap #10) | NV-10, PG-13 |
 | `instagram.view` | all roles (when enabled) | NV-11, PG-18, IG-3 |
 | `instagram.manage` | ADMIN | IG-1 |

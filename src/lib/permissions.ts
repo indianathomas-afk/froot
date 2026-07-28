@@ -63,6 +63,7 @@ export type Capability =
   | "reports.view"
   | "forecasting.view"
   | "forecasting.edit"
+  | "forecasting.scope.all"
   | "storeview.access"
   | "instagram.view"
   | "instagram.manage"
@@ -144,6 +145,12 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   "reports.view": MANAGE,
   "forecasting.view": MANAGE,
   "forecasting.edit": ADMIN_ONLY,
+  // PERM-6 Task 5: "is exempt from StoreUserAssignment scoping on forecasting
+  // reads". Split OUT of forecasting.edit, which was doing both jobs under the
+  // name `isAdmin`. They coincide today because both are ADMIN_ONLY — the point
+  // is that PERM-5 can now grant one without the other. Granting a MANAGER
+  // forecasting.edit used to hand them every sibling store's forecast silently.
+  "forecasting.scope.all": ADMIN_ONLY,
   "storeview.access": OPERATIONAL, // §2 #10: page itself serves any member — needs ruling at migration
   "instagram.view": ALL, // feature gate (connected+enabled) stays at the call site
   "instagram.manage": ADMIN_ONLY,

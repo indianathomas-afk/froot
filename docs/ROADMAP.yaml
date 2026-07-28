@@ -965,6 +965,13 @@ phases:
       splits EMPLOYEE off STAFF and has to re-walk these same routes anyway.
     deferred:
       - >
+        RESOLVED 2026-07-27 by PERM-6 Task 1. POST /api/staff now runs both
+        checks, widest blast radius first: an org-ownership count (closing the
+        CROSS-TENANT hole this text had understated) and then, for non-admins,
+        a caller-scope check against getUserStoreScope().storeIds — org
+        membership is the floor, not the ceiling, which was this entry's
+        original point. Body is Zod-parsed and storeIds deduped. ORIGINAL TEXT
+        FOLLOWS:
         POST /api/staff accepts a storeIds array with no check that those
         stores are in the caller's scope — a MANAGER can assign a staff member
         to stores they do not manage. Tier is now correct; the scope hole is
@@ -1128,6 +1135,18 @@ phases:
       Session prompt: docs/prompts/PERM-5_per_user_capability_overrides.md
     blockers:
       - >
+        RESOLVED 2026-07-27 by PERM-6 Task 5 — kept in full below as the record
+        of what was wrong, because the trap it describes is exactly the kind
+        PERM-5 can re-arm. ForecastContext no longer has an `isAdmin` flag at
+        all: it carries `canEdit` (can(forecasting.edit)) and `unscoped`
+        (can(forecasting.scope.all), a new ADMIN_ONLY capability), and the
+        THREE sites that made a scoping decision off the fused flag —
+        requireForecastStore, forecasting/audit's store filter, and the
+        /forecasting store picker — all ask `unscoped`. Granting a MANAGER
+        forecasting.edit now grants goal editing and nothing else. Note the
+        original blocker text below named only the first of those three sites;
+        see the PERM-6 row for why the "one-file" scoping was wrong.
+        PERM-5 is no longer blocked on this. ORIGINAL TEXT FOLLOWS:
         PERMISSION FUSION — split "may write" from "may read any store" BEFORE
         building the override layer. Verified in source 2026-07-27:
         `ForecastContext.isAdmin` is literally `can(actor,
@@ -1155,13 +1174,26 @@ phases:
   - id: PERM-6
     track: permissions
     size: S
-    status: planned
+    status: staging
+    commits: [PENDING-SHA]
     title: "Store-assignment integrity — validate storeIds on every write, gate the locations route, split the forecasting isAdmin fusion"
     notes: >
+      SIZE: scoped S, DELIVERED ABOVE S — recorded honestly rather than left at
+      the estimate (Gary, 2026-07-27). It landed as 15 files. Two things grew:
+      Task 5 was scoped as a one-file change and was actually three sites (see
+      the correction under (e)), and the phase acquired real doc work —
+      PERMISSIONS_INVENTORY §1j/§5, DECISIONS.md, three new DEBT rows, and two
+      status entries cleared on other phases. The estimate was not unreasonable
+      given what the scoping audit had established; it was wrong because that
+      audit asked a narrower question than it answered. NOTHING WAS ADDED TO
+      SCOPE — still five fixes, still no schema, still no migration. The
+      correction is to the size vocabulary, not to the work: an S that reaches
+      15 files should say so, or S stops meaning anything on the next estimate.
       Scoped 2026-07-27 from a read-only audit of every store-assignment read
-      and write path. Five independent fixes, no schema change, no new
-      capability. Deliberately sequenced BEFORE PERM-7, so the new provisioning
-      flow is not built on top of unvalidated write paths.
+      and write path. Five independent fixes, no schema change, ONE new
+      capability (forecasting.scope.all — the original "no new capability"
+      claim did not survive Task 5). Deliberately sequenced BEFORE PERM-7, so
+      the new provisioning flow is not built on top of unvalidated write paths.
       (a) POST /api/staff (src/app/api/staff/route.ts:46-68) — storeIds from the
       request body flow straight into the nested storeAssignments.create with NO
       org-ownership query anywhere in the route, and the route is
@@ -1182,6 +1214,22 @@ phases:
       be in the caller's scope to reach the edit, but once inside, a MANAGER can
       set storeIds/primaryStoreId to ANY org store, including ones they do not
       manage. Narrower than (a) but the same class.
+      THE FIX IS DELTA-BASED, AND MUST STAY THAT WAY — do not "simplify" it to
+      the obvious "every storeId must be in caller scope". Found during
+      implementation 2026-07-27: that flat subset check would have 403'd
+      LEGITIMATE MANAGER SAVES. The edit dialog seeds its selection from the
+      member's FULL assignment set (staff-edit-actions.tsx:55) while rendering
+      only the manager's own stores (staff/[id]/page.tsx:120-131), so a staff
+      member who is also assigned to a store the manager does not manage
+      submits that foreign storeId straight back on every ordinary save — the
+      manager cannot see it and cannot remove it. So the check compares the
+      DELTA: a non-admin may only ADD or REMOVE stores within their own scope,
+      and pre-existing out-of-scope assignments pass through untouched.
+      For the same reason primaryStoreId is validated against the resulting
+      assignment set ONLY, never against caller scope — the dialog seeds it
+      from the member's existing primary, which may be an out-of-scope store,
+      so scope-checking it would 403 an untouched field. The chip path that
+      sets primary directly is already ADMIN-only (staff/page.tsx:169).
       (d) GET /api/square/locations (src/app/api/square/locations/route.ts:7-8)
       — NO role gate at all, only auth(). Any authenticated org member including
       STORE and STAFF can read the org's full Square location list. Worse than
@@ -1192,12 +1240,30 @@ phases:
       requireForecastStore its own capability or an explicit unscoped flag
       instead of reusing `isAdmin`, which is literally
       can(actor, "forecasting.edit") at src/lib/forecasting-access.ts:51.
-      SCOPE NOTE, verified: labor-access.ts derives LaborContext.isAdmin from
-      dbUser.role === "ADMIN", NOT from a capability, so it does NOT have this
-      coupling. This is a ONE-FILE fix, not a pattern-wide refactor.
-      Every other scoping helper (requireLaborStore, requireManageableStaff,
-      findManageableStaffMember, requireNoteAccess, requireCount) was audited
-      and found structurally identical and correct — no other divergence exists.
+      SCOPE CORRECTED 2026-07-27 during implementation — this row previously
+      said "This is a ONE-FILE fix, not a pattern-wide refactor", and that was
+      WRONG. The audit behind that claim swept SIBLING HELPERS IN OTHER MODULES
+      (labor-access.ts, requireLaborStore, requireManageableStaff,
+      findManageableStaffMember, requireNoteAccess, requireCount) and correctly
+      found them clean — labor-access.ts derives LaborContext.isAdmin from
+      dbUser.role === "ADMIN", not from a capability, so it genuinely does not
+      have this coupling, and those helpers still must NOT be harmonised. What
+      that audit never swept was FORECASTING'S OWN OTHER CONSUMERS of the same
+      fused flag. It established the pattern had not spread outward and
+      concluded the fix was one file; those are different questions. The flag
+      was public on ForecastContext, so its blast radius was every reader of
+      that context. THREE sites read it for a SCOPING decision:
+      (1) src/lib/forecasting-access.ts — the flag + requireForecastStore;
+      (2) src/app/api/forecasting/audit/route.ts — the audit-log store filter;
+      (3) src/app/(app)/forecasting/page.tsx — which stores the picker lists.
+      Fixing only (1) would have left PERM-5's trap half-armed (a MANAGER
+      granted forecasting.edit would still get org-wide audit reads and every
+      store in the picker), so the blocker could not honestly have been
+      cleared. Gary ruled 2026-07-27: fix all three. The fix NAMES THE TWO
+      POWERS APART rather than renaming one — ForecastContext now carries
+      `canEdit` and `unscoped`, and `isAdmin` is gone, because a single flag
+      answering two questions is what invited this. New capability
+      forecasting.scope.all (ADMIN_ONLY) in PERMISSIONS_INVENTORY.md §5.
       Session prompt: docs/prompts/PERM-6_store_assignment_integrity.md
     open:
       - >
@@ -1284,10 +1350,23 @@ phases:
       as its Task 0).
     blockers:
       - >
+        RESOLVED 2026-07-27 — PERM-6 is in staging (see its row). The write
+        paths this phase builds on now validate storeIds. ORIGINAL TEXT:
         Do not start before PERM-6. This phase adds a NEW write path that
         creates users and store assignments; building it on top of the
         unvalidated storeIds paths in PERM-6 (a)/(b) would replicate the hole
         into a new surface rather than closing it.
+      - >
+        READ DEBT-11 BEFORE WRITING THE PROVISIONING CALL. Cross-referenced
+        here 2026-07-27 (Gary) because PERM-7 is the next phase and is exactly
+        the caller that trips it: PATCH /api/staff/[id] dedupes storeIds for
+        the ownership COMPARISON but builds finalStoreIds from the RAW array,
+        so a body carrying the same storeId twice passes validation and then
+        500s on the (staffMemberId, storeId) unique constraint in createMany.
+        Not reachable from today's UI — the dialogs hold selections in a Set —
+        which is precisely why a new programmatic writer is the one that finds
+        it. POST /api/staff already dedupes correctly after PERM-6 Task 1;
+        copy that, and fix DEBT-11 rather than routing around it.
     open:
       - >
         VERIFY BEFORE DESIGNING AROUND IT, two unknowns, both cheap to check and
@@ -2034,6 +2113,18 @@ debt:
       /stores says nothing at all, and /users says corporate@keva.com. Nothing
       cross-references anything. Gary's report — "it just seems confusing" — is
       an accurate reading of the system, not a misreading of the UI.
+      CHANGED UNDER YOU 2026-07-27 by PERM-6 Task 4 — read this before
+      starting. GET /api/square/locations no longer spreads the whole Square
+      object; it now returns an explicit allow-list (id, name, address
+      {address_line_1, locality, administrative_district_level_1},
+      phone_number, timezone, alreadyImported), verified against both callers
+      as the fields actually consumed. `business_email` therefore NO LONGER
+      REACHES THE CLIENT. This is not a regression to report — it was dropped
+      knowingly, because nothing read it and the route is the org's Square data
+      going over the wire. DEBT-8's first step is to add `business_email` back
+      to that allow-list, one line in src/app/api/square/locations/route.ts,
+      at the point a consumer actually exists. Gary's call, 2026-07-27:
+      widening later is easy, narrowing after something depends on it is not.
       FIX: map business_email → contactEmail at import, and surface it on the
       store card. Independently useful, but it is also the PREREQUISITE for
       PERM-7(d), which seeds a device login's email from it — a seed cannot come
@@ -2075,3 +2166,73 @@ debt:
       before either account signs anything, and before BUILD-2's index lands.
       Urgency is low; the cost of leaving it is that the first document either
       owner signs freezes an arbitrary one of nine stores into a legal record.
+
+  - id: DEBT-10
+    title: "GET /api/square/team-members has no role gate — the same hole PERM-6 closed on square/locations"
+    notes: >
+      CHECK BY 2026-07-31 — OWNER: GARY. Assigned a date and an owner at
+      logging (Gary, 2026-07-27) rather than at some later reconcile, because
+      this is NOT a docs-staleness item: it is a LIVE PII EXPOSURE. Every
+      employee's email address and phone number in the org is readable by any
+      authenticated account, including STAFF. Do not let it acquire the
+      17-days-unverified shape the Instagram and HR-11b blockers did.
+      The fix is the SAME SHAPE as PERM-6 Task 4 — a can() gate plus a field
+      allow-list, copied from src/app/api/square/locations/route.ts — so it is
+      cheap while that pattern is fresh, and gets more expensive once nobody
+      remembers the two-part shape. See the FIX paragraph below for the exact
+      capability and call site.
+      Found 2026-07-27 while fixing PERM-6 Task 4, deliberately NOT fixed there
+      (Task 4 was scoped to square/locations). src/app/api/square/team-members/
+      route.ts:6-11 has only auth() plus the org lookup — no can() call — so
+      any authenticated org member including STORE and STAFF can read the
+      org's full Square team-member list. Identical shape to the locations
+      finding: it also spreads the whole Square object (`...m` at :24), so
+      every field Square returns on a team member — including email_address
+      and phone_number for every employee in the org — reaches the client.
+      Arguably worse than the locations case, because the payload is personal
+      data about staff rather than business locations.
+      The inventory row was SPLIT to record this: PERMISSIONS_INVENTORY.md §1j
+      SQ-5 is now SQ-5a (locations, fixed, ADMIN via stores.manage) and SQ-5b
+      (team-members, still any member).
+      FIX when picked up: gate at staff.sync.square (ADMIN_ONLY) — the sole
+      caller is the staff import dialog at
+      src/app/(app)/staff/staff-buttons.tsx:167, which already renders only
+      under isAdmin (staff/page.tsx:92) — and replace the spread with an
+      allow-list of the fields the dialog consumes. Same two-part shape as
+      PERM-6 Task 4, so copy that route.
+
+  - id: DEBT-11
+    title: "PATCH /api/staff/[id] can 500 on a duplicated storeId in the request body"
+    notes: >
+      Found 2026-07-27 while fixing PERM-6 Task 3, in the block being changed;
+      written down rather than fixed inline because it is a robustness bug, not
+      that phase's finding. src/app/api/staff/[id]/route.ts validates ownership
+      with `orgStores.length !== new Set(storeIds).size` — deduping for the
+      COMPARISON — but then builds finalStoreIds from the RAW array. A body
+      carrying the same storeId twice passes validation and reaches
+      storeStaffAssignment.createMany with two identical rows, violating the
+      (staffMemberId, storeId) unique constraint: an unhandled 500.
+      Not reachable from the UI — the dialog holds selections in a Set — so
+      this is hardening against a hand-made or future programmatic caller, and
+      PERM-7 is exactly such a caller.
+      FIX: dedupe once at the top (`const storeIds = [...new Set(parsed.data
+      .storeIds)]`) and use that everywhere, as POST /api/staff now does after
+      PERM-6 Task 1.
+
+  - id: DEBT-12
+    title: "POST /api/staff does not validate email format; the sibling PATCH does"
+    notes: >
+      Found 2026-07-27 during PERM-6 Task 1, deliberately left alone. The new
+      Zod schema on src/app/api/staff/route.ts types `email` as a bounded
+      string but NOT .email(), while the sibling PATCH at
+      src/app/api/staff/[id]/route.ts:13 validates the format properly. The
+      asymmetry is now deliberate and commented in the schema: tightening it in
+      PERM-6 would have started 400ing Square-imported rows (the import posts
+      m.email_address straight through) on a data-quality problem that was not
+      that phase's finding, and a partial staff import failing mid-run is a
+      worse outcome than a malformed email in a nullable column.
+      FIX when picked up: add .email() to the POST schema AND first check what
+      the live Square team-member data actually contains, since the import path
+      is the one that would start failing. The import surfaces per-row failures
+      with their reason (staff-buttons.tsx:246-259), so the failure mode is at
+      least legible — but it should be a decision, not a surprise.

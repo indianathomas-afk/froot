@@ -34,7 +34,7 @@ export async function GET(req: Request) {
           updatedAt: plan.updatedAt,
         }
       : null,
-    canEdit: ctx.isAdmin,
+    canEdit: ctx.canEdit,
   })
 }
 

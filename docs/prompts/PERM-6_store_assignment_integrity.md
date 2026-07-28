@@ -3,7 +3,11 @@
 **Track:** PERM (permissions)
 **Branch:** staging
 **Type:** Implementation (5 independent fixes)
-**Size:** S — no schema, no migration, no new capability
+**Size:** scoped S; **delivered above S** — 15 files, and Task 5 was three sites
+rather than the one it was scoped as. No schema and no migration, as planned,
+but **one new capability** (`forecasting.scope.all`) — the original "no new
+capability" claim did not survive Task 5. Scope itself never grew; the estimate
+was wrong. See the PERM-6 row in `docs/ROADMAP.yaml`.
 **Depends on:** PERM-1 (prod), PERM-2 (prod), PERM-3 (prod)
 **Blocks:** PERM-7 (do not start PERM-7 first)
 **Created:** 2026-07-27
@@ -101,13 +105,43 @@ via check S4.
 Give `requireForecastStore` its own capability (e.g. `forecasting.scope.all`) or
 an explicit unscoped flag on the context.
 
-**Verified scope — this is a ONE-FILE fix.** `labor-access.ts` derives
-`LaborContext.isAdmin` from `dbUser.role === "ADMIN"`, not from a capability, so
-it does **not** have this coupling. Every other scoping helper
-(`requireLaborStore`, `requireManageableStaff`, `findManageableStaffMember`,
-`requireNoteAccess`, `requireCount`) was audited on 2026-07-27 and found
-structurally identical and correct. **Do not "harmonise" them** — they are
-already right, and touching them is scope creep with regression risk.
+**Scope — CORRECTED 2026-07-27 during implementation. This is a THREE-SITE fix,
+not one file.** The original "ONE-FILE" claim is left here in full, because how
+it went wrong is the useful part:
+
+> ~~**Verified scope — this is a ONE-FILE fix.** `labor-access.ts` derives
+> `LaborContext.isAdmin` from `dbUser.role === "ADMIN"`, not from a capability,
+> so it does **not** have this coupling. Every other scoping helper
+> (`requireLaborStore`, `requireManageableStaff`, `findManageableStaffMember`,
+> `requireNoteAccess`, `requireCount`) was audited on 2026-07-27 and found
+> structurally identical and correct.~~
+
+Everything that paragraph *asserts* is true. The audit behind it swept
+**sibling helpers in other modules** and correctly found them clean. What it
+never swept was **forecasting's own other consumers of the same fused flag** —
+it verified the pattern did not spread outward, and concluded from that the fix
+was one file. Those are different questions. The flag was public on
+`ForecastContext`, so its blast radius was every reader of that context, not
+every module with a similar-looking helper.
+
+Three sites read `ctx.isAdmin` / `can(forecasting.edit)` for a **scoping**
+decision:
+
+1. `src/lib/forecasting-access.ts` — the context flag and `requireForecastStore`
+2. `src/app/api/forecasting/audit/route.ts` — the audit-log store filter
+3. `src/app/(app)/forecasting/page.tsx` — which stores appear in the picker
+
+Fixing only (1) leaves the PERM-5 trap half-armed: the first MANAGER granted
+`forecasting.edit` would still get org-wide audit reads and every store in the
+picker, so the blocker could not honestly be cleared. All three are fixed.
+
+The fix names the two powers apart rather than renaming one: `ForecastContext`
+now carries **`canEdit`** and **`unscoped`**, and `isAdmin` is gone. A single
+flag that answers two questions is what invited this, so the name is the guard.
+
+**Still do not "harmonise" the sibling helpers** — `labor-access.ts` et al are
+already right, and touching them is scope creep with regression risk. That half
+of the original instruction stands.
 
 After this lands, clear PERM-5's blocker in `ROADMAP.yaml`.
 

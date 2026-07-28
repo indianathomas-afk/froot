@@ -60,7 +60,35 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (orgStores.length !== new Set(storeIds).size) {
       return NextResponse.json({ error: "One or more stores are invalid" }, { status: 400 })
     }
+    // PERM-6 Task 3. Org ownership was checked here; CALLER SCOPE was not, so
+    // a MANAGER who could reach this member could reassign them to ANY store
+    // in the org, including ones they do not manage.
+    //
+    // DELTA-based deliberately — do NOT "simplify" this to "every storeId must
+    // be in caller scope". That flat check would 403 legitimate manager saves:
+    // the edit dialog seeds its selection from the member's FULL assignment set
+    // (staff-edit-actions.tsx:55) while rendering only the manager's own stores
+    // (staff/[id]/page.tsx:120-131), so a member also assigned to a store the
+    // manager does not manage submits that foreign id straight back on every
+    // ordinary save. A manager may only ADD or REMOVE stores within their own
+    // scope; pre-existing out-of-scope assignments pass through untouched.
+    if (!isAdmin) {
+      const current = new Set(member.storeAssignments.map((a) => a.storeId))
+      const next = new Set(storeIds)
+      const touched = [
+        ...[...next].filter((sid) => !current.has(sid)),
+        ...[...current].filter((sid) => !next.has(sid)),
+      ]
+      if (touched.some((sid) => !scopeStoreIds.includes(sid))) {
+        return NextResponse.json({ error: "You can only add or remove stores you manage" }, { status: 403 })
+      }
+    }
   }
+  // primaryStoreId is checked against the resulting assignment set only, NOT
+  // against caller scope (PERM-6 Task 3): the edit dialog seeds it from the
+  // member's existing primary, which may be a store this manager does not
+  // manage, so scope-checking it would 403 an untouched field. The chip path
+  // that sets it directly is already ADMIN-only (staff/page.tsx:169).
   const finalStoreIds = storeIds ?? member.storeAssignments.map((a) => a.storeId)
   if (primaryStoreId && !finalStoreIds.includes(primaryStoreId)) {
     return NextResponse.json({ error: "Primary store must be one of the assigned stores" }, { status: 400 })

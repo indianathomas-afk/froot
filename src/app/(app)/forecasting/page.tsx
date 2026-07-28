@@ -24,10 +24,15 @@ export default async function ForecastingPage() {
   // Same capability the sidebar entry and every /api/forecasting read ask, so
   // the page can never render for someone its APIs would refuse (PERM-2).
   if (!can({ role }, "forecasting.view")) redirect("/dashboard")
-  const isAdmin = can({ role }, "forecasting.edit")
+  // PERM-6 Task 5: one `isAdmin = can(forecasting.edit)` used to do both jobs
+  // here too — it gated the edit affordances AND decided whether the store
+  // picker showed every store or only the caller's. Split, so the picker list
+  // matches exactly what requireForecastStore will allow through.
+  const canEdit = can({ role }, "forecasting.edit")
+  const unscoped = can({ role }, "forecasting.scope.all")
 
   const stores = await prisma.store.findMany({
-    where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
+    where: { organizationId: org.id, isActive: true, ...(unscoped ? {} : { id: { in: storeIds } }) },
     orderBy: { name: "asc" },
     select: { id: true, name: true, squareLocationId: true, timezone: true },
   })
@@ -47,7 +52,7 @@ export default async function ForecastingPage() {
         squareLinked: !!s.squareLocationId,
         today: localDateStr(now, s.timezone),
       }))}
-      isAdmin={isAdmin}
+      isAdmin={canEdit}
       windowed={scope({ role }, "forecasting.view").access === "window"}
       squareConnected={!!org.squareAccessToken}
       currentYear={now.getFullYear()}
