@@ -12,6 +12,9 @@ type SquareLocation = {
   address?: { address_line_1?: string; locality?: string; administrative_district_level_1?: string }
   phone_number?: string
   timezone?: string
+  // DEBT-8: Square's per-location contact address. Free text and NOT guaranteed
+  // unique across locations — see the collision handling in PERM-7.
+  business_email?: string
   alreadyImported: boolean
 }
 
@@ -62,6 +65,10 @@ export function ImportSquareButton() {
               state: loc.address?.administrative_district_level_1 ?? "",
               timezone: loc.timezone ?? "America/Los_Angeles",
               phoneNumber: loc.phone_number ?? "",
+              // DEBT-8: this mapping is the whole bug — every other field was
+              // carried across at import and the email was silently dropped,
+              // so Store.contactEmail was never populated by anything.
+              contactEmail: loc.business_email ?? "",
               squareLocationId: loc.id,
             }),
           })

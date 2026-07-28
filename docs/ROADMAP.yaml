@@ -1345,11 +1345,34 @@ phases:
     status: planned
     title: "Store device logins — provision a store account from /stores, Square-seeded email, role-aware badge"
     notes: >
-      Scoped 2026-07-27 with Gary. Makes an EXISTING CONVENTION first-class
-      rather than inventing a model. Today a store device login is built by
-      hand: an admin invites a user on /users, picks role STORE, and ticks one
-      store. Las Brisas already has exactly this (Tommy Thomas /
-      corporate@keva.com, role STORE, assigned to #0014). Nothing names the
+      Scoped 2026-07-27 with Gary.
+      REFRAMED 2026-07-28 AGAINST PRODUCTION — this phase ESTABLISHES a
+      convention; it does not formalise an existing one. The original framing
+      ("makes an EXISTING CONVENTION first-class") rested on a single live
+      example that does not survive contact with the production database. Every
+      detail of it was wrong. Verified read-only on 2026-07-28 against the
+      production Neon branch, org "Keva Juice" org_3FhYUR4l0ue7egug1I0Ig8wxOVn
+      (the Square-connected one, 9 stores):
+      the account assigned to Las Brisas is kevajuice14@icloud.com, NOT
+      corporate@keva.com — no corporate@keva.com User row exists in production
+      at all; its role is MANAGER, NOT STORE; it is assigned to TWO stores
+      (Las Brisas AND South Reno), not one; Las Brisas has storeNumber NULL, so
+      "#0014" does not exist; and User.name is null for all 8 production users,
+      so nothing is named "Tommy Thomas" (the /users page composes its name
+      column from Clerk's first/last name, not from the DB — see the Task 7
+      note below, which turns on the same fact).
+      THE LOAD-BEARING FINDING: there are ZERO users with role STORE anywhere
+      in production. Role histogram across all orgs is ADMIN 5, MANAGER 2,
+      STAFF 1. The pattern this phase claimed to make first-class has never
+      been built once, and the nearest live account is a two-store MANAGER —
+      a direct counterexample to "one store per device account".
+      That does not invalidate the design, and one-store-per-device REMAINS
+      THE RULE for accounts this flow creates (it is what sidesteps BUILD-2 for
+      devices). It changes what the phase is: net-new convention, so the
+      enforcement in (f) is the point rather than a tidy-up, and no existing
+      account is evidence for the shape.
+      Today a store device login would be built by hand: an admin invites a
+      user on /users, picks role STORE, and ticks one store. Nothing names the
       pattern, nothing enforces it, and nothing provisions it in one step.
       NOT A SECOND PERMISSION MODEL — verified there is no direct
       user-creation path anywhere (provisioning is Clerk-invite-only), and Clerk
@@ -1389,10 +1412,25 @@ phases:
       first thing this phase buys is the ability to answer "does this store have
       a login, and whose is it?" on the page where the question is asked.
       (f) Enforce the STORE-is-a-device convention through the flow: default the
-      account name to the store, not a person. The live Las Brisas account is
-      named "Tommy Thomas" on a corporate address — data that predates the
-      2026-07-27 ruling and contradicts it. Do NOT retro-repoint existing
+      account name to the store, not a person. Do NOT retro-repoint existing
       accounts; surface the drift instead.
+      CORRECTED 2026-07-28 — the "Tommy Thomas on a corporate address" evidence
+      cited here was wrong (see the reframe above; production User.name is null
+      for every user). The argument for enforcing the convention in the flow
+      SURVIVES the correction and is in fact stronger: with zero STORE accounts
+      in production there is no precedent to inherit, so whatever this flow
+      produces IS the convention.
+      HOW, given no schema change (Gary's Ruling 4, 2026-07-28): the invite
+      carries only email + role, and User.name is written by the Clerk webhook
+      from the invitee's own first/last name
+      (src/app/api/webhooks/clerk/route.ts:119) — i.e. whatever a human types at
+      sign-up. PendingInvite has no name column and schema is frozen, so
+      provisioning cannot set the name directly. The webhook instead derives it:
+      when pending.role === "STORE" AND the invite carries exactly one storeId,
+      User.name defaults to that store's name. CREATE-ONLY — the create branch
+      of the upsert, never the update branch, or every later Clerk event for
+      that user would reset a name someone has since corrected. If that cannot
+      be cleanly confined to create, Task 7 is CUT and filed rather than bodged.
       NOT BLOCKED ON BUILD-2 (corrected 2026-07-27 — an earlier read said it
       was). BUILD-2 solves default-store for multi-store HUMANS; a device
       account has one store.
@@ -1407,35 +1445,82 @@ phases:
         unvalidated storeIds paths in PERM-6 (a)/(b) would replicate the hole
         into a new surface rather than closing it.
       - >
-        READ DEBT-11 BEFORE WRITING THE PROVISIONING CALL. Cross-referenced
-        here 2026-07-27 (Gary) because PERM-7 is the next phase and is exactly
-        the caller that trips it: PATCH /api/staff/[id] dedupes storeIds for
-        the ownership COMPARISON but builds finalStoreIds from the RAW array,
-        so a body carrying the same storeId twice passes validation and then
-        500s on the (staffMemberId, storeId) unique constraint in createMany.
-        Not reachable from today's UI — the dialogs hold selections in a Set —
-        which is precisely why a new programmatic writer is the one that finds
-        it. POST /api/staff already dedupes correctly after PERM-6 Task 1;
-        copy that, and fix DEBT-11 rather than routing around it.
+        WITHDRAWN 2026-07-28 (Gary) — THE ORIGINAL RATIONALE WAS WRONG, not
+        merely superseded. This blocker was written onto the row on 2026-07-27
+        claiming "PERM-7 is exactly the caller that trips [DEBT-11]". It is
+        not, and the audit that opened PERM-7 caught it. DEBT-11 is in PATCH
+        /api/staff/[id], which writes storeStaffAssignment. PERM-7 provisions
+        storeUserAssignment through POST /api/users -> PendingInvite -> the
+        Clerk webhook. Different table, different route, no overlap: PERM-7
+        never calls the route DEBT-11 lives in. The claim was reasoning by
+        analogy ("a new programmatic writer of storeIds") without checking
+        which write path PERM-7 actually uses.
+        The path PERM-7 does use is already safe at both ends, which is the
+        other half of why this was never a blocker: POST /api/users dedupes at
+        src/app/api/users/route.ts:86-88 (`[...new Set(...)]`, added by PERM-6
+        Task 2), and the webhook builds its createMany from a findMany result
+        with skipDuplicates: true at
+        src/app/api/webhooks/clerk/route.ts:144-148.
+        DEBT-11 REMAINS OPEN AND UNFIXED — deliberately, Gary's Ruling 2,
+        2026-07-28. It stays debt under the PERM-2 scope precedent: a hole
+        inside a function already being changed gets fixed inline, anything
+        else gets written down. PERM-7 does not touch that route, so the test
+        fails and it is left filed. Size was not the criterion — "four lines"
+        is not a reason to widen a phase.
+        ORIGINAL TEXT, kept so the error is legible: "READ DEBT-11 BEFORE
+        WRITING THE PROVISIONING CALL. Cross-referenced here 2026-07-27 (Gary)
+        because PERM-7 is the next phase and is exactly the caller that trips
+        it: PATCH /api/staff/[id] dedupes storeIds for the ownership COMPARISON
+        but builds finalStoreIds from the RAW array, so a body carrying the
+        same storeId twice passes validation and then 500s on the
+        (staffMemberId, storeId) unique constraint in createMany. Not reachable
+        from today's UI — the dialogs hold selections in a Set — which is
+        precisely why a new programmatic writer is the one that finds it. POST
+        /api/staff already dedupes correctly after PERM-6 Task 1; copy that,
+        and fix DEBT-11 rather than routing around it."
     open:
       - >
-        VERIFY BEFORE DESIGNING AROUND IT, two unknowns, both cheap to check and
-        both capable of changing the flow. (1) Are the per-location Square
-        mailboxes actually reachable? The Clerk invite must be ACCEPTED, so an
-        unmonitored address means no device account. Mitigating: whoever sets up
-        the iPad is physically at it, so acceptance is a one-time setup step
-        rather than a blocker. (2) Does plus-addressing
-        (kevajuice+0014@icloud.com) survive Clerk's email normalisation? If it
-        does, it is an elegant answer to the collision case below — one real
-        mailbox, N distinct device identities. Do not assume it works.
+        RESOLVED 2026-07-28, both unknowns, with evidence rather than reasoning.
+        (1) PLUS-ADDRESSING SURVIVES — Clerk never canonicalises subaddresses;
+        it only optionally BLOCKS them, via the instance setting
+        `block_email_subaddresses` (Dashboard -> Restrictions -> "Block email
+        subaddresses"). That flag reads FALSE on both instances, checked
+        2026-07-28 against Clerk's public Frontend API GET /v1/environment at
+        clerk.usefroot.com (production) and verified-snapper-7.clerk.accounts.dev
+        (development, which also serves staging). Backend API GET
+        /instance/restrictions is 405 (PATCH-only), so /v1/environment is the
+        one-call re-check for a future session. See DECISIONS.md 2026-07-28 —
+        this is a dashboard setting nothing in the repo pins.
+        (2) THE MAILBOXES ARE REACHABLE, on the best evidence available without
+        the production Clerk key (Sensitive; pulls as [SENSITIVE]):
+        kevajuice14@icloud.com and kevajuice06@icloud.com are both already live
+        production Clerk identities with User rows and store assignments, so
+        those per-location addresses have demonstrably completed a sign-up.
+        Not distinguishable from a Clerk-dashboard add without that key.
+        INCIDENTAL, recorded because it shapes the staging pass: the development
+        instance has `username` as a REQUIRED identity attribute and production
+        does not. A staging sign-up therefore exercises a different shape than
+        production — and it is exactly the BUG-2 hazard (identifier is the
+        username, not the email) that the webhook already guards against.
       - >
         Square's business_email is NOT guaranteed unique per location — it is
         free text, and many operators put one address on every location. Clerk
         requires a unique email per user, so N locations sharing an address
         means exactly ONE device login can be provisioned and the rest hard-fail.
         Keva's per-location convention (kevajuice14@) is good practice, not a
-        Square guarantee. The flow must detect the collision and require a
-        distinct address rather than failing opaquely at the Clerk call.
+        Square guarantee.
+        CONFIRMED LIVE 2026-07-28, not hypothetical: the production Square
+        account returns 19 locations, and corporate@keva.com is the
+        business_email on FOUR of them (Cafe De Keva Cart, Cafe De Keva Cart 2,
+        Keva Juice, Keva Kiosk), gary@kevajuice.com on two more. All NINE
+        currently-imported stores happen to hold distinct addresses, so the
+        collision is latent today and fires on the next import.
+        HANDLING (Gary, 2026-07-28): prefill the plus-addressed variant as an
+        editable SUGGESTION rather than demanding the operator invent an
+        address — "require a distinct address" is easy to write and may be
+        impossible for them to satisfy. Detection must switch on the Clerk error
+        CODE (already_a_member_in_organization, organization_invitation_not_unique
+        — both HTTP 400) via isClerkAPIResponseError, not on message text.
 
   # ---- Security ----
 
@@ -2144,8 +2229,14 @@ debt:
       SEC-4 (logged from this same file's housekeeping note).
 
   - id: DEBT-8
+    # FIRST debt row ever closed, so this field is new here — the vocabulary is
+    # borrowed from the phase rows (staging -> shipped). The internal roadmap UI
+    # does NOT read it yet and still lists every debt item under "Known debt —
+    # recorded, not yet fixed"; see DEBT-14.
+    status: staging
     title: "Square import discards business_email — Store.contactEmail exists but is never populated"
     notes: >
+      CLOSED 2026-07-28 as PERM-7 Task 0, committed separately (Ruling 1).
       Logged 2026-07-27. Every piece of this already exists; two lines connect
       them, and neither was written.
       `Store.contactEmail` is in the schema (prisma/schema.prisma:118, nullable)
@@ -2156,13 +2247,18 @@ debt:
       reaches the client on every import. But the import dialog's POST body maps
       only name, address, city, state, timezone, phoneNumber and
       squareLocationId (src/app/(app)/stores/import-square-button.tsx:58-66) —
-      the email is silently dropped. The store CARD then renders address, phone
-      and timezone but never the email, so the field is invisible even when set.
-      CONSEQUENCE: one store's email has three uncoordinated answers depending
-      where you look. For Las Brisas, Square says kevajuice14@icloud.com,
-      /stores says nothing at all, and /users says corporate@keva.com. Nothing
-      cross-references anything. Gary's report — "it just seems confusing" — is
-      an accurate reading of the system, not a misreading of the UI.
+      the email is silently dropped.
+      CORRECTION 2026-07-28 — THE SECOND HALF OF THAT SENTENCE WAS WRONG WHEN
+      WRITTEN, and the original prompt inherited it as Task 0 step 2. The row
+      claimed "the store CARD then renders address, phone and timezone but never
+      the email, so the field is invisible even when set." The card HAS rendered
+      contactEmail, behind a Mail icon, since the initial commit:
+      src/app/(app)/stores/page.tsx:182-187, dated to 1cfdf76 (2026-06-26) by
+      `git log -L 182,187`. This was not PERM-6 drift and not a regression —
+      the claim was simply never checked against the file. There was nothing to
+      build for that step; it was already shipped. Recorded rather than quietly
+      dropped, because a false "it's invisible" is what made the field look
+      more broken than it was.
       CHANGED UNDER YOU 2026-07-27 by PERM-6 Task 4 — read this before
       starting. GET /api/square/locations no longer spreads the whole Square
       object; it now returns an explicit allow-list (id, name, address
@@ -2175,8 +2271,33 @@ debt:
       to that allow-list, one line in src/app/api/square/locations/route.ts,
       at the point a consumer actually exists. Gary's call, 2026-07-27:
       widening later is easy, narrowing after something depends on it is not.
-      FIX: map business_email → contactEmail at import, and surface it on the
-      store card. Independently useful, but it is also the PREREQUISITE for
+      THE MAPPING ALONE POPULATES NOTHING — found 2026-07-28 against the
+      PRODUCTION database, and it is why this row grew a third fix. Store
+      .contactEmail is null on 10 of 10 production stores. The import dialog is
+      the ONLY writer of these fields and it filters out already-imported
+      locations (`available = locations.filter((l) => !l.alreadyImported)`),
+      and there was no store-level "Resync from Square" the way there is a
+      per-member one for staff. So all 9 Square-linked production stores were
+      permanently unreachable by the import mapping, and PERM-7(d)'s email seed
+      would have come up empty for every existing store INCLUDING Las Brisas —
+      the exact store the phase was designed around.
+      FIX, as landed (three parts, not two):
+      (a) re-add business_email to the allow-list —
+      src/app/api/square/locations/route.ts:63-83;
+      (b) map business_email → contactEmail at import —
+      src/app/(app)/stores/import-square-button.tsx:58-72;
+      (c) NEW per-store "Resync from Square" so already-imported stores have a
+      path at all — src/app/api/stores/[id]/resync-square/route.ts (new) +
+      src/lib/square.ts fetchSquareLocation + the button in
+      src/app/(app)/stores/store-actions.tsx. Gary's Ruling 3, 2026-07-28: a
+      one-shot backfill script fixes today and nothing afterwards — the same gap
+      reopens for the next store whose Square email changes, with no mechanism
+      to notice. The button also gives PERM-7(d)'s drift indicator a remedy:
+      see drift, click resync. Scoped to exactly the field set the import maps,
+      so import and resync cannot drift apart.
+      Step 2 as originally written ("surface it on the store card") required NO
+      CHANGE — see the correction above.
+      Independently useful, but it is also the PREREQUISITE for
       PERM-7(d), which seeds a device login's email from it — a seed cannot come
       from a column nothing populates. See DECISIONS.md 2026-07-27 for why that
       seeding is one-way and never a live sync.
@@ -2332,3 +2453,27 @@ debt:
       moves the member under a heading which contradicts the Primary star
       shown on their own row and chips. This needs NO permissions change: the
       query already returns the right people, so it is a display decision.
+
+  - id: DEBT-14
+    title: "The internal roadmap UI lists closed debt under \"not yet fixed\" — it ignores a debt row's status"
+    notes: >
+      Found 2026-07-28 while closing DEBT-8, which is the FIRST debt row ever
+      resolved — so this was latent from the day the section was written and
+      nothing could have surfaced it earlier. Written down rather than fixed
+      inline: PERM-7 Task 0 does not touch the roadmap UI, and the PERM-2 scope
+      precedent is that a hole gets fixed inline only when the phase is already
+      inside the function (same rule Gary applied to DEBT-11 in Ruling 2,
+      2026-07-28).
+      THE BUG: src/app/(app)/internal/roadmap/roadmap-client.tsx:676-682 renders
+      `debt.map(...)` unconditionally under the heading "Known debt — recorded,
+      not yet fixed" (:679). Phase rows carry a `status` the UI groups on; debt
+      rows never did, because none had ever been closed. DEBT-8 now carries
+      `status: staging` and the UI ignores it, so a resolved item is presented
+      as outstanding.
+      scripts/generate-roadmap.mjs passes the field through untouched
+      (normalize() at :95 preserves unknown keys), so the data is already
+      there — this is purely a render change.
+      FIX DIRECTION: group or filter debt on `status` the way phases are, and
+      re-word the heading so it does not assert "not yet fixed" over a mixed
+      list. Treat a MISSING status as open — every existing debt row omits it,
+      and defaulting the other way would silently hide all thirteen.

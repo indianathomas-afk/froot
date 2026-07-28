@@ -1,6 +1,6 @@
 "use client"
 
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil, Trash2, RefreshCw } from "lucide-react"
 import { useState } from "react"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -58,6 +58,8 @@ export function StoreActions({ store }: { store: StoreForEdit }) {
 
   const [locations, setLocations] = useState<SquareLocation[] | null>(null)
   const [locationsLoading, setLocationsLoading] = useState(false)
+  const [resyncing, setResyncing] = useState(false)
+  const [resyncError, setResyncError] = useState<string | null>(null)
 
   const [form, setForm] = useState({
     name: store.name,
@@ -148,6 +150,25 @@ export function StoreActions({ store }: { store: StoreForEdit }) {
     }
   }
 
+  // DEBT-8 / PERM-7 Task 0: the only way to populate contactEmail on a store
+  // that was already imported — the import dialog filters those out. Mirrors
+  // the per-member Resync from Square on the staff profile.
+  async function handleResync() {
+    setResyncing(true)
+    setResyncError(null)
+    try {
+      const res = await fetch(`/api/stores/${store.id}/resync-square`, { method: "POST" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setResyncError(data?.error ?? "Resync failed.")
+        return
+      }
+      router.refresh()
+    } finally {
+      setResyncing(false)
+    }
+  }
+
   // A Square location is pickable if it's unlinked, or it's this store's own link.
   const pickableLocations = (locations ?? []).filter(
     (l) => !l.alreadyImported || l.id === store.squareLocationId
@@ -155,6 +176,40 @@ export function StoreActions({ store }: { store: StoreForEdit }) {
 
   return (
     <div className="flex items-center gap-1">
+      {/* Only meaningful for a Square-linked store; hidden rather than disabled
+          for the rest, which have nothing to resync from. */}
+      {store.squareLocationId && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              className="p-1.5 rounded hover:bg-[var(--color-accent)] transition-colors disabled:opacity-50"
+              disabled={resyncing}
+              aria-label="Resync store from Square"
+            >
+              <RefreshCw
+                className={`h-4 w-4 text-[var(--color-muted-foreground)] ${resyncing ? "animate-spin" : ""}`}
+              />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Resync {store.name} from Square?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Square becomes authoritative for this location&apos;s{" "}
+                <strong>name, address, phone, timezone and contact email</strong> — any hand-edits to
+                those fields are replaced. Store number, brand, ZIP and hours are Froot&apos;s own and
+                are left alone, and this never changes an existing login&apos;s email.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {resyncError && <p className="text-sm text-[var(--color-destructive)]">{resyncError}</p>}
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResync}>Resync</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       <button
         className="p-1.5 rounded hover:bg-[var(--color-accent)] transition-colors"
         onClick={handleEditOpen}

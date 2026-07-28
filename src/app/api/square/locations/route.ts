@@ -5,8 +5,8 @@ import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { squareBaseUrl } from "@/lib/square"
 
-// Fields the two callers actually consume — the store import dialog
-// (stores/import-square-button.tsx:59-65) and the Edit Store location picker
+// Fields the callers actually consume — the store import dialog
+// (stores/import-square-button.tsx:59-67) and the Edit Store location picker
 // (stores/store-actions.tsx:244-246). Everything else Square returns is
 // withheld. See the PERM-6 Task 4 note below.
 type SquareLocation = Record<string, unknown> & {
@@ -15,6 +15,7 @@ type SquareLocation = Record<string, unknown> & {
   address?: { address_line_1?: string; locality?: string; administrative_district_level_1?: string }
   phone_number?: string
   timezone?: string
+  business_email?: string
 }
 
 export async function GET() {
@@ -56,10 +57,15 @@ export async function GET() {
   // second, separate improvement. The route used to spread the ENTIRE Square
   // location object (`...loc`), so business_email, coordinates, merchant_id,
   // tax ids and every other field reached the client on every import. Nothing
-  // consumes them — verified against both callers. DEBT-8 (map business_email
-  // → Store.contactEmail at import, and PERM-7(d)'s device-login email seed)
-  // is the one known future consumer: it re-adds `business_email` HERE, one
-  // line, at the point a consumer actually exists.
+  // consumed them — verified against both callers.
+  //
+  // DEBT-8 (PERM-7 Task 0) is that future consumer arriving: `business_email`
+  // is BACK, deliberately and one field at a time, because the import dialog
+  // now maps it to Store.contactEmail and PERM-7(d) seeds the device login's
+  // email from that column. Gary's rule, 2026-07-27: widen when a consumer
+  // exists, don't pre-widen — narrowing after something depends on a field is
+  // the hard direction. This route stays ADMIN-only, so the address goes only
+  // to the tier that can already edit it by hand on the same page.
   const locations = (data.locations ?? []).map((loc: SquareLocation) => ({
     id: loc.id,
     name: loc.name,
@@ -72,6 +78,7 @@ export async function GET() {
       : undefined,
     phone_number: loc.phone_number,
     timezone: loc.timezone,
+    business_email: loc.business_email,
     alreadyImported: existingIds.has(loc.id as string),
   }))
 

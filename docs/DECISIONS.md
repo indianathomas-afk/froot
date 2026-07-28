@@ -5,6 +5,70 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## Plus-addressing is the collision answer, and it rests on a Clerk dashboard setting nothing in the repo pins — 2026-07-28 (verified by Claude; handling ruled by Gary)
+
+PERM-7 left two unknowns open rather than designing around them. Both are now
+resolved with evidence. This entry exists so neither is re-researched, and so
+the one standing dependency is re-checkable in a single call.
+
+**Clerk does not normalise email subaddresses. It optionally BLOCKS them.**
+There is no canonicalisation step that would collapse `kevajuice+0014@icloud.com`
+into `kevajuice@icloud.com` — Clerk's only subaddress behaviour is an instance
+restriction, `block_email_subaddresses` (Dashboard → Restrictions → "Block email
+subaddresses"), which rejects addresses containing `+`, `=` or `#` outright.
+
+**Verified 2026-07-28: that flag is `false` on both instances.**
+
+- `clerk.usefroot.com` — production
+- `verified-snapper-7.clerk.accounts.dev` — development, which also serves staging
+
+Read from Clerk's **public, unauthenticated Frontend API**: `GET
+/v1/environment` → `user_settings.restrictions.block_email_subaddresses`. Note
+for whoever re-checks: the Backend API's `GET /instance/restrictions` returns
+**405** (it is PATCH-only), so `/v1/environment` is the read path, and it needs
+no secret key — which matters because production's `CLERK_SECRET_KEY` is marked
+Sensitive in Vercel and pulls as `[SENSITIVE]`.
+
+**This is the dependency worth writing down.** So plus-addressing works — one
+real mailbox, N distinct device identities — but it works *because of a
+dashboard toggle that lives outside this repository*. Nothing in the codebase
+pins it, no test would catch it being flipped, and flipping it would break
+device-login provisioning for every operator relying on a shared address, at
+sign-up rather than at invite. If PERM-7's collision path ever starts failing,
+re-read that flag first.
+
+**The collision handling (Gary's ruling).** Where N Square locations share a
+`business_email`, the flow **prefills the plus-addressed variant as an editable
+suggestion** rather than demanding a distinct address. Requiring the operator to
+invent one is easy to write and may be impossible for them to satisfy — a
+single-mailbox operator has nowhere to go. The suggestion is editable because
+the guess can be wrong.
+
+**Confirmed live, not hypothetical:** the production Square account returns 19
+locations, with `corporate@keva.com` on four (Cafe De Keva Cart, Cart 2, Keva
+Juice, Keva Kiosk) and `gary@kevajuice.com` on two. All nine currently-imported
+stores hold distinct addresses, so the collision is latent today and fires on
+the next import.
+
+**Detection must be by error code, not message text.** `createOrganizationInvitation`
+returns HTTP 400 with `already_a_member_in_organization` or
+`organization_invitation_not_unique`; read them via `isClerkAPIResponseError(err)`
+→ `err.errors[0].code`. `POST /api/users` previously collapsed every Clerk
+failure to `err.message` with a blanket 400, which is precisely what made the
+collision fail opaquely.
+
+**Also settled, on the second unknown:** the per-location mailboxes are
+reachable. `kevajuice14@icloud.com` and `kevajuice06@icloud.com` are already
+live production Clerk identities with `User` rows and store assignments, so
+those addresses have completed a sign-up. Not distinguishable from a
+Clerk-dashboard add without the production secret key.
+
+**One incidental finding that shapes staging passes:** the development instance
+has `username` as a **required** identity attribute; production does not. A
+staging sign-up therefore takes a different shape than a production one — and it
+is exactly the BUG-2 hazard (Clerk's `identifier` being the username rather than
+the email) that `getClerkPrimaryEmail` already guards against.
+
 ## PERM-6 Task 2 — validate invite `storeIds` at BOTH the invite and the webhook — 2026-07-27 (Gary ruled, on Claude's recommendation)
 
 `POST /api/users` wrote `storeIds` into `PendingInvite.storeIds` with no

@@ -49,6 +49,16 @@ export interface DebtItem {
   id: string
   title: string
   notes?: string
+  /**
+   * Optional, and OMITTED on every row that is still outstanding. Added
+   * 2026-07-28 when DEBT-8 became the first debt item ever resolved; it borrows
+   * the phase vocabulary (`staging` -> `shipped`).
+   *
+   * NOTHING RENDERS THIS YET — the debt list is still unconditional, under a
+   * heading that asserts "not yet fixed". That is DEBT-14. A missing status
+   * must be read as OPEN, since every other row omits it.
+   */
+  status?: PhaseStatus
 }
 
 /**

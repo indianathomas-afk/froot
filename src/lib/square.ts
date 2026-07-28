@@ -183,6 +183,43 @@ export async function fetchSquareTeamMember(
   return null
 }
 
+// The Square location fields Froot mirrors onto a Store. Deliberately the same
+// set the import dialog maps, so import and resync cannot drift apart.
+export type SquareLocationRecord = {
+  id?: string
+  name?: string
+  address?: { address_line_1?: string; locality?: string; administrative_district_level_1?: string }
+  phone_number?: string
+  timezone?: string
+  business_email?: string
+  status?: string
+}
+
+// Fetches ONE location by Square location id (GET /v2/locations/{id}) for the
+// per-store "Resync from Square" action — the counterpart to
+// fetchSquareTeamMember. Tries the org OAuth token, then the personal one.
+// Returns null on any failure, including a location deleted in Square.
+export async function fetchSquareLocation(
+  org: Organization,
+  locationId: string
+): Promise<SquareLocationRecord | null> {
+  const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]
+
+  for (const token of tokens) {
+    const res = await fetch(`${getBaseUrl()}/v2/locations/${locationId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Square-Version": SQUARE_VERSION,
+      },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      return (data.location as SquareLocationRecord) ?? null
+    }
+  }
+  return null
+}
+
 // Writes a corrected LEGAL name back to Square (PUT /v2/team-members/{id}).
 // Splits "First Rest" → given_name / family_name (naive; multi-part surnames or
 // mononyms land in family_name / given_name respectively). Returns the updated
