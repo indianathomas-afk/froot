@@ -5,6 +5,142 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## Role choice at provisioning is unrestricted; capability overrides stay restrict-only — 2026-07-27 (Gary ruled; Claude's initial objection was wrong)
+
+The scenario: a family-owned single-location business wants the in-store device
+to just work, without administering access. Gary asked for the ability to
+provision a store device account at any role, up to ADMIN, with a warning.
+
+**Claude's initial position was that this breaks PERM-5's invariant. That was
+wrong, and the error is worth recording because it is an easy one to repeat.**
+It conflated two different things:
+
+- **A per-store override that elevates a user above their role ceiling** — this
+  genuinely does break the rule at `ROADMAP.yaml` PERM-5, that a stored
+  permission set *"RESTRICTS BELOW the Clerk role ceiling and never elevates
+  above it."*
+- **Choosing a higher role for a device account at creation time** — this breaks
+  nothing. If the account is provisioned as ADMIN, the Clerk role *is* ADMIN and
+  the ceiling *is* ADMIN. Nothing is elevated past anything. It is the ordinary
+  invite flow, which has always offered Admin/Manager/Store, reached from a
+  different page.
+
+**The ruling (Gary).** Role is freely choosable at provisioning. The restrict-only
+rule is untouched, because it governs *overrides*, not *role choice*. The two
+are not the same mechanism and should never again be argued as if they were.
+
+**Why the product should allow it (Gary).** Forcing a two-person juice shop to
+maintain separate owner and device logins imposes ceremony on someone who gets
+nothing from it — the owner *is* the manager *is* the person at the counter. The
+job is to make the tradeoff legible, not to prevent a customer from accepting a
+risk on their own business.
+
+**The safeguards, in place of a prohibition:**
+
+a. **A count-aware warning, not a generic one (Claude, Gary agreed).** The store
+   picker is hidden for ADMIN (`user-actions.tsx:104,230` — "Admins have access
+   to all locations automatically"), so an ADMIN device account sees *every*
+   store. For a one-location shop that is the business the owner already owns.
+   For a twelve-location operator it means the counter iPad at Carson can read
+   all twelve stores' financials. The warning states the real blast radius —
+   *"this gives the shared device at Carson access to all 12 of your
+   locations"* — so it is unalarming in the first case and stopping in the
+   second, without the product judging who is sophisticated.
+b. **Name concrete consequences, not "elevated access."** Square disconnect is
+   ADMIN-gated by SEC-1 and drops the live org-wide token — a shared iPad with a
+   button that breaks sales sync for the whole business is the sharpest one.
+   Dashboard goal PUT is ADMIN-only per PERM-2. And F-5's goal-edit audit log
+   will faithfully record the *device address*, not a person: you learn the
+   building, not who.
+c. **Ambient, not a moment (Claude).** A one-time modal is forgotten in a week.
+   A persistent badge on `/stores` and `/users` for any device login above STORE
+   is what the next admin — or Gary in six months — actually needs.
+d. **MANAGER marked recommended.** It keeps store scoping (the picker stays
+   visible for non-ADMIN roles), so the device stays pinned to its own location
+   while still granting broad operational reach. Most "keep it simple" operators
+   want *no friction*, not *no boundaries*; they have just never been offered the
+   middle option in terms they care about.
+
+Also recorded: making `Store` itself a permission-holding principal was
+considered and **rejected**. Clerk authenticates an identity, not a database row,
+and there is no direct user-creation path in the codebase (provisioning is
+invite-only) — so "assign a Store as a User" necessarily mints a normal `User`
+with role STORE plus one `StoreUserAssignment`. A second principal type would
+fork the capability layer PERM-1 deliberately unified, forcing every `can()` call
+site to ask "User or Store?" forever. PERM-7 is a **provisioning shortcut, not a
+second model.**
+
+## Device login email is SEEDED from Square once, never live-synced — 2026-07-27 (Gary proposed Square as source of truth; scoped to a seed)
+
+Gary's position: Las Brisas is linked to Square, Square holds
+`kevajuice14@icloud.com` for that location, so the location's email should be the
+source of truth and the login for that store. The underlying complaint — that the
+current state is confusing — is correct and is now `DEBT-8`: one store's email has
+three uncoordinated answers (Square says `kevajuice14@icloud.com`, `/stores`
+shows nothing, `/users` says `corporate@keva.com`).
+
+**Agreed without reservation:** populate `Store.contactEmail` from Square's
+`business_email` at import, display it on the store card, and pre-fill the device
+login's email from it at provisioning. The field already exists
+(`schema.prisma:118`), the value already reaches the client (the locations route
+spreads `...loc`), and the import simply drops it — see `DEBT-8`.
+
+**Scoped down for the credential specifically: a seed, not a binding.** Three
+reasons, each independently sufficient:
+
+a. **Uniqueness is not guaranteed.** `business_email` is free text per location,
+   and many operators put one address on every location. Clerk requires a unique
+   email per user, so N locations sharing an address means exactly one device
+   login can be provisioned and the rest hard-fail. Keva's per-location
+   convention is good practice, not a Square guarantee.
+b. **Live sync would be a lockout mechanism.** If Square were authoritative,
+   editing the location email in Square would rewrite the Clerk credential and
+   silently lock the iPad out of its own account — through an action nobody would
+   connect to logins.
+c. **They are different concepts.** `contactEmail` answers "who do we contact
+   about this store" — plausibly a district manager. A login is an auth
+   credential. Bind them and editing a contact address changes who can sign in.
+
+**So:** one-way seed at provisioning, after which Clerk owns the credential, plus
+a **visible drift indicator** on `/stores` when Square's email later differs from
+the device login. Surfaced rather than silently reconciled or silently ignored —
+the same principle as (a) above. Existing accounts are **not** retro-repointed;
+the live Las Brisas account stays on `corporate@keva.com` and the drift indicator
+shows it.
+
+Two unknowns deliberately left open on `PERM-7` rather than designed around:
+whether those per-location mailboxes are reachable at all (the Clerk invite must
+be *accepted*), and whether plus-addressing (`kevajuice+0014@icloud.com`)
+survives Clerk's email normalisation — if it does, it answers the collision case
+in (a) with one real mailbox and N distinct identities.
+
+## Default store lives on `User`, not on the assignment row — 2026-07-27 (Claude finding; corrects BUILD-2's specced shape)
+
+`BUILD-2` said to mirror `StoreStaffAssignment.isPrimary` by adding an `isPrimary`
+flag to `StoreUserAssignment`. **That design cannot work**, and the reason is
+structural rather than cosmetic: admins have *no* `StoreUserAssignment` rows.
+Every page scopes with `...(isAdmin ? {} : { id: { in: storeIds } })` and the UI
+hides the store picker for ADMIN entirely. There would be no row to carry the
+flag.
+
+That is disqualifying rather than merely inconvenient, because the ADMIN device
+account this session just designed (see the provisioning ruling above) is exactly
+the case that most needs a default store.
+
+**Ruling: a nullable `defaultStoreId` FK on `User`** (`onDelete: SetNull`), which
+works for every role. One additive column. For a PERM-7 device account it
+defaults to that account's own store.
+
+Recorded alongside it, a **refuted theory**: the "which store loads by default"
+problem was assumed to come from nondeterministic ordering (`DEBT-5`,
+`StoreUserAssignment` having no ordering column). An audit refuted that — every
+page selects `orderBy: { name: "asc" }` and takes `stores[0]`, so the default is
+deterministic, just arbitrary. `dbUser.storeAssignments` genuinely has no
+`orderBy`, but it is only ever used as a `WHERE id: { in: ... }` filter and never
+indexed into. The real causes are in `UX-2`: fourteen uncoordinated store
+selectors, and `localStorage` that outlives logout. Written down so the ordering
+theory is not rediscovered and re-fixed.
+
 ## STORE is a device, not a person — 2026-07-27 (Gary, design confirmation)
 
 Governing principle for all future role tiering, recorded because it has been
@@ -31,6 +167,26 @@ explicit ruling rather than an accident of tier naming. Anyone widening a tier
 should check which of the two they are actually widening to. HR-9 (EMPLOYEE role
 split) is where this gets tested, and the 2026-07-27 verification pass did not
 exercise STAFF at all.
+
+**Addendum, same day — the convention must be enforced by the provisioning flow,
+not by whoever fills in the form.** An audit of the live data found the existing
+Las Brisas device account is named **"Tommy Thomas"** on **`corporate@keva.com`**
+— a person's name and a corporate address on what is functionally a shared
+device login. That data predates this ruling and directly contradicts it, which
+is the whole argument for enforcement: a convention that lives only in this file
+gets violated by the next person who uses the invite form.
+
+So `PERM-7` defaults the account name to **the store** and the email to **the
+location's own address**, producing the convention as a side effect of the flow.
+Existing accounts are not retro-repointed — the drift is surfaced instead (see
+the email-seeding ruling above).
+
+Related: the `/stores` "Has Account" badge is `store.userAssignments.length > 0`
+— a **count, not a concept**. A MANAGER assigned to three stores lights it up on
+all three, so the badge cannot currently distinguish a device login from manager
+access. `PERM-7(e)` makes it role-aware. This matters more than it sounds: it is
+why the question "does this store have a login, and whose is it?" could not be
+answered from the page where it was asked.
 
 ## CSV export removal is exfiltration friction, not a confidentiality boundary — 2026-07-27 (Claude finding, recorded before PERM-4 builds on it)
 

@@ -226,6 +226,59 @@ phases:
       harder to read during exactly the permission testing described above,
       which is why it belongs with (a) and (b).
 
+  - id: UX-2
+    track: platform
+    size: M
+    status: planned
+    title: "One current-store context across all 14 store pickers + a persistent location indicator"
+    notes: >
+      Scoped 2026-07-27 from a read-only audit, triggered by Gary's report that
+      "I thought I was in one location, however, had to switch. If I logged back
+      in, there was a random feel that I always had to double check which
+      location I was looking at."
+      ROOT CAUSE — TWO INDEPENDENT BUGS, neither of them nondeterministic
+      ordering (that theory was tested and refuted; see BUILD-2).
+      (1) NO SHARED SOURCE OF TRUTH. There are ~14 store selectors using THREE
+      different mechanisms with no coordination: localStorage key
+      "froot.dashboard.store" (dashboard + messages, which share it);
+      a SEPARATE localStorage key "froot.forecasting.store" (forecasting);
+      a URL param `?store=` (checklists); and plain
+      `useState(stores[0]?.id ?? "")` in roughly ten more — every inventory
+      surface (ingredients, adjustments, counts, expected, storage-areas,
+      reports, orders/new), both labor surfaces, and store-view. Concretely: a
+      manager who selects Uptown on the Dashboard and clicks into Inventory →
+      Ingredients silently lands back on the alphabetically-first store, with no
+      indication anything changed, because Inventory never reads the dashboard's
+      key. That is the reported bug, exactly.
+      (2) localStorage OUTLIVES LOGOUT. It is scoped to the browser ORIGIN, not
+      the Clerk session, so dashboard and forecasting show the previous
+      selection after re-login while the other ~10 surfaces reset to
+      alphabetical. Two surfaces remember, ten forget — that mismatch is the
+      "random feel". NOT a data leak: both persisting surfaces validate the
+      saved id against the caller's current store list and fall back
+      (`stores.find(s => s.id === savedStoreId)?.id ?? stores[0]?.id`). But it
+      is worst on a SHARED DEVICE, which is precisely what PERM-7 provisions —
+      and worst of all on an ADMIN device account, where every store is in scope
+      so a stale selection persists in full.
+      THREE SEPARABLE PIECES, deliberately ordered so partial delivery still
+      helps:
+      (a) SHOW IT — a persistent current-location indicator in the app shell,
+      beside the email where UX-1(b) already scopes a role indicator. No schema,
+      no refactor, and it directly answers "I always had to double check". Ship
+      first regardless of the rest.
+      (b) UNIFY IT — one shared context plus ONE storage key replacing all 14
+      independent selectors, so a switch propagates everywhere. Mechanical
+      rather than hard: ~14 files, each a small swap. KEY IT BY USER ID (or
+      clear on sign-out) to close bug (2).
+      (c) DEFAULT IT — seed the selection from User.defaultStoreId (BUILD-2)
+      instead of "alphabetically first". BUILD-2 is the only piece needing a
+      migration; (a) and (b) do not.
+      (a) without (b) is honest but still annoying; (b) without (a) is
+      invisible. (a)+(c) is a reasonable first release.
+      Existing sessionStorage keys "froot.dashboard.salesSelection" and
+      "froot.labor.viewedDate" are date/range state, NOT store selectors —
+      leave them alone.
+
   - id: X-1
     track: platform
     size: S
@@ -881,6 +934,13 @@ phases:
         stores are in the caller's scope — a MANAGER can assign a staff member
         to stores they do not manage. Tier is now correct; the scope hole is
         its own fix. Found in this session, deliberately not fixed.
+        SHARPENED 2026-07-27 — this text UNDERSTATES the bug, confirmed by
+        reading src/app/api/staff/route.ts:46-68. There is no org-ownership
+        check on storeIds AT ALL, not merely a missing caller-scope check. The
+        request body is the sole source of truth, so the hole is CROSS-TENANT
+        (a storeId belonging to another organization is accepted) and not just
+        cross-store. The route is MANAGER-reachable via
+        can(role, "staff.manage"), so this is not admin-only. Fixed in PERM-6.
 
   - id: PERM-3
     track: permissions
@@ -1027,6 +1087,148 @@ phases:
         `forecasting.scope.all` or an explicit unscoped flag on the context)
         rather than reusing isAdmin, so the two powers are grantable
         independently.
+        SCHEDULED: PERM-6 fixes this. Once PERM-6 lands, clear this blocker.
+        PERM-5 must not start before it does.
+
+  - id: PERM-6
+    track: permissions
+    size: S
+    status: planned
+    title: "Store-assignment integrity — validate storeIds on every write, gate the locations route, split the forecasting isAdmin fusion"
+    notes: >
+      Scoped 2026-07-27 from a read-only audit of every store-assignment read
+      and write path. Five independent fixes, no schema change, no new
+      capability. Deliberately sequenced BEFORE PERM-7, so the new provisioning
+      flow is not built on top of unvalidated write paths.
+      (a) POST /api/staff (src/app/api/staff/route.ts:46-68) — storeIds from the
+      request body flow straight into the nested storeAssignments.create with NO
+      org-ownership query anywhere in the route, and the route is
+      MANAGER-reachable via can(role, "staff.manage"). This is CROSS-TENANT, not
+      just cross-store: a storeId belonging to another organization is accepted.
+      This is PERM-2's deferred item, and PERM-2's own wording understated it.
+      Highest severity item in this phase.
+      (b) POST /api/users (src/app/api/users/route.ts:88-91) — the invite path
+      writes storeIds into PendingInvite.storeIds with no org-ownership check,
+      and the Clerk webhook later materialises them via
+      storeUserAssignment.createMany with NO re-check
+      (src/app/api/webhooks/clerk/route.ts:126). ADMIN-only, so lower severity
+      than (a) — but note its sibling PATCH route DOES validate correctly at
+      src/app/api/users/[id]/route.ts:56-63. Same file family, opposite
+      behaviour; copy the working check.
+      (c) PATCH /api/staff/[id] (src/app/api/staff/[id]/route.ts:55-63) —
+      validates org-ownership but NOT caller scope. The target staff member must
+      be in the caller's scope to reach the edit, but once inside, a MANAGER can
+      set storeIds/primaryStoreId to ANY org store, including ones they do not
+      manage. Narrower than (a) but the same class.
+      (d) GET /api/square/locations (src/app/api/square/locations/route.ts:7-8)
+      — NO role gate at all, only auth(). Any authenticated org member including
+      STORE and STAFF can read the org's full Square location list. Worse than
+      it first appears because the route spreads the entire Square object
+      (`...loc`), so business_email, coordinates and every other field go to the
+      client. Not on any prior list; found 2026-07-27. Cheapest fix here.
+      (e) Split the forecasting isAdmin fusion — PERM-5's blocker. Give
+      requireForecastStore its own capability or an explicit unscoped flag
+      instead of reusing `isAdmin`, which is literally
+      can(actor, "forecasting.edit") at src/lib/forecasting-access.ts:51.
+      SCOPE NOTE, verified: labor-access.ts derives LaborContext.isAdmin from
+      dbUser.role === "ADMIN", NOT from a capability, so it does NOT have this
+      coupling. This is a ONE-FILE fix, not a pattern-wide refactor.
+      Every other scoping helper (requireLaborStore, requireManageableStaff,
+      findManageableStaffMember, requireNoteAccess, requireCount) was audited
+      and found structurally identical and correct — no other divergence exists.
+    open:
+      - >
+        StoreStaffAssignment.isPrimary has NO database constraint enforcing one
+        primary per staff member (prisma/schema.prisma:247-257 — no partial
+        unique index). All four write paths currently preserve the invariant
+        through their own `storeId === primaryStoreId` equality logic, so
+        nothing is broken today. Decide whether to add the constraint here or
+        leave it application-enforced; a future direct update/upsert added
+        elsewhere, or a race between two concurrent PATCHes on the two-step
+        false-then-true branch, is not blocked at the DB level.
+
+  - id: PERM-7
+    track: permissions
+    size: M
+    status: planned
+    title: "Store device logins — provision a store account from /stores, Square-seeded email, role-aware badge"
+    notes: >
+      Scoped 2026-07-27 with Gary. Makes an EXISTING CONVENTION first-class
+      rather than inventing a model. Today a store device login is built by
+      hand: an admin invites a user on /users, picks role STORE, and ticks one
+      store. Las Brisas already has exactly this (Tommy Thomas /
+      corporate@keva.com, role STORE, assigned to #0014). Nothing names the
+      pattern, nothing enforces it, and nothing provisions it in one step.
+      NOT A SECOND PERMISSION MODEL — verified there is no direct
+      user-creation path anywhere (provisioning is Clerk-invite-only), and Clerk
+      authenticates an identity, not a database row. So "assign a Store as a
+      User" necessarily mints a normal User with role STORE plus one
+      StoreUserAssignment. Same objects the invite flow already produces,
+      reached in one click from the page the admin is already on. Making Store a
+      second permission-holding principal was considered and REJECTED: it would
+      fork the capability layer PERM-1 deliberately unified, forcing every
+      can() call site to ask "User or Store?" forever.
+      SCOPE:
+      (a) "Create device login" action on /stores, ADMIN-only, creating a User +
+      a single StoreUserAssignment to that store. One store per device account —
+      which also sidesteps BUILD-2 entirely for devices, since a one-store
+      account has no primary-store ambiguity.
+      (b) Role is CHOOSABLE at provisioning (Admin/Manager/Store), defaulting to
+      STORE, with MANAGER marked recommended. See DECISIONS.md 2026-07-27 — this
+      is role choice, not a capability override, so PERM-5's restrict-only
+      invariant is untouched.
+      (c) COUNT-AWARE warning AlertDialog when the chosen role is above STORE.
+      The store picker is hidden for ADMIN
+      (src/app/(app)/users/user-actions.tsx:104,230 — "Admins have access to all
+      locations automatically"), so an ADMIN device account sees EVERY store.
+      The warning must state the actual blast radius — "this gives the shared
+      device at Carson access to all 12 of your locations" — so it is
+      unalarming for a single-location operator and stopping for a twelve-store
+      one, without the product judging who is sophisticated. Name concrete
+      consequences: Square disconnect is ADMIN-gated by SEC-1 and drops the live
+      org-wide token; dashboard goal PUT is ADMIN-only per PERM-2; F-5's audit
+      log will record the device address, not a person.
+      (d) Email SEEDED from Square, never live-synced. See DECISIONS.md.
+      (e) Replace the ambiguous "Has Account" badge
+      (src/app/(app)/stores/page.tsx:109-114), which is merely
+      `store.userAssignments.length > 0` — a COUNT, not a concept. A MANAGER
+      assigned to three stores lights it up on all three. Make it role-aware
+      ("Device login" vs "Manager access"), show who, and LINK to /users. The
+      first thing this phase buys is the ability to answer "does this store have
+      a login, and whose is it?" on the page where the question is asked.
+      (f) Enforce the STORE-is-a-device convention through the flow: default the
+      account name to the store, not a person. The live Las Brisas account is
+      named "Tommy Thomas" on a corporate address — data that predates the
+      2026-07-27 ruling and contradicts it. Do NOT retro-repoint existing
+      accounts; surface the drift instead.
+      NOT BLOCKED ON BUILD-2 (corrected 2026-07-27 — an earlier read said it
+      was). BUILD-2 solves default-store for multi-store HUMANS; a device
+      account has one store.
+    blockers:
+      - >
+        Do not start before PERM-6. This phase adds a NEW write path that
+        creates users and store assignments; building it on top of the
+        unvalidated storeIds paths in PERM-6 (a)/(b) would replicate the hole
+        into a new surface rather than closing it.
+    open:
+      - >
+        VERIFY BEFORE DESIGNING AROUND IT, two unknowns, both cheap to check and
+        both capable of changing the flow. (1) Are the per-location Square
+        mailboxes actually reachable? The Clerk invite must be ACCEPTED, so an
+        unmonitored address means no device account. Mitigating: whoever sets up
+        the iPad is physically at it, so acceptance is a one-time setup step
+        rather than a blocker. (2) Does plus-addressing
+        (kevajuice+0014@icloud.com) survive Clerk's email normalisation? If it
+        does, it is an elegant answer to the collision case below — one real
+        mailbox, N distinct device identities. Do not assume it works.
+      - >
+        Square's business_email is NOT guaranteed unique per location — it is
+        free text, and many operators put one address on every location. Clerk
+        requires a unique email per user, so N locations sharing an address
+        means exactly ONE device login can be provisioned and the rest hard-fail.
+        Keva's per-location convention (kevajuice14@) is good practice, not a
+        Square guarantee. The flow must detect the collision and require a
+        distinct address rather than failing opaquely at the Clerk call.
 
   # ---- Security ----
 
@@ -1432,18 +1634,29 @@ phases:
       already has). Raised and deliberately deferred in PERM-2. Any code needing
       to pick a store before this lands should sort deterministically (store
       number, then name) and say so in a comment.
-    blockers:
-      - >
-        Gated on BUILD-1: no migration may be authored until the repoint lands.
-        AMENDED 2026-07-27 — the stated reason ("local .env still points at the
-        PRODUCTION Neon branch") is no longer true: local now resolves to
-        `ep-late-water`, not `ep-green-smoke` (see DEBT-4). The gate itself
-        stands on the OTHER half — BUILD-1 is still `in_progress` and
-        staging-only, so its verification step 3 (a staging build log proving
-        migrate deploy actually ran under vercel-build) is unrecorded. Authoring
-        a migration before that is proven risks migrations silently not applying
-        on deploy, which BUILD-1's own notes call worse than the original
-        problem.
+      RESCOPED 2026-07-27 — THE isPrimary DESIGN ABOVE DOES NOT WORK. Adding
+      isPrimary to StoreUserAssignment cannot express a default store for an
+      ADMIN, because admins have NO StoreUserAssignment rows at all: every page
+      does `...(isAdmin ? {} : { id: { in: storeIds } })` (src/lib/auth.ts:137-142
+      and every consuming page), and the UI hides the store picker for ADMIN
+      entirely ("Admins have access to all locations automatically",
+      src/app/(app)/users/user-actions.tsx:230). There would be no row to flag.
+      That is disqualifying rather than inconvenient, because the ADMIN device
+      account in PERM-7 is exactly the case that most needs a default store.
+      NEW SHAPE: a nullable `defaultStoreId` FK on **User** (onDelete: SetNull),
+      which works for every role including ADMIN. One additive column.
+      Set by the admin at provisioning — for a PERM-7 device account it defaults
+      to that account's own store — and editable by the user themselves.
+      ALSO CORRECTED: the premise that "first store" is nondeterministic is
+      FALSE for store pickers. Every page selects with
+      `orderBy: { name: "asc" }` and takes `stores[0]`, so today's default is
+      deterministic — just arbitrary (alphabetically first). The unspecified
+      ordering of `dbUser.storeAssignments` is real (no orderBy at
+      src/lib/auth.ts:137-142) but is only ever used as a
+      `WHERE id: { in: storeIds }` filter, never indexed into. So this phase is
+      about giving users a CHOSEN default, not about fixing a random one.
+      Consumed by UX-2, which is where the user-visible payoff lands; BUILD-2 is
+      the schema half only. UNBLOCKED as of 2026-07-27 — BUILD-1 shipped.
 
 bugs:
   - id: BUG-1
@@ -1593,11 +1806,25 @@ debt:
       timezone computes the window, where every store is currently in one
       timezone. It stops being harmless the moment stores span timezones, since
       the window boundary would then turn on a tiebreak nobody chose.
-      The real fix is BUILD-2 (a primary-store flag mirroring
-      StoreStaffAssignment.isPrimary); backfilling storeNumber is the cheaper
-      interim and is a DATA change, not a code change — so it is gated on the
-      same migration policy, not on BUILD-1. Related: BUILD-2, PERM-3's
-      `deferred:` entry.
+      The real fix is BUILD-2; backfilling storeNumber is the cheaper interim
+      and is a DATA change, not a code change — so it is gated on the same
+      migration policy, not on BUILD-1. (BUILD-2's shape was rescoped
+      2026-07-27 to User.defaultStoreId; the isPrimary framing this row
+      originally referenced is retired.) Related: BUILD-2, PERM-3's `deferred:`
+      entry.
+      "HARMLESS TODAY" IS WRONG — CORRECTED 2026-07-27. This row was logged as a
+      latent sort-order issue. It has a live, user-visible consequence that cost
+      Gary a real double-take. /users renders each store chip as
+      `{a.store.storeNumber ? `#${a.store.storeNumber}` : a.store.name}`
+      (src/app/(app)/users/page.tsx:199) — store number IF PRESENT, otherwise
+      the name, never both. Because only two stores have a storeNumber, the
+      Location Access column labels those two BY NUMBER and the other ten BY
+      NAME, inconsistently, in the same table. So Las Brisas — one of the only
+      stores with a number — displays as a bare "#0014" with its name nowhere on
+      screen, which made its device login look absent when it exists (Tommy
+      Thomas, corporate@keva.com, role STORE). Fix the label to carry both
+      (`#0014 · Las Brisas`) or drop the number preference; that is independent
+      of the backfill and of BUILD-2, and it is the cheaper of the two.
 
   - id: DEBT-6
     title: "Square sync fires from ~11 GET routes — a write path that greps as read-only"
@@ -1648,3 +1875,29 @@ debt:
       The header is the cheap option and removes the danger in (2) immediately.
       Related: DEBT-3 (the other doc contradicting current policy), BUILD-1,
       SEC-4 (logged from this same file's housekeeping note).
+
+  - id: DEBT-8
+    title: "Square import discards business_email — Store.contactEmail exists but is never populated"
+    notes: >
+      Logged 2026-07-27. Every piece of this already exists; two lines connect
+      them, and neither was written.
+      `Store.contactEmail` is in the schema (prisma/schema.prisma:118, nullable)
+      and is already editable by hand in both the Add Store form
+      (src/app/(app)/stores/add-store-button.tsx:83) and the Edit Store dialog
+      (src/app/(app)/stores/store-actions.tsx:203). GET /api/square/locations
+      spreads the ENTIRE Square location object (`...loc`), so `business_email`
+      reaches the client on every import. But the import dialog's POST body maps
+      only name, address, city, state, timezone, phoneNumber and
+      squareLocationId (src/app/(app)/stores/import-square-button.tsx:58-66) —
+      the email is silently dropped. The store CARD then renders address, phone
+      and timezone but never the email, so the field is invisible even when set.
+      CONSEQUENCE: one store's email has three uncoordinated answers depending
+      where you look. For Las Brisas, Square says kevajuice14@icloud.com,
+      /stores says nothing at all, and /users says corporate@keva.com. Nothing
+      cross-references anything. Gary's report — "it just seems confusing" — is
+      an accurate reading of the system, not a misreading of the UI.
+      FIX: map business_email → contactEmail at import, and surface it on the
+      store card. Independently useful, but it is also the PREREQUISITE for
+      PERM-7(d), which seeds a device login's email from it — a seed cannot come
+      from a column nothing populates. See DECISIONS.md 2026-07-27 for why that
+      seeding is one-way and never a live sync.
