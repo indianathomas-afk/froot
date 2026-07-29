@@ -385,6 +385,31 @@ be *accepted*), and whether plus-addressing (`kevajuice+0014@icloud.com`)
 survives Clerk's email normalisation — if it does, it answers the collision case
 in (a) with one real mailbox and N distinct identities.
 
+## A user may set their own default store — 2026-07-29 (Gary, policy ruling; build deferred to UX-2)
+
+Extends "Default store lives on `User`" (2026-07-27) with the question that
+entry left open: whether setting the default is an admin-only act.
+
+**Ruling: allowed.** A user changing which location they land on is a
+preference on their own row, not a permission decision. It cannot widen access:
+`validateDefaultStore` restricts the value to stores that principal already
+sees, and read-time revalidation (`resolveDefaultStore`) drops a default the
+moment they stop seeing it.
+
+**Where it is built is a separate question, and the answer is UX-2, not
+BUILD-2.** BUILD-2 shipped the column, its validation, and the admin-set paths.
+The self-service control is *consumption*, which is UX-2's fence. Shipping an
+authenticated write path with no caller — in a repo with no tests — is how an
+unexercised endpoint sits in production until it surprises someone.
+
+**Endpoint shape, decided now so UX-2 does not re-litigate it:** a new
+`PATCH /api/users/me` accepting `defaultStoreId` and nothing else, no `id`
+param, validating against the caller's *current* assignments. Explicitly NOT
+`PATCH /api/users/[id]`: that route is `requireAdmin()` and additionally blocks
+self-edits outright (`users/[id]/route.ts:51-53`), which is the lockout guard.
+Weakening a guard that exists to prevent self-modification, in order to pass a
+preference field through it, is the wrong trade.
+
 ## Default store lives on `User`, not on the assignment row — 2026-07-27 (Claude finding; corrects BUILD-2's specced shape)
 
 `BUILD-2` said to mirror `StoreStaffAssignment.isPrimary` by adding an `isPrimary`

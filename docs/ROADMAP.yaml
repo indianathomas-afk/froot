@@ -293,6 +293,47 @@ phases:
       "froot.labor.viewedDate" are date/range state, NOT store selectors —
       leave them alone.
       Session prompt: docs/prompts/UX-2_current_store_context.md
+      SURFACE MEASURED 2026-07-29 by the BUILD-2 audit — it is NOT 14 uniform
+      pickers. 18 UI picker sites hosting 20 selector widgets
+      (/inventory/adjustments alone has three: adjustments-client.tsx:399, :576,
+      :711), plus 2 non-UI default-store pickers. FOUR BEHAVIOURAL FAMILIES, not
+      one:
+      (a) plain `useState(stores[0]?.id ?? "")` — 8 sites:
+      labor/weekly-plan-client:91, settings/labor/labor-settings-client:72,
+      inventory counts:57, expected:51, reports:187, storage-areas:65,
+      ingredients:140, orders/new/cart-client:65.
+      (b) localStorage-then-stores[0] — 3: dashboard-client:166-169,
+      messages-client:174, forecasting-client:135. Dashboard and Messages SHARE
+      key "froot.dashboard.store"; Forecasting uses "froot.forecasting.store",
+      so switching store on the dashboard silently does not move forecasting.
+      (c) sentinel "" or "all" — NEVER reaches stores[0] — 7 sites/9 selectors:
+      adjustments x3, recipes-client:376 (whose `initialStoreId` prop is DEAD —
+      page.tsx:97 never passes it), alerts-client:44 ("all"),
+      purchase-orders-client:63 ("all"), purchase-orders/new/new-po-client:38
+      (unconditional "", not even the single-store shortcut),
+      store-view/page.tsx:25.
+      (d) URL searchParams — 1: checklists/page.tsx:36-45, falls through to ALL
+      the user's stores.
+      ORDERING IS NOT THE PROBLEM — zero pickers lack an orderBy; all 18 use
+      `orderBy: { name: "asc" }`. ONE exception, and it is not a picker:
+      src/lib/forecasting-access.ts:103 orders
+      [{ storeNumber: "asc" }, { name: "asc" }] and is self-documented at :89-96
+      as a BUILD-2 placeholder — so it picks a DIFFERENT store than every UI
+      picker. It is the first thing UX-2 should convert to
+      resolveDefaultStore().
+      BUILD-2 LANDED THE COLUMN, NOT ITS CONSUMPTION. Use
+      src/lib/default-store.ts: resolveDefaultStore() (default if visible, else
+      alphabetically-first, else null), isDefaultStoreStale() (to decide whether
+      to show a "showing X instead" hint — the resolver alone cannot tell "fell
+      back" from "was already first").
+      SELF-SERVICE IS ALREADY RULED, DO NOT RE-LITIGATE IT. Gary 2026-07-29: a
+      user MAY set their own default (DECISIONS.md, "A user may set their own
+      default store"). Build it here, alongside the UI that exercises it. Shape
+      decided: PATCH /api/users/me, accepting defaultStoreId ONLY, no id param,
+      validated with validateDefaultStore against the CALLER'S CURRENT
+      assignments. NOT PATCH /api/users/[id] — that route is requireAdmin and
+      deliberately blocks self-edits (users/[id]/route.ts:51-53), the lockout
+      guard; weakening it to pass a preference field through is the wrong trade.
 
   - id: X-1
     track: platform
@@ -2073,9 +2114,93 @@ phases:
   - id: BUILD-2
     track: build
     size: S
-    status: planned
+    status: staging
+    commits: [118a02d, 944dfa3, f480568]
     title: "Deterministic default/primary store for multi-store users"
     notes: >
+      CORRECTED 2026-07-29 — THE NONDETERMINISM RATIONALE BELOW IS REFUTED. The
+      row claims primaryStoreName() "picks on an unordered query" and "may
+      return a different one per request", and that "the codebase is already
+      split" with only hr-signed-pdf.ts:764 deterministic. FALSE against
+      current code. The function has exactly TWO callers and BOTH load
+      storeAssignments with the same
+      `orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }]`:
+      api/hr/documents/[id]/acknowledgments/route.ts:172 (staff loaded at
+      :94-102, orderBy :99; self path via src/lib/hr.ts:23) and
+      api/hr/forms/[id]/submissions/route.ts:143 (via
+      api/hr/forms/shared.ts:48). The codebase is UNIFORM, not split.
+      WHAT SURVIVES: the index still earns its place, on the "the database
+      refuses two" rationale rather than the nondeterminism one — it converts
+      "every writer happens to write at most one primary" into an enforced
+      invariant. All four writers were checked and all already comply
+      (api/staff/route.ts:105; api/staff/[id]/route.ts:126-133 and :136-144;
+      sync-square:77-86; resync-square:93-100). Verified ENFORCING on branch
+      dev 2026-07-29: setting all 9 of Kelton Thomas's assignments primary was
+      rejected with "duplicate key value violates unique constraint
+      StoreStaffAssignment_one_primary_key", statement aborted atomically, no
+      rows written. Task 8 additionally gave primaryStoreName() its own
+      internal tie-break so the guarantee stops depending on caller discipline
+      (17/17 assertions, verified no-op against both callers).
+      STALE DEFAULTS — FIRST-CLASS FINDING, NOT A FOOTNOTE. Nothing nulls
+      defaultStoreId when a user's assignments are removed. The Clerk webhook
+      drops every StoreUserAssignment on organizationMembership.deleted
+      (webhooks/clerk/route.ts:221-235, deleteMany at :234) and does not touch
+      User columns; an admin edit replaces the whole set
+      (users/[id]/route.ts:164-167). The FK targets Store, so onDelete: SetNull
+      fires ONLY when the STORE is deleted — losing access to a store that
+      still exists leaves the column pointing at it. Read-time revalidation is
+      therefore LOAD-BEARING, not defensive: it is the only thing standing
+      between a stale default and a user landing on a store they have lost.
+      NOTE THE PROMPT FILE'S CITATION WAS WRONG — it cited
+      webhooks/clerk/route.ts:180 for the deletion; :180 is a createMany in the
+      pending-invite path. Correct citation is :221-235, deleteMany at :234.
+      RESURRECTION IS INTENDED BEHAVIOUR, decided rather than inherited.
+      Because the column persists, a user who loses a store and later regains
+      it silently gets their old default back. This is harmless, and harmless
+      STRUCTURALLY rather than by luck: a stale default is INERT because access
+      is decided by the assignment set and the default only ranks WITHIN it.
+      resolveDefaultStore() selects from visibleStores, so the column can never
+      widen reach — the worst case is an unexpected landing page, never an
+      unreachable store becoming reachable. For a PERM-7 device account it
+      cannot even do that: a device login is role STORE with exactly one
+      assignment (device-login.ts:66-68), so visibleStores has one element and
+      the resolver returns it whatever the column says.
+      THE DESIGN PREMISE IS A UI CONVENTION, AND THAT STRENGTHENS THIS DESIGN.
+      Admins CAN acquire StoreUserAssignment rows: users/[id]/route.ts:164-167
+      creates them unconditionally and the client always sends storeIds
+      (users/user-actions.tsx:189), so promoting a two-store MANAGER to ADMIN
+      writes two admin assignment rows. READ THIS AS CONFIRMING THE isPrimary
+      REJECTION, NOT UNDERMINING IT: if admins have assignment rows SOMETIMES,
+      depending on role history, then isPrimary on StoreUserAssignment is an
+      even worse home for a default than the original argument said — it would
+      have worked for some admins and not others, with the difference invisible
+      and determined by whether someone was once a MANAGER. A nullable column
+      on User is unconditional. Filed for PERM, not fixed here; also recorded
+      in PERMISSIONS_INVENTORY §3 item 10.
+      DEBT-17 INTERACTION. The device-account default is set inside the
+      webhook's `if (pending)` block, which DEBT-17's 2026-07-28 audit
+      established fires whenever a PendingInvite matched, regardless of which
+      writer won the race (webhooks/clerk/route.ts:158-196). So a device login
+      gets its defaultStoreId even when /users wins and persists the wrong
+      role. DEBT-17's chosen fix DIRECTION B changes the page only and cannot
+      disturb this. OPTION C (a shared syncOrgMembership()) WOULD have to
+      preserve the default-setting deliberately — noted on DEBT-17's row too.
+      Minor side effect: DEBT-17's forensic signature "role STAFF holding store
+      assignments" gains a field — such a row will now also carry a
+      defaultStoreId when exactly one store was provisioned.
+      STAGING VERIFICATION REQUIRED — could not be done locally (the Edit User
+      modal is behind an authed admin session; Claude does not sign in). Local
+      evidence is `next build` green, tsc/eslint clean, and 17/17 logic
+      assertions on the pure helpers. STILL UNEXERCISED until driven on
+      staging:
+      (1) Default Location select RENDERS in the Edit User modal.
+      (2) Options FILTER to the locations ticked in that same modal.
+      (3) Deselecting the chosen default's store CLEARS it.
+      (4) A role change (ADMIN → STORE with the default unselected) does not
+      submit a stale value — the select shows "" and the PATCH sends null.
+      (5) A newly provisioned SINGLE-STORE device login comes out with its own
+      store as defaultStoreId.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       Gary's rule is that a multi-store manager's default store is "the first
       store on their profile" — but StoreUserAssignment has no primary flag and
       no ordering column, so "first" is currently whatever Postgres happens to
@@ -2325,6 +2450,13 @@ debt:
       re-stating at review time rather than assumed to hold.
       This does NOT close DEBT-4 — it converts one of its open questions into a
       known, documented, unfixable-by-configuration gap.
+      ROW TITLE IS NOW STALE (noted 2026-07-29, not edited). The title still
+      reads "points at the PRODUCTION Neon branch"; the notes above already
+      record the repoint to dev and end "Gary to confirm and close." Verified
+      2026-07-29: local .env DATABASE_URL and DATABASE_URL_UNPOOLED both resolve
+      to ep-late-water-a6k53nv2 (dev). The title is the part a reader skimming
+      the roadmap sees first, and it now says the opposite of the truth. Left for
+      the close-out that resolves this row rather than edited in passing.
 
   - id: DEBT-5
     title: "10 of 12 stores have storeNumber: null, degrading PERM-3's deterministic store sort"
@@ -2486,6 +2618,36 @@ debt:
   - id: DEBT-9
     title: "Two ACTIVE staff have 9 store assignments and NO primary — signed documents capture an arbitrary store"
     notes: >
+      CORRECTED 2026-07-29 by the BUILD-2 audit. This row says
+      primaryStoreName() "takes THE FIRST ROW OF AN UNORDERED QUERY — an
+      arbitrary one of NINE stores, potentially a different one per request."
+      The "unordered" and "different per request" halves are FALSE: both callers
+      order by [{ isPrimary: "desc" }, { store: { name: "asc" } }] (see the
+      correction on BUILD-2 for the file:line list), so with zero primaries the
+      fallback resolves to the ALPHABETICALLY-FIRST store, deterministically,
+      every request. Gary Thomas and Kelton Thomas would both stamp "Carson".
+      WHAT SURVIVES, AND IT IS STILL WORTH FIXING: stable-and-arbitrary is not
+      correct. "Carson" is an alphabetical accident, not a decision, and the
+      first document either owner signs freezes it into a legal record. The
+      urgency is unchanged; only the flapping is withdrawn.
+      ALSO REFUTED — GARY'S OWN INSTRUCTION. The reason given for setting
+      primaries BEFORE BUILD-2's index ("so the constraint locks in real intent
+      rather than whatever row order won") does not hold. A partial unique index
+      on WHERE "isPrimary" indexes only rows where the flag is TRUE, so a staff
+      member with ZERO primaries contributes zero index entries and cannot
+      collide. There is no ordering dependency in either direction: the
+      chip-clicks may precede or follow the migration. Accepted by Gary
+      2026-07-29.
+      BRANCH staging IS DIFFERENT DATA, checked 2026-07-29: four ACTIVE staff
+      with no primary — Aaliyah Rose (1: Carson), Chase Nyman (2: Carson, Las
+      Brisas), Gary Thomas (1: South Reno), Kelton Thomas (3: Carson, Las
+      Brisas, Spanish Springs). The single-assignment rows resolve correctly
+      today via the fallback (one candidate, no ambiguity) so they are tidiness;
+      Chase and Kelton are the real ones. TRIGGER, not "optional": a
+      single-store row becomes ambiguous the instant a second store is added,
+      silently, and the index does NOT catch it because zero primaries stay
+      legal. Chip-clicks are Gary's, both environments, own schedule.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       Found 2026-07-27 by the BUILD-2 production pre-check (Query B), run in the
       Neon console against branch `production`. Gary Thomas and Kelton Thomas,
       both ACTIVE, each with 9 StoreStaffAssignment rows and ZERO isPrimary.
@@ -2998,6 +3160,18 @@ debt:
       Full query text is in the Appendix of
       docs/prompts/DEBT-10_team_members_pii.md; nothing has been run, so NO
       branch-labelled result exists yet.
+      BUILD-2 INTERACTION (2026-07-29). BUILD-2 added a defaultStoreId write
+      INSIDE the `if (pending)` block at webhooks/clerk/route.ts:158-196 — the
+      same block this row's aftermath correction established fires regardless of
+      which writer won the race. Consequences for the decided fix: DIRECTION B
+      (page reads PendingInvite) touches the page only and CANNOT disturb it —
+      no change needed. OPTION C (shared syncOrgMembership()) WOULD have to
+      carry the default-setting across deliberately; it is easy to lose in that
+      extraction because it is a `prisma.user.update` sitting AFTER the upsert
+      rather than part of it. Also sharpens this row's end-state signature:
+      "role STAFF holding store assignments" now additionally carries a
+      defaultStoreId when exactly one store was provisioned, which slightly
+      strengthens Q2 as a lead (still not proof).
 
   - id: DEBT-18
     # NO status field: the vocabulary (planned/in_progress/staging/shipped/
@@ -3151,3 +3325,68 @@ debt:
       the generator, and a one-word fix in a different file is still a change
       nobody asked for in that diff (the same rule applied to DEBT-11 in Ruling
       2, 2026-07-28). Cheap to take whenever the generator is next opened.
+
+  - id: DEBT-22
+    title: "hr/acknowledge loads a manager-attest target's storeAssignments with no orderBy — the only unordered primary-store pick left"
+    notes: >
+      Found 2026-07-29 during the BUILD-2 audit, while disproving the claim
+      that primaryStoreName() runs on unordered data (see the correction on
+      BUILD-2 and DEBT-9). It does not — but this one site does.
+      WHERE: src/app/(app)/hr/acknowledge/[documentId]/page.tsx:54-57. The
+      manager-attested branch loads the target staff member with a bare
+      `include: { storeAssignments: { include: { store: true } } }` — no
+      orderBy. Every other load of storeAssignments in the codebase uses
+      `orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }]`
+      (src/lib/hr.ts:23, src/app/api/hr/forms/shared.ts:48,
+      src/app/api/hr/documents/[id]/acknowledgments/route.ts:99,
+      src/lib/hr-compliance.ts:148, src/lib/hr-signed-pdf.ts:764,
+      src/app/(app)/staff/page.tsx:33, src/app/(app)/staff/[id]/page.tsx:32).
+      This is the sole exception.
+      That unordered array reaches the client at
+      src/app/(app)/hr/acknowledge/[documentId]/page.tsx:120-124 and is picked
+      over at signing-client.tsx:91 —
+      `staff.stores.find((s) => s.isPrimary) ?? staff.stores[0] ?? null` —
+      which pre-selects the store chip.
+      COSMETIC, NOT A LEGAL EXPOSURE, and the reason matters: the value that
+      gets PERSISTED is recomputed server-side. On the attested path
+      acknowledgments/route.ts:172 calls primaryStoreName(staff) against its
+      OWN ordered query at :94-102, and per the comment at :167-169 the
+      attested path has no selector at all. So a mis-ordered pre-selection
+      cannot reach HrDocumentAcknowledgment.storeName. What it can do is
+      show a manager an arbitrary chip for a staff member with no primary —
+      visible, briefly confusing, never written down.
+      Once BUILD-2's partial unique index lands, the duplicate-primary case
+      is impossible and this narrows to the zero-primary case only (DEBT-9's
+      shape). It does not narrow to nothing: a staff member with no primary
+      and several stores still gets an arbitrary chip here.
+      FIX: add the standard orderBy to the include at page.tsx:56. One line,
+      no migration, no behaviour change for anyone who has a primary.
+      NOT DONE IN BUILD-2 — filed rather than fixed, per Gary 2026-07-29,
+      because BUILD-2's fence is the column plus its two migrations and this
+      is an HR signing surface.
+
+  - id: DEBT-23
+    title: "DEPLOY_LOG.md has no promotion entry after 2026-07-23, though at least one promotion happened since"
+    notes: >
+      Noted 2026-07-29 during the BUILD-2 audit; filed, not fixed. The most
+      recent promotion heading in docs/DEPLOY_LOG.md is "2026-07-23 — PRODUCTION
+      promotion (HR-8 → STAFF-1 batch)", but ROADMAP and git both record a
+      2026-07-27 promotion (merge 06b1561, "Promote staging: PERM-2, PERM-3,
+      BUILD-1, SQ-1 docs, roadmap dashboard", with 17dc723 recording BUILD-1,
+      BUG-3 and SQ-2 verified in production). The 2026-07-21 entry already
+      carries a note that its own entry was missing when the promotion happened,
+      so this is the second occurrence of the same gap, not a one-off. MATTERS
+      because DEPLOY_LOG is the only place the ORDER and CONTENT of production
+      promotions is narrated — MIGRATIONS.md records which migrations rode which
+      promotion and points AT DEPLOY_LOG for the rest. A missing entry means
+      the next person reconstructing "what went to prod when" has to read git.
+      Reconstructable from git log at the time of writing; gets harder, not
+      easier.
+      DO NOT LET FILING THIS ROW BECOME THE THIRD OCCURRENCE (Gary,
+      2026-07-29). BUILD-2 itself carries two migrations
+      (20260729124105_build2_user_default_store,
+      20260729145504_build2_staff_one_primary_store) and is promoted to main
+      separately from this row being filed. THAT promotion needs its own
+      DEPLOY_LOG entry — naming both migrations, since MIGRATIONS.md's own
+      history section records migrations per promotion and would otherwise have
+      nothing to point at. Writing this row down is not the same as closing it.

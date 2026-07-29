@@ -22,8 +22,14 @@ DATABASE_URL="<staging-branch-url>" npx prisma db push
 This is the LAST time `db push` gets used.
 
 ## 1. One-time Neon setup (safety)
-Your local `.env` currently points at PRODUCTION. `prisma migrate dev` can offer
-to WIPE the database it's pointed at — never point it at prod.
+**Your local `.env` points at the `dev` branch** (`ep-late-water-a6k53nv2`),
+repointed by BUILD-1/DEBT-4. It used to point at production, which is why this
+section was written as a warning. `prisma migrate dev` can offer to WIPE the
+database it's pointed at — never point it at prod.
+
+**The repoint created a new trap in the opposite direction:** a local pre-check
+now silently reads `dev` and returns a **false all-clear about production**. See
+"Which branch am I actually reading?" below.
 
 In Neon Console:
 1. Create branch `dev` (from production) — your local development DB.
@@ -48,6 +54,10 @@ npx prisma migrate diff --from-empty \
   --to-schema-datamodel prisma/schema.prisma \
   --script > prisma/migrations/0_init/migration.sql
 ```
+
+> ⚠️ **After regenerating `0_init`, re-append both partial indexes by hand or
+> the baseline is wrong** — see "Protected indexes" below. `--to-schema-datamodel`
+> generates from the schema, which cannot express them.
 
 Reset migration bookkeeping on EACH existing DB (prod, staging, dev).
 In the Neon SQL editor per branch (touches only Prisma's ledger table, no data):
@@ -112,6 +122,80 @@ Rules:
 - Never `db push` against staging or prod again.
 - Never run `migrate dev` against staging or prod (it's the dev-only command).
 - A migration file, once pushed, is immutable — fix mistakes with a new migration.
+
+---
+
+## Protected indexes — expressible only in migration SQL, not in the schema
+
+Two unique indexes exist in every database but **cannot be written in
+`prisma/schema.prisma`**, because Prisma has no `WHERE` clause on `@@unique`:
+
+| Index | Table | Predicate | Origin |
+|---|---|---|---|
+| `LaborSettings_org_default_key` | `LaborSettings` | `WHERE "storeId" IS NULL` — one org-default row | `20260720000000_labor0_positions_settings_forecast` |
+| `StoreStaffAssignment_one_primary_key` | `StoreStaffAssignment` | `WHERE "isPrimary"` — one primary store per staff member | `20260729145504_build2_staff_one_primary_store` |
+
+### Hazard 1 — the baseline squash silently drops them
+
+§2 rebuilds `0_init` with `migrate diff --from-empty --to-schema-datamodel`,
+which generates **from the schema**. The schema cannot express either index, so
+the regenerated baseline will **omit both**. Any database later built from
+`0_init` — a fresh environment, a rebuilt Neon branch — comes up with **no
+constraint and nothing failing loudly**. Re-append both by hand after
+regenerating, and diff the result against this table.
+
+### Hazard 2 — the schema misinforms a reader
+
+`StoreStaffAssignment` shows only `@@unique([staffMemberId, storeId])`, which
+constrains **membership, not primacy**. A developer reading the schema will
+reasonably conclude nothing prevents two `isPrimary` rows. It does — here.
+
+### What is NOT a hazard: generated diffs
+
+**`prisma migrate diff` is blind to partial indexes in both directions.** It
+neither creates nor drops them, so no generated diff will threaten these.
+Verified 2026-07-29 on **branch dev (`ep-late-water-a6k53nv2`)**, twice, on two
+different indexes:
+
+- With `LaborSettings_org_default_key` physically present in `pg_indexes`, both
+  `--from-config-datasource --to-schema` and the reverse `--from-schema
+  --to-config-datasource` reported only an unrelated new column. Neither
+  mentioned the index.
+- After `StoreStaffAssignment_one_primary_key` was created, the shape diff still
+  returned `-- This is an empty migration.` with exit code 0.
+
+Recorded because it is easy to assume the opposite, and the wrong assumption
+produces the wrong protection: an earlier draft of this section told readers to
+watch every generated diff for a `DROP INDEX` line. That guard is unnecessary,
+and worse, it would have replaced the real hazard above with a false one.
+
+Disconfirming evidence, if it ever appears: a `DROP INDEX` for either name in
+generated output. Two diffs in both directions on a branch that provably had the
+index produced none.
+
+## Which branch am I actually reading?
+
+| Branch | Endpoint | Seeded from | Use |
+|---|---|---|---|
+| `production` | `ep-green-smoke-a6xthq4r` | — | Neon console only. Never on disk. |
+| `preview/staging` | `ep-odd-rain-a6gr4xmm` | separately seeded | first target of every `migrate deploy` |
+| `dev` | `ep-late-water-a6k53nv2` | **branched from `production`** (§1) | local `.env`; every CLI command here |
+
+**`dev` inherits production's data shape; staging does not.** Verified
+2026-07-29 by running the same zero-primary query on both: **branch
+`preview/staging`** returned four ACTIVE staff (Aaliyah Rose 1, Chase Nyman 2,
+Gary Thomas 1, Kelton Thomas 3), while **branch `dev`** returned exactly what
+**branch `production`** had returned on 2026-07-27 — Gary Thomas and Kelton
+Thomas, 9 assignments each.
+
+Two consequences:
+
+1. **A clean staging result is not evidence about production.** They are
+   different data. Every result must name its branch (CLAUDE.md § Database
+   Evidence).
+2. **`dev` is the fair rehearsal for a production migration**, and staging is
+   the fair rehearsal for the *deploy*. Both are worth running; they answer
+   different questions.
 
 ---
 

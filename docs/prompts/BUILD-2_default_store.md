@@ -274,3 +274,85 @@ Migration committed with the code, `next build` green, BUILD-2 row updated to
 3. The validation rules, including the stale-default fallback.
 4. The self-service decision from Task 3.
 5. The explicit unpushed-commits line.
+
+---
+---
+
+# ADDENDUM — 2026-07-29 session order
+
+**Everything above this line is the authoritative task list.** This addendum was
+written without knowledge of the file above and is **not a replacement for it**.
+Where the two overlap, the original governs. What follows is recorded only for
+what it *adds*: the standing rules, the schema-constraint lift, the
+`migrate dev` warning, and the approval gates.
+
+**Nothing above has been removed or edited.**
+
+## Retracted from the 2026-07-29 order
+
+- **Item 5 (re-derive the production pre-check)** — retracted by Gary the same
+  day. Task 1a above already carries Queries A/B/C with branch-labelled results
+  from 2026-07-27. Do not re-derive them. The live question is only whether a
+  *re-run* is worth it, judged against Task 1a's own reasoning that staleness is
+  fail-closed.
+
+## Additions — standing rules for this session
+
+- Treat the session prompt's claims **and this file's claims** as UNVERIFIED.
+  Re-verify every `file:line` against the current checkout. If a reference has
+  drifted, report the real location rather than following it silently.
+- **Any database result cited must name its Neon branch on the same line.** A
+  result without a named branch does not count. (Now also a standing CLAUDE.md
+  precondition — "Database Evidence".)
+- **No `vercel env pull`, any environment. Neon console only.** Per DEBT-4 the
+  local env points at the **dev** branch, so a local pre-check returns a false
+  all-clear. Claude does not run production queries; Claude *writes* them for
+  Gary to run.
+- Before writing down any causal explanation, **state what evidence would
+  disconfirm it.**
+- **Audit first, plan, wait for approval, then edit.** Commit only when asked.
+  **Never push.**
+
+## Addition — the no-schema constraint is LIFTED for this phase
+
+Every recent session has been "no schema, no migration." **This one is the
+opposite: BUILD-2 is two DDL changes riding one deploy.**
+
+`prisma migrate dev` is **BROKEN** here — the baseline squash was never done, so
+shadow-DB replay fails with **P3018**, and `.env` has no `SHADOW_DATABASE_URL`.
+`db push` is retired (2026-07-06 staging drift incident).
+
+Use **only** the hand-authored `migrate diff` flow documented in `CLAUDE.md` and
+`docs/MIGRATIONS.md`. That flow must be quoted back in the plan before any
+migration is authored. If the documented flow contradicts this paragraph, say so
+— do not reconcile it silently.
+
+## Addition — scope fence on consumption
+
+**OUT OF SCOPE, EXPLICITLY: consumption.** UX-2 owns the ~14 store pickers.
+BUILD-2 adds the column, validates it, and sets it. **Do not touch a picker.**
+If you find yourself editing one, stop and report. (Consistent with Task 4
+above, stated here as a hard fence rather than a preference.)
+
+## Addition — DEBT-9 pre-step ownership
+
+Gary Thomas and Kelton Thomas have 9 store assignments each and zero
+`isPrimary` (Query B above). **Gary sets these by chip-click on `/staff`
+himself — it is data, not code.** Claude does not attempt it and does not write
+SQL to do it. The plan must state whether it has to happen **before** the index
+migration or may follow it, and why.
+
+## Addition — approval gates
+
+The plan must propose a task-by-task order **and say where the approval gates
+sit.** No edit before the plan is approved.
+
+## Addition — required report-back items
+
+Beyond the "Report back" list above:
+
+1. Any `file:line` in this file or in the ROADMAP rows that has **drifted** from
+   the current checkout — report the real location.
+2. Anything in the session order that **contradicted the repo** — stated, not
+   silently reconciled.
+3. The explicit **unpushed-commits line**.
