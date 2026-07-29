@@ -40,10 +40,34 @@ export async function findStaffMemberForUser(
 }
 
 // The store recorded on signing-time snapshots: the staff member's primary
-// store, falling back to their first assignment.
+// store, falling back to their alphabetically-first assignment.
+//
+// Orders INTERNALLY rather than trusting the caller's query. This was
+// `.find((a) => a.isPrimary) ?? storeAssignments[0]`, which is deterministic
+// only because every caller happens to select with
+// `orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }]` — hr.ts:23,
+// api/hr/forms/shared.ts:48, api/hr/documents/[id]/acknowledgments/route.ts:99.
+// That is a property of the callers, not of this function, and the value it
+// returns is FROZEN into a legal record: HrDocumentAcknowledgment.storeName,
+// FormSubmission.storeName, and the certificate line on the signed PDF
+// (hr-signed-pdf.ts:615, :426, :670). One future caller forgetting the orderBy
+// would make a signed document's store name depend on row order.
+//
+// BUILD-2 audit (2026-07-29) confirmed this is a NO-OP against both current
+// callers: given an array already sorted isPrimary-desc-then-name-asc, the first
+// `isPrimary` row IS index 0, so `.find()` and `sorted[0]` return the same
+// element — with one primary, with none, and with duplicates. The behaviour
+// change is only for a caller that does not order, which is the point.
+//
+// Note this does NOT fix DEBT-9: a staff member with no primary still resolves
+// to an arbitrary-but-stable store. It makes that stability a guarantee here
+// rather than a coincidence.
 export function primaryStoreName(
   staff: { storeAssignments: { isPrimary: boolean; store: { name: string } }[] }
 ): string | null {
-  const primary = staff.storeAssignments.find((a) => a.isPrimary) ?? staff.storeAssignments[0]
-  return primary?.store.name ?? null
+  const [best] = [...staff.storeAssignments].sort(
+    (a, b) =>
+      Number(b.isPrimary) - Number(a.isPrimary) || a.store.name.localeCompare(b.store.name)
+  )
+  return best?.store.name ?? null
 }
