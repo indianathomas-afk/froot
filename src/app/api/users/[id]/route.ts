@@ -4,10 +4,15 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireAdmin } from "@/lib/auth"
 import { findStaffMemberForUser } from "@/lib/hr"
+import { validateDefaultStore } from "@/lib/default-store"
 
 const patchSchema = z.object({
   role: z.enum(["ADMIN", "MANAGER", "STORE", "STAFF"]),
   storeIds: z.array(z.string()).default([]),
+  // BUILD-2. Nullish, not optional-with-default: null is a meaningful value
+  // (clear the default, restore alphabetically-first) and must be
+  // distinguishable from "not sent".
+  defaultStoreId: z.string().min(1).nullish(),
 })
 
 // Clerk memberships only distinguish admin vs member — MANAGER / STORE / STAFF
@@ -39,7 +44,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
-  const { role, storeIds } = parsed.data
+  const { role, storeIds, defaultStoreId } = parsed.data
 
   const existing = await prisma.user.findFirst({ where: { id, organizationId: org.id } })
   if (!existing) {
@@ -60,6 +65,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (ownedCount !== storeIds.length) {
       return NextResponse.json({ error: "One or more stores do not belong to this organization" }, { status: 400 })
     }
+  }
+
+  // BUILD-2. Validated against the set this request WILL PRODUCE, and the role
+  // it WILL PRODUCE — not the rows in the database now. This route replaces
+  // role, assignments and default together, so checking the current state would
+  // reject a legitimate "add store B and default to B" and would accept a
+  // default on store A in a request that removes store A. Same reasoning as
+  // PERM-6's primaryStoreId check (api/staff/[id]/route.ts:87-93).
+  if (defaultStoreId !== undefined) {
+    const check = await validateDefaultStore({
+      organizationId: org.id,
+      defaultStoreId,
+      isAdmin: role === "ADMIN",
+      resultingStoreIds: storeIds,
+    })
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
   }
 
   // Last-admin guard: the org must never be left without an ADMIN.
@@ -137,6 +158,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     where: { id },
     data: {
       role,
+      // Omitted when the client didn't send the field, so a caller that only
+      // changes the role cannot silently clear a default it never mentioned.
+      ...(defaultStoreId !== undefined ? { defaultStoreId } : {}),
       storeAssignments: {
         deleteMany: {},
         create: storeIds.map((storeId: string) => ({ storeId })),

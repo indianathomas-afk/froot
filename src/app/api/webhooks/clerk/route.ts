@@ -180,6 +180,28 @@ export async function POST(req: Request) {
             data: owned.map((s) => ({ userId: user.id, storeId: s.id })),
             skipDuplicates: true,
           })
+          // BUILD-2 / PERM-7: a login provisioned with exactly ONE store gets
+          // that store as its default. This is where it has to happen — POST
+          // /api/users only creates a Clerk invitation plus a PendingInvite
+          // row, so no User row exists yet at provisioning time; the row is
+          // born here on acceptance.
+          //
+          // Safe to write unconditionally rather than create-only (contrast the
+          // deviceName Ruling 4 note on the upsert above): this whole block is
+          // guarded by `pending`, and the PendingInvite is DELETED at the end of
+          // it, so it runs exactly once per invitation. A re-invited user gets a
+          // fresh PendingInvite and a fresh default, which is correct — that is
+          // re-provisioning, not overwriting a preference.
+          //
+          // Multi-store invitees are left null on purpose: there is no basis to
+          // guess which of several stores they want, and null already means
+          // alphabetically-first.
+          if (owned.length === 1) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { defaultStoreId: owned[0].id },
+            })
+          }
         }
       }
       // HR-7 self-service invite: bind the new login to its staff profile.

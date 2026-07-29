@@ -134,12 +134,14 @@ export function EditUserButton({
   dbUserId,
   currentRole,
   currentStoreIds,
+  currentDefaultStoreId,
   stores,
   userName,
 }: {
   dbUserId: string | null
   currentRole: string
   currentStoreIds: string[]
+  currentDefaultStoreId: string | null
   stores: Store[]
   userName: string
 }) {
@@ -148,9 +150,25 @@ export function EditUserButton({
   const [error, setError] = useState("")
   const [role, setRole] = useState(currentRole)
   const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set(currentStoreIds))
+  // BUILD-2. "" is the wire form of null — see handleSave.
+  const [defaultStore, setDefaultStore] = useState(currentDefaultStoreId ?? "")
   const router = useRouter()
 
+  // BUILD-2. Options come from the locations selected in THIS modal, not the
+  // saved set, so "add store B and make it the default" works in one save.
+  // Admins pick from every store: they have no assignment rows to be limited by.
+  const defaultOptions = role === "ADMIN" ? stores : stores.filter((s) => selectedStores.has(s.id))
+  // Switching role can invalidate an already-chosen default (ADMIN → STORE with
+  // the default unselected). Derive rather than mutate, and send the SAME value
+  // the user can see — otherwise the modal would submit a default the server is
+  // bound to reject with a 400 the admin cannot act on.
+  const effectiveDefault = defaultOptions.some((s) => s.id === defaultStore) ? defaultStore : ""
+
   function toggleStore(id: string) {
+    // Deselecting the default location clears it, mirroring the staff dialog's
+    // primary-store behaviour (staff/[id]/staff-edit-actions.tsx:72). Without
+    // this the modal would submit a default the server must reject.
+    if (defaultStore === id && selectedStores.has(id)) setDefaultStore("")
     setSelectedStores((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
@@ -166,7 +184,11 @@ export function EditUserButton({
       const res = await fetch(`/api/users/${dbUserId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, storeIds: Array.from(selectedStores) }),
+        body: JSON.stringify({
+          role,
+          storeIds: Array.from(selectedStores),
+          defaultStoreId: effectiveDefault || null,
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -230,6 +252,26 @@ export function EditUserButton({
             {role === "ADMIN" && (
               <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
                 <p className="text-xs text-orange-700">Admins have access to all locations automatically.</p>
+              </div>
+            )}
+            {defaultOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Default Location</Label>
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  Where this user starts when they sign in. Leave unset to use the first location alphabetically.
+                </p>
+                <select
+                  className="w-full border border-[var(--color-border)] rounded-md bg-transparent px-3 py-2 text-sm"
+                  value={effectiveDefault}
+                  onChange={(e) => setDefaultStore(e.target.value)}
+                >
+                  <option value="">No default location</option>
+                  {defaultOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
             {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
