@@ -2845,6 +2845,100 @@ debt:
       does, or (better) stop writing roles from a render path entirely and let
       the page display an unsynced member as pending rather than materialising
       a guess. A GET that writes is the underlying smell.
+      ── AUDIT 2026-07-28 (audit only, NOT implemented; row stays OPEN) ──
+      STILL REAL against current code. The block is users/page.tsx:65-98 (the
+      row said :65-91 — it extends to :98 including the post-sync re-fetch);
+      the role guess at :86 is exact. Sharper than the row states: the page
+      ALREADY BUILDS pendingByEmail at :46 from the same PendingInvite rows the
+      webhook reads, and the upsert simply does not consult it. The data is in
+      hand and unused. Only an ADMIN can trigger the write (requireAdmin,
+      users/page.tsx:162). Also drifted: the Clerk role mapping is
+      users/route.ts:106, not :102.
+      THE WINDOW — NOT MEASURED, and this is stated as structure, not timing.
+      It opens when Clerk fires organizationMembership.created and closes when
+      the handler's upsert commits. The event is ACCEPTANCE-time, not
+      invitation-time: the handler reads membership.public_user_data.user_id
+      (webhooks/clerk/route.ts:140), which exists only once someone has joined.
+      So normally SECONDS. But it can persist: the handler returns 500 on
+      "Failed to resolve member email" (:95) and on any unhandled DB error, and
+      Svix retries on a seconds → minutes → hours backoff; and if the webhook
+      is misconfigured for an environment or CLERK_WEBHOOK_SECRET is wrong, the
+      window is UNBOUNDED and the page becomes the only writer by design rather
+      than by race. The trigger — an admin reloading /users to see whether the
+      invite was accepted — is the natural admin behaviour in exactly that
+      window, which is why "unexercised" should not be read as "unlikely".
+      THE WRONG ROW IS PERMANENT, CONFIRMED. webhooks/clerk/route.ts:139-156:
+      `update: { email: userEmail }`. `role` appears ONLY in the create branch
+      (:154). The page's STAFF row is never corrected. Recovery exists but
+      requires an admin to NOTICE — the Edit User dialog sets role and
+      assignments (users/[id]/route.ts:136).
+      THIS ROW WAS WRONG ABOUT THE AFTERMATH — corrected 2026-07-28. It said
+      "PendingInvite is not cleaned up either, so the two disagree with no
+      signal." FALSE against current code. The `if (pending)` block at
+      webhooks/clerk/route.ts:158-196 is NOT gated on which upsert branch ran;
+      it fires whenever a PendingInvite matched. So even when the page wins the
+      race, the webhook still creates the correct StoreUserAssignments (:179),
+      binds the staff profile (:189), and DELETES the PendingInvite (:195).
+      Two consequences pulling opposite ways: LESS BAD — store access lands
+      correctly, so the victim gets the right locations with the wrong role;
+      WORSE — the forensic evidence self-destructs, so there is normally no
+      surviving PendingInvite to compare against. End state is a distinctive
+      shape: role STAFF holding store assignments.
+      OPTIONS FOR THE FIX — Gary's decision, deliberately not taken here.
+      (A) Page stops writing; render unsynced Clerk members as "pending sync".
+      Kills the race and the GET-that-writes smell outright. BUT the auto-sync
+      is evidently a safety net for missed webhooks, and this removes it: the
+      Edit dialog uses prisma.user.update({where:{id}}) and needs the row to
+      already exist, so a broken webhook would leave members with no row and no
+      path to one. Needs an explicit "Sync now" admin action or it deletes a
+      recovery route.
+      (B) Page reads PendingInvite as the webhook does. Cheapest — roughly one
+      line against data already loaded at :46. Fixes the role; keeps the
+      GET-that-writes. Does not reproduce the webhook's store fan-out, but the
+      webhook's if(pending) block still lands those later, so it converges. If
+      the webhook never lands: role-correct row, no stores, PendingInvite
+      survives — strictly better than today. Risk: role resolution now lives in
+      two places and can drift.
+      (C) Extract the webhook body into a shared syncOrgMembership() called by
+      both. One implementation, no drift; whoever wins does the whole job
+      correctly and the loser's upsert is a no-op. Biggest diff, in an untested
+      production path (the repo has NO tests), still leaves real writes in a
+      render path, and needs idempotency care around pendingInvite.delete under
+      concurrency.
+      (D) Leave the write; warn when role disagrees with a surviving
+      PendingInvite. No behaviour change, cheapest to reason about — but per
+      the correction above the PendingInvite usually will NOT survive, so it
+      detects almost nothing.
+      DECISION — GARY, 2026-07-28: **B NOW, C LATER IF THE SMELL EARNS A
+      PHASE.** Taken on the audit above, after the correction to the aftermath
+      claim. Rationale as presented and accepted: B is roughly one line against
+      data the page already loads at :46, it closes the actual harm (the wrong
+      role), and it cannot regress the webhook. A is the architecturally right
+      answer but silently removes the missed-webhook recovery path, which does
+      not look disposable — A is only on the table bundled with an explicit
+      "Sync now" admin action. D is close to worthless given the correction,
+      because the PendingInvite it would compare against is usually already
+      deleted.
+      This row therefore stays OPEN as a decided-but-unimplemented fix, not as
+      an open question. The next session picking it up implements B and does
+      NOT re-litigate the fork.
+      EVIDENCE IT HAS OCCURRED — MOSTLY FORECLOSED by the correction above:
+      because the webhook deletes the PendingInvite, the direct
+      role-vs-PendingInvite comparison survives only where the webhook NEVER
+      landed. Two read-only queries were WRITTEN FOR GARY TO RUN, not run here
+      (per the session's Neon-console-only rule); run on branch `production`
+      first, then `preview/staging`, and label every result with its branch.
+      Q1 (webhook never landed) — join "User" to "PendingInvite" on
+      organizationId + lower(email) where u.role <> p.role, selecting both
+      roles, p."storeIds" and both createdAt.
+      Q2 (post-webhook signature, weaker) — "User" u join "StoreUserAssignment"
+      a on a."userId" = u.id where u.role = 'STAFF', grouped, counting
+      assignments. FALSE POSITIVES ARE POSSIBLE on Q2: an admin can legitimately
+      assign stores to a STAFF user by hand via users/[id]/route.ts:136. Q2 is
+      a lead, not proof.
+      Full query text is in the Appendix of
+      docs/prompts/DEBT-10_team_members_pii.md; nothing has been run, so NO
+      branch-labelled result exists yet.
 
   - id: DEBT-18
     # NO status field: the vocabulary (planned/in_progress/staging/shipped/
@@ -2931,3 +3025,44 @@ debt:
       "ID (name)") in every doc, prompt and query result — plus a cleanup of the
       dead single-user shells on staging, which is what makes the names
       ambiguous in the first place. Do the cleanup deliberately and by ID.
+
+  - id: DEBT-20
+    title: "POST /api/staff/sync-square gates with an inline isAdmin check instead of can(staff.sync.square) — the capability's only other call site uses it"
+    notes: >
+      Found 2026-07-28 while fixing DEBT-10, in the immediate neighbourhood of
+      that change; written down rather than fixed inline because DEBT-10 was
+      scoped to GET /api/square/team-members. Related: DEBT-10, which created
+      the asymmetry by migrating the read half of this pair.
+      NOT A SECURITY GAP AND NOT URGENT — say this first so the row is not
+      read as one. Both enforcement points land on ADMIN today, so behaviour is
+      identical either way. src/app/api/staff/sync-square/route.ts:20-21 does
+      `const { isAdmin } = await getUserStoreScope()` then
+      `if (!isAdmin) return 403`, while the sibling read it pairs with,
+      src/app/api/square/team-members/route.ts, now does
+      `can({ role }, "staff.sync.square")` after DEBT-10. Same capability, same
+      tier, two different mechanisms — in the same user flow: the Staff page's
+      "Import from Square" button reads through the migrated route and its
+      "Sync Locations from Square" button writes through the unmigrated one
+      (both in src/app/(app)/staff/staff-buttons.tsx, :167 and :486).
+      WHY IT IS WORTH A ROW ANYWAY: PERM-1's shim exists so that PERM-5's
+      per-user overrides have ONE place to hook in (src/lib/permissions.ts
+      SCOPE_OVERRIDES). An inline `isAdmin` is invisible to that layer. On the
+      day someone is granted staff.sync.square by override, Import will start
+      working for them and Sync will not, and the failure will present as an
+      inexplicable 403 on one of two adjacent buttons rather than as a missed
+      migration. The cost of that is paid later and by someone else, which is
+      exactly the shape worth recording now.
+      SCOPE IF PICKED UP: two lines in
+      src/app/api/staff/sync-square/route.ts — swap the destructure to
+      `{ role }` and the check to
+      `if (!can({ role }, "staff.sync.square")) return 403`. No behaviour
+      change, so nothing to verify beyond `next build` and one admin-path
+      smoke test of the Sync button.
+      DO NOT WIDEN THE SWEEP WITHOUT A RULING. This row is deliberately about
+      ONE route, not "migrate every inline role check". docs/
+      PERMISSIONS_INVENTORY.md §3 lists call sites whose enforcement points
+      CONTRADICT each other, and src/lib/permissions.ts's header is explicit
+      that each of those needs Gary's ruling before migration because the shim
+      necessarily encodes one answer. sync-square is not one of those — inline
+      and capability agree on ADMIN — which is precisely why it is safe to do
+      alone and why bundling it with the contradicted ones would not be.
