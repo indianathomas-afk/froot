@@ -45,6 +45,28 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
 }
 
 /**
+ * DEBT-14. A debt row is RESOLVED only when it EXPLICITLY says so.
+ *
+ * A MISSING status means OPEN — every outstanding row omits the field (see
+ * DebtItem in lib/roadmap.ts), so defaulting the other way would hide all
+ * eighteen of them, which is worse than the bug this fixes. `planned` and
+ * `in_progress` are open too: the fix is scoped or underway, not landed. Only a
+ * landed status moves a row out of "not yet fixed".
+ *
+ * DEBT-18 is WITHDRAWN rather than fixed and carries no status, so it buckets
+ * OPEN here. That is knowingly imprecise — its title leads with "WITHDRAWN".
+ * Giving it a real status means adding `withdrawn` to PhaseStatus, which is
+ * shared with phases and which BOARD_COLUMNS claims no column for; that is a
+ * separate decision, not a rider on this render fix (Gary, 2026-07-28). The
+ * note on DEBT-18's row stands as the record that it is still wanted.
+ */
+function isResolvedDebt(item: DebtItem) {
+  return (
+    item.status === "staging" || item.status === "shipped" || item.status === "verified"
+  )
+}
+
+/**
  * "2 days ago" / "5 hours ago". Computed on the client from the build-captured
  * timestamp, so it stays honest as the tab sits open.
  */
@@ -642,6 +664,12 @@ function DetailList({
 }
 
 function BugsAndDebt({ bugs, debt }: { bugs: Bug[]; debt: DebtItem[] }) {
+  // DEBT-14: split once, render twice. Resolved rows are kept on the page under
+  // their own collapsed heading rather than dropped, so the record stays visible
+  // and the "not yet fixed" heading becomes true for its section.
+  const openDebt = debt.filter((item) => !isResolvedDebt(item))
+  const resolvedDebt = debt.filter(isResolvedDebt)
+
   if (bugs.length === 0 && debt.length === 0) return null
   return (
     <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
@@ -673,28 +701,58 @@ function BugsAndDebt({ bugs, debt }: { bugs: Bug[]; debt: DebtItem[] }) {
         </div>
       )}
 
-      {debt.length > 0 && (
+      {openDebt.length > 0 && (
         <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-card)] p-4">
           <h2 className="text-sm font-semibold mb-3 text-[var(--color-foreground)]">
-            Known debt — recorded, not yet fixed
+            Known debt — recorded, not yet fixed ({openDebt.length})
           </h2>
           <ul className="space-y-2">
-            {debt.map((item) => (
-              <li key={item.id} className="text-sm">
-                <span className="font-bold text-[var(--color-foreground)]">
-                  {item.id}
-                </span>{" "}
-                <span className="text-[var(--color-foreground)]">{item.title}</span>
-                {item.notes && (
-                  <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                    {item.notes}
-                  </p>
-                )}
-              </li>
+            {openDebt.map((item) => (
+              <DebtRow key={item.id} item={item} />
             ))}
           </ul>
         </div>
       )}
+
+      {resolvedDebt.length > 0 && (
+        <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-card)] p-4">
+          {/* Native <details>: collapsed by default, keyboard-accessible, and no
+              extra component state to keep in sync. */}
+          <details>
+            <summary className="text-sm font-semibold cursor-pointer text-[var(--color-foreground)]">
+              Resolved debt ({resolvedDebt.length})
+            </summary>
+            <ul className="space-y-2 mt-3">
+              {resolvedDebt.map((item) => (
+                <DebtRow key={item.id} item={item} />
+              ))}
+            </ul>
+          </details>
+        </div>
+      )}
     </section>
+  )
+}
+
+/**
+ * One debt row, shared by both sections so they cannot drift apart. The commit
+ * SHA renders only when the row carries one — in practice only resolved rows do,
+ * and it is the evidence the row is closed rather than merely marked closed.
+ */
+function DebtRow({ item }: { item: DebtItem }) {
+  return (
+    <li className="text-sm">
+      <span className="font-bold text-[var(--color-foreground)]">{item.id}</span>
+      {item.commits?.length ? (
+        <span className="text-[var(--color-muted-foreground)]">
+          {" · "}
+          <span className="font-mono text-xs">{item.commits.join(", ")}</span>
+        </span>
+      ) : null}{" "}
+      <span className="text-[var(--color-foreground)]">{item.title}</span>
+      {item.notes && (
+        <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">{item.notes}</p>
+      )}
+    </li>
   )
 }
