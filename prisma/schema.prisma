@@ -89,9 +89,18 @@ model User {
   email          String
   name           String?
   role           Role     @default(STAFF)
+  // BUILD-2: the store this user lands on. Lives on User, not on
+  // StoreUserAssignment, because ADMINs have NO assignment rows at all (every
+  // page scopes with `...(isAdmin ? {} : { id: { in: storeIds } })`) — and the
+  // PERM-7 device account is exactly the case that most needs a default.
+  // Nullable with no backfill: null = fall back to alphabetically-first, which
+  // is what every picker already does. Validated on write AND on read, since
+  // assignments churn (Clerk webhook, admin edit) after a default is set.
+  defaultStoreId String?
   createdAt      DateTime @default(now())
 
   organization         Organization          @relation(fields: [organizationId], references: [id])
+  defaultStore         Store?                @relation("UserDefaultStore", fields: [defaultStoreId], references: [id], onDelete: SetNull)
   storeAssignments     StoreUserAssignment[]
   taskLogs             TaskLog[]
   teamMessages         TeamMessage[]         @relation("TeamMessageAuthor")
@@ -124,6 +133,10 @@ model Store {
   hours                     StoreHours[]
   userAssignments           StoreUserAssignment[]
   staffAssignments          StoreStaffAssignment[]
+  // BUILD-2 back-relation for User.defaultStoreId. onDelete: SetNull lives on
+  // the User side — deleting a store clears the default, it does not cascade
+  // into user rows.
+  defaultForUsers           User[]                          @relation("UserDefaultStore")
   templateAssignments       TemplateStoreAssignment[]
   checklists                Checklist[]
   storageAreas              StorageArea[]

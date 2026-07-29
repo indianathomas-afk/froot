@@ -1,0 +1,32 @@
+-- CreateIndex
+-- BUILD-2: at most ONE primary store per staff member.
+--
+-- HAND-AUTHORED. `prisma migrate diff` did not generate this and cannot:
+-- Prisma has no WHERE clause on @@unique, so a partial index is not
+-- expressible in the datamodel. Note that @@unique([staffMemberId, storeId])
+-- in schema.prisma constrains MEMBERSHIP, not PRIMACY -- from the schema alone
+-- nothing appears to prevent two isPrimary rows for one staff member.
+--
+-- Verified 2026-07-29 against branch dev (ep-late-water-a6k53nv2): migrate diff
+-- is blind to partial indexes in BOTH directions -- it neither creates nor
+-- drops them, so no generated diff will threaten this index. The real hazard is
+-- the pending baseline squash (docs/MIGRATIONS.md): `migrate diff --from-empty
+-- --to-schema-datamodel` builds 0_init FROM THE SCHEMA and will silently omit
+-- both this index and LaborSettings_org_default_key. Re-append both by hand or
+-- any environment built from that baseline comes up with no constraint and
+-- nothing failing loudly.
+--
+-- Mirrors LaborSettings_org_default_key (20260720000000_labor0_positions_settings_forecast).
+--
+-- ZERO primaries stay legal by design: a partial index covers only the rows
+-- where its predicate holds. That is why DEBT-9 (staff with no primary) is not
+-- a gate on this migration -- and equally why this index does not fix DEBT-9.
+--
+-- Pre-checked clean before authoring: branch production 2026-07-27 (Query A,
+-- zero rows) and branch staging 2026-07-29 (Query A, zero rows). A duplicate
+-- appearing later makes CREATE UNIQUE INDEX fail -- fail-closed, no data is
+-- altered -- but it marks the migration failed and blocks subsequent
+-- `migrate deploy` runs until cleared with `migrate resolve --rolled-back`.
+CREATE UNIQUE INDEX "StoreStaffAssignment_one_primary_key"
+  ON "StoreStaffAssignment"("staffMemberId")
+  WHERE "isPrimary";
