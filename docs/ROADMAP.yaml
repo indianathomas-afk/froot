@@ -2520,10 +2520,50 @@ debt:
       owner signs freezes an arbitrary one of nine stores into a legal record.
 
   - id: DEBT-10
-    status: staging
+    status: verified
     commits: [2877b41]
     title: "GET /api/square/team-members has no role gate — the same hole PERM-6 closed on square/locations"
     notes: >
+      VERIFIED IN PRODUCTION 2026-07-29 (Gary). Promoted to main with the
+      2026-07-29 merge; 2877b41 confirmed an ancestor of main. Both halves
+      exercised against the real environment, which is what moves this row from
+      `staging` to `verified`:
+      GATE — a STORE account (Las Brisas) received 403; an ADMIN received 200.
+      That is the first live proof the capability check fires, and it exercises
+      exactly the tier the row was argued down to.
+      ALLOW-LIST — the 200 carried exactly the allow-listed fields and nothing
+      else.
+      SCALE — 138 team members in the production payload, every one carrying
+      email_address. This RETIRES the row's own "NOT CHECKED: whether the
+      production org has Square connected" caveat below: it is connected, the
+      payload was live, and the exposure was 138 employees' email addresses
+      readable by any authenticated account, not a hypothetical. Environment
+      named per CLAUDE.md § Database Evidence — this is a production Square API
+      payload observed through the deployed app, not a Neon branch query.
+      PHONE NOTE UPGRADED — correction (1) below called the phone exposure an
+      INFERENCE. That was too weak. Square's documented TeamMember object
+      carries phone_number, so the field genuinely exists on the object the
+      route was spreading; the spread had no filter, so it went to the client
+      whenever Square populated it. What is STILL not claimed is an observation
+      of our own pre-fix payload — the allow-list now strips the field, so that
+      observation can no longer be made. Correction (1) is left in place
+      unedited as the record of the weaker wording; this paragraph supersedes
+      its strength, not its caution.
+      DEAD FIELD FOUND BY THE SAME PASS — `display_name` is in the allow-list
+      and NOTHING EVER POPULATES IT. Square's TeamMember object has no such
+      field (0 of 138 returned it; Gary confirmed against Square's API
+      reference 2026-07-29), so memberName()'s given/family fallback is the
+      only path that has ever run. RECOMMENDED, NOT DONE — flagged rather than
+      removed silently, and re-verified against the code first: dropping it is
+      FOUR sites, not one line —
+      src/app/api/square/team-members/route.ts:64 (the allow-list entry),
+      src/lib/square.ts:110 (the server type),
+      src/app/(app)/staff/staff-buttons.tsx:14 (the client type), and the read
+      at staff-buttons.tsx:233 (memberName). They must move together: drop the
+      type but not the route and the build breaks. Nothing else reads
+      display_name, so the change is contained. Behaviour is unchanged either
+      way, which is exactly why it is a cleanup and not a fix — take it when
+      something else opens these files.
       CLOSED 2026-07-28, commit 2877b41, ahead of its check-by date.
       CHECK-BY RESOLVED — the 2026-07-31 deadline was met on 07-28 and is kept
       here rather than deleted, because the row's value is partly that a dated
@@ -2694,10 +2734,14 @@ debt:
       query already returns the right people, so it is a display decision.
 
   - id: DEBT-14
-    status: staging
+    status: verified
     commits: [46e1b64]
     title: "The internal roadmap UI lists closed debt under \"not yet fixed\" — it ignores a debt row's status"
     notes: >
+      VERIFIED IN PRODUCTION 2026-07-29 (Gary). Promoted with the 2026-07-29
+      merge; 46e1b64 confirmed an ancestor of main. Note the pleasing loop: this
+      row is the first to be moved to `verified` BY THE MECHANISM IT ADDED, and
+      flipping it here moves it into its own "Resolved debt" section.
       CLOSED 2026-07-28, commit 46e1b64. The debt section now splits on status:
       an explicit staging/shipped/verified renders under a collapsed "Resolved
       debt" heading, everything else — including a MISSING status, which is
