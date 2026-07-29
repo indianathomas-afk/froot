@@ -2520,6 +2520,8 @@ debt:
       owner signs freezes an arbitrary one of nine stores into a legal record.
 
   - id: DEBT-10
+    status: staging
+    commits: [2877b41]
     title: "GET /api/square/team-members has no role gate — the same hole PERM-6 closed on square/locations"
     notes: >
       CLOSED 2026-07-28, commit 2877b41, ahead of its check-by date.
@@ -2692,8 +2694,21 @@ debt:
       query already returns the right people, so it is a display decision.
 
   - id: DEBT-14
+    status: staging
+    commits: [46e1b64]
     title: "The internal roadmap UI lists closed debt under \"not yet fixed\" — it ignores a debt row's status"
     notes: >
+      CLOSED 2026-07-28, commit 46e1b64. The debt section now splits on status:
+      an explicit staging/shipped/verified renders under a collapsed "Resolved
+      debt" heading, everything else — including a MISSING status, which is
+      every outstanding row — stays under "Known debt". 18 open / 2 resolved at
+      close (DEBT-8, DEBT-10). Resolved rows keep their place on the page rather
+      than being dropped, and now show their commit SHA. DEBT-18 (WITHDRAWN, no
+      status) deliberately buckets OPEN: a `withdrawn` value would have to go
+      into PhaseStatus, which is shared with the phase board, and Gary ruled
+      that a separate decision rather than a rider on this fix. Its comment
+      stands as the record. Follow-on found while fixing: DEBT-21.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Found 2026-07-28 while closing DEBT-8, which is the FIRST debt row ever
       resolved — so this was latent from the day the section was written and
       nothing could have surfaced it earlier. Written down rather than fixed
@@ -3066,3 +3081,29 @@ debt:
       necessarily encodes one answer. sync-square is not one of those — inline
       and capability agree on ADMIN — which is precisely why it is safe to do
       alone and why bundling it with the contradicted ones would not be.
+
+  - id: DEBT-21
+    title: "generate-roadmap.mjs coerces commit SHAs to strings for phases and bugs but not for debt"
+    notes: >
+      Found 2026-07-28 while adding status/commits to DEBT-10, one line away
+      from the change. LATENT, NOT LIVE — no row triggers it today.
+      THE MECHANISM is the one the script already documents for phases
+      (generate-roadmap.mjs:82-85): an all-digit short SHA such as 2081401 or
+      9743899 is valid YAML for a NUMBER, so `commits` parses as a mixed
+      string/number array. withStringCommits() coerces it — but it is applied to
+      phases and bugs only, and debt is normalized without it:
+        const phases = withStringCommits(normalize(raw.phases))
+        const bugs   = withStringCommits(normalize(raw.bugs ?? []))
+        const debt   = normalize(raw.debt ?? [])
+      (generate-roadmap.mjs:93-95). A debt row carrying an all-digit SHA would
+      therefore reach the page as a number while DebtItem.commits is typed
+      string[] — the same silent shape drift the phase comment was written to
+      prevent. Both SHAs on debt rows today contain letters (6530d8b, 2877b41),
+      which is the only reason nothing is broken. DEBT-14's render now prints
+      commits, so the first all-digit debt SHA is the one that surfaces it.
+      FIX: one word — wrap the debt line in withStringCommits, as the two lines
+      above it already are.
+      FILED RATHER THAN FIXED INLINE: DEBT-14 was scoped to the render, this is
+      the generator, and a one-word fix in a different file is still a change
+      nobody asked for in that diff (the same rule applied to DEBT-11 in Ruling
+      2, 2026-07-28). Cheap to take whenever the generator is next opened.
