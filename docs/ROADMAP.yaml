@@ -2522,6 +2522,62 @@ debt:
   - id: DEBT-10
     title: "GET /api/square/team-members has no role gate — the same hole PERM-6 closed on square/locations"
     notes: >
+      CLOSED 2026-07-28, commit 2877b41, ahead of its check-by date.
+      CHECK-BY RESOLVED — the 2026-07-31 deadline was met on 07-28 and is kept
+      here rather than deleted, because the row's value is partly that a dated
+      owner-assigned finding was actually cleared inside its window. The
+      original text follows unchanged below the FIX AS LANDED paragraph.
+      FIX AS LANDED (both halves, src/app/api/square/team-members/route.ts):
+      (a) GATE — `const { role } = await getUserStoreScope()` +
+      `if (!can({ role }, "staff.sync.square"))` → 403, inserted between the
+      orgId check and the org lookup, exactly mirroring
+      src/app/api/square/locations/route.ts:33-36. This is the FIRST call site
+      of staff.sync.square: the capability existed in permissions.ts:142 and
+      was referenced by nothing.
+      (b) ALLOW-LIST — the `...m` spread is replaced by id, display_name,
+      given_name, family_name, email_address, plus the server-derived
+      mapAssignedStores output (assignedStoreIds, primaryStoreId, allLocations)
+      and alreadyImported. Every field verified against the sole consumer,
+      src/app/(app)/staff/staff-buttons.tsx. email_address is KEPT: the dialog
+      writes it to StaffMember.email (staff-buttons.tsx:253) and the resync
+      fills a blank email from the same field (staff/sync-square/route.ts:66-70).
+      Gary's rule, 2026-07-28: a genuinely-needed PII field means gate the
+      route, not drop the field. phone_number, status, is_owner, reference_id,
+      timestamps, wage_setting and raw assigned_locations are dropped — zero
+      consumers each.
+      REACHABILITY, ANSWERED: this was API-SURFACE ONLY, the PERM-6 Task 1
+      shape — NOT a live non-admin UI path. Checked: /api/square/team-members
+      is absent from proxy.ts:3-12 isPublicRoute, so auth.protect() always
+      required a Clerk session (never anonymous); route.ts checked only orgId
+      and squareAccessToken, so any authenticated member of a Square-connected
+      org got a 200; and the only fetch in the tree is staff-buttons.tsx:167
+      inside ImportStaffButton, rendered solely under isAdmin. A STORE or STAFF
+      account COULD reach it by hand from any signed-in page; no button did.
+      NOT CHECKED: whether the production org has Square connected. No database
+      query was run on any branch this session. DEBT-8 records nine
+      Square-linked stores on branch `production`, which if accurate means the
+      payload was live — that is a prior session's evidence, not this one's.
+      TWO CLAIMS IN THIS ROW WERE OVERSTATED, corrected 2026-07-28 rather than
+      quietly inherited:
+      (1) "phone number is readable" is an INFERENCE, not an observation.
+      fetchSquareTeamMembers CASTS the response (square.ts:151) and the
+      SquareTeamMember type (square.ts:108-118) does not declare phone_number,
+      so the field passed through only if Square's response carried it. No live
+      Square response was observed. The EMAIL exposure is directly verifiable
+      from the type plus the consumer; the phone exposure is not. The allow-list
+      closes both regardless, which is why the fix did not change.
+      (2) "renders only under isAdmin (staff/page.tsx:92)" — the gate is :93,
+      and there is a SECOND render site the row missed, :109/:111 (the
+      empty-state block). Both are isAdmin-gated, so the conclusion held, but
+      the reference was incomplete.
+      OUT OF SCOPE, RECORDED NOT FIXED: POST /api/staff/sync-square gates with
+      an inline `if (!isAdmin)` (sync-square/route.ts:20-21) rather than
+      can({role}, "staff.sync.square") — the same capability and the same tier,
+      so a consistency item, not a gap.
+      PERMISSIONS_INVENTORY.md updated in the same commit: §1j SQ-5b now reads
+      ADMIN via staff.sync.square, and §2 gap #7 is struck through as resolved
+      in two parts (locations by PERM-6 Task 4, team-members by this row).
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       CHECK BY 2026-07-31 — OWNER: GARY. Assigned a date and an owner at
       logging (Gary, 2026-07-27) rather than at some later reconcile, because
       this is NOT a docs-staleness item: it is a LIVE PII EXPOSURE. Every
