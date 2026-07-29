@@ -250,7 +250,7 @@ display restriction, not a confidentiality one".
 | SQ-3 | `square/disconnect` POST | Clear Square tokens | ADMIN *(SEC-1; was any member)* | handler |
 | SQ-4 | `square/status` GET | Connection status | Any member | handler |
 | SQ-5a | `square/locations` GET | Square location list for the store import dialog and the Edit Store location picker | ADMIN (`stores.manage`) *(PERM-6 Task 4; was **any member** with the entire Square object spread to the client — now an explicit field allow-list)* | handler |
-| SQ-5b | `square/team-members` GET | Square team-member reads for the staff import dialog | **Any member** — same hole PERM-6 Task 4 closed on `square/locations`, deliberately out of that phase's scope. See ROADMAP `DEBT-10` | handler (auth only) |
+| SQ-5b | `square/team-members` GET | Square team-member reads for the staff import dialog | ADMIN (`staff.sync.square`) *(DEBT-10, 2026-07-28; was **any member** with the entire Square team-member object spread to the client — now an explicit field allow-list. `email_address` is retained because the import dialog writes it to `StaffMember.email`; `phone_number` and every untyped remainder are dropped. First call site of `staff.sync.square`)* | handler |
 | SQ-5c | `stores/[id]/resync-square` POST | Re-pull ONE store's Square location record onto its mirrored fields (name, address, phone, timezone, contactEmail) | ADMIN (`stores.manage`) | handler |
 | SQ-6 | `square/catalog/sync`, `square/sales-items/sync` POST | Catalog syncs | ADMIN + inventory module | handler |
 | SQ-7 | `square/catalog/status` GET | Catalog sync status | Any member + module | handler |
@@ -292,7 +292,7 @@ Ordered worst-first. **None fixed in PERM-1** (recorded for a follow-up phase).
 
 **B. Read APIs broader than their pages (information exposure to STORE/STAFF):**
 6. `GET /api/staff` (PL-15) — staff directory (names, emails, assignments) readable by any member (store-scoped for non-admins).
-7. `GET /api/square/locations`, `/api/square/team-members` (SQ-5) — raw Square location and team-member data readable by any member.
+7. ~~`GET /api/square/locations`, `/api/square/team-members` (SQ-5) — raw Square location and team-member data readable by any member.~~ **RESOLVED in two parts:** `square/locations` by **PERM-6 Task 4 (2026-07-27)** — ADMIN via `stores.manage` + field allow-list (SQ-5a); `square/team-members` by **DEBT-10 (2026-07-28)** — ADMIN via `staff.sync.square` + field allow-list (SQ-5b). Both gaps were API-surface only: neither route is public in `proxy.ts`, and both callers already rendered under `isAdmin`, so no non-admin *UI* path ever existed — but a signed-in STORE or STAFF account could reach either by hand. The team-member payload was the PII one (every employee's email, and whatever else Square returns on a person).
 8. Inventory reads (IV-1, IV-10): recipes, vendors, vendor prices/adjustments, alerts, expected stock, pars, order guide, and all 8 `reports/*` analytics routes are open to any member with the module active, while the corresponding pages redirect non-ADMIN/MANAGER.
 9. `POST /api/square/sales/sync` (SQ-8) — any member can trigger a Square sales sync for an assigned store.
 
