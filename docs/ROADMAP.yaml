@@ -3058,6 +3058,7 @@ debt:
 
   - id: DEBT-17
     status: staging
+    commits: ["84437e5"]
     title: "Visiting /users can persist a role the admin never chose — the page creates User rows from Clerk membership alone, ignoring PendingInvite"
     notes: >
       FIXED 2026-07-30 — DIRECTION B, exactly as decided 2026-07-28 and without
@@ -3388,6 +3389,7 @@ debt:
 
   - id: DEBT-22
     status: staging
+    commits: ["84437e5"]
     title: "hr/acknowledge loads a manager-attest target's storeAssignments with no orderBy — the only unordered primary-store pick left"
     notes: >
       FIXED 2026-07-30. src/app/(app)/hr/acknowledge/[documentId]/page.tsx:56 now
