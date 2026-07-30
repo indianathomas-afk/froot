@@ -2517,8 +2517,69 @@ debt:
       the close-out that resolves this row rather than edited in passing.
 
   - id: DEBT-5
+    status: staging
+    commits: ["838ad99"]
     title: "10 of 12 stores have storeNumber: null, degrading PERM-3's deterministic store sort"
     notes: >
+      CLOSED 2026-07-30 in 838ad99 — THE LABEL HALF ONLY. Both /users chips now
+      render `#0014 — Las Brisas` instead of a bare `#0014`, using the
+      prefix-ternary form `{s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}`.
+      The number-absent branch is untouched and still renders name-only, so ten
+      of the twelve stores are unchanged by a single character.
+      THE BACKFILL HALF REMAINS OPEN AND NOW HAS ITS OWN ROW: DEBT-27. It did
+      not have one before — this row's notes were the only place in the file
+      that mentioned backfilling storeNumber, so closing this row would have
+      dropped the data half off the open list with nothing tracking it. DEBT-4
+      was considered as its home and REJECTED: DEBT-4 rules on local `.env`
+      hosts and `vercel env pull`, and says nothing about this backfill. The
+      gate named in the original text below — the migration policy in
+      CLAUDE.md / MIGRATIONS.md, not BUILD-1 — moves to DEBT-27 with it. The
+      PERM-3 sort degradation this row is TITLED for is part of that half and is
+      NOT fixed here.
+      ROW TITLE IS THEREFORE STALE ON CLOSE, deliberately, same shape as DEBT-4's
+      (see that row, "ROW TITLE IS NOW STALE"). The title describes the null
+      storeNumbers and the sort; what closed is the label. A reader skimming the
+      resolved list will see a title whose subject is still open at DEBT-27. Left
+      rather than rewritten because the original wording is preserved by
+      convention below the marker; DEBT-27 carries the live version.
+      THE EIGHT PRECEDENTS WERE NOT UNANIMOUS — the session stopped and Gary
+      ruled. Six use EM DASH U+2014 (user-actions.tsx:112,244,271;
+      template-form.tsx:995; training-form.tsx:813;
+      create-device-login-button.tsx:103) and two use HYPHEN-MINUS U+002D
+      (staff-buttons.tsx:116; staff-edit-actions.tsx:201). Four further sites
+      outside the audited eight were found — staff/page.tsx:127,
+      stores/page.tsx:162, staff/[id]/page.tsx:623 all hyphen, and
+      store-view-client.tsx:100 inverted to `Carson (#0034)` — making the
+      repo-wide split 6 em dash / 5 hyphen / 1 parenthesised. RULING (Gary,
+      2026-07-30): match user-actions.tsx exactly, em dash. Site :301 is now
+      byte-identical to user-actions.tsx:112. The inconsistency itself is logged
+      as DEBT-28; none of those sites were touched here.
+      NOTE THE ROW'S OWN SUGGESTION WAS NOT TAKEN: the original text below
+      proposes `#0014 · Las Brisas` with a MIDDLE DOT U+00B7. That character
+      appears nowhere in the codebase in this idiom. The em dash form did, eight
+      times, which is why it won.
+      REAL FILE:LINE, the row's citation having drifted: the chips are at
+      src/app/(app)/users/page.tsx:252 (members table, `a.store.storeNumber`)
+      and :301 (pending invites, `s.storeNumber`). The original text below cites
+      :199 and describes ONE site; there are TWO, with different data shapes.
+      Both were re-verified against the checkout before editing. Note :252 and
+      :301 are themselves now stale by construction — the edit is on those lines.
+      NO DATA PLUMBING WAS NEEDED, as predicted: storeNumber and name are both
+      already in scope at both sites (page.tsx:34,104 include the store on
+      storeAssignments; :162 maps storeIds to whole store rows). Label strings
+      only. No database was read at any point this session — the fix renders
+      correctly whatever storeNumber holds, so none was required.
+      LAYOUT VERIFIED, NO CAP ADDED. Both chip containers are `flex flex-wrap
+      gap-1` (page.tsx:249, :298) with no fixed width, max-width, truncate or
+      whitespace-nowrap on the chip spans, inside a `w-full` auto-layout table in
+      an `overflow-x-auto` wrapper — so longer labels wrap, they do not squash.
+      The members table caps at 5 chips with `+N more` (:250, :255); the pending
+      invites list is UNCAPPED (:299). Judged fine today on arithmetic: only two
+      stores carry a number, so exactly two chips lengthen. The bulk arrives with
+      DEBT-27's backfill, when all twelve lengthen at once and the uncapped list
+      is where it shows — that is the moment to reconsider a cap, as a decision,
+      not now as a silent behaviour change.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Logged 2026-07-27. Only Carson #0034 and Las Brisas #0014 carry a
       storeNumber; the other ten are null. PERM-3's no-storeId fallback
       (`forecastWindowForCaller`, used by /api/forecasting/audit, whose storeId
@@ -3720,3 +3781,82 @@ debt:
       notes while keeping the `open:` warning, and replace the roadmap.ts
       comment with a pointer to isResolvedDebt. Text only, no behaviour change.
       Related: DEBT-14, DEBT-8, DEBT-21.
+
+  - id: DEBT-27
+    title: "10 of 12 stores have storeNumber: null — the backfill half, split out of DEBT-5"
+    notes: >
+      Created 2026-07-30 by Gary's ruling when DEBT-5 closed on its LABEL half
+      (838ad99). This row exists because the audit found the data half had no
+      home: DEBT-5's notes were the only mention of a storeNumber backfill in
+      this file, and DEBT-4 — the other candidate — rules on local `.env` hosts
+      and `vercel env pull`, not on this. Closing DEBT-5 without splitting would
+      have retired the whole subject from the open list while the data was still
+      wrong. This row carries what DEBT-5's title was actually about.
+      THE OPEN WORK: only Carson #0034 and Las Brisas #0014 carry a storeNumber;
+      the other ten are null. Consequences, in the order they matter:
+      (1) PERM-3's no-storeId fallback (`forecastWindowForCaller`, used by
+      /api/forecasting/audit, whose storeId is optional) sorts the caller's
+      assigned stores by storeNumber THEN name, so ten nulls degrade it to a
+      name-only sort. Still deterministic, so harmless while every store is in
+      one timezone — it stops being harmless the moment stores span timezones,
+      since the window boundary would then turn on a tiebreak nobody chose.
+      (2) The /users chips DEBT-5 just fixed now read `#0014 — Las Brisas` for
+      two stores and a bare name for ten. That is consistent and readable, and it
+      is the best the render can do; the remaining asymmetry is the DATA's.
+      IT IS A DATA CHANGE, NOT A CODE CHANGE — gated on the migration policy in
+      CLAUDE.md / MIGRATIONS.md, not on BUILD-1. Same posture as DEBT-1: Neon is
+      the source of truth, SQL approval required before any mutation, and the
+      backfill is the risk rather than any code replacement. Twelve rows across
+      three Neon branches, which is the part to plan rather than the SQL.
+      DO THE LAYOUT RECHECK HERE. DEBT-5 verified that the /users chips wrap
+      rather than squash and deliberately added NO cap, on the arithmetic that
+      only two chips lengthen today. This backfill is what makes all twelve
+      lengthen at once, and the pending-invites list renders its chips UNCAPPED
+      (src/app/(app)/users/page.tsx:299) while the members table caps at five.
+      Re-look at the uncapped list once the data lands; adding a cap is a
+      behaviour change and belongs to a session that has decided to make it.
+      NOT the real fix for (1) — that is BUILD-2, which shipped 2026-07-29
+      (493175e) for User.defaultStoreId. This backfill remains the cheaper
+      interim for the sort, and is independent of it. Related: DEBT-5 (label
+      half, closed), DEBT-28 (label idiom inconsistency, natural to fold in
+      here), BUILD-2, DEBT-1, PERM-3's `deferred:` entry.
+
+  - id: DEBT-28
+    title: "The `#0034 — Carson` store label idiom has three variants across twelve sites"
+    notes: >
+      LOW PRIORITY. Logged 2026-07-30 from DEBT-5's audit, which had to establish
+      the house form before it could match it and discovered there is no single
+      one. Text/formatting only — nothing misbehaves, and every variant renders
+      the same information.
+      THE THREE VARIANTS, verified by CODEPOINT rather than by eye (they are
+      indistinguishable in a diff, which is most of why the drift happened):
+      EM DASH U+2014, 6 sites — src/app/(app)/users/user-actions.tsx:112,244,271;
+      src/app/(app)/templates/template-form.tsx:995;
+      src/app/(app)/hr/training/training-form.tsx:813;
+      src/app/(app)/stores/create-device-login-button.tsx:103. Plus
+      src/app/(app)/users/page.tsx:252,301 as of 838ad99, and
+      src/app/api/webhooks/clerk/route.ts:133 which builds the same string as a
+      derived User.name rather than as a label.
+      HYPHEN-MINUS U+002D, 5 sites — src/app/(app)/staff/staff-buttons.tsx:116;
+      src/app/(app)/staff/[id]/staff-edit-actions.tsx:201;
+      src/app/(app)/staff/page.tsx:127; src/app/(app)/staff/[id]/page.tsx:623;
+      src/app/(app)/stores/page.tsx:162 — which also differs in wording, reading
+      `Store #0034 - Carson` where every other site reads `#0034 - Carson`.
+      INVERTED, 1 site — src/app/(app)/store-view/store-view-client.tsx:100 puts
+      the name first and parenthesises the number: `Carson (#0034)`.
+      So the repo-wide split is 6 em dash / 5 hyphen / 1 parenthesised. Em dash
+      is the plurality, not a consensus, and it is what the newest code uses
+      (PERM-7's device-login button and the Clerk webhook). Gary ruled em dash
+      for DEBT-5 on 2026-07-30, matching user-actions.tsx as the closest cousin
+      of the page being fixed; that ruling was scoped to the two chips and is
+      the natural default here.
+      NOT FIXED, and no site above was touched — DEBT-5's writable set was two
+      files and aligning the others was explicitly out of its scope.
+      WHEN: fold into DEBT-27. That session is already going store-label-shaped,
+      already has to re-look at these surfaces once every store carries a number,
+      and this is invisible until then — two stores currently exercise the branch
+      that shows the separator at all. Doing it standalone means touching six
+      files to change one character each. NOTE THE HAZARD IF SOMEONE DOES IT
+      ANYWAY: `stores/page.tsx:162` and `store-view-client.tsx:100` are not pure
+      separator swaps, they are different sentences, so they need a decision
+      rather than a find-and-replace. Related: DEBT-5, DEBT-27.
