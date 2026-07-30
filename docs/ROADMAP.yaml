@@ -3362,8 +3362,35 @@ debt:
       alone and why bundling it with the contradicted ones would not be.
 
   - id: DEBT-21
+    status: staging
+    commits: ["70ee3c8"]
     title: "generate-roadmap.mjs coerces commit SHAs to strings for phases and bugs but not for debt"
     notes: >
+      FIXED 2026-07-30 in 70ee3c8 — one word, exactly as the row prescribed:
+      `const debt = withStringCommits(normalize(raw.debt ?? []))`.
+      IT WENT LIVE WITHIN TWO DAYS OF BEING FILED AS LATENT. This row was filed
+      2026-07-28 saying "LATENT, NOT LIVE — no row triggers it today". The very
+      next debt SHA recorded, 84437e5 on DEBT-17 and DEBT-22 (2026-07-30),
+      triggered it: `next build` failed with "Type 'number' is not assignable to
+      type 'string'" at src/generated/roadmap.ts, and a knowingly-red commit was
+      created before anyone noticed. "Cheap to take whenever the generator is
+      next opened" turned out to mean "cheap until the next SHA".
+      THE FILED TRIGGER WAS TOO NARROW — corrected, not left standing. The row
+      below says the mechanism needs an ALL-DIGIT SHA (2081401, 9743899).
+      84437e5 contains an 'e'. YAML read it as SCIENTIFIC NOTATION:
+      84437 x 10^5 = 8443700000. So the hazard class is wider than filed — any
+      SHA shaped <digits>e<digits> also hits it, and that shape is far likelier
+      than all-digits: it needs a single `e` in the right place rather than
+      seven consecutive digits. The row's own prediction, "the first all-digit
+      debt SHA is the one that surfaces it", was therefore wrong about the
+      mechanism while being right that a debt SHA would surface it.
+      The comment above withStringCommits (generate-roadmap.mjs:80-95) now
+      documents BOTH shapes so the next reader does not re-derive the narrow
+      version.
+      VERIFIED, not assumed: with the coercion in place the build is green even
+      with 84437e5 UNQUOTED in the YAML. The SHAs are left quoted as defence in
+      depth, but the generator no longer depends on an editor remembering.
+      ── ORIGINAL NOTES BELOW, UNEDITED (and narrower than the real hazard) ──
       Found 2026-07-28 while adding status/commits to DEBT-10, one line away
       from the change. LATENT, NOT LIVE — no row triggers it today.
       THE MECHANISM is the one the script already documents for phases
