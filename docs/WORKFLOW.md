@@ -38,16 +38,39 @@ wait for "Ready" on the Production row.
 
 ## 3. Schema changes (see MIGRATIONS.md for full detail)
 
+`npx prisma migrate dev` is BROKEN here — the baseline squash was never done, so
+shadow-DB replay fails with P3018. Schema changes are hand-authored migrations.
+The shape:
+
+1. edit `prisma/schema.prisma`
+2. `prisma migrate diff` → writes the SQL to `prisma/migrations/<timestamp>_<name>/`
+3. **read the generated SQL** before it touches anything
+4. `prisma db execute` applies it to the dev DB, `prisma migrate resolve --applied`
+   records it in the ledger
+5. `prisma generate`
+6. commit the migration folder **with** the code that uses it
+
+Copy the exact commands for 2–5 from **MIGRATIONS.md §3** rather than retyping
+them — they connect the way BUG-3 requires. Worked example: the two migrations
+hand-authored this way on 2026-07-29,
+`20260729124105_build2_user_default_store` and
+`20260729145504_build2_staff_one_primary_store`.
+
+Then ship it like any other change:
+
 ```bash
-# after editing prisma/schema.prisma:
-npx prisma migrate dev --name describe_the_change
 git add -A && git commit -m "Add <thing> to schema"
 git push origin staging
 # the Vercel build runs `prisma migrate deploy` automatically —
 # staging DB updates on the staging deploy, prod DB updates when you merge to main
 ```
 
-Never run `db push` or `migrate dev` against staging or prod databases.
+Never run `db push` or `migrate dev` against staging or prod databases — and
+`migrate dev` is not available locally either, see above.
+
+Once the baseline squash lands and `SHADOW_DATABASE_URL` is set, steps 2–5
+collapse back to `npx prisma migrate dev --name <name>` (MIGRATIONS.md §3) — not
+today.
 
 ## 4. When something looks stuck
 
@@ -85,9 +108,8 @@ A session is not done until all are true:
    - `blockers` lists anything left broken/unset/unverified in prod, including
      required env vars not yet set and prod-promotion gates
    - `deferred` lists scope explicitly cut
-   - `meta.updated` is bumped to today's date. (The `/internal/roadmap` page
-     dates itself from the file's git commit date, so the page stays honest
-     either way — but `meta.updated` is the fallback shown when a shallow
-     clone hides that commit, and it is what readers of the raw YAML see.)
+   - do NOT add or bump `meta.updated` — the field was deleted 2026-07-30
+     (DEBT-24). The `/internal/roadmap` page dates itself from this file's git
+     commit date, falling back to "unknown" by design.
 3. Bugs noticed but not fixed go in the `debt:` (or `bugs:`) block in
    ROADMAP.yaml as text — not fixed inline.
