@@ -78,9 +78,20 @@ if (!raw || !Array.isArray(raw.phases)) {
 }
 
 /**
- * An all-digit short SHA (2081401, 9743899) is valid YAML for a *number*, so
- * `commits` comes back as a mixed string/number array. Coerce to string —
- * otherwise the shape silently drifts from the Phase/Bug types.
+ * A short SHA that YAML reads as a NUMBER makes `commits` come back as a mixed
+ * string/number array. Coerce to string — otherwise the shape drifts from the
+ * Phase/Bug/DebtItem types and `next build` fails type-checking the generated
+ * file.
+ *
+ * TWO shapes trigger it, not one (DEBT-21, widened 2026-07-30):
+ *   - all-digit:            2081401, 9743899
+ *   - scientific notation:  84437e5  ->  84437 x 10^5  =  8443700000
+ * The second is the likelier of the two — it needs only a single `e` between
+ * digits — and it is what actually broke the build on 2026-07-30, one commit
+ * after DEBT-21 was filed describing the all-digit case alone.
+ *
+ * Quoting the SHA in the YAML also works, but relies on whoever edits the file
+ * remembering. This does not.
  */
 function withStringCommits(entries) {
   return entries.map((entry) =>
@@ -92,7 +103,7 @@ function withStringCommits(entries) {
 
 const phases = withStringCommits(normalize(raw.phases))
 const bugs = withStringCommits(normalize(raw.bugs ?? []))
-const debt = normalize(raw.debt ?? [])
+const debt = withStringCommits(normalize(raw.debt ?? []))
 
 const fromGit = gitCommitDate()
 const fromMeta = metaUpdatedToIso(raw.meta?.updated)
