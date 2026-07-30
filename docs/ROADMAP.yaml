@@ -2536,8 +2536,40 @@ debt:
       quiet week rather than a redundant addition.
 
   - id: DEBT-7
+    status: staging
+    commits: ["705584f"]
     title: "docs/STAGING_SETUP.md describes an environment that was never built — and now gives dangerous advice"
     notes: >
+      CLOSED 2026-07-30 in 705584f, via the header option — the cheap one this
+      row recommended. The file was NOT rewritten to describe the environment
+      that exists: that is a bigger job, and a half-corrected file reads as
+      authoritative (Gary's ruling, this session). What landed is a header above
+      the H1 marking the file ASPIRATIONAL/HISTORICAL, naming all four
+      falsehoods in one line each, and pointing at this row and BUILD-1 for the
+      real state — plus FOUR inline warnings, not the two originally scoped.
+      THE TWO EXTRA WARNINGS, and why the scope moved: the decided shape was
+      header + warnings at §2 step 4 and §5's DATABASE_URL row (the dangerous
+      pair in (2) below). Two more were added on the money side of (3), on the
+      argument that a false safety guarantee is most dangerous to the reader who
+      skimmed the header. §4's "no real charges can happen from staging even by
+      accident" (:48 pre-edit) is the false promise, and §8's checkbox "confirm
+      a test 'charge' on staging hits Square's sandbox, not live" (:86 pre-edit)
+      is an INSTRUCTION TO ACT ON IT — against, per (3), a real Square account.
+      The imperative is the one that gets acted upon; marking the promise while
+      leaving the instruction unmarked would have been the wrong half.
+      §5's warning is TWO-PART deliberately: a blockquote cannot live inside a
+      markdown table cell, and a reader scanning the env-var table with the
+      Vercel console open in the other window reads neither the prose above nor
+      below it. So the cell itself now carries "FALSE, see warning below the
+      table" and the full warning sits under the table.
+      NOT CLOSED BY THIS: §8 remains unpassable as written, by design — that is
+      falsehood (4) and fixing it means describing the real environment. The
+      file is now safe to read, not correct. A future session may still take the
+      rewrite; this one deliberately did not.
+      Line references in the original text below were re-verified against the
+      checkout before editing and had NOT drifted (:26 and :56 exact). They are
+      now stale by construction — the edit moved them.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Logged 2026-07-27. Not merely stale: one of its instructions would now
       REVERSE the fail-closed fix recorded on BUILD-1.
       (1) §2 claims the Neon-Vercel integration auto-creates an isolated
@@ -3575,3 +3607,59 @@ debt:
       production promotions with SHAs, the `--ancestry-path` re-verification, the
       SQ-2 double-SHA divergence, the rollback tag, HR's production launch date)
       and should not be deleted on the grounds that it is unread.
+
+  - id: DEBT-25
+    title: "WORKFLOW.md's session-completion rules still order you to bump the deleted meta.updated"
+    notes: >
+      Found 2026-07-30 during DEBT-7, which inherited the instruction and could
+      not carry it out. RECORDED, NOT FIXED — DEBT-7 was a docs-only session
+      whose writable set was STAGING_SETUP.md and this file.
+      docs/WORKFLOW.md:88-91, item 2 of "Session completion rules", requires
+      "`meta.updated` is bumped to today's date" and explains it as the fallback
+      the /internal/roadmap page shows when a shallow clone hides the git commit
+      date. That field was DELETED from this file on 2026-07-30 by Gary's ruling
+      on DEBT-24 (f646bf6) precisely because nothing maintained it. So the one
+      document that tells a session what "done" means now orders a step that
+      cannot be performed, on a field that no longer exists.
+      NOT THE SAME FINDING AS DEBT-3, though both are stale WORKFLOW.md: DEBT-3
+      is §3 documenting the retired `migrate dev` flow. This is a different
+      section and a different cause — DEBT-24 changed the world and left its
+      instruction behind.
+      WHY IT IS NOT COSMETIC: a checklist item that cannot be satisfied trains
+      readers to skip checklist items. The likely failure is a future session
+      RE-ADDING `updated:` to satisfy WORKFLOW.md, quietly reversing a ruling
+      that is marked not-to-be-re-litigated.
+      FIX SHAPE: delete item 2's `meta.updated` bullet from WORKFLOW.md:88-91
+      and, if anything replaces it, say that the page dates itself from the git
+      commit date and falls back to "unknown" by design. One-line edit; needs a
+      session with WORKFLOW.md in scope. Related: DEBT-24, DEBT-3, DEBT-7.
+
+  - id: DEBT-26
+    title: "Two code/doc comments describe a roadmap data model that has since changed"
+    notes: >
+      Found 2026-07-30 during DEBT-7 while checking what fields a debt row may
+      legally carry. RECORDED, NOT FIXED — out of that session's writable set
+      (one of the two is, but fixing it was not the task and the pair belongs in
+      one row). Both are comments, not code: nothing misbehaves at runtime, and
+      both mislead a reader deciding what is allowed.
+      (1) docs/ROADMAP.yaml:20-22 — the header NOTE states "`debt:` accepts
+      id/title/notes ONLY". False since DEBT-8 became the first resolved debt
+      row: DebtItem in src/lib/roadmap.ts:61-62 carries optional `status` and
+      `commits`, and DEBT-8, DEBT-10, DEBT-14, DEBT-21, DEBT-24 and now DEBT-7
+      all use them. The `open:` half of that same NOTE is still correct and
+      still type-errors the build — do not delete the whole note.
+      (2) src/lib/roadmap.ts:57-59 — the comment above DebtItem.status says
+      "NOTHING RENDERS THEM YET — the debt list is still unconditional, under a
+      heading that asserts 'not yet fixed'. That is DEBT-14." DEBT-14 shipped
+      (46e1b64) and is `verified`; roadmap-client.tsx:670-671 splits the list on
+      exactly this field via isResolvedDebt (:63-67). The comment describes the
+      bug its own field was added to enable fixing, after the fix landed.
+      WHY THEY BELONG TOGETHER: both are the same mistake — a note written when
+      debt rows had no status, left in place when they got one. A reader who
+      trusts (1) will not add a status; a reader who trusts (2) will assume
+      adding one has no effect. Together they discourage the exact convention
+      the file now runs on.
+      FIX SHAPE: correct the ROADMAP.yaml NOTE to list id/title/status/commits/
+      notes while keeping the `open:` warning, and replace the roadmap.ts
+      comment with a pointer to isResolvedDebt. Text only, no behaviour change.
+      Related: DEBT-14, DEBT-8, DEBT-21.
