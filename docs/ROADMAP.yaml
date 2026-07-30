@@ -2407,8 +2407,40 @@ debt:
     notes: "Next candidate for the same audit-then-remediate treatment as DEBT-1."
 
   - id: DEBT-3
+    status: staging
+    commits: ["6b36471"]
     title: "WORKFLOW.md §3 contradicts the migration policy"
     notes: >
+      CLOSED 2026-07-30 in 6b36471. §3 now states that `migrate dev` is broken
+      here, gives the hand-authored flow as a six-step SHAPE only (edit schema →
+      migrate diff → read the SQL → db execute + migrate resolve → generate →
+      commit with the code), and sends the reader to MIGRATIONS.md §3 for the
+      exact commands. The §3 heading always promised "see MIGRATIONS.md for full
+      detail"; it now honours that instead of carrying a second copy of the
+      commands to drift.
+      WHY POINT RATHER THAN RESTATE: the commands must connect via
+      DATABASE_URL_UNPOOLED (BUG-3), which prisma.config.ts does automatically
+      for `--from-config-datasource` and `db execute`. The way a reader bypasses
+      that routing is by improvising an inline `DATABASE_URL="…" npx prisma …`
+      prefix — so §3 contains no command a reader could follow to do it, and one
+      clause telling them to copy from MIGRATIONS.md rather than retype.
+      THE :50 PROHIBITION SURVIVED, STRENGTHENED — deliberately, and it is the
+      subtle part of this fix. "Never run `db push` or `migrate dev` against
+      staging or prod databases" was always TRUE and was never the bug; the bug
+      was :43 prescribing migrate dev LOCALLY. But once §3 opens by saying
+      migrate dev is broken locally, that line's staging/prod-only scope starts
+      to read as implying local is fine — the exact inversion of the warning. It
+      now ends "— and `migrate dev` is not available locally either, see above."
+      Worked example cited in the doc and verified present in prisma/migrations/
+      before citing: 20260729124105_build2_user_default_store and
+      20260729145504_build2_staff_one_primary_store (BUILD-2, 2026-07-29). The
+      future note is half a sentence: once the baseline squash lands and
+      SHADOW_DATABASE_URL is set, steps 2–5 collapse back to migrate dev —
+      not today. Verified this session that .env still has no
+      SHADOW_DATABASE_URL (key names only; docs-only session, no DB access).
+      Fixed together with DEBT-25 in one commit: same file, same section-level
+      staleness, and splitting them would have meant two builds of one doc.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       docs/WORKFLOW.md §3 still instructs `npx prisma migrate dev` for schema
       changes, but that flow is retired: migrate dev is broken (baseline squash
       never done, P3018) and the current policy is the hand-authored
@@ -3609,8 +3641,33 @@ debt:
       and should not be deleted on the grounds that it is unread.
 
   - id: DEBT-25
+    status: staging
+    commits: ["6b36471"]
     title: "WORKFLOW.md's session-completion rules still order you to bump the deleted meta.updated"
     notes: >
+      CLOSED 2026-07-30 in 6b36471, by REPLACEMENT rather than deletion (Gary's
+      ruling this session, on the argument below). The bullet at WORKFLOW.md:88-91
+      — verified un-drifted before editing, :88-91 exact — now reads:
+      "do NOT add or bump `meta.updated` — the field was deleted 2026-07-30
+      (DEBT-24). The `/internal/roadmap` page dates itself from this file's git
+      commit date, falling back to "unknown" by design."
+      WHY NOT JUST DELETE IT: this row's own named risk is a future session
+      RE-ADDING `updated:` to satisfy the checklist, quietly reversing DEBT-24.
+      A deletion removes the wrong instruction and leaves nothing standing
+      against that; a reader who then sees the page render "unknown" has no way
+      to know it is by design and will read it as a bug worth fixing with a
+      fallback. A prohibition is also still a checkable line in a list whose
+      premise is "not done until all are true", where a deletion merely
+      shortens the list. The replacement keeps the half of the original text
+      that is still true — the page dates itself from the git commit date — and
+      drops the half describing the deleted field as a live fallback.
+      NOT TOUCHED, and not a leftover half of this fix:
+      scripts/generate-roadmap.mjs:65,151-152 still name meta.updated in its
+      fallback chain. That is correct behaviour, not drift — with the field gone
+      the chain resolves to "unknown", exactly as DEBT-24 recorded ("No code
+      change was required"). Noted here so a later reader does not mistake it
+      for this row left half-done.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Found 2026-07-30 during DEBT-7, which inherited the instruction and could
       not carry it out. RECORDED, NOT FIXED — DEBT-7 was a docs-only session
       whose writable set was STAGING_SETUP.md and this file.
