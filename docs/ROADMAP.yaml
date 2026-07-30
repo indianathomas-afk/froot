@@ -3057,8 +3057,42 @@ debt:
       has never been exercised on staging either.
 
   - id: DEBT-17
+    status: staging
     title: "Visiting /users can persist a role the admin never chose — the page creates User rows from Clerk membership alone, ignoring PendingInvite"
     notes: >
+      FIXED 2026-07-30 — DIRECTION B, exactly as decided 2026-07-28 and without
+      re-litigating the fork. src/app/(app)/users/page.tsx:85-86 now resolves
+      the create branch's role as
+      `pendingByEmail.get(email)?.role ?? (m.role === "org:admin" ? "ADMIN" :
+      "STAFF")`, mirroring the webhook's resolvedRole
+      (webhooks/clerk/route.ts:109) so the two writers cannot drift. Every
+      file:line in this row was re-verified before editing and NONE had drifted:
+      the block is :65-98, the role guess was at :86, pendingByEmail is built at
+      :46.
+      TWO SILENT-NO-OP RISKS CHECKED FIRST, both clear. (1) KEY MISMATCH —
+      pendingByEmail is keyed on raw p.email and the webhook deliberately matches
+      `mode: "insensitive"`, but PendingInvite.email is normalised at write time
+      (users/route.ts:75) and the lookup key is the already-normalised `email`
+      from :74-77 (getClerkPrimaryEmail returns normalizeEmail(primary)), so
+      exact match holds. The map was deliberately NOT re-keyed: its other
+      consumer at :148 looks up with Clerk's raw inv.emailAddress and re-keying
+      would put that at risk for no gain. (2) MISSING FIELD — the query at :37
+      has no `select`, so role is present, and PendingInvite.role is the Role
+      ENUM (schema.prisma:194), so unlike the webhook's :109 no `as` cast is
+      needed.
+      NO REPAIR STEP NEEDED — evidence, 2026-07-29/30, Gary ran both queries.
+      Q2 (post-webhook signature: role STAFF holding store assignments) returned
+      ZERO ROWS on branch `preview/staging` and ZERO ROWS on branch
+      `production`. Q1 on branch `preview/staging` returned ONE row
+      (kevajuice14@icloud.com, MANAGER vs invited STORE) which is NOT this bug:
+      the page can only ever write ADMIN or STAFF, and this row's error runs
+      DOWNWARD (STAFF is the floor) whereas that discrepancy runs upward. So the
+      fix is code-only; no data repair.
+      STILL OPEN AND DELIBERATELY NOT DONE: option C (extract a shared
+      syncOrgMembership()). Direction B leaves the GET-that-writes smell in
+      place, which was accepted at decision time — "C LATER IF THE SMELL EARNS A
+      PHASE". Note BUILD-2's interaction below still applies to C.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       Filed 2026-07-28 during PERM-7's staging post-mortem. INDEPENDENT OF
       PERM-7 and SHIPS IN PRODUCTION TODAY — it is in no phase's diff and was
       found by tracing every writer of User.role.
@@ -3353,8 +3387,20 @@ debt:
       2, 2026-07-28). Cheap to take whenever the generator is next opened.
 
   - id: DEBT-22
+    status: staging
     title: "hr/acknowledge loads a manager-attest target's storeAssignments with no orderBy — the only unordered primary-store pick left"
     notes: >
+      FIXED 2026-07-30. src/app/(app)/hr/acknowledge/[documentId]/page.tsx:56 now
+      carries the standard
+      `orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }]`. One line,
+      no migration, no behaviour change for anyone who has a primary. The
+      file:line was re-verified before editing and had not drifted.
+      With this, EVERY storeAssignments load in the codebase orders
+      deterministically — the split this row documented is closed. Cosmetic as
+      described: the persisted value was always recomputed server-side from an
+      ordered query (acknowledgments/route.ts:94-102), so no signed record was
+      ever affected and there is nothing historical to correct.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       Found 2026-07-29 during the BUILD-2 audit, while disproving the claim
       that primaryStoreName() runs on unordered data (see the correction on
       BUILD-2 and DEBT-9). It does not — but this one site does.
@@ -3444,6 +3490,7 @@ debt:
 
   - id: DEBT-24
     status: staging
+    commits: [f646bf6]
     title: "meta.updated in ROADMAP.yaml was the roadmap page's fallback date, was stale, and nothing maintained it"
     notes: >
       FILED AND FIXED IN THE SAME COMMIT 2026-07-30, on Gary's ruling. Recorded

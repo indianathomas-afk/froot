@@ -53,7 +53,19 @@ export default async function AcknowledgePage({
     if (!isManagerRole) notFound()
     const target = await prisma.staffMember.findFirst({
       where: { id: staffParam, organizationId: org.id },
-      include: { storeAssignments: { include: { store: true } } },
+      include: {
+        storeAssignments: {
+          include: { store: true },
+          // DEBT-22: the standard ordering every other storeAssignments load
+          // uses. This array reaches signing-client.tsx:91, which pre-selects
+          // `find(isPrimary) ?? stores[0]`; unordered, a staff member with no
+          // primary gets an arbitrary chip. Cosmetic only — the persisted value
+          // is recomputed server-side from its own ordered query
+          // (acknowledgments/route.ts:94-102) — but this was the last unordered
+          // storeAssignments load in the codebase.
+          orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }],
+        },
+      },
     })
     if (!target) notFound()
     if (dbUser.role === "MANAGER") {

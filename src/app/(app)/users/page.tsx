@@ -82,8 +82,17 @@ async function getData() {
             organizationId: org.id,
             email,
             name: [pub.firstName, pub.lastName].filter(Boolean).join(" ") || null,
-            // Matches the webhook's org:member default (UM-1 alignment).
-            role: m.role === "org:admin" ? "ADMIN" : "STAFF",
+            // DEBT-17 (direction B, Gary 2026-07-28). PendingInvite is the ONLY
+            // record of the app role the admin picked: POST /api/users maps every
+            // non-ADMIN role to the same Clerk role, org:member
+            // (users/route.ts:106), so m.role cannot tell MANAGER from STORE from
+            // STAFF. Whichever writer runs first wins and this page can win, so
+            // without this an invited MANAGER persists as STAFF permanently — the
+            // webhook's later upsert takes its UPDATE branch, which never writes
+            // role. Mirrors resolvedRole (webhooks/clerk/route.ts:109) so the two
+            // writers cannot drift. Does NOT remove the GET-that-writes smell;
+            // that is option C, deliberately not taken.
+            role: pendingByEmail.get(email)?.role ?? (m.role === "org:admin" ? "ADMIN" : "STAFF"),
           },
           update: { email },
         })
