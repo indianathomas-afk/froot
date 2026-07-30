@@ -4,6 +4,44 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-07-29 — PRODUCTION promotion (BUILD-2 default store + one-primary-store index)
+
+- **Promotion SHA:** `493175e` — full: `493175ee337dd628d56c77a4a84e9b2600ae0759`.
+- **FAST-FORWARD, not a merge — the rollback differs from every entry below.**
+  `origin/main` HEAD has a **single parent** (`f480568`), so there is no merge
+  commit and **`git revert -m 1` does not apply**. Rollback is reverting the four
+  commits in reverse order (`493175e`, `f480568`, `944dfa3`, `118a02d`) → push main.
+- **⚠️ Reverting the code does NOT undo the schema.** `118a02d` carries two
+  migrations that `prisma migrate deploy` has already applied to the production
+  database. Reverting it removes the migration *files* but leaves
+  `User.defaultStoreId` and `StoreStaffAssignment_one_primary_key` in place, and
+  leaves both rows in `_prisma_migrations`. Removing either would need a NEW
+  forward migration — never by hand, and never by deleting ledger rows. This is
+  the first entry in this log where code rollback and schema rollback come apart.
+- **What shipped:** BUILD-2 — `User.defaultStoreId` (nullable FK, `onDelete: SetNull`),
+  a partial unique index enforcing one primary store per staff member, the Default
+  Location select in the Edit User modal, PATCH write-time validation
+  (`src/lib/default-store.ts`), the device-account provisioning default in the Clerk
+  webhook, and Task 8's `primaryStoreName()` internal tie-break.
+- **Migrations: two**, both applied via `prisma migrate deploy` in the Vercel build:
+  - `20260729124105_build2_user_default_store` — additive. `ALTER TABLE "User" ADD
+    COLUMN "defaultStoreId" TEXT` plus an FK `ON DELETE SET NULL`. No table rewrite,
+    no backfill.
+  - `20260729145504_build2_staff_one_primary_store` — `CREATE UNIQUE INDEX
+    "StoreStaffAssignment_one_primary_key" ON "StoreStaffAssignment"("staffMemberId")
+    WHERE "isPrimary"`. **Hand-authored** — not expressible in `schema.prisma`
+    (no `WHERE` on `@@unique`); see MIGRATIONS.md § Protected indexes. Fail-closed:
+    aborts rather than corrupting if a duplicate primary exists.
+- **Pre-checks:** Query A (duplicate primaries) returned **zero rows on branch
+  `production`** (2026-07-27, re-run 2026-07-29/30) and **zero rows on branch
+  `preview/staging`** (2026-07-29).
+- **Post-promotion verification is INCOMPLETE.** The column and index were confirmed
+  present on branch **`preview/staging`** only — *not* on branch `production` — and
+  none of BUILD-2's five UI checks have been run. The phase is `shipped`, not
+  `verified`, for exactly that reason.
+- **Note:** consumption belongs to UX-2. Until it lands, setting a default store has
+  no visible effect beyond the Edit User modal — expected, not a defect.
+
 ## 2026-07-27 — PRODUCTION promotion (PERM-2 + PERM-3 + BUILD-1 + SQ-1 docs + roadmap dashboard)
 
 - **Merge commit / rollback SHA:** `06b1561` — full: `06b156108688061a8a4bfdb56af1d945a8a56676`

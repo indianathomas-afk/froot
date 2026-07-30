@@ -27,7 +27,13 @@
 # earlier and promoted later, the build date is in notes.
 
 meta:
-  updated: 2026-07-27
+  # `updated:` was DELETED 2026-07-30 (DEBT-24, Gary's ruling). It was the
+  # fallback for the /internal/roadmap "last updated" label and nothing
+  # maintained it, so the one path designed to save you held a stale date.
+  # With it gone the chain is git commit date -> unknown, and "unknown" is
+  # honest where a stale date is convincing. Nothing else in this block is read
+  # by any code — verified 2026-07-29: the generator reads only raw.phases,
+  # raw.bugs, raw.debt (and, until now, raw.meta.updated).
   sources_retired: [docs/ROADMAP.md, "CLAUDE.md#Phase Status", external sheet]
   note: >
     Reconstructed 2026-07-24 from docs/ROADMAP_ARCHIVE.md, docs/prompts/*, and
@@ -2114,10 +2120,30 @@ phases:
   - id: BUILD-2
     track: build
     size: S
-    status: staging
+    status: shipped
     commits: [118a02d, 944dfa3, f480568]
     title: "Deterministic default/primary store for multi-store users"
     notes: >
+      PROMOTED TO PRODUCTION 2026-07-29 as 493175e. FAST-FORWARD, not a merge —
+      origin/main HEAD has a single parent (f480568), so there is no merge
+      commit and no `git revert -m 1` rollback. All four commits are ancestors
+      of main; both migrations applied via `prisma migrate deploy` in the Vercel
+      build. See docs/DEPLOY_LOG.md, 2026-07-29.
+      SHIPPED, NOT VERIFIED — and the distinction is the point. What was
+      actually confirmed:
+      (a) Query A (duplicate primaries) returned ZERO ROWS on branch
+      `production`.
+      (b) The defaultStoreId column and the
+      StoreStaffAssignment_one_primary_key index were confirmed PRESENT on
+      branch `preview/staging`.
+      What was NOT done: the column and index have NOT been confirmed on branch
+      `production`, and NONE of the five UI checks below were run. (b) is
+      staging evidence and says nothing about production — dev and staging are
+      separately seeded (docs/MIGRATIONS.md, "Which branch am I actually
+      reading?"). This row moves to `verified` when Gary has confirmed the
+      column and index on branch `production` AND driven the five checks. Held
+      at `shipped` deliberately rather than claiming more than was checked
+      (Gary, 2026-07-30).
       CORRECTED 2026-07-29 — THE NONDETERMINISM RATIONALE BELOW IS REFUTED. The
       row claims primaryStoreName() "picks on an unordered query" and "may
       return a different one per request", and that "the codebase is already
@@ -3366,8 +3392,33 @@ debt:
       is an HR signing surface.
 
   - id: DEBT-23
-    title: "DEPLOY_LOG.md has no promotion entry after 2026-07-23, though at least one promotion happened since"
+    title: "WITHDRAWN — DEPLOY_LOG.md was never missing an entry; the row was built on a misread grep"
     notes: >
+      WITHDRAWN 2026-07-30. THE ROW BELOW IS FALSE. docs/DEPLOY_LOG.md contains
+      an entry for every production promotion on record — all SIX that meta.note
+      lists: 2026-07-27 (line 7), 2026-07-26 (:69), 2026-07-25 (:91),
+      2026-07-24 (:111), 2026-07-23 (:131), 2026-07-21 (:145). The 2026-07-27
+      entry the row claims is missing is the FIRST heading in the file.
+      HOW THE ERROR HAPPENED, recorded because the mechanism will recur:
+      `grep "promotion" docs/DEPLOY_LOG.md | tail -5` was run and the LAST match
+      read as the newest entry. DEPLOY_LOG is REVERSE-CHRONOLOGICAL — newest at
+      the top — so `tail` returned the OLDEST entries. A row, a "second
+      occurrence" claim, and a follow-up "third occurrence" remark were all built
+      on that single unchecked assumption. The "third occurrence" framing was
+      Gary's, offered in good faith on the strength of this row, and rests on the
+      same false premise — the error originates here, not there.
+      LESSON, not just an apology: `tail` on a file whose order was never checked
+      is not evidence. The file's ordering is visible in one `grep -n "^## "`,
+      which is what should have been run and is what settled it.
+      WHAT SURVIVES: the 2026-07-29 BUILD-2 promotion genuinely had no entry at
+      the time this was withdrawn — for the ordinary reason that it had just
+      happened, not because of any pattern. That entry was written in the same
+      commit as this withdrawal. Nothing else in the row stands.
+      NO STATUS FIELD, deliberately: like DEBT-18, this is withdrawn rather than
+      fixed, so it buckets OPEN on /internal/roadmap with WITHDRAWN as the first
+      word of its title. Adding a `withdrawn` value to PhaseStatus is a separate
+      decision (Gary, 2026-07-28) and not a rider on this.
+      ── ORIGINAL TEXT BELOW, RETAINED AND FALSE ──
       Noted 2026-07-29 during the BUILD-2 audit; filed, not fixed. The most
       recent promotion heading in docs/DEPLOY_LOG.md is "2026-07-23 — PRODUCTION
       promotion (HR-8 → STAFF-1 batch)", but ROADMAP and git both record a
@@ -3390,3 +3441,61 @@ debt:
       DEPLOY_LOG entry — naming both migrations, since MIGRATIONS.md's own
       history section records migrations per promotion and would otherwise have
       nothing to point at. Writing this row down is not the same as closing it.
+
+  - id: DEBT-24
+    status: staging
+    title: "meta.updated in ROADMAP.yaml was the roadmap page's fallback date, was stale, and nothing maintained it"
+    notes: >
+      FILED AND FIXED IN THE SAME COMMIT 2026-07-30, on Gary's ruling. Recorded
+      in full anyway: the finding is about a class of trap, and the deletion
+      alone would not explain itself to a future reader.
+      RULING — GARY, 2026-07-30: TAKE (a), DELETE meta.updated and let the
+      fallback be "unknown". An unmaintained fallback is worse than none. Not to
+      be re-litigated; option (b) below was considered and rejected.
+      HOW THE LABEL RESOLVES: scripts/generate-roadmap.mjs:38-50 runs
+      `git log -1 --format=%cI -- docs/ROADMAP.yaml` at build time (prebuild /
+      predev hooks); :97-108 picks git -> meta.updated -> unknown and records
+      WHICH, and the page states the source under the date
+      (roadmap-client.tsx:321-326) in warning colour whenever it is not git
+      (:350-352). It is NOT file mtime, so a fresh clone cannot turn the label
+      into "last deployed" — a clone still carries history. The mechanism is
+      careful; this row is about a rotting input to it, not a flaw in it.
+      THE FALLBACK PATH: Vercel shallow-clones (~10 commits per the comment at
+      generate-roadmap.mjs:32, not independently verified). If ROADMAP.yaml's
+      last change falls outside that window `git log` exits 0 with EMPTY output
+      rather than failing — the `out || null` at :45 exists for exactly this —
+      and meta.updated was used instead.
+      THE PROBLEM: meta.updated read 2026-07-27 while ROADMAP.yaml's last commit
+      was 2026-07-29T15:43:26-07:00, and `git log -S` showed the field changed
+      EXACTLY ONCE EVER — f0bcb91, 2026-07-24, the commit that created the meta
+      block. Nothing wrote it; WORKFLOW.md's session-completion rules never
+      mentioned it. So the fallback held a value wrong since the day it was
+      written, drifting further every session.
+      WHY IT MATTERED DESPITE THE DISCLOSURE: the failure was invisible in normal
+      operation because the git path always wins — the staleness could only be
+      discovered at the moment it was being relied on. When it fired the page
+      would render "Roadmap last updated Jul 27" in the prominent line with a
+      small warning beneath: a plausible date, not an obviously broken one.
+      LIKELIHOOD WAS LOW, NOT ZERO. Measured over the last 20 commits,
+      ROADMAP.yaml was touched at #1, 5, 6, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19,
+      20 — largest gap 4 commits, comfortably inside depth 10. But that is a
+      property of working habits, not a guarantee: a long code-only run deferring
+      the roadmap update to the end would cross it.
+      REJECTED — (b) keep meta.updated and add "bump it" to WORKFLOW.md's session
+      completion rules. Preserves a real fallback but relies on a manual step
+      that had been skipped every session for five days; the evidence was against
+      it. ALSO REJECTED, and never on the table: deriving the fallback from build
+      time, which is exactly the "last updated becomes last deployed" failure the
+      design avoids.
+      SAFE AS A ONE-LINE DELETE, verified 2026-07-29 before doing it: the
+      generator reads only raw.phases (:93), raw.bugs (:94), raw.debt (:95) and
+      raw.meta?.updated (:98). Nothing anywhere reads meta.sources_retired or
+      meta.note. With `updated:` gone, metaUpdatedToIso returns null at its first
+      guard (:67), fromMeta is null, and the chain falls to `unknown`, which the
+      page already renders (roadmap-client.tsx:341-345 and the :326 label). No
+      code change was required.
+      SIDE NOTE for whoever next opens the meta block: after this deletion NOTHING
+      in it is read by any code. meta.note remains valuable human history (six
+      production promotions with SHAs, the `--ancestry-path` re-verification, the
+      SQ-2 double-SHA divergence, the rollback tag, HR's production launch date)
+      and should not be deleted on the grounds that it is unread.
