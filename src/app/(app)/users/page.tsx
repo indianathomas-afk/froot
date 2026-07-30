@@ -249,7 +249,7 @@ export default async function UsersPage() {
                         <div className="flex flex-wrap gap-1">
                           {member.storeAssignments.slice(0, 5).map((a) => (
                             <span key={a.store.id} className="inline-flex items-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium px-2 py-0.5">
-                              {a.store.storeNumber ? `#${a.store.storeNumber}` : a.store.name}
+                              {a.store.storeNumber ? `#${a.store.storeNumber} — ` : ""}{a.store.name}
                             </span>
                           ))}
                           {member.storeAssignments.length > 5 && (
@@ -298,7 +298,7 @@ export default async function UsersPage() {
                         <div className="flex flex-wrap gap-1">
                           {inv.storeNames.map((s) => (
                             <span key={s.id} className="inline-flex items-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium px-2 py-0.5">
-                              {s.storeNumber ? `#${s.storeNumber}` : s.name}
+                              {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
                             </span>
                           ))}
                         </div>
