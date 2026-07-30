@@ -1,3 +1,16 @@
+> ## ⚠️ ASPIRATIONAL / HISTORICAL — DO NOT FOLLOW THIS FILE AS INSTRUCTIONS
+>
+> This is the staging environment **as drafted**, not **as built**. It was never
+> implemented this way, it is kept for history only, and one of its steps is
+> actively destructive if followed today. Four of its claims are false:
+>
+> 1. **§2** — the Neon-Vercel integration does not auto-create a database branch per Preview deployment and never did here; staging is one long-lived, hand-wired Neon branch (`ep-odd-rain`).
+> 2. **§2 step 4 and §5's `DATABASE_URL` row — the dangerous pair** — they tell you to remove the manually-set Preview-scoped `DATABASE_URL`, which is the branch-scoped override that makes staging deploys reach `ep-odd-rain`; deleting it breaks staging deploys (inline warnings at both sites).
+> 3. **§4 and §5** — staging does not use Square sandbox; it uses a separate "Froot Staging" **production** app against the **real** Square account, so §4's "no real charges can happen from staging even by accident" is not something this environment guarantees.
+> 4. **§8** — the verification checklist cannot pass as written, because it verifies the three claims above.
+>
+> **The real state of staging is in `docs/ROADMAP.yaml` — rows `DEBT-7` and `BUILD-1`.** Read those, not this.
+
 # Froot Staging Environment Setup
 
 Goal: a `staging` branch that deploys to a real URL, backed by an isolated database branch, test auth, and sandbox payments — so nothing you test can touch production data or real users.
@@ -24,6 +37,13 @@ Steps (Claude will drive this if you asked for the guided install):
 2. Add the **Neon** integration, connect your existing Neon account/project.
 3. When configuring, set it to create a new branch per **Preview** deployment (not Production) using your current prod database as the parent branch.
 4. Confirm it injects `DATABASE_URL` into the Preview environment automatically — remove any manually-set `DATABASE_URL` under Preview scope so there's no conflict.
+
+   > ⚠️ **DO NOT DO THIS.** No Neon integration injects anything here. The
+   > manually-set Preview-scoped `DATABASE_URL` is the branch-scoped staging
+   > override — removing it does not remove a conflict, it breaks staging
+   > deploys (they resolve to no database and fail at build time). See
+   > `docs/ROADMAP.yaml` rows `BUILD-1` and `DEBT-7`.
+
 5. Production's `DATABASE_URL` (Production scope) stays exactly as it is today, untouched.
 
 After this, every `staging` push gets its own throwaway Postgres branch seeded from a copy of prod data structure — test migrations here first with `prisma migrate deploy` before merging to `main`.
@@ -47,13 +67,18 @@ You already have `SQUARE_ENVIRONMENT` as an env var, and Square provides sandbox
 
 No real charges can happen from staging even by accident.
 
+> ⚠️ **FALSE — this environment does not guarantee that.** Staging connects to a
+> separate "Froot Staging" **production** Square app against the **real** Square
+> account, not sandbox. Treat any Square action taken on staging as acting on
+> real data. See `docs/ROADMAP.yaml` row `DEBT-7`.
+
 ## 5. Vercel environment variables — Preview scope checklist
 
 In Vercel: Project Settings → Environment Variables → when adding/editing each var, uncheck "Production" and check only "Preview" (or add a second value scoped to Preview if Production already has one).
 
 | Variable | Production value | Preview (staging) value |
 |---|---|---|
-| `DATABASE_URL` | prod Neon connection string | auto-injected by Neon integration |
+| `DATABASE_URL` | prod Neon connection string | ⚠️ auto-injected by Neon integration — **FALSE, see warning below the table** |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_...` | `pk_test_...` (Clerk Dev instance) |
 | `CLERK_SECRET_KEY` | `sk_live_...` | `sk_test_...` |
 | `CLERK_WEBHOOK_SECRET` | prod webhook signing secret | staging webhook signing secret |
@@ -65,6 +90,12 @@ In Vercel: Project Settings → Environment Variables → when adding/editing ea
 | `NEXT_PUBLIC_SQUARE_APP_ID` | live app ID | sandbox app ID |
 | `NEXT_PUBLIC_APP_URL` | `https://<prod-domain>` | `https://staging-froot.vercel.app` (or your preview URL pattern) |
 | `BLOB_READ_WRITE_TOKEN` | prod Blob store token | separate staging Blob store token (see below) |
+
+> ⚠️ **The `DATABASE_URL` row above is false, and acting on it breaks staging.**
+> Nothing auto-injects a Preview `DATABASE_URL`. The Preview-scoped value is a
+> hand-wired, branch-scoped override that points `staging` at `ep-odd-rain`.
+> **Do not delete it** — deleting it makes staging deploys fail. See
+> `docs/ROADMAP.yaml` rows `BUILD-1` and `DEBT-7`.
 
 ## 6. Vercel Blob — separate store
 
@@ -84,6 +115,11 @@ Create a second Blob store (Vercel Dashboard → Storage → Blob → Create) na
 - [ ] Neon integration installed; Preview deployments get their own DB branch (confirm by checking Neon dashboard → Branches after a staging deploy)
 - [ ] Preview env vars use Clerk Dev keys (sign up on staging URL, confirm the user appears in Clerk's Development instance, not Production)
 - [ ] Preview env vars use Square sandbox keys (confirm a test "charge" on staging hits Square's sandbox, not live, dashboard)
+
+  > ⚠️ **DO NOT ATTEMPT THIS CHARGE.** Staging is wired to a separate "Froot
+  > Staging" **production** Square app against the **real** Square account, so
+  > there is no sandbox for it to land in. See `docs/ROADMAP.yaml` row `DEBT-7`.
+
 - [ ] Preview `BLOB_READ_WRITE_TOKEN` points to the separate staging Blob store
 - [ ] `main` branch protected, requires PR to merge
 - [ ] A test migration run on `staging` does not appear in the production Neon branch
