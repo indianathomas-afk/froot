@@ -2391,10 +2391,73 @@ bugs:
       docs/prompts/verification-smoke-pass.md already referenced a "BUG-4" in
       its holds list before any BUG-4 row existed — this fills that reference.
 
+  - id: BUG-5
+    title: "Duplicating a template creates it ACTIVE — the client's isActive:false is dropped"
+    status: planned
+    notes: >
+      Logged 2026-07-30, found while auditing DEBT-1a (21dd712); NOT fixed, that
+      session was audit-only and its writable set was two docs files.
+      src/app/(app)/templates/templates-client.tsx:137 POSTs `isActive: false`
+      when duplicating a template, but the create block in
+      src/app/api/templates/route.ts:60 never reads `isActive` — it is absent
+      from the `data` object — so Prisma applies the schema default
+      `isActive Boolean @default(true)` (prisma/schema.prisma:283). The copy is
+      live the moment it is created.
+      IT THEN PROPAGATES: the bulk generator at
+      src/app/api/checklists/route.ts:138 selects every `isActive: true` template
+      for the org, so the duplicate starts generating checklists for every
+      applicable store on the next generation run — the original's checklists
+      silently double. The admin who clicked Duplicate to draft a variant gets a
+      second live checklist per store instead.
+      This is a DROPPED FIELD, not a design choice: the client sends the flag
+      explicitly, and the intent (a copy you review before going live) matches
+      the import route, which does hardcode `isActive: false`
+      (src/app/api/templates/import/route.ts:134). Fix is one line in the POST
+      route's `data`. Before changing it, check each branch for duplicates
+      already created live — the current behaviour has shipped since the field
+      existed, so someone may be relying on a copy that went live immediately.
+
 debt:
   - id: DEBT-1
     title: "operationalPhase string inconsistency"
     notes: >
+      AUDIT LANDED 2026-07-30 in 21dd712 — docs/DEBT-1_AUDIT.md. STILL OPEN, and
+      deliberately so: an audit does not close the debt. The writer fix and the
+      backfill are DEBT-1b, whose prompt is docs/prompts/DEBT-1b_operationalPhase_remediate.md
+      and whose hard precondition is that audit file.
+      WHAT IT FOUND, in the order it matters:
+      (1) THE TAP IS OPEN by inspection — six paths reach the column, two of them
+      easily: the Duplicate button (templates-client.tsx:133) copies the raw value
+      into a NEW row, and the documented CSV export→import round trip carries it
+      between environments (export/route.ts:94 emits it raw; import/route.ts:44
+      accepts any string). POST and PATCH on /api/templates validate nothing, and
+      the column has no CHECK and no enum. The ORIGIN of every dirty row is
+      scripts/import-keva-templates.ts:83, which still hardcodes "During Hours".
+      (2) BUT IT HAS NOT FIRED SINCE THE FIX. The newest dirty row on any branch
+      was created 2026-07-11 19:44:15 UTC, about 4h16m BEFORE I-14b's alias commit
+      8a3667c (2026-07-12 00:00:13 UTC). The timezone step was verified, not
+      assumed — reading the Neon console as browser-local would invert it.
+      (3) THE BLAST RADIUS IS SMALL, and this is the finding that reframes the row.
+      The availability window this field configures is NEVER ENFORCED — see
+      DEBT-29. The only functional consumer of operationalPhase is handoff-note
+      date resolution, which the I-14b alias already covers. A dirty row's whole
+      visible effect is in the template EDIT FORM. This is cleanup, not an
+      incident — but it must be done BEFORE DEBT-29 is resolved by implementing
+      the gate, or the string starts deciding when checklists appear.
+      (4) SCOPE, measured 2026-07-30, each naming its branch: dev 1 row,
+      preview/staging 2, production 1 — four rows total, all named "Mid-Shift
+      Checklist", all still isActive. NO THIRD VARIANT on any branch.
+      Template.operationalPhase is the only carrier, proven by a schema-wide
+      sweep rather than assumed. "During the Day" appears in ZERO rows on ANY
+      branch — the canonical value has never been written to a database.
+      (5) The I-14b alias is BEHAVIOURALLY INERT: phaseOrder falls back to `?? 1`,
+      the same value the alias maps "During Hours" to. It is documentation, not
+      logic, and can be retired after the backfill.
+      CORRECTION to the original text below: the audit-then-fix prompt IS in
+      docs/prompts/ now — both halves, committed with the audit in 21dd712. The
+      "at least one live row" claim is confirmed and quantified above. Related
+      rows opened by this audit: BUG-5, DEBT-29, DEBT-30, DEBT-31.
+      ORIGINAL TEXT, preserved verbatim:
       "During the Day" vs "During Hours". I-14b fixed PHASE_ORDER to the
       canonical "During the Day" with a legacy alias; at least one live row
       still carries "During Hours". An audit-then-fix session prompt was
@@ -3860,3 +3923,101 @@ debt:
       ANYWAY: `stores/page.tsx:162` and `store-view-client.tsx:100` are not pure
       separator swaps, they are different sentences, so they need a decision
       rather than a find-and-replace. Related: DEBT-5, DEBT-27.
+
+  - id: DEBT-29
+    title: "The template availability window is collected, stored, exported — and never enforced"
+    notes: >
+      Logged 2026-07-30 out of the DEBT-1a audit (21dd712), which set out to find
+      who READS operationalPhase and found that the field's advertised purpose
+      has no runtime consumer at all.
+      THE PROMISE: the template form asks "When is this checklist available? *"
+      (src/app/(app)/templates/template-form.tsx:917) and states "Availability
+      calculated based on each store's operating hours" (:925), collecting
+      operationalPhase + startOffsetHours + endOffsetHours and previewing them
+      back as "Store opens 8:00 AM → Available 09:00 AM - 06:00 PM" (:954-960).
+      THE REALITY: nothing reads those three to gate anything. Checklist rows are
+      created in exactly two places — src/app/api/checklists/route.ts:118 (single)
+      and :155 (bulk) — and neither references phase or offsets. There is no cron
+      generator (only /api/cron/pace-alerts and /api/cron/sales-reconcile). No
+      code path joins the offsets to the StoreHours model
+      (prisma/schema.prisma:133). Store-view's "Available Checklists" heading
+      labels every generated checklist; it is not a filter. A repo-wide grep for
+      startOffsetHours/endOffsetHours returns only the form, the templates list,
+      the export route, the import route and the two write routes — collection
+      and transport, never consumption.
+      THE DECISION, which is a product call and not a code cleanup: either
+      IMPLEMENT the gate (join the offsets to StoreHours at generation or listing
+      time) or REMOVE the claim (drop the offsets UI, or relabel it so the admin
+      is not told a number does something it does not). Doing neither leaves
+      operators configuring a control with no effect — and a preview sentence
+      that reads like a guarantee.
+      SEQUENCING AGAINST DEBT-1: the only functional consumer of
+      operationalPhase today is handoff-note date resolution
+      (src/lib/messages.ts:38-66), which is alias-covered — which is exactly why
+      DEBT-1's blast radius is small. IMPLEMENTING the gate ends that: a dirty
+      phase string would then decide when a checklist appears. Finish DEBT-1b
+      before this row is resolved in that direction.
+      Disconfirmed by: any call site reading startOffsetHours/endOffsetHours
+      outside those six files, or any availability filter keyed on
+      operationalPhase. Related: DEBT-1, DEBT-30.
+
+  - id: DEBT-30
+    title: "No DB-level constraint on Template.operationalPhase — app-layer validation is the ceiling"
+    notes: >
+      Logged 2026-07-30 out of the DEBT-1a audit (21dd712). The column is plain
+      TEXT with no CHECK and no enum (prisma/schema.prisma:280;
+      prisma/migrations/20260627002005_init/migration.sql:108), so every guard
+      against a non-canonical value lives in application code — and the audit
+      found six write paths, two of which (the Duplicate button, the CSV import)
+      reach the column with no validation whatsoever.
+      DEBT-1b will add Zod validation to those paths. That closes today's holes
+      but NOT the class: any future route that writes this column re-opens it,
+      which is precisely what happened once already — the template form has
+      offered only canonical values since the initial build (1cfdf76), and the
+      CSV import shipped later with no enum and re-opened the door.
+      A CHECK constraint (or a Postgres enum) makes the invariant unbypassable.
+      It is deliberately NOT part of DEBT-1b: that session's task order forbids
+      schema changes and DDL outright, and the constraint could not be added
+      before the backfill anyway — it would reject the existing rows.
+      GATED ON, in order: (1) DEBT-1b's backfill reading zero non-canonical rows
+      on dev, preview/staging AND production — all three, since the audit found
+      different counts per branch (1 / 2 / 1); (2) a migration authored under the
+      hand-authored flow in docs/MIGRATIONS.md §3 (migrate diff → read the SQL →
+      db execute + migrate resolve → generate), since `migrate dev` is broken here.
+      OPEN QUESTION for that session: whether NULL stays legal. It is today —
+      AllDay templates write it deliberately (template-form.tsx:790) and 3 of 8
+      rows per org carry it — so a CHECK must permit NULL or those rows fail the
+      constraint. Related: DEBT-1, DEBT-29.
+
+  - id: DEBT-31
+    title: "MIGRATIONS.md:184 says staging was separately seeded — disproven for Template"
+    notes: >
+      Logged 2026-07-30 from the DEBT-1a audit (21dd712), which read all three
+      branches and found the doc's claim too broad. NOT FIXED — MIGRATIONS.md was
+      outside that session's writable set.
+      THE CLAIM: docs/MIGRATIONS.md:184 states "`dev` inherits production's data
+      shape; staging does not", with the "Which branch am I actually reading?"
+      table listing preview/staging as "separately seeded".
+      THE CONTRADICTION: branch preview/staging carries the SAME cuid
+      (cmqx004mk001d3apdv3b6h4mj) as branch dev and branch production for the
+      2026-06-27 Template row — identical id, identical createdAt to the
+      millisecond. Rows are not independently seeded into the same cuid. The Neon
+      console also shows preview/staging as a CHILD BRANCH of production
+      (breadcrumb "production ↳ preview/staging", br-square-feather-a63z92vz),
+      which is how it got them.
+      WHAT THE EVIDENCE ACTUALLY SUPPORTS: the line was recorded 2026-07-29 from
+      a zero-primary StaffMember query that genuinely differed between branches —
+      four ACTIVE staff on preview/staging versus production's two. That is real,
+      and it is evidence about StaffMember, which has DIVERGED since the branch
+      point. It is not evidence that staging was seeded from scratch. Template
+      shows the opposite: shared ancestry, plus staging-only divergence (a second
+      org, cmr54z65v…, with 8 templates created 2026-07-11 that production has
+      never had).
+      THE FIX IS A NARROWING, not a deletion: staging is a Neon branch of
+      production that has diverged per-table since its branch point. The
+      operational advice built on top of the claim SURVIVES unchanged — a clean
+      staging result is still not evidence about production, and both are still
+      worth running — but the stated REASON is wrong, and a wrong reason is what
+      lets someone conclude the opposite for a table they have not checked.
+      DO IT: fold into whichever session next edits MIGRATIONS.md rather than
+      standalone. Related: DEBT-1, DEBT-3.
