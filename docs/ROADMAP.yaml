@@ -2419,8 +2419,43 @@ bugs:
 
 debt:
   - id: DEBT-1
+    status: staging
+    commits: ["c17ccc1", "c01a2b1"]
     title: "operationalPhase string inconsistency"
     notes: >
+      CLOSED 2026-07-31 by DEBT-1b — writers plugged in c17ccc1, data backfilled
+      on all three branches, record in c01a2b1. Full evidence:
+      docs/DEBT-1_AUDIT.md § DEBT-1b remediation record.
+      DATA: zero non-canonical rows remain, verified per branch with branch-named
+      before/after counts — branch dev 1 row changed, branch preview/staging 2,
+      branch production 1, all three then returning
+      non_canonical_remaining = 0. Mechanism was one-off approved SQL per branch
+      in the Neon console (ruled 2026-07-31), NOT a committed data migration:
+      prisma/ was outside the session's writable set, and a migration file would
+      have fired unattended in a Vercel build, taking the operator's hand off a
+      production mutation this row has always required be approved per statement.
+      Logged in DEPLOY_LOG.md under 2026-07-31 — the entry is explicitly NOT a
+      promotion.
+      CODE: one shared rule at every write path, src/lib/phases.ts — trim, map
+      the single legacy "During Hours" to canonical "During the Day", reject
+      anything else BY NAME. That is a deliberate change from the audit's own
+      "reject, do not silently coerce" recommendation, ruled by Gary: CSVs
+      exported before the backfill still exist on disk, the mapping is
+      unambiguous, and unknown values still fail loudly per row on import. All
+      six writer sites from the audit go through it, including the seed script
+      that originated every dirty row.
+      WHY status:staging AND NOT verified — READ THIS BEFORE PROMOTING. The data
+      is clean in production but c17ccc1 is on the staging branch only. Until
+      staging → main is merged, PRODUCTION RUNS UNPLUGGED WRITERS OVER CLEAN
+      DATA. The practical risk is nil (after the backfill there is no legacy row
+      for Duplicate to copy, and the origination path was a hand-edited script),
+      but it is a real state and it is why this row is not verified. Flip it
+      after the promotion, not before.
+      NOT DONE, deliberately: both I-14b alias copies stay as belt-and-braces —
+      DEBT-32 retires them and folds the three phase lists into one. DEBT-30's
+      CHECK constraint is now UNBLOCKED by this backfill and is the durable fix
+      for the class; app-layer validation is the ceiling until then.
+      ORIGINAL AUDIT MARKER, preserved:
       AUDIT LANDED 2026-07-30 in 21dd712 — docs/DEBT-1_AUDIT.md. STILL OPEN, and
       deliberately so: an audit does not close the debt. The writer fix and the
       backfill are DEBT-1b, whose prompt is docs/prompts/DEBT-1b_operationalPhase_remediate.md
@@ -4023,3 +4058,74 @@ debt:
       lets someone conclude the opposite for a table they have not checked.
       DO IT: fold into whichever session next edits MIGRATIONS.md rather than
       standalone. Related: DEBT-1, DEBT-3.
+
+  - id: DEBT-32
+    title: "Retire the I-14b legacy phase alias and fold the three phase lists into one"
+    notes: >
+      Created 2026-07-31 by the DEBT-1b task order, which put alias retirement
+      explicitly OUT OF SCOPE: even with data clean and writers plugged, the
+      alias stays as belt-and-braces until the fix has soaked in production.
+      This row keeps it tracked without rushing it.
+      WHAT RETIRES: the two hand-copied legacy mappings, "During Hours": 1, at
+      src/lib/messages.ts:41 and
+      src/app/(app)/store-view/checklist/[id]/handoff-notes.tsx:24. Both are
+      READ-path ordering maps; neither was touched by DEBT-1b.
+      THE ALIAS IS ALREADY BEHAVIOURALLY INERT — phaseOrder falls back to `?? 1`,
+      which is the same value the alias maps to, so deleting both lines changes
+      no output today. That is exactly why there is no hurry AND no risk: this is
+      a readability change, not a behaviour change. It only stops being inert if
+      some future call site treats an unknown phase differently from mid (a
+      throw, or a fallback of 0).
+      FOLD IN AT THE SAME TIME: DEBT-1b added a THIRD list,
+      src/lib/phases.ts (OPERATIONAL_PHASES), deliberately free of Prisma and
+      React imports so writers on both sides of the client boundary can share it.
+      That is the natural home for the ordering map too — messages.ts pulls the
+      Prisma runtime, which is the whole reason handoff-notes.tsx hand-copied its
+      map in the first place. Retiring the alias without consolidating leaves
+      three lists where there should be one.
+      HAZARD: handoff-notes.tsx also carries one of the eleven lint errors in
+      DEBT-33 (:70:25, "Cannot call impure function during render"), so whoever
+      opens that file will see a scoped lint failure that predates them.
+      UNBLOCKED ONCE: DEBT-1 is verified — i.e. after staging → main is promoted
+      and production is running the plugged writers, not merely the clean data.
+      Related: DEBT-1, DEBT-30, DEBT-33.
+
+  - id: DEBT-33
+    title: "npm run lint exits 1 on a clean checkout — 11 errors, no commit gate can use it"
+    notes: >
+      Logged 2026-07-31 during DEBT-1b, which was ordered to add a bare
+      `npm run lint` to its build-gates-commit chain and found the chain could
+      never reach the commit. MEASURED, not inferred: stashing the session's
+      changes and running eslint against a clean 48559fc gives the IDENTICAL
+      result — exit 1, 33 problems, 11 errors. None of the eleven are in files
+      DEBT-1b touched; its seven files lint clean (0 errors, 4 pre-existing
+      warnings).
+      THE ELEVEN, at 48559fc:
+      react-hooks/set-state-in-effect (6) —
+      src/app/(app)/labor/weekly-plan-client.tsx:121:7 and :295:5;
+      src/app/(app)/settings/labor/labor-settings-client.tsx:94:5, :228:19,
+      :711:19; src/components/layout/sidebar.tsx:176:26.
+      react-hooks/refs, "Cannot access refs during render" (3) —
+      src/components/hr/pdf-viewer.tsx:57:3, :58:3, :59:3.
+      react-hooks, "Cannot call impure function during render" (1) —
+      src/app/(app)/store-view/checklist/[id]/handoff-notes.tsx:70:25.
+      prefer-const (1) — src/lib/hr-signed-pdf.ts:373:11, the only one
+      auto-fixable.
+      CAUSE: these are React Compiler rules judging code written before Next 16.
+      Nothing is known to be broken at runtime — every one of these files ships
+      today — but the rules are not cosmetic either; set-state-in-effect and
+      refs-during-render describe real cascading-render and staleness hazards.
+      READING FOR HR-14: TWO OF THE AFFECTED FILES SIT IN THE HR STAGING SURFACE
+      — src/components/hr/pdf-viewer.tsx (three of the eleven) and
+      src/lib/hr-signed-pdf.ts. Anyone touching HR document rendering or signed
+      PDFs should read this row first; the pdf-viewer errors are about refs
+      mutated during render, which is the kind of thing that shows up as a
+      viewer that does not update rather than as a crash.
+      STANDING-RULE CONSEQUENCE, in force now: NO BARE `npm run lint` IN ANY
+      COMMIT GATE until this baseline clears. Scoped lint per commit is the
+      interim rule — `npx eslint <the files this commit touches> && npm run build
+      && git commit`, as DEBT-1b's three commits did. That keeps new code honest
+      without blocking every commit on debt someone else left.
+      DO IT: the prefer-const is a one-liner; the ten react-hooks errors are real
+      refactors across five files in Labor, HR and the sidebar, and should not be
+      bundled into an unrelated phase. Related: DEBT-32.
