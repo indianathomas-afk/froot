@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { OPERATIONAL_PHASES, normalizePhase } from "@/lib/phases"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -61,11 +62,9 @@ interface TemplateFormProps {
   }
 }
 
-const PHASES = [
-  { value: "Before Opening", label: "Before Opening" },
-  { value: "During the Day", label: "During the Day" },
-  { value: "After Closing", label: "After Closing" },
-]
+// DEBT-1b: one shared list — the dropdown and every write path agree by
+// construction rather than by hand-copied literal.
+const PHASES = OPERATIONAL_PHASES.map((value) => ({ value, label: value }))
 
 function getPhaseDescription(phase: string | null, start: number, end: number, availType: string) {
   if (availType === "AllDay") return "Available all day"
@@ -631,7 +630,10 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const [type, setType] = useState(initialData?.type ?? "")
   const [frequency, setFrequency] = useState(initialData?.frequency ?? "Daily")
   const [availType, setAvailType] = useState(initialData?.availabilityType ?? "StoreHours")
-  const [phase, setPhase] = useState(initialData?.operationalPhase ?? "Before Opening")
+  // DEBT-1b: normalised on the way in, so a row written before the backfill
+  // opens with a matching dropdown option (and correct offset labels) instead
+  // of an empty required field, and cannot be re-persisted on save.
+  const [phase, setPhase] = useState(normalizePhase(initialData?.operationalPhase) ?? "Before Opening")
   const [startOffset, setStartOffset] = useState(initialData?.startOffsetHours ?? 1)
   const [endOffset, setEndOffset] = useState(initialData?.endOffsetHours ?? 2)
   const [appliesTo, setAppliesTo] = useState(

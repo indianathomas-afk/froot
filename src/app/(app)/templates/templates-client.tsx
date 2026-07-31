@@ -5,6 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Plus, Eye, Pencil, Copy, Archive, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { normalizePhase } from "@/lib/phases"
 import { TemplateImportButton } from "./template-import-button"
 import { TemplateExportButton } from "./template-export-button"
 
@@ -130,7 +131,7 @@ export default function TemplatesClient() {
         type: template.type,
         frequency: template.frequency,
         availabilityType: template.availabilityType,
-        operationalPhase: template.operationalPhase,
+        operationalPhase: normalizePhase(template.operationalPhase),
         startOffsetHours: template.startOffsetHours,
         endOffsetHours: template.endOffsetHours,
         appliesTo: template.appliesTo,

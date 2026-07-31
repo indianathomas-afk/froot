@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
+import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
@@ -34,6 +35,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const { tasks, storeIds, appliesTo, ...templateData } = body
   const incomingTasks: IncomingTask[] = Array.isArray(tasks) ? tasks : []
+
+  // DEBT-1b: templateData is spread wholesale into the update below, so the
+  // phase is validated here or not at all. The one known legacy value is
+  // corrected; anything else is rejected by name.
+  if ("operationalPhase" in templateData) {
+    const phase = normalizePhase(templateData.operationalPhase)
+    if (!isOperationalPhase(phase)) {
+      return NextResponse.json(
+        { error: `operationalPhase must be one of: ${OPERATIONAL_PHASES.join(", ")}` },
+        { status: 400 }
+      )
+    }
+    templateData.operationalPhase = phase
+  }
 
   try {
     const existingTaskIds = new Set(

@@ -80,7 +80,7 @@ const TEMPLATES_DATA = [
     description: "Mid-day responsibilities including restocking, cleaning, and quality checks",
     type: "Mid-Shift",
     availabilityType: "StoreHours",
-    operationalPhase: "During Hours",
+    operationalPhase: "During the Day",
     startOffsetHours: 2,
     endOffsetHours: 2,
     tasks: [

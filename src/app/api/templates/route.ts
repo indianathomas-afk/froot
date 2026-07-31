@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
+import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
 
 export async function GET() {
   const { orgId } = await auth()
@@ -57,6 +58,16 @@ export async function POST(req: Request) {
   const body = await req.json()
   const { tasks, storeIds, ...templateData } = body
 
+  // DEBT-1b: the canonical phase is enforced at every entry point. The one
+  // known legacy value is corrected; anything else is rejected by name.
+  const operationalPhase = normalizePhase(templateData.operationalPhase)
+  if (!isOperationalPhase(operationalPhase)) {
+    return NextResponse.json(
+      { error: `operationalPhase must be one of: ${OPERATIONAL_PHASES.join(", ")}` },
+      { status: 400 }
+    )
+  }
+
   const template = await prisma.template.create({
     data: {
       organizationId: org.id,
@@ -65,7 +76,7 @@ export async function POST(req: Request) {
       type: templateData.type || "Mid-Shift",
       frequency: templateData.frequency || "Daily",
       availabilityType: templateData.availabilityType || "StoreHours",
-      operationalPhase: templateData.operationalPhase || null,
+      operationalPhase,
       startOffsetHours: templateData.startOffsetHours ?? null,
       endOffsetHours: templateData.endOffsetHours ?? null,
       appliesTo: storeIds?.length ? "selected" : (templateData.appliesTo ?? "all"),

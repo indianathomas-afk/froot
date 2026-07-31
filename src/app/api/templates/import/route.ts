@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireAdmin } from "@/lib/auth"
+import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
 
 // ─── Templates Import ─────────────────────────────────────────────────────────
 // POST /api/templates/import
@@ -42,7 +43,17 @@ const RowSchema = z.object({
   template_type: z.string().optional().nullable(),
   template_frequency: z.string().optional().nullable(),
   template_availability_type: z.string().optional().nullable(),
-  template_operational_phase: z.string().optional().nullable(),
+  // DEBT-1b: validated here so a bad cell reports through the per-row errors
+  // channel with its row number, rather than importing an unknown variant.
+  // The one known legacy value ("During Hours") is corrected on the way in —
+  // CSVs exported before the backfill still import.
+  template_operational_phase: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((v) => isOperationalPhase(normalizePhase(v)), {
+      message: `template_operational_phase must be one of: ${OPERATIONAL_PHASES.join(", ")}`,
+    }),
   template_start_offset_hours: numish,
   template_end_offset_hours: numish,
   template_applies_to: z.string().optional().nullable(),
@@ -127,7 +138,7 @@ export async function POST(req: Request) {
             type: head.template_type?.trim() || "Mid-Shift",
             frequency: head.template_frequency?.trim() || "Daily",
             availabilityType: head.template_availability_type?.trim() || "StoreHours",
-            operationalPhase: head.template_operational_phase?.trim() || null,
+            operationalPhase: normalizePhase(head.template_operational_phase),
             startOffsetHours: head.template_start_offset_hours ?? null,
             endOffsetHours: head.template_end_offset_hours ?? null,
             appliesTo: "all",
