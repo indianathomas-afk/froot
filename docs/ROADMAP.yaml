@@ -2454,8 +2454,10 @@ debt:
       the same value the alias maps "During Hours" to. It is documentation, not
       logic, and can be retired after the backfill.
       CORRECTION to the original text below: the audit-then-fix prompt IS in
-      docs/prompts/ now — both halves, committed with the audit in 21dd712. The
-      "at least one live row" claim is confirmed and quantified above. Related
+      docs/prompts/ now. The DEBT-1a half is committed with the audit in 21dd712;
+      the DEBT-1b half exists at docs/prompts/DEBT-1b_operationalPhase_remediate.md
+      but is UNCOMMITTED as of 4fdccc5 — it lands with the session that runs it.
+      The "at least one live row" claim is confirmed and quantified above. Related
       rows opened by this audit: BUG-5, DEBT-29, DEBT-30, DEBT-31.
       ORIGINAL TEXT, preserved verbatim:
       "During the Day" vs "During Hours". I-14b fixed PHASE_ORDER to the
