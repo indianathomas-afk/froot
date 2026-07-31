@@ -4,6 +4,47 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-07-31 — DATA BACKFILL, all three branches (DEBT-1b operationalPhase) — NOT a promotion
+
+- **This entry is not a deploy.** No code reached production and no migration ran.
+  It is logged here because it is the first time approved SQL mutated all three
+  Neon branches by hand, and the mechanism ruling that chose that route belongs
+  in the deploy record.
+- **Mechanism, ruled 2026-07-31:** one-off approved SQL per branch in the Neon
+  console, **not** a committed data-migration file. `prisma/` was outside the
+  session's writable set; a migration would have fired unattended during a Vercel
+  build, taking the operator's hand off a production mutation that DEBT-1 has
+  always required be approved per statement, per branch. Full reasoning and the
+  named residual are in `docs/DEBT-1_AUDIT.md` § DEBT-1b remediation record.
+- **The statement**, identical on every branch, idempotent by exact equality:
+  ```sql
+  UPDATE "Template" SET "operationalPhase" = 'During the Day'
+   WHERE "operationalPhase" = 'During Hours'
+  RETURNING id, name, "organizationId", "operationalPhase" AS new_phase;
+  ```
+- **Rows changed, in the order run — dev → preview/staging → production**, each
+  branch separately approved, each verified immediately after:
+  - **branch `dev`** — 1 row (`cmqx004mk001d3apdv3b6h4mj`). Run by Claude via
+    local `.env`, inside a transaction that rolls back on any count but 1.
+    `non_canonical_remaining = 0`.
+  - **branch `preview/staging`** — 2 rows (`cmqx004mk001d3apdv3b6h4mj`,
+    `cmrgrwfxn001d04ju93cwc8v1`). Run by Gary. `non_canonical_remaining = 0`.
+    The `UPDATE` was accidentally run a second time and returned **no rows** —
+    the idempotent `WHERE` working as designed, and an independent confirmation
+    that nothing non-canonical survived. The first run's `RETURNING` output was
+    lost and was reconstructed by `SELECT` on the two known ids.
+  - **branch `production`** — 1 row (`cmqx004mk001d3apdv3b6h4mj`). Run by Gary,
+    **once**, `RETURNING` captured. `non_canonical_remaining = 0`.
+- **No DDL, no schema change, no `_prisma_migrations` row.** Code rollback and
+  data rollback are fully independent here: reverting `c17ccc1` restores the old
+  writers but leaves the data canonical, which is harmless — the alias still
+  reads legacy values, and nothing enforces the field at runtime (DEBT-29).
+- **Rollback of the data**, if it were ever wanted, is the mirror statement per
+  branch — but it would reintroduce a known-bad value and there is no reason to.
+- **Code state after this entry:** `c17ccc1` (the writer fix) is on branch
+  `staging` and **not** in production. Until `staging → main` is promoted,
+  production runs unplugged writers over clean data. See DEBT-1's row.
+
 ## 2026-07-29 — PRODUCTION promotion (BUILD-2 default store + one-primary-store index)
 
 - **Promotion SHA:** `493175e` — full: `493175ee337dd628d56c77a4a84e9b2600ae0759`.

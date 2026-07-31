@@ -356,3 +356,148 @@ Recorded as text per this session's task order; no code was changed.
 - **`ROADMAP.yaml` DEBT-1 row drift** — the row said the audit-then-fix prompt
   was *"NOT in docs/prompts/ yet"*. Both `DEBT-1a_operationalPhase_audit.md` and
   `DEBT-1b_operationalPhase_remediate.md` now exist there.
+
+---
+
+# DEBT-1b — remediation record
+
+Appended 2026-07-31, the session after the audit above (continued in the same
+conversation by Gary's ruling, with the precondition re-checked against the
+committed file rather than against conversation memory). Read-only claims above
+are unchanged; this section records what was altered.
+
+## Step 1 — writers plugged, commit `c17ccc1`
+
+`fix: enforce the canonical operationalPhase at every write path (DEBT-1b step 1)`
+— 8 files, +218/−11. New module `src/lib/phases.ts` carries `OPERATIONAL_PHASES`,
+`normalizePhase()` and `isOperationalPhase()`, free of Prisma and React imports so
+API routes and client components share one rule. All six writer sites from the
+verdict above now pass through it: `scripts/import-keva-templates.ts:83` (the
+hardcoded origin string, now canonical), `POST /api/templates`, `PATCH
+/api/templates/[id]`, the CSV import's Zod field, `templates-client.tsx`'s
+Duplicate, and `template-form.tsx`'s state seed. `template-form.tsx`'s local
+`PHASES` literal now derives from the shared constant.
+
+**Neither I-14b alias copy was touched** (`messages.ts:41`,
+`handoff-notes.tsx:24`) — out of scope by the task order. Retirement is tracked
+as DEBT-32. That leaves a third copy of the phase list in the repo until then.
+
+### Rule change from this file's own recommendation — recorded deliberately
+
+§5 above recommended **"Reject, do not silently coerce"** at the CSV import.
+The rule actually implemented is **map the one known legacy alias
+(`"During Hours"` → `"During the Day"`), reject everything else by name**, at
+*every* entry point rather than only the import. Changed on Gary's ruling,
+2026-07-31, for these reasons:
+
+- CSV files exported from any branch **before** this backfill still exist on
+  disk. Rejecting them helps nobody when the mapping is unambiguous.
+- The mapping is not a judgment call: I-14b already ordered the two strings
+  identically, so no information is lost or invented by applying it.
+- Unknown values still fail loudly — per row, with the row number, through the
+  import route's existing `errors: {row, error}[]` channel.
+
+The audit's underlying concern (never silently rewrite something you had to
+guess at) is preserved: exactly one string is mapped, and it is the one whose
+meaning was already settled.
+
+## Mechanism ruling
+
+**One-off approved SQL per branch in the Neon console** — not a committed
+data-migration file. Ruled 2026-07-31. Reasons: `prisma/` was outside the
+session's writable set; a migration file would fire unattended during a Vercel
+build, taking the operator's hand off a production mutation that DEBT-1's row
+has always required be approved; and the replay benefit is largely moot here
+(four rows, an idempotent `WHERE`, and future Neon branches inherit clean data
+from production anyway).
+
+**Named residual:** nothing structurally prevents a future branch cut from a
+pre-fix point in time from resurrecting dirty rows. A migration file would not
+have fixed that either. The durable answer is DEBT-30's `CHECK` constraint,
+gated on this backfill.
+
+## Step 2 — the backfill, per branch
+
+The statement, identical on all three branches, idempotent by exact equality:
+
+```sql
+UPDATE "Template" SET "operationalPhase" = 'During the Day'
+ WHERE "operationalPhase" = 'During Hours'
+RETURNING id, name, "organizationId", "operationalPhase" AS new_phase;
+```
+
+| Branch | Before | Rows changed | Q3 after (non-canonical remaining) | Run by |
+|---|---|---|---|---|
+| `dev` | `[During Hours]` 1 | 1 | **0** | Claude, local `.env` |
+| `preview/staging` | `[During Hours]` 2 | 2 | **0** | Gary, Neon console |
+| `production` | `[During Hours]` 1 | 1 | **0** | Gary, Neon console |
+
+**Branch `dev`** — Q0 host check (`ep-late-water-a6k53nv2`) aborted the script if
+the endpoint was anything else. `UPDATE` ran inside a transaction that throws —
+and therefore rolls back — on any count other than 1 or any id other than
+`cmqx004mk001d3apdv3b6h4mj`; it did not fire. `RETURNING` captured:
+`cmqx004mk001d3apdv3b6h4mj` "Mid-Shift Checklist", org `cf888f2d-…`,
+`new_phase = "During the Day"`. After: `[Before Opening] 3 · <NULL> 3 ·
+[After Closing] 1 · [During the Day] 1`, `non_canonical_remaining = 0`.
+
+**Branch `preview/staging`** — identity confirmed (`ep-odd-rain-a6gr4xmm` /
+`br-square-feather-a63z92vz`) before anything ran. Recorded as it happened, not
+as designed:
+
+- Q1 before, `[During Hours] 2` — as expected.
+- Q2 at 2:02pm succeeded, but **the `RETURNING` output was not captured**.
+- Q3 at 2:03pm: `non_canonical_remaining = 0`.
+- **Q2 was accidentally run a second time at 2:04pm** and returned **no rows** —
+  the idempotent `WHERE` behaving exactly as designed. This destroyed nothing
+  and is itself an independent confirmation that no `"During Hours"` row
+  survived the first run, reached by a different route than Q3.
+- Reconstruction at 2:06pm: `SELECT` on the two known ids returned exactly 2
+  rows — `cmqx004mk001d3apdv3b6h4mj` (org `cf888f2d-…`) and
+  `cmrgrwfxn001d04ju93cwc8v1` (org `cmr54z65v…`), both "Mid-Shift Checklist",
+  both `operationalPhase = "During the Day"`. Screenshot captured.
+- Q1 after-picture: **NOT CAPTURED.**
+
+**Branch `production`** — identity confirmed
+(`ep-green-smoke-a6xthq4r` / `br-sparkling-block-a620qvg4`). Ordering recorded as
+it happened:
+
+- Q1 ran **first**, at 2:12pm, *before* Q0 — `[During Hours] 1`.
+- Q0 at 2:13pm confirmed the endpoint, then **Q1 was re-run at 2:13pm**, same
+  result. That re-run is the admissible before-count; the 2:12pm read
+  corroborates it but was taken before the branch was named, so by CLAUDE.md
+  § Database Evidence it does not stand on its own. Identity *was* confirmed
+  before the mutation, which is what matters.
+- Q2 ran **once** at 2:14pm with `RETURNING` **captured**: exactly 1 row,
+  `cmqx004mk001d3apdv3b6h4mj`, "Mid-Shift Checklist", org `cf888f2d-…`,
+  `new_phase = "During the Day"`.
+- Q3 at 2:15pm: `non_canonical_remaining = 0`.
+- Q1 after-picture: **NOT CAPTURED.**
+
+### Evidence quality, stated rather than glossed
+
+`RETURNING` proves *that statement changed those rows*. A later `SELECT` proves
+only *their current state*. Production has the strong form; `preview/staging`
+has the reconstruction. The gap is immaterial there because Q1-before pinned the
+dirty population at exactly those two ids, Q3 shows none remain, and the
+accidental re-run independently returned zero — but the distinction is recorded
+rather than smoothed over.
+
+Two Q1 after-pictures were never captured. They are marked NOT CAPTURED above
+rather than filled in with their expected values. Nothing depends on them: Q3 is
+the load-bearing check on both branches, and the `UPDATE`'s exact-equality
+`WHERE` cannot have touched a row holding any other value.
+
+## State at the end of DEBT-1b
+
+- **Data: clean on all three branches.** Zero non-canonical rows, verified
+  per branch with branch-named counts.
+- **Code: writers plugged, but committed to `staging` only.** Until Gary merges
+  `staging → main`, **production runs unplugged writers over clean data.** The
+  practical risk is nil — after the backfill there is no legacy row for Duplicate
+  to copy, and the origination path was a hand-edited script — but the state is
+  real and is why DEBT-1 is `status: staging` and not `verified`.
+- **`"During the Day"` now exists in the data**, on all three branches, for the
+  first time (see §4 — the canonical value had never been written).
+- **Open successors:** DEBT-30 (DB-level `CHECK`, now unblocked by the clean
+  backfill), DEBT-32 (retire the two alias copies and fold the three phase lists
+  into one), DEBT-33 (repo-wide lint baseline is red), BUG-5, DEBT-29, DEBT-31.
