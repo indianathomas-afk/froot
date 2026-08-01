@@ -2503,8 +2503,70 @@ debt:
       code replacement.
 
   - id: DEBT-2
+    status: staging
+    commits: ["bceca47", "5003d65"]
     title: "Task.sectionName is unvalidated free text with no Section entity"
     notes: >
+      CLOSED 2026-08-01 by DEBT-2b in 5003d65. Audit is bceca47
+      (docs/DEBT-2_AUDIT.md); the hardening pass is 5003d65.
+      NO DATA STEP WAS RUN, BECAUSE NONE WAS NEEDED. The audit measured all
+      three branches and all three were clean — 29 distinct spellings, 29
+      distinct lower(btrim()), zero empty, zero untrimmed, zero
+      tab/newline/CR/NBSP, zero near-duplicates, zero within-template drift on
+      dev, preview/staging AND production. So unlike DEBT-1 there was no
+      backfill, no UPDATE, no Neon console, and DEBT-2b touched no database at
+      all. A remediation session that runs no SQL is the correct outcome when
+      the audit says the data is clean; recorded explicitly so nobody later
+      reads the absence of a data step as an omission.
+      THE ENUM WAS DELIBERATELY NOT ADDED. sectionName is legitimately free
+      text — an operator names their own sections — so there is no canonical
+      list to validate against and src/lib/phases.ts is NOT the template.
+      The fix is trim plus non-empty, nothing more. This is the single most
+      important thing to carry forward: the DEBT-1 shape does not transfer, and
+      anyone reaching for a phases.ts equivalent here is solving the wrong
+      problem.
+      WHAT 5003d65 ACTUALLY CHANGED, four items:
+      (1) THE UNGUARDED WRITER, which was the whole of the realised risk.
+      template-form.tsx's inline per-row section input persisted "" with no
+      guard while addTask and saveEditTask beside it both blocked empty. Those
+      two gate their own commit action, so the row input's commit action — the
+      form's Save button — is what now gets gated, plus a message naming how
+      many rows are blank. TRIM HAPPENS ON BLUR, NOT ON CHANGE, and that
+      departure from the session prompt was ruled correct by Gary: trimming per
+      keystroke makes a multi-word section name impossible to type, and 23 of
+      the 29 live section names are multi-word. An outbound trim in the save
+      payload covers the bulk-set, add-task and edit-drawer paths in one place.
+      (2) BOTH API CHOKE POINTS now trim and reject blank with a 400 — POST
+      /api/templates and the shared taskData() in PATCH /api/templates/[id].
+      Re-verified at the checkout that writers 3-9 still funnel through those
+      two; the only other writes of the column are the CSV import (already
+      trims) and the seed script, both out of scope. The guard precedes the
+      trim because .trim() alone throws a TypeError on a request omitting the
+      field, turning a 400 into a 500.
+      (3) ONE EMPTY-VALUE STRING. The execution client rendered a BLANK heading
+      for an empty section while the template detail page, both print pages and
+      the CSV import default all used "General". It now groups on the same
+      fallback, and the form's section header row reads "General" rather than
+      "No section". DISPLAY ONLY — "General" is never written to the database.
+      (4) DEBT-1 FOLLOW-THROUGH, not a reopening.
+      docs/TEMPLATES_IMPORT_EXPORT.md listed only two operational phases; it now
+      lists all three canonical values plus the legacy mapping. DEBT-1b
+      recommended this and did not carry it out. DEBT-1 stays closed at
+      status:staging and was not touched.
+      DEBT-36 CARRIES THE ENTITY QUESTION FORWARD and is deliberately NOT part
+      of this row's closure. A Section entity — id, name, order, per-template —
+      is the durable answer to everything this row could not fix: no canonical
+      list, no rename, no independent ordering, and the finding that because
+      Checklist does not snapshot task data, renaming a section retroactively
+      rewrites the headings on every historical completed checklist. DEBT-2b
+      hardened the writers; it did not model the thing.
+      WHY status:staging AND NOT verified: 5003d65 is on the staging branch
+      only. Flip it after the promotion, not before. NOTE that main is 19
+      commits behind at the time of writing, so this rides with DEBT-1's own
+      unpromoted writer fix (c17ccc1) whenever staging → main next happens.
+      STILL OPEN AND UNTOUCHED BY THIS SESSION: DEBT-30 (DB-level CHECK),
+      DEBT-33 (red lint baseline), DEBT-36 (the entity).
+      ── ORIGINAL AUDIT MARKER, preserved ──
       AUDIT LANDED 2026-08-01 in bceca47 — docs/DEBT-2_AUDIT.md. STILL OPEN,
       and deliberately so: an audit does not close the debt. Remediation is
       DEBT-2b, whose prompt is written after this audit, not before.
