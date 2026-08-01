@@ -18,7 +18,8 @@
 # deferred — scope intentionally cut.
 # open     — unresolved questions that aren't yet blockers.
 #   NOTE: blockers/deferred/open/tags exist ONLY on `phases`. `bugs:` accepts
-#   id/title/status/shipped/commits/notes; `debt:` accepts id/title/notes ONLY.
+#   id/title/status/shipped/commits/notes; `debt:` accepts
+#   id/title/status/commits/notes.
 #   Adding `open:` to a debt row type-errors the build (see src/lib/roadmap.ts)
 #   — fold it into notes instead. Learned the hard way 2026-07-27.
 # tags     — [pre-launch] must close before external merchants.
@@ -888,6 +889,12 @@ phases:
     notes: >
       Verification-only phase, no code — Gary's end-to-end staging pass of
       every shipped labor surface. Gated all further labor build work.
+      NO `commits` FIELD, DELIBERATELY — read the absence as accurate, not as an
+      omission to be filled. This phase shipped no code, so there is no SHA to
+      cite; a commit here would assert work that does not exist. Verified
+      2026-08-01 that L-1 is the ONLY row in this file carrying a landed status
+      (staging | shipped | verified) with no commits, which is why it has been
+      flagged twice as an anomaly. It is not one.
 
   - id: L-2
     track: labor

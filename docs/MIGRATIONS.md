@@ -175,18 +175,40 @@ index produced none.
 
 ## Which branch am I actually reading?
 
-| Branch | Endpoint | Seeded from | Use |
-|---|---|---|---|
-| `production` | `ep-green-smoke-a6xthq4r` | — | Neon console only. Never on disk. |
-| `preview/staging` | `ep-odd-rain-a6gr4xmm` | separately seeded | first target of every `migrate deploy` |
-| `dev` | `ep-late-water-a6k53nv2` | **branched from `production`** (§1) | local `.env`; every CLI command here |
+| Branch | Endpoint | Branch id | Seeded from | Use |
+|---|---|---|---|---|
+| `production` | `ep-green-smoke-a6xthq4r` | `br-sparkling-block-a620qvg4` | — | Neon console only. Never on disk. |
+| `preview/staging` | `ep-odd-rain-a6gr4xmm` | `br-square-feather-a63z92vz` | **branched from `production`**, diverged per-table since | first target of every `migrate deploy` |
+| `dev` | `ep-late-water-a6k53nv2` | `br-broad-wave-a6vpjdw0` | **branched from `production`** (§1) | local `.env`; every CLI command here |
 
-**`dev` inherits production's data shape; staging does not.** Verified
-2026-07-29 by running the same zero-primary query on both: **branch
-`preview/staging`** returned four ACTIVE staff (Aaliyah Rose 1, Chase Nyman 2,
-Gary Thomas 1, Kelton Thomas 3), while **branch `dev`** returned exactly what
-**branch `production`** had returned on 2026-07-27 — Gary Thomas and Kelton
-Thomas, 9 assignments each.
+Branch ids recorded 2026-08-01 from `docs/prompts/DEBT-2_AUDIT.md` (§`Q0`, `S0`,
+`P0`), where each was measured against its endpoint before any query ran. They
+make the identity check a direct comparison rather than an inference from the
+host.
+
+**Staging is a Neon child branch of production that has DIVERGED PER-TABLE since
+its branch point — it was not separately seeded.** Narrowed 2026-08-01 (DEBT-31)
+from an earlier version of this line that read "`dev` inherits production's data
+shape; staging does not". That claim was too broad, and a wrong reason is what
+lets someone conclude the opposite for a table they have not checked.
+
+What the evidence actually supports, per table:
+
+- **`StaffMember` HAS diverged.** Verified 2026-07-29 by running the same
+  zero-primary query on both: **branch `preview/staging`** returned four ACTIVE
+  staff (Aaliyah Rose 1, Chase Nyman 2, Gary Thomas 1, Kelton Thomas 3), while
+  **branch `dev`** returned exactly what **branch `production`** had returned on
+  2026-07-27 — Gary Thomas and Kelton Thomas, 9 assignments each. This is the
+  observation the original line was written from, and it is real.
+- **`Template` has NOT.** The 2026-06-27 row carries the same cuid
+  (`cmqx004mk001d3apdv3b6h4mj`) on **branch `dev`**, **branch `preview/staging`**
+  and **branch `production`** — identical id, identical `createdAt` to the
+  millisecond. Rows are not independently seeded into the same cuid; that is
+  shared ancestry. Staging then diverged on top of it (a second org with 8
+  templates created 2026-07-11 that production has never had).
+
+So per-table divergence, not a separate seed. The Neon console shows the
+relationship directly: breadcrumb "production ↳ preview/staging".
 
 Two consequences:
 

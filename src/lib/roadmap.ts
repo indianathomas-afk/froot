@@ -54,9 +54,11 @@ export interface DebtItem {
    * Added 2026-07-28 when DEBT-8 became the first debt item ever resolved,
    * mirroring `Bug` above rather than inventing a third shape.
    *
-   * NOTHING RENDERS THEM YET — the debt list is still unconditional, under a
-   * heading that asserts "not yet fixed". That is DEBT-14. A missing status
-   * must be read as OPEN, since every other row omits it.
+   * RENDERED since DEBT-14 shipped (46e1b64): roadmap-client.tsx splits the
+   * debt list on this field. `isResolvedDebt` there is the single definition
+   * of which statuses count as resolved — read it rather than assuming a set.
+   * A missing status must be read as OPEN, since every outstanding row omits
+   * it.
    */
   status?: PhaseStatus
   commits?: string[]

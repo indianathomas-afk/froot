@@ -22,6 +22,40 @@ Enforcement types:
 
 ---
 
+## Audit method — GET routes are a write path in this codebase
+
+**A write-path audit that greps only for non-GET handlers has a blind spot
+here.** Square sales sync fires from **13 GET handlers**, each of which triggers
+outbound Square API calls and `SalesPeriodCache` writes on an ordinary member's
+*read*. This is method guidance, not a gap: the routes are gated and the cache is
+org-scoped. Verified at HEAD 2026-08-01.
+
+Grep for the helpers **by name — and note that one grep is not enough**:
+
+1. `syncSalesForStore` / `ensureSalesCached` (`src/lib/sales-sync.ts`) — finds
+   **8** GET handlers: `dashboard/{sales,summary,rollup}`,
+   `inventory/reports/{variance,item-sales,profitability,cogs}`,
+   `cron/sales-reconcile`.
+2. `computeExpectedInventory` / `computeWeeklyUsage` / `computeLowStockAlerts`
+   (`src/lib/expected-inventory.ts`, which calls `ensureSalesCached` internally;
+   `computeLowStockAlerts` reaches it via `computeExpectedInventory`) — finds
+   **5 more**: `inventory/{order-guide,expected,alerts,alerts/count,pars}`.
+
+**The method failure is the durable part.** Step 1 alone — which is the whole of
+the remedy as originally recorded — finds 8 of the 13. The other five never
+mention a sync helper; they call the inventory-computation layer, which syncs on
+their behalf. Any indirection like this defeats a by-name grep, so the second
+step is not optional and the same question should be asked of any new
+computation helper.
+
+Three further call sites are non-GET and are not the concern here:
+`square/sales/sync` (POST), `forecasting/backfill` (POST), `webhooks/square`
+(POST).
+
+Recorded from DEBT-6, which is closed in favour of this note.
+
+---
+
 ## 0. Enforcement primitives (where the logic lives)
 
 | Helper | File | What it enforces |
