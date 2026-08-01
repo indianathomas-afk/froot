@@ -2690,8 +2690,44 @@ debt:
       fix the doc in a future docs session — do not fix inline.
 
   - id: DEBT-4
+    status: staging
     title: "Local .env DATABASE_URL points at the PRODUCTION Neon branch"
     notes: >
+      CLOSED 2026-08-01 by Gary's confirmation, delivered in the DEBT-SWEEP task
+      order. The row's own notes had ended "Gary to confirm and close" since
+      2026-07-27; every closing condition was already recorded as met.
+      THE TITLE IS WRONG AND HAS BEEN SINCE 2026-07-27 — read it as the
+      historical filing, not the state. Local `.env` has not pointed at
+      production for months. Re-verified 2026-08-01, by hostname only, no value
+      read and no connection opened: DATABASE_URL resolves to
+      ep-late-water-a6k53nv2-pooler and DATABASE_URL_UNPOOLED to
+      ep-late-water-a6k53nv2 — the dev branch (br-broad-wave-a6vpjdw0), which is
+      neither production (ep-green-smoke) nor staging (ep-odd-rain). That was
+      the last checkable fact on the row and it checks out.
+      NO `commits` FIELD, DELIBERATELY — same shape as L-1, and read the absence
+      as accurate rather than as an omission. This row closed on VERIFICATION,
+      not on code: no commit in this sweep or before it changed anything for
+      DEBT-4. The `.env` repoint was a local edit to an untracked file and the
+      build-script half shipped under BUILD-1 (06b1561), which is its own row.
+      Citing a SHA here would assert work that does not exist.
+      THE `vercel env pull` GAP IS NOT CLOSED BY THIS AND CANNOT BE CLOSED BY
+      CONFIGURATION. `DATABASE_URL_UNPOOLED` is integration-managed and Vercel
+      rejects the Sensitive type change on it, so there is no platform setting
+      behind the rule. The mitigation is PROCEDURAL and stays live reading:
+      CLAUDE.md § Environment Variables (never run `vercel env pull` in this
+      repo; production reads go through the Neon console; no deployed credential
+      is written to disk) and DECISIONS.md 2026-07-28 for the reasoning. Because
+      the control is a convention rather than an enforced boundary, it is worth
+      re-stating at review time rather than assumed to hold.
+      THE STRUCTURAL-GUARD QUESTION MOVES TO DEBT-34, which is the successor row
+      and is OPEN. That row was filed 2026-08-01 after a production connection
+      string was found sitting in froot/.env.backup — the exact artefact this
+      convention exists to prevent, three days after the ruling landed. Its fix
+      shape is the guard DEBT-4 only ever gestured at: a pre-commit or
+      session-start check that greps the working tree for a non-dev Neon
+      endpoint and fails loudly. Anyone reading DEBT-4 for the live version of
+      "can this still happen?" should read DEBT-34 instead.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Found during SQ-1 (2026-07-26). `ep-green-smoke-a6xthq4r` is the
       PRODUCTION branch — it is the host in Vercel's Production scope; staging
       is `ep-odd-rain-a6gr4xmm`. The repo's local `.env` DATABASE_URL resolves
@@ -2852,8 +2888,36 @@ debt:
       of the backfill and of BUILD-2, and it is the cheaper of the two.
 
   - id: DEBT-6
+    status: staging
+    commits: ["9508d4c"]
     title: "Square sync fires from ~11 GET routes — a write path that greps as read-only"
     notes: >
+      CLOSED 2026-08-01 in 9508d4c — BY RELOCATION, not by a code change. This
+      row was always a method warning rather than a defect, and a warning filed
+      as debt is a warning nobody reads at the moment it applies. Its content
+      now lives in docs/PERMISSIONS_INVENTORY.md, under its own "Audit method"
+      heading immediately after the enforcement-type list — i.e. in front of the
+      person actually conducting the audit it is about. Nothing in the codebase
+      changed; the GET routes still sync, deliberately.
+      THE COUNT WAS WRONG AND THE ROW'S OWN REMEDY WAS INSUFFICIENT — both
+      re-verified at HEAD before writing the note. It is 13 GET handlers, not
+      ~11. Worse, grepping `syncSalesForStore` / `ensureSalesCached` by name —
+      which is the entirety of the fix this row prescribed — finds only 8 of the
+      13. The other five (inventory/order-guide, /expected, /alerts,
+      /alerts/count, /pars) never mention a sync helper: they call
+      computeExpectedInventory / computeWeeklyUsage / computeLowStockAlerts in
+      src/lib/expected-inventory.ts, which calls ensureSalesCached on their
+      behalf. So the row diagnosed a blind spot and then prescribed a remedy
+      with the same blind spot one layer down.
+      THAT IS THE DURABLE PART, and it is what the inventory note leads with: a
+      by-name grep is defeated by exactly one level of indirection, so the
+      question has to be asked again of any new computation helper. The relocated
+      note names both layers and both greps. Three further call sites are
+      non-GET and are not the concern: square/sales/sync, forecasting/backfill,
+      webhooks/square.
+      STILL NOT A PERMISSION HOLE, restated so the move does not change how the
+      finding reads: the routes are gated and the cache is org-scoped.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Logged 2026-07-27. `syncSalesForStore` / `ensureSalesCached` are invoked
       from roughly 11 GET routes — dashboard/summary, dashboard/rollup,
       dashboard/sales, and four inventory reports among them. Any org member's
@@ -3207,8 +3271,33 @@ debt:
       PERM-6 Task 4, so copy that route.
 
   - id: DEBT-11
+    status: staging
+    commits: ["6f33427"]
     title: "PATCH /api/staff/[id] can 500 on a duplicated storeId in the request body"
     notes: >
+      CLOSED 2026-08-01 in 6f33427. The 500 path was re-verified at HEAD before
+      the fix, exactly as the row describes it: ownership validated with
+      `orgStores.length !== new Set(storeIds).size` (deduped for the
+      COMPARISON), then finalStoreIds built from the RAW array and handed to
+      storeStaffAssignment.createMany, violating the (staffMemberId, storeId)
+      unique constraint. Deduped once at the top; that value is now used
+      everywhere.
+      THE ROW'S OWN ONE-LINER WOULD HAVE BROKEN THIS ROUTE, which is worth more
+      than the fix. It proposed `const storeIds = [...new Set(parsed.data
+      .storeIds)]`, copied from POST /api/staff — but POST's schema is
+      `.default([])` and this one is `.optional()`, so parsed.data.storeIds is
+      legitimately undefined here and `new Set(undefined)` throws. The undefined
+      is load-bearing: it means "leave assignments alone", and the route branches
+      on it twice. The landed form is the ternary that preserves it. A fix
+      copied from a sibling is only as good as the schemas matching.
+      BEHAVIOUR DOES CHANGE, on exactly one input, and that is the point of the
+      row: a PATCH body repeating a storeId goes from an unhandled 500 to a
+      normal success writing one assignment. Every other input is byte-identical.
+      Flagged before edit and approved by Gary (2026-08-01), because the sweep
+      this landed in was otherwise contracted to behaviour preservation.
+      NOT REACHABLE FROM THE UI, unchanged — the dialog holds selections in a
+      Set. This is hardening against hand-made and programmatic callers.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Found 2026-07-27 while fixing PERM-6 Task 3, in the block being changed;
       written down rather than fixed inline because it is a robustness bug, not
       that phase's finding. src/app/api/staff/[id]/route.ts validates ownership
@@ -3330,8 +3419,59 @@ debt:
       and defaulting the other way would silently hide all thirteen.
 
   - id: DEBT-15
+    status: staging
+    commits: ["6f33427"]
     title: "ClerkAPIResponseError is defined 5x in the built output — identity-based type guards MAY be unreliable across chunks (impact unverified)"
     notes: >
+      CLOSED 2026-08-01 in 6f33427, with its approved mitigation applied and its
+      audit preserved below. READ THE NEXT THREE PARAGRAPHS BEFORE ACTING ON
+      ANYTHING IN THIS ROW.
+      WHY IT CLOSES, stated precisely, because the obvious phrasing would be
+      false. It does NOT close because "the hazard was mitigated". It closes
+      because (1) the identity DEPENDENCY WAS REMOVED — users/route.ts:127 no
+      longer narrows on class identity at all, so the question stops applying to
+      the one site that had it — and (2) THE HAZARD WAS SMALLER THAN THIS ROW
+      CLAIMED, because the row read only the tail of Clerk's type guard.
+      THE ROW'S MECHANISM IS INCOMPLETE, found 2026-08-01 while implementing the
+      fix. This row says isClerkAPIResponseError "ends in `target instanceof
+      ErrorClass`". True — but it does not START there.
+      createErrorTypeGuard (@clerk/shared/dist/errors/createErrorTypeGuard.js)
+      first compares `target.constructor?.kind === ErrorClass.kind`, a plain
+      STRING comparison against a static, and only falls back to instanceof if
+      that misses. A string comparison is immune to chunk duplication. So the
+      five definitions were real and the inference drawn from them was
+      overstated: the guard already survived the condition this row was filed
+      about.
+      TWO THEORIES ABOUT THIS ROW HAVE NOW BEEN UNDERCUT BY MEASUREMENT, and
+      that is the durable content. The first was that duplicate class
+      definitions CAUSED the PERM-7 staging failure — disproven 2026-07-28, same
+      day it was filed, with disconfirming evidence that was already in hand and
+      reasoned past. The second was that identity narrowing at this site was
+      therefore fragile — undercut 2026-08-01 by reading the whole guard instead
+      of its last line. Same failure mode both times: a suggestive artifact (5
+      definitions; an `instanceof`) beat a cheap direct check (the SDK
+      reproduction; the first four lines of the function). The artifact is never
+      the measurement.
+      THE FIX IS CHEAP HARDENING, NOT A BUG FIX — the row's own binding warning,
+      restated on close as it required. It is NOT the fix for the PERM-7 staging
+      collision failure. That failure was caused by staging running a deployment
+      that predated every PERM-7 commit, and no new code was involved at all. Do
+      not let the two be conflated; that conflation is what this row was demoted
+      for in the first place.
+      WHAT LANDED: the class is now a TYPE-ONLY import, so no ClerkAPIResponseError
+      identity reaches the bundle, and the guard duck-types on the payload —
+      `clerkError` plus an `errors` array plus a NUMERIC `status`. All three are
+      load-bearing, per Gary's amendment (2026-08-01): `clerkError` is a field on
+      the BASE ClerkError and establishes nothing about shape on its own, while
+      the branch consumes errors[0].code and err.status. Verified against
+      @clerk/backend that the sole construction site always sets status from the
+      HTTP response, so the third check excludes no real Clerk error.
+      STILL WORTH KEEPING: the SHARP RULE below (the risky shape is `instanceof`
+      against a class owned by a package that is a transitive dependency of more
+      than one direct dependency) and the CAVEAT ON BUCKET 2 (re-run the counts
+      after any major dep bump). Both stand on their own and neither depended on
+      the overstated mechanism.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       DEMOTED FROM CAUSE TO UNVERIFIED HAZARD, 2026-07-28, same day it was
       filed. READ THIS PARAGRAPH BEFORE THE REST OF THE ROW.
       This row originally asserted that duplicate class definitions CAUSED
@@ -3602,13 +3742,13 @@ debt:
       strengthens Q2 as a lead (still not proof).
 
   - id: DEBT-18
-    # NO status field: the vocabulary (planned/in_progress/staging/shipped/
-    # verified) has no value for "withdrawn", and adding one is a code change to
-    # PhaseStatus in src/lib/roadmap.ts. The title carries the state instead.
-    # Note this makes DEBT-14's "a missing status means OPEN" rule wrong for
-    # exactly this row — fold a `withdrawn` status in when DEBT-14 is picked up.
+    status: withdrawn
     title: "WITHDRAWN — '/users displays access an account does not have' rested on a mis-branched query"
     notes: >
+      STATUS VALUE APPLIED 2026-08-01, the `withdrawn` value having been added
+      to PhaseStatus in cf0b044 by Gary's ruling. Nothing else on this row is
+      edited and nothing here reopens it. No `commits` field, deliberately:
+      nothing was fixed, so there is no SHA to cite.
       WITHDRAWN THE SAME DAY IT WAS FILED, 2026-07-28. Its founding
       observation was false. The row claimed /users showed store access for an
       account with ZERO StoreUserAssignment rows; the query behind that was run
@@ -3688,8 +3828,24 @@ debt:
       ambiguous in the first place. Do the cleanup deliberately and by ID.
 
   - id: DEBT-20
+    status: staging
+    commits: ["6f33427"]
     title: "POST /api/staff/sync-square gates with an inline isAdmin check instead of can(staff.sync.square) — the capability's only other call site uses it"
     notes: >
+      CLOSED 2026-08-01 in 6f33427, exactly as scoped: two lines plus an import
+      in src/app/api/staff/sync-square/route.ts. :20-21 was exact at HEAD and
+      `isAdmin` appeared nowhere else in the file.
+      BEHAVIOUR IS IDENTICAL, and this was proven rather than repeated from the
+      row: getUserStoreScope derives isAdmin as `dbUser?.role === "ADMIN"`
+      (auth.ts:139), while can() resolves to `isPermissionRole(role) &&
+      ADMIN_ONLY.includes(role)` with ADMIN_ONLY = ["ADMIN"]
+      (permissions.ts:105). The two agree on every role including null. The 403
+      body and status are unchanged.
+      NOT WIDENED, per the row's own instruction. The contradicted call sites in
+      docs/PERMISSIONS_INVENTORY.md §3 each need Gary's ruling first, because the
+      shim necessarily encodes one answer; sync-square was safe to do alone
+      precisely because inline and capability already agreed.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Found 2026-07-28 while fixing DEBT-10, in the immediate neighbourhood of
       that change; written down rather than fixed inline because DEBT-10 was
       scoped to GET /api/square/team-members. Related: DEBT-10, which created
@@ -3834,8 +3990,15 @@ debt:
       is an HR signing surface.
 
   - id: DEBT-23
+    status: withdrawn
     title: "WITHDRAWN — DEPLOY_LOG.md was never missing an entry; the row was built on a misread grep"
     notes: >
+      STATUS VALUE APPLIED 2026-08-01, the `withdrawn` value having been added
+      to PhaseStatus in cf0b044 by Gary's ruling — the "separate decision" the
+      NO STATUS FIELD paragraph below was waiting on. That paragraph is left
+      standing as written; it is now history rather than instruction. No
+      `commits` field, deliberately: nothing was fixed, so there is no SHA to
+      cite.
       WITHDRAWN 2026-07-30. THE ROW BELOW IS FALSE. docs/DEPLOY_LOG.md contains
       an entry for every production promotion on record — all SIX that meta.note
       lists: 2026-07-27 (line 7), 2026-07-26 (:69), 2026-07-25 (:91),
@@ -3995,8 +4158,25 @@ debt:
       session with WORKFLOW.md in scope. Related: DEBT-24, DEBT-3, DEBT-7.
 
   - id: DEBT-26
+    status: staging
+    commits: ["9508d4c"]
     title: "Two code/doc comments describe a roadmap data model that has since changed"
     notes: >
+      CLOSED 2026-08-01 in 9508d4c. Both comments corrected, exactly per the fix
+      shape below. Line references had drifted only trivially — the ROADMAP.yaml
+      NOTE runs :20-23, not :20-22 — and roadmap.ts:57-59, roadmap.ts:61-62,
+      roadmap-client.tsx:63-67 and :670-671 were all exact at HEAD.
+      (1) The header NOTE now reads `debt:` accepts id/title/status/commits/
+      notes. The `open:` half is untouched and still true: adding `open:` to a
+      debt row still type-errors the build.
+      (2) The roadmap.ts comment now points at isResolvedDebt — and DELIBERATELY
+      DOES NOT RESTATE THE STATUS SET, which is the part worth noting. Naming
+      the statuses in a second place is how this comment went stale the first
+      time. isResolvedDebt is now labelled in its own header as the single
+      definition, and the type-side comment defers to it. That was immediately
+      load-bearing: the `withdrawn` value added hours later in cf0b044 changed
+      the set, and neither comment needed touching.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Found 2026-07-30 during DEBT-7 while checking what fields a debt row may
       legally carry. RECORDED, NOT FIXED — out of that session's writable set
       (one of the two is, but fixing it was not the task and the pair belongs in
@@ -4169,8 +4349,30 @@ debt:
       constraint. Related: DEBT-1, DEBT-29.
 
   - id: DEBT-31
+    status: staging
+    commits: ["9508d4c"]
     title: "MIGRATIONS.md:184 says staging was separately seeded — disproven for Template"
     notes: >
+      CLOSED 2026-08-01 in 9508d4c, as the narrowing this row asked for rather
+      than a deletion. :184 was exact at HEAD. The line now reads that staging is
+      a Neon CHILD BRANCH of production that has diverged PER-TABLE since its
+      branch point, with both tables' evidence set out under it: StaffMember HAS
+      diverged (the zero-primary query, which is the real observation the
+      original line was built from and is kept in full), Template has NOT (same
+      cuid on all three branches, identical createdAt to the millisecond).
+      THE OPERATIONAL ADVICE IS INTACT, which was the constraint. Both numbered
+      consequences survive word for word — a clean staging result is still not
+      evidence about production, and dev is still the fair rehearsal for a
+      migration while staging is the fair rehearsal for the deploy. Only the
+      stated REASON changed, which is the whole point: a wrong reason is what
+      lets someone conclude the opposite for a table they have not checked.
+      WHILE IN THE FILE, the endpoint table gained a Branch id column —
+      production br-sparkling-block-a620qvg4, staging br-square-feather-a63z92vz,
+      dev br-broad-wave-a6vpjdw0. Taken from docs/prompts/DEBT-2_AUDIT.md's
+      recorded identities (Q0/S0/P0), where each was measured against its
+      endpoint before any query ran, NOT from memory. That closes the minor
+      finding DEBT-2a filed and declined to open a row for.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Logged 2026-07-30 from the DEBT-1a audit (21dd712), which read all three
       branches and found the doc's claim too broad. NOT FIXED — MIGRATIONS.md was
       outside that session's writable set.
@@ -4225,7 +4427,7 @@ debt:
       Prisma runtime, which is the whole reason handoff-notes.tsx hand-copied its
       map in the first place. Retiring the alias without consolidating leaves
       three lists where there should be one.
-      HAZARD: handoff-notes.tsx also carries one of the eleven lint errors in
+      HAZARD: handoff-notes.tsx also carries one of the ten lint errors in
       DEBT-33 (:70:25, "Cannot call impure function during render"), so whoever
       opens that file will see a scoped lint failure that predates them.
       UNBLOCKED ONCE: DEBT-1 is verified — i.e. after staging → main is promoted
@@ -4242,6 +4444,12 @@ debt:
       result — exit 1, 33 problems, 11 errors. None of the eleven are in files
       DEBT-1b touched; its seven files lint clean (0 errors, 4 pre-existing
       warnings).
+      TEN REMAIN, as of 2026-08-01 — the prefer-const was fixed in 89c70f7 and
+      is struck from the list below. The row STAYS OPEN: the ten are react-hooks
+      errors and they are the reason the gate is still banned. Measured before
+      and after that commit, so the count is not inferred: src/lib/hr-signed-pdf.ts
+      went 1 error to 0 (exit 1 to exit 0) and repo-wide eslint went 33 problems /
+      11 errors to 32 problems / 10 errors. Exactly one moved.
       THE ELEVEN, at 48559fc:
       react-hooks/set-state-in-effect (6) —
       src/app/(app)/labor/weekly-plan-client.tsx:121:7 and :295:5;
@@ -4252,7 +4460,7 @@ debt:
       react-hooks, "Cannot call impure function during render" (1) —
       src/app/(app)/store-view/checklist/[id]/handoff-notes.tsx:70:25.
       prefer-const (1) — src/lib/hr-signed-pdf.ts:373:11, the only one
-      auto-fixable.
+      auto-fixable. DONE 2026-08-01 in 89c70f7 (`let size = 9` -> `const`).
       CAUSE: these are React Compiler rules judging code written before Next 16.
       Nothing is known to be broken at runtime — every one of these files ships
       today — but the rules are not cosmetic either; set-state-in-effect and
@@ -4268,7 +4476,7 @@ debt:
       interim rule — `npx eslint <the files this commit touches> && npm run build
       && git commit`, as DEBT-1b's three commits did. That keeps new code honest
       without blocking every commit on debt someone else left.
-      DO IT: the prefer-const is a one-liner; the ten react-hooks errors are real
+      DO IT: the prefer-const is done; the ten react-hooks errors are real
       refactors across five files in Labor, HR and the sidebar, and should not be
       bundled into an unrelated phase. Related: DEBT-32.
 
@@ -4357,3 +4565,39 @@ debt:
       makes DEBT-2b's step 3 (one empty-value string across five sites)
       unnecessary rather than merely consistent. Sequence it after DEBT-2b, not
       instead of it. Related: DEBT-2, DEBT-30.
+
+  - id: DEBT-37
+    title: "columnForStatus has no board column for `withdrawn` and silently falls through to Planned"
+    notes: >
+      FILED 2026-08-01 by Gary's instruction, from the DEBT-SWEEP session that
+      added the `withdrawn` status (cf0b044). Found during that work, stated in
+      the session report, and filed rather than fixed BECAUSE a report is not
+      the repo: an observation that lives only in a transcript does not exist.
+      THE FACT: BOARD_COLUMNS (src/lib/roadmap.ts) maps planned/in_progress ->
+      Planned, staging -> In staging, shipped/verified -> In production. It
+      claims no column for `withdrawn`. columnForStatus loops those columns and
+      returns "planned" when nothing matches, so a withdrawn PHASE would render
+      on the board as Planned — the most wrong of the three available answers,
+      since withdrawn is the opposite of upcoming.
+      WHY IT IS UNREACHABLE TODAY, which is why this is a row and not a bug:
+      columnForStatus is called from exactly one place
+      (roadmap-client.tsx, the board grid) and only ever over `phases`. The two
+      rows carrying `withdrawn` are DEBT rows, which render through
+      BugsAndDebt/DebtRow and never touch columnForStatus. No phase has the
+      status and none is expected to.
+      THE TRIGGER THAT MAKES IT REACHABLE is therefore specific and worth
+      naming: the first time a PHASE (not a debt row, not a bug) is given
+      `status: withdrawn`. That is a plausible thing to want — a planned phase
+      that gets abandoned is exactly the case the value was invented for — and
+      it will fail quietly, as a card in the wrong column, not as an error.
+      DELIBERATELY OUT OF SCOPE OF THE RULING THAT CREATED IT. Gary's
+      `withdrawn` ruling (2026-08-01) scoped the work to the type, isResolvedDebt
+      and a one-word label, and said to report-and-skip anything larger. The
+      honest fix here is a fourth board column (or an explicit exclusion from
+      the board), which is UI beyond that scope. Filed at full size instead of
+      being half-done inside a sweep.
+      FIX SHAPE when picked up: either add a Withdrawn column to BOARD_COLUMNS,
+      or have the board filter withdrawn phases out explicitly rather than let
+      them land in Planned by fallback. Prefer whichever makes the fallthrough
+      impossible to reach silently — the defect is the silence, not the column
+      count. Related: DEBT-18, DEBT-23, DEBT-26.
