@@ -370,7 +370,7 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
 
       let value: string | null = null
       let font: PDFFont = helv
-      let size = 9
+      const size = 9
       switch (a.markType) {
         case "Initial": {
           const ack = a.generatedCheckpointId ? ackByCheckpoint.get(a.generatedCheckpointId) : undefined
