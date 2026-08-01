@@ -2503,8 +2503,78 @@ debt:
       code replacement.
 
   - id: DEBT-2
-    title: "sectionName vs section field ambiguity"
-    notes: "Next candidate for the same audit-then-remediate treatment as DEBT-1."
+    title: "Task.sectionName is unvalidated free text with no Section entity"
+    notes: >
+      AUDIT LANDED 2026-08-01 in bceca47 — docs/DEBT-2_AUDIT.md. STILL OPEN,
+      and deliberately so: an audit does not close the debt. Remediation is
+      DEBT-2b, whose prompt is written after this audit, not before.
+      RETITLED BY THIS AUDIT. The old title — "sectionName vs section field
+      ambiguity" — named a field that does not exist. That is not pedantry: the
+      whole first half of the audit went to establishing it, and the next reader
+      should not repeat the hunt.
+      (1) THERE IS NO `section` FIELD. A catalog sweep of every column in public
+      named %section% returned, on branch dev, exactly ONE row —
+      Task.sectionName, text, NOT NULL, no default. No Section model among 79
+      Prisma models, no sectionId, and no migration has ever altered the column
+      since 20260627002005_init created it. The identifier `section` lives only
+      in code, in three unrelated roles: a local key in the seed script's data
+      literal (mapped to sectionName at import-keva-templates.ts:363), a
+      destructuring variable in three render sites, and <section> tags plus
+      .section CSS in the print pages. `task_section` is the CSV wire-format
+      column name, not a field.
+      (2) SO IT IS ONE PIECE OF DATA WITH FOUR NAMES, one per layer boundary —
+      DB/Prisma sectionName, API JSON sectionName, CSV task_section, seed literal
+      section. Not an unfinished rename, not a denormalised copy, not an API
+      field mapped to a different column. With no Section entity there is no
+      id-and-text pair that can disagree, so the disagreement queries are N/A BY
+      CONSTRUCTION, measured rather than assumed.
+      (3) THE REAL AMBIGUITY, and it is a modelling gap not a dirty-value
+      problem: sections are free text with nothing behind them — a GROUP BY over
+      a string, recomputed independently at five render sites. Tracked forward as
+      DEBT-36.
+      (4) THE TAP IS OPEN, WIDER THAN DEBT-1's. Nine write paths, zero validation
+      at any of them, and only NOT NULL at the database. Worst is
+      template-form.tsx:526-527 — the inline per-row section input has NO guard
+      at all, while addTask and saveEditTask beside it both block an empty
+      section, so "" is reachable through the UI with no typing skill. Trimming
+      is inconsistent INSIDE ONE COMPONENT: bulk-set trims (:405-407), the row
+      input next to it does not. GOOD NEWS: seven of the nine funnel through two
+      API routes, so the plug surface is three choke points, against DEBT-1's six.
+      (5) DATA IS CLEAN ON ALL THREE BRANCHES, each measured separately and each
+      naming itself. Branch dev: 29 distinct spellings, 29 distinct
+      lower(btrim()), 210 tasks. Branch production: IDENTICAL to dev on all 29
+      census rows — every value, every length(), every count, orgs=1 throughout,
+      210 tasks / 8 templates / 38 task logs. Branch preview/staging: the SAME
+      29 values over exactly 420 tasks, every row matching dev on length()
+      exactly and on count at precisely 2x, because the seed script was run
+      against a second org there on 2026-07-11 (DEBT-1). All three return zero
+      empty, zero untrimmed, zero tab/newline/CR/NBSP, zero near-duplicates,
+      zero within-template drift, zero non-contiguous runs, one carrier column,
+      and no CHECK beyond NOT NULL. THE BRANCH MOST LIKELY TO HOLD DRIFT HOLDS
+      NONE. So there is NOTHING TO BACKFILL — see (6).
+      EVIDENCE QUALITY DIFFERS BY BRANCH AND THE AUDIT SAYS SO. dev and
+      production are the strong form: identity captured BEFORE the data, same
+      session. preview/staging is reconstructed — S1-S7/S9 ran ~18:20 UTC with
+      the breadcrumb screenshotted but S0 NOT captured, S0 came at 20:43 UTC,
+      and in the gap S0 was run once against PRODUCTION by mistake and discarded
+      (disclosed by Gary unprompted). What closes it is structural, not
+      testimonial: orgs=2 with counts at exactly 2x dev is a fingerprint only
+      preview/staging can produce. THAT ARGUMENT WAS STATED WITH ITS OWN
+      FALSIFIER — production returning orgs=2 or 420 tasks would have broken it
+      — AND THE FALSIFIER WAS THEN RUN AND CAME BACK NEGATIVE (orgs=1, 210
+      tasks). The attribution rests on structure, not on the breadcrumb alone.
+      See docs/DEBT-2_AUDIT.md §4.
+      (6) NOT A BACKFILL — SETTLED, not predicted. All three branches measured
+      clean, so DEBT-2b is a small hardening pass with NO data step: close the
+      unguarded writer (template-form.tsx:526-527), trim uniformly at the two
+      API choke points, and collapse the FOUR different empty-value behaviours
+      across five render sites onto one string ("General" is the incumbent).
+      DO NOT ENUM THIS FIELD: it is legitimately free text, which is exactly
+      where DEBT-2 differs from DEBT-1, and src/lib/phases.ts is NOT the
+      template to copy. DEBT-1 was a dirty-data cleanup with a writer fix
+      attached; DEBT-2 is a writer fix with no cleanup at all.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
+      Next candidate for the same audit-then-remediate treatment as DEBT-1.
 
   - id: DEBT-3
     status: staging
@@ -4129,3 +4199,89 @@ debt:
       DO IT: the prefer-const is a one-liner; the ten react-hooks errors are real
       refactors across five files in Labor, HR and the sidebar, and should not be
       bundled into an unrelated phase. Related: DEBT-32.
+
+  - id: DEBT-34
+    title: "A production connection string and five other prod secrets sat in froot/.env.backup"
+    notes: >
+      FOUND 2026-08-01 during DEBT-2a, while that session was confirming its own
+      database protocol — not by looking for it. DELETED BY GARY 2026-08-01, the
+      same day, and verified absent.
+      WHAT IT WAS: froot/.env.backup — untracked, gitignored (.gitignore:34,
+      `.env*`), never committed, created 2026-07-26 22:00:16 PDT. Its
+      DATABASE_URL pointed at ep-green-smoke-a6xthq4r-pooler, which
+      MIGRATIONS.md:180 identifies as PRODUCTION. It also carried
+      CLERK_SECRET_KEY, SQUARE_ACCESS_TOKEN, BLOB_READ_WRITE_TOKEN,
+      HR_BLOB_READ_WRITE_TOKEN and CRON_SECRET.
+      NOBODY VIOLATED ANYTHING. The file predates the 2026-07-28 total ban on
+      deployed-environment credentials on disk (CLAUDE.md § Environment
+      Variables) by two days. It is the exact artefact that ruling was written
+      to prevent, and it was still sitting there three days after the ruling
+      landed. Only the hostname and the key NAMES were read; no value was read,
+      loaded or used, and the audit's query scripts pinned dotenv to .env
+      explicitly so this file could not be picked up.
+      WHY IT STAYS OPEN AFTER THE DELETION: one file was found and removed, and
+      nothing structural changed. The ban is a rule with no platform setting
+      behind it (DEBT-4 — Vercel will not accept the type change on
+      DATABASE_URL_UNPOOLED), so the only guard is that someone notices. FIX
+      SHAPE: a pre-commit or session-start check that greps the working tree for
+      a non-dev Neon endpoint and fails loudly. Cheap, and it would have caught
+      this on 2026-07-26. Related: DEBT-4, and CLAUDE.md § Environment Variables.
+
+  - id: DEBT-35
+    title: "The migrations folder cannot rebuild the live schema — Task.estimatedTimeMinutes"
+    notes: >
+      MEASURED 2026-08-01 during DEBT-2a, on branch dev, while cataloguing the
+      Task table. CONFIRMS THE LONG-STANDING estimatedTimeMinutes AUDIT ITEM —
+      this is corroboration of a known discrepancy, NOT a new discovery, and the
+      row should be read as closing the question of whether it was real rather
+      than as opening a new one.
+      THE FACT, three sources and one of them disagrees: ALL THREE BRANCHES —
+      dev, preview/staging and production — have Task.estimatedTimeMinutes as
+      `double precision`; prisma/schema.prisma:311 says `Float?`; and the ONLY
+      migration that ever creates the column —
+      prisma/migrations/20260627002005_init/migration.sql:132 — says `INTEGER`.
+      No migration alters it afterwards. So the schema and the live databases
+      agree with each other, and the LEDGER is the one that is wrong. CONFIRMED
+      ON ALL THREE BRANCHES 2026-08-01: not a local artefact, not a staging
+      artefact — whatever changed the type reached PRODUCTION.
+      WHY IT MATTERS: `prisma migrate deploy` from an empty database would
+      produce a Task table that does not match schema.prisma. Every environment
+      is fine today because none of them was built that way — but the baseline
+      squash (MIGRATIONS.md §2, still not done) is exactly the operation that
+      would surface it, and `migrate dev` is already broken for the same
+      underlying reason (P3018, no baseline).
+      CAUSE, consistent with the record: a `db push` from before that command was
+      retired after the 2026-07-06 staging drift incident. Not proven, and the
+      disconfirmer is cheap — a migration somewhere altering the column type
+      would refute it; none exists.
+      MEASURED ON ALL THREE, so nothing here is inferred: P8 on production
+      returned the same 11 columns and the same 10 constraints as dev and
+      staging, estimatedTimeMinutes included. Related: DEBT-3, MIGRATIONS.md §2.
+
+  - id: DEBT-36
+    title: "Sections are implied, not modelled — no entity, no ordering, no as-executed record"
+    notes: >
+      FILED 2026-08-01 from DEBT-2a's findings; see docs/DEBT-2_AUDIT.md §2 and
+      §6. This is the DURABLE fix for the class DEBT-2 describes, and it is
+      deliberately NOT part of DEBT-2b — it is a product decision plus a
+      migration plus a UI, not a debt cleanup. Do not let it ride along.
+      WHAT IS MISSING: there is no Section entity. A section is a GROUP BY over
+      a free-text string, recomputed independently at five render sites. So
+      there is no canonical list, no rename, no reorder, and no per-section
+      metadata. Section ORDER is not expressible at all — it is inferred from
+      orderIndex adjacency (template-form.tsx:489), which is why a section whose
+      tasks are non-contiguous renders two identical headings from data that has
+      not drifted at all.
+      THE FINDING THAT MAKES THIS MORE THAN COSMETIC — CHECKLIST RENAMES REWRITE
+      HISTORY. Checklist does NOT snapshot task data: api/checklists/route.ts:122
+      and :156 store only ids, and TaskLog carries no section. So renaming a
+      section retroactively rewrites the headings on EVERY historical completed
+      checklist and its print copy. There is no as-executed record of section
+      names anywhere in the system. A printed closing checklist from last month
+      will re-print today under whatever the section is called today, with no
+      indication anything changed. For an operational-compliance product that is
+      the part worth fixing, and an entity with stable ids is what fixes it.
+      SCOPE NOTE: an entity also subsumes the ordering limitation above, and
+      makes DEBT-2b's step 3 (one empty-value string across five sites)
+      unnecessary rather than merely consistent. Sequence it after DEBT-2b, not
+      instead of it. Related: DEBT-2, DEBT-30.
