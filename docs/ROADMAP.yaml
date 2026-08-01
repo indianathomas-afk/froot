@@ -7,10 +7,13 @@
 # UPDATE RULE: every Claude Code session updates its phase's entry here before
 # the session is done. See "Session completion rules" in docs/WORKFLOW.md.
 #
-# status: planned | in_progress | staging | shipped | verified
+# status: planned | in_progress | staging | shipped | verified | withdrawn
 #   staging  — merged to `staging`, on Vercel preview, NOT in prod
 #   shipped  — merged to `main`, live in prod
 #   verified — shipped AND smoke-tested against real store data
+#   withdrawn — retracted, not fixed; kept for the record. Counts as RESOLVED
+#              on /internal/roadmap and carries NO `commits` (nothing was
+#              fixed, so there is no SHA to cite). Added 2026-08-01.
 #   GAP: no status fits an audit-only phase with no shipped code (SQ-1 sits in "verified") — a future "closed"/"documented" would.
 #
 # blockers — live problems in a phase regardless of status (unset env vars,

@@ -16,6 +16,19 @@ export type PhaseStatus =
   | "staging"
   | "shipped"
   | "verified"
+  /**
+   * Filed rather than fixed, and kept for the record — the work was retracted,
+   * not completed. Added 2026-08-01 by Gary's ruling for DEBT-18 and DEBT-23,
+   * which had both been sitting open with "WITHDRAWN" as the first word of
+   * their titles because no status value fit.
+   *
+   * Counts as RESOLVED in isResolvedDebt (roadmap-client.tsx) — a withdrawn row
+   * is not outstanding work. It carries NO `commits`, deliberately: nothing was
+   * fixed, so there is no SHA to cite.
+   *
+   * BOARD_COLUMNS claims no column for it — see DEBT-37.
+   */
+  | "withdrawn"
 
 export interface Phase {
   id: string

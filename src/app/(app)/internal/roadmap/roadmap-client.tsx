@@ -42,6 +42,7 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
   staging: "In staging",
   shipped: "Shipped",
   verified: "Verified",
+  withdrawn: "Withdrawn",
 }
 
 /**
@@ -53,16 +54,24 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
  * `in_progress` are open too: the fix is scoped or underway, not landed. Only a
  * landed status moves a row out of "not yet fixed".
  *
- * DEBT-18 is WITHDRAWN rather than fixed and carries no status, so it buckets
- * OPEN here. That is knowingly imprecise — its title leads with "WITHDRAWN".
- * Giving it a real status means adding `withdrawn` to PhaseStatus, which is
- * shared with phases and which BOARD_COLUMNS claims no column for; that is a
- * separate decision, not a rider on this render fix (Gary, 2026-07-28). The
- * note on DEBT-18's row stands as the record that it is still wanted.
+ * WITHDRAWN counts as resolved too. A retracted row is not outstanding work,
+ * even though nothing was fixed and it carries no `commits`. The value was
+ * added to PhaseStatus 2026-08-01 by Gary's ruling — the decision DEBT-18 and
+ * DEBT-23 had been waiting on since 2026-07-28, both sitting in the OPEN bucket
+ * with "WITHDRAWN" as the first word of their titles. BOARD_COLUMNS still
+ * claims no column for the value; that is unreachable today and filed as
+ * DEBT-37 rather than fixed here.
+ *
+ * THIS FUNCTION IS THE SINGLE DEFINITION of which statuses count as resolved —
+ * src/lib/roadmap.ts points here rather than restating the set, so the two
+ * cannot drift apart again (DEBT-26).
  */
 function isResolvedDebt(item: DebtItem) {
   return (
-    item.status === "staging" || item.status === "shipped" || item.status === "verified"
+    item.status === "staging" ||
+    item.status === "shipped" ||
+    item.status === "verified" ||
+    item.status === "withdrawn"
   )
 }
 
@@ -750,6 +759,12 @@ function DebtRow({ item }: { item: DebtItem }) {
         </span>
       ) : null}{" "}
       <span className="text-[var(--color-foreground)]">{item.title}</span>
+      {/* A word, deliberately — the ruling that added `withdrawn` scoped the UI
+          to exactly this and no further. Withdrawn rows carry no commits, so
+          without it they read as resolved-with-the-SHA-missing. */}
+      {item.status === "withdrawn" && (
+        <span className="ml-1.5 text-xs text-[var(--color-muted-foreground)]">(withdrawn)</span>
+      )}
       {item.notes && (
         <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">{item.notes}</p>
       )}
