@@ -58,6 +58,16 @@ export async function POST(req: Request) {
   const body = await req.json()
   const { tasks, storeIds, ...templateData } = body
 
+  // DEBT-2b: sectionName is DELIBERATELY free text — no enum, no canonical
+  // list (docs/DEBT-2_AUDIT.md §6; this is where DEBT-2 parts company with
+  // DEBT-1 and src/lib/phases.ts). The column is NOT NULL, so blank is the only
+  // thing to reject. Checked here because this route is one of the two choke
+  // points every client-side writer funnels through.
+  const incomingTasks = (tasks ?? []) as { sectionName?: string }[]
+  if (incomingTasks.some((t) => !(t.sectionName ?? "").trim())) {
+    return NextResponse.json({ error: "Every task needs a non-empty sectionName" }, { status: 400 })
+  }
+
   // DEBT-1b: the canonical phase is enforced at every entry point. The one
   // known legacy value is corrected; anything else is rejected by name.
   const operationalPhase = normalizePhase(templateData.operationalPhase)
@@ -85,7 +95,7 @@ export async function POST(req: Request) {
           sectionName: string; description: string; estimatedTimeMinutes?: number;
           requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[]; videoUrl?: string;
         }) => ({
-          sectionName: t.sectionName,
+          sectionName: t.sectionName.trim(),
           description: t.description,
           estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
           requiresPhoto: t.requiresPhoto ?? false,

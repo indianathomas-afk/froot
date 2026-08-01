@@ -503,7 +503,7 @@ function TaskTableView({ tasks, stores, updateTask, toggleTaskExclusion }: TaskT
                         />
                       </td>
                       <td colSpan={colCount - 1} className="px-2 py-1 text-xs font-medium text-[var(--color-muted-foreground)]">
-                        § {task.sectionName || "No section"}
+                        § {task.sectionName || "General"}
                       </td>
                     </tr>
                   )}
@@ -525,6 +525,9 @@ function TaskTableView({ tasks, stores, updateTask, toggleTaskExclusion }: TaskT
                         aria-label={`Section for task ${idx + 1}`}
                         value={task.sectionName}
                         onChange={(e) => updateTask(task.id, { sectionName: e.target.value })}
+                        // DEBT-2b: trim on blur, not on change — trimming per keystroke
+                        // makes a multi-word section name impossible to type.
+                        onBlur={(e) => updateTask(task.id, { sectionName: e.target.value.trim() })}
                       />
                     </td>
                     <td className="px-2 py-1">
@@ -794,7 +797,9 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         endOffsetHours: availType === "StoreHours" ? endOffset : null,
         appliesTo,
         storeIds: appliesTo === "selected" ? Array.from(selectedStoreIds) : [],
-        tasks: tasks.map((t, i) => ({ ...t, orderIndex: i, estimatedTimeMinutes: t.estimatedTimeMinutes ?? null })),
+        // DEBT-2b: trim outbound so every form path — row input, bulk set, add
+        // task, edit drawer — sends the same shape the API will store.
+        tasks: tasks.map((t, i) => ({ ...t, sectionName: t.sectionName.trim(), orderIndex: i, estimatedTimeMinutes: t.estimatedTimeMinutes ?? null })),
       }
 
       const res = isEdit
@@ -835,6 +840,11 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
 
   const totalMinutes = tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)
   const sections = new Set(tasks.map((t) => t.sectionName)).size
+  // DEBT-2b: the inline per-row section input had no guard, so a cleared cell
+  // persisted "". addTask and saveEditTask each gate their own commit action on
+  // a non-empty section; this row input's commit action is the form's Save, so
+  // that is what gets gated — the same rule, applied at the matching level.
+  const blankSectionCount = tasks.filter((t) => !t.sectionName.trim()).length
   const criticalCount = tasks.filter((t) => t.isCritical).length
   const photoCount = tasks.filter((t) => t.requiresPhoto).length
 
@@ -855,6 +865,13 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         </div>
         <div className="flex items-center gap-3">
           {saveError && <p className="text-sm text-[var(--color-destructive)]">{saveError}</p>}
+          {blankSectionCount > 0 && (
+            <p className="text-sm text-[var(--color-destructive)]">
+              {blankSectionCount === 1
+                ? "One task needs a section name."
+                : `${blankSectionCount} tasks need a section name.`}
+            </p>
+          )}
           {isEdit && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -882,7 +899,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || blankSectionCount > 0}>
             <Save className="h-4 w-4" />
             {saving ? "Saving..." : "Save Template"}
           </Button>

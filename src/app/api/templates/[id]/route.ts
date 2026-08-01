@@ -36,6 +36,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { tasks, storeIds, appliesTo, ...templateData } = body
   const incomingTasks: IncomingTask[] = Array.isArray(tasks) ? tasks : []
 
+  // DEBT-2b: sectionName is DELIBERATELY free text — no enum, no canonical
+  // list (docs/DEBT-2_AUDIT.md §6). The column is NOT NULL, so blank is the
+  // only thing to reject. This is the second of the two choke points.
+  if (incomingTasks.some((t) => !(t.sectionName ?? "").trim())) {
+    return NextResponse.json({ error: "Every task needs a non-empty sectionName" }, { status: 400 })
+  }
+
   // DEBT-1b: templateData is spread wholesale into the update below, so the
   // phase is validated here or not at all. The one known legacy value is
   // corrected; anything else is rejected by name.
@@ -69,7 +76,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const toCreate = incomingTasks.filter((t) => !t.id || !existingTaskIds.has(t.id))
 
     const taskData = (t: IncomingTask) => ({
-      sectionName: t.sectionName,
+      sectionName: t.sectionName.trim(),
       description: t.description,
       estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
       requiresPhoto: t.requiresPhoto ?? false,

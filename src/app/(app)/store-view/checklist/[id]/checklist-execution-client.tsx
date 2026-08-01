@@ -70,9 +70,13 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
   const [pickingStaffFor, setPickingStaffFor] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // DEBT-2b: fall back to "General" for a blank section, matching the template
+  // detail page, both print pages and the CSV import's default. This is DISPLAY
+  // ONLY — the grouping key is derived here and never written back.
   const sections = tasks.reduce<Map<string, Task[]>>((acc, task) => {
-    if (!acc.has(task.sectionName)) acc.set(task.sectionName, [])
-    acc.get(task.sectionName)!.push(task)
+    const key = task.sectionName || "General"
+    if (!acc.has(key)) acc.set(key, [])
+    acc.get(key)!.push(task)
     return acc
   }, new Map())
 

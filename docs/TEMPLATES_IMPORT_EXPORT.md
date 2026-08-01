@@ -54,7 +54,7 @@ them on every row — the sample does this).
 | `template_type` | no | Opener, Closer, Mid-Shift, Cleaning, Audit, Management… Defaults to `Mid-Shift`. |
 | `template_frequency` | no | Defaults to `Daily`. |
 | `template_availability_type` | no | e.g. `StoreHours`, `AllDay`. Defaults to `StoreHours`. |
-| `template_operational_phase` | no | e.g. `Before Opening`, `After Closing`. |
+| `template_operational_phase` | no | One of `Before Opening`, `During the Day`, `After Closing`. Legacy `During Hours` is corrected on import; other values are rejected with the row number. |
 | `template_start_offset_hours` | no | Integer. |
 | `template_end_offset_hours` | no | Integer. |
 | `template_applies_to` | no | Always imported as `all` (see below). |
