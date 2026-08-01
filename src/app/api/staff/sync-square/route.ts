@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { fetchSquareTeamMembers, mapAssignedStores } from "@/lib/square"
 import { terminateStaffMember } from "@/lib/staff-termination"
 
@@ -17,8 +18,12 @@ export async function POST() {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { isAdmin } = await getUserStoreScope()
-  if (!isAdmin) return NextResponse.json({ error: "Admin access required" }, { status: 403 })
+  // DEBT-20. Was an inline `isAdmin` check. Identical outcome — both land on
+  // ADMIN — but an inline check is invisible to PERM-5's SCOPE_OVERRIDES layer,
+  // so on the day someone is granted staff.sync.square by override, this write
+  // would 403 while its paired read (square/team-members) worked.
+  const { role } = await getUserStoreScope()
+  if (!can({ role }, "staff.sync.square")) return NextResponse.json({ error: "Admin access required" }, { status: 403 })
 
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org?.squareAccessToken) return NextResponse.json({ error: "Square not connected" }, { status: 400 })

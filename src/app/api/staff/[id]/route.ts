@@ -47,7 +47,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const parsed = patchSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
-  const { displayName, fullName, lockFullName, email, storeIds, primaryStoreId } = parsed.data
+  const { displayName, fullName, lockFullName, email, primaryStoreId } = parsed.data
+  // DEBT-11. Dedupe ONCE, here, and use this everywhere — matching POST
+  // /api/staff. Validation below deduped for the comparison while finalStoreIds
+  // was built from the raw array, so a body repeating a storeId passed and then
+  // hit createMany with two identical rows: a unique-constraint 500. Unlike
+  // POST's schema this one is `.optional()`, and undefined is load-bearing (it
+  // means "leave assignments alone"), so the ternary is not decoration.
+  const storeIds = parsed.data.storeIds ? [...new Set(parsed.data.storeIds)] : undefined
 
   // Resolve the assignment set this edit will end with — the new storeIds when
   // provided, else the member's current assignments — and validate the primary

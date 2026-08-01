@@ -1,12 +1,39 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 // Subpath export, not the package root — @clerk/backend exposes this only via
 // "./errors" (see its package.json exports map).
-import { isClerkAPIResponseError } from "@clerk/backend/errors"
+import type { ClerkAPIResponseError } from "@clerk/backend/errors"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
 import { normalizeEmail } from "@/lib/clerk"
 import { plusAddress } from "@/lib/device-login"
+
+/**
+ * DEBT-15. Duck-type on the PAYLOAD, not the class. The import above is
+ * TYPE-ONLY, so no ClerkAPIResponseError identity reaches the bundle and it
+ * cannot matter how many times Turbopack inlines that class.
+ *
+ * All THREE checks are load-bearing. `clerkError` is a field on the BASE
+ * ClerkError, so it alone establishes nothing about shape; `errors` and a
+ * numeric `status` are what the branch below actually consumes (errors[0].code,
+ * err.status). A sibling ClerkError subclass carrying clerkError and errors but
+ * no numeric status must fall through to the generic handler rather than
+ * produce a wrong code.
+ *
+ * CHEAP HARDENING, NOT A BUG FIX. This is NOT the fix for the PERM-7 staging
+ * collision failure — that had an entirely different cause (staging was running
+ * a deployment that predated every PERM-7 commit). Do not let the two be
+ * conflated.
+ */
+function isClerkErrorPayload(err: unknown): err is ClerkAPIResponseError {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "clerkError" in err &&
+    Array.isArray((err as { errors?: unknown }).errors) &&
+    typeof (err as { status?: unknown }).status === "number"
+  )
+}
 
 // GET: list all org members with their DB user record + store assignments
 export async function GET() {
@@ -124,7 +151,7 @@ export async function POST(req: Request) {
     // address is a routine failure, not an exotic one. Switch on the Clerk
     // error CODE, never the message text: the message is prose Clerk is free to
     // reword. See DECISIONS.md 2026-07-28.
-    if (isClerkAPIResponseError(err)) {
+    if (isClerkErrorPayload(err)) {
       const code = err.errors[0]?.code
       if (code === "already_a_member_in_organization") {
         return NextResponse.json(
