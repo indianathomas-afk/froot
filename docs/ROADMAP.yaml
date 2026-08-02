@@ -1252,6 +1252,100 @@ phases:
     commits: [d4a6bdc]
     blockers:
       - >
+        GATE CLEARED 2026-08-01 — ONE REAL INVITE RAN START TO FINISH ON
+        STAGING. Both entries below are closed by this and kept unedited,
+        because the ORDER is the lesson. Gary ran it and supplied the evidence;
+        DOCS-3 recorded it and independently checked only what the repo can
+        check.
+        THE RUN, on staging (froot-git-staging-…vercel.app), Clerk org
+        org_3GO2wO4QlVVSWppi8aqlnSZnsDa. /users -> Invite,
+        indianathomas@gmail.com, role MANAGER — DELIBERATELY NON-ADMIN, which is
+        the whole point of the test: POST /api/users maps every non-ADMIN role
+        to the same Clerk role, org:member (users/route.ts:106), so a MANAGER
+        arriving as a MANAGER is only possible if the app role was recovered
+        from PendingInvite. One location, University Village. Clerk logged
+        organization_invitation.created at 19:22:47 PDT, source backend-api,
+        event 019fc047-ee89-7d77-8b99-5c8512eeb9cd. Invitation accepted, account
+        created. THREE OBSERVATIONS, and they are not of equal weight — the
+        discrimination argument is stated here because it is what makes two of
+        them mean anything.
+        (i) ADMIN VIEW, ROLE: the /users members table shows
+        indianathomas@gmail.com as MANAGER. That Role column reads User.role off
+        the DB row (users/page.tsx:135), so a User row exists at the invited
+        role rather than at the STAFF floor. THIS OBSERVATION DOES NOT
+        DISCRIMINATE: since DEBT-17's fix (84437e5) the page's own create branch
+        resolves role from PendingInvite exactly as the webhook does
+        (users/page.tsx:95), so MANAGER is what EITHER writer produces. It rules
+        out the failure mode; it does not identify the writer.
+        (ii) ADMIN VIEW, LOCATIONS: the same row rendered Location Access =
+        "University Village". THIS ONE DISCRIMINATES. storeAssignments are
+        written only by the Clerk webhook's if(pending) block — the page writes
+        role and never assignments — so the chip rendering is PERM-6 Task 2's
+        storeUserAssignment.createMany having run, on the validated storeIds.
+        This is the first end-to-end confirmation of that half outside a build.
+        (iii) THE INVITED ACCOUNT'S OWN SESSION, which is the strongest of the
+        three: signed in AS the invited user, the dashboard header read
+        "Saturday, August 1 · University Village — Colorado Springs, CO".
+        Stronger than (ii) because it is not an admin page rendering a row about
+        someone else — it is the new principal's own session resolving its own
+        store scope from the assignment the webhook wrote. Role recovery,
+        assignment materialisation and scope resolution, end to end, in the
+        account they were provisioned for.
+        THE DEPLOYMENT CONTAINED THE CODE — the check the 2026-07-28 pass
+        failed, and here it is repo-derivable rather than taken on trust.
+        origin/staging was pushed to 7b590b3 at 18:52:54 PDT, THIRTY MINUTES
+        before the invite, and no commit exists after it; d4a6bdc (PERM-6),
+        6530d8b and bae09ed (PERM-7) and 84437e5 (DEBT-17) are all ancestors of
+        that tip. Stated precisely: this is PUSH-TIME evidence, not `vercel
+        inspect` evidence — the deployed SHA was not read back.
+        OUT OF ORDER, SAID PLAINLY. This gate existed to hold the promotion, and
+        the promotion went first: 746c1be, 2026-07-29, and that much is checkable
+        — all three phase commits are ancestors of it. So the run confirms the
+        path works; it did not gate anything. The bill was paid after delivery.
+        THE ORG WAS NOT RECONCILED, deliberately. The Clerk org id above is as
+        Gary gave it; PERM-7's re-run target on this row's sibling is recorded
+        as DB organizationId cmr54z65v000105jxczpt72w1 on branch
+        preview/staging. NOBODY CHECKED THAT THESE ARE THE SAME ORG, and this
+        line exists so no future reader assumes it was checked. Note also that
+        `org_3GO2wO...` carries an O/0 ambiguity in transcription. Identifying
+        the org by NAME is not a way out — see DEBT-19: nine orgs on
+        preview/staging, five of them called "Microsoft".
+        DELIVERABILITY, worth the line it costs: the invite email landed in
+        Gmail's JUNK folder. Clerk DEVELOPMENT-instance mail gets spam-filtered,
+        and the development instance is what serves staging. CHECK JUNK BEFORE
+        CONCLUDING AN INVITE WAS NEVER DELIVERED — several minutes went into the
+        wrong conclusion before the mail was found.
+        THE SAVED PROMPT IS A PARTIAL RECORD. docs/prompts/DOCS-3_perm6_gate_
+        cleared.md was truncated in transmission mid-way through its evidence
+        list, and per CLAUDE.md § Where documents live a saved prompt is a claim
+        wholesale and is never edited. THIS ROW IS THE COMPLETE RECORD; the
+        prompt file is not. What the truncation cost: observations (ii) and
+        (iii) above, and the /users 409 note now on DEBT-16.
+      - >
+        WHAT THE CLEARED GATE DOES NOT COVER — recorded 2026-08-01 beside it, so
+        "the gate is cleared" is never read as "the phase is verified".
+        (1) THE WEBHOOK HALF IS COVERED — was briefly carried as open by DOCS-3
+        and CLOSED the same day, on evidence that already existed. The reasoning
+        is worth keeping because it is the reusable part: role MANAGER does not
+        discriminate which writer created the row (both resolve from
+        PendingInvite post-84437e5), LOCATIONS does — the page never writes
+        assignments. Observations (ii) and (iii) in the entry above are that
+        discriminating evidence, and (iii) is the invited account's own session
+        rather than an admin page. Task 2's accepting half is CONFIRMED. The
+        failure here was one of RECORDING, not of coverage: the run had the
+        right evidence and it was not transmitted as such.
+        (2) THE REJECTING BRANCH IS STILL NOT COVERED, unchanged by this run.
+        One valid, org-owned storeId went in, so the webhook's filter-and-warn
+        path (`owned.length !== pending.storeIds.length`) has still never
+        executed. Covering it needs a foreign-org storeId, or a store deleted
+        between invite and acceptance.
+        (3) TASK 1 (POST /api/staff) is still unexercised on staging — no staff
+        member was created. (4) The STAFF role is still unexercised.
+        STATUS STAYS `shipped`, NOT `verified`, and the reason has changed: the
+        entry below gave the unconfirmed gate as the reason, and that reason is
+        gone, but (1)-(4) are not. The flip is Gary's ruling to make, not a
+        bookkeeping consequence of clearing a blocker.
+      - >
         THE GATE BELOW WAS NEVER CONFIRMED, AND BOTH PHASES SHIPPED ANYWAY —
         recorded 2026-08-01 by DOCS-2, Gary's ruling. PERM-6 and PERM-7 reached
         main in the 746c1be promotion on 2026-07-29 WITHOUT the real-invite run
@@ -1427,6 +1521,15 @@ phases:
       console.warn) has still never executed. Covering it needs an invite
       carrying a storeId from another org, or a store deleted between invite
       and acceptance. GAP NARROWED, NOT CLOSED.
+      GAP (2), SECOND RUN 2026-08-01 — a MANAGER invite this time, on a
+      deployment that provably contained this phase. The full record is the
+      leading entry under `blockers`, kept in ONE place so there is one copy to
+      correct if it turns out wrong. It adds what the 2026-07-28 run could not:
+      DISCRIMINATING evidence that the webhook half ran — a rendered Location
+      Access chip, and the invited account's own dashboard resolving to that
+      store — rather than a role that either writer could have produced. It does
+      not change the SHAPE of the gap: the accepting path has now run twice, the
+      rejecting path still zero times.
       RETRACTION OF A RETRACTION — recorded because the churn is the lesson. An
       earlier version of this row claimed gap (2) was untouched, on the basis
       of a query returning ZERO assignments and no User row. That query was run
@@ -1602,6 +1705,16 @@ phases:
       resolved the role and assignment questions and vindicated PERM-6, but it
       tested NOTHING in this phase — the deployment still predated every PERM-7
       commit. Not verified, not falsified: UNTESTED.
+      NARROWED 2026-08-01, AND ONLY ON THE READ SIDE. The invite gate ran
+      against a deployment that provably contained this phase (see the resolved
+      single-promotion entry under `blockers`), so "NOTHING HAS EVER EXECUTED,
+      ANYWHERE" is no longer literally true: /users rendered Task 4's badge
+      logic, which correctly emitted no badge for a non-contactEmail account.
+      EVERY WRITE-SIDE CHANGE THIS PHASE MADE IS STILL DORMANT — the rewritten
+      Clerk error branch (the invite succeeded) and Task 7's name derivation
+      (the role was MANAGER, not STORE) both went unentered, and the /stores
+      device-login dialog was not the entry point used. Read the paragraph above
+      as still standing for everything this phase actually writes.
       THE EMPTY User.name IS THE EXPECTED RESULT, NOT A FAILURE. Task 7's
       derivation does not exist in the build staging was running, so the create
       branch fell through to Clerk's first/last name, and the invitee supplied
@@ -1664,6 +1777,34 @@ phases:
         If a pass is run without typing a name, record it as "Task 7 fill
         verified, override UNTESTED" — never as "Task 7 verified".
       - >
+        RESOLVED 2026-08-01 — THE INVITE RAN START TO FINISH ON STAGING. The
+        full record, the evidence and the deployment-SHA check live on PERM-6's
+        row (its leading `blockers` entry) and are deliberately NOT duplicated
+        here, so there is one copy to correct if any of it turns out wrong.
+        WHAT IT MEANS FOR THIS PHASE, WHICH IS LESS THAN IT SOUNDS. The gate is
+        satisfied as written, and what it exercised is PERM-6's Task 2 path —
+        exactly what the rationale below predicted it would test. But NEITHER OF
+        THE TWO CHANGES THIS PHASE MADE TO THOSE FILES EXECUTED. The invite
+        SUCCEEDED, so POST /api/users never reached the Clerk error branch this
+        phase rewrote — that branch WAS exercised the same day, but elsewhere
+        and on other code: DEBT-15 records it green in PRODUCTION under
+        promotion 97ed309, carrying DEBT-15's own payload-based guard (6f33427)
+        on top of what this phase shipped, so it is not a clean test of this
+        phase's handler either. And the role was MANAGER, not STORE, so the
+        webhook's
+        Task 7 name derivation — which fires only when pending.role === "STORE"
+        AND the invite carries exactly one storeId — did not run. What DID
+        execute is this phase's READ side: /users rendered with Task 4's device
+        badge logic (users/page.tsx:149) and correctly produced NO badge, since
+        indianathomas@gmail.com is not any location's contactEmail. A page that
+        renders is weak evidence and is recorded here as weak.
+        ALSO STILL UNEXERCISED: the /stores device-login dialog. This run went
+        through the /users invite dialog. The two share a server path (POST
+        /api/users) but not a client, so the device dialog's email-collision
+        pre-check has still never run on staging — see DEBT-16.
+        THE TASK 7 BLOCKER ABOVE IS UNTOUCHED by this run, neither the fill nor
+        the override. A cleared promotion gate is not progress on it.
+        ORIGINAL TEXT, unedited:
         SINGLE PROMOTION UNIT WITH PERM-6 — Gary, 2026-07-28. NEITHER PHASE
         REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
         This phase modified POST /api/users (Clerk error-code handling) and the
@@ -3641,6 +3782,21 @@ debt:
       dialog, which is why the missing pre-check was visible at all. Whoever
       picks this up should verify the DEVICE dialog's pre-check works, since it
       has never been exercised on staging either.
+      STILL OPEN AFTER 2026-08-01, AND UNAFFECTED BY THE DAY'S TWO RUNS.
+      (1) The 409 COLLISION PATH was confirmed the same day — see DEBT-15, which
+      records it: /users -> Invite with an address that already has a login
+      returned the 409 rendered in the dialog WITH the plus-address suggestion.
+      Note the branch, because it matters: that check ran in PRODUCTION as part
+      of promotion 97ed309's six-check pass, not on staging. It confirms this
+      row's premise — the dialog surfaces the server's text and the text already
+      carries the suggestion — which is exactly why the missing pre-check stays
+      polish.
+      (2) THIS ROW IS THE PRE-CHECK, and the pre-check was NOT tested by either
+      run. The invite that cleared PERM-6/PERM-7's promotion gate went through
+      the /users dialog again but to a FRESH address, so no collision occurred
+      there, and the DEVICE dialog was not opened at all. Do not read DEBT-15's
+      green 409 as covering this row: they are the server path and the client
+      path, and only the server path has run.
 
   - id: DEBT-17
     status: shipped
@@ -3650,6 +3806,15 @@ debt:
       REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
       `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
       one type-errors the build), so the promotion date lives here.
+      FIRST LIVE NON-ADMIN INVITE SINCE THE FIX, 2026-08-01 — CONSISTENT, NOT
+      PROOF. The invite that cleared PERM-6/PERM-7's promotion gate was role
+      MANAGER, and /users showed the accepted account as MANAGER, not STAFF —
+      the downgrade this row describes did not happen. It does NOT discriminate
+      and must never be cited as though it does: post-fix BOTH writers resolve
+      role from PendingInvite, so MANAGER is what either winner produces, and
+      which one won was not established. What it does rule out is the failure
+      mode — had the fix regressed or not deployed, a page-won race would have
+      shown STAFF.
       FIXED 2026-07-30 — DIRECTION B, exactly as decided 2026-07-28 and without
       re-litigating the fork. src/app/(app)/users/page.tsx:85-86 now resolves
       the create branch's role as
