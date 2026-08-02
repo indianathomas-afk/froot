@@ -6341,6 +6341,45 @@ debt:
       border colour — an UNLAYERED `*` rule in globals.css overrides every
       border-color utility
     notes: >
+      FIFTH CORRECTION 2026-08-02, recorded by DEBT-29-RELABEL, and it is the
+      one with a running cost: THIS ROW'S OWN PROSE BROKE `npm run dev` FOR THE
+      WHOLE APP, and had done since 1dbe9ca (2026-08-01 22:20) — the commit that
+      FILED this row. Every route 500s, not one page: confirmed cold at 65c20cb
+      (rm -rf .next, then /, /sign-in and /templates all 500). Gary did not know;
+      it was found by accident while rendering an unrelated form. FIXED in
+      5da1008 — `@source not "../../docs"` in globals.css.
+      THE CONTAMINATION RUNS IN A THIRD DIRECTION, AND THIS ROW NAMES THE WRONG
+      FILE. The rule below says "src/generated/roadmap.ts is in the measurement
+      path… It is scanned by Tailwind". IT IS NOT. That file is gitignored and
+      Tailwind 4 honours .gitignore. The file Tailwind actually reads is the
+      TRACKED docs/ROADMAP.yaml — this row's notes, in source control. Proven,
+      not inferred: with 5da1008 applied, src/generated/roadmap.ts still contains
+      two `--color-*` occurrences and dev runs clean. The cost of the wrong name
+      is measurable — neutralizing the generated file changed nothing and burned
+      two attempts before the real source was found.
+      SO THE RULE THIS ROW CARRIES NEEDS WIDENING. "Exclude
+      src/generated/roadmap.ts when grepping src for evidence" is still right for
+      GREPS. For TAILWIND it points at the wrong file: the scanner never saw the
+      generated copy and always saw docs/ROADMAP.yaml. Both files say whatever
+      the row says; only one of them is scanned.
+      WHAT THE FIX COSTS, measured cold both sides: the emitted stylesheet is NOT
+      byte-identical — 78,944 → 78,296 bytes, ten selectors removed, zero added,
+      and all ten are prose artifacts with no real usage in src (four ellipsis-
+      mangled quotations of this row, `.border-warning` which this row already
+      documents as a phantom, and `.bottom-10` `.top-10` `.lowercase` `.ring`
+      `.static` — ordinary English words in these notes). Each was checked
+      individually against className usage; real classes are untouched.
+      AND THE WARNING COUNT BELOW IS WRONG TOO, which is the fifth correction's
+      own small echo: this row says "two CSS-optimizer warnings". It was THREE at
+      65c20cb, and is 0 after 5da1008.
+      THE PATTERN IS THE FINDING, AND THIS ROW ALREADY SAYS SO — that is why this
+      is filed here rather than as a new row. Five corrections now: generated-file
+      contamination in both directions, lines-versus-occurrences, the
+      wrong-population regex, and now the wrong scanned file plus a wrong warning
+      count. The four before this one were all about MEASURING the defect. This
+      one is different again: the row's own text became a defect, in an
+      environment nobody was measuring.
+      ── PRIOR NOTES BELOW, UNEDITED ──
       CLOSED 2026-08-02 in 06befd2, by the one-line fix this row named and
       deliberately did not apply: globals.css:61 wrapped in `@layer base`. Four
       lines changed, zero call sites edited, no Tailwind config touched.
