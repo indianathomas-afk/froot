@@ -1321,6 +1321,28 @@ phases:
         wholesale and is never edited. THIS ROW IS THE COMPLETE RECORD; the
         prompt file is not. What the truncation cost: observations (ii) and
         (iii) above, and the /users 409 note now on DEBT-16.
+        THE ORG WAS NOT RECONCILED — IT IS NOW, 2026-08-01 (evening), by query
+        rather than by inference. DB organizationId cmr54z65v000105jxczpt72w1
+        and Clerk org id org_3G02wO4QlVVSWppi8aqlnSZnsDa ARE THE SAME ORG. The
+        line above exists so no future reader assumed it had been checked; it
+        had not been, and now it has. Both ids stay on this row, since either
+        one alone is the ambiguous half of a pair.
+        AND THE TRANSCRIPTION ABOVE IS WRONG, which is why the check mattered.
+        The character after `3G` is a ZERO, not a letter O. Correct in full:
+        org_3G02wO4QlVVSWppi8aqlnSZnsDa. Note the SECOND `O` (in `2wO`) IS a
+        letter in both spellings — exactly one character was wrong, which is the
+        whole hazard: a one-character error in a 28-character opaque id looks
+        like a correct id. The original spelling is preserved unedited above,
+        and the "carries an O/0 ambiguity" note stands as the flag that caught
+        it. docs/prompts/DOCS-3_perm6_gate_cleared.md:27 also carries the
+        letter-O spelling and STAYS WRONG BY DESIGN — a saved prompt is a claim
+        wholesale and is never edited (CLAUDE.md § Where documents live). THIS
+        ROW IS THE AUTHORITY for the spelling; the prompt file is not.
+        WHY THE ID AND NOT THE NAME, restated because the temptation recurs:
+        DEBT-19. Nine orgs on preview/staging, five of them called "Microsoft",
+        including this one. Identifying it by name resolves to A row — silently,
+        and not necessarily this one. An unverifiable id is still safer than a
+        name that resolves to the wrong org without erroring.
       - >
         WHAT THE CLEARED GATE DOES NOT COVER — recorded 2026-08-01 beside it, so
         "the gate is cleared" is never read as "the phase is verified".
@@ -1715,6 +1737,24 @@ phases:
       (the role was MANAGER, not STORE) both went unentered, and the /stores
       device-login dialog was not the entry point used. Read the paragraph above
       as still standing for everything this phase actually writes.
+      NARROWED AGAIN 2026-08-01 (EVENING), AND NOW ON THE WRITE SIDE — the three
+      device-login runs recorded in the Task 7 blocker. Two claims immediately
+      above are SUPERSEDED and preserved unedited: the /stores device-login
+      dialog HAS now been the entry point, three times, so "was not the entry
+      point used" is true only of the earlier /users run; and Task 7's
+      derivation HAS executed, three times, so "every write-side change is still
+      dormant" no longer holds. The same correction applies to the line in the
+      resolved invite-gate blocker below reading "ALSO STILL UNEXERCISED: the
+      /stores device-login dialog" — that entry point is exercised; what is
+      still uncovered there is narrower and still real, DEBT-16's collision
+      pre-check, since all three runs used fresh addresses. STILL GENUINELY
+      DORMANT after these runs: the rewritten Clerk error branch in POST
+      /api/users — all three invites succeeded, so it went unentered again.
+      CITATION CORRECTED, same date, no text deleted: the HOW paragraph above
+      cites src/app/api/webhooks/clerk/route.ts:119 as where User.name is
+      written. At HEAD :119 is a comment line; the write is :151-153, and the
+      derivation that feeds it is :126-137. The line drifted when Task 7's own
+      comment block was added above it.
       THE EMPTY User.name IS THE EXPECTED RESULT, NOT A FAILURE. Task 7's
       derivation does not exist in the build staging was running, so the create
       branch fell through to Clerk's first/last name, and the invitee supplied
@@ -1751,6 +1791,114 @@ phases:
       fixed — neither route is one this phase touches.
     blockers:
       - >
+        CLOSED 2026-08-01 — NOT BY A PASSING OVERRIDE TEST. THE OVERRIDE IS
+        UNREACHABLE THROUGH THE PRODUCT AS CONFIGURED. Gary ran the evidence;
+        this session verified the code and the record and wrote neither query
+        nor row from the database.
+        THE THREE RUNS, all on branch preview/staging (neon.branch_id
+        br-square-feather-a63z92vz, 9 orgs on the branch), org
+        cmr54z65v000105jxczpt72w1 BY ID per DEBT-19, all entered from /stores ->
+        Carson -> Create device login, role STORE, exactly one store:
+        RUN 1, indianathomas+store@gmail.com, username/password sign-up —
+        User.name = "#0034 — Carson", n_assignments 1, is_default_store true,
+        surviving_pending_invite 0.
+        RUN 2, indianathomas+store2@gmail.com, username/password sign-up,
+        username "kevacarson2026" — identical on every field.
+        RUN 3, indianathomas+store3@gmail.com, Google OAuth attempted
+        SPECIFICALLY to obtain a non-null first/last name. Clerk routed through
+        Google and then returned to a Froot sign-up card asking for a USERNAME
+        and nothing else. No name was ever collected. This run is the load-
+        bearing one: it is the path most likely to carry a name, and it did not.
+        WHAT THE RUNS PROVE ABOUT THE CODE: the derivation
+        (webhooks/clerk/route.ts:126-137, written into the upsert's create
+        branch at :151-153) executed three times and produced the store's name
+        each time — including the NUMBERED form `#${storeNumber} — ${name}`,
+        which had never executed anywhere before these runs.
+        THE GROUND OF CLOSURE, which is not the same as the fill passing.
+        `first_name`/`last_name` being ENABLED on the instance does not mean the
+        sign-up flow RENDERS them: Clerk renders REQUIRED fields, and enabled
+        means optional. Observed three times, including through OAuth, the flow
+        presents username and password only. So no name is ever collected,
+        `[first_name, last_name].filter(Boolean).join(" ")` is always "" and
+        therefore null, and `deviceName ?? (…)` at :151-153 never has a
+        competing value to lose to. The hazard the ruling defends against — a
+        person's name landing on a shared store-device account — CANNOT OCCUR BY
+        THIS PATH. That is a stronger result than a passing override test, which
+        would have shown only that the override wins when contested; this shows
+        the contest cannot arise.
+        A THIRD OUTCOME THE RECORDING RULE BELOW DOES NOT CONTEMPLATE. That rule
+        offers two labels — "Task 7 verified" and "fill verified, override
+        UNTESTED" — and both are wrong here. It presupposes a tester who CHOSE
+        not to type a name, making the gap a test-design debt a better-run pass
+        would pay off. The gap is not payable: the tester cannot type a name
+        because the form does not ask. The correct record is FILL VERIFIED,
+        OVERRIDE UNREACHABLE. Do not force this into either bucket.
+        CORRECTION, and it is worth more than the result — the reasoning error,
+        not the conclusion, is the durable part. The paragraph below beginning
+        "WHAT WOULD PROVE THE OVERRIDE" is WRONG, and is preserved unedited so
+        the error stays legible. It infers TESTABLE from ENABLED, on a correct
+        observation (GET /v1/environment, 2026-07-28, first/last enabled on both
+        instances) that does not support it. ENABLED is a statement about the
+        instance's schema; RENDERED is a statement about the sign-up flow, and
+        only the second one governs what a tester can type. The earlier note it
+        overrode — the one calling the override structurally impossible — was
+        closer to right than the correction that replaced it, though not for a
+        reason anyone had checked. Read ENABLED as RENDERED and you will write a
+        test plan for a form that does not exist.
+        THE EVIDENCE WAS ALREADY ON THIS ROW, and that is the pattern rather
+        than the apology. The paragraph above beginning "THE EMPTY User.name IS
+        THE EXPECTED RESULT" recorded on 2026-07-28 that "the invitee supplied a
+        username instead". Nobody asked WHY. The answer — the form offers
+        nothing else — was available that day and cost three staging runs four
+        days later to rediscover. Same shape as DEBT-15 (a disconfirming SDK
+        result in hand, reasoned past in favour of a bundler theory) and DEBT-23
+        (a row built on a file whose ordering was never checked). The common
+        move is accepting an observation as an outcome and declining to ask what
+        produced it.
+        REOPENING CONDITION — CHECK THIS BEFORE TRUSTING THIS CLOSURE. This row
+        closes on a CONFIGURATION, not on a proof about the code, and the
+        configuration is not pinned by anything in this repo. The closure no
+        longer holds the moment EITHER of these becomes true:
+        (1) `first_name` and/or `last_name` are made REQUIRED on either Clerk
+        instance (Dashboard -> User & Authentication -> Personal information;
+        re-checkable in one call via the public Frontend API GET /v1/environment
+        at clerk.usefroot.com and verified-snapper-7.clerk.accounts.dev — the
+        same call that produced the mistaken evidence above, read correctly this
+        time: look at REQUIRED, not at enabled).
+        (2) A sign-up path is added that collects a name by any other means — a
+        custom sign-up component, an OAuth provider mapped to give
+        first/last, an admin-created Clerk user, or a Clerk-side profile edit.
+        If either fires, the override becomes REACHABLE and remains UNTESTED,
+        the blocker below is live again as written, and DEBT-39 unmasks with it.
+        WHAT THIS DOES NOT CLOSE — this is not "closing the pair". PERM-6's
+        second blockers entry stands untouched: (2) the webhook's rejecting
+        branch (`owned.length !== pending.storeIds.length`) has still never
+        executed, (3) Task 1 (POST /api/staff) is still unexercised on staging,
+        (4) the STAFF role is still unexercised. On this row, the rewritten
+        Clerk error branch in POST /api/users is STILL DORMANT — all three
+        invites succeeded — and DEBT-16's collision pre-check is still
+        uncovered: the /stores dialog ran three times, but on three fresh
+        addresses, so no collision was ever presented to it.
+        STATUS: PERM-7 STAYS `shipped`, NOT `verified`. This is staging
+        evidence, and staging evidence is not production evidence — the
+        precedent DOCS-3 set on 2026-08-01 holds here without exception.
+        BRANCH IDENTITY, a convention improvement these runs produced and the
+        one place it is recorded. `current_setting('neon.branch_id', true)`
+        returns a real value on Neon — br-square-feather-a63z92vz above came
+        from the query itself, not from the person pasting it. CLAUDE.md
+        § Database Evidence requires the branch be NAMED, which is an assertion
+        by the reporter, and the 2026-07-28 failure that section documents was a
+        correct query wearing a wrong label. Selecting the branch id ALONGSIDE
+        the result makes the label a product of the same query as the row, so
+        the two cannot drift. RULED 2026-08-01 (Gary): belt and braces — select
+        the branch id AND name the branch, since the id is not the
+        `preview/staging` name and the mapping still lives in a human's head.
+        Recommended where available, not mandatory: it is Neon-specific and
+        returns null on local dev, which is itself a useful signal rather than a
+        failed check. Recorded here ONCE, deliberately, rather than at each
+        § Database Evidence reference site — four copies is four things to
+        drift. DEBT-19 carries the pointer.
+        ORIGINAL TEXT, unedited:
         TASK 7: A GREEN STAGING RESULT DOES NOT MEAN "TASK 7 VERIFIED". READ
         THIS AT PROMOTION TIME — Gary, 2026-07-28.
         Task 7 has two halves and they are not equally testable. The FILL — an
@@ -4082,6 +4230,13 @@ debt:
       "ID (name)") in every doc, prompt and query result — plus a cleanup of the
       dead single-user shells on staging, which is what makes the names
       ambiguous in the first place. Do the cleanup deliberately and by ID.
+      SISTER CONVENTION, added 2026-08-01 as a POINTER ONLY — the note itself
+      lives once, in PERM-7's Task 7 blocker, and is not restated here.
+      `current_setting('neon.branch_id', true)` returns a real value on Neon, so
+      a query can CARRY machine-verifiable branch identity instead of an
+      asserted literal. Ruled by Gary the same day: select the branch id AND
+      name the branch; recommended where available, not mandatory. Same family
+      as this row — an under-specified identifier that still resolves.
 
   - id: DEBT-20
     status: shipped
@@ -4931,3 +5086,95 @@ debt:
       again; (a) is cheaper and touches no git behaviour. They are not exclusive.
       WORKFLOW.md was deliberately NOT edited by DOCS-2 — the choice is Gary's.
       Related: DEBT-23 (withdrawn, and not the basis for this row), DEBT-24.
+
+  - id: DEBT-39
+    title: "Two writers create User rows and only ONE derives the device name — a page-won acceptance race skips PERM-7 Task 7 permanently and silently"
+    notes: >
+      FILED 2026-08-01, on Gary's PERM-7b ruling, which was given and never
+      applied because that session stopped at part one. The finding is from
+      PERM-7b's audit; the filing is PERM-7c's.
+      THE RACE. Two writers can create the User row for an accepted invite, and
+      whichever runs first wins. (1) The Clerk webhook,
+      src/app/api/webhooks/clerk/route.ts — its upsert create branch at :151-153
+      derives the device name (`deviceName ?? …`, deviceName built at :126-137)
+      when the invite is role STORE with exactly one store. That is PERM-7 Task
+      7. (2) The /users page, src/app/(app)/users/page.tsx:84 — its create
+      branch writes `name: [pub.firstName, pub.lastName].filter(Boolean).join("
+      ") || null` with NO deviceName derivation at all.
+      WHY IT IS PERMANENT AND SILENT. The webhook's UPDATE branch is
+      `update: { email: userEmail }` (route.ts:146) and deliberately never
+      writes name — create-only is the Ruling 4 guard that stops later Clerk
+      events resetting a corrected name (DECISIONS.md 2026-07-28). So if the
+      page creates the row first, the webhook arrives second, takes the update
+      branch, and Task 7 never runs for that account — not late, never. Nothing
+      logs it, nothing retries it, and the resulting name is a plausible value
+      rather than an obviously missing one.
+      DEBT-17 IS THE PRECEDENT AND THE INCOMPLETE FIX. That row is the same race
+      on the same two writers, found for ROLE. The fix (84437e5, direction B)
+      mirrored ROLE between them — users/page.tsx now resolves role from
+      PendingInvite exactly as the webhook's resolvedRole does, so the two
+      cannot drift. It left NAME unmirrored. One field of a two-field race was
+      closed and the other was not noticed.
+      CURRENTLY MASKED, AND THIS IS WHY IT IS DEBT RATHER THAN A BUG ROW. The
+      page can only write a name Clerk gives it, and Clerk gives it none: the
+      sign-up flow renders only REQUIRED fields, first/last are merely enabled,
+      and no name is collected on any observed path including OAuth — the
+      unreachability finding recorded in full on PERM-7's Task 7 blocker
+      (three staging runs, 2026-08-01). So today the page writes null, the
+      webhook writes the store name if it wins, and null if it does not, and the
+      visible damage is a blank name rather than a person's name.
+      ONE ROOT CAUSE, ONE REOPENING CONDITION, shared with that closure: two
+      writers with unmirrored fields, masked by a Clerk configuration that
+      collects no name. If first/last are ever made REQUIRED, or a sign-up path
+      is added that collects a name, BOTH unmask together — Task 7's override
+      becomes reachable-and-untested AND this race starts putting a person's
+      name on a device account, which is the exact hazard the convention exists
+      to prevent. Check them as one trigger, not two.
+      FIX DIRECTION, not taken here: mirror NAME as DEBT-17 mirrored ROLE — give
+      the page the same PendingInvite-driven derivation, so either winner
+      produces the same row. Direction C (stop the GET from writing at all)
+      remains the deliberately-untaken option and would close both races
+      outright.
+      Related: DEBT-17 (the same race, role half, fixed), PERM-7 Task 7 (the
+      derivation and its unreachability closure), DEBT-40 (the comments that
+      still describe the unreachable path as live).
+
+  - id: DEBT-40
+    title: "Code comments and DECISIONS.md assert a name is typed at sign-up — no configured Clerk instance collects one"
+    notes: >
+      FILED 2026-08-01 by PERM-7c, which found it while re-verifying PERM-7 Task
+      7 and could not fix it — that session was scoped to ROADMAP.yaml.
+      THE COUNTERFACTUAL ASSERTIONS, all stating or presupposing that a human
+      types a name at sign-up: src/app/api/webhooks/clerk/route.ts:113-115
+      ("Clerk owns the name, and it is whatever a human types at sign-up"),
+      :120-121 ("keeps the name they typed"), :123-125 ("It OVERRIDES the typed
+      name rather than filling a blank one"); docs/DECISIONS.md:8 (the heading
+      itself, "OVERRIDES the sign-up form"), :15-16, :19-21, :33-34, :38 ("An
+      admin who renames the account wins permanently; the sign-up form does
+      not").
+      WHY THEY ARE FALSE AS WRITTEN: neither configured instance collects a
+      name. Clerk's sign-up flow renders REQUIRED fields, `first_name`/
+      `last_name` are merely ENABLED, and three staging runs on 2026-08-01 —
+      including one deliberately routed through Google OAuth — presented
+      username and password only. Full evidence on PERM-7's Task 7 blocker.
+      WHAT IS NOT FALSIFIED, and must survive any rewording. The ruling STANDS:
+      override-not-fill is the correct design (DECISIONS.md 2026-07-28, Gary),
+      and the code IMPLEMENTS it correctly — the override is real, create-only,
+      and narrowly conditioned. Only the factual claim that the form PRESENTS
+      the field is wrong. A future editor must not read this row as licence to
+      demote the override to a fallback; that is the exact misreading the
+      decision record was written to prevent.
+      SAME SHAPE AS DEBT-26 — comments describing a model that has since
+      changed, except here the model never held rather than having drifted.
+      FIX DIRECTION: reword to describe the mechanism and its reason rather than
+      the imagined human — the derivation asserts the store's name over ANY
+      value Clerk supplies, whether or not the form currently offers a way to
+      supply one — and cite the reopening condition so the wording survives a
+      configuration change. Do not delete the "Tommy Thomas" counterexample: it
+      is the hazard the convention exists for and remains valid as a hazard.
+      SAVED PROMPTS STAY WRONG BY DESIGN — docs/prompts/PERM-7_store_device_
+      logins.md and PERM-7b_task7_name_derivation.md both instruct the tester to
+      type a name. A saved prompt is a claim wholesale and is never edited
+      (CLAUDE.md § Where documents live). The rows are the authority.
+      Related: DEBT-26 (same shape, fixed), DEBT-39 (same root cause and the
+      same reopening condition), PERM-7 Task 7.
