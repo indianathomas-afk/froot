@@ -6166,7 +6166,7 @@ debt:
 
   - id: DEBT-43
     status: staging
-    commits: ["06befd2"]
+    commits: ["06befd2", "04da67f"]
     title: >
       Every `border-[var(--color-*)]` in the app silently renders as the default
       border colour — an UNLAYERED `*` rule in globals.css overrides every
@@ -6219,6 +6219,33 @@ debt:
       88 + 15 = 103. ANYONE RE-MEASURING THIS CLASS OF BUG MUST GREP FOR NAMED
       UTILITIES TOO — an arbitrary-value regex silently under-reports it, which
       is what happened here for the row's whole life.
+      THAT IS A FOURTH MEASUREMENT ERROR ON THIS ROW, AND THE PATTERN IS NOW THE
+      FINDING (Gary, 2026-08-02, ruling on whether to back the change out). The
+      first three were the generated-file contamination in both directions and
+      lines-versus-occurrences; this one is different in kind and worse in
+      consequence. Those three miscounted the population. THIS ONE MISDEFINED IT:
+      the 560 / 468 / 92 / 45 figures are exactly right and were reproduced to
+      the occurrence, and they answer a NARROWER QUESTION than the row's title
+      asks. The title says "every `border-[var(--color-*)]`"; the mechanism
+      paragraph correctly says the rule "overrides every border-color utility in
+      the application". Only the second is the real scope, and NO PRIOR
+      MEASUREMENT ON THIS ROW EVER COUNTED THE NAMED UTILITIES — not the audit,
+      not DEBT-TRIAGE-1's correction, not DEBT-TRIAGE-2's recount. Three sessions
+      re-measured the same regex more carefully each time and none asked whether
+      the regex matched the claim.
+      SO THE RULE THIS ROW ALREADY CARRIES IS NOT ENOUGH. "State your unit and
+      exclude the generated file" guards against counting the population wrong.
+      It does not guard against counting the wrong population. ADD: state what
+      the regex EXCLUDES, and check that against the sentence the number is being
+      used to support. A precise count of the wrong set is more dangerous than a
+      rough count of the right one, because precision is what stops the next
+      person re-deriving it — the 560 was quoted forward three times BECAUSE it
+      was exact.
+      RULING, GARY 2026-08-02: LEAVE IT ON STAGING, do not back it out. The
+      number grew because the row's scope was always understated, not because
+      the change did more than was intended — the named utilities were masked by
+      the same rule and are unmasked by the same fix. Every one of the 15 is an
+      element shedding an unintended grey ring, which is the wanted direction.
       BADGE BEHAVIOUR, RECORDED SO THE VISUAL PASS READS IT AS EXPECTED. All
       three soft badge variants (success/warning/info, ui/badge.tsx:14-16) carry
       BOTH `border-transparent` AND `border-[var(--color-*-border)]`. In the
@@ -6243,19 +6270,28 @@ debt:
       of the browser, and the cheap direct check was one node invocation. It was
       caught only because the finding was being written up for a decision rather
       than filed as a row.
-      NOT FIXED, DELIBERATELY: the three `border-transparent` on badge.tsx:14-16
-      are dead tokens. Removing them is provably behaviour-neutral (twMerge
-      output byte-identical with and without, verified) and is a tidy-up with no
-      cost attached, not deferred work. It is not a row.
-      REMAINING UNLAYERED RULE, reported and untouched: `body` at
-      src/app/globals.css:65 is still at depth 0 unlayered, carrying background,
-      color, font-family and -webkit-font-smoothing. Same hazard one element
-      wide. layout.tsx:14 applies `min-h-full antialiased` to `<body>` today —
-      `antialiased` already collides with the rule's own
+      TIDY-UP LANDED SEPARATELY IN 04da67f, behaviour-neutral, gated on its own:
+      the three dead `border-transparent` deleted from badge.tsx:14-16, and a
+      comment added above the `body` rule. NEITHER WAS A FIX AND NEITHER IS A
+      ROW — that was the point of triaging them (Gary, 2026-08-02: "that is a
+      better outcome than a fix or a row"). The badge tokens were dead, not
+      wrong; twMerge output was verified byte-identical with and without them
+      for all three variants BEFORE deleting. What goes away is not a defect but
+      the READING that cost this session a wrong finding, sitting in the source
+      waiting for the next person to make it.
+      REMAINING UNLAYERED RULE, deliberately not wrapped: `body` at
+      src/app/globals.css:65 is still at depth 0 unlayered after 06befd2,
+      carrying background, color, font-family and -webkit-font-smoothing. Same
+      hazard one element wide. layout.tsx:14 applies `min-h-full antialiased` to
+      `<body>` today — `antialiased` already collides with the rule's own
       `-webkit-font-smoothing: antialiased` and is harmless only because both
-      set the same value. A future `bg-*`, `text-*` or `font-*` on that element
-      would silently lose. Cost NONE with no named trigger, so it is a comment
-      at the site rather than a row (Gary, 2026-08-02).
+      set the same value, so the collision is LIVE and merely benign rather than
+      hypothetical. A future `bg-*`, `text-*` or `font-*` on that element would
+      silently lose. Cost NONE with no named trigger, so it is a comment at the
+      site rather than a row (Gary, 2026-08-02) — the person who would hit it is
+      standing in globals.css, whereas a row is only read by someone already
+      reading the roadmap. The comment shipped in 04da67f and names the live
+      collision, since that is the detail that makes it worth having.
       GATE: eslint does not cover CSS in this repo — `npx eslint
       src/app/globals.css` returns "File ignored because no matching
       configuration was supplied", and the config is eslint-config-next
