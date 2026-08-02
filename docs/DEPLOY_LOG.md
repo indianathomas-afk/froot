@@ -132,9 +132,13 @@ Deploy verification: 2026-07-02T22:00:05Z
   `staging` and **not** in production. Until `staging → main` is promoted,
   production runs unplugged writers over clean data. See DEBT-1's row.
 
-## 2026-07-29 — PRODUCTION promotion (BUILD-2 default store + one-primary-store index)
+## 2026-07-29 (evening) — PRODUCTION promotion (BUILD-2 default store + one-primary-store index)
 
 - **Promotion SHA:** `493175e` — full: `493175ee337dd628d56c77a4a84e9b2600ae0759`.
+  Pushed to `origin/main` 2026-07-29 21:59. *"(evening)" added to this heading
+  2026-08-01 by DOCS-2 — purely disambiguating, since the 746c1be entry below is
+  also dated 2026-07-29 and this file's order is the thing it exists to convey.
+  The time is from `git reflog show main`; nothing else in this entry changed.*
 - **FAST-FORWARD, not a merge — the rollback differs from every entry below.**
   `origin/main` HEAD has a **single parent** (`f480568`), so there is no merge
   commit and **`git revert -m 1` does not apply**. Rollback is reverting the four
