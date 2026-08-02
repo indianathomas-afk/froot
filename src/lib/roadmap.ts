@@ -55,6 +55,17 @@ export type PhaseStatus =
  *
  * `isResolvedBlocker` in roadmap-client.tsx is the single definition of which
  * entries are resolved — read it rather than restating the test here (DEBT-26).
+ *
+ * NEVER ADD `resolved: false`. Relocated here from DEBT-41 2026-08-02 by
+ * DEBT-TRIAGE-2, because this is where the person about to add it is standing.
+ * It carries exactly the value the ABSENCE of the flag already carries, and
+ * introducing it invites marking entries false wholesale — which destroys the
+ * "a missing flag means live" default that makes the whole scheme safe. There
+ * is a real gap in this type (no value for a half-closed entry, of which
+ * BUILD-1's is the live instance) and `resolved: false` is not it: a third
+ * state needs its own name and its own render treatment. DEBT-41 is AWAITING
+ * GARY'S RULING and its standing instruction is to watch for one NEW example
+ * before designing anything.
  */
 export type BlockerEntry = string | { resolved: true; text: string }
 

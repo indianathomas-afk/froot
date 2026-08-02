@@ -306,6 +306,20 @@ model TemplateStoreAssignment {
 model Task {
   id                   String   @id @default(cuid())
   templateId           String
+  // SECTION RENAMES REWRITE HISTORY, AND THAT IS A COMPLIANCE FACT, NOT A
+  // DESIGN PREFERENCE. Relocated here from DEBT-36 2026-08-02 by DEBT-TRIAGE-2.
+  // A section is not an entity — it is a free-text string GROUPed over,
+  // recomputed independently at five render sites — so there is no canonical
+  // list, no rename operation, and no stable id. Checklist does not snapshot
+  // task data (api/checklists/route.ts:122 and :156 store only ids) and TaskLog
+  // carries no section column (see that model below). THERE IS NO AS-EXECUTED
+  // RECORD OF SECTION NAMES ANYWHERE IN THE SYSTEM: renaming a section
+  // retroactively rewrites the headings on every historical completed checklist
+  // AND its print copy, with no indication anything changed. A printed closing
+  // checklist from last month re-prints today under whatever the section is
+  // called today. For an operational-compliance product that is the part that
+  // matters. Whether to model Section as a first-class entity is AWAITING
+  // GARY'S RULING on DEBT-36 — this comment records the fact, not the decision.
   sectionName          String
   description          String
   estimatedTimeMinutes Float?
@@ -351,6 +365,16 @@ model Checklist {
   handoffMessages TeamMessage[] @relation("HandoffSource")
 }
 
+// NOTE THE ABSENCE: there is no section column here, and that is the other half
+// of the compliance fact recorded on Task.sectionName above (DEBT-36, relocated
+// 2026-08-02 by DEBT-TRIAGE-2). A TaskLog is the as-executed record of a task
+// being completed — it carries who, when, the photo and the temperature — but
+// it does NOT capture the section heading the task was executed under. That
+// heading is resolved live from Task.sectionName at render and at print time,
+// so it is whatever the template says TODAY, not what it said on the day the
+// work was done. Adding a column here is one candidate fix and is deliberately
+// NOT proposed as the answer; DEBT-36 is awaiting Gary's ruling on whether
+// Section becomes a first-class entity instead.
 model TaskLog {
   id                 String   @id @default(cuid())
   checklistId        String

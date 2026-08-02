@@ -13,6 +13,24 @@ import { Skeleton } from "@/components/ui/skeleton"
 //
 // Page visibility is reported via onPageViewed (>=40% of the page on screen),
 // which the signing screen uses for its "reviewed each page" progression.
+//
+// READING NOTE FOR HR-14 AND ANYONE TOUCHING HR DOCUMENT RENDERING — read
+// DEBT-33 before editing this file. Relocated here from that row 2026-08-02 by
+// DEBT-TRIAGE-2, because a roadmap row is never read by the person who opens
+// this file, which is the only moment it matters.
+//
+// Three of the ten repo-wide eslint errors are HERE, at :57 :58 :59 —
+// react-hooks/refs, "Cannot access refs during render". They are the reason
+// `npm run lint` exits 1 on a clean checkout and no commit gate may use it
+// (CLAUDE.md § Commit Gates). Nothing is known to be broken at runtime; this
+// file ships today. But the rule is not cosmetic: refs mutated during render
+// describe a real staleness hazard, and it surfaces as a viewer that does NOT
+// UPDATE rather than as a crash — which is exactly the failure a reader of
+// this file would otherwise spend a session chasing.
+//
+// src/lib/hr-signed-pdf.ts is the other file in the HR staging surface named by
+// that row. The full list, the cause (React Compiler rules judging pre-Next-16
+// code) and the fix shape live on DEBT-33; this note is the pointer, not a copy.
 
 type PdfJs = typeof import("pdfjs-dist")
 type PdfDocument = Awaited<ReturnType<PdfJs["getDocument"]>["promise"]>

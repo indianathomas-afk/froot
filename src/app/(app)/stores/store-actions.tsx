@@ -140,6 +140,24 @@ export function StoreActions({ store }: { store: StoreForEdit }) {
     }
   }
 
+  // DELETING A STORE CASCADES, AND THIS HANDLER SWALLOWS THE FAILURE. Relocated
+  // here from DEBT-44 2026-08-02 by DEBT-TRIAGE-2 — the row's cleanup task is
+  // where this was filed, but this function is where someone is standing when it
+  // matters. Two things to know before touching it:
+  //
+  // (1) THE CASCADE. StoreUserAssignment.store and StoreStaffAssignment.store
+  //     are both onDelete: Cascade (prisma/schema.prisma:185 and :267), so
+  //     deleting a store silently takes its user AND staff assignments with it,
+  //     plus goals and caches. PERM-6c created a throwaway store rather than
+  //     delete a real one specifically because of this, and PERM-6's entry (1)
+  //     records the second cascade firing for real on a fixture. When cleaning
+  //     up test data, DELETE THE PRINCIPALS, NOT THE STORES.
+  // (2) THE SWALLOW, which is what makes (1) dangerous rather than merely
+  //     destructive: there is no `res.ok` check below. A 4xx or 5xx from the
+  //     DELETE route lands in the same path as success — router.refresh() runs
+  //     and the dialog closes either way. Compare handleSave above, which does
+  //     check and surfaces the error. Whoever adds that check here should treat
+  //     it as a behaviour change and not a drive-by fix.
   async function handleDelete() {
     setDeleting(true)
     try {
