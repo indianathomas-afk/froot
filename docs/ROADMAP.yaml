@@ -1442,199 +1442,181 @@ phases:
           including this one. Identifying it by name resolves to A row — silently,
           and not necessarily this one. An unverifiable id is still safer than a
           name that resolves to the wrong org without erroring.
-      - >
-        WHAT THE CLEARED GATE DOES NOT COVER — recorded 2026-08-01 beside it, so
-        "the gate is cleared" is never read as "the phase is verified".
-        (1) THE WEBHOOK HALF IS COVERED — was briefly carried as open by DOCS-3
-        and CLOSED the same day, on evidence that already existed. The reasoning
-        is worth keeping because it is the reusable part: role MANAGER does not
-        discriminate which writer created the row (both resolve from
-        PendingInvite post-84437e5), LOCATIONS does — the page never writes
-        assignments. Observations (ii) and (iii) in the entry above are that
-        discriminating evidence, and (iii) is the invited account's own session
-        rather than an admin page. Task 2's accepting half is CONFIRMED. The
-        failure here was one of RECORDING, not of coverage: the run had the
-        right evidence and it was not transmitted as such.
-        (2) CLOSED 2026-08-01 (evening) by PERM-6c — THE REJECTING BRANCH HAS
-        NOW EXECUTED, for the first time in this phase's life, by the SECOND of
-        the two routes this item itself named: a store deleted between invite
-        and acceptance. Gary ran it and supplied every query result; this
-        session had NO database access and checked only what the repo can check.
-        ON BRANCH preview/staging (neon.branch_id br-square-feather-a63z92vz,
-        returned by the query itself per the convention PERM-7's Task 7 closure
-        produced), org cmr54z65v000105jxczpt72w1 BY ID per DEBT-19.
-        THE ARMING, which is the part nobody had ever done. Scratch store
-        "PERM-6b" (id cmsbe0giw000004l7e3zhm22n) created via /stores —
-        deliberately a throwaway rather than an existing test store, because
-        deleting a real store silently destroys its assignments, goals and
-        caches and /stores' handleDelete swallows the failure. Staff member
-        "PERM-6b Staff" created via /staff with two stores (Carson + PERM-6b),
-        primary Carson, then invited to self-service. Pre-delete: n_store_ids 2,
-        owned_now 2, stores {Carson, PERM-6b}. Scratch store deleted via
-        /stores, absence confirmed by reload. Post-delete, the ARMED state:
-        n_store_ids 2, owned_now 1, stores_still_existing {Carson} — THE STALE
-        ID STAYED IN THE ARRAY. Observed now rather than predicted:
-        PendingInvite.storeIds is a bare String[] with no FK
-        (prisma/schema.prisma:195, read at HEAD), so nothing cascades it, which
-        is exactly why the webhook re-filters instead of trusting.
-        POST-ACCEPTANCE: user_id cmsbeaqn3000504l7uy2dd3wl, role STAFF,
-        n_assignments 1 against an invite carrying 2, assigned_stores {Carson},
-        defaultStoreId cmrd1a3es000104kzao4mf69v -> Carson,
-        linked_staff_member_id cmsbe40q9000104l7fm3t6bp4,
-        surviving_pending_invite 0, name null.
-        THE DEFAULT STORE IS THE DISCRIMINATING SIGNATURE, and n_assignments
-        alone is not. The default write keys off `owned.length === 1` — the
-        FILTERED array — and not off pending.storeIds.length
-        (webhooks/clerk/route.ts:199-204 at HEAD), so a two-store invite ending
-        with ONE assignment AND a default set is a state only the filtering code
-        can produce. Note precisely what that means: the write itself is
-        BUILD-2/PERM-7 code, and it discriminates because it reads PERM-6's
-        variable.
-        CORROBORATION FROM THE SCHEMA, offered as inference and not as
-        observation. StoreUserAssignment.storeId carries a real FK
-        (schema.prisma:185), so pre-PERM-6 code — which passed pending.storeIds
-        straight to createMany — would have violated it on the stale id and
-        thrown. createMany is ONE statement, so that outcome is ZERO assignments
-        and a 500 back to Clerk, not one assignment. And
-        surviving_pending_invite 0 says the whole `if (pending)` block ran to
-        completion, since the delete is its last statement — the filter behaving
-        as its own comment demands: "Filter, never throw".
-        A SECOND SET OF ASSIGNMENTS ALSO LOST THE STORE, AND PERM-6 DID NOT DO
-        IT — recorded because conflating the two would credit this phase with
-        something the database did on its own. Observed in the app rather than
-        in any query: the /staff profile for "PERM-6b Staff" now shows Store
-        Assignments = CARSON ONLY. Those are StoreStaffAssignment rows (staff
-        member -> store), NOT the StoreUserAssignment rows (login -> store) the
-        webhook writes, and StoreStaffAssignment.store is onDelete: Cascade
-        (prisma/schema.prisma:267, read at HEAD). So the STORE DELETION removed
-        that row directly, at the database, before the invite was ever accepted
-        — no application code chose it and the webhook's filter never saw it.
-        Two different tables lost the same store by two different mechanisms in
-        one run, and only the login side is evidence for this item. It is also
-        the hazard this entry's own ARMING paragraph names, observed live: a
-        store delete silently rewrites assignments elsewhere.
-        THE LIMIT, and it is half of what this item's own words claim. The path
-        is `filter-and-warn`. The FILTER is proven from the database. The
-        console.warn STATEMENT (route.ts:174) is INFERRED from the same branch
-        and was NOT OBSERVED — the Vercel runtime log line was not captured, and
-        no database query can witness a log line. Record it as FILTERED PROVEN,
-        WARNED INFERRED. If the warn ever matters — it is the only
-        operator-facing signal that ids were dropped — it needs its own look at
-        the runtime log.
-        `name null` is consistent and is not a defect: PERM-7's Task 7 closure
-        established that no sign-up path collects a name, and the store-name
-        derivation fires only for role STORE carrying exactly one store. This
-        invite was neither.
-        ORIGINAL TEXT, unedited:
-        (2) THE REJECTING BRANCH IS STILL NOT COVERED, unchanged by this run.
-        One valid, org-owned storeId went in, so the webhook's filter-and-warn
-        path (`owned.length !== pending.storeIds.length`) has still never
-        executed. Covering it needs a foreign-org storeId, or a store deleted
-        between invite and acceptance.
-        (3) CLOSED 2026-08-01 (evening) by PERM-6c AS WRITTEN — AND THAT IS
-        NARROWER THAN IT LOOKS. A staff member WAS created on staging through
-        the route this item names: "PERM-6b Staff", via /staff -> Add Staff
-        Member, email indianathomas+staff@gmail.com, two stores (Carson +
-        PERM-6b), primary Carson, fullNameLocked — the manual-add branch, not a
-        Square import — and it is the same fixture the run in (2) was built on.
-        The item's literal claim ("no staff member was created") is false from
-        this date.
-        WHAT IT DOES NOT ESTABLISH, said plainly rather than left to be assumed.
-        This is the ACCEPTING PATH ONLY and it is NON-DISCRIMINATING. Task 1's
-        guard is two rejections — an org-ownership count (400) and, for
-        non-admins, a caller-scope check (403) at staff/route.ts:75-83 — and
-        NEITHER FIRED. The Add Staff dialog cannot construct the inputs that
-        would fire them: it offers only this org's stores, the route dedupes,
-        and a primary outside the selection is not submittable. So PRE-PERM-6
-        CODE PRODUCES THE IDENTICAL ROW for this input. It is the same
-        discrimination test observation (i) in the entry above FAILED and (ii)
-        passed: it rules out the guard having broken the ordinary case; it does
-        not show the guard rejects anything.
-        THE DISCRIMINATING CALLS WERE NOT RUN. Two console calls against POST
-        /api/staff — a foreign-org storeId (expect 400) and, driven as a
-        MANAGER, an in-org but out-of-scope storeId (expect 403) — were planned
-        as B-2 and B-3 and NEITHER WAS EXECUTED. Task 1's rejecting behaviour
-        therefore still rests exactly where it did on 2026-07-27: the local
-        dev-DB count query recorded in the NOT COVERED block below, plus the
-        build. Do not read this item's closure as covering it.
-        ORIGINAL TEXT, unedited:
-        (3) TASK 1 (POST /api/staff) is still unexercised on staging — no staff
-        member was created.
-        (4) CLOSED 2026-08-01 (evening) by PERM-6c — THE STAFF ROLE WAS DRIVEN,
-        in PERM-2's sense of the word, which is the sense this row has used
-        since that pass. Signed in AS the STAFF principal (username
-        perm-6-staff). Two routes, both 403 Forbidden.
-        GET /api/square/locations -> 403. This is the load-bearing one and it
-        DISCRIMINATES. Item (d) in the notes below records that this route had
-        NO role gate at all before this phase, only auth(); the gate that now
-        stands is `can({ role }, "stores.manage")` at
-        square/locations/route.ts:34-35, read at HEAD. Pre-PERM-6 code cannot
-        return 403 to an authenticated org member — it had nothing to return it
-        from. A STAFF principal would have received the full location list,
-        which is the finding that named STAFF explicitly.
-        GET /api/staff -> 403. A control from a DIFFERENT enforcement point —
-        PERM-2 §3 #3's guard, not this phase's — so the denial is not an
-        artefact of one route's wiring. PERM-2's own pass drove that route to
-        403 as STORE (S2); this is its STAFF half, five days later.
-        WHAT IT DOES NOT ESTABLISH: two denials are two denials. No positive
-        STAFF capability was exercised, so nothing here says a STAFF principal
-        can still do what a STAFF principal should. PERM-2 pointed that work at
-        HR-9, which has to re-walk these routes anyway; that pointer stands.
-        THE PRINCIPAL DRIVEN HERE IS THE ACCOUNT CREATED IN (2) — SETTLED
-        2026-08-01 (evening) by Gary, on two sources named separately rather
-        than on an assumption, which is the whole reason it is written down.
-        DB, branch preview/staging: User id cmsbeaqn3000504l7uy2dd3wl, email
-        indianathomas+staff@gmail.com, role STAFF, createdAt 2026-08-02
-        06:04:19.167 UTC. APP: the /staff detail page for StaffMember "PERM-6b
-        Staff" (cmsbe40q9000104l7fm3t6bp4) renders the badge "Self-service
-        login" against that same address, where it read "Invite pending" before
-        acceptance — the profile's own record of the binding, and the visible
-        face of the linked_staff_member_id in (2). The principal that produced
-        the two 403s signed up through that invite. One account, two roles in
-        this entry: it is the row the rejecting branch wrote, and the role the
-        gates denied.
-        ORIGINAL TEXT, unedited:
-        (4) The STAFF role is still unexercised.
-        WHAT REMAINS UNCOVERED ON THE PAIR after 2026-08-01 (evening), recorded
-        here because three items closing at once is precisely when a reader
-        concludes more than happened. FOUR things, none closed by that session:
-        (i) B-2 and B-3, the discriminating POST /api/staff calls — item (3).
-        (ii) DEBT-16's collision PRE-CHECK, still untested. The /stores device
-        dialog's check has never run on staging and was not opened here; this
-        run went through /staff -> Add Staff Member, on a fresh address. Three
-        fresh addresses across PERM-7's runs, a fourth here — no collision has
-        ever been presented to any dialog.
-        (iii) PERM-7's rewritten Clerk error branch in POST /api/users, STILL
-        DORMANT on its own code: every invite to date has succeeded. DEBT-15
-        records that branch green in PRODUCTION under promotion 97ed309, but
-        carrying DEBT-15's own guard on top, so it is not a clean test of what
-        PERM-7 shipped.
-        (iv) The webhook's console.warn STATEMENT — the limit in item (2).
-        THE PERM-7 SIDE SAYS OTHERWISE AND WAS TRUE WHEN WRITTEN. PERM-7's Task
-        7 closure states "PERM-6's second blockers entry stands untouched" and
-        lists (2), (3) and (4) as open. Correct on 2026-08-01 (afternoon),
-        superseded by this entry the same evening. THIS ROW IS THE AUTHORITY on
-        items (2)-(4); that sentence is dated prose and is deliberately not
-        edited.
-        STATUS STAYS `shipped`, NOT `verified`, and the reason has changed: the
-        entry below gave the unconfirmed gate as the reason, and that reason is
-        gone, but (1)-(4) are not. The flip is Gary's ruling to make, not a
-        bookkeeping consequence of clearing a blocker.
-        THE REASON HAS CHANGED AGAIN, 2026-08-01 (evening). The paragraph above
-        gives "(1)-(4) are not [gone]" as the reason; all four are now closed,
-        so that reason is spent too. What survives is its LAST SENTENCE, which
-        never depended on the four. Everything in this entry — every query in
-        items (2) and (4) — is preview/staging, and staging evidence is not
-        production evidence (DOCS-3's precedent, restated in PERM-7's Task 7
-        closure). BOTH PERM-6 AND PERM-7 STAY `shipped`, unchanged by PERM-6c.
-        WHAT THIS ENTRY NOW IS: a STATUS RATIONALE wearing the blockers field.
-        That is DEBT-41(a) in a sharper form than when P-4 filed it — at filing
-        it held four live coverage gaps AND a rationale; it now holds only the
-        rationale, and there is no longer any live gate in it. It STAYS A BARE
-        STRING by Gary's ruling 2026-08-01: `resolved: true` would collapse it
-        into the "Resolved gates" disclosure, putting the one thing a reader
-        needs from this phase behind a fold. The panel over-reports by one,
-        which is the cheaper error. See DEBT-41.
+      - resolved: true
+        text: >
+          WHAT THE CLEARED GATE DOES NOT COVER — recorded 2026-08-01 beside it, so
+          "the gate is cleared" is never read as "the phase is verified".
+          (1) THE WEBHOOK HALF IS COVERED — was briefly carried as open by DOCS-3
+          and CLOSED the same day, on evidence that already existed. The reasoning
+          is worth keeping because it is the reusable part: role MANAGER does not
+          discriminate which writer created the row (both resolve from
+          PendingInvite post-84437e5), LOCATIONS does — the page never writes
+          assignments. Observations (ii) and (iii) in the entry above are that
+          discriminating evidence, and (iii) is the invited account's own session
+          rather than an admin page. Task 2's accepting half is CONFIRMED. The
+          failure here was one of RECORDING, not of coverage: the run had the
+          right evidence and it was not transmitted as such.
+          (2) CLOSED 2026-08-01 (evening) by PERM-6c — THE REJECTING BRANCH HAS
+          NOW EXECUTED, for the first time in this phase's life, by the SECOND of
+          the two routes this item itself named: a store deleted between invite
+          and acceptance. Gary ran it and supplied every query result; this
+          session had NO database access and checked only what the repo can check.
+          ON BRANCH preview/staging (neon.branch_id br-square-feather-a63z92vz,
+          returned by the query itself per the convention PERM-7's Task 7 closure
+          produced), org cmr54z65v000105jxczpt72w1 BY ID per DEBT-19.
+          THE ARMING, which is the part nobody had ever done. Scratch store
+          "PERM-6b" (id cmsbe0giw000004l7e3zhm22n) created via /stores —
+          deliberately a throwaway rather than an existing test store, because
+          deleting a real store silently destroys its assignments, goals and
+          caches and /stores' handleDelete swallows the failure. Staff member
+          "PERM-6b Staff" created via /staff with two stores (Carson + PERM-6b),
+          primary Carson, then invited to self-service. Pre-delete: n_store_ids 2,
+          owned_now 2, stores {Carson, PERM-6b}. Scratch store deleted via
+          /stores, absence confirmed by reload. Post-delete, the ARMED state:
+          n_store_ids 2, owned_now 1, stores_still_existing {Carson} — THE STALE
+          ID STAYED IN THE ARRAY. Observed now rather than predicted:
+          PendingInvite.storeIds is a bare String[] with no FK
+          (prisma/schema.prisma:195, read at HEAD), so nothing cascades it, which
+          is exactly why the webhook re-filters instead of trusting.
+          POST-ACCEPTANCE: user_id cmsbeaqn3000504l7uy2dd3wl, role STAFF,
+          n_assignments 1 against an invite carrying 2, assigned_stores {Carson},
+          defaultStoreId cmrd1a3es000104kzao4mf69v -> Carson,
+          linked_staff_member_id cmsbe40q9000104l7fm3t6bp4,
+          surviving_pending_invite 0, name null.
+          THE DEFAULT STORE IS THE DISCRIMINATING SIGNATURE, and n_assignments
+          alone is not. The default write keys off `owned.length === 1` — the
+          FILTERED array — and not off pending.storeIds.length
+          (webhooks/clerk/route.ts:199-204 at HEAD), so a two-store invite ending
+          with ONE assignment AND a default set is a state only the filtering code
+          can produce. Note precisely what that means: the write itself is
+          BUILD-2/PERM-7 code, and it discriminates because it reads PERM-6's
+          variable.
+          CORROBORATION FROM THE SCHEMA, offered as inference and not as
+          observation. StoreUserAssignment.storeId carries a real FK
+          (schema.prisma:185), so pre-PERM-6 code — which passed pending.storeIds
+          straight to createMany — would have violated it on the stale id and
+          thrown. createMany is ONE statement, so that outcome is ZERO assignments
+          and a 500 back to Clerk, not one assignment. And
+          surviving_pending_invite 0 says the whole `if (pending)` block ran to
+          completion, since the delete is its last statement — the filter behaving
+          as its own comment demands: "Filter, never throw".
+          A SECOND SET OF ASSIGNMENTS ALSO LOST THE STORE, AND PERM-6 DID NOT DO
+          IT — recorded because conflating the two would credit this phase with
+          something the database did on its own. Observed in the app rather than
+          in any query: the /staff profile for "PERM-6b Staff" now shows Store
+          Assignments = CARSON ONLY. Those are StoreStaffAssignment rows (staff
+          member -> store), NOT the StoreUserAssignment rows (login -> store) the
+          webhook writes, and StoreStaffAssignment.store is onDelete: Cascade
+          (prisma/schema.prisma:267, read at HEAD). So the STORE DELETION removed
+          that row directly, at the database, before the invite was ever accepted
+          — no application code chose it and the webhook's filter never saw it.
+          Two different tables lost the same store by two different mechanisms in
+          one run, and only the login side is evidence for this item. It is also
+          the hazard this entry's own ARMING paragraph names, observed live: a
+          store delete silently rewrites assignments elsewhere.
+          THE LIMIT, and it is half of what this item's own words claim. The path
+          is `filter-and-warn`. The FILTER is proven from the database. The
+          console.warn STATEMENT (route.ts:174) is INFERRED from the same branch
+          and was NOT OBSERVED — the Vercel runtime log line was not captured, and
+          no database query can witness a log line. Record it as FILTERED PROVEN,
+          WARNED INFERRED. If the warn ever matters — it is the only
+          operator-facing signal that ids were dropped — it needs its own look at
+          the runtime log.
+          `name null` is consistent and is not a defect: PERM-7's Task 7 closure
+          established that no sign-up path collects a name, and the store-name
+          derivation fires only for role STORE carrying exactly one store. This
+          invite was neither.
+          ORIGINAL TEXT, unedited:
+          (2) THE REJECTING BRANCH IS STILL NOT COVERED, unchanged by this run.
+          One valid, org-owned storeId went in, so the webhook's filter-and-warn
+          path (`owned.length !== pending.storeIds.length`) has still never
+          executed. Covering it needs a foreign-org storeId, or a store deleted
+          between invite and acceptance.
+          (3) CLOSED 2026-08-01 (evening) by PERM-6c AS WRITTEN — AND THAT IS
+          NARROWER THAN IT LOOKS. A staff member WAS created on staging through
+          the route this item names: "PERM-6b Staff", via /staff -> Add Staff
+          Member, email indianathomas+staff@gmail.com, two stores (Carson +
+          PERM-6b), primary Carson, fullNameLocked — the manual-add branch, not a
+          Square import — and it is the same fixture the run in (2) was built on.
+          The item's literal claim ("no staff member was created") is false from
+          this date.
+          WHAT IT DOES NOT ESTABLISH, said plainly rather than left to be assumed.
+          This is the ACCEPTING PATH ONLY and it is NON-DISCRIMINATING. Task 1's
+          guard is two rejections — an org-ownership count (400) and, for
+          non-admins, a caller-scope check (403) at staff/route.ts:75-83 — and
+          NEITHER FIRED. The Add Staff dialog cannot construct the inputs that
+          would fire them: it offers only this org's stores, the route dedupes,
+          and a primary outside the selection is not submittable. So PRE-PERM-6
+          CODE PRODUCES THE IDENTICAL ROW for this input. It is the same
+          discrimination test observation (i) in the entry above FAILED and (ii)
+          passed: it rules out the guard having broken the ordinary case; it does
+          not show the guard rejects anything.
+          THE DISCRIMINATING CALLS WERE NOT RUN. Two console calls against POST
+          /api/staff — a foreign-org storeId (expect 400) and, driven as a
+          MANAGER, an in-org but out-of-scope storeId (expect 403) — were planned
+          as B-2 and B-3 and NEITHER WAS EXECUTED. Task 1's rejecting behaviour
+          therefore still rests exactly where it did on 2026-07-27: the local
+          dev-DB count query recorded in the NOT COVERED block below, plus the
+          build. Do not read this item's closure as covering it.
+          ORIGINAL TEXT, unedited:
+          (3) TASK 1 (POST /api/staff) is still unexercised on staging — no staff
+          member was created.
+          (4) CLOSED 2026-08-01 (evening) by PERM-6c — THE STAFF ROLE WAS DRIVEN,
+          in PERM-2's sense of the word, which is the sense this row has used
+          since that pass. Signed in AS the STAFF principal (username
+          perm-6-staff). Two routes, both 403 Forbidden.
+          GET /api/square/locations -> 403. This is the load-bearing one and it
+          DISCRIMINATES. Item (d) in the notes below records that this route had
+          NO role gate at all before this phase, only auth(); the gate that now
+          stands is `can({ role }, "stores.manage")` at
+          square/locations/route.ts:34-35, read at HEAD. Pre-PERM-6 code cannot
+          return 403 to an authenticated org member — it had nothing to return it
+          from. A STAFF principal would have received the full location list,
+          which is the finding that named STAFF explicitly.
+          GET /api/staff -> 403. A control from a DIFFERENT enforcement point —
+          PERM-2 §3 #3's guard, not this phase's — so the denial is not an
+          artefact of one route's wiring. PERM-2's own pass drove that route to
+          403 as STORE (S2); this is its STAFF half, five days later.
+          WHAT IT DOES NOT ESTABLISH: two denials are two denials. No positive
+          STAFF capability was exercised, so nothing here says a STAFF principal
+          can still do what a STAFF principal should. PERM-2 pointed that work at
+          HR-9, which has to re-walk these routes anyway; that pointer stands.
+          THE PRINCIPAL DRIVEN HERE IS THE ACCOUNT CREATED IN (2) — SETTLED
+          2026-08-01 (evening) by Gary, on two sources named separately rather
+          than on an assumption, which is the whole reason it is written down.
+          DB, branch preview/staging: User id cmsbeaqn3000504l7uy2dd3wl, email
+          indianathomas+staff@gmail.com, role STAFF, createdAt 2026-08-02
+          06:04:19.167 UTC. APP: the /staff detail page for StaffMember "PERM-6b
+          Staff" (cmsbe40q9000104l7fm3t6bp4) renders the badge "Self-service
+          login" against that same address, where it read "Invite pending" before
+          acceptance — the profile's own record of the binding, and the visible
+          face of the linked_staff_member_id in (2). The principal that produced
+          the two 403s signed up through that invite. One account, two roles in
+          this entry: it is the row the rejecting branch wrote, and the role the
+          gates denied.
+          ORIGINAL TEXT, unedited:
+          (4) The STAFF role is still unexercised.
+          WHAT REMAINS UNCOVERED ON THE PAIR after 2026-08-01 (evening), recorded
+          here because three items closing at once is precisely when a reader
+          concludes more than happened. FOUR things, none closed by that session:
+          (i) B-2 and B-3, the discriminating POST /api/staff calls — item (3).
+          (ii) DEBT-16's collision PRE-CHECK, still untested. The /stores device
+          dialog's check has never run on staging and was not opened here; this
+          run went through /staff -> Add Staff Member, on a fresh address. Three
+          fresh addresses across PERM-7's runs, a fourth here — no collision has
+          ever been presented to any dialog.
+          (iii) PERM-7's rewritten Clerk error branch in POST /api/users, STILL
+          DORMANT on its own code: every invite to date has succeeded. DEBT-15
+          records that branch green in PRODUCTION under promotion 97ed309, but
+          carrying DEBT-15's own guard on top, so it is not a clean test of what
+          PERM-7 shipped.
+          (iv) The webhook's console.warn STATEMENT — the limit in item (2).
+          THE PERM-7 SIDE SAYS OTHERWISE AND WAS TRUE WHEN WRITTEN. PERM-7's Task
+          7 closure states "PERM-6's second blockers entry stands untouched" and
+          lists (2), (3) and (4) as open. Correct on 2026-08-01 (afternoon),
+          superseded by this entry the same evening. THIS ROW IS THE AUTHORITY on
+          items (2)-(4); that sentence is dated prose and is deliberately not
+          edited.
       - resolved: true
         text: >
           THE GATE BELOW WAS NEVER CONFIRMED, AND BOTH PHASES SHIPPED ANYWAY —
@@ -1660,6 +1642,64 @@ phases:
           do it while splitting the two changes to those files across releases.
     title: "Store-assignment integrity — validate storeIds on every write, gate the locations route, split the forecasting isAdmin fusion"
     notes: >
+      STATUS RATIONALE — WHY PERM-6 IS `shipped` AND NOT `verified`. RELOCATED
+      HERE 2026-08-01 (later the same day) FROM THE `blockers` ENTRY IT WAS
+      WRITTEN IN, REVERSING THE RULING ITS OWN LAST PARAGRAPH RECORDS. That
+      paragraph ruled the entry should stay a bare string so the rationale would
+      not sit behind a fold, and called over-reporting by one "the cheaper
+      error". The evidence against it arrived within hours: Gary opened
+      /internal/roadmap, saw PERM-6 listed under "Blockers & gates — what's
+      stopping promotion", and concluded the session had failed. Nothing is
+      stopping PERM-6 — all four items in that entry are closed. A panel that
+      makes its owner misread his own project is not paying for itself, so the
+      cheaper error was the other one. The rationale is a note ABOUT STATUS, and
+      `notes` is where notes go.
+      THE REVERSAL IS THE DURABLE PART, which is why it is recorded here rather
+      than quietly applied: a ruling that changed within hours should say so
+      rather than look like it was always this way.
+      WHAT MOVED AND WHAT DID NOT. The three paragraphs immediately below are
+      the relocated text, word for word. Everything else in that entry — items
+      (1)-(4), their closures, the ORIGINAL TEXT blocks, and the WHAT REMAINS
+      UNCOVERED list — stayed where it was, unedited. The entry is now
+      `resolved: true` and renders inside the "Resolved gates" disclosure with
+      its record intact. NOTHING WAS DELETED ANYWHERE.
+      THE COST OF THIS MOVE, named rather than absorbed: the entry's WHAT
+      REMAINS UNCOVERED list is the only LIVE content left in it, and folding it
+      is what this relocation buys the honest count with. FOUR things, still
+      unexercised, now findable only inside the resolved entry under that
+      heading — (i) B-2 and B-3, the discriminating POST /api/staff calls (a
+      foreign-org storeId expecting 400, and an in-org but out-of-scope storeId
+      driven as MANAGER expecting 403), neither ever executed; (ii) DEBT-16's
+      collision PRE-CHECK in the /stores device dialog, which has never been
+      presented a collision; (iii) PERM-7's rewritten Clerk error branch in POST
+      /api/users, still dormant on its own code because every invite to date has
+      succeeded; (iv) the webhook's console.warn STATEMENT — filtered proven,
+      warned inferred. Open "Resolved gates" to read them in full.
+      THE RELOCATED TEXT STILL POINTS AT THE ARRAY IT WAS WRITTEN IN — "the
+      entry below", "this entry", "WHAT THIS ENTRY NOW IS" — and those pointers
+      are DELIBERATELY NOT REPAIRED. They resolve against PERM-6's `blockers`,
+      which is where the words were written and where the entry still is.
+      Repairing them would rewrite the record to look as though it had always
+      lived here. See DEBT-41, whose exemplar (a) this relocation removes.
+      STATUS STAYS `shipped`, NOT `verified`, and the reason has changed: the
+      entry below gave the unconfirmed gate as the reason, and that reason is
+      gone, but (1)-(4) are not. The flip is Gary's ruling to make, not a
+      bookkeeping consequence of clearing a blocker.
+      THE REASON HAS CHANGED AGAIN, 2026-08-01 (evening). The paragraph above
+      gives "(1)-(4) are not [gone]" as the reason; all four are now closed,
+      so that reason is spent too. What survives is its LAST SENTENCE, which
+      never depended on the four. Everything in this entry — every query in
+      items (2) and (4) — is preview/staging, and staging evidence is not
+      production evidence (DOCS-3's precedent, restated in PERM-7's Task 7
+      closure). BOTH PERM-6 AND PERM-7 STAY `shipped`, unchanged by PERM-6c.
+      WHAT THIS ENTRY NOW IS: a STATUS RATIONALE wearing the blockers field.
+      That is DEBT-41(a) in a sharper form than when P-4 filed it — at filing
+      it held four live coverage gaps AND a rationale; it now holds only the
+      rationale, and there is no longer any live gate in it. It STAYS A BARE
+      STRING by Gary's ruling 2026-08-01: `resolved: true` would collapse it
+      into the "Resolved gates" disclosure, putting the one thing a reader
+      needs from this phase behind a fold. The panel over-reports by one,
+      which is the cheaper error. See DEBT-41.
       SIZE: scoped S, DELIVERED ABOVE S — recorded honestly rather than left at
       the estimate (Gary, 2026-07-27). It landed as 15 files. Two things grew:
       Task 5 was scoped as a one-file change and was actually three sites (see
@@ -5501,6 +5541,56 @@ debt:
       WITH ONE EXEMPLAR, and this row already says two is thin. Fixing the
       symptom by destroying the evidence is how a vocabulary problem never gets
       fixed.
+      EXEMPLAR (a) IS GONE — RESOLVED BY RELOCATION 2026-08-01 (later the same
+      day) by PERM-6d, and HOW it went matters more than that it went: THE
+      VOCABULARY PROBLEM WAS NOT SOLVED. PERM-6's second blockers entry needed a
+      third state and got a different FIELD instead. Its status rationale moved
+      to PERM-6's `notes`, the entry became `resolved: true`, and the panel now
+      reads 10 live across 5 phases and 9 resolved — while BlockerEntry gained
+      nothing at all. A half-closed entry still has nowhere to say so; one entry
+      simply stopped being half-closed, by having its two halves filed in two
+      different fields.
+      THE COST, NAMED: an 11.9k-char coverage record went behind a collapsed
+      disclosure to make one count come out right. The entry's WHAT REMAINS
+      UNCOVERED list — four things still unexercised — is the only live content
+      left in it, and it is now a click away instead of on the page. A pointer
+      to those four was added at the top of PERM-6's `notes`, so the fold costs
+      visibility and not findability. That is a mitigation, not a fix.
+      THIS IS THE "OTHER WAY OUT" ABOVE, TAKEN. The paragraph beginning "THE
+      OTHER WAY OUT, weighed and not taken" records Gary rejecting exactly this
+      move on 2026-08-01, because it would leave this row with one exemplar. He
+      reversed that the same day, on evidence rather than on reflection: he
+      opened /internal/roadmap, saw PERM-6 under "what's stopping promotion",
+      and concluded the session had failed. Preserving the evidence cost more
+      than the evidence was worth. That paragraph is dated prose and is
+      deliberately not edited — nor is this row's TITLE, which still says "two
+      entries" and is corrected by this block rather than rewritten, the same
+      treatment PERM-6 gave its own O/0 spelling.
+      BOTH WORKED EXAMPLES ARE STILL DESCRIBED HERE; ONLY ONE IS STILL LIVE.
+      (a) stands unedited above, as filed and as sharpened: a blockers entry
+      that was not a promotion gate, that held four unexercised coverage gaps
+      AND a status rationale at filing and then only the rationale, carried as
+      LIVE throughout because the type had no other value to carry it as.
+      (b) BUILD-1's sole entry, "CHANGED SHAPE — HALF CLOSED, HALF DEFERRED", is
+      the one remaining LIVE instance.
+      DOES THIS ROW STILL STAND ON ONE LIVE EXEMPLAR? YES — and PERM-6d's
+      reading is that it stands slightly better than it did, not worse. This
+      row's argument was never "two entries are stuck"; it was "the type has no
+      value for a real state". (b) is the cleaner of the two instances and the
+      one that CANNOT be relocated away: step 2 of BUILD-1's fix is a genuinely
+      deferred gate, so there is no `notes` sentence to move it into and no
+      honest way to flag that entry resolved. And (a) did not stop being a data
+      point — it became a worked example of what the missing state COSTS, which
+      is the paragraph above. Evidence of a workaround's price is evidence.
+      RECOMMENDED AND RULED — KEEP AS-IS (recommended by PERM-6d, accepted by
+      Gary 2026-08-01). NOT CLOSED: nothing was fixed, and closing a row because
+      its symptom was routed around is how a problem returns unrecognised. NOT
+      DOWNGRADED either — a DebtItem carries no severity field to downgrade
+      (src/lib/roadmap.ts), so a downgrade could only be prose softening the
+      title, and the title is dated-at-filing prose this block already corrects.
+      This row's own standing instruction is unchanged and is still the right
+      one: WATCH FOR MORE EXAMPLES BEFORE ACTING. It now needs one NEW example
+      rather than none before a third state is worth designing.
       Related: P-4 (added the flag), DEBT-14 (the same vocabulary problem one
       level up, where `withdrawn` eventually had to be added to PhaseStatus for
       exactly this reason — see DEBT-18/DEBT-23).
