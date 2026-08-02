@@ -5356,3 +5356,44 @@ debt:
       two fields is a type change plus a four-entry migration; no new mechanism
       is needed.
       Related: P-4, DEBT-41 (SEC-1's entry is an example of both).
+
+  - id: DEBT-43
+    title: >
+      Every `border-[var(--color-*)]` on /internal/roadmap silently renders as
+      the default border colour — the arbitrary utility emits no border-color
+    notes: >
+      FOUND 2026-08-01 by P-4 while verifying that page in a browser, and filed
+      rather than fixed: it is a pre-existing design-system defect, it predates
+      P-4 and is untouched by it, and fixing it is a Tailwind-config question
+      rather than a roadmap-page one.
+      THE FACT, measured in the running dev server rather than inferred: 11
+      elements on /internal/roadmap carry `border-[var(--color-warning)]` and
+      ZERO of them render warning-coloured — all resolve to `--color-border`.
+      The panel's own outer section carries `border-[var(--color-warning-border)]`
+      and fails the same way. A freshly injected probe element with
+      `border-l-2 border-[var(--color-warning)]` also came back
+      `--color-border`, so it is the utility and not any one call site.
+      NOT A MISSING VARIABLE, which is the obvious wrong diagnosis and was ruled
+      out first: `getComputedStyle(document.documentElement)` returns `#efa201`
+      for `--color-warning`. The custom property resolves fine. What is missing
+      is the `border-color` declaration itself — Tailwind cannot tell whether an
+      opaque `var()` inside the BARE `border-[…]` utility is a width or a
+      colour, so the roadmap page asks for a colour and gets nothing. Sibling
+      utilities that name the property are unaffected, which is why
+      `text-[var(--color-warning-text)]` works on the same page and the headline
+      really is orange.
+      LIKELY FIX, unverified: `border-l-[var(--color-warning)]`, or better the
+      theme-generated `border-warning` — the tokens live in `@theme inline` in
+      src/app/globals.css:30-33, so Tailwind 4 should already emit named border
+      utilities for them. Check what is generated before editing call sites.
+      SCOPE IS WIDER THAN THIS PAGE. The count above is /internal/roadmap only
+      because that is the page that was open. Grep the whole app before
+      estimating; every `border-[var(--color-…)]` anywhere is a candidate.
+      WHAT IT DOES NOT BREAK, recorded so nobody re-opens P-4 over it: P-4's
+      live-vs-resolved distinction does not depend on the border. It is carried
+      by the word "resolved" on the entry and by the muted text colour, both of
+      which were verified working in the same session. That is the design
+      surviving the bug rather than luck — the marker was made load-bearing
+      precisely because two of PERM-6's closed entries say "STAYS OPEN" in their
+      own text and colour alone could never be trusted to carry the meaning.
+      Cosmetic only: no count, no state, no data is affected.
