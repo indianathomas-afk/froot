@@ -293,6 +293,27 @@ The dead single-user shells on staging are what make the names ambiguous in the
 first place. Cleaning them up is tracked on DEBT-44, which absorbed that half —
 and per that row, delete the PRINCIPALS, not the stores. Do it by ID.
 
+**Correction appended 2026-08-02 — two numbers above are wrong, and the way they
+got here matters more than the numbers.** Re-queried on `preview/staging`
+(branch id `br-square-feather-a63z92vz`) by DEBT-44a: all nine org ids and all
+nine user counts reproduced exactly, so the *measurement* stands. But **seven**
+orgs have zero or one user, not six — three at zero and four at one. And of the
+five "Microsoft" rows, only **two** are empty; two of the other three hold a
+User each. The ambiguity argument is untouched, since five rows still answer to
+the name. "Empty" is the word that makes a shell sound safe to delete, and it
+was wrong for half of them. The provably-empty list now lives on DEBT-44,
+measured against all 45 `Organization` foreign keys rather than the user count
+alone.
+
+**A relocation copies errors as faithfully as facts.** Both sentences arrived
+here verbatim from DEBT-19 when that row closed on 2026-08-02. Nothing in a
+relocation re-derives what it moves — that is what makes relocating cheap, and
+it is why this happened. The cost is not the off-by-one: it is that a number
+from one evening's count, carrying one evening's confidence, was read as settled
+once it appeared in a precondition. **When you relocate a measurement, bring its
+provenance with it** — when it was taken, on what branch, by which query — so
+the copy cannot claim more authority than the original had.
+
 ## Git Rules
 
 Claude Code **commits when asked and never pushes** — including when the

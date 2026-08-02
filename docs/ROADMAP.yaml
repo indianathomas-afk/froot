@@ -2097,6 +2097,46 @@ phases:
       the suggestion appears before the Clerk call. The failure above is on the
       /users invite dialog, which has no pre-check and depended entirely on the
       409. Not verified either way on staging.
+      ONE STORE PER DEVICE ACCOUNT IS A CONVENTION OF THE DIALOG, NOT A
+      REQUIREMENT OF THE PRODUCT. Established from code 2026-08-02 by DEBT-44a,
+      which was asked whether anything actually REQUIRES a STORE account to have
+      exactly one store. Nothing does. The hardcode is real and is scope item
+      (a) working as designed — create-device-login-button.tsx:78 submits
+      `storeIds: [store.id]` with the rationale at :23-26 — but everywhere else
+      the count is a PREDICATE or a CONDITION, never a validator:
+      device-login.ts:65-67 (isDeviceLogin CLASSIFIES for badge rendering; a
+      three-store STORE user simply fails it and gets no badge),
+      webhooks/clerk/route.ts:127 (Task 7's derivation is SKIPPED, not refused),
+      checklists/page.tsx:37-38 and :71 (a picker instead of a lock — graceful
+      degradation). And the multi-store state is reachable through the supported
+      UI for STORE role: users/user-actions.tsx:104-117 and :236-249 render
+      CHECKBOXES for every non-ADMIN role in both the invite and the edit
+      dialog, and neither POST /api/users (route.ts:118) nor PATCH
+      /api/users/[id] (users/[id]/route.ts:162-165, a full replace) applies any
+      cardinality rule for any role. Recorded as a LINE not a row (Gary's
+      ruling, 2026-08-02): there is no defect here, only a premise this phase
+      overstated. THIS ROW ALREADY CARRIED THE COUNTEREXAMPLE — the 2026-07-28
+      reframe found production's nearest account was a two-store MANAGER — and
+      the reframe drew the boundary at "one-store-per-device REMAINS THE RULE
+      for accounts this flow creates", which is true of the FLOW and was read as
+      true of the ROLE. If the GAP wants tracking — that nothing enforces the
+      convention this phase claims to establish — that is a separate row and a
+      separate question.
+      isDeviceLogin() CURRENTLY MATCHES ZERO USERS ON preview/staging, and a
+      classifier with nothing to classify is worth knowing about. Queried
+      2026-08-02, branch id br-square-feather-a63z92vz: exactly ONE STORE-role
+      user exists on the branch — gary@keva.com, cms55ln6v000004jrtgs8gpx1 — and
+      it has THREE assignments (Carson, Las Brisas, Meadowood Mall), so the
+      predicate is false for it. The three device logins this phase created were
+      deleted in DEBT-44's cleanup, and no user of ANY role on the branch has
+      exactly one assignment (ADMIN x7 at zero, MANAGER x1 at two, STAFF x1 at
+      two, STORE x1 at three). Task 6's badge therefore has nothing to render on
+      staging today. Not a regression and not evidence against the phase — the
+      accounts it was built for were removed on purpose — but any future staging
+      pass that expects to SEE a device-login badge must provision one first.
+      gary@keva.com's THREE assignments do not contradict PERM-6's recorded
+      count of ONE; see DEBT-44 for why both readings are correct at different
+      moments.
       DEBT-11 was NOT fixed here (Ruling 2) and DEBT-14 was filed rather than
       fixed — neither route is one this phase touches.
     blockers:
@@ -4687,6 +4727,42 @@ debt:
       asserted literal. Ruled by Gary the same day: select the branch id AND
       name the branch; recommended where available, not mandatory. Same family
       as this row — an under-specified identifier that still resolves.
+      ── CORRECTION APPENDED 2026-08-02 by DEBT-44a. NOTHING ABOVE IS EDITED ──
+      Appended rather than corrected in place on Gary's ruling: the text above
+      is a CLAIM, and a claim's job is to record what was believed at the time
+      (CLAUDE.md § Where documents live). Two numbers in it are wrong. The
+      nine-org measurement itself is not — re-queried on preview/staging
+      2026-08-02, branch id br-square-feather-a63z92vz, all nine ids and all
+      nine user counts reproduced EXACTLY, five days on and after three device
+      logins were created and deleted in between.
+      "SIX HAVE ZERO OR ONE USER" IS SEVEN. Three orgs have zero users
+      (cmr54x6gp000005jx7odzwx9e, cmr57tw80000004l49xf6ft71,
+      cmrx04zn7000004jy6mk1mmha) and four have exactly one
+      (cmqvpe2bf000004l1gwxafqk4, 6b545d5b-3ea1-442d-b16d-9089984af8b6,
+      cmr55fhm1000004l5az4vu73j, cmrefoomo000004l7dq37gdgn). 3 + 4 = 7, plus
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd at two and cmr54z65v000105jxczpt72w1
+      at four = 9.
+      "FIVE ROWS, FOUR OF THEM EMPTY SHELLS" IS FIVE ROWS, TWO OF THEM EMPTY.
+      Five Microsoft rows is right and four-not-the-live-one is right, but only
+      cmr54x6gp and cmr57tw80 are actually empty; 6b545d5b and cmr55fhm1 hold a
+      User each. The ambiguity argument is UNTOUCHED — five rows still answer to
+      the name, which is this row's whole point — but "empty" is wrong for half
+      of them, and it is the word that makes them sound safe to delete. The
+      provably-empty list now lives on DEBT-44, measured against all 45
+      Organization FKs rather than against the user count alone.
+      THE ERROR PROPAGATED IN THE RELOCATION, and that is worth more than either
+      number. Both sentences were copied verbatim into CLAUDE.md § Database
+      Evidence when this row closed on 2026-08-02, so the same off-by-one now
+      lives in the precondition as well, corrected there by the same append.
+      A RELOCATION COPIES ERRORS AS FAITHFULLY AS FACTS. Nothing in the
+      relocation process re-derives what it moves — that is what makes it cheap
+      and what makes this happen — so a number that was never checked becomes a
+      number in a precondition, where it is read as settled. The lesson is not
+      "check before relocating", which nobody will remember; it is that the
+      relocated copy inherits the ORIGINAL's confidence level and displays a
+      higher one, and a reader of CLAUDE.md had no way to know this measurement
+      was one evening's count. Same family as DEBT-45 and DEBT-37: the failure
+      is in what the artifact does not carry about itself.
 
   - id: DEBT-20
     status: shipped
@@ -6320,6 +6396,157 @@ debt:
       fixture above is named for the phase that made it, which is the only
       reason this is cleanable at all; the next session that leaves fixtures
       unnamed removes that.
+      AUDITED AT THE DATABASE 2026-08-02 by DEBT-44a. Gary ran every query in
+      the Neon console; this session had no database access and wrote no query
+      result it did not receive pasted back. ON BRANCH preview/staging, branch
+      id br-square-feather-a63z92vz carried by the queries themselves per
+      § Database Evidence. Session prompt:
+      docs/prompts/DEBT-44a_staging_cleanup.md.
+      FIXTURES (1), (2) AND (3) ARE CONFIRMED GONE AT THE DATABASE. StaffMember
+      cmsbe40q9000104l7fm3t6bp4 = 0 rows, User cmsbeaqn3000504l7uy2dd3wl = 0,
+      the three indianathomas+store/2/3@ accounts = 0. No StaffMember or User
+      anywhere on the branch still carries a phase name. All five referential
+      orphan checks returned 0, so nothing outlived its principal.
+      FIXTURE (4) — THE TAYLIN INVITE — WAS NOT GONE, and the gap between the
+      page and the table is the finding. PendingInvite cmrdtbfjg000004l8yzo9loqb,
+      Taylin@keva.com, role ADMIN, zero stores, created 2026-07-09 18:00:35.692,
+      org cmr54z65v000105jxczpt72w1. Absent from /users and present in the
+      database.
+      "IT IS GONE" WAS GARY'S, AND IT WAS A UI OBSERVATION THE DATABASE
+      CONTRADICTS. Recorded as provenance rather than as a fault: the prompt
+      that carried the claim also instructed that it be verified at the database
+      precisely because absence from a page is not absence from a table, and
+      that instruction is what caught it. The same prompt's other three UI
+      observations all held.
+      IT IS NOT STALE CLUTTER, IT IS AN ARMED ADMIN GRANT, and the mechanism is
+      worse than "someone might accept the original invitation". The webhook
+      resolves the app role as `pending?.role ?? roleMap[membership.role] ??
+      "STAFF"` (webhooks/clerk/route.ts:108) — the PendingInvite role BEATS the
+      Clerk membership role — and the lookup that finds the row is deliberately
+      case-INSENSITIVE (:103-105), so the mixed-case address is no protection.
+      Any future invitation to that address in this org, AT ANY ROLE, makes the
+      acceptor an unscoped ADMIN of the org that has Square connected and 297,382
+      rows behind it. See DEBT-46 for why it was unreachable and unremovable
+      through the product.
+      THE PRECEDENCE FIRES ON THE CREATE BRANCH ONLY, and the sentence above is
+      too broad read on its own — corrected here the same day rather than left
+      to be over-applied. resolvedRole is consumed by a user.upsert whose UPDATE
+      branch sets `{ email }` and nothing else (:145-155): role is written only
+      when no User row exists for that clerkUserId. So the grant lands on a
+      principal the database has never seen — a first-time acceptor, a new Clerk
+      account on the same address, or an identity whose User row was deleted
+      while its Clerk user survived, which is this row's own re-provisioning
+      trap and DEBT-47's missing user.deleted. It does NOT re-role an existing
+      member. The Taylin row satisfied that condition: the webhook DELETES the
+      PendingInvite at the end of its consumption block (:217), so a surviving
+      PendingInvite is itself proof the invitation was never accepted and no
+      User row was ever created from it. The conclusion is unchanged and the
+      delete was right; the REASON needed the condition attached, because the
+      same sentence applied to a row whose invitee is already a member would be
+      wrong — see DEBT-46's second instance, where it is.
+      DELETED 2026-08-02, AND CONFIRMED ABSENT BY INDEPENDENT INVENTORY RATHER
+      THAN BY RETURNING. The branch-guarded DELETE ran in the Neon console,
+      which reported "Statement executed successfully" WITHOUT displaying the
+      RETURNING row — so no RETURNING output exists and none is claimed. What
+      stands in its place is a separate all-invites query run afterwards on
+      br-square-feather-a63z92vz, returning exactly ONE PendingInvite on the
+      whole branch, and it is not this one. THAT IS THE STRONGER PROOF, not a
+      fallback: RETURNING is the deleting statement reporting on itself, while
+      an independent read afterwards is a different query answering a different
+      question. On this row of all rows — where the whole finding was that a UI
+      observation and the table disagreed — the provenance of the proof is worth
+      as much as the proof. Recorded on Gary's instruction.
+      THE CLERK ASYMMETRY, ESTABLISHED FROM CODE, AND IT CHANGES THE ORG
+      CLEANUP FROM A DELETE INTO A TWO-SIDED SEQUENCE. There is no
+      `organization.deleted` handler and no `user.deleted` handler; the complete
+      set at HEAD is organization.created (:41), organization.updated (:54),
+      organizationMembership.created (:62), user.updated (:223) and
+      organizationMembership.deleted (:243). So deleting a Clerk org removes
+      nothing from the database, and deleting a Clerk user removes nothing
+      either. Worse in the other direction: organizationMembership.created
+      UPSERTS the Organization on clerkOrgId (:71), so a database row deleted
+      while its Clerk org survives REGENERATES with a NEW cuid the moment anyone
+      is added — and organization.updated does a bare `update` (:56), so a
+      rename against a deleted row throws P2025, the webhook 500s and Svix
+      retries. A cleanup that undoes itself and leaves a latent webhook failure
+      is worse than no cleanup (Gary, 2026-08-02). The general fix is DEBT-47;
+      the ordering below is the workaround while it does not exist.
+      ORDER RULED 2026-08-02 (Gary), CONDITIONAL — CLERK FIRST, THEN DATABASE,
+      and only for orgs whose Clerk side is ALSO being deleted. Clerk-first has
+      no window: deleting the Clerk org fires organizationMembership.deleted per
+      member, which on a zero-user org fails its `if (org && user && …)` guard
+      and is a clean no-op (:264-266), after which the org can be neither
+      re-created nor renamed and the database row is inert. Database-first opens
+      both regeneration vectors for as long as the two steps are apart.
+      "DO NOT CLEAN THESE UP" IS AN ACCEPTED ANSWER and is the ruling wherever
+      the Clerk organization is being KEPT: there the database row is unsafe to
+      delete in EVERY order, because the regeneration vector stays live
+      permanently.
+      NO ORG HAS BEEN DELETED AND NONE IS AUTHORISED. Gary is checking which
+      Tier 1 clerkOrgIds exist on the dev Clerk instance before deciding.
+      THE INVENTORY, 2026-08-02 on preview/staging, from a query that enumerated
+      the FK list from pg_catalog rather than by hand — 45 constraints, 44
+      RESTRICT and 1 CASCADE (PendingInvite), matching prisma/schema.prisma
+      exactly with no drift. Nine orgs, and DEBT-19's nine ids and nine user
+      counts reproduced exactly five days on.
+      TIER 1, provably empty — every one of the 45 direct FK counts zero AND
+      both assignment tables zero AND Square not connected:
+      cmr54x6gp000005jx7odzwx9e "Microsoft" (org_3G00QYrKl7f4OBUeES31RWvnG76);
+      cmr57tw80000004l49xf6ft71 "Microsoft" (org_3FzvLEsjLt90c2YivLbz9blQCfy);
+      cmrx04zn7000004jy6mk1mmha "Keva Smoothie Company"
+      (org_3GtAAT6xIp9v3v3flohP7anbdB4).
+      TIER 2, one User row each and nothing else — NOT AUTHORISED, and they need
+      a THIRD step nobody has ruled on, because organizationMembership.deleted
+      leaves the User row standing and User is RESTRICT:
+      cmqvpe2bf000004l1gwxafqk4 "Keva Juice"; 6b545d5b-3ea1-442d-b16d-9089984af8b6
+      "Microsoft"; cmr55fhm1000004l5az4vu73j "Microsoft";
+      cmrefoomo000004l7dq37gdgn "My Organization".
+      READ THIS BEFORE USING THE UI ON A TIER 2 ORG: DELETE /api/users/[id]
+      removes the Clerk account GLOBALLY, not just this org's membership — the
+      route says so itself at users/[id]/route.ts:175-177 (UM-1). The /users
+      Remove button on a shared account revokes it everywhere it is a member.
+      TIER 3, not candidates: cmr54z65v000105jxczpt72w1 (live — Square AND
+      Instagram connected, 297,382 direct child rows, excluded by its DATA and
+      not by its name); and cf888f2d-f234-48c7-8097-fd5b44b5b3dd "Keva Juice",
+      which is not a shell on any reading — 9 stores, 11 checklists, 8 templates,
+      4 staff, 2 users, 1 pending invite.
+      THE TWO UUID-SHAPED IDS STAY OFF THE LIST UNTIL PROVENANCE IS KNOWN
+      (Gary's ruling). Organization.id is @default(cuid()) at HEAD and `git log
+      -S` finds no commit where it was otherwise; gen_random_uuid() appears
+      nowhere in the schema or in any migration; git history begins one day
+      before 20260627002005_init, so there is no earlier era to inherit from.
+      The mechanical point is sharper: the init DDL is `"id" TEXT NOT NULL` with
+      NO database-level default — Prisma mints the cuid in the CLIENT — so any
+      writer bypassing Prisma Client must supply its own id, and a UUID is what
+      a person or tool picks when it has to invent one. 6b545d5b carries
+      independent corroboration: `slug` is NULL, and it is the only org on the
+      branch where that is true, while every code path that creates an
+      Organization sets a slug unconditionally (:47 and :77). That is good
+      enough to say it did NOT come through the webhook and NOT good enough to
+      say what did. Nothing in scripts/ creates an Organization with a supplied
+      id. Unresolved, deliberately.
+      gary@keva.com IS NOT A CONTRADICTION — SETTLED 2026-08-02. The prompt
+      reported THREE assignments (Carson, Las Brisas, Meadowood Mall) against
+      PERM-6's recorded count of ONE, and the query confirmed three. PERM-6's
+      record was CORRECT WHEN TAKEN: StoreUserAssignment has exactly two writers
+      — the webhook's createMany from pending.storeIds (:180), which produced the
+      one PERM-6 saw on the day the user was created, and PATCH
+      /api/users/[id]'s `storeAssignments: { deleteMany: {}, create: … }`
+      (users/[id]/route.ts:162-165), a FULL REPLACE from the /users edit dialog,
+      which produced the three. Two true readings of different moments. Neither
+      row needs correcting. WHAT IS WORTH KEEPING: an assignment count in a row
+      is a READING, not a property — StoreUserAssignment has no createdAt, so
+      nothing in the table can date the change, and the only reason this was
+      reconstructible at all is that there are just two writers.
+      "PERM-6b FLAGGED gary@keva.com" WAS GARY'S, FROM MEMORY, AND IS
+      UNSUPPORTED. Recorded because the correction is the durable part. A search
+      of docs/ finds no such flag in PERM-6b's prompt, PERM-6c's, or the PERM-6
+      row. The nearest real finding is PERM-6's Task 3 delta check
+      (ROADMAP.yaml:1815-1818) — Jordan Pippenger, a STAFF MEMBER with SEVEN
+      StoreStaffAssignment rows, a different table and a different principal —
+      and "Meadowood Mall" appears in the repo exactly once, in that line. Two
+      findings fused in recall into one that was never filed. Same family as
+      DEBT-45: an observation that lives only in a memory does not exist either.
       CLEANING UP IS NOT FREE — read before deleting. Deleting a STORE cascades
       its assignments — StoreUserAssignment.store AND StoreStaffAssignment.store
       are both onDelete: Cascade (prisma/schema.prisma:185 and :267) — and takes
@@ -6387,3 +6614,186 @@ debt:
       DEBT-TRIAGE-2's own, derived at HEAD, and labelled as such.
       Related: DEBT-37 (the single-observation version of this rule, and its
       precedent), DEBT-38 (a process gap with no artifact behind it), DEBT-24.
+
+  - id: DEBT-46
+    title: >
+      A PendingInvite row is both unreachable and unremovable through the
+      product — /users renders from Clerk's list, and the revoke that should
+      delete the row compares email case-sensitively and reports success when it
+      deletes nothing
+    notes: >
+      COST OF DOING NOTHING: A pending invitation can carry a live role grant
+      that no page displays and no button can revoke, and the admin who tried to
+      revoke it was told it worked — LIVE (trigger: already fired, on
+      preview/staging, on the org with Square connected; the stale ADMIN invite
+      in DEBT-44 sat invisible from 2026-07-09 to 2026-08-02 and was found by a
+      query, not by the product). Sharpest on ADMIN, because the webhook prefers
+      the PendingInvite role over the Clerk membership role, so an invisible row
+      silently escalates the NEXT invitation to that address.
+      FILED 2026-08-02 by DEBT-44a, from the Taylin invite in DEBT-44 (4).
+      Established from code at HEAD; the database evidence is on DEBT-44.
+      IT IS ONE DEFECT, NOT THREE, and that is why it is one row: unreachable
+      AND unremovable is what makes it dangerous. Either half alone is
+      survivable — an invisible row you can still revoke by address is tidy-up,
+      and a visible row whose revoke fails is a bug someone notices. Together
+      they make a live grant that nothing in the product can see or delete.
+      THE THREE PATHS THAT READ PendingInvite.email, TWO OF WHICH DISAGREE WITH
+      THE THIRD:
+      (1) webhooks/clerk/route.ts:103-105 — case-INSENSITIVE, deliberately, and
+      commented "older rows may hold mixed-case emails". This is the path that
+      CONSUMES the row, so the grant always lands.
+      (2) users/page.tsx:46 — builds `new Map(pendingInviteRecords.map(p =>
+      [p.email, p]))` and looks it up at :157 with `inv.emailAddress`. Case
+      SENSITIVE. A mixed-case row never enriches its Clerk invitation.
+      (3) api/users/invitations/[invitationId]/route.ts:29-31 — `deleteMany({
+      where: { organizationId, email: invitation.emailAddress } })`. Case
+      SENSITIVE. On a mixed-case row it matches nothing.
+      AND THE RENDER IS CLERK-DRIVEN, NOT DATABASE-DRIVEN, which is the half
+      that makes it invisible rather than merely mislabelled. users/page.tsx:156
+      maps over `pendingInvitations.data`, fetched at :25 with `status:
+      ["pending"]`; the database rows at :37 are ONLY a lookup map. There is no
+      code path anywhere that lists PendingInvite rows on their own. So a row
+      whose Clerk invitation is revoked, expired or accepted-without-webhook
+      renders NOWHERE — not as stale, not as orphaned, not at all.
+      THE PART THAT MADE A REAL FAILURE INVISIBLE, and Gary asked for it
+      recorded by name: the revoke route IGNORES deleteMany's count. Prisma
+      returns `{ count: 0 }` rather than throwing, and the route returns
+      `{ success: true }` at :34 regardless. An admin clicked revoke, was told it
+      worked, and nothing was deleted. A destructive operation that cannot
+      distinguish "deleted the row" from "matched nothing" reports the same
+      success for both.
+      THE MIXED CASE IS LEGITIMATE AND DATED, so this is a real class and not
+      one malformed row. POST /api/users normalises to lowercase at write time
+      (users/route.ts:102, via normalizeEmail in lib/clerk.ts:4-7), but that
+      landed in 3c7d0a0 on 2026-07-22 — thirteen days AFTER the Taylin row was
+      created on 2026-07-09. Every PendingInvite written before that commit may
+      hold mixed case, which is exactly the class (1)'s comment was written for
+      and exactly the class (2) and (3) mishandle.
+      FIX DIRECTION, not yet ruled: normalise on read in all three paths, or
+      backfill `lower(email)` and add a case-insensitive uniqueness constraint,
+      or both. Whatever is chosen, the render must be able to show a
+      PendingInvite that has no matching Clerk invitation — otherwise the row
+      stays invisible even after the case bug is fixed, since revoked and
+      expired invitations leave the same orphan. Checking deleteMany's count and
+      returning 404 on zero is separable and smaller than either.
+      A CHECK WHOSE COUNT AND DETAIL CAN DISAGREE, recorded here on Gary's
+      instruction rather than left in a transcript, because it is the kind of
+      thing that gets trusted later. DEBT-44a's own confirmation query returned
+      `n = 1` with an EMPTY detail string for this very row: the detail
+      expression concatenated `array_length(p."storeIds", 1)`, which is NULL for
+      an empty array, and NULL || text is NULL, so string_agg had nothing to
+      aggregate. Zero stores — the thing that made the invite notable — is what
+      blanked the evidence describing it. A second, broader check in the same
+      query is the only reason the id was recovered. Use
+      `coalesce(array_length(...), 0)` in any re-run, and treat a check whose
+      count and whose detail can disagree as a defective check.
+      THE CASE TRAP HAS EXACTLY ONE KNOWN INSTANCE AND IT IS NOW DELETED —
+      measured 2026-08-02 on branch preview/staging (br-square-feather-a63z92vz)
+      by an all-invites query carrying `email <> lower(email)` as a column. After
+      the Taylin delete the whole branch holds ONE PendingInvite:
+      cmr07sljf000004l5yhwqzzme, kevajuice14@icloud.com, mixed_case_unrevokable
+      FALSE. Recorded because a measured negative is evidence and usually goes
+      unwritten — the trap is narrower than it looked.
+      DO NOT READ THAT AS "THE CLASS IS CLOSED" (Gary, 2026-08-02). The query
+      looked at ONE BRANCH. Every PendingInvite written before 3c7d0a0
+      (2026-07-22) is still in scope on `production` and `preview/main`, neither
+      of which has been examined, and the same three read paths are deployed
+      there. One branch measuring clean is one branch.
+      SECOND LIVE INSTANCE OF THE PRECEDENCE — NOT THE CASE BUG, AND NOT
+      DANGEROUS, and it is the reason this row's scope is wider than the case
+      trap that produced it. That surviving row is the one DEBT-17 already found
+      and set aside: its Q1 on this branch returned kevajuice14@icloud.com with a
+      User at role MANAGER against a PendingInvite at role STORE, correctly ruled
+      NOT DEBT-17's bug because that error runs DOWNWARD (STAFF is the floor)
+      while this discrepancy runs UPWARD (ROADMAP.yaml:4448-4451, verified at the
+      row 2026-08-02 rather than from recollection). Role STORE, created
+      2026-06-30, still pending after five weeks, in
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd — the org whose provenance is unknown
+      (DEBT-44). Direction is downward, so it grants nothing and is benign; it is
+      the same mechanism as Taylin wearing the opposite sign.
+      AND IT IS NARROWER THAN IT FIRST READS, per the create-branch correction on
+      DEBT-44: because a User row for that address ALREADY EXISTS at MANAGER,
+      re-adding that same Clerk identity hits the upsert's UPDATE branch and
+      changes no role at all. STORE lands only if the User row is gone or the
+      Clerk identity is new. So this instance is armed but not aimed — which is
+      exactly why it is worth recording rather than actioning: it is what the
+      mechanism looks like when it is NOT an escalation, and the pair
+      (Taylin ADMIN-upward, this one STORE-downward) is the clearest available
+      statement of what the precedence actually does.
+      SCOPE WIDENED BY IT, DELIBERATELY, AND THE CALL IS ARGUABLE. This lands
+      here rather than on a row of its own (Claude's recommendation, Gary's
+      ruling 2026-08-02) because the defect a future reader needs to find is one
+      thing — a PendingInvite can carry a live role grant that outlives its
+      invitation and that the product does not surface — and splitting it across
+      two rows fragments exactly the thing that took a query to see. The
+      ARGUMENT AGAINST is real and is kept: this row's title is about a row that
+      is unreachable AND unremovable, and kevajuice14 is neither — its case flag
+      is FALSE, so the revoke button would work on it. What it shares is the
+      payload, not the mechanism. If a third instance turns up that is removable
+      and visible and still stale, the lifecycle question — nothing expires a
+      PendingInvite, nothing reconciles one against Clerk, and Clerk invitations
+      expire on their own while the database row does not — has outgrown this row
+      and should be split out then.
+      Related: DEBT-44 (the row this was found in, the delete, and the
+      create-branch condition on the precedence), DEBT-47 (the other half of the
+      Clerk/database asymmetry), DEBT-39 (unmirrored writers — the same family,
+      one layer over), DEBT-17 (same page, /users, and the row that first saw
+      kevajuice14 and correctly declined it).
+
+  - id: DEBT-47
+    title: >
+      The Clerk webhook has no organization.deleted and no user.deleted handler,
+      and organization.updated bare-updates — so deletion never reaches the
+      database and a deleted row makes the webhook 500 on retry forever
+    notes: >
+      COST OF DOING NOTHING: Cleaning up an organization or a user requires a
+      hand-sequenced two-sided dance that the product cannot perform and nothing
+      records, and getting the order wrong silently regenerates what was deleted
+      — LATENT (trigger: the next attempt to delete an Organization or User row
+      whose Clerk identity survives, which is DEBT-44's staging cleanup and any
+      future tenant offboarding; also fires unprompted the first time anyone
+      renames a Clerk org whose database row is missing).
+      FILED 2026-08-02 by DEBT-44a. Established from code at HEAD, from reading
+      every handler in src/app/api/webhooks/clerk/route.ts.
+      THE COMPLETE HANDLER SET is five events: organization.created (:41),
+      organization.updated (:54), organizationMembership.created (:62),
+      user.updated (:223), organizationMembership.deleted (:243). There is NO
+      organization.deleted and NO user.deleted. Deletion is the only lifecycle
+      verb the mirror does not implement.
+      THREE CONSEQUENCES, and the second is the one that bites:
+      (1) DELETION DOES NOT PROPAGATE. Deleting a Clerk org leaves the
+      Organization row; deleting a Clerk user leaves the User row.
+      organizationMembership.deleted fires per member and unlinks
+      StaffMember.userId and deletes StoreUserAssignment rows (:264-266) — but
+      it does NOT delete the User row, so even removing every member leaves the
+      org undeletable, since User is one of the 44 RESTRICT FKs.
+      (2) THE DATABASE ROW REGENERATES. organizationMembership.created UPSERTS
+      the Organization on clerkOrgId (:71), explicitly because Clerk does not
+      guarantee webhook ordering. So a row deleted while its Clerk org survives
+      comes back the moment anyone is added — with a NEW cuid, the same
+      clerkOrgId and the same name. The cleanup undoes itself, and the
+      replacement is HARDER to reason about than what was deleted, because its
+      id no longer matches anything on any row.
+      (3) A RENAME AGAINST A DELETED ROW NEVER STOPS FAILING.
+      organization.updated does a bare `prisma.organization.update` (:56), not
+      an upsert. With no row it throws P2025, the handler 500s, and Svix retries.
+      This one needs no cleanup to trigger it — it fires the first time anyone
+      renames an org whose row is missing for any reason.
+      WHY IT IS FILED RATHER THAN FIXED: DEBT-44a was an audit session with no
+      code changes in scope, and the fix is a design question rather than a
+      patch. Deletion semantics are not obvious — whether organization.deleted
+      should cascade, refuse, or soft-delete is a product ruling, and with 44
+      RESTRICT FKs a naive cascade handler would be the most destructive code
+      path in the app, reachable from a Clerk dashboard button. Related: HR-14's
+      Clerk-org-rename issue, which lives on the same handler this row calls out
+      at (3).
+      THE WORKAROUND, WHICH IS NOT THE FIX, and it is recorded on DEBT-44
+      because that is where someone will be standing: delete the CLERK side
+      first, then the database row, and only where the Clerk org is being
+      deleted too. Where the Clerk organization is being KEPT there is no safe
+      order at all and the ruling is do not clean it up. That is a live
+      constraint on DEBT-44's Tier 1, and the reason its Tier 2 needs a third
+      step nobody has authorised.
+      Related: DEBT-44 (the cleanup this blocks, and the ordering ruling),
+      DEBT-46 (the other half of the Clerk/database asymmetry), DEBT-39
+      (unmirrored writers), HR-14 (the rename issue on handler (3)).
