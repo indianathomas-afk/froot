@@ -4,6 +4,93 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-08-01 (evening) — PRODUCTION promotion (DEBT-SWEEP + the audit relocation)
+
+- **Promotion SHA:** `97ed309` — full: `97ed30949a5d5be875a1a957a6beb9664a4855cf`.
+  Pushed to `origin/main` 2026-08-01 18:24.
+- **FAST-FORWARD, not a merge.** Parent is `63407be` (the entry below), so
+  **`git revert -m 1` does not apply**. Rollback is reverting the six commits in
+  reverse order (`97ed309`, `cde5022`, `cf0b044`, `89c70f7`, `6f33427`,
+  `9508d4c`) → push main.
+- **What shipped**, six commits, the DEBT-SWEEP quick-closure batch:
+  - `9508d4c` — three stale model descriptions corrected and the Square-sync audit
+    method relocated into PERMISSIONS_INVENTORY.md (DEBT-26, DEBT-31, DEBT-6, L-1).
+  - `6f33427` — route capability check, storeIds dedupe, payload-based Clerk error
+    guard (DEBT-20, DEBT-11, DEBT-15).
+  - `89c70f7` — `prefer-const` on hr-signed-pdf's inline mark size (DEBT-33, partial).
+  - `cf0b044` — `withdrawn` added to `PhaseStatus` for retracted rows (the DEBT-18 /
+    DEBT-23 ruling).
+  - `cde5022` — nine debt rows closed with their SHAs; DEBT-37 filed.
+  - `97ed309` — `DEBT-1_AUDIT.md` and `DEBT-2_AUDIT.md` moved into `docs/prompts/`,
+    every live reference repointed, both conventions recorded.
+- **Migrations: none.** `git diff --stat 63407be..97ed309 -- prisma/` is empty.
+  Nothing in this promotion touched the schema.
+- **Verification — six checks, run by Gary on staging and RE-RUN against
+  production after the promotion:**
+  1. **Deployed SHA confirmed `97ed309` on both environments** — the
+     CLAUDE.md § Staging Verification precondition, satisfied before any other
+     check was read.
+  2. **DEBT-11** — edited staff member Tommy Thomas (Las Brisas) and saved
+     **without** changing stores. Store assignments survived with the Primary star
+     intact. This is the tell for the `undefined`-vs-`[]` path: `storeIds` is
+     `.optional()` on this route, so an undefined value must still mean "leave
+     assignments alone" after the dedupe. The naive one-liner the DEBT-11 row
+     originally proposed would have thrown here — see that row's drift finding.
+  3. **DEBT-15** — `/users` → Invite with `corporate@keva.com`, an address that
+     already has a login. The **409 rendered in the dialog with the plus-address
+     suggestion**, not a generic "Bad Request". Two things worth recording:
+     - This also **confirms DEBT-16's prediction** — the dialog surfaces the
+       server's text, which already carries the suggestion. The missing client-side
+       pre-check therefore stays polish, not a correctness gap.
+     - **The first attempt tested the WRONG SURFACE.** A staff member was created
+       with a duplicate email and the success read as a possible bug. That is a
+       different path with no uniqueness constraint. **Test the invite path, not
+       the staff form** — recorded so the next reader does not repeat it.
+  4. **DEBT-20** — `/staff` → "Sync Locations from Square" as admin: worked, no 403.
+     The capability check resolves the same as the inline `isAdmin` it replaced.
+  5. **DEBT-33** — HR signed PDF (Dress Code Policy, record `9DFF7BA437AC`) renders
+     its inline signature and date. The `prefer-const` change touched nothing.
+  6. **`/internal/roadmap`** — 15 open, 22 resolved.
+
+## 2026-08-01 (afternoon) — PRODUCTION promotion (DEBT-1, DEBT-2 and the 07-30 debt batch)
+
+- **Promotion SHA:** `63407be` — full: `63407beb02b931c242026add85e0a7bfa94669a7`.
+  Pushed to `origin/main` 2026-08-01 16:27.
+- **FAST-FORWARD, not a merge.** Parent is `493175e` (the BUILD-2 promotion below),
+  so **`git revert -m 1` does not apply**. Rollback is reverting the twenty-one
+  commits in `493175e..63407be` in reverse order → push main.
+- **What shipped**, twenty-one commits spanning 2026-07-30 to 2026-08-01:
+  - **DEBT-1 / DEBT-1b** (`c17ccc1`, `c01a2b1`) — the canonical `operationalPhase`
+    enforced at every write path via `src/lib/phases.ts`, plus the remediation
+    record. **This is the promotion that plugs the writers**; see the 2026-07-31
+    backfill entry below, whose closing line — "production runs unplugged writers
+    over clean data" — this entry ends.
+  - **DEBT-2 / DEBT-2a / DEBT-2b** (`bceca47`, `5003d65`, `31ef9a0`, `63407be`) —
+    the `sectionName` characterization audit and the write-path hardening. No data
+    step was needed; all three branches measured clean.
+  - **DEBT-3 + DEBT-25** (`6b36471`) — WORKFLOW.md §3's migration flow, and the
+    removal of the `meta.updated` bump from the session-completion rules.
+  - **DEBT-5** (`838ad99`) — `/users` store chips carry number and name.
+  - **DEBT-7** (`705584f`) — STAGING_SETUP.md marked aspirational, its dangerous
+    `DATABASE_URL` advice warned at.
+  - **DEBT-17 + DEBT-22** (`84437e5`) — the invited role resolved from
+    `PendingInvite`; the last unordered `storeAssignments` load given an `orderBy`.
+  - **DEBT-21** (`70ee3c8`) — debt commit SHAs coerced to strings in the generator.
+  - **DEBT-24** (`f646bf6`) — `meta.updated` deleted; this commit also carried the
+    BUILD-2 close-out and DEBT-23's withdrawal.
+- **Migrations: none.** `git diff --stat 493175e..63407be -- prisma/` is empty.
+  DEBT-1b's backfill was deliberately **not** a committed migration — it ran as
+  one-off approved SQL per branch in the Neon console. The full reasoning is in the
+  2026-07-31 entry below and in `docs/prompts/DEBT-1_AUDIT.md`; the short version is
+  that a migration file would have fired unattended during a Vercel build, taking
+  the operator's hand off a production mutation DEBT-1 always required be approved
+  per statement, per branch.
+- **Verified in production (Gary):** the Mid-Shift template form shows
+  **"During the Day"** — the canonical value, rendered by the promoted code over
+  the already-backfilled production data. DEBT-1 moves to `verified` on this
+  evidence; every other row in this promotion is `shipped`, with no prod smoke test
+  recorded.
+
 ## 2026-07-31 — DATA BACKFILL, all three branches (DEBT-1b operationalPhase) — NOT a promotion
 
 - **This entry is not a deploy.** No code reached production and no migration ran.
@@ -82,6 +169,56 @@ Deploy verification: 2026-07-02T22:00:05Z
   `verified`, for exactly that reason.
 - **Note:** consumption belongs to UX-2. Until it lands, setting a default store has
   no visible effect beyond the Edit User modal — expected, not a defect.
+
+## 2026-07-29 (morning) — PRODUCTION promotion (PERM-6 + PERM-7 + DEBT-8 + DEBT-10 + DEBT-14)
+
+- **Promotion SHA:** `746c1be` — full: `746c1be71079ce0e1e1701cfba7f3e8555d5728f`.
+  Pushed to `origin/main` 2026-07-29 08:24 — i.e. **before** the BUILD-2 promotion
+  in the entry above, which went out the same day at 21:59.
+- ***Recorded retroactively 2026-08-01 by DOCS-2 — this entry was missing for three
+  days.*** It was found from `git reflog show main`, not from this log, and not from
+  `git log --merges`, which finds nothing here. Filed as its own debt row,
+  **DEBT-38**, together with the mechanism. It is **not** evidence for DEBT-23's
+  withdrawn "second occurrence" reasoning, which remains withdrawn and false; this
+  is the first genuine recurrence, established independently.
+- **FAST-FORWARD, not a merge.** Parent is `17dc723`, so **`git revert -m 1` does
+  not apply**. Rollback is reverting the twenty-one commits in `17dc723..746c1be`
+  in reverse order → push main.
+- **What shipped**, twenty-one commits:
+  - **PERM-6** (`d4a6bdc`) — store-assignment integrity: `storeIds` validated on
+    every write, the Square locations route gated, the forecasting `isAdmin` fusion
+    split.
+  - **PERM-7** (`6530d8b`, `bae09ed`) — store device logins provisioned from
+    `/stores`, Square-seeded email, role-aware badge. `6530d8b` is **DEBT-8**
+    (PERM-7 Task 0), committed separately per Ruling 1: `Store.contactEmail`
+    populated from Square `business_email`.
+  - **DEBT-10** (`2877b41`) — `GET /api/square/team-members` gated at
+    `staff.sync.square`; the Square spread replaced with a field allow-list.
+  - **DEBT-14** (`46e1b64`) — the internal roadmap debt section now splits on a
+    row's `status`.
+  - The remaining fourteen are docs: the PERM-5/6/7, BUILD-2 and UX-2 session
+    prompts, the roadmap reconcile, the BUILD-2 production pre-check, and three
+    permission rulings.
+- **Migrations: none.** `git diff --stat 17dc723..746c1be -- prisma/` is empty.
+- **Verified in production 2026-07-29 (Gary):** **DEBT-10** — a STORE account
+  (Las Brisas) received 403 and an ADMIN received 200 on the gated route; and
+  **DEBT-14** — the roadmap page's resolved-debt split renders. Both rows are at
+  `verified` on that evidence. PERM-6, PERM-7 and DEBT-8 have **no prod smoke test
+  recorded** and are `shipped`.
+- **⚠ PERM-6's promotion gate was never confirmed.** Its blocker reads "SINGLE
+  PROMOTION UNIT WITH PERM-7 — NEITHER PHASE REACHES MAIN UNTIL ONE REAL INVITE RUNS
+  START TO FINISH ON STAGING." Both phases reached main in this promotion **without
+  that gate being confirmed** — Gary has no clear recollection of the invite running
+  end-to-end, and unknown is not satisfied. **The blocker stays open** and will be
+  cleared with real evidence, not from memory. So the invite → `PendingInvite` →
+  webhook-acceptance path is in production still unexercised end-to-end.
+- **Two docs-only fast-forwards bracket this promotion and are deliberately not
+  given their own headings**, since they carried no code: `17dc723`
+  (2026-07-27 17:49, recording the 07-27 promotion and BUILD-1/BUG-3/SQ-2 verified
+  in production) and `18220bb` (2026-07-29 10:15, recording DEBT-10 and DEBT-14
+  verified in production). Both are ROADMAP.yaml edits only, neither touched
+  `prisma/`. They are named here so a reader reconstructing main's history from
+  `git reflog` can account for every push.
 
 ## 2026-07-27 — PRODUCTION promotion (PERM-2 + PERM-3 + BUILD-1 + SQ-1 docs + roadmap dashboard)
 

@@ -248,3 +248,53 @@ no data-rewriting `UPDATE`/`DELETE`.
 Applied cleanly (a first redeploy hit the transient Prisma **P1002** Neon-pooler
 timeout — leaked advisory lock on the pooler; a retry went green). See
 `DEPLOY_LOG.md` for the full promotion entry.
+
+---
+
+> **Ordering of this history section: OLDEST FIRST** — the opposite of
+> `DEPLOY_LOG.md`, which is reverse-chronological with the newest entry at the
+> top. Recorded 2026-08-01 because assuming one file's order from another's is
+> exactly the error DEBT-23 was built on. Check with `grep -n "^## "` rather than
+> inferring.
+
+## 2026-07-29 → 2026-08-01 — three promotions, ZERO migrations
+
+Recorded 2026-08-01 by DOCS-2. Between the BUILD-2 promotion and `97ed309`, three
+production promotions carried **no migration files at all**. Stated explicitly
+because this section records *which migrations rode which promotion*, and silence
+here is indistinguishable from an unfinished entry — a reader reconstructing the
+sequence needs "none, and here is why", not a gap.
+
+| Promotion | Date | Carried | Migrations |
+|---|---|---|---|
+| `746c1be` | 2026-07-29 (am) | PERM-6, PERM-7, DEBT-8, DEBT-10, DEBT-14 | **none** |
+| `493175e` | 2026-07-29 (pm) | BUILD-2 | **two** — see below |
+| `63407be` | 2026-08-01 (pm) | DEBT-1, DEBT-2 and the 07-30 debt batch | **none** |
+| `97ed309` | 2026-08-01 (eve) | the DEBT-SWEEP batch | **none** |
+
+Verified per promotion with `git diff --stat <parent>..<sha> -- prisma/`, each
+returning empty for the three zero-migration rows. `493175e` is the exception and
+already has its own full accounting in `DEPLOY_LOG.md` under 2026-07-29:
+`20260729124105_build2_user_default_store` and
+`20260729145504_build2_staff_one_primary_store`. Those two remain the newest
+migrations in `prisma/migrations/`.
+
+### Why DEBT-1b's backfill is not in this list
+
+`63407be` carried DEBT-1b, which **did** mutate production data — the
+`operationalPhase` backfill from the legacy `"During Hours"` to the canonical
+`"During the Day"`. It is absent from this section because it was deliberately
+**not** a committed data migration. It ran as one-off approved SQL per branch in
+the Neon console, ruled 2026-07-31.
+
+The reasoning, in full in `docs/prompts/DEBT-1_AUDIT.md` § DEBT-1b remediation
+record and in `DEPLOY_LOG.md`'s 2026-07-31 entry: `prisma/` was outside that
+session's writable set, and a migration file would have fired **unattended** during
+a Vercel build — taking the operator's hand off a production mutation that DEBT-1
+had always required be approved per statement, per branch. No DDL ran, no
+`_prisma_migrations` row was written, and code rollback and data rollback are
+therefore fully independent for that change.
+
+The consequence for anyone auditing this file: **`prisma/migrations/` is not a
+complete record of what has mutated production data.** Approved-SQL events are
+logged in `DEPLOY_LOG.md` instead, marked "NOT a promotion". Read both.
