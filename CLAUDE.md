@@ -232,6 +232,22 @@ Note the failure mode: a mislabelled result does not look like an error. It
 produces a coherent, urgent, entirely wrong investigation. Cheap label, expensive
 absence.
 
+**Belt and braces — let the query carry the branch, and still name it.** Added
+2026-08-01 (Gary's ruling), after PERM-7's Task 7 closure produced the technique.
+The rule above asks the *reporter* to assert the branch, and the 2026-07-28
+failure it documents was a correct query wearing a wrong label. On Neon,
+`current_setting('neon.branch_id', true)` returns a real value —
+`br-square-feather-a63z92vz` for `preview/staging` — so selecting it alongside
+the result makes the label a product of the same query as the row, and the two
+cannot drift. **Do both:** select the branch id *and* name the branch, since the
+id is not the `preview/staging` name and that mapping otherwise lives only in a
+human's head.
+
+Recommended where available, **not mandatory**: it is Neon-specific and returns
+null on local dev — which is itself a signal about where the query ran, not an
+invalidation of the evidence. A null return never disqualifies an otherwise
+correctly labelled result.
+
 ## Git Rules
 
 Claude Code **commits when asked and never pushes** — including when the
