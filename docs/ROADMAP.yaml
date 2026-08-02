@@ -41,22 +41,38 @@ meta:
   sources_retired: [docs/ROADMAP.md, "CLAUDE.md#Phase Status", external sheet]
   note: >
     Reconstructed 2026-07-24 from docs/ROADMAP_ARCHIVE.md, docs/prompts/*, and
-    git log. Six prod promotions to date: 9743899 (2026-07-21, L-3 + full
+    git log. TEN prod promotions to date: 9743899 (2026-07-21, L-3 + full
     HR/Labor backlog), 942bc59 (2026-07-23, HR-8 through STAFF-1 batch),
     59a6cdc (2026-07-24, HR-11b + HR-11c), 1ba059c (2026-07-25, HR-17),
-    c463af3 (2026-07-26, PERM-1 + SEC-1 + the BUG-3 fix) and 06b1561
+    c463af3 (2026-07-26, PERM-1 + SEC-1 + the BUG-3 fix), 06b1561
     (2026-07-27, PERM-2 + PERM-3 + BUILD-1 + SQ-1 docs + the P-3 roadmap
-    dashboard). Both 1ba059c and
+    dashboard), 746c1be (2026-07-29 morning, PERM-6 + PERM-7 + DEBT-8 +
+    DEBT-10 + DEBT-14), 493175e (2026-07-29 evening, BUILD-2 + its two
+    migrations), 63407be (2026-08-01 afternoon, DEBT-1 + DEBT-2 + the 07-30
+    debt batch) and 97ed309 (2026-08-01 evening, the DEBT-SWEEP batch).
+    The last four were added 2026-08-01 by DOCS-2; only 493175e had a
+    DEPLOY_LOG entry before that session, and all four are now logged.
+    Two further pushes to main carried DOCS ONLY and are deliberately not
+    counted as promotions — 17dc723 (2026-07-27) and 18220bb (2026-07-29);
+    they are named inside 746c1be's DEPLOY_LOG entry so main's push history
+    still reconciles. NOTE ON METHOD: every promotion from 746c1be onward was
+    a FAST-FORWARD, so `git log --merges` finds none of them and there is no
+    merge commit to prompt an entry — which is how 746c1be went unlogged for
+    three days. See DEBT-38. Both 1ba059c and
     c463af3 were written into docs/DEPLOY_LOG.md at the 2026-07-27 reconcile;
     that log previously stopped at 59a6cdc. The promotion attribution above was
     re-verified from git on 2026-07-27 via `git log --ancestry-path` and
     `git merge-base --is-ancestor`: PERM-1 (6f70465) and SEC-1 (ecee728) rode
     c463af3 on 07-26 and are NOT ancestors of 1ba059c, so they did not ship in
     the 07-25 HR-17 promotion.
-    Staging and main are LEVEL again as of 2026-07-27 at 06b1561 — the
-    staging-only backlog noted here previously (P-3 3902d5c, the SQ-1 entries
-    056943f, PERM-2 979da0b, PERM-3 b8f32bb, BUILD-1 6a77e68) all promoted in
-    that merge. Rollback tag `pre-staging-merge-20260727-1427`. SQ-2 remains the
+    Staging and main are LEVEL as of 2026-08-01 at 97ed309 — verified from git,
+    both refs at the same commit. They were previously recorded level at
+    2026-07-27 / 06b1561, which was true when written and is kept here as the
+    reference point for the backlog that merge cleared (P-3 3902d5c, the SQ-1
+    entries 056943f, PERM-2 979da0b, PERM-3 b8f32bb, BUILD-1 6a77e68 — all
+    promoted in it, rollback tag `pre-staging-merge-20260727-1427`). The two
+    branches have gone level and diverged several times since; the SHA is the
+    part that goes stale, not the fact. SQ-2 remains the
     one divergence of record: cherry-picked to main alone as 9dc6dc0 while
     staging carried 81be8d9, so the same change exists under two SHAs and both
     are now ancestors of HEAD. HR LAUNCHED
@@ -1231,9 +1247,21 @@ phases:
   - id: PERM-6
     track: permissions
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-07-29
     commits: [d4a6bdc]
     blockers:
+      - >
+        THE GATE BELOW WAS NEVER CONFIRMED, AND BOTH PHASES SHIPPED ANYWAY —
+        recorded 2026-08-01 by DOCS-2, Gary's ruling. PERM-6 and PERM-7 reached
+        main in the 746c1be promotion on 2026-07-29 WITHOUT the real-invite run
+        being confirmed. Gary has no clear recollection of it running end to end
+        and unknown is not satisfied, so this blocker STAYS OPEN rather than
+        being cleared on a hazy memory — he will run the invite and clear it
+        with real evidence. The practical state: the invite -> PendingInvite ->
+        webhook-acceptance path is now IN PRODUCTION still unexercised end to
+        end. That is why the status is `shipped` and not `verified`. The gate as
+        originally written follows, unedited.
       - >
         SINGLE PROMOTION UNIT WITH PERM-7 — Gary, 2026-07-28. NEITHER PHASE
         REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
@@ -1432,7 +1460,8 @@ phases:
   - id: PERM-7
     track: permissions
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-07-29
     commits: [6530d8b, bae09ed]
     title: "Store device logins — provision a store account from /stores, Square-seeded email, role-aware badge"
     notes: >
@@ -2429,10 +2458,18 @@ bugs:
 
 debt:
   - id: DEBT-1
-    status: staging
+    status: verified
     commits: ["c17ccc1", "c01a2b1"]
     title: "operationalPhase string inconsistency"
     notes: >
+      PROMOTED TO PRODUCTION 2026-08-01 in 63407be, and VERIFIED THERE by Gary:
+      the Mid-Shift template form shows "During the Day" — the canonical value,
+      rendered by the promoted code over the already-backfilled production data.
+      This satisfies the "READ THIS BEFORE PROMOTING" condition below in the
+      order it demanded: the promotion first, the flip after. Production no
+      longer runs unplugged writers. Debt rows carry no `shipped:` field
+      (DebtItem in src/lib/roadmap.ts has none, and adding one type-errors the
+      build), so the promotion date lives here.
       CLOSED 2026-07-31 by DEBT-1b — writers plugged in c17ccc1, data backfilled
       on all three branches, record in c01a2b1. Full evidence:
       docs/prompts/DEBT-1_AUDIT.md § DEBT-1b remediation record.
@@ -2513,10 +2550,13 @@ debt:
       code replacement.
 
   - id: DEBT-2
-    status: staging
+    status: shipped
     commits: ["bceca47", "5003d65"]
     title: "Task.sectionName is unvalidated free text with no Section entity"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-08-01 by DEBT-2b in 5003d65. Audit is bceca47
       (docs/prompts/DEBT-2_AUDIT.md); the hardening pass is 5003d65.
       NO DATA STEP WAS RUN, BECAUSE NONE WAS NEEDED. The audit measured all
@@ -2649,10 +2689,13 @@ debt:
       Next candidate for the same audit-then-remediate treatment as DEBT-1.
 
   - id: DEBT-3
-    status: staging
+    status: shipped
     commits: ["6b36471"]
     title: "WORKFLOW.md §3 contradicts the migration policy"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-07-30 in 6b36471. §3 now states that `migrate dev` is broken
       here, gives the hand-authored flow as a six-step SHAPE only (edit schema →
       migrate diff → read the SQL → db execute + migrate resolve → generate →
@@ -2690,9 +2733,12 @@ debt:
       fix the doc in a future docs session — do not fix inline.
 
   - id: DEBT-4
-    status: staging
+    status: shipped
     title: "Local .env DATABASE_URL points at the PRODUCTION Neon branch"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 97ed309. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-08-01 by Gary's confirmation, delivered in the DEBT-SWEEP task
       order. The row's own notes had ended "Gary to confirm and close" since
       2026-07-27; every closing condition was already recorded as met.
@@ -2795,10 +2841,13 @@ debt:
       the close-out that resolves this row rather than edited in passing.
 
   - id: DEBT-5
-    status: staging
+    status: shipped
     commits: ["838ad99"]
     title: "10 of 12 stores have storeNumber: null, degrading PERM-3's deterministic store sort"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-07-30 in 838ad99 — THE LABEL HALF ONLY. Both /users chips now
       render `#0014 — Las Brisas` instead of a bare `#0014`, using the
       prefix-ternary form `{s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}`.
@@ -2888,10 +2937,13 @@ debt:
       of the backfill and of BUILD-2, and it is the cheaper of the two.
 
   - id: DEBT-6
-    status: staging
+    status: shipped
     commits: ["9508d4c"]
     title: "Square sync fires from ~11 GET routes — a write path that greps as read-only"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 97ed309. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-08-01 in 9508d4c — BY RELOCATION, not by a code change. This
       row was always a method warning rather than a defect, and a warning filed
       as debt is a warning nobody reads at the moment it applies. Its content
@@ -2935,10 +2987,13 @@ debt:
       quiet week rather than a redundant addition.
 
   - id: DEBT-7
-    status: staging
+    status: shipped
     commits: ["705584f"]
     title: "docs/STAGING_SETUP.md describes an environment that was never built — and now gives dangerous advice"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-07-30 in 705584f, via the header option — the cheap one this
       row recommended. The file was NOT rewritten to describe the environment
       that exists: that is a bigger job, and a half-corrected file reads as
@@ -3002,10 +3057,13 @@ debt:
     # borrowed from the phase rows (staging -> shipped). The internal roadmap UI
     # does NOT read it yet and still lists every debt item under "Known debt —
     # recorded, not yet fixed"; see DEBT-14.
-    status: staging
+    status: shipped
     commits: [6530d8b]
     title: "Square import discards business_email — Store.contactEmail exists but is never populated"
     notes: >
+      REACHED MAIN 2026-07-29 in promotion 746c1be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-07-28 as PERM-7 Task 0, committed separately (Ruling 1).
       Logged 2026-07-27. Every piece of this already exists; two lines connect
       them, and neither was written.
@@ -3271,10 +3329,18 @@ debt:
       PERM-6 Task 4, so copy that route.
 
   - id: DEBT-11
-    status: staging
+    status: shipped
     commits: ["6f33427"]
     title: "PATCH /api/staff/[id] can 500 on a duplicated storeId in the request body"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 97ed309. RE-CHECKED IN PRODUCTION as
+      part of that promotion's six-check pass: staff member Tommy Thomas
+      (Las Brisas) saved WITHOUT changing stores, and the assignments survived
+      with the Primary star intact — the tell for the undefined-vs-[] path this
+      row's drift finding protected.
+      Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-08-01 in 6f33427. The 500 path was re-verified at HEAD before
       the fix, exactly as the row describes it: ownership validated with
       `orgStores.length !== new Set(storeIds).size` (deduped for the
@@ -3419,10 +3485,23 @@ debt:
       and defaulting the other way would silently hide all thirteen.
 
   - id: DEBT-15
-    status: staging
+    status: shipped
     commits: ["6f33427"]
     title: "ClerkAPIResponseError is defined 5x in the built output — identity-based type guards MAY be unreliable across chunks (impact unverified)"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 97ed309. RE-CHECKED IN PRODUCTION as
+      part of that promotion's six-check pass: /users -> Invite with
+      corporate@keva.com, an address that already has a login, returned the 409
+      rendered in the dialog WITH the plus-address suggestion, not a generic
+      "Bad Request". That also CONFIRMS DEBT-16's prediction — the dialog
+      surfaces the server's text, which already carries the suggestion — so the
+      missing client-side pre-check stays polish, not a correctness gap. TEST THE
+      INVITE PATH, NOT THE STAFF FORM: the first attempt created a staff member
+      with a duplicate email, a different path with no uniqueness constraint, and
+      read the success as a possible bug. Recorded so it is not repeated.
+      Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-08-01 in 6f33427, with its approved mitigation applied and its
       audit preserved below. READ THE NEXT THREE PARAGRAPHS BEFORE ACTING ON
       ANYTHING IN THIS ROW.
@@ -3564,10 +3643,13 @@ debt:
       has never been exercised on staging either.
 
   - id: DEBT-17
-    status: staging
+    status: shipped
     commits: ["84437e5"]
     title: "Visiting /users can persist a role the admin never chose — the page creates User rows from Clerk membership alone, ignoring PendingInvite"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       FIXED 2026-07-30 — DIRECTION B, exactly as decided 2026-07-28 and without
       re-litigating the fork. src/app/(app)/users/page.tsx:85-86 now resolves
       the create branch's role as
@@ -3837,10 +3919,17 @@ debt:
       ambiguous in the first place. Do the cleanup deliberately and by ID.
 
   - id: DEBT-20
-    status: staging
+    status: shipped
     commits: ["6f33427"]
     title: "POST /api/staff/sync-square gates with an inline isAdmin check instead of can(staff.sync.square) — the capability's only other call site uses it"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 97ed309. RE-CHECKED IN PRODUCTION as
+      part of that promotion's six-check pass: /staff -> "Sync Locations from
+      Square" as admin worked, no 403 — the capability check resolves the same as
+      the inline isAdmin it replaced.
+      Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-08-01 in 6f33427, exactly as scoped: two lines plus an import
       in src/app/api/staff/sync-square/route.ts. :20-21 was exact at HEAD and
       `isAdmin` appeared nowhere else in the file.
@@ -3894,10 +3983,13 @@ debt:
       alone and why bundling it with the contradicted ones would not be.
 
   - id: DEBT-21
-    status: staging
+    status: shipped
     commits: ["70ee3c8"]
     title: "generate-roadmap.mjs coerces commit SHAs to strings for phases and bugs but not for debt"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       FIXED 2026-07-30 in 70ee3c8 — one word, exactly as the row prescribed:
       `const debt = withStringCommits(normalize(raw.debt ?? []))`.
       IT WENT LIVE WITHIN TWO DAYS OF BEING FILED AS LATENT. This row was filed
@@ -3947,10 +4039,13 @@ debt:
       2, 2026-07-28). Cheap to take whenever the generator is next opened.
 
   - id: DEBT-22
-    status: staging
+    status: shipped
     commits: ["84437e5"]
     title: "hr/acknowledge loads a manager-attest target's storeAssignments with no orderBy — the only unordered primary-store pick left"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       FIXED 2026-07-30. src/app/(app)/hr/acknowledge/[documentId]/page.tsx:56 now
       carries the standard
       `orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }]`. One line,
@@ -4057,10 +4152,13 @@ debt:
       nothing to point at. Writing this row down is not the same as closing it.
 
   - id: DEBT-24
-    status: staging
+    status: shipped
     commits: [f646bf6]
     title: "meta.updated in ROADMAP.yaml was the roadmap page's fallback date, was stale, and nothing maintained it"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       FILED AND FIXED IN THE SAME COMMIT 2026-07-30, on Gary's ruling. Recorded
       in full anyway: the finding is about a class of trap, and the deletion
       alone would not explain itself to a future reader.
@@ -4116,10 +4214,13 @@ debt:
       and should not be deleted on the grounds that it is unread.
 
   - id: DEBT-25
-    status: staging
+    status: shipped
     commits: ["6b36471"]
     title: "WORKFLOW.md's session-completion rules still order you to bump the deleted meta.updated"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 63407be. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-07-30 in 6b36471, by REPLACEMENT rather than deletion (Gary's
       ruling this session, on the argument below). The bullet at WORKFLOW.md:88-91
       — verified un-drifted before editing, :88-91 exact — now reads:
@@ -4167,10 +4268,13 @@ debt:
       session with WORKFLOW.md in scope. Related: DEBT-24, DEBT-3, DEBT-7.
 
   - id: DEBT-26
-    status: staging
+    status: shipped
     commits: ["9508d4c"]
     title: "Two code/doc comments describe a roadmap data model that has since changed"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 97ed309. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-08-01 in 9508d4c. Both comments corrected, exactly per the fix
       shape below. Line references had drifted only trivially — the ROADMAP.yaml
       NOTE runs :20-23, not :20-22 — and roadmap.ts:57-59, roadmap.ts:61-62,
@@ -4358,10 +4462,13 @@ debt:
       constraint. Related: DEBT-1, DEBT-29.
 
   - id: DEBT-31
-    status: staging
+    status: shipped
     commits: ["9508d4c"]
     title: "MIGRATIONS.md:184 says staging was separately seeded — disproven for Template"
     notes: >
+      REACHED MAIN 2026-08-01 in promotion 97ed309. Status flipped staging -> shipped 2026-08-01 by DOCS-2. Debt rows carry no
+      `shipped:` field (DebtItem in src/lib/roadmap.ts has none, and adding
+      one type-errors the build), so the promotion date lives here.
       CLOSED 2026-08-01 in 9508d4c, as the narrowing this row asked for rather
       than a deletion. :184 was exact at HEAD. The line now reads that staging is
       a Neon CHILD BRANCH of production that has diverged PER-TABLE since its
@@ -4610,3 +4717,52 @@ debt:
       them land in Planned by fallback. Prefer whichever makes the fallthrough
       impossible to reach silently — the defect is the silence, not the column
       count. Related: DEBT-18, DEBT-23, DEBT-26.
+
+  - id: DEBT-38
+    title: "A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
+    notes: >
+      FILED 2026-08-01 by DOCS-2, on Gary's rider. The promotion 746c1be
+      (2026-07-29 08:24, twenty-one commits carrying PERM-6, PERM-7, DEBT-8,
+      DEBT-10 and DEBT-14) reached production with NO docs/DEPLOY_LOG.md entry
+      and stayed that way for three days. Its entry was written 2026-08-01, at
+      the same time as the entries for 63407be and 97ed309.
+      HOW IT WAS FOUND, which is the uncomfortable part: from
+      `git reflog show main`, NOT from DEPLOY_LOG and NOT from ROADMAP. Neither
+      document contained anything that pointed at it. It surfaced only because
+      DOCS-2 was independently reconstructing every promotion from git and the
+      reflog showed five pushes where the documents accounted for two. Nothing
+      in the normal reading path would have surfaced it.
+      NOT EVIDENCE FOR DEBT-23'S REASONING, stated explicitly because the
+      temptation to resurrect it is real. DEBT-23 claimed a missing 2026-07-27
+      entry and a "second occurrence" pattern; BOTH were false and it was
+      WITHDRAWN — the entry it called missing was the first heading in the file,
+      and the error was a `tail` on a file whose reverse-chronological order was
+      never checked. That row stays withdrawn and its reasoning stays false.
+      THIS row is the FIRST genuine recurrence, established independently from
+      the reflog rather than inherited from that argument. DEBT-23's surviving
+      instruction — "Writing this row down is not the same as closing it" — is
+      what this row exists to honour.
+      THE MECHANISM IS A PROCESS GAP, NOT AN ATTENTION LAPSE, and this is the
+      part that matters. FIVE of the seven pushes to main since 06b1561 were
+      FAST-FORWARDS: 17dc723, 746c1be, 18220bb, 493175e, 63407be and 97ed309 all
+      moved main without creating a merge commit. WORKFLOW.md §2's
+      `git merge staging --no-edit` produces no merge commit when main has not
+      moved independently, so there is (1) no merge commit to serve as the
+      artifact that prompts someone to write the entry, and (2) nothing for
+      `git log --merges` to return when reconstructing after the fact — it finds
+      NONE of these promotions. The older entries in DEPLOY_LOG all have merge
+      SHAs and `git revert -m 1` rollbacks precisely because main used to
+      diverge. It stopped diverging, and the habit that depended on that
+      silently stopped working.
+      CONSEQUENCE: this WILL recur until something changes. It is also why every
+      recent DEPLOY_LOG entry has to spell out a reverse-order revert range
+      instead of a one-line `revert -m 1`.
+      FIX DIRECTION IS AN OPEN QUESTION FOR GARY, not a decision taken here.
+      Two candidates: (a) a step in WORKFLOW.md §2 that makes writing the
+      DEPLOY_LOG entry part of the promotion itself rather than a thing
+      remembered afterwards, or (b) `--no-ff` on promotions, restoring the merge
+      commit as both the artifact and the rollback handle. (b) also restores
+      `git log --merges` as a reconstruction tool and makes `revert -m 1` work
+      again; (a) is cheaper and touches no git behaviour. They are not exclusive.
+      WORKFLOW.md was deliberately NOT edited by DOCS-2 — the choice is Gary's.
+      Related: DEBT-23 (withdrawn, and not the basis for this row), DEBT-24.
