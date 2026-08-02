@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* DEBT-43: docs/ is prose, never markup, so nothing in it should reach the
+   class scanner. Without this, Tailwind reads the literal
+   `border-[var(--color-*)]` out of DEBT-43's own notes in docs/ROADMAP.yaml
+   and emits `border-color: var(--color-*)`, which is invalid CSS. The
+   production optimizer drops it with a warning; `next dev` throws on it and
+   every route 500s. Excluding docs/ is the fix — the emitted stylesheet is
+   byte-identical either way, since no real class usage lives there. */
+@source not "../../docs";
+
 @theme inline {
   /* Brand colors */
   --color-background: oklch(97% .02 65);
