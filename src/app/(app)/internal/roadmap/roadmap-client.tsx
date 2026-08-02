@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import {
   BOARD_COLUMNS,
   columnForStatus,
+  type BlockerEntry,
   type Bug,
   type DebtItem,
   type LastUpdatedSource,
@@ -101,8 +102,52 @@ function formatDate(iso: string) {
   })
 }
 
-function hasBlockers(phase: Phase) {
-  return (phase.blockers?.length ?? 0) > 0
+/**
+ * P-4. A blocker entry is RESOLVED only when it EXPLICITLY says so — exactly
+ * isResolvedDebt's rule, one level down, and filed for the same reason: the
+ * panel asserted "what's stopping promotion" over entries that were closed
+ * months earlier, so the failure direction was OVERSTATING and real gates hid
+ * among resolved ones.
+ *
+ * A BARE STRING IS LIVE. Every entry was a bare string before P-4, so
+ * defaulting the other way would silently close all nineteen. An unclassified
+ * entry keeps blocking; that way a real gate can never vanish behind a default.
+ *
+ * NOT PREFIX DETECTION, and that is not a style preference — it was measured
+ * against the file. F-5's live blocker opens "VERIFIED STILL TRUE" and F-4's
+ * opens "CONFIRMED LIVE", so a marker matcher closes two LIVE blockers; PERM-6's
+ * two closed entries carry no marker at all and would stay counted. Both
+ * directions wrong on the same data, and the false-negative direction is worse
+ * than the bug being fixed.
+ *
+ * THIS FUNCTION IS THE SINGLE DEFINITION of which entries count as resolved —
+ * src/lib/roadmap.ts points here rather than restating the test, so the two
+ * cannot drift apart (DEBT-26).
+ */
+function isResolvedBlocker(entry: BlockerEntry) {
+  return typeof entry !== "string" && entry.resolved === true
+}
+
+/** The entry's prose, whichever of the two shapes it is in. */
+function blockerText(entry: BlockerEntry) {
+  return typeof entry === "string" ? entry : entry.text
+}
+
+function liveBlockers(phase: Phase) {
+  return (phase.blockers ?? []).filter((entry) => !isResolvedBlocker(entry))
+}
+
+function resolvedBlockers(phase: Phase) {
+  return (phase.blockers ?? []).filter(isResolvedBlocker)
+}
+
+/**
+ * LIVE blockers only. One predicate feeds both the "Phases blocked" tile and
+ * the panel's phase list, so the two can never disagree about what counts —
+ * the same single-source discipline isResolvedDebt has.
+ */
+function hasLiveBlockers(phase: Phase) {
+  return liveBlockers(phase).length > 0
 }
 
 interface RoadmapClientProps {
@@ -161,14 +206,14 @@ export function RoadmapClient({
     const planned = phases.filter(
       (p) => p.status === "planned" || p.status === "in_progress",
     ).length
-    const blocked = phases.filter(hasBlockers).length
+    const blocked = phases.filter(hasLiveBlockers).length
     return { inProduction, inStaging, planned, blocked }
   }, [phases])
 
   // Gates first: a blocker on a staging phase is holding a promotion, so it
   // outranks a blocker logged against something already live. No severity is
-  // inferred from the text — the YAML stores blockers as plain strings.
-  const blockedPhases = useMemo(() => {
+  // inferred from the text — only the `resolved` flag is read, never the prose.
+  const livePhases = useMemo(() => {
     const rank = (phase: Phase) => {
       if (phase.status === "staging") return 0
       if (phase.status === "in_progress") return 1
@@ -176,10 +221,22 @@ export function RoadmapClient({
       return 3
     }
     return phases
-      .filter(hasBlockers)
+      .filter(hasLiveBlockers)
       .slice()
       .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id))
   }, [phases])
+
+  // Phases whose every blocker is closed. They leave the live list — that IS
+  // the fix — but they never leave the page: the entries, and their order, are
+  // the record. They render below, behind a disclosure.
+  const resolvedOnlyPhases = useMemo(
+    () =>
+      phases
+        .filter((p) => !hasLiveBlockers(p) && resolvedBlockers(p).length > 0)
+        .slice()
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    [phases],
+  )
 
   const stagingPhases = useMemo(
     () => phases.filter((p) => p.status === "staging"),
@@ -206,14 +263,20 @@ export function RoadmapClient({
         <SummaryTile label="In production" value={summary.inProduction} />
         <SummaryTile label="In staging" value={summary.inStaging} />
         <SummaryTile label="Planned" value={summary.planned} />
+        {/* The unit is in the label, deliberately. This tile counts PHASES and
+            the panel below counts ENTRIES; two bare numbers that looked like
+            the same quantity is where the confusion started (P-4). */}
         <SummaryTile
-          label="Open blockers"
+          label="Phases blocked"
           value={summary.blocked}
           tone={summary.blocked > 0 ? "warning" : undefined}
         />
       </section>
 
-      <BlockersPanel phases={blockedPhases} />
+      <BlockersPanel
+        livePhases={livePhases}
+        resolvedOnlyPhases={resolvedOnlyPhases}
+      />
 
       <PipelinePanel stagingPhases={stagingPhases} totalPhases={phases.length} />
 
@@ -393,8 +456,76 @@ function SummaryTile({
   )
 }
 
-function BlockersPanel({ phases }: { phases: Phase[] }) {
-  const total = phases.reduce((sum, p) => sum + (p.blockers?.length ?? 0), 0)
+/**
+ * One phase in the blockers panel, with EVERY entry it carries rendered in
+ * ARRAY ORDER — live and resolved together, never filtered.
+ *
+ * The order is deliberate and is the whole reason resolved entries are not
+ * dropped. On PERM-6 and PERM-7 the resolution and the original text it closes
+ * are adjacent entries, and several of those rows say in as many words that the
+ * order is the lesson. What P-4 changed is how they are COUNTED and TONED, not
+ * whether they appear.
+ */
+function BlockedPhaseCard({ phase }: { phase: Phase }) {
+  return (
+    <li className="rounded-[var(--radius-md)] border border-[var(--color-warning-border)] bg-[var(--color-card)] p-3">
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <span
+          className="text-xs font-bold px-1.5 py-0.5 rounded text-[var(--color-primary-foreground)]"
+          style={{ background: accentFor(phase.track) }}
+        >
+          {phase.id}
+        </span>
+        {phase.status && (
+          <Badge variant="secondary">{STATUS_LABEL[phase.status]}</Badge>
+        )}
+        <span className="text-sm font-medium text-[var(--color-foreground)]">
+          {phase.title}
+        </span>
+      </div>
+      <ul className="space-y-1.5">
+        {phase.blockers?.map((entry, i) => {
+          const resolved = isResolvedBlocker(entry)
+          return (
+            <li
+              key={i}
+              className={cn(
+                "text-sm pl-3 border-l-2",
+                resolved
+                  ? "border-[var(--color-border)] text-[var(--color-muted-foreground)]/70"
+                  : "border-[var(--color-warning)] text-[var(--color-muted-foreground)]",
+              )}
+            >
+              {/* Marked, not merely toned. Two of the closed entries (PERM-6's
+                  last two) say "STAYS OPEN" in their own leading text — they are
+                  closed by the entry ABOVE them — so the prose cannot be left to
+                  tell the reader which state this is. */}
+              {resolved && (
+                <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+                  resolved
+                </span>
+              )}
+              {blockerText(entry)}
+            </li>
+          )
+        })}
+      </ul>
+    </li>
+  )
+}
+
+function BlockersPanel({
+  livePhases,
+  resolvedOnlyPhases,
+}: {
+  livePhases: Phase[]
+  resolvedOnlyPhases: Phase[]
+}) {
+  const liveTotal = livePhases.reduce((sum, p) => sum + liveBlockers(p).length, 0)
+  const resolvedTotal = [...livePhases, ...resolvedOnlyPhases].reduce(
+    (sum, p) => sum + resolvedBlockers(p).length,
+    0,
+  )
 
   return (
     <section className="rounded-[var(--radius-lg)] border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] p-4">
@@ -406,49 +537,41 @@ function BlockersPanel({ phases }: { phases: Phase[] }) {
         <h2 className="text-sm font-semibold text-[var(--color-warning-text)]">
           Blockers &amp; gates — what&apos;s stopping promotion
         </h2>
+        {/* Both units named. This count is ENTRIES; the tile above is PHASES. */}
         <span className="text-xs text-[var(--color-warning-text)]/80">
-          {total} across {phases.length} phase{phases.length === 1 ? "" : "s"}
+          {liveTotal} live blocker{liveTotal === 1 ? "" : "s"} across{" "}
+          {livePhases.length} phase{livePhases.length === 1 ? "" : "s"}
+          {resolvedTotal > 0 && ` · ${resolvedTotal} resolved`}
         </span>
       </div>
 
-      {phases.length === 0 ? (
+      {livePhases.length === 0 ? (
         <p className="text-sm text-[var(--color-warning-text)]">
-          No open blockers.
+          No live blockers.
         </p>
       ) : (
         <ul className="space-y-3">
-          {phases.map((phase) => (
-            <li
-              key={phase.id}
-              className="rounded-[var(--radius-md)] border border-[var(--color-warning-border)] bg-[var(--color-card)] p-3"
-            >
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span
-                  className="text-xs font-bold px-1.5 py-0.5 rounded text-[var(--color-primary-foreground)]"
-                  style={{ background: accentFor(phase.track) }}
-                >
-                  {phase.id}
-                </span>
-                {phase.status && (
-                  <Badge variant="secondary">{STATUS_LABEL[phase.status]}</Badge>
-                )}
-                <span className="text-sm font-medium text-[var(--color-foreground)]">
-                  {phase.title}
-                </span>
-              </div>
-              <ul className="space-y-1.5">
-                {phase.blockers?.map((blocker, i) => (
-                  <li
-                    key={i}
-                    className="text-sm text-[var(--color-muted-foreground)] pl-3 border-l-2 border-[var(--color-warning)]"
-                  >
-                    {blocker}
-                  </li>
-                ))}
-              </ul>
-            </li>
+          {livePhases.map((phase) => (
+            <BlockedPhaseCard key={phase.id} phase={phase} />
           ))}
         </ul>
+      )}
+
+      {resolvedOnlyPhases.length > 0 && (
+        // Native <details>, same choice as the "Resolved debt" panel: collapsed
+        // by default, keyboard-accessible, no extra state to keep in sync.
+        <details className="mt-3">
+          <summary className="text-sm font-semibold cursor-pointer text-[var(--color-warning-text)]">
+            Resolved gates ({resolvedOnlyPhases.length} phase
+            {resolvedOnlyPhases.length === 1 ? "" : "s"} with every blocker
+            closed)
+          </summary>
+          <ul className="space-y-3 mt-3">
+            {resolvedOnlyPhases.map((phase) => (
+              <BlockedPhaseCard key={phase.id} phase={phase} />
+            ))}
+          </ul>
+        </details>
       )}
     </section>
   )
@@ -473,33 +596,45 @@ function PipelinePanel({
           </p>
         ) : (
           <ul className="space-y-3">
-            {stagingPhases.map((phase) => (
-              <li
-                key={phase.id}
-                className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-3"
-                style={{ borderLeftWidth: 3, borderLeftColor: accentFor(phase.track) }}
-              >
-                <p className="text-sm font-medium text-[var(--color-foreground)]">
-                  <span className="font-bold">{phase.id}</span> — {phase.title}
-                </p>
-                {phase.blockers && phase.blockers.length > 0 ? (
-                  <ul className="mt-2 space-y-1">
-                    {phase.blockers.map((blocker, i) => (
-                      <li
-                        key={i}
-                        className="text-xs text-[var(--color-warning-text)] pl-2 border-l-2 border-[var(--color-warning)]"
-                      >
-                        {blocker}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
-                    No recorded gate — ready to promote.
+            {stagingPhases.map((phase) => {
+              // P-4 fixed this alongside the panel even though it renders
+              // nothing today — there are zero staging phases, so the defect was
+              // dormant rather than absent. It re-arms the moment anything sits
+              // in staging, which is exactly when this panel is read.
+              const live = liveBlockers(phase)
+              const resolvedCount = resolvedBlockers(phase).length
+              return (
+                <li
+                  key={phase.id}
+                  className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-3"
+                  style={{ borderLeftWidth: 3, borderLeftColor: accentFor(phase.track) }}
+                >
+                  <p className="text-sm font-medium text-[var(--color-foreground)]">
+                    <span className="font-bold">{phase.id}</span> — {phase.title}
                   </p>
-                )}
-              </li>
-            ))}
+                  {live.length > 0 ? (
+                    <ul className="mt-2 space-y-1">
+                      {live.map((entry, i) => (
+                        <li
+                          key={i}
+                          className="text-xs text-[var(--color-warning-text)] pl-2 border-l-2 border-[var(--color-warning)]"
+                        >
+                          {blockerText(entry)}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+                      {/* "No gate" and "no gate ever recorded" are different
+                          claims, and this panel is read at promotion time. */}
+                      {resolvedCount > 0
+                        ? `No live gate — ${resolvedCount} resolved, see Blockers & gates.`
+                        : "No recorded gate — ready to promote."}
+                    </p>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
@@ -527,6 +662,11 @@ function PhaseCard({
   expanded: boolean
   onToggle: () => void
 }) {
+  const liveCount = liveBlockers(phase).length
+  const resolvedCount = resolvedBlockers(phase).length
+  // hasDetail counts ALL entries, not just live ones: a card whose blockers are
+  // every one of them closed must still expand, or the record becomes
+  // unreachable from the board.
   const blockerCount = phase.blockers?.length ?? 0
   const deferredCount = phase.deferred?.length ?? 0
   const accent = accentFor(phase.track)
@@ -591,10 +731,13 @@ function PhaseCard({
             {phase.shipped && (
               <Badge variant="secondary">shipped {formatDate(phase.shipped)}</Badge>
             )}
-            {blockerCount > 0 && (
+            {liveCount > 0 && (
               <Badge variant="warning">
-                {blockerCount} blocker{blockerCount === 1 ? "" : "s"}
+                {liveCount} blocker{liveCount === 1 ? "" : "s"}
               </Badge>
+            )}
+            {resolvedCount > 0 && (
+              <Badge variant="outline">{resolvedCount} resolved</Badge>
             )}
             {deferredCount > 0 && (
               <Badge variant="outline">{deferredCount} deferred</Badge>
@@ -638,13 +781,18 @@ function PhaseCard({
   )
 }
 
+/**
+ * Takes BlockerEntry[] so the one component serves blockers, open questions,
+ * deferred scope and keywords alike — `string[]` is assignable to it, and only
+ * `blockers` ever carries the object form today.
+ */
 function DetailList({
   label,
   items,
   tone,
 }: {
   label: string
-  items?: string[]
+  items?: BlockerEntry[]
   tone?: "warning"
 }) {
   if (!items || items.length === 0) return null
@@ -654,19 +802,27 @@ function DetailList({
         {label}
       </p>
       <ul className="space-y-1">
-        {items.map((item, i) => (
-          <li
-            key={i}
-            className={cn(
-              "text-xs pl-2 border-l-2",
-              tone === "warning"
-                ? "border-[var(--color-warning)] text-[var(--color-warning-text)]"
-                : "border-[var(--color-border)] text-[var(--color-muted-foreground)]",
-            )}
-          >
-            {item}
-          </li>
-        ))}
+        {items.map((item, i) => {
+          const resolved = isResolvedBlocker(item)
+          return (
+            <li
+              key={i}
+              className={cn(
+                "text-xs pl-2 border-l-2",
+                tone === "warning" && !resolved
+                  ? "border-[var(--color-warning)] text-[var(--color-warning-text)]"
+                  : "border-[var(--color-border)] text-[var(--color-muted-foreground)]",
+              )}
+            >
+              {resolved && (
+                <span className="mr-1.5 font-semibold uppercase tracking-wide">
+                  resolved
+                </span>
+              )}
+              {blockerText(item)}
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

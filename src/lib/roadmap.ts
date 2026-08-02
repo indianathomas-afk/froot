@@ -30,6 +30,34 @@ export type PhaseStatus =
    */
   | "withdrawn"
 
+/**
+ * One entry in a phase's `blockers` list. P-4, 2026-08-01.
+ *
+ * A BARE STRING MEANS LIVE. That is DEBT-14's rule one level down — a missing
+ * marker reads as outstanding — and it is the safe direction: an entry nobody
+ * has classified keeps blocking, so the panel can over-report but never
+ * under-report. Every entry in ROADMAP.yaml was a bare string before this
+ * landed, so defaulting the other way would have silently closed all nineteen.
+ *
+ * A resolved entry carries `{ resolved: true, text }`. Its prose is NEVER
+ * edited to add the flag: the house preserve-and-mark convention keeps the
+ * original text as the record, and several rows say explicitly that the ORDER
+ * of the entries is the lesson. The flag is additive metadata sitting over text
+ * that stays byte-identical.
+ *
+ * WHY A FLAG AND NOT PREFIX DETECTION on the existing CLOSED / RESOLVED /
+ * WITHDRAWN / GATE CLEARED markers — this was measured against the real data,
+ * not assumed. F-5's LIVE blocker opens "VERIFIED STILL TRUE" and F-4's opens
+ * "CONFIRMED LIVE", so a marker matcher closes two live blockers; and PERM-6's
+ * two closed entries carry no marker at all, because they are closed by a
+ * SEPARATE entry prepended above them in the same array. Both directions wrong
+ * on the same file. Prose cannot carry this count.
+ *
+ * `isResolvedBlocker` in roadmap-client.tsx is the single definition of which
+ * entries are resolved — read it rather than restating the test here (DEBT-26).
+ */
+export type BlockerEntry = string | { resolved: true; text: string }
+
 export interface Phase {
   id: string
   title: string
@@ -40,8 +68,19 @@ export interface Phase {
   shipped?: string
   commits?: string[]
   notes?: string
-  /** Free-text strings, not structured records — see ROADMAP.yaml. */
-  blockers?: string[]
+  /**
+   * Mixed by design: bare strings are live, `{ resolved: true, text }` entries
+   * are closed and kept in place for the record. See BlockerEntry above.
+   */
+  blockers?: BlockerEntry[]
+  /**
+   * STILL BARE STRINGS, and they carry the same defect blockers just had:
+   * resolved entries stay in the array forever. Three exist at time of writing
+   * — PERM-2's sole `deferred` entry opens "RESOLVED 2026-07-27", and PERM-6,
+   * PERM-7 and SEC-1 each carry a closed `open` entry. Left alone by Gary's
+   * ruling 2026-08-01: no headline count reads either field, so the cost is a
+   * card badge rather than an untrustworthy promotion answer. Filed as DEBT-42.
+   */
   deferred?: string[]
   open?: string[]
   tags?: string[]
