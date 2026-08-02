@@ -3059,6 +3059,33 @@ bugs:
       already created live — the current behaviour has shipped since the field
       existed, so someone may be relying on a copy that went live immediately.
 
+# COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
+# Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
+#
+#   LIVE   — a user OF THE PRODUCT is affected today. A merchant, an operator
+#            running a store, someone using the app.
+#   LATENT — it bites on a NAMED trigger. Name the trigger, always.
+#   NONE   — no consequence to any user or operator. NONE IS A LEGITIMATE AND
+#            USEFUL ANSWER; say it where it is true rather than inflating it.
+#
+# THE LINE THAT MATTERS IS PRODUCT vs PROCESS. Costs that fall on Gary, on
+# Claude, or on the tooling — a red lint baseline, an over-reporting panel
+# count, staging fixtures that make a query ambiguous — are LATENT with the
+# trigger named, HOWEVER REAL THEY ARE. They are not LIVE.
+#
+# The reason is the whole point of the field: a list where six things are LIVE
+# is a list you cannot read a priority off, which is the list this existed to
+# fix. DEBT-TRIAGE-2 first derived six LIVE rows and Gary moved three of them
+# (DEBT-33, DEBT-41, DEBT-44) to LATENT on exactly this distinction.
+#
+# IF A ROW'S COST IS GENUINELY PRODUCT-FACING AND HAS BEEN CALLED PROCESS, THAT
+# IS WORTH ARGUING AGAIN. The definition is settled; its application to any
+# individual row is not.
+#
+# Every cost line below is marked DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 because it
+# was derived by reading the code and the files at HEAD, NOT inherited from the
+# DEBT-TRIAGE audit — whose own 22 assessments exist nowhere in this repo. That
+# hole is DEBT-45.
 debt:
   - id: DEBT-1
     status: verified
@@ -3736,6 +3763,15 @@ debt:
   - id: DEBT-9
     title: "Two ACTIVE staff have 9 store assignments and NO primary — signed documents capture an arbitrary store"
     notes: >
+      COST OF DOING NOTHING: Production has zero signed documents for either
+      zero-primary owner, so nothing is wrong today, and the first document
+      either signs freezes an alphabetical accident into a legal record —
+      LATENT (trigger: the first HR signature by a staff member with no primary
+      store; four such staff on preview/staging, two on production. A second
+      trigger is quieter — adding a store to a single-assignment staff member
+      makes them ambiguous instantly, and the partial index does not catch it
+      because zero primaries stay legal).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → docs/MIGRATIONS.md
       § Protected indexes, "Hazard 3 — the index guarantees AT MOST one primary,
       not AT LEAST one", beside the existing Hazard 2. Nothing is deleted here:
@@ -4025,6 +4061,15 @@ debt:
   - id: DEBT-12
     title: "POST /api/staff does not validate email format; the sibling PATCH does"
     notes: >
+      COST OF DOING NOTHING: A malformed address can reach the nullable email
+      column via the Square import or Add Staff Member and sits there harming
+      nothing — LATENT (trigger: adding `.email()` later against dirty Square
+      data, which is the import path and would start 400ing rows mid-run; the
+      row's own instruction to check the live Square data FIRST is what defuses
+      it). Verified at HEAD: route.ts:14 is still
+      `z.string().trim().max(320).nullish()`, with the asymmetry deliberately
+      commented at :11.
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       Found 2026-07-27 during PERM-6 Task 1, deliberately left alone. The new
       Zod schema on src/app/api/staff/route.ts types `email` as a bounded
       string but NOT .email(), while the sibling PATCH at
@@ -4043,6 +4088,14 @@ debt:
   - id: DEBT-13
     title: "A MANAGER cannot see a staff member who works at their store but is homed elsewhere — /staff groups by primary store"
     notes: >
+      COST OF DOING NOTHING: A MANAGER's /staff roster silently omits every
+      staff member who works at their store but is homed outside their scope,
+      and nothing signals the list is incomplete — LIVE. Re-derived at HEAD, not
+      inherited: page.tsx:78 still groups by `member.storeAssignments[0].store`
+      and :118 still renders `stores.filter((s) => byStore.has(s.id))`, so the
+      query fetches the person and the render discards them; the detail page
+      still loads by direct URL, which is the worst combination.
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       Found 2026-07-27 during PERM-6's staging verification pass, on a session
       driven as corporate@keva.com (MANAGER, assigned Carson + Las Brisas).
       VERIFIED PRE-EXISTING, NOT A PERM-6 REGRESSION. Gary asked for this to be
@@ -4264,6 +4317,15 @@ debt:
   - id: DEBT-16
     title: "The /users invite dialog has no email-collision pre-check — only the /stores device-login dialog does"
     notes: >
+      COST OF DOING NOTHING: The server's 409 already carries the plus-address
+      suggestion and the dialog renders it — confirmed in PRODUCTION 2026-08-01
+      — so the missing pre-check costs one round trip and changes no outcome
+      available to the admin — NONE. A legitimate NONE, and the row's own
+      reasoning ("it does not change what the admin can ultimately do"). Note
+      what this NONE does NOT cover: the DEVICE dialog's pre-check has still
+      never been exercised on staging, which is untested code rather than a cost
+      of leaving this row alone.
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       Filed 2026-07-28 at Gary's instruction rather than built, because PERM-7
       had already grown past its size and this is an optimisation, not a
       correctness gap.
@@ -4552,8 +4614,21 @@ debt:
 
   - id: DEBT-19
     status: shipped
+    commits: ["3d57fb6"]
     title: "Organization NAMES are not identifying on staging — nine orgs, five called \"Microsoft\", two \"Keva Juice\""
     notes: >
+      COST OF DOING NOTHING: An operator working on staging cannot identify an
+      org by name — "the Microsoft org" picks out five rows, four of them empty
+      shells — and a wrong-org result looks identical to a right-org result —
+      LATENT (trigger: the next instruction, prompt or query result that names an
+      org by NAME rather than by ID; sharpest on a WRITE, where HR-14's
+      Clerk-org rename would silently rename the wrong one and leave no visible
+      trace, because the slug is the part that does not update).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
+      WRITTEN INTO A CLOSED ROW DELIBERATELY, on Gary's ruling: a closed row's
+      cost is not moot to someone deciding whether the relocation was the right
+      call. THIS COST IS EXACTLY WHAT DEBT-44 INHERITS along with the cleanup
+      half, and that should be legible here without reading two rows.
       CLOSED BY RELOCATION 2026-08-02 by DEBT-TRIAGE-2, on Gary's ruling.
       RELOCATION CLOSES, DELETION LOSES: nothing below is removed. The record
       text stays here as the history and now also lives where it fires.
@@ -5015,6 +5090,12 @@ debt:
   - id: DEBT-27
     title: "10 of 12 stores have storeNumber: null — the backfill half, split out of DEBT-5"
     notes: >
+      COST OF DOING NOTHING: The degraded sort stays deterministic and the chip
+      asymmetry is the best the render can do, so ten null storeNumbers cost
+      nothing observable today — LATENT (trigger: stores spanning more than one
+      timezone, at which point PERM-3's forecast window boundary turns on a
+      name-order tiebreak nobody chose).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       Created 2026-07-30 by Gary's ruling when DEBT-5 closed on its LABEL half
       (838ad99). This row exists because the audit found the data half had no
       home: DEBT-5's notes were the only mention of a storeNumber backfill in
@@ -5054,6 +5135,12 @@ debt:
   - id: DEBT-28
     title: "The `#0034 — Carson` store label idiom has three variants across fourteen sites"
     notes: >
+      COST OF DOING NOTHING: Three separator glyphs render the same information
+      across fourteen sites and nothing misbehaves — NONE. Said plainly rather
+      than inflated: this row is the clearest NONE in the list, and the row's own
+      text already says so ("Text/formatting only — nothing misbehaves, and every
+      variant renders the same information").
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       EVIDENCE REPAIRED AND COUNT CORRECTED 2026-08-02 by DEBT-TRIAGE-1,
       re-measured at HEAD cc1fffc. All fifteen references below were checked
       individually rather than assumed; two had drifted.
@@ -5127,6 +5214,14 @@ debt:
   - id: DEBT-29
     title: "The template availability window is collected, stored, exported — and never enforced"
     notes: >
+      COST OF DOING NOTHING: An operator fills in a REQUIRED "When is this
+      checklist available? *" field and is shown a preview that reads as a
+      guarantee, and nothing in the app ever reads the three values back —
+      LIVE. Re-derived at HEAD: the only five files in src touching
+      startOffsetHours/endOffsetHours are the template form, the templates
+      list, and the export, import and write routes — collection and transport,
+      never consumption, exactly as this row describes.
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       EVIDENCE REPAIRED 2026-08-02 by DEBT-TRIAGE-1, re-measured at HEAD
       cc1fffc. These are POINTERS, so they are repaired; the original citations
       stay visible below. All three are in
@@ -5177,6 +5272,13 @@ debt:
   - id: DEBT-30
     title: "No DB-level constraint on Template.operationalPhase — app-layer validation is the ceiling"
     notes: >
+      COST OF DOING NOTHING: Data is clean on all three branches and every
+      current writer is validated, so the missing constraint costs nothing
+      today — LATENT (trigger: the next write path that reaches
+      Template.operationalPhase without the Zod guard, which is exactly what the
+      CSV import did once already — that recurrence is why the row argues the
+      CLASS is not closed even when today's holes are).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       GATE (1) CLEARED 2026-08-02, recorded by DEBT-TRIAGE-1 — THIS ROW DID NOT
       KNOW, and read as blocked when it is ready to run. DEBT-1 is
       `status: verified` at HEAD: writers plugged in c17ccc1, the backfill
@@ -5282,6 +5384,13 @@ debt:
   - id: DEBT-32
     title: "Retire the I-14b legacy phase alias and fold the three phase lists into one"
     notes: >
+      COST OF DOING NOTHING: `phaseOrder` falls back to `?? 1`, the same value
+      the alias maps to, so deleting both lines changes no output whatsoever —
+      verified at HEAD, both lines still present at messages.ts:41 and
+      handoff-notes.tsx:24 — and the standing cost is three phase lists where
+      there should be one — NONE. A legitimate NONE: the row itself says the
+      alias is behaviourally inert, which is why there is no hurry AND no risk.
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       THE GATE CLEARED 2026-08-02, recorded by DEBT-TRIAGE-1 — THIS ROW DID NOT
       KNOW, and read as blocked when it is ready to run. "UNBLOCKED ONCE: DEBT-1
       is verified" below is satisfied on exactly the terms it set: staging → main
@@ -5324,6 +5433,19 @@ debt:
   - id: DEBT-33
     title: "npm run lint exits 1 on a clean checkout — 10 errors, no commit gate can use it"
     notes: >
+      COST OF DOING NOTHING: No commit gate in this repo can use
+      `npm run lint` — measured at HEAD, exit 1, 32 problems, 10 errors — so
+      every commit runs scoped eslint instead and a regression in an untouched
+      file goes uncaught; nothing is known to be broken at runtime and every
+      affected file ships today — LATENT (trigger: one of the react-hooks
+      hazards actually manifesting, most likely as a pdf-viewer that does not
+      update rather than as a crash; or the first session that genuinely needs a
+      repo-wide lint gate and cannot have one).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's. FIRST
+      DERIVED AS LIVE AND MOVED TO LATENT BY GARY 2026-08-02 on the
+      product-vs-process distinction now recorded above the `debt:` key: this
+      cost falls on Gary and on Claude, not on a merchant using the app. The
+      distinction is the definition, not a downgrade of the finding.
       RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → a comment atop
       src/components/hr/pdf-viewer.tsx, extending the existing HR-11 block: the
       HR-14 reading note. A roadmap row is never read by the person who opens
@@ -5396,6 +5518,14 @@ debt:
   - id: DEBT-34
     title: "A production connection string and five other prod secrets sat in froot/.env.backup"
     notes: >
+      COST OF DOING NOTHING: The file was deleted and verified absent, so
+      nothing is exposed today, and nothing structural changed — LATENT
+      (trigger: the next deployed-environment credential written into the
+      working tree by any route — a backup, an editor artifact, a
+      `vercel env pull`. There is no platform setting behind the ban, DEBT-4
+      records why Vercel will not accept the type change, and the only guard is
+      that someone notices).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       FOUND 2026-08-01 during DEBT-2a, while that session was confirming its own
       database protocol — not by looking for it. DELETED BY GARY 2026-08-01, the
       same day, and verified absent.
@@ -5422,8 +5552,21 @@ debt:
 
   - id: DEBT-35
     status: shipped
+    commits: ["3d57fb6"]
     title: "The migrations folder cannot rebuild the live schema — Task.estimatedTimeMinutes"
     notes: >
+      COST OF DOING NOTHING: Every environment is fine today only because none
+      of them was built from these migrations, so nothing is observable —
+      LATENT (trigger: the baseline squash in MIGRATIONS.md §2, or any database
+      built from an empty state by `migrate deploy`. Note the trigger is worse
+      than it looks: the squash regenerates from schema.prisma, so it will
+      silently ADOPT the live type and erase the evidence that the ledger ever
+      disagreed, rather than failing).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
+      WRITTEN INTO A CLOSED ROW DELIBERATELY, on Gary's ruling: a closed row's
+      cost is what tells a reader whether the relocation was the right call, and
+      here it is also the argument for WHERE it went — §2 is the one operation
+      this bites.
       CLOSED BY RELOCATION 2026-08-02 by DEBT-TRIAGE-2, on Gary's ruling.
       RELOCATION CLOSES, DELETION LOSES: nothing below is removed.
       WHERE IT WENT → docs/MIGRATIONS.md §2 (the one-time baseline squash), as a
@@ -5483,6 +5626,14 @@ debt:
   - id: DEBT-36
     title: "AWAITING RULING — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
+      COST OF DOING NOTHING: There is no as-executed record of section names
+      anywhere in the system, and nobody has renamed one yet — LATENT (trigger:
+      the first section rename on a template that already has completed
+      historical checklists, which silently rewrites their headings and their
+      print copies, with no indication anything changed. For an
+      operational-compliance product a printed closing checklist that re-prints
+      under a heading it was never executed under is the part that matters).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → prisma/schema.prisma,
       as comments on BOTH Task.sectionName and the TaskLog model — the compliance
       fact that renames rewrite history and that there is no as-executed record
@@ -5530,6 +5681,14 @@ debt:
   - id: DEBT-37
     title: "columnForStatus has no board column for `withdrawn` and silently falls through to Planned"
     notes: >
+      COST OF DOING NOTHING: Unreachable today — verified at HEAD that
+      BOARD_COLUMNS still has no `withdrawn` column, and that the only two rows
+      carrying the status are DEBT rows, which render through BugsAndDebt/DebtRow
+      and never reach columnForStatus — LATENT (trigger: the first PHASE, not a
+      debt row and not a bug, given `status: withdrawn`. It will render under
+      Planned, the most wrong of the three available answers, and it will fail
+      quietly as a card in the wrong column rather than as an error).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       FILED 2026-08-01 by Gary's instruction, from the DEBT-SWEEP session that
       added the `withdrawn` status (cf0b044). Found during that work, stated in
       the session report, and filed rather than fixed BECAUSE a report is not
@@ -5566,6 +5725,15 @@ debt:
   - id: DEBT-38
     title: "AWAITING RULING — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
     notes: >
+      COST OF DOING NOTHING: DEPLOY_LOG is complete today — the missing entry
+      was written 2026-08-01 — and the mechanism that lost it for three days is
+      entirely untouched — LATENT (trigger: the next production promotion, which
+      will be a fast-forward, will create no merge commit, and so will produce no
+      artifact prompting anyone to write the entry. A second consequence rides
+      the same trigger: rollback stays a hand-assembled reverse-order revert
+      range instead of a one-line `revert -m 1`, which is exactly what you do not
+      want to be assembling under pressure).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       AWAITING GARY'S RULING: fix direction (a) a DEPLOY_LOG step inside
       WORKFLOW.md §2, or (b) `--no-ff` on promotions — or both. Title prefixed
       2026-08-02 by DEBT-TRIAGE-1 so the row stops reading as backlog; the
@@ -5620,6 +5788,18 @@ debt:
   - id: DEBT-39
     title: "Two writers create User rows and only ONE derives the device name — a page-won acceptance race skips PERM-7 Task 7 permanently and silently"
     notes: >
+      COST OF DOING NOTHING: Clerk collects no name on any observed path, so
+      whichever writer wins the race the visible damage is a blank name rather
+      than a person's — LATENT (trigger: `first_name`/`last_name` made REQUIRED
+      in the Clerk dashboard, or any new sign-up path that collects a name.
+      CHECK IT AS ONE TRIGGER WITH DEBT-40 AND PERM-7 TASK 7 — the same
+      configuration change unmasks all three at once, and after it this race
+      starts putting a person's name on a device account).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's. LIMIT
+      STATED RATHER THAN GLOSSED: nobody has measured which writer actually wins
+      in practice, so a device account showing a blank name TODAY is possible
+      and unobserved. That does not change the verdict — blank is not a person's
+      name — but it is the part of this row nobody has checked.
       RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → docs/DECISIONS.md,
       appended to the PERM-7 Task 7 section as "The reopening condition — and it
       fires in the Clerk dashboard, not in this repo". That is the point of the
@@ -5680,6 +5860,15 @@ debt:
   - id: DEBT-40
     title: "Code comments and DECISIONS.md assert a name is typed at sign-up — no configured Clerk instance collects one"
     notes: >
+      COST OF DOING NOTHING: The code implements the ruling correctly and only
+      the comments' factual premise is false, so nothing misbehaves — LATENT
+      (trigger: the next editor of the Clerk webhook's name derivation, or of
+      DECISIONS.md § PERM-7 Task 7, who takes the comment at face value and
+      demotes the override to a fill-the-blank fallback. That is precisely the
+      misreading the decision record was written to prevent, which is what makes
+      a false premise inside it more dangerous than a false premise anywhere
+      else).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       FILED 2026-08-01 by PERM-7c, which found it while re-verifying PERM-7 Task
       7 and could not fix it — that session was scoped to ROADMAP.yaml.
       THE COUNTERFACTUAL ASSERTIONS, all stating or presupposing that a human
@@ -5722,6 +5911,20 @@ debt:
       AWAITING RULING — A blocker entry can only be LIVE or RESOLVED — there is
       no value for the half-closed state two entries are actually in
     notes: >
+      COST OF DOING NOTHING: The blockers panel counts BUILD-1's half-closed
+      entry as live, so /internal/roadmap over-reports by one in the
+      deliberately-safe direction — LATENT (trigger: a SECOND live half-closed
+      exemplar, which is also this row's own standing condition for designing a
+      third state; exemplar (a) was relocated away rather than solved, so the
+      count is one).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's. FIRST
+      DERIVED AS LIVE AND MOVED TO LATENT BY GARY 2026-08-02 on the
+      product-vs-process distinction recorded above the `debt:` key. The
+      argument for LIVE was real and is kept here rather than discarded: Gary
+      opened /internal/roadmap on 2026-08-01, read this very count, and
+      concluded a session had failed — so the number demonstrably changes what
+      he believes. It is still a cost to HIM and to the tooling, not to a
+      merchant using the app, and that is the line the label now carries.
       RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → one paragraph on
       BlockerEntry in src/lib/roadmap.ts: NEVER ADD `resolved: false`. That is
       where the person about to add it is standing, and it is the one action
@@ -5840,6 +6043,14 @@ debt:
       AWAITING RULING — `deferred` and `open` keep resolved entries in the array
       forever, the same defect P-4 fixed for `blockers`
     notes: >
+      COST OF DOING NOTHING: No headline count reads `deferred` or `open` —
+      verified at HEAD, both are still `string[]` at roadmap.ts:84-85 — so the
+      three resolved entries sitting in those arrays cost a slightly wrong badge
+      on one collapsed card and nothing else — LATENT (trigger: the first
+      surface that derives a COUNT from either field, a summary tile, a panel
+      headline or a dashboard number, at which point this becomes the P-4 bug
+      again with the same failure direction and the fix is already designed).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
       AWAITING GARY'S RULING: nothing until a surface COUNTS `deferred` or
       `open`; that event is the trigger, and the fix is already designed. Title
       prefixed 2026-08-02 by DEBT-TRIAGE-1 so the row stops reading as backlog;
@@ -5883,6 +6094,30 @@ debt:
       border colour — an UNLAYERED `*` rule in globals.css overrides every
       border-color utility
     notes: >
+      COST OF DOING NOTHING: 45 of the 92 wrong-coloured sites are
+      `--color-primary`, the selected-state affordance app-wide, so a merchant
+      using the app sees the wrong border on selection today — LIVE. The one
+      product-facing row of the three; the scope is what makes it so, not the
+      original 11-element observation.
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's.
+      SCOPE RE-MEASURED AT HEAD 2026-08-02 and the numbers below are EXACT:
+      560 occurrences, 468 invisible no-ops, 92 wrong-coloured, 45 primary.
+      A THIRD MEASUREMENT ERROR ON THIS ROW, caught before it was written down
+      and recorded because the pattern is now the finding. DEBT-TRIAGE-2's first
+      recount returned 549 / 81 / 42 and looked like drift against the 560 / 92 /
+      45 above. It was not drift: it had counted grep LINES where this row counts
+      OCCURRENCES, and a line carrying two utilities counts once either way it is
+      wrong. Re-run with `grep -o` it reproduces 560 / 92 / 45 exactly.
+      THE PATTERN: this row's scope numbers are unusually easy to get wrong, and
+      have now been got wrong three separate times in three different ways — the
+      generated-file contamination in both directions (recorded below), and now
+      lines-versus-occurrences. ANYONE RE-MEASURING MUST STATE THEIR UNIT AND
+      EXCLUDE src/generated/roadmap.ts. Neither is optional on this row.
+      OPEN DISCREPANCY, deliberately not resolved: the file count. This row says
+      106 files; HEAD measures 108 by `grep -rl ... --exclude-dir=generated`. The
+      occurrence counts reconcile exactly and the file count does not. Not
+      material to anything above, and left open rather than papered over —
+      whoever fixes this row should find out why before trusting either number.
       MECHANISM CORRECTED 2026-08-02 by DEBT-TRIAGE-1. The OBSERVATION below is
       right and its EXPLANATION is false, and both fixes it proposes would have
       failed. Everything in this block was measured at HEAD cc1fffc against a
@@ -6014,6 +6249,22 @@ debt:
       Staging carries the PERM-6/PERM-7 verification fixtures — test principals,
       a staff member and a stale ADMIN invite — and nothing owns cleaning them up
     notes: >
+      COST OF DOING NOTHING: Staging fixtures sit on top of nine Organization
+      rows of which five are called "Microsoft", so any query or instruction that
+      names a principal by NAME resolves to A row silently — a cost already paid
+      once, in a session spent working out which org was meant — LATENT
+      (trigger: the next session that queries or mutates staging by name rather
+      than by ID; or the next session that leaves fixtures unnamed, which removes
+      the one property making any of this cleanable). The stale ADMIN
+      PendingInvite for Taylin@keva.com is the sharp exception and is NOT covered
+      by this verdict: whoever accepts it becomes an unscoped ADMIN of the org.
+      Gary was actioning it 2026-08-01; this session has no database access and
+      cannot confirm it is gone.
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02, not the audit's. FIRST
+      DERIVED AS LIVE AND MOVED TO LATENT BY GARY 2026-08-02 on the
+      product-vs-process distinction recorded above the `debt:` key: staging
+      ambiguity costs whoever is working on staging, not a merchant using the
+      app.
       RECORD HALVES RELOCATED 2026-08-02 by DEBT-TRIAGE-2, to two places because
       they fire in two places. (a) The fixture-naming convention — name every
       test principal for the phase that made it → CLAUDE.md § Staging
@@ -6078,3 +6329,61 @@ debt:
       real on the fixture in (1). Delete the PRINCIPALS, not the stores — and
       delete the Clerk side too, since a User row removed while its Clerk user
       survives is a re-provisioning trap rather than a cleanup.
+
+  - id: DEBT-45
+    title: >
+      AWAITING RULING — Audit-only sessions leave no artifact: the DEBT-TRIAGE
+      audit's 22 per-row assessments exist nowhere in the repo
+    notes: >
+      COST OF DOING NOTHING: DEBT-TRIAGE-2 had to re-derive all 22 cost
+      assessments from scratch because the audit that produced them left nothing
+      behind, and the same hole will swallow the next audit — LATENT (trigger:
+      the next audit-only session that ends without writing its findings to a
+      file; this is a process and tooling cost, not a product one).
+      DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 2026-08-02.
+      AWAITING GARY'S RULING: whether audit-only sessions must write a
+      docs/<PHASE>_AUDIT.md, and if so what makes that AUTOMATIC rather than
+      REMEMBERED. Both halves are the question — the second is the harder one and
+      the reason this is filed rather than fixed. Recorded as a question, not a
+      decision, on Gary's instruction 2026-08-02.
+      FILED 2026-08-02 by DEBT-TRIAGE-2, from the hole it fell into.
+      THE FACT: docs/prompts/DEBT-TRIAGE_records_vs_tasks.md is 111 lines and
+      ends at "REPORT BACK, part one". It is the INSTRUCTION. The audit's actual
+      output — a verdict, a destination, a fold-target and a cost-of-doing-
+      nothing line for each of 22 rows — was reported into a chat transcript and
+      never written to the repo. The relocation destinations survived only
+      because Gary re-typed them into the DEBT-TRIAGE-2 prompt by hand; the 22
+      cost lines did not survive at all, and DEBT-TRIAGE-2 derived its own at
+      HEAD instead. Those are marked DERIVED-AT-HEAD-BY-DEBT-TRIAGE-2 on every
+      row precisely so the provenance is not silently laundered into "the
+      audit's".
+      IT IS SYSTEMIC, NOT ONE SESSION'S LAPSE, which is the reason for a row.
+      DEBT-37's rule — "an observation that lives only in a transcript does not
+      exist" — was written about a SINGLE observation found in passing during
+      DEBT-SWEEP. This is the same rule at whole-session scale: an audit is
+      nothing BUT observations, so a session whose entire product is analysis has
+      the largest possible exposure to it and no habit protecting it.
+      THE COUNTER-EXAMPLE PROVES IT IS SOLVABLE, and is the reason this is worth
+      asking rather than merely lamenting: DEBT-1a and DEBT-2a DID write their
+      findings out, as docs/prompts/DEBT-1_AUDIT.md (28k) and
+      docs/prompts/DEBT-2_AUDIT.md (27k), and both are still cited by live rows
+      today — DEBT-35 reads its three-branch column evidence out of DEBT-2_AUDIT,
+      and DEBT-31 took its branch ids from it. Those two sessions did the right
+      thing because their prompts told them to. Nothing structural distinguishes
+      them from the triage session except that instruction.
+      SO THE REAL QUESTION IS THE SECOND HALF. A convention that depends on each
+      prompt remembering to ask for it has the same failure mode as the
+      DEPLOY_LOG gap in DEBT-38: a habit with no artifact behind it, working
+      until the one time nobody remembers. Candidates, none chosen: a line in
+      WORKFLOW.md § Session completion rules; a rule in CLAUDE.md § Where
+      documents live, which already governs docs/prompts/ and already draws the
+      pointers-vs-claims line an audit file would sit on; or making it part of
+      whatever DEBT-38 lands on, since both are "the process produced no
+      artifact" in different clothes.
+      SCOPE NOTE — this is NOT a request to write the missing DEBT-TRIAGE audit
+      retrospectively. That analysis is gone and reconstructing it from memory
+      would manufacture exactly the kind of authoritative-looking claim DEBT-9
+      and DEBT-43 were corrected for. The 22 assessments now in the rows are
+      DEBT-TRIAGE-2's own, derived at HEAD, and labelled as such.
+      Related: DEBT-37 (the single-observation version of this rule, and its
+      precedent), DEBT-38 (a process gap with no artifact behind it), DEBT-24.
