@@ -5382,9 +5382,11 @@ debt:
 
   - id: DEBT-29
     status: staging
+    commits: ["00e454a"]
     title: "The template availability window is collected, stored, exported — and never enforced"
     notes: >
-      CLOSED 2026-08-02 by DEBT-29-RELABEL — THE RELABEL HALF ONLY. Prompt:
+      CLOSED 2026-08-02 in 00e454a by DEBT-29-RELABEL — THE RELABEL HALF ONLY.
+      Prompt:
       docs/prompts/DEBT-29-RELABEL_honest_copy.md. The form no longer claims the
       window works. Four strings changed and one card was deleted, all in
       src/app/(app)/templates/template-form.tsx: the Label became "When is this
@@ -5410,7 +5412,8 @@ debt:
       line is left as DEBT-TRIAGE-2 derived it rather than rewritten, per the
       convention that a dated claim records what was believed at the time.
       WHAT DID NOT CLOSE, and now has its own row: DEBT-48, the implement-vs-
-      remove decision, AWAITING RULING. Same shape as DEBT-5 splitting into
+      remove decision, AWAITING RULING, created in 00e454a. Same shape as
+      DEBT-5 splitting into
       DEBT-27. Nothing was implemented, no field was deleted, no write path was
       touched, and the payload at template-form.tsx:792-794 is byte-identical —
       so the CSV export/import round trip is a verified no-op. DEBT-48 also
