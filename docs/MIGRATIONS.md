@@ -59,6 +59,34 @@ npx prisma migrate diff --from-empty \
 > the baseline is wrong** — see "Protected indexes" below. `--to-schema-datamodel`
 > generates from the schema, which cannot express them.
 
+> ⚠️ **THE CURRENT MIGRATIONS FOLDER CANNOT REBUILD THE LIVE SCHEMA, AND THIS
+> STEP WILL SILENTLY ADOPT THE DIFFERENCE RATHER THAN SURFACE IT.** Relocated
+> here 2026-08-02 from DEBT-35, which closes on this relocation.
+>
+> Known instance, measured on **all three branches** 2026-08-01 — `dev`,
+> `preview/staging` and `production` all have `Task.estimatedTimeMinutes` as
+> `double precision`; `prisma/schema.prisma:311` says `Float?`; and the only
+> migration that ever creates the column,
+> `prisma/migrations/20260627002005_init/migration.sql:132`, says **`INTEGER`**.
+> No migration alters it afterwards. The schema and the live databases agree
+> with each other and **the LEDGER is the one that is wrong** — whatever changed
+> the type reached production. Consistent with a `db push` from before that
+> command was retired (2026-07-06 staging drift incident); not proven, and a
+> migration altering the type would refute it. None exists.
+>
+> Why it belongs on THIS step specifically, and it is the same shape as Hazard 1
+> below: `--to-schema-datamodel` generates from `schema.prisma`, so the
+> regenerated `0_init` will say `DOUBLE PRECISION` — matching the live databases
+> and **erasing the evidence that the ledger ever disagreed**. The squash is
+> simultaneously the operation that would have surfaced this and the operation
+> that makes it unfindable. Nothing fails; the discrepancy just stops existing.
+>
+> **So diff the regenerated `0_init` against a live branch's actual column types
+> before marking it applied**, and treat `estimatedTimeMinutes` as one *known*
+> instance rather than the only one — anything else from the same `db push` era
+> would have exactly the same signature. Every environment is fine today only
+> because none of them was built from these migrations.
+
 Reset migration bookkeeping on EACH existing DB (prod, staging, dev).
 In the Neon SQL editor per branch (touches only Prisma's ledger table, no data):
 ```sql
@@ -149,6 +177,34 @@ regenerating, and diff the result against this table.
 `StoreStaffAssignment` shows only `@@unique([staffMemberId, storeId])`, which
 constrains **membership, not primacy**. A developer reading the schema will
 reasonably conclude nothing prevents two `isPrimary` rows. It does — here.
+
+### Hazard 3 — the index guarantees AT MOST one primary, not AT LEAST one
+
+Relocated here 2026-08-02 from DEBT-9, which keeps the data task itself.
+
+`StoreStaffAssignment_one_primary_key` is partial: `WHERE "isPrimary"` indexes
+**only rows where the flag is TRUE**. A staff member with ZERO primaries
+therefore contributes zero index entries, cannot collide with anything, and is
+perfectly legal. **The constraint reads as "every staff member has one primary
+store". It does not say that, and it never will.**
+
+Two consequences that have both already bitten:
+
+- **Zero-primary staff are invisible to the constraint and to any check built on
+  it.** `primaryStoreName()` (`src/lib/hr.ts:65-73`) falls back to the
+  alphabetically-first assignment, deterministically — so the value is
+  stable-and-arbitrary, not correct, and the comment above that function says so
+  in terms. On a signed HR document that value is frozen onto
+  `HrDocumentAcknowledgment.storeName` and `FormSubmission.storeName` and stamped
+  into the PDF. An alphabetical accident becomes a legal record.
+- **A single-assignment row becomes ambiguous the instant a second store is
+  added**, silently, and the index does not catch it — because zero primaries
+  stay legal in both states.
+
+There is also **no ordering dependency** between setting primaries and applying
+the migration, in either direction, for the same reason: zero-primary rows
+contribute nothing to index. An earlier instruction to set primaries *before* the
+index landed was withdrawn on this basis (accepted 2026-07-29).
 
 ### What is NOT a hazard: generated diffs
 

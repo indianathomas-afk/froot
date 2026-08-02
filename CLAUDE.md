@@ -204,6 +204,23 @@ never connected to the test plan. A report line is not a gate; this is the gate.
 Corollary: **Claude never pushes** (see Git Rules below), so on any Claude-run
 phase the default assumption is that staging does NOT have the work yet.
 
+### Name every test principal for the phase that made it
+
+**Any staff member, user, store or invite created to verify a phase gets that
+phase's name in it — `PERM-6b Staff`, `perm-6-staff`, `indianathomas+store2@`.**
+Relocated here 2026-08-02 from DEBT-44, which keeps the cleanup task itself.
+
+This is the only reason staging fixtures are cleanable at all. Test principals
+accumulate — PERM-6 and PERM-7 left a staff member, four accounts and a stale
+invite between them — and they fail exactly the way the ambiguous org names in
+§ Database Evidence fail: a query resolves to *a* row, silently. A fixture whose
+name says which phase made it can be found and deleted by whoever comes next; an
+unnamed one becomes indistinguishable from real data the moment its session ends,
+and the next person cannot tell whether deleting it is safe.
+
+**The session that leaves fixtures unnamed removes that property for everyone
+after it.** Naming costs nothing at creation time and is unrecoverable afterwards.
+
 ## Database Evidence — Precondition
 
 **Every database result used as evidence must name the branch it came from, on
@@ -247,6 +264,34 @@ Recommended where available, **not mandatory**: it is Neon-specific and returns
 null on local dev — which is itself a signal about where the query ran, not an
 invalidation of the evidence. A null return never disqualifies an otherwise
 correctly labelled result.
+
+**The same precondition applies to the ORGANIZATION, not just the branch: name
+orgs by ID — optionally `ID (name)` — in every doc, prompt and query result. An
+org NAME is not an identifier.** Relocated here 2026-08-02 from DEBT-19, which
+closes on this relocation. It belongs in this section rather than in a section
+of its own: it is the same failure as the branch label, one layer down, and
+splitting one idea across two headings is how it stops firing.
+
+Measured on branch `preview/staging` 2026-07-28 — nine `Organization` rows, of
+which **five are called "Microsoft"** and two "Keva Juice". Six have zero or one
+user; exactly one has Square connected. So "the Microsoft org" picks out five
+rows, four of them empty shells.
+
+Note the failure mode, which is the branch-label mode exactly: an
+under-specified identifier that still **resolves**. Nothing errors. You get *a*
+row, just not necessarily the one you meant — and a wrong-org result looks
+identical to a right-org result.
+
+The sharpest case is a WRITE. HR-14 carries an unresolved Clerk-org-rename issue
+(a rename reaches the DB but the slug is never rewritten). Whoever resolves it
+must identify the target org by ID: applied to "the Microsoft org" by name it has
+five candidates, would silently rename the wrong one, and because the slug is the
+part that does not update, **the damage would not be visible in the name column
+afterwards.**
+
+The dead single-user shells on staging are what make the names ambiguous in the
+first place. Cleaning them up is tracked on DEBT-44, which absorbed that half —
+and per that row, delete the PRINCIPALS, not the stores. Do it by ID.
 
 ## Git Rules
 

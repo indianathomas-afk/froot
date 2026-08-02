@@ -3736,6 +3736,13 @@ debt:
   - id: DEBT-9
     title: "Two ACTIVE staff have 9 store assignments and NO primary — signed documents capture an arbitrary store"
     notes: >
+      RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → docs/MIGRATIONS.md
+      § Protected indexes, "Hazard 3 — the index guarantees AT MOST one primary,
+      not AT LEAST one", beside the existing Hazard 2. Nothing is deleted here:
+      the record text stays in this row as the history and lands there as the
+      place it fires, on the reader of the constraint. THIS ROW KEEPS ITS TASK —
+      set a primary for Gary Thomas and Kelton Thomas via the chip-click path on
+      /staff, both environments, Gary's own schedule.
       EVIDENCE REPAIRED 2026-08-02 by DEBT-TRIAGE-1. These are POINTERS, so they
       are repaired rather than left as dated claims; the original citations are
       preserved below and each is named here. Re-measured at HEAD cc1fffc.
@@ -4544,8 +4551,29 @@ debt:
       a render path).
 
   - id: DEBT-19
+    status: shipped
     title: "Organization NAMES are not identifying on staging — nine orgs, five called \"Microsoft\", two \"Keva Juice\""
     notes: >
+      CLOSED BY RELOCATION 2026-08-02 by DEBT-TRIAGE-2, on Gary's ruling.
+      RELOCATION CLOSES, DELETION LOSES: nothing below is removed. The record
+      text stays here as the history and now also lives where it fires.
+      WHERE IT WENT → CLAUDE.md § Database Evidence, as a PRECONDITION alongside
+      the branch-label rule rather than as a section of its own. That placement
+      IS the argument this row makes: it is the same failure as the missing
+      branch label, one layer down — an under-specified identifier that still
+      RESOLVES, so nothing errors and the mistake is invisible — and splitting
+      one idea across two headings is how it stops firing. The nine-org
+      measurement, the five "Microsoft" rows and the HR-14 silent-rename hazard
+      all went with it.
+      THE CLEANUP HALF WENT TO DEBT-44, which stays open and now owns it: same
+      branch, same org, and DEBT-44 already carries the store-delete cascade
+      analysis that a by-ID cleanup needs. That row's own text already named
+      this one as its precedent, so the two were arguing the same case from
+      opposite ends.
+      STATUS VALUE: `shipped`, following DEBT-31, which closed the same way — a
+      documentation narrowing rather than a code change. DebtItem carries no
+      value for "closed by relocation" and inventing one is out of scope
+      (DEBT-41 tracks that vocabulary gap).
       Found 2026-07-28 while choosing an org for PERM-7's re-run. Verified ON
       BRANCH preview/staging (branch named per CLAUDE.md § Database Evidence).
       Nine Organization rows:
@@ -5296,6 +5324,23 @@ debt:
   - id: DEBT-33
     title: "npm run lint exits 1 on a clean checkout — 10 errors, no commit gate can use it"
     notes: >
+      RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → a comment atop
+      src/components/hr/pdf-viewer.tsx, extending the existing HR-11 block: the
+      HR-14 reading note. A roadmap row is never read by the person who opens
+      that file, which is the only moment it matters. THE COMMIT-GATE RULE WAS
+      NOT COPIED — it already lives at CLAUDE.md § Commit Gates, verified at
+      HEAD, and duplicating it is how two copies drift. THIS ROW KEEPS ITS TASK:
+      the ten react-hooks errors across five files in Labor, HR and the sidebar.
+      THE ROW ATE ITS OWN DOG FOOD, recorded because it is the cleanest possible
+      demonstration of why this row is open. Relocating that reading note into
+      pdf-viewer.tsx could not pass the scoped-eslint commit gate THIS ROW
+      CREATED: the file already carries three of the ten errors, so `npx eslint`
+      on it exits 1 before and after. Ruled by Gary 2026-08-02 — a documented
+      no-change measurement rather than a skipped check. Measured: 3 errors
+      react-hooks/refs at :57 :58 :59 before, the same 3 at :75 :76 :77 after,
+      exit 1 both times, zero new errors or warnings; the three statements are
+      byte-identical and moved by exactly the 18 lines of the added comment. The
+      other two code files in that commit gated clean at exit 0.
       TITLE CORRECTED 2026-08-02 by DEBT-TRIAGE-1: it said 11 errors, and HEAD
       cc1fffc measures 32 problems / 10 errors, exit 1 — `npx eslint .`, error
       lines counted independently of the summary. The BODY below already
@@ -5376,8 +5421,37 @@ debt:
       this on 2026-07-26. Related: DEBT-4, and CLAUDE.md § Environment Variables.
 
   - id: DEBT-35
+    status: shipped
     title: "The migrations folder cannot rebuild the live schema — Task.estimatedTimeMinutes"
     notes: >
+      CLOSED BY RELOCATION 2026-08-02 by DEBT-TRIAGE-2, on Gary's ruling.
+      RELOCATION CLOSES, DELETION LOSES: nothing below is removed.
+      WHERE IT WENT → docs/MIGRATIONS.md §2 (the one-time baseline squash), as a
+      ⚠️ callout directly beneath the existing one. §2 already carried a callout
+      of exactly this shape — "re-append both partial indexes or the baseline is
+      wrong" — and § Protected indexes already had "Hazard 1 — the baseline
+      squash silently drops them", so this is the same pattern in the file that
+      set it. The squash is the only operation this bites, and §2 is where
+      someone stands before doing it.
+      LABEL NOTE, since the DEBT-TRIAGE-2 prompt called this "Hazard 3": that
+      name went to DEBT-9's relocation instead, which continues the existing
+      numbered Hazard 1 / Hazard 2 series under § Protected indexes. §2 has no
+      numbered hazards — its idiom is the ⚠️ callout — so this landed as a
+      callout there. Same section as instructed; only the label differs, and it
+      is reported rather than improvised silently.
+      SHARPENED IN THE RELOCATION, and this is new reasoning rather than a
+      transcription: the squash regenerates 0_init with `--to-schema-datamodel`,
+      i.e. FROM schema.prisma, which says `Float?` — so the regenerated baseline
+      will say DOUBLE PRECISION, match the live databases, and ERASE THE EVIDENCE
+      that the ledger ever disagreed. The squash is simultaneously the operation
+      that would surface this and the operation that makes it unfindable.
+      Nothing fails; the discrepancy just stops existing. The relocated callout
+      therefore instructs diffing the regenerated baseline against a live
+      branch's actual column types BEFORE marking it applied, and treating
+      estimatedTimeMinutes as one KNOWN instance rather than the only one —
+      anything else from the same `db push` era has the identical signature.
+      STATUS VALUE: `shipped`, following DEBT-31 and DEBT-19 — a documentation
+      change rather than a code change.
       MEASURED 2026-08-01 during DEBT-2a, on branch dev, while cataloguing the
       Task table. CONFIRMS THE LONG-STANDING estimatedTimeMinutes AUDIT ITEM —
       this is corroboration of a known discrepancy, NOT a new discovery, and the
@@ -5409,6 +5483,13 @@ debt:
   - id: DEBT-36
     title: "AWAITING RULING — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
+      RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → prisma/schema.prisma,
+      as comments on BOTH Task.sectionName and the TaskLog model — the compliance
+      fact that renames rewrite history and that there is no as-executed record
+      of section names anywhere. TaskLog gets the other half because the note
+      there is the ABSENCE of a section column, which is where a reader would
+      look for the record and not find it. THE ENTITY WORK STAYS HERE, AWAITING
+      RULING: a comment records a fact, not a decision.
       AWAITING GARY'S RULING: whether to model Section as a first-class entity
       with stable ids, accepting a migration plus UI, or to accept that section
       renames retroactively rewrite historical checklists.
@@ -5539,6 +5620,14 @@ debt:
   - id: DEBT-39
     title: "Two writers create User rows and only ONE derives the device name — a page-won acceptance race skips PERM-7 Task 7 permanently and silently"
     notes: >
+      RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → docs/DECISIONS.md,
+      appended to the PERM-7 Task 7 section as "The reopening condition — and it
+      fires in the Clerk dashboard, not in this repo". That is the point of the
+      move: the trigger is a settings change made by a person standing in the
+      Clerk dashboard, and nobody standing there reads ROADMAP.yaml. It is
+      written as ONE trigger unmasking two things, per this row's own
+      instruction. THIS ROW KEEPS ITS TASK — mirror NAME as DEBT-17 mirrored
+      ROLE, so either winner of the race produces the same row.
       FILED 2026-08-01, on Gary's PERM-7b ruling, which was given and never
       applied because that session stopped at part one. The finding is from
       PERM-7b's audit; the filing is PERM-7c's.
@@ -5633,6 +5722,13 @@ debt:
       AWAITING RULING — A blocker entry can only be LIVE or RESOLVED — there is
       no value for the half-closed state two entries are actually in
     notes: >
+      RECORD HALF RELOCATED 2026-08-02 by DEBT-TRIAGE-2 → one paragraph on
+      BlockerEntry in src/lib/roadmap.ts: NEVER ADD `resolved: false`. That is
+      where the person about to add it is standing, and it is the one action
+      this row most needs to prevent. The reasoning goes with it — the value is
+      already carried by the flag's absence, and introducing it destroys the
+      "a missing flag means live" default. THIS ROW STAYS AWAITING RULING and
+      its standing instruction is unchanged: watch for one NEW example.
       AWAITING GARY'S RULING: nothing until a NEW half-closed exemplar appears;
       then whether a third BlockerEntry state is worth designing. Title prefixed
       2026-08-02 by DEBT-TRIAGE-1 so the row stops reading as backlog; the
@@ -5918,6 +6014,26 @@ debt:
       Staging carries the PERM-6/PERM-7 verification fixtures — test principals,
       a staff member and a stale ADMIN invite — and nothing owns cleaning them up
     notes: >
+      RECORD HALVES RELOCATED 2026-08-02 by DEBT-TRIAGE-2, to two places because
+      they fire in two places. (a) The fixture-naming convention — name every
+      test principal for the phase that made it → CLAUDE.md § Staging
+      Verification, as its own sub-section, since it binds the session CREATING
+      fixtures rather than the one cleaning them up. (b) The store-delete cascade
+      hazard → a comment at handleDelete in
+      src/app/(app)/stores/store-actions.tsx, which is where someone is standing
+      when it matters. NOTE THE FILE: DEBT-TRIAGE-2's prompt said
+      stores/page.tsx; THIS ROW WAS RIGHT and the prompt's guess was not — the
+      row says only "/stores' handleDelete" and the function is in the button
+      island at store-actions.tsx:143, per CLAUDE.md's own *-actions.tsx
+      convention. The comment also records the swallowed failure, which is what
+      makes the cascade dangerous rather than merely destructive.
+      THIS ROW ABSORBS DEBT-19's CLEANUP, 2026-08-02 by Gary's ruling. DEBT-19
+      closed on relocating its naming convention to CLAUDE.md § Database
+      Evidence, and its second half — deleting the dead single-user Organization
+      shells on branch preview/staging that make the five "Microsoft" rows
+      ambiguous — lands here: same branch, same org, and this row already carries
+      the cascade analysis that cleanup needs. Do it BY ID, and per the analysis
+      below delete the PRINCIPALS, not the stores.
       FILED 2026-08-01 (evening) by PERM-6c on Gary's instruction, and
       DELIBERATELY NOT CLEANED IN THE SAME SESSION.
       ON BRANCH preview/staging, org cmr54z65v000105jxczpt72w1:

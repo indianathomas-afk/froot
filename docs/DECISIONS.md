@@ -37,6 +37,45 @@ So the name is asserted exactly once, at the only moment both the invite and its
 store are in hand, and is freely correctable forever after. An admin who renames
 the account wins permanently; the sign-up form does not.
 
+### The reopening condition — and it fires in the Clerk dashboard, not in this repo
+
+Relocated here 2026-08-02 from DEBT-39, which keeps the mirror-NAME task. It
+belongs in this section because **the trigger is a settings change made by a
+person standing in the Clerk dashboard, and nobody standing there reads
+`ROADMAP.yaml`.** This is the note that has to reach them.
+
+**The trigger: making `first_name`/`last_name` REQUIRED at sign-up, or adding
+any sign-up path that collects a name.** Today neither configured Clerk instance
+collects one — the flow renders only REQUIRED fields, first/last are merely
+enabled, and three staging runs on 2026-08-01 including one through Google OAuth
+presented username and password only.
+
+**Check it as ONE trigger, not two.** That single change unmasks both of these at
+once:
+
+1. **Task 7's override becomes reachable-and-untested.** Everything above is
+   correct in design and correct in code, and it has never once run against a
+   name a human actually typed — because no path supplies one.
+2. **A second writer starts putting a person's name on a device account.** Two
+   writers create the `User` row for an accepted invite and only the webhook
+   derives the device name; `src/app/(app)/users/page.tsx` writes
+   `[firstName, lastName].join(" ") || null` with no derivation at all. Whichever
+   runs first wins, and because the webhook's update branch deliberately never
+   writes `name` (the create-only guard above), a page win means Task 7 **never**
+   runs for that account — not late, never. Nothing logs it and nothing retries.
+   Today the page can only write `null`, so the damage is a blank name. After the
+   trigger it is *Tommy Thomas* on the iPad at the counter, which is the exact
+   hazard `STORE is a device, not a person` exists to prevent.
+
+The guards above are what make the override safe; this is what makes it
+**incomplete**. DEBT-17 was the same race on the same two writers for ROLE, and
+its fix (84437e5) mirrored ROLE between them and left NAME unmirrored — one field
+of a two-field race closed, the other not noticed. The fix direction is to mirror
+NAME the same way, so either winner produces the same row.
+
+Anyone changing that Clerk setting should read DEBT-39 and DEBT-40 before, not
+after.
+
 ## Production database reads go through the Neon console, not a local credential pull — 2026-07-28 (Gary, after the PERM-7 audit did it the other way)
 
 PERM-7's pre-flight audit needed production data — it is what established that
