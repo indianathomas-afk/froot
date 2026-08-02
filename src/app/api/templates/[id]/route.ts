@@ -46,6 +46,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // DEBT-1b: templateData is spread wholesale into the update below, so the
   // phase is validated here or not at all. The one known legacy value is
   // corrected; anything else is rejected by name.
+  //
+  // DEBT-29: the same spread carries startOffsetHours and endOffsetHours to the
+  // DB on every template edit, unvalidated — and because this route never names
+  // them, a repo-wide grep for either field does not return this file. Any audit
+  // of the write paths for those columns will miss this one unless it reads the
+  // spread. POST /api/templates is the only write site the grep does find.
   if ("operationalPhase" in templateData) {
     const phase = normalizePhase(templateData.operationalPhase)
     if (!isOperationalPhase(phase)) {

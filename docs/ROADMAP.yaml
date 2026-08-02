@@ -5381,8 +5381,81 @@ debt:
       rather than a find-and-replace. Related: DEBT-5, DEBT-27.
 
   - id: DEBT-29
+    status: staging
     title: "The template availability window is collected, stored, exported — and never enforced"
     notes: >
+      CLOSED 2026-08-02 by DEBT-29-RELABEL — THE RELABEL HALF ONLY. Prompt:
+      docs/prompts/DEBT-29-RELABEL_honest_copy.md. The form no longer claims the
+      window works. Four strings changed and one card was deleted, all in
+      src/app/(app)/templates/template-form.tsx: the Label became "When is this
+      checklist run? *"; the help text became "A label for staff — checklists
+      stay visible all day."; the Operational Phase help text became "Orders
+      this checklist in the day and sets which shift hands off to it."; and a
+      new line under the two offset inputs reads "Recorded for reference. Not
+      yet used to show or hide checklists."
+      THE PREVIEW CARD IS GONE, with getPhaseDescription, which had no other
+      caller. It computed concrete clock times — "Store opens 8:00 AM →
+      Available 07:00 AM - 10:00 AM" — for a window nothing enforces. It was
+      deleted rather than reworded on the ruling that no helper text makes a
+      computed clock time honest: it was a simulation of a feature that does not
+      exist, and the most guarantee-shaped thing on the page.
+      ALSO RELABELLED, one page over: the templates LIST badge at
+      src/app/(app)/templates/templates-client.tsx:269 read "When: Store Hours".
+      It now reads "Run:". Same claim, different page — leaving it would have
+      made the list contradict the form, which is worse than either state alone.
+      This site is NOT in the original text below; it was found by this session.
+      THE COST LINE BELOW SAYS LIVE, AND THAT IS DISCHARGED BY THIS COMMIT — the
+      false statement is off the screen. What remains is not LIVE: an operator
+      now types two numbers that are honestly labelled as not-yet-used. The cost
+      line is left as DEBT-TRIAGE-2 derived it rather than rewritten, per the
+      convention that a dated claim records what was believed at the time.
+      WHAT DID NOT CLOSE, and now has its own row: DEBT-48, the implement-vs-
+      remove decision, AWAITING RULING. Same shape as DEBT-5 splitting into
+      DEBT-27. Nothing was implemented, no field was deleted, no write path was
+      touched, and the payload at template-form.tsx:792-794 is byte-identical —
+      so the CSV export/import round trip is a verified no-op. DEBT-48 also
+      carries Gary's recorded thinking on the eventual shape, which this row is
+      too small to hold.
+      THE OFFSETS STAY VISIBLE AND LABELLED — ruled by Gary 2026-08-02, AGAINST
+      his own first instinct, which was to hide the inputs and keep the columns.
+      RECORDED HERE BECAUSE A FUTURE READER WILL ARRIVE WITH THAT INSTINCT. The
+      two reasons it does not work: (1) startOffset/endOffset default to 1 and 2
+      at template-form.tsx:637-638 and are written on EVERY StoreHours save, so
+      hiding the inputs does not stop the write — it stops the ADMIN SEEING what
+      gets written, which is worse than the status quo; (2) sending null instead
+      changes what the CSV export emits and breaks parity with files already on
+      disk, which is the same argument that ruled DEBT-1b's "During Hours"
+      mapping. Both reasons are recorded as a comment at the defaults themselves,
+      because that is where someone stands when the instinct strikes.
+      A SECOND COMMENT LANDED at src/app/api/templates/[id]/route.ts, extending
+      the existing DEBT-1b block: PATCH spreads templateData wholesale, so both
+      offsets reach the DB on every template edit, unvalidated — and because the
+      route never NAMES them, a repo-wide grep for either field does not return
+      that file. This corrects the original text below, which says the grep
+      returns "the two write routes": only POST names them. The finding is
+      unaffected — still transport, never consumption — but the write surface is
+      one route wider than a grep can show.
+      POINTERS REPAIRED 2026-08-02 by this session, on DEBT-TRIAGE-1's precedent
+      — repaired here, originals left visible below. `prisma/schema.prisma:133`
+      for the StoreHours model is now :168-177. `src/lib/messages.ts:38-66` ends
+      one line early; resolvePostedForDate closes at :67.
+      ONE CLAIM BELOW IS NARROWER THAN THE TRUTH, and it shaped the new wording.
+      "The only functional consumer of operationalPhase is handoff-note date
+      resolution" is right about the FEATURE and understates the field. phaseOrder
+      is the single funnel and drives three behaviours: date resolution
+      (resolvePostedForDate, consumed at handoff-messages/route.ts:127-128), the
+      shift_phase recorded on the note (phaseToShiftPhase, :137), and WHICH
+      templates you may post to and in what order (handoff-notes.tsx:130, :138,
+      :141 — a real user-visible gate keyed on operationalPhase, just not an
+      availability one). So the phase is a working SEQUENCE key while the offsets
+      are inert, and the new copy states the phase's real job rather than
+      implying both are decorative.
+      VERIFIED NON-CONSUMPTION ON THE READ PATH TOO, which the original text does
+      not cover: src/app/api/stores/[id]/templates/route.ts:23-38 is what the
+      store-view "Available Checklists" list actually fetches, and it filters on
+      isActive / isArchived / appliesTo only — no phase, no offsets, no
+      StoreHours join.
+      ── PRIOR NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: An operator fills in a REQUIRED "When is this
       checklist available? *" field and is shown a preview that reads as a
       guarantee, and nothing in the app ever reads the three values back —
@@ -7031,3 +7104,93 @@ debt:
       Related: DEBT-44 (the cleanup this blocks, and the ordering ruling),
       DEBT-46 (the other half of the Clerk/database asymmetry), DEBT-39
       (unmirrored writers), HR-14 (the rename issue on handler (3)).
+
+  - id: DEBT-48
+    title: >
+      AWAITING RULING — Implement the checklist availability window, or remove
+      the fields — the half of DEBT-29 that a relabel could not settle
+    notes: >
+      COST OF DOING NOTHING: The form is now honest — it says the phase is a
+      label and says the offsets are not yet used — so nobody is misled and
+      nothing is broken; what is missing is a capability, not a fix — NONE.
+      A legitimate NONE: DEBT-29 closed the harm on 2026-08-02, and what is left
+      is a product decision that can wait indefinitely without anything
+      degrading. DERIVED AT HEAD BY DEBT-29-RELABEL 2026-08-02, not
+      DEBT-TRIAGE-2's — this row did not exist when that pass ran.
+      CREATED 2026-08-02 by Gary's ruling when DEBT-29 closed on its RELABEL half.
+      Same shape as DEBT-5 splitting into DEBT-27: closing DEBT-29 whole would
+      have retired the subject from the open list while the capability question
+      was still open and while three columns still collect values nothing reads.
+      Prompt for the session that closed the other half:
+      docs/prompts/DEBT-29-RELABEL_honest_copy.md.
+      THE STATE AT HEAD, so nobody re-derives it: Template.operationalPhase,
+      startOffsetHours and endOffsetHours are all collected, stored, exported and
+      imported. The phase is a WORKING sequence key — it drives handoff-note date
+      resolution, the note's shift_phase, and which templates you may hand off to
+      (src/lib/messages.ts:38-67; handoff-notes.tsx:130, :138, :141). The two
+      offsets are read by NOTHING. No code path joins either to StoreHours
+      (prisma/schema.prisma:168-177), at generation or at listing.
+      AWAITING GARY'S RULING: whether to build the window, or to remove the two
+      offset columns and keep the phase as the label it already is.
+      A THIRD OPTION, surfaced by DEBT-29-RELABEL and explicitly kept here rather
+      than folded into the relabel: make the offsets OPTIONAL and blank by
+      default, so templates stop carrying an invented 1/2 window nobody chose.
+      Today they default to 1 and 2 (template-form.tsx:637-638) and are written
+      on every StoreHours save, so the day a gate goes live those unchosen
+      defaults become real windows for every existing row. That is a change to
+      what the form writes, which is why it belongs to this decision and not to a
+      copy change.
+      SEQUENCING AGAINST DEBT-1 AND DEBT-32, carried over from DEBT-29 and still
+      binding on the IMPLEMENT direction only: today a dirty phase string can at
+      worst misorder a handoff note. Implementing the gate makes it decide WHEN A
+      CHECKLIST APPEARS. DEBT-1 is `status: verified` — writers plugged in
+      c17ccc1, backfill clean on all three branches, promoted to production
+      2026-08-01 in 63407be — so the soak it demanded has happened; this is a
+      pointer to the reason, not an open blocker. DEBT-32 (retire the I-14b alias,
+      fold the three phase lists into one) is the natural thing to do first if
+      this is built, since a gate should read one list rather than three.
+      ────────────────────────────────────────────────────────────────
+      GARY'S THINKING ON THE EVENTUAL SHAPE — RECORDED 2026-08-02 AS THINKING,
+      NOT AS A RULING, AND NOT AS A SPEC. It is here so it is not lost. Nobody
+      should implement from it without Gary scoping the phase first.
+      THE SHAPE: availability is PER TEMPLATE, not per org, and a closed window
+      makes a checklist OVERDUE — visible, flagged, still completable — never
+      hidden.
+      WHY, from two real operating scenarios. (1) An opener arrives late and
+      misses the window. Under hard enforcement the morning checklist disappears
+      and the cash-drawer count and petty-cash audit go undone. Nobody skipped
+      them; the system withdrew them. For a compliance product a task that
+      VANISHES is worse than one left unfinished, because unfinished is visible
+      and vanished is not. (2) An owner-operator ignores the opening checklist
+      because they can. The 11am employee opens the app and sees it untouched —
+      is it theirs? was it skipped? should they do it four hours late? With no
+      enforcement at all the list stops meaning "what you need to do" and starts
+      meaning "everything that exists".
+      OVERDUE-NOT-HIDDEN ANSWERS BOTH: (1) keeps the tasks completable, and (2)
+      gives the 11am employee "Opening — overdue, not completed", which is an
+      answer rather than a puzzle.
+      PER TEMPLATE because the two scenarios differ BY CHECKLIST, not by org. A
+      cash-drawer count is genuinely time-bound; a deep-clean list is "do this
+      today". One org-wide switch forces one answer for both. Per-template also
+      makes the whole question lower-stakes: with overdue-not-hidden the worst
+      case is a longer list, not a missed audit.
+      TWO QUESTIONS THIS SHAPE RAISES, UNANSWERED, recorded so they are not
+      rediscovered. (a) What does OVERDUE do across day boundaries? A closing
+      checklist unfinished at 11pm is overdue; at 6am is it still overdue, or
+      closed out and recorded as missed? Without an answer the opening crew
+      inherits a growing pile from previous shifts. There is probably a point
+      where an unfinished checklist stops being actionable and becomes a
+      compliance record. (b) What do the OFFSETS mean once the window is soft?
+      Today they read as a hard boundary. Under overdue-not-hidden they describe
+      an EXPECTED start and end, not an allowed one — the same two numbers
+      carrying a different meaning. State it, or someone will implement them as
+      enforcement later.
+      ────────────────────────────────────────────────────────────────
+      SCOPE NOTE, AND IT IS THE POINT OF THIS ROW: this has outgrown a debt row.
+      Per-template availability with overdue states and a day-boundary policy is
+      a FEATURE PHASE, not a cleanup. THIS ROW'S JOB IS TO HOLD THE THINKING
+      UNTIL GARY SCOPES IT AS ONE. Do not let it ride along with a debt session.
+      Disconfirmed by: any availability filter keyed on operationalPhase or the
+      offsets appearing in the codebase — at which point the IMPLEMENT direction
+      was taken and this row describes history. Related: DEBT-29 (the relabel
+      half, closed), DEBT-1, DEBT-32, DEBT-30.

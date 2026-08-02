@@ -66,15 +66,6 @@ interface TemplateFormProps {
 // construction rather than by hand-copied literal.
 const PHASES = OPERATIONAL_PHASES.map((value) => ({ value, label: value }))
 
-function getPhaseDescription(phase: string | null, start: number, end: number, availType: string) {
-  if (availType === "AllDay") return "Available all day"
-  if (!phase) return ""
-  if (phase === "Before Opening") return `Available ${start}h before opening until ${end}h after opening`
-  if (phase === "During the Day") return `Available ${start}h after opening until ${end}h before closing`
-  if (phase === "After Closing") return `Available ${start}h before closing until ${end}h after closing`
-  return ""
-}
-
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"]
 
@@ -637,6 +628,12 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   // opens with a matching dropdown option (and correct offset labels) instead
   // of an empty required field, and cannot be re-persisted on save.
   const [phase, setPhase] = useState(normalizePhase(initialData?.operationalPhase) ?? "Before Opening")
+  // DEBT-29: these two default to 1 and 2 and are written on EVERY StoreHours
+  // save (see the payload below), and nothing reads them back — no availability
+  // gate exists. Hiding the inputs would therefore not stop the write, it would
+  // only stop the admin seeing what gets written; and sending null instead
+  // changes what the CSV export emits, breaking parity with files already on
+  // disk. That is why they stay visible and labelled rather than hidden.
   const [startOffset, setStartOffset] = useState(initialData?.startOffsetHours ?? 1)
   const [endOffset, setEndOffset] = useState(initialData?.endOffsetHours ?? 2)
   const [appliesTo, setAppliesTo] = useState(
@@ -933,7 +930,10 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 <p className="text-xs text-[var(--color-muted-foreground)]">Select how often this checklist should be automatically created</p>
               </div>
               <div className="space-y-1.5">
-                <Label>When is this checklist available? *</Label>
+                {/* DEBT-29: this box describes when a checklist is MEANT to be run.
+                    It does not gate visibility — no code path joins these values to
+                    StoreHours, so the copy must not promise one. */}
+                <Label>When is this checklist run? *</Label>
                 <Select value={availType} onValueChange={setAvailType}>
                   <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -941,7 +941,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                     <SelectItem value="AllDay">All Day</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-[var(--color-muted-foreground)]">Availability calculated based on each store&apos;s operating hours</p>
+                <p className="text-xs text-[var(--color-muted-foreground)]">A label for staff — checklists stay visible all day.</p>
               </div>
 
               {availType === "StoreHours" && (
@@ -954,7 +954,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                         {PHASES.map((p) => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-[var(--color-muted-foreground)]">When should this checklist be available?</p>
+                    <p className="text-xs text-[var(--color-muted-foreground)]">Orders this checklist in the day and sets which shift hands off to it.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
@@ -966,17 +966,11 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                       <Input type="number" value={endOffset} onChange={(e) => setEndOffset(Number(e.target.value))} min={0} max={24} />
                     </div>
                   </div>
-                  <div className="bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 rounded-md p-3 text-sm">
-                    <p className="font-medium text-[var(--color-foreground)] mb-1">Preview:</p>
-                    <p className="text-[var(--color-muted-foreground)]">{getPhaseDescription(phase, startOffset, endOffset, availType)}</p>
-                    <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-                      {phase === "Before Opening"
-                        ? `Example: Store opens 8:00 AM → Available ${String(8 - startOffset).padStart(2, "0")}:00 AM - ${String(8 + endOffset).padStart(2, "0")}:00 AM`
-                        : phase === "During the Day"
-                        ? `Example: Store opens 8:00 AM, closes 8:00 PM → Available ${String(8 + startOffset).padStart(2, "0")}:00 AM - ${String(20 - endOffset).padStart(2, "0")}:00 PM`
-                        : `Example: Store closes 8:00 PM → Available ${String(20 - startOffset).padStart(2, "0")}:00 PM - ${String(20 + endOffset).padStart(2, "0")}:00 PM`}
-                    </p>
-                  </div>
+                  {/* DEBT-29: the Preview card that stood here computed concrete clock
+                      times ("Store opens 8:00 AM → Available 07:00 AM - 10:00 AM") for a
+                      window nothing enforces. No helper text makes a computed clock time
+                      honest, so it was removed rather than reworded. */}
+                  <p className="text-xs text-[var(--color-muted-foreground)]">Recorded for reference. Not yet used to show or hide checklists.</p>
                 </div>
               )}
 

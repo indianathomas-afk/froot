@@ -263,8 +263,10 @@ export default function TemplatesClient() {
                     <span>Type:</span>
                     <TypeBadge type={template.type} />
                   </div>
+                  {/* DEBT-29: "Run:", not "When:" — availabilityType is a label for
+                      staff, not a visibility gate. Matches the template form's field. */}
                   <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
-                    <span>When:</span>
+                    <span>Run:</span>
                     <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium bg-[var(--color-muted)] text-[var(--color-foreground)]">
                       {template.availabilityType === "StoreHours" ? "Store Hours" : "All Day"}
                     </span>
