@@ -2435,7 +2435,7 @@ debt:
     notes: >
       CLOSED 2026-07-31 by DEBT-1b — writers plugged in c17ccc1, data backfilled
       on all three branches, record in c01a2b1. Full evidence:
-      docs/DEBT-1_AUDIT.md § DEBT-1b remediation record.
+      docs/prompts/DEBT-1_AUDIT.md § DEBT-1b remediation record.
       DATA: zero non-canonical rows remain, verified per branch with branch-named
       before/after counts — branch dev 1 row changed, branch preview/staging 2,
       branch production 1, all three then returning
@@ -2466,7 +2466,7 @@ debt:
       CHECK constraint is now UNBLOCKED by this backfill and is the durable fix
       for the class; app-layer validation is the ceiling until then.
       ORIGINAL AUDIT MARKER, preserved:
-      AUDIT LANDED 2026-07-30 in 21dd712 — docs/DEBT-1_AUDIT.md. STILL OPEN, and
+      AUDIT LANDED 2026-07-30 in 21dd712 — docs/prompts/DEBT-1_AUDIT.md. STILL OPEN, and
       deliberately so: an audit does not close the debt. The writer fix and the
       backfill are DEBT-1b, whose prompt is docs/prompts/DEBT-1b_operationalPhase_remediate.md
       and whose hard precondition is that audit file.
@@ -2518,7 +2518,7 @@ debt:
     title: "Task.sectionName is unvalidated free text with no Section entity"
     notes: >
       CLOSED 2026-08-01 by DEBT-2b in 5003d65. Audit is bceca47
-      (docs/DEBT-2_AUDIT.md); the hardening pass is 5003d65.
+      (docs/prompts/DEBT-2_AUDIT.md); the hardening pass is 5003d65.
       NO DATA STEP WAS RUN, BECAUSE NONE WAS NEEDED. The audit measured all
       three branches and all three were clean — 29 distinct spellings, 29
       distinct lower(btrim()), zero empty, zero untrimmed, zero
@@ -2577,7 +2577,7 @@ debt:
       STILL OPEN AND UNTOUCHED BY THIS SESSION: DEBT-30 (DB-level CHECK),
       DEBT-33 (red lint baseline), DEBT-36 (the entity).
       ── ORIGINAL AUDIT MARKER, preserved ──
-      AUDIT LANDED 2026-08-01 in bceca47 — docs/DEBT-2_AUDIT.md. STILL OPEN,
+      AUDIT LANDED 2026-08-01 in bceca47 — docs/prompts/DEBT-2_AUDIT.md. STILL OPEN,
       and deliberately so: an audit does not close the debt. Remediation is
       DEBT-2b, whose prompt is written after this audit, not before.
       RETITLED BY THIS AUDIT. The old title — "sectionName vs section field
@@ -2635,7 +2635,7 @@ debt:
       FALSIFIER — production returning orgs=2 or 420 tasks would have broken it
       — AND THE FALSIFIER WAS THEN RUN AND CAME BACK NEGATIVE (orgs=1, 210
       tasks). The attribution rests on structure, not on the breadcrumb alone.
-      See docs/DEBT-2_AUDIT.md §4.
+      See docs/prompts/DEBT-2_AUDIT.md §4.
       (6) NOT A BACKFILL — SETTLED, not predicted. All three branches measured
       clean, so DEBT-2b is a small hardening pass with NO data step: close the
       unguarded writer (template-form.tsx:526-527), trim uniformly at the two
@@ -3749,6 +3749,15 @@ debt:
       to PhaseStatus in cf0b044 by Gary's ruling. Nothing else on this row is
       edited and nothing here reopens it. No `commits` field, deliberately:
       nothing was fixed, so there is no SHA to cite.
+      WHY IT HAD NO STATUS UNTIL NOW, carried forward from the row comment
+      removed in cde5022: the vocabulary genuinely had no value for "withdrawn",
+      and adding one was a CODE CHANGE to PhaseStatus in src/lib/roadmap.ts —
+      deliberately deferred as a separate decision, not taken as a rider on a
+      render fix. The consequence recorded at the time was that DEBT-14's rule
+      "a missing status means OPEN" was WRONG for exactly this row, which is the
+      anomaly the ruling resolves. THAT ANOMALY IS NOW CLOSED: with `withdrawn`
+      applied to both this row and DEBT-23, the rule in src/lib/roadmap.ts holds
+      again without exception — a missing status means OPEN, full stop.
       WITHDRAWN THE SAME DAY IT WAS FILED, 2026-07-28. Its founding
       observation was false. The row claimed /users showed store access for an
       account with ZERO StoreUserAssignment rows; the query behind that was run
@@ -4541,7 +4550,7 @@ debt:
   - id: DEBT-36
     title: "Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
-      FILED 2026-08-01 from DEBT-2a's findings; see docs/DEBT-2_AUDIT.md §2 and
+      FILED 2026-08-01 from DEBT-2a's findings; see docs/prompts/DEBT-2_AUDIT.md §2 and
       §6. This is the DURABLE fix for the class DEBT-2 describes, and it is
       deliberately NOT part of DEBT-2b — it is a product decision plus a
       migration plus a UI, not a debt cleanup. Do not let it ride along.

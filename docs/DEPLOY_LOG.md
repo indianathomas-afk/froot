@@ -15,7 +15,7 @@ Deploy verification: 2026-07-02T22:00:05Z
   session's writable set; a migration would have fired unattended during a Vercel
   build, taking the operator's hand off a production mutation that DEBT-1 has
   always required be approved per statement, per branch. Full reasoning and the
-  named residual are in `docs/DEBT-1_AUDIT.md` § DEBT-1b remediation record.
+  named residual are in `docs/prompts/DEBT-1_AUDIT.md` § DEBT-1b remediation record.
 - **The statement**, identical on every branch, idempotent by exact equality:
   ```sql
   UPDATE "Template" SET "operationalPhase" = 'During the Day'

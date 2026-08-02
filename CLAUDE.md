@@ -157,6 +157,29 @@ frozen in `docs/ROADMAP_ARCHIVE.md`.
 **Update it before the session ends** — see "Session completion rules" in
 `docs/WORKFLOW.md`.
 
+### Where documents live
+
+**`docs/prompts/` holds session artifacts; `docs/` holds living reference
+documents.** A session's saved prompt and anything that session produced as a
+record — audits, preserved query output, smoke-pass results — go in
+`docs/prompts/`. Documents a future reader consults for current truth
+(`ROADMAP.yaml`, `MIGRATIONS.md`, `PERMISSIONS_INVENTORY.md`, `DECISIONS.md`,
+`DEPLOY_LOG.md`) stay in `docs/`.
+
+**The line that decides an edit is POINTERS vs CLAIMS, not frozen vs living.**
+A pointer's job is to *resolve* — repair it when its target moves. A claim's job
+is to record what was believed at the time — never touch it. This is why
+`DEPLOY_LOG.md` gets its paths fixed even though it is dated history: the path is
+a pointer, and a dated entry that resolves to nothing helps no one. And it is why
+nothing in `docs/prompts/` is ever edited: a saved prompt is a claim *wholesale*
+— the whole document is the instruction of record — so even a broken path inside
+one stays broken. Editing it would rewrite what was instructed to match what is
+now true, which is the opposite of why the library exists.
+
+`DEBT-1_AUDIT.md` and `DEBT-2_AUDIT.md` moved here 2026-08-01, making the rule
+consistent with `verification-smoke-pass.md` and `BUILD-2_default_store.md`,
+which were already in `docs/prompts/`.
+
 ## Staging Verification — Precondition
 
 **Before verifying anything on staging, confirm the deployed commit SHA matches
@@ -221,6 +244,38 @@ whether commits exist on the current branch that are not on its origin remote
 (`git log --oneline @{u}..`), listing them if so — even when the answer is
 none. This is the structural guard against unpushed work sitting unnoticed
 (the F-4 incident), now that pushing is never Claude's to do.
+
+## Commit Gates
+
+**Every commit gate is ONE chained command, and it contains NO PIPES.**
+
+```bash
+npx eslint <files this commit touches> && npm run build > /tmp/build.log 2>&1 && git commit -F - <<'EOF'
+...
+EOF
+```
+
+**NO PIPES IN A GATE CHAIN — including for readability.** A pipeline returns the
+**last** command's exit code, so `&& npm run build | tail` reports `tail`'s
+success and commits on a red build. The pipe does not just shorten the output;
+it discards the result the gate exists to check.
+
+If the output is too long to read, **redirect it to a file inside the chain** —
+as above — and read the file **afterwards, as a separate command**. Reading the
+log is never part of the chain: anything appended after `git commit` runs after
+the commit already happened, and anything appended with `;` does not
+short-circuit at all.
+
+Recorded 2026-08-01 after the DEBT-SWEEP session appended `| tail` to four gate
+chains purely to shorten output. "No pipes" was already the rule; it got bent for
+convenience by someone who knew it, which is why the reason is attached to it
+now. The gate passed on re-run, so nothing was hidden — that is luck, not
+evidence the shortcut is safe.
+
+**No bare `npm run lint`** until DEBT-33's baseline clears: it exits 1 on a clean
+checkout (ten errors at time of writing), so any gate containing it can never
+reach the commit. **Scoped eslint over the files this commit touches** is the
+interim rule. Docs-only commits skip eslint and gate on `npm run build` alone.
 
 ## Module Gating
 
