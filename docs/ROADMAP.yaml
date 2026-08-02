@@ -4126,8 +4126,101 @@ debt:
       least legible — but it should be a decision, not a surprise.
 
   - id: DEBT-13
+    status: staging
+    commits: ["ffee362"]
     title: "A MANAGER cannot see a staff member who works at their store but is homed elsewhere — /staff groups by primary store"
     notes: >
+      CLOSED 2026-08-02 in ffee362. One file, src/app/(app)/staff/page.tsx — no
+      permissions change, no query change, no schema, no migration. The query
+      was always correct; this was a render decision, exactly as the row's FIX
+      DIRECTION said.
+      WRITTEN BEFORE THE PUSH, so the board is briefly ahead of reality: at the
+      moment this row was edited, ffee362 existed only on the local `staging`
+      branch and `origin/staging` was still at 790cfc4. Gary pushed immediately
+      after. The SHA is the durable fact; `status: staging` was accurate within
+      minutes of being written, and this clause is here so nobody later reads
+      the status as evidence of where the code was at the time.
+      RE-VERIFIED AT HEAD 790cfc4 BEFORE THE CHANGE, and this row had NOT
+      drifted: :78 was still `member.storeAssignments[0].store` (blame 1cfdf76),
+      :118 was still `stores.filter((s) => byStore.has(s.id))` (blame e645694),
+      and the `some` clause at :28 still fetched the member the render then
+      dropped. All three line numbers from 2026-07-27 were exact five days later.
+      WHAT LANDED — the row's second named direction, "Also works here", with
+      the TRIGGER made precise: a member is listed under their home store, and
+      if their home store is NOT ON THIS PAGE they are listed instead under
+      every store of theirs that IS, under an "Also works here — N members based
+      at another store" heading, each row carrying "Home store: <name>".
+      THE TRIGGER IS THE WHOLE DESIGN, and it is why the fix needs no isAdmin
+      branch. An ADMIN's `stores` is every store in the org, so a member's home
+      store is ALWAYS visible to them and the new branch is unreachable — their
+      page is unchanged and cannot duplicate a member, as a property of the data
+      rather than a conditional someone could get wrong later. The row's FIRST
+      named direction, "render under every in-scope store", cannot be taken as
+      literally worded for exactly this reason: for an admin every store is in
+      scope, so every multi-store member would list once per store.
+      ACCEPTED COST, Gary 2026-08-02: a member whose home store IS in scope
+      stays in ONE group even when they also work at another in-scope store.
+      Chase Nyman (Carson + Las Brisas, no primary, so homed Carson
+      alphabetically) appears to the Las Brisas manager under Carson — same
+      page, one card up. Discoverable, which the bug was not.
+      THE PRIMARY STAR NEVER MOVES, which is what the row's forbidden fix would
+      have broken. Chips still render every assignment with the star on the real
+      primary, so on Jordan's Carson row they read ★UNR · Carson · Las Brisas —
+      the star keeps pointing at UNR from both cards, and the "Also works here"
+      heading agrees with it instead of contradicting it.
+      COUNTS STAY SEPARATE: the store header keeps "12 team members" for that
+      store's own roster and appends "· 2 also work here" only when the block is
+      non-empty. One merged number would make the same word cover two
+      populations.
+      THE TRUST HALF, which is the row's sharpest point: a non-admin's subtitle
+      now states the rule the list follows — "Everyone assigned to your 2
+      stores, including staff based at another location" — and it is there on a
+      quiet day too. A block that only appears when someone happens to be
+      visiting teaches nothing on the days it is absent, and its absence is
+      indistinguishable from the bug.
+      A WORSE MANIFESTATION THIS ROW NEVER STATED, found at HEAD while
+      re-verifying and closed by the same fix: if EVERY in-scope member is homed
+      elsewhere, `staff.length` is non-zero so the empty state at :102 does not
+      render, and the filter at :118 yields nothing. The manager gets a heading
+      and a blank page — no rows, no empty state, no explanation. The same bug
+      at its worst.
+      WHY IT SCALES, also not in the row, and the reason it was worth fixing now
+      rather than later. Jordan's omission is provably an EXPLICIT isPrimary on
+      an out-of-scope store, inferred from the sort order WITHOUT a query:
+      assignments order [{isPrimary desc}, {store.name asc}], and Carson
+      precedes UNR alphabetically, so with zero primaries he would have homed at
+      Carson and been visible. Only an explicit primary at UNR omits him. And
+      explicit primaries arrive in BULK — SyncStaffButton
+      (staff-buttons.tsx:483) sets "store assignments and primary store to match
+      Square" for every imported member — so this population grows with each
+      Square import rather than one member at a time.
+      NOT MEASURED, stated so nobody reads more into this than was checked: no
+      database was touched this session. Jordan Pippenger remains the ONLY
+      example anyone has evidenced. DEBT-9's four recorded preview/staging
+      zero-primary staff were checked against the rule above and NONE is a
+      second example — Aaliyah Rose and Gary Thomas are single-store, Chase
+      Nyman and Kelton Thomas home at Carson alphabetically, all in scope. How
+      many staff carry an explicit out-of-scope primary is UNKNOWN and needs a
+      Neon console query. The rendered page was not verified either: /staff is
+      behind Clerk and the case needs a MANAGER session.
+      ALSO IN THIS COMMIT, both approved as riders: the roster row markup was
+      extracted to one StaffRow component shared by the store roster, the "Also
+      works here" block and Unassigned, removing a pre-existing near-duplicate
+      of ~30 lines; and the non-admin subtitle falls back to the admin wording
+      at stores.length === 0 rather than reading "your 0 stores".
+      TWO OBSERVATIONS LEFT AS COMMENTS AT THEIR SITES, deliberately not filed
+      as rows (Gary, 2026-08-02): Unassigned is reachable for an ADMIN only,
+      since a non-admin's query requires `some` in-scope assignment; and
+      StaffLocationChips truncates at 8, so a member with 9+ stores on an "Also
+      works here" row may not show a chip for the store whose card they are on —
+      which costs nothing, because the card heading already names it.
+      RULED NOT A ROW, Gary 2026-08-02: a manager already sees out-of-scope
+      store NAMES in the Locations chips at HEAD, because StaffLocationChips
+      renders member.storeAssignments unfiltered. So "Home store: UNR" discloses
+      nothing new, and naming the store is what makes the row make sense.
+      Masking chips would be a separate change with a real cost — the Primary
+      star would point at a hidden store.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       COST OF DOING NOTHING: A MANAGER's /staff roster silently omits every
       staff member who works at their store but is homed outside their scope,
       and nothing signals the list is incomplete — LIVE. Re-derived at HEAD, not
