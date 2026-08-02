@@ -64,6 +64,11 @@
   }
 }
 
+/* UNLAYERED, as the * reset above was until 06befd2 (DEBT-43): any bg-*,
+   text-* or font-* utility applied to <body> loses to these declarations
+   regardless of specificity. layout.tsx:14's `antialiased` already collides
+   and is harmless only because it sets the same value. Wrap this in
+   @layer base before adding a utility to that element. */
 body {
   background: var(--color-background);
   color: var(--color-foreground);
