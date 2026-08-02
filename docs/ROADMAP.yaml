@@ -16,10 +16,28 @@
 #              fixed, so there is no SHA to cite). Added 2026-08-01.
 #   GAP: no status fits an audit-only phase with no shipped code (SQ-1 sits in "verified") — a future "closed"/"documented" would.
 #
-# blockers — live problems in a phase regardless of status (unset env vars,
-#            prod-promotion gates, unverified pixel work). Anything here blocks.
+# blockers — problems in a phase regardless of status (unset env vars,
+#            prod-promotion gates, unverified pixel work).
+#   AN ENTRY IS EITHER A BARE STRING (LIVE) OR `{resolved: true, text: >}`
+#   (CLOSED, kept for the record). "Anything here blocks" was true when written
+#   and stopped being true as soon as the preserve-and-mark convention started
+#   keeping closed gates in the array: by 2026-08-01, 8 of 19 entries were
+#   closed and /internal/roadmap counted every one of them as live. Corrected
+#   by P-4 the same day, which added the flag.
+#   A MISSING FLAG MEANS LIVE — DEBT-14's "a missing status means OPEN" one
+#   level down, and the safe direction: an unclassified entry keeps blocking.
+#   NEVER edit an entry's text to mark it resolved. The prose is the record and
+#   on several rows the ORDER of the entries is the lesson; the flag is
+#   additive and sits over text that does not change.
+#   DO NOT infer the state from the leading words. Live entries open "VERIFIED
+#   STILL TRUE" (F-5) and "CONFIRMED LIVE" (F-4), and PERM-6's two closed
+#   entries carry no marker at all — they are closed by the entry prepended
+#   ABOVE them. Only the flag is read.
 # deferred — scope intentionally cut.
 # open     — unresolved questions that aren't yet blockers.
+#   Both are still BARE STRINGS ONLY and both still keep resolved entries in
+#   the array (PERM-2 `deferred`, and PERM-6/PERM-7/SEC-1 `open`). Known and
+#   deliberately not fixed — no count on the page reads either field. DEBT-42.
 #   NOTE: blockers/deferred/open/tags exist ONLY on `phases`. `bugs:` accepts
 #   id/title/status/shipped/commits/notes; `debt:` accepts
 #   id/title/status/commits/notes.
@@ -235,6 +253,85 @@ phases:
       date and the `unknown` fallback did NOT fire. Had it fired, the page would
       have rendered anyway (by design, never silently) and the staleness the
       phase exists to eliminate would have come straight back.
+
+  - id: P-4
+    title: >
+      The /internal/roadmap blockers panel counts resolved blockers as live —
+      blocker entries carry no state for the renderer to read
+    track: platform
+    size: S
+    status: in_progress
+    commits: [3a2f7ac]
+    notes: >
+      STATUS IS `in_progress`, NOT `staging`, and the distinction is deliberate.
+      The work is complete and committed on the local `staging` branch, but
+      Claude never pushes (CLAUDE.md § Git Rules), so nothing is on a Vercel
+      preview and `staging` — which asserts exactly that — would be false. Move
+      it to `staging` on push. This is the same GAP the header NOTE records for
+      audit-only phases: the vocabulary has no value for "done locally, not yet
+      deployed".
+      The /internal/roadmap blockers panel counted RESOLVED blocker entries as
+      live. Observed 2026-08-01: the panel read "19 across 8 phases" when 8 of
+      those 19 were closed, including every entry on PERM-6 and PERM-7 — both
+      `shipped`, in production since 746c1be, and still presented as blocked.
+      DEBT-14'S DEFECT ONE LEVEL DOWN. That row fixed exactly this for the debt
+      list: rows carried a status the UI ignored. Phases, bugs and debt rows all
+      gained status handling; blocker ENTRIES never did. They were bare strings
+      with no field to carry state, so the renderer had no way to tell a live
+      gate from a closed one.
+      WHY IT MATTERED beyond cosmetics: this panel is what gets read to answer
+      "what is stopping promotion", and the failure direction was OVERSTATING —
+      real blockers hiding among resolved ones, in the one moment the answer is
+      load-bearing. The preserve-and-mark convention was never the problem; the
+      renderer's blindness to it was.
+      THE FIX — Option D of five considered, STRUCTURED-MINIMAL. BlockerEntry is
+      now `string | {resolved: true, text}`. A BARE STRING MEANS LIVE, which is
+      DEBT-14's "a missing status means OPEN" one level down and the safe
+      direction. Only the 8 CLOSED entries were migrated; the 9 live ones were
+      never touched, so the prose that still matters is untouched prose. Four
+      render sites now read the flag rather than the array length: the summary
+      tile, the panel headline, PipelinePanel and the PhaseCard badge.
+      PREFIX DETECTION WAS REJECTED ON EVIDENCE, NOT ON TASTE — this is the
+      durable part of the row. Reading the existing CLOSED / RESOLVED / GATE
+      CLEARED / WITHDRAWN markers was the cheap option and it fails in BOTH
+      directions on this very file. F-5's LIVE blocker opens "VERIFIED STILL
+      TRUE" and F-4's opens "CONFIRMED LIVE" — live entries whose first words
+      are resolution words, which a matcher would close, failing toward
+      UNDERSTATING, which is worse than the bug being fixed. And PERM-6's two
+      closed entries carry NO marker at all: they are closed by a separate entry
+      prepended ABOVE them in the same array. The convention operates at the
+      ARRAY level as well as inside a string, and prose cannot carry a count.
+      THE AUDIT CORRECTED THE PROMPT that opened the session, in three places
+      worth keeping: "nearly all" the entries were resolved (no — 8 of 19, with
+      9 genuinely live); every entry "opens with" a resolution marker (true of 6
+      of the 8); and PERM-6 having "every gate closed" (true of its promotion
+      gates, but its second entry is a LIVE coverage note recording four things
+      still unexercised, in the wrong field). That entry stays a bare string.
+      RESOLVED ENTRIES ARE STILL ON THE PAGE, in array order, toned down and
+      MARKED "resolved" — marked rather than merely toned, because PERM-6's last
+      two say "STAYS OPEN" in their own text. A phase whose blockers are all
+      closed moves into a collapsed "Resolved gates" disclosure, mirroring the
+      "Resolved debt" panel DEBT-14 built. Nothing was deleted or reworded.
+      THE MIGRATION WAS PROVEN NON-DESTRUCTIVE, which was the one real risk.
+      These are folded YAML scalars; nesting them under `text:` reindents every
+      line by +2, and a botched reindent changes folded prose SILENTLY. A
+      whole-tree identity check parsed the file before and after and compared
+      every string with blockers flattened to their text: PASS, byte-identical.
+      Also fixed: PipelinePanel, which renders nothing today (zero staging
+      phases) and so was a dormant defect rather than an absent one — it re-arms
+      the moment anything sits in staging, which is precisely when that panel is
+      read. And both summary numbers now name their unit: the tile counts
+      PHASES, the panel headline counts ENTRIES, and two bare numbers that
+      looked like the same quantity is where the original confusion started.
+      Two comments were corrected rather than left to outlive the change that
+      falsified them, DEBT-26's exact shape: roadmap.ts's "Free-text strings,
+      not structured records" (commit 1) and this file's own header NOTE, which
+      asserted "Anything here blocks" (commit 2).
+      FILED NOT FIXED: DEBT-41 (no vocabulary for a PARTIALLY closed entry —
+      PERM-6[1] and BUILD-1[0] are both evidence) and DEBT-42 (`deferred` and
+      `open` carry the same defect, deliberately unfixed by Gary's ruling since
+      no count on the page reads them).
+      Session prompt: docs/prompts/P-4_blockers_panel_status.md
 
   - id: UX-1
     track: platform
@@ -1207,42 +1304,43 @@ phases:
       PERM-6 → PERM-7 → PERM-5.
       Session prompt: docs/prompts/PERM-5_per_user_capability_overrides.md
     blockers:
-      - >
-        RESOLVED 2026-07-27 by PERM-6 Task 5 — kept in full below as the record
-        of what was wrong, because the trap it describes is exactly the kind
-        PERM-5 can re-arm. ForecastContext no longer has an `isAdmin` flag at
-        all: it carries `canEdit` (can(forecasting.edit)) and `unscoped`
-        (can(forecasting.scope.all), a new ADMIN_ONLY capability), and the
-        THREE sites that made a scoping decision off the fused flag —
-        requireForecastStore, forecasting/audit's store filter, and the
-        /forecasting store picker — all ask `unscoped`. Granting a MANAGER
-        forecasting.edit now grants goal editing and nothing else. Note the
-        original blocker text below named only the first of those three sites;
-        see the PERM-6 row for why the "one-file" scoping was wrong.
-        PERM-5 is no longer blocked on this. ORIGINAL TEXT FOLLOWS:
-        PERMISSION FUSION — split "may write" from "may read any store" BEFORE
-        building the override layer. Verified in source 2026-07-27:
-        `ForecastContext.isAdmin` is literally `can(actor,
-        "forecasting.edit")` (src/lib/forecasting-access.ts:51), and
-        `requireForecastStore` SKIPS the StoreUserAssignment check entirely
-        whenever `isAdmin` is true (`if (!ctx.isAdmin) { ...assigned check... }`
-        in the same file). One flag is doing two unrelated jobs: "may edit
-        goals" and "is exempt from store scoping". These coincide correctly
-        TODAY only because forecasting.edit is ADMIN_ONLY, so the only callers
-        with isAdmin true are admins, who are legitimately unscoped.
-        The moment PERM-5's override layer grants forecasting.edit to a single
-        MANAGER — the exact per-user grant this phase exists to enable — that
-        user ALSO silently gains unscoped cross-store forecast READS. Nobody
-        reading the grant "give Maria goal-edit access" would predict it hands
-        her every sibling store's forecast, and it would defeat the
-        assignment-scoping fix PERM-3 shipped and the 7-27 pass verified via S4.
-        This is not a bug today; it is a trap armed for the first override.
-        Fix direction: give requireForecastStore its own capability (e.g. a
-        `forecasting.scope.all` or an explicit unscoped flag on the context)
-        rather than reusing isAdmin, so the two powers are grantable
-        independently.
-        SCHEDULED: PERM-6 fixes this. Once PERM-6 lands, clear this blocker.
-        PERM-5 must not start before it does.
+      - resolved: true
+        text: >
+          RESOLVED 2026-07-27 by PERM-6 Task 5 — kept in full below as the record
+          of what was wrong, because the trap it describes is exactly the kind
+          PERM-5 can re-arm. ForecastContext no longer has an `isAdmin` flag at
+          all: it carries `canEdit` (can(forecasting.edit)) and `unscoped`
+          (can(forecasting.scope.all), a new ADMIN_ONLY capability), and the
+          THREE sites that made a scoping decision off the fused flag —
+          requireForecastStore, forecasting/audit's store filter, and the
+          /forecasting store picker — all ask `unscoped`. Granting a MANAGER
+          forecasting.edit now grants goal editing and nothing else. Note the
+          original blocker text below named only the first of those three sites;
+          see the PERM-6 row for why the "one-file" scoping was wrong.
+          PERM-5 is no longer blocked on this. ORIGINAL TEXT FOLLOWS:
+          PERMISSION FUSION — split "may write" from "may read any store" BEFORE
+          building the override layer. Verified in source 2026-07-27:
+          `ForecastContext.isAdmin` is literally `can(actor,
+          "forecasting.edit")` (src/lib/forecasting-access.ts:51), and
+          `requireForecastStore` SKIPS the StoreUserAssignment check entirely
+          whenever `isAdmin` is true (`if (!ctx.isAdmin) { ...assigned check... }`
+          in the same file). One flag is doing two unrelated jobs: "may edit
+          goals" and "is exempt from store scoping". These coincide correctly
+          TODAY only because forecasting.edit is ADMIN_ONLY, so the only callers
+          with isAdmin true are admins, who are legitimately unscoped.
+          The moment PERM-5's override layer grants forecasting.edit to a single
+          MANAGER — the exact per-user grant this phase exists to enable — that
+          user ALSO silently gains unscoped cross-store forecast READS. Nobody
+          reading the grant "give Maria goal-edit access" would predict it hands
+          her every sibling store's forecast, and it would defeat the
+          assignment-scoping fix PERM-3 shipped and the 7-27 pass verified via S4.
+          This is not a bug today; it is a trap armed for the first override.
+          Fix direction: give requireForecastStore its own capability (e.g. a
+          `forecasting.scope.all` or an explicit unscoped flag on the context)
+          rather than reusing isAdmin, so the two powers are grantable
+          independently.
+          SCHEDULED: PERM-6 fixes this. Once PERM-6 lands, clear this blocker.
+          PERM-5 must not start before it does.
 
   - id: PERM-6
     track: permissions
@@ -1251,98 +1349,99 @@ phases:
     shipped: 2026-07-29
     commits: [d4a6bdc]
     blockers:
-      - >
-        GATE CLEARED 2026-08-01 — ONE REAL INVITE RAN START TO FINISH ON
-        STAGING. Both entries below are closed by this and kept unedited,
-        because the ORDER is the lesson. Gary ran it and supplied the evidence;
-        DOCS-3 recorded it and independently checked only what the repo can
-        check.
-        THE RUN, on staging (froot-git-staging-…vercel.app), Clerk org
-        org_3GO2wO4QlVVSWppi8aqlnSZnsDa. /users -> Invite,
-        indianathomas@gmail.com, role MANAGER — DELIBERATELY NON-ADMIN, which is
-        the whole point of the test: POST /api/users maps every non-ADMIN role
-        to the same Clerk role, org:member (users/route.ts:106), so a MANAGER
-        arriving as a MANAGER is only possible if the app role was recovered
-        from PendingInvite. One location, University Village. Clerk logged
-        organization_invitation.created at 19:22:47 PDT, source backend-api,
-        event 019fc047-ee89-7d77-8b99-5c8512eeb9cd. Invitation accepted, account
-        created. THREE OBSERVATIONS, and they are not of equal weight — the
-        discrimination argument is stated here because it is what makes two of
-        them mean anything.
-        (i) ADMIN VIEW, ROLE: the /users members table shows
-        indianathomas@gmail.com as MANAGER. That Role column reads User.role off
-        the DB row (users/page.tsx:135), so a User row exists at the invited
-        role rather than at the STAFF floor. THIS OBSERVATION DOES NOT
-        DISCRIMINATE: since DEBT-17's fix (84437e5) the page's own create branch
-        resolves role from PendingInvite exactly as the webhook does
-        (users/page.tsx:95), so MANAGER is what EITHER writer produces. It rules
-        out the failure mode; it does not identify the writer.
-        (ii) ADMIN VIEW, LOCATIONS: the same row rendered Location Access =
-        "University Village". THIS ONE DISCRIMINATES. storeAssignments are
-        written only by the Clerk webhook's if(pending) block — the page writes
-        role and never assignments — so the chip rendering is PERM-6 Task 2's
-        storeUserAssignment.createMany having run, on the validated storeIds.
-        This is the first end-to-end confirmation of that half outside a build.
-        (iii) THE INVITED ACCOUNT'S OWN SESSION, which is the strongest of the
-        three: signed in AS the invited user, the dashboard header read
-        "Saturday, August 1 · University Village — Colorado Springs, CO".
-        Stronger than (ii) because it is not an admin page rendering a row about
-        someone else — it is the new principal's own session resolving its own
-        store scope from the assignment the webhook wrote. Role recovery,
-        assignment materialisation and scope resolution, end to end, in the
-        account they were provisioned for.
-        THE DEPLOYMENT CONTAINED THE CODE — the check the 2026-07-28 pass
-        failed, and here it is repo-derivable rather than taken on trust.
-        origin/staging was pushed to 7b590b3 at 18:52:54 PDT, THIRTY MINUTES
-        before the invite, and no commit exists after it; d4a6bdc (PERM-6),
-        6530d8b and bae09ed (PERM-7) and 84437e5 (DEBT-17) are all ancestors of
-        that tip. Stated precisely: this is PUSH-TIME evidence, not `vercel
-        inspect` evidence — the deployed SHA was not read back.
-        OUT OF ORDER, SAID PLAINLY. This gate existed to hold the promotion, and
-        the promotion went first: 746c1be, 2026-07-29, and that much is checkable
-        — all three phase commits are ancestors of it. So the run confirms the
-        path works; it did not gate anything. The bill was paid after delivery.
-        THE ORG WAS NOT RECONCILED, deliberately. The Clerk org id above is as
-        Gary gave it; PERM-7's re-run target on this row's sibling is recorded
-        as DB organizationId cmr54z65v000105jxczpt72w1 on branch
-        preview/staging. NOBODY CHECKED THAT THESE ARE THE SAME ORG, and this
-        line exists so no future reader assumes it was checked. Note also that
-        `org_3GO2wO...` carries an O/0 ambiguity in transcription. Identifying
-        the org by NAME is not a way out — see DEBT-19: nine orgs on
-        preview/staging, five of them called "Microsoft".
-        DELIVERABILITY, worth the line it costs: the invite email landed in
-        Gmail's JUNK folder. Clerk DEVELOPMENT-instance mail gets spam-filtered,
-        and the development instance is what serves staging. CHECK JUNK BEFORE
-        CONCLUDING AN INVITE WAS NEVER DELIVERED — several minutes went into the
-        wrong conclusion before the mail was found.
-        THE SAVED PROMPT IS A PARTIAL RECORD. docs/prompts/DOCS-3_perm6_gate_
-        cleared.md was truncated in transmission mid-way through its evidence
-        list, and per CLAUDE.md § Where documents live a saved prompt is a claim
-        wholesale and is never edited. THIS ROW IS THE COMPLETE RECORD; the
-        prompt file is not. What the truncation cost: observations (ii) and
-        (iii) above, and the /users 409 note now on DEBT-16.
-        THE ORG WAS NOT RECONCILED — IT IS NOW, 2026-08-01 (evening), by query
-        rather than by inference. DB organizationId cmr54z65v000105jxczpt72w1
-        and Clerk org id org_3G02wO4QlVVSWppi8aqlnSZnsDa ARE THE SAME ORG. The
-        line above exists so no future reader assumed it had been checked; it
-        had not been, and now it has. Both ids stay on this row, since either
-        one alone is the ambiguous half of a pair.
-        AND THE TRANSCRIPTION ABOVE IS WRONG, which is why the check mattered.
-        The character after `3G` is a ZERO, not a letter O. Correct in full:
-        org_3G02wO4QlVVSWppi8aqlnSZnsDa. Note the SECOND `O` (in `2wO`) IS a
-        letter in both spellings — exactly one character was wrong, which is the
-        whole hazard: a one-character error in a 28-character opaque id looks
-        like a correct id. The original spelling is preserved unedited above,
-        and the "carries an O/0 ambiguity" note stands as the flag that caught
-        it. docs/prompts/DOCS-3_perm6_gate_cleared.md:27 also carries the
-        letter-O spelling and STAYS WRONG BY DESIGN — a saved prompt is a claim
-        wholesale and is never edited (CLAUDE.md § Where documents live). THIS
-        ROW IS THE AUTHORITY for the spelling; the prompt file is not.
-        WHY THE ID AND NOT THE NAME, restated because the temptation recurs:
-        DEBT-19. Nine orgs on preview/staging, five of them called "Microsoft",
-        including this one. Identifying it by name resolves to A row — silently,
-        and not necessarily this one. An unverifiable id is still safer than a
-        name that resolves to the wrong org without erroring.
+      - resolved: true
+        text: >
+          GATE CLEARED 2026-08-01 — ONE REAL INVITE RAN START TO FINISH ON
+          STAGING. Both entries below are closed by this and kept unedited,
+          because the ORDER is the lesson. Gary ran it and supplied the evidence;
+          DOCS-3 recorded it and independently checked only what the repo can
+          check.
+          THE RUN, on staging (froot-git-staging-…vercel.app), Clerk org
+          org_3GO2wO4QlVVSWppi8aqlnSZnsDa. /users -> Invite,
+          indianathomas@gmail.com, role MANAGER — DELIBERATELY NON-ADMIN, which is
+          the whole point of the test: POST /api/users maps every non-ADMIN role
+          to the same Clerk role, org:member (users/route.ts:106), so a MANAGER
+          arriving as a MANAGER is only possible if the app role was recovered
+          from PendingInvite. One location, University Village. Clerk logged
+          organization_invitation.created at 19:22:47 PDT, source backend-api,
+          event 019fc047-ee89-7d77-8b99-5c8512eeb9cd. Invitation accepted, account
+          created. THREE OBSERVATIONS, and they are not of equal weight — the
+          discrimination argument is stated here because it is what makes two of
+          them mean anything.
+          (i) ADMIN VIEW, ROLE: the /users members table shows
+          indianathomas@gmail.com as MANAGER. That Role column reads User.role off
+          the DB row (users/page.tsx:135), so a User row exists at the invited
+          role rather than at the STAFF floor. THIS OBSERVATION DOES NOT
+          DISCRIMINATE: since DEBT-17's fix (84437e5) the page's own create branch
+          resolves role from PendingInvite exactly as the webhook does
+          (users/page.tsx:95), so MANAGER is what EITHER writer produces. It rules
+          out the failure mode; it does not identify the writer.
+          (ii) ADMIN VIEW, LOCATIONS: the same row rendered Location Access =
+          "University Village". THIS ONE DISCRIMINATES. storeAssignments are
+          written only by the Clerk webhook's if(pending) block — the page writes
+          role and never assignments — so the chip rendering is PERM-6 Task 2's
+          storeUserAssignment.createMany having run, on the validated storeIds.
+          This is the first end-to-end confirmation of that half outside a build.
+          (iii) THE INVITED ACCOUNT'S OWN SESSION, which is the strongest of the
+          three: signed in AS the invited user, the dashboard header read
+          "Saturday, August 1 · University Village — Colorado Springs, CO".
+          Stronger than (ii) because it is not an admin page rendering a row about
+          someone else — it is the new principal's own session resolving its own
+          store scope from the assignment the webhook wrote. Role recovery,
+          assignment materialisation and scope resolution, end to end, in the
+          account they were provisioned for.
+          THE DEPLOYMENT CONTAINED THE CODE — the check the 2026-07-28 pass
+          failed, and here it is repo-derivable rather than taken on trust.
+          origin/staging was pushed to 7b590b3 at 18:52:54 PDT, THIRTY MINUTES
+          before the invite, and no commit exists after it; d4a6bdc (PERM-6),
+          6530d8b and bae09ed (PERM-7) and 84437e5 (DEBT-17) are all ancestors of
+          that tip. Stated precisely: this is PUSH-TIME evidence, not `vercel
+          inspect` evidence — the deployed SHA was not read back.
+          OUT OF ORDER, SAID PLAINLY. This gate existed to hold the promotion, and
+          the promotion went first: 746c1be, 2026-07-29, and that much is checkable
+          — all three phase commits are ancestors of it. So the run confirms the
+          path works; it did not gate anything. The bill was paid after delivery.
+          THE ORG WAS NOT RECONCILED, deliberately. The Clerk org id above is as
+          Gary gave it; PERM-7's re-run target on this row's sibling is recorded
+          as DB organizationId cmr54z65v000105jxczpt72w1 on branch
+          preview/staging. NOBODY CHECKED THAT THESE ARE THE SAME ORG, and this
+          line exists so no future reader assumes it was checked. Note also that
+          `org_3GO2wO...` carries an O/0 ambiguity in transcription. Identifying
+          the org by NAME is not a way out — see DEBT-19: nine orgs on
+          preview/staging, five of them called "Microsoft".
+          DELIVERABILITY, worth the line it costs: the invite email landed in
+          Gmail's JUNK folder. Clerk DEVELOPMENT-instance mail gets spam-filtered,
+          and the development instance is what serves staging. CHECK JUNK BEFORE
+          CONCLUDING AN INVITE WAS NEVER DELIVERED — several minutes went into the
+          wrong conclusion before the mail was found.
+          THE SAVED PROMPT IS A PARTIAL RECORD. docs/prompts/DOCS-3_perm6_gate_
+          cleared.md was truncated in transmission mid-way through its evidence
+          list, and per CLAUDE.md § Where documents live a saved prompt is a claim
+          wholesale and is never edited. THIS ROW IS THE COMPLETE RECORD; the
+          prompt file is not. What the truncation cost: observations (ii) and
+          (iii) above, and the /users 409 note now on DEBT-16.
+          THE ORG WAS NOT RECONCILED — IT IS NOW, 2026-08-01 (evening), by query
+          rather than by inference. DB organizationId cmr54z65v000105jxczpt72w1
+          and Clerk org id org_3G02wO4QlVVSWppi8aqlnSZnsDa ARE THE SAME ORG. The
+          line above exists so no future reader assumed it had been checked; it
+          had not been, and now it has. Both ids stay on this row, since either
+          one alone is the ambiguous half of a pair.
+          AND THE TRANSCRIPTION ABOVE IS WRONG, which is why the check mattered.
+          The character after `3G` is a ZERO, not a letter O. Correct in full:
+          org_3G02wO4QlVVSWppi8aqlnSZnsDa. Note the SECOND `O` (in `2wO`) IS a
+          letter in both spellings — exactly one character was wrong, which is the
+          whole hazard: a one-character error in a 28-character opaque id looks
+          like a correct id. The original spelling is preserved unedited above,
+          and the "carries an O/0 ambiguity" note stands as the flag that caught
+          it. docs/prompts/DOCS-3_perm6_gate_cleared.md:27 also carries the
+          letter-O spelling and STAYS WRONG BY DESIGN — a saved prompt is a claim
+          wholesale and is never edited (CLAUDE.md § Where documents live). THIS
+          ROW IS THE AUTHORITY for the spelling; the prompt file is not.
+          WHY THE ID AND NOT THE NAME, restated because the temptation recurs:
+          DEBT-19. Nine orgs on preview/staging, five of them called "Microsoft",
+          including this one. Identifying it by name resolves to A row — silently,
+          and not necessarily this one. An unverifiable id is still safer than a
+          name that resolves to the wrong org without erroring.
       - >
         WHAT THE CLEARED GATE DOES NOT COVER — recorded 2026-08-01 beside it, so
         "the gate is cleared" is never read as "the phase is verified".
@@ -1367,27 +1466,29 @@ phases:
         entry below gave the unconfirmed gate as the reason, and that reason is
         gone, but (1)-(4) are not. The flip is Gary's ruling to make, not a
         bookkeeping consequence of clearing a blocker.
-      - >
-        THE GATE BELOW WAS NEVER CONFIRMED, AND BOTH PHASES SHIPPED ANYWAY —
-        recorded 2026-08-01 by DOCS-2, Gary's ruling. PERM-6 and PERM-7 reached
-        main in the 746c1be promotion on 2026-07-29 WITHOUT the real-invite run
-        being confirmed. Gary has no clear recollection of it running end to end
-        and unknown is not satisfied, so this blocker STAYS OPEN rather than
-        being cleared on a hazy memory — he will run the invite and clear it
-        with real evidence. The practical state: the invite -> PendingInvite ->
-        webhook-acceptance path is now IN PRODUCTION still unexercised end to
-        end. That is why the status is `shipped` and not `verified`. The gate as
-        originally written follows, unedited.
-      - >
-        SINGLE PROMOTION UNIT WITH PERM-7 — Gary, 2026-07-28. NEITHER PHASE
-        REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
-        PERM-7 modified the same two files this phase changed — POST
-        /api/users and the Clerk webhook — and that path (invite ->
-        PendingInvite -> webhook acceptance) has NEVER been exercised
-        end-to-end. PERM-6 shipped it build-green only; see the NOT COVERED
-        list below. Promoting either phase alone would put an unexercised
-        write path into production, and promoting PERM-6 without PERM-7 would
-        do it while splitting the two changes to those files across releases.
+      - resolved: true
+        text: >
+          THE GATE BELOW WAS NEVER CONFIRMED, AND BOTH PHASES SHIPPED ANYWAY —
+          recorded 2026-08-01 by DOCS-2, Gary's ruling. PERM-6 and PERM-7 reached
+          main in the 746c1be promotion on 2026-07-29 WITHOUT the real-invite run
+          being confirmed. Gary has no clear recollection of it running end to end
+          and unknown is not satisfied, so this blocker STAYS OPEN rather than
+          being cleared on a hazy memory — he will run the invite and clear it
+          with real evidence. The practical state: the invite -> PendingInvite ->
+          webhook-acceptance path is now IN PRODUCTION still unexercised end to
+          end. That is why the status is `shipped` and not `verified`. The gate as
+          originally written follows, unedited.
+      - resolved: true
+        text: >
+          SINGLE PROMOTION UNIT WITH PERM-7 — Gary, 2026-07-28. NEITHER PHASE
+          REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
+          PERM-7 modified the same two files this phase changed — POST
+          /api/users and the Clerk webhook — and that path (invite ->
+          PendingInvite -> webhook acceptance) has NEVER been exercised
+          end-to-end. PERM-6 shipped it build-green only; see the NOT COVERED
+          list below. Promoting either phase alone would put an unexercised
+          write path into production, and promoting PERM-6 without PERM-7 would
+          do it while splitting the two changes to those files across releases.
     title: "Store-assignment integrity — validate storeIds on every write, gate the locations route, split the forecasting isAdmin fusion"
     notes: >
       SIZE: scoped S, DELIVERED ABOVE S — recorded honestly rather than left at
@@ -1790,227 +1891,231 @@ phases:
       DEBT-11 was NOT fixed here (Ruling 2) and DEBT-14 was filed rather than
       fixed — neither route is one this phase touches.
     blockers:
-      - >
-        CLOSED 2026-08-01 — NOT BY A PASSING OVERRIDE TEST. THE OVERRIDE IS
-        UNREACHABLE THROUGH THE PRODUCT AS CONFIGURED. Gary ran the evidence;
-        this session verified the code and the record and wrote neither query
-        nor row from the database.
-        THE THREE RUNS, all on branch preview/staging (neon.branch_id
-        br-square-feather-a63z92vz, 9 orgs on the branch), org
-        cmr54z65v000105jxczpt72w1 BY ID per DEBT-19, all entered from /stores ->
-        Carson -> Create device login, role STORE, exactly one store:
-        RUN 1, indianathomas+store@gmail.com, username/password sign-up —
-        User.name = "#0034 — Carson", n_assignments 1, is_default_store true,
-        surviving_pending_invite 0.
-        RUN 2, indianathomas+store2@gmail.com, username/password sign-up,
-        username "kevacarson2026" — identical on every field.
-        RUN 3, indianathomas+store3@gmail.com, Google OAuth attempted
-        SPECIFICALLY to obtain a non-null first/last name. Clerk routed through
-        Google and then returned to a Froot sign-up card asking for a USERNAME
-        and nothing else. No name was ever collected. This run is the load-
-        bearing one: it is the path most likely to carry a name, and it did not.
-        WHAT THE RUNS PROVE ABOUT THE CODE: the derivation
-        (webhooks/clerk/route.ts:126-137, written into the upsert's create
-        branch at :151-153) executed three times and produced the store's name
-        each time — including the NUMBERED form `#${storeNumber} — ${name}`,
-        which had never executed anywhere before these runs.
-        THE GROUND OF CLOSURE, which is not the same as the fill passing.
-        `first_name`/`last_name` being ENABLED on the instance does not mean the
-        sign-up flow RENDERS them: Clerk renders REQUIRED fields, and enabled
-        means optional. Observed three times, including through OAuth, the flow
-        presents username and password only. So no name is ever collected,
-        `[first_name, last_name].filter(Boolean).join(" ")` is always "" and
-        therefore null, and `deviceName ?? (…)` at :151-153 never has a
-        competing value to lose to. The hazard the ruling defends against — a
-        person's name landing on a shared store-device account — CANNOT OCCUR BY
-        THIS PATH. That is a stronger result than a passing override test, which
-        would have shown only that the override wins when contested; this shows
-        the contest cannot arise.
-        A THIRD OUTCOME THE RECORDING RULE BELOW DOES NOT CONTEMPLATE. That rule
-        offers two labels — "Task 7 verified" and "fill verified, override
-        UNTESTED" — and both are wrong here. It presupposes a tester who CHOSE
-        not to type a name, making the gap a test-design debt a better-run pass
-        would pay off. The gap is not payable: the tester cannot type a name
-        because the form does not ask. The correct record is FILL VERIFIED,
-        OVERRIDE UNREACHABLE. Do not force this into either bucket.
-        CORRECTION, and it is worth more than the result — the reasoning error,
-        not the conclusion, is the durable part. The paragraph below beginning
-        "WHAT WOULD PROVE THE OVERRIDE" is WRONG, and is preserved unedited so
-        the error stays legible. It infers TESTABLE from ENABLED, on a correct
-        observation (GET /v1/environment, 2026-07-28, first/last enabled on both
-        instances) that does not support it. ENABLED is a statement about the
-        instance's schema; RENDERED is a statement about the sign-up flow, and
-        only the second one governs what a tester can type. The earlier note it
-        overrode — the one calling the override structurally impossible — was
-        closer to right than the correction that replaced it, though not for a
-        reason anyone had checked. Read ENABLED as RENDERED and you will write a
-        test plan for a form that does not exist.
-        THE EVIDENCE WAS ALREADY ON THIS ROW, and that is the pattern rather
-        than the apology. The paragraph above beginning "THE EMPTY User.name IS
-        THE EXPECTED RESULT" recorded on 2026-07-28 that "the invitee supplied a
-        username instead". Nobody asked WHY. The answer — the form offers
-        nothing else — was available that day and cost three staging runs four
-        days later to rediscover. Same shape as DEBT-15 (a disconfirming SDK
-        result in hand, reasoned past in favour of a bundler theory) and DEBT-23
-        (a row built on a file whose ordering was never checked). The common
-        move is accepting an observation as an outcome and declining to ask what
-        produced it.
-        REOPENING CONDITION — CHECK THIS BEFORE TRUSTING THIS CLOSURE. This row
-        closes on a CONFIGURATION, not on a proof about the code, and the
-        configuration is not pinned by anything in this repo. The closure no
-        longer holds the moment EITHER of these becomes true:
-        (1) `first_name` and/or `last_name` are made REQUIRED on either Clerk
-        instance (Dashboard -> User & Authentication -> Personal information;
-        re-checkable in one call via the public Frontend API GET /v1/environment
-        at clerk.usefroot.com and verified-snapper-7.clerk.accounts.dev — the
-        same call that produced the mistaken evidence above, read correctly this
-        time: look at REQUIRED, not at enabled).
-        (2) A sign-up path is added that collects a name by any other means — a
-        custom sign-up component, an OAuth provider mapped to give
-        first/last, an admin-created Clerk user, or a Clerk-side profile edit.
-        If either fires, the override becomes REACHABLE and remains UNTESTED,
-        the blocker below is live again as written, and DEBT-39 unmasks with it.
-        WHAT THIS DOES NOT CLOSE — this is not "closing the pair". PERM-6's
-        second blockers entry stands untouched: (2) the webhook's rejecting
-        branch (`owned.length !== pending.storeIds.length`) has still never
-        executed, (3) Task 1 (POST /api/staff) is still unexercised on staging,
-        (4) the STAFF role is still unexercised. On this row, the rewritten
-        Clerk error branch in POST /api/users is STILL DORMANT — all three
-        invites succeeded — and DEBT-16's collision pre-check is still
-        uncovered: the /stores dialog ran three times, but on three fresh
-        addresses, so no collision was ever presented to it.
-        STATUS: PERM-7 STAYS `shipped`, NOT `verified`. This is staging
-        evidence, and staging evidence is not production evidence — the
-        precedent DOCS-3 set on 2026-08-01 holds here without exception.
-        BRANCH IDENTITY, a convention improvement these runs produced and the
-        one place it is recorded. `current_setting('neon.branch_id', true)`
-        returns a real value on Neon — br-square-feather-a63z92vz above came
-        from the query itself, not from the person pasting it. CLAUDE.md
-        § Database Evidence requires the branch be NAMED, which is an assertion
-        by the reporter, and the 2026-07-28 failure that section documents was a
-        correct query wearing a wrong label. Selecting the branch id ALONGSIDE
-        the result makes the label a product of the same query as the row, so
-        the two cannot drift. RULED 2026-08-01 (Gary): belt and braces — select
-        the branch id AND name the branch, since the id is not the
-        `preview/staging` name and the mapping still lives in a human's head.
-        Recommended where available, not mandatory: it is Neon-specific and
-        returns null on local dev, which is itself a useful signal rather than a
-        failed check. Recorded here ONCE, deliberately, rather than at each
-        § Database Evidence reference site — four copies is four things to
-        drift. DEBT-19 carries the pointer.
-        ORIGINAL TEXT, unedited:
-        TASK 7: A GREEN STAGING RESULT DOES NOT MEAN "TASK 7 VERIFIED". READ
-        THIS AT PROMOTION TIME — Gary, 2026-07-28.
-        Task 7 has two halves and they are not equally testable. The FILL — an
-        empty name gets the store's name — is what a normal staging sign-up
-        exercises. The OVERRIDE — a name the invitee TYPED is replaced by the
-        store's name — is the actual ruling (DECISIONS.md 2026-07-28: "the
-        premise is not trusting the sign-up form"), and it is NOT exercised by
-        the default path. On the development instance that serves staging,
-        `username` is required and `first_name`/`last_name` are merely enabled,
-        so an invitee who types nothing leaves the name blank and `deviceName`
-        fills a hole rather than overwriting anything. That is the weaker half
-        passing while the half the ruling is about goes untouched.
-        WHAT WOULD PROVE THE OVERRIDE — it is a test-design requirement, NOT a
-        structural impossibility, and an earlier note calling it structurally
-        impossible was wrong. `first_name`/`last_name` are enabled on BOTH
-        instances (verified 2026-07-28 via Clerk's Frontend API
-        GET /v1/environment). So: invite as role STORE with EXACTLY ONE store,
-        and at sign-up DELIBERATELY TYPE a first and last name — a person's
-        name, e.g. "Tommy Thomas", the exact shape the convention exists to
-        prevent. Then query, naming the branch. PASS = User.name is the STORE's
-        name and the typed name is gone. FAIL = the typed name survives, which
-        means the derivation is filling blanks rather than overriding and the
-        ruling is not implemented.
-        If a pass is run without typing a name, record it as "Task 7 fill
-        verified, override UNTESTED" — never as "Task 7 verified".
-      - >
-        RESOLVED 2026-08-01 — THE INVITE RAN START TO FINISH ON STAGING. The
-        full record, the evidence and the deployment-SHA check live on PERM-6's
-        row (its leading `blockers` entry) and are deliberately NOT duplicated
-        here, so there is one copy to correct if any of it turns out wrong.
-        WHAT IT MEANS FOR THIS PHASE, WHICH IS LESS THAN IT SOUNDS. The gate is
-        satisfied as written, and what it exercised is PERM-6's Task 2 path —
-        exactly what the rationale below predicted it would test. But NEITHER OF
-        THE TWO CHANGES THIS PHASE MADE TO THOSE FILES EXECUTED. The invite
-        SUCCEEDED, so POST /api/users never reached the Clerk error branch this
-        phase rewrote — that branch WAS exercised the same day, but elsewhere
-        and on other code: DEBT-15 records it green in PRODUCTION under
-        promotion 97ed309, carrying DEBT-15's own payload-based guard (6f33427)
-        on top of what this phase shipped, so it is not a clean test of this
-        phase's handler either. And the role was MANAGER, not STORE, so the
-        webhook's
-        Task 7 name derivation — which fires only when pending.role === "STORE"
-        AND the invite carries exactly one storeId — did not run. What DID
-        execute is this phase's READ side: /users rendered with Task 4's device
-        badge logic (users/page.tsx:149) and correctly produced NO badge, since
-        indianathomas@gmail.com is not any location's contactEmail. A page that
-        renders is weak evidence and is recorded here as weak.
-        ALSO STILL UNEXERCISED: the /stores device-login dialog. This run went
-        through the /users invite dialog. The two share a server path (POST
-        /api/users) but not a client, so the device dialog's email-collision
-        pre-check has still never run on staging — see DEBT-16.
-        THE TASK 7 BLOCKER ABOVE IS UNTOUCHED by this run, neither the fill nor
-        the override. A cleared promotion gate is not progress on it.
-        ORIGINAL TEXT, unedited:
-        SINGLE PROMOTION UNIT WITH PERM-6 — Gary, 2026-07-28. NEITHER PHASE
-        REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
-        This phase modified POST /api/users (Clerk error-code handling) and the
-        Clerk webhook (Task 7's create-only name derivation) — the same two
-        files PERM-6 changed, and the same path PERM-6 shipped build-green
-        without ever exercising. A staging pass of PERM-7's provisioning IS the
-        first end-to-end test of PERM-6 Task 2's webhook validation, so the two
-        phases share one verification and must share one promotion.
-        NOT YET DONE at the time this row was written: the staging pass requires
-        a deploy, which requires a push, which is Gary's alone.
-        WHEN RUNNING IT, expect a shape difference that is NOT a bug: the
-        development Clerk instance (which serves staging) has `username` as a
-        REQUIRED identity attribute and production does not, so the acceptance
-        exercises the BUG-2 path where Clerk's `identifier` is a username rather
-        than an email. getClerkPrimaryEmail already guards it. A surprise
-        anywhere else on that path is a PERM-6 bug worth reporting, not
-        something to work around.
-      - >
-        RESOLVED 2026-07-27 — PERM-6 is in staging (see its row). The write
-        paths this phase builds on now validate storeIds. ORIGINAL TEXT:
-        Do not start before PERM-6. This phase adds a NEW write path that
-        creates users and store assignments; building it on top of the
-        unvalidated storeIds paths in PERM-6 (a)/(b) would replicate the hole
-        into a new surface rather than closing it.
-      - >
-        WITHDRAWN 2026-07-28 (Gary) — THE ORIGINAL RATIONALE WAS WRONG, not
-        merely superseded. This blocker was written onto the row on 2026-07-27
-        claiming "PERM-7 is exactly the caller that trips [DEBT-11]". It is
-        not, and the audit that opened PERM-7 caught it. DEBT-11 is in PATCH
-        /api/staff/[id], which writes storeStaffAssignment. PERM-7 provisions
-        storeUserAssignment through POST /api/users -> PendingInvite -> the
-        Clerk webhook. Different table, different route, no overlap: PERM-7
-        never calls the route DEBT-11 lives in. The claim was reasoning by
-        analogy ("a new programmatic writer of storeIds") without checking
-        which write path PERM-7 actually uses.
-        The path PERM-7 does use is already safe at both ends, which is the
-        other half of why this was never a blocker: POST /api/users dedupes at
-        src/app/api/users/route.ts:86-88 (`[...new Set(...)]`, added by PERM-6
-        Task 2), and the webhook builds its createMany from a findMany result
-        with skipDuplicates: true at
-        src/app/api/webhooks/clerk/route.ts:144-148.
-        DEBT-11 REMAINS OPEN AND UNFIXED — deliberately, Gary's Ruling 2,
-        2026-07-28. It stays debt under the PERM-2 scope precedent: a hole
-        inside a function already being changed gets fixed inline, anything
-        else gets written down. PERM-7 does not touch that route, so the test
-        fails and it is left filed. Size was not the criterion — "four lines"
-        is not a reason to widen a phase.
-        ORIGINAL TEXT, kept so the error is legible: "READ DEBT-11 BEFORE
-        WRITING THE PROVISIONING CALL. Cross-referenced here 2026-07-27 (Gary)
-        because PERM-7 is the next phase and is exactly the caller that trips
-        it: PATCH /api/staff/[id] dedupes storeIds for the ownership COMPARISON
-        but builds finalStoreIds from the RAW array, so a body carrying the
-        same storeId twice passes validation and then 500s on the
-        (staffMemberId, storeId) unique constraint in createMany. Not reachable
-        from today's UI — the dialogs hold selections in a Set — which is
-        precisely why a new programmatic writer is the one that finds it. POST
-        /api/staff already dedupes correctly after PERM-6 Task 1; copy that,
-        and fix DEBT-11 rather than routing around it."
+      - resolved: true
+        text: >
+          CLOSED 2026-08-01 — NOT BY A PASSING OVERRIDE TEST. THE OVERRIDE IS
+          UNREACHABLE THROUGH THE PRODUCT AS CONFIGURED. Gary ran the evidence;
+          this session verified the code and the record and wrote neither query
+          nor row from the database.
+          THE THREE RUNS, all on branch preview/staging (neon.branch_id
+          br-square-feather-a63z92vz, 9 orgs on the branch), org
+          cmr54z65v000105jxczpt72w1 BY ID per DEBT-19, all entered from /stores ->
+          Carson -> Create device login, role STORE, exactly one store:
+          RUN 1, indianathomas+store@gmail.com, username/password sign-up —
+          User.name = "#0034 — Carson", n_assignments 1, is_default_store true,
+          surviving_pending_invite 0.
+          RUN 2, indianathomas+store2@gmail.com, username/password sign-up,
+          username "kevacarson2026" — identical on every field.
+          RUN 3, indianathomas+store3@gmail.com, Google OAuth attempted
+          SPECIFICALLY to obtain a non-null first/last name. Clerk routed through
+          Google and then returned to a Froot sign-up card asking for a USERNAME
+          and nothing else. No name was ever collected. This run is the load-
+          bearing one: it is the path most likely to carry a name, and it did not.
+          WHAT THE RUNS PROVE ABOUT THE CODE: the derivation
+          (webhooks/clerk/route.ts:126-137, written into the upsert's create
+          branch at :151-153) executed three times and produced the store's name
+          each time — including the NUMBERED form `#${storeNumber} — ${name}`,
+          which had never executed anywhere before these runs.
+          THE GROUND OF CLOSURE, which is not the same as the fill passing.
+          `first_name`/`last_name` being ENABLED on the instance does not mean the
+          sign-up flow RENDERS them: Clerk renders REQUIRED fields, and enabled
+          means optional. Observed three times, including through OAuth, the flow
+          presents username and password only. So no name is ever collected,
+          `[first_name, last_name].filter(Boolean).join(" ")` is always "" and
+          therefore null, and `deviceName ?? (…)` at :151-153 never has a
+          competing value to lose to. The hazard the ruling defends against — a
+          person's name landing on a shared store-device account — CANNOT OCCUR BY
+          THIS PATH. That is a stronger result than a passing override test, which
+          would have shown only that the override wins when contested; this shows
+          the contest cannot arise.
+          A THIRD OUTCOME THE RECORDING RULE BELOW DOES NOT CONTEMPLATE. That rule
+          offers two labels — "Task 7 verified" and "fill verified, override
+          UNTESTED" — and both are wrong here. It presupposes a tester who CHOSE
+          not to type a name, making the gap a test-design debt a better-run pass
+          would pay off. The gap is not payable: the tester cannot type a name
+          because the form does not ask. The correct record is FILL VERIFIED,
+          OVERRIDE UNREACHABLE. Do not force this into either bucket.
+          CORRECTION, and it is worth more than the result — the reasoning error,
+          not the conclusion, is the durable part. The paragraph below beginning
+          "WHAT WOULD PROVE THE OVERRIDE" is WRONG, and is preserved unedited so
+          the error stays legible. It infers TESTABLE from ENABLED, on a correct
+          observation (GET /v1/environment, 2026-07-28, first/last enabled on both
+          instances) that does not support it. ENABLED is a statement about the
+          instance's schema; RENDERED is a statement about the sign-up flow, and
+          only the second one governs what a tester can type. The earlier note it
+          overrode — the one calling the override structurally impossible — was
+          closer to right than the correction that replaced it, though not for a
+          reason anyone had checked. Read ENABLED as RENDERED and you will write a
+          test plan for a form that does not exist.
+          THE EVIDENCE WAS ALREADY ON THIS ROW, and that is the pattern rather
+          than the apology. The paragraph above beginning "THE EMPTY User.name IS
+          THE EXPECTED RESULT" recorded on 2026-07-28 that "the invitee supplied a
+          username instead". Nobody asked WHY. The answer — the form offers
+          nothing else — was available that day and cost three staging runs four
+          days later to rediscover. Same shape as DEBT-15 (a disconfirming SDK
+          result in hand, reasoned past in favour of a bundler theory) and DEBT-23
+          (a row built on a file whose ordering was never checked). The common
+          move is accepting an observation as an outcome and declining to ask what
+          produced it.
+          REOPENING CONDITION — CHECK THIS BEFORE TRUSTING THIS CLOSURE. This row
+          closes on a CONFIGURATION, not on a proof about the code, and the
+          configuration is not pinned by anything in this repo. The closure no
+          longer holds the moment EITHER of these becomes true:
+          (1) `first_name` and/or `last_name` are made REQUIRED on either Clerk
+          instance (Dashboard -> User & Authentication -> Personal information;
+          re-checkable in one call via the public Frontend API GET /v1/environment
+          at clerk.usefroot.com and verified-snapper-7.clerk.accounts.dev — the
+          same call that produced the mistaken evidence above, read correctly this
+          time: look at REQUIRED, not at enabled).
+          (2) A sign-up path is added that collects a name by any other means — a
+          custom sign-up component, an OAuth provider mapped to give
+          first/last, an admin-created Clerk user, or a Clerk-side profile edit.
+          If either fires, the override becomes REACHABLE and remains UNTESTED,
+          the blocker below is live again as written, and DEBT-39 unmasks with it.
+          WHAT THIS DOES NOT CLOSE — this is not "closing the pair". PERM-6's
+          second blockers entry stands untouched: (2) the webhook's rejecting
+          branch (`owned.length !== pending.storeIds.length`) has still never
+          executed, (3) Task 1 (POST /api/staff) is still unexercised on staging,
+          (4) the STAFF role is still unexercised. On this row, the rewritten
+          Clerk error branch in POST /api/users is STILL DORMANT — all three
+          invites succeeded — and DEBT-16's collision pre-check is still
+          uncovered: the /stores dialog ran three times, but on three fresh
+          addresses, so no collision was ever presented to it.
+          STATUS: PERM-7 STAYS `shipped`, NOT `verified`. This is staging
+          evidence, and staging evidence is not production evidence — the
+          precedent DOCS-3 set on 2026-08-01 holds here without exception.
+          BRANCH IDENTITY, a convention improvement these runs produced and the
+          one place it is recorded. `current_setting('neon.branch_id', true)`
+          returns a real value on Neon — br-square-feather-a63z92vz above came
+          from the query itself, not from the person pasting it. CLAUDE.md
+          § Database Evidence requires the branch be NAMED, which is an assertion
+          by the reporter, and the 2026-07-28 failure that section documents was a
+          correct query wearing a wrong label. Selecting the branch id ALONGSIDE
+          the result makes the label a product of the same query as the row, so
+          the two cannot drift. RULED 2026-08-01 (Gary): belt and braces — select
+          the branch id AND name the branch, since the id is not the
+          `preview/staging` name and the mapping still lives in a human's head.
+          Recommended where available, not mandatory: it is Neon-specific and
+          returns null on local dev, which is itself a useful signal rather than a
+          failed check. Recorded here ONCE, deliberately, rather than at each
+          § Database Evidence reference site — four copies is four things to
+          drift. DEBT-19 carries the pointer.
+          ORIGINAL TEXT, unedited:
+          TASK 7: A GREEN STAGING RESULT DOES NOT MEAN "TASK 7 VERIFIED". READ
+          THIS AT PROMOTION TIME — Gary, 2026-07-28.
+          Task 7 has two halves and they are not equally testable. The FILL — an
+          empty name gets the store's name — is what a normal staging sign-up
+          exercises. The OVERRIDE — a name the invitee TYPED is replaced by the
+          store's name — is the actual ruling (DECISIONS.md 2026-07-28: "the
+          premise is not trusting the sign-up form"), and it is NOT exercised by
+          the default path. On the development instance that serves staging,
+          `username` is required and `first_name`/`last_name` are merely enabled,
+          so an invitee who types nothing leaves the name blank and `deviceName`
+          fills a hole rather than overwriting anything. That is the weaker half
+          passing while the half the ruling is about goes untouched.
+          WHAT WOULD PROVE THE OVERRIDE — it is a test-design requirement, NOT a
+          structural impossibility, and an earlier note calling it structurally
+          impossible was wrong. `first_name`/`last_name` are enabled on BOTH
+          instances (verified 2026-07-28 via Clerk's Frontend API
+          GET /v1/environment). So: invite as role STORE with EXACTLY ONE store,
+          and at sign-up DELIBERATELY TYPE a first and last name — a person's
+          name, e.g. "Tommy Thomas", the exact shape the convention exists to
+          prevent. Then query, naming the branch. PASS = User.name is the STORE's
+          name and the typed name is gone. FAIL = the typed name survives, which
+          means the derivation is filling blanks rather than overriding and the
+          ruling is not implemented.
+          If a pass is run without typing a name, record it as "Task 7 fill
+          verified, override UNTESTED" — never as "Task 7 verified".
+      - resolved: true
+        text: >
+          RESOLVED 2026-08-01 — THE INVITE RAN START TO FINISH ON STAGING. The
+          full record, the evidence and the deployment-SHA check live on PERM-6's
+          row (its leading `blockers` entry) and are deliberately NOT duplicated
+          here, so there is one copy to correct if any of it turns out wrong.
+          WHAT IT MEANS FOR THIS PHASE, WHICH IS LESS THAN IT SOUNDS. The gate is
+          satisfied as written, and what it exercised is PERM-6's Task 2 path —
+          exactly what the rationale below predicted it would test. But NEITHER OF
+          THE TWO CHANGES THIS PHASE MADE TO THOSE FILES EXECUTED. The invite
+          SUCCEEDED, so POST /api/users never reached the Clerk error branch this
+          phase rewrote — that branch WAS exercised the same day, but elsewhere
+          and on other code: DEBT-15 records it green in PRODUCTION under
+          promotion 97ed309, carrying DEBT-15's own payload-based guard (6f33427)
+          on top of what this phase shipped, so it is not a clean test of this
+          phase's handler either. And the role was MANAGER, not STORE, so the
+          webhook's
+          Task 7 name derivation — which fires only when pending.role === "STORE"
+          AND the invite carries exactly one storeId — did not run. What DID
+          execute is this phase's READ side: /users rendered with Task 4's device
+          badge logic (users/page.tsx:149) and correctly produced NO badge, since
+          indianathomas@gmail.com is not any location's contactEmail. A page that
+          renders is weak evidence and is recorded here as weak.
+          ALSO STILL UNEXERCISED: the /stores device-login dialog. This run went
+          through the /users invite dialog. The two share a server path (POST
+          /api/users) but not a client, so the device dialog's email-collision
+          pre-check has still never run on staging — see DEBT-16.
+          THE TASK 7 BLOCKER ABOVE IS UNTOUCHED by this run, neither the fill nor
+          the override. A cleared promotion gate is not progress on it.
+          ORIGINAL TEXT, unedited:
+          SINGLE PROMOTION UNIT WITH PERM-6 — Gary, 2026-07-28. NEITHER PHASE
+          REACHES MAIN UNTIL ONE REAL INVITE RUNS START TO FINISH ON STAGING.
+          This phase modified POST /api/users (Clerk error-code handling) and the
+          Clerk webhook (Task 7's create-only name derivation) — the same two
+          files PERM-6 changed, and the same path PERM-6 shipped build-green
+          without ever exercising. A staging pass of PERM-7's provisioning IS the
+          first end-to-end test of PERM-6 Task 2's webhook validation, so the two
+          phases share one verification and must share one promotion.
+          NOT YET DONE at the time this row was written: the staging pass requires
+          a deploy, which requires a push, which is Gary's alone.
+          WHEN RUNNING IT, expect a shape difference that is NOT a bug: the
+          development Clerk instance (which serves staging) has `username` as a
+          REQUIRED identity attribute and production does not, so the acceptance
+          exercises the BUG-2 path where Clerk's `identifier` is a username rather
+          than an email. getClerkPrimaryEmail already guards it. A surprise
+          anywhere else on that path is a PERM-6 bug worth reporting, not
+          something to work around.
+      - resolved: true
+        text: >
+          RESOLVED 2026-07-27 — PERM-6 is in staging (see its row). The write
+          paths this phase builds on now validate storeIds. ORIGINAL TEXT:
+          Do not start before PERM-6. This phase adds a NEW write path that
+          creates users and store assignments; building it on top of the
+          unvalidated storeIds paths in PERM-6 (a)/(b) would replicate the hole
+          into a new surface rather than closing it.
+      - resolved: true
+        text: >
+          WITHDRAWN 2026-07-28 (Gary) — THE ORIGINAL RATIONALE WAS WRONG, not
+          merely superseded. This blocker was written onto the row on 2026-07-27
+          claiming "PERM-7 is exactly the caller that trips [DEBT-11]". It is
+          not, and the audit that opened PERM-7 caught it. DEBT-11 is in PATCH
+          /api/staff/[id], which writes storeStaffAssignment. PERM-7 provisions
+          storeUserAssignment through POST /api/users -> PendingInvite -> the
+          Clerk webhook. Different table, different route, no overlap: PERM-7
+          never calls the route DEBT-11 lives in. The claim was reasoning by
+          analogy ("a new programmatic writer of storeIds") without checking
+          which write path PERM-7 actually uses.
+          The path PERM-7 does use is already safe at both ends, which is the
+          other half of why this was never a blocker: POST /api/users dedupes at
+          src/app/api/users/route.ts:86-88 (`[...new Set(...)]`, added by PERM-6
+          Task 2), and the webhook builds its createMany from a findMany result
+          with skipDuplicates: true at
+          src/app/api/webhooks/clerk/route.ts:144-148.
+          DEBT-11 REMAINS OPEN AND UNFIXED — deliberately, Gary's Ruling 2,
+          2026-07-28. It stays debt under the PERM-2 scope precedent: a hole
+          inside a function already being changed gets fixed inline, anything
+          else gets written down. PERM-7 does not touch that route, so the test
+          fails and it is left filed. Size was not the criterion — "four lines"
+          is not a reason to widen a phase.
+          ORIGINAL TEXT, kept so the error is legible: "READ DEBT-11 BEFORE
+          WRITING THE PROVISIONING CALL. Cross-referenced here 2026-07-27 (Gary)
+          because PERM-7 is the next phase and is exactly the caller that trips
+          it: PATCH /api/staff/[id] dedupes storeIds for the ownership COMPARISON
+          but builds finalStoreIds from the RAW array, so a body carrying the
+          same storeId twice passes validation and then 500s on the
+          (staffMemberId, storeId) unique constraint in createMany. Not reachable
+          from today's UI — the dialogs hold selections in a Set — which is
+          precisely why a new programmatic writer is the one that finds it. POST
+          /api/staff already dedupes correctly after PERM-6 Task 1; copy that,
+          and fix DEBT-11 rather than routing around it."
     open:
       - >
         RESOLVED 2026-07-28, both unknowns, with evidence rather than reasoning.
@@ -5178,3 +5283,76 @@ debt:
       (CLAUDE.md § Where documents live). The rows are the authority.
       Related: DEBT-26 (same shape, fixed), DEBT-39 (same root cause and the
       same reopening condition), PERM-7 Task 7.
+
+  - id: DEBT-41
+    title: >
+      A blocker entry can only be LIVE or RESOLVED — there is no value for the
+      half-closed state two entries are actually in
+    notes: >
+      FILED 2026-08-01 by P-4, on Gary's ruling, from the audit that added the
+      `resolved` flag. Filed rather than fixed because inventing a third state
+      was not in that session's scope and because two examples is thin evidence
+      for a vocabulary change — but it is real evidence, and an observation that
+      lives only in a session report does not exist (the DEBT-37 precedent).
+      THE FACT: BlockerEntry (src/lib/roadmap.ts) is `string | {resolved: true,
+      text}`. A bare string is live, a flagged entry is closed, and there is
+      nothing in between. Two of the nineteen entries at filing time are in
+      between, and neither fits:
+      (a) PERM-6's second `blockers` entry, "WHAT THE CLEARED GATE DOES NOT
+      COVER". It is not a promotion gate — the gate above it is cleared — but it
+      records four things still unexercised (the webhook's rejecting branch,
+      Task 1, the STAFF role, and the reason the phase stays `shipped` and not
+      `verified`). It is a live COVERAGE note wearing the blockers field.
+      (b) BUILD-1's sole entry, "CHANGED SHAPE — HALF CLOSED, HALF DEFERRED":
+      step 1 of a two-step fix is done and step 2 is deliberately deferred until
+      collaboration work starts.
+      BOTH ARE CARRIED AS LIVE, deliberately, which is the safe direction —
+      under-claiming resolution can only over-report, and over-reporting is
+      recoverable in a way that a hidden gate is not. The cost is that the panel
+      reads 11 live when the honest answer is 9 live and 2 half-closed.
+      DO NOT FIX THIS BY ADDING `resolved: false`. That is the same value the
+      absence of the flag already carries, and it would invite marking entries
+      false wholesale, which destroys the "a missing flag means live" default
+      that makes the scheme safe. If a third state is wanted it needs its own
+      name and its own render treatment.
+      WATCH FOR MORE EXAMPLES BEFORE ACTING. Two is enough to file and not
+      enough to design against.
+      Related: P-4 (added the flag), DEBT-14 (the same vocabulary problem one
+      level up, where `withdrawn` eventually had to be added to PhaseStatus for
+      exactly this reason — see DEBT-18/DEBT-23).
+
+  - id: DEBT-42
+    title: >
+      `deferred` and `open` keep resolved entries in the array forever, the same
+      defect P-4 fixed for `blockers`
+    notes: >
+      FILED 2026-08-01 by P-4, on Gary's explicit ruling to FLAG AND NOT FIX.
+      THE FACT: `deferred` and `open` are still `string[]` (src/lib/roadmap.ts)
+      and carry no way to mark an entry closed, so resolved entries stay in the
+      array exactly as blocker entries did before P-4. Three exist today, found
+      by reading all 21 entries in full:
+      PERM-2 `deferred[0]` opens "RESOLVED 2026-07-27 by PERM-6 Task 1";
+      PERM-6 `open[0]` opens "RESOLVED AND MOVED 2026-07-27";
+      PERM-7 `open[0]` opens "RESOLVED 2026-07-28";
+      and SEC-1 `open[0]` opens "HALF-CLOSED 2026-07-27", which is DEBT-41's
+      third state rather than a clean closure.
+      WHY IT WAS RULED NOT WORTH FIXING NOW, and this is the part to re-read
+      before reopening it: NO HEADLINE COUNT READS EITHER FIELD. `deferred` gets
+      a card badge and a DetailList; `open` gets a DetailList only — no badge,
+      no count, no summary tile. The cost is therefore a slightly wrong badge on
+      one collapsed card, not an untrustworthy answer to "what is stopping
+      promotion". That asymmetry is the whole reason `blockers` was worth a
+      migration and these two are not.
+      WHAT WOULD CHANGE THAT: any new surface that COUNTS either field — a
+      summary tile, a panel headline, a dashboard number. The moment a number is
+      derived from these arrays, this becomes the P-4 bug again with the same
+      failure direction, and the fix is already designed and proven: widen the
+      type to BlockerEntry, migrate only the closed entries, run the whole-tree
+      identity check.
+      THE FIX IS CHEAPER THAN P-4's WAS. BlockerEntry, both helpers and the
+      shared DetailList already accept the object form — `string[]` is
+      assignable to `BlockerEntry[]`, which is why DetailList already renders
+      the "resolved" marker for any entry that carries the flag. Widening the
+      two fields is a type change plus a four-entry migration; no new mechanism
+      is needed.
+      Related: P-4, DEBT-41 (SEC-1's entry is an example of both).
