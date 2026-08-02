@@ -3736,6 +3736,39 @@ debt:
   - id: DEBT-9
     title: "Two ACTIVE staff have 9 store assignments and NO primary — signed documents capture an arbitrary store"
     notes: >
+      EVIDENCE REPAIRED 2026-08-02 by DEBT-TRIAGE-1. These are POINTERS, so they
+      are repaired rather than left as dated claims; the original citations are
+      preserved below and each is named here. Re-measured at HEAD cc1fffc.
+      THE WORST ONE — THIS ROW QUOTES CODE THAT NO LONGER EXISTS. "WHY IT
+      MATTERS" below cites src/lib/hr.ts:44-49 and quotes
+      `.find(a => a.isPrimary) ?? staff.storeAssignments[0]`. THAT LINE IS NOT
+      IN THE FILE. f480568 ("BUILD-2 Task 8: primaryStoreName() orders
+      internally instead of trusting callers") rewrote the function to sort
+      internally: it is now `const [best] = [...staff.storeAssignments].sort(...)`
+      returning `best?.store.name ?? null`, and there is no `.find` in it at
+      all. CORRECT CITATION: src/lib/hr.ts:65-73 — measured here, not inherited;
+      the triage audit reported :65-71 and the function closes at :73. A row
+      quoting absent code reads as authoritative, which is why this one is
+      called out first.
+      THE FUNCTION ALREADY KNOWS ABOUT THIS ROW, and the row did not know about
+      the function. The comment block immediately above it (src/lib/hr.ts:56-64)
+      says in terms: "this does NOT fix DEBT-9: a staff member with no primary
+      still resolves to an arbitrary-but-stable store. It makes that stability a
+      guarantee here rather than a coincidence." So the substance of this row is
+      untouched by the rewrite — only its evidence went stale.
+      "DO THIS BEFORE BUILD-2'S INDEX LANDS" IS STALE. The index landed
+      2026-07-29 in prisma/migrations/20260729145504_build2_staff_one_primary_store.
+      The instruction is moot and, per the REFUTED paragraph below, was never
+      load-bearing anyway: a partial unique index on WHERE "isPrimary" indexes
+      only TRUE rows, so zero-primary staff contribute no index entries and
+      there is no ordering dependency in either direction. The chip-clicks can
+      happen whenever.
+      STILL EXACT AT HEAD, checked rather than assumed: the three signed-PDF
+      citations src/lib/hr-signed-pdf.ts:426, :615 and :670 all resolve to the
+      lines this row describes. Not every citation here drifted.
+      NOTHING ELSE IN THIS ROW CHANGES — the finding, the urgency and the fix
+      all stand exactly as written below.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       CORRECTED 2026-07-29 by the BUILD-2 audit. This row says
       primaryStoreName() "takes THE FIRST ROW OF AN UNORDERED QUERY — an
       arbitrary one of NINE stores, potentially a different one per request."
@@ -4991,8 +5024,41 @@ debt:
       here), BUILD-2, DEBT-1, PERM-3's `deferred:` entry.
 
   - id: DEBT-28
-    title: "The `#0034 — Carson` store label idiom has three variants across twelve sites"
+    title: "The `#0034 — Carson` store label idiom has three variants across fourteen sites"
     notes: >
+      EVIDENCE REPAIRED AND COUNT CORRECTED 2026-08-02 by DEBT-TRIAGE-1,
+      re-measured at HEAD cc1fffc. All fifteen references below were checked
+      individually rather than assumed; two had drifted.
+      POINTERS REPAIRED, originals preserved below:
+      src/app/(app)/templates/template-form.tsx:995 → :1014, and
+      src/app/api/webhooks/clerk/route.ts:133 → :134. EVERY OTHER CITATION IS
+      STILL EXACT — user-actions.tsx:112,244,271; training-form.tsx:813;
+      create-device-login-button.tsx:103; users/page.tsx:252,301;
+      staff-buttons.tsx:116; staff-edit-actions.tsx:201; staff/page.tsx:127;
+      staff/[id]/page.tsx:623; stores/page.tsx:162 (still carrying the odd
+      `Store #0034 - Carson` wording); store-view-client.tsx:100.
+      THE TITLE SAID TWELVE SITES AND HEAD MEASURES FOURTEEN. Corrected under
+      the same rule applied to DEBT-33 — a title stating a checkable fact that
+      is wrong gets fixed. HOW IT WENT WRONG IS THE USEFUL PART: the "12" is the
+      6 em dash / 5 hyphen / 1 parenthesised tally in the paragraph below, and
+      THAT TALLY PREDATES THIS ROW'S OWN LATER ADDITIONS. The sentence beginning
+      "Plus src/app/(app)/users/page.tsx:252,301 as of 838ad99, and
+      src/app/api/webhooks/clerk/route.ts:133" was appended afterwards and never
+      folded back into the count. A row can go stale against itself.
+      THE CORRECTED SPLIT AT HEAD: 8 EM DASH (user-actions.tsx:112,244,271;
+      template-form.tsx:1014; training-form.tsx:813;
+      create-device-login-button.tsx:103; users/page.tsx:252,301), 5 HYPHEN-MINUS
+      and 1 INVERTED as listed below and all unchanged. That is FOURTEEN LABEL
+      SITES. The fifteenth reference, webhooks/clerk/route.ts:134, is counted
+      separately and deliberately: it builds the same string as a derived
+      User.name rather than as a label, which is the distinction the original
+      text already drew and the reason it sits outside the tally.
+      EM DASH IS NOW THE OUTRIGHT MAJORITY — 8 of 14, not the bare plurality of
+      6 of 12 the text below describes. That strengthens the em-dash default
+      rather than changing it.
+      NOTHING ELSE CHANGES: still low priority, still fold into DEBT-27, and the
+      two-sites-need-a-decision hazard below still stands.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       LOW PRIORITY. Logged 2026-07-30 from DEBT-5's audit, which had to establish
       the house form before it could match it and discovered there is no single
       one. Text/formatting only — nothing misbehaves, and every variant renders
@@ -5033,6 +5099,19 @@ debt:
   - id: DEBT-29
     title: "The template availability window is collected, stored, exported — and never enforced"
     notes: >
+      EVIDENCE REPAIRED 2026-08-02 by DEBT-TRIAGE-1, re-measured at HEAD
+      cc1fffc. These are POINTERS, so they are repaired; the original citations
+      stay visible below. All three are in
+      src/app/(app)/templates/template-form.tsx and all three drifted by the
+      same insertion, not by any change to what they cite. :917 → :936, the
+      Label reading "When is this checklist available? *". :925 → :944, the help
+      text "Availability calculated based on each store's operating hours".
+      :954-960 → :969-979, the Preview card; the three "Example: Store opens
+      8:00 AM → Available ..." template strings this row quotes are now at :974,
+      :976 and :977.
+      THE FINDING ITSELF IS UNCHANGED AND RE-CONFIRMED: nothing reads the three
+      collected fields to gate anything. Nothing else in this row changes.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       Logged 2026-07-30 out of the DEBT-1a audit (21dd712), which set out to find
       who READS operationalPhase and found that the field's advertised purpose
       has no runtime consumer at all.
@@ -5070,6 +5149,25 @@ debt:
   - id: DEBT-30
     title: "No DB-level constraint on Template.operationalPhase — app-layer validation is the ceiling"
     notes: >
+      GATE (1) CLEARED 2026-08-02, recorded by DEBT-TRIAGE-1 — THIS ROW DID NOT
+      KNOW, and read as blocked when it is ready to run. DEBT-1 is
+      `status: verified` at HEAD: writers plugged in c17ccc1, the backfill
+      returning zero non-canonical rows on all three branches with branch-named
+      before/after counts (dev 1 changed, preview/staging 2, production 1, all
+      three then non_canonical_remaining = 0), promoted to production 2026-08-01
+      in 63407be — docs/DEPLOY_LOG.md § "2026-08-01 (afternoon) — PRODUCTION
+      promotion (DEBT-1, DEBT-2 and the 07-30 debt batch)", pushed to
+      origin/main 16:27 — and verified in production by Gary the same day.
+      Confirmed at HEAD by `git branch --contains c17ccc1` returning main.
+      GATE (2) IS NOT A GATE AND IS NOT DONE. The hand-authored migration below
+      is THIS ROW'S REMAINING WORK, not a precondition someone else clears;
+      writing it up as "the gate cleared" would leave a reader thinking the
+      migration exists. It does not. What changed is that nothing external
+      blocks authoring it any more.
+      THE OPEN QUESTION BELOW IS STILL OPEN and must be answered before the SQL
+      is written: whether NULL stays legal. Nothing since 2026-07-30 has
+      decided it.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       Logged 2026-07-30 out of the DEBT-1a audit (21dd712). The column is plain
       TEXT with no CHECK and no enum (prisma/schema.prisma:280;
       prisma/migrations/20260627002005_init/migration.sql:108), so every guard
@@ -5156,6 +5254,17 @@ debt:
   - id: DEBT-32
     title: "Retire the I-14b legacy phase alias and fold the three phase lists into one"
     notes: >
+      THE GATE CLEARED 2026-08-02, recorded by DEBT-TRIAGE-1 — THIS ROW DID NOT
+      KNOW, and read as blocked when it is ready to run. "UNBLOCKED ONCE: DEBT-1
+      is verified" below is satisfied on exactly the terms it set: staging → main
+      WAS promoted, in 63407be on 2026-08-01 (docs/DEPLOY_LOG.md § "2026-08-01
+      (afternoon)", pushed to origin/main 16:27), and production IS running the
+      plugged writers rather than merely the clean data — DEBT-1's code commit
+      c17ccc1 is on main, confirmed at HEAD by `git branch --contains`, and
+      DEBT-1 is `status: verified` after Gary verified the promoted code in
+      production the same day. This row is now free to run; nothing external
+      blocks it.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       Created 2026-07-31 by the DEBT-1b task order, which put alias retirement
       explicitly OUT OF SCOPE: even with data clean and writers plugged, the
       alias stays as belt-and-braces until the fix has soaked in production.
@@ -5185,8 +5294,17 @@ debt:
       Related: DEBT-1, DEBT-30, DEBT-33.
 
   - id: DEBT-33
-    title: "npm run lint exits 1 on a clean checkout — 11 errors, no commit gate can use it"
+    title: "npm run lint exits 1 on a clean checkout — 10 errors, no commit gate can use it"
     notes: >
+      TITLE CORRECTED 2026-08-02 by DEBT-TRIAGE-1: it said 11 errors, and HEAD
+      cc1fffc measures 32 problems / 10 errors, exit 1 — `npx eslint .`, error
+      lines counted independently of the summary. The BODY below already
+      recorded the correction (the prefer-const was fixed in 89c70f7); only the
+      title had gone stale, and a title stating a checkable fact that is wrong
+      gets fixed. THE ROW STAYS OPEN AND THE STANDING RULE IS UNCHANGED: ten
+      react-hooks errors remain, the baseline is still red, and no bare
+      `npm run lint` may appear in any commit gate.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       Logged 2026-07-31 during DEBT-1b, which was ordered to add a bare
       `npm run lint` to its build-gates-commit chain and found the chain could
       never reach the commit. MEASURED, not inferred: stashing the session's
@@ -5289,8 +5407,20 @@ debt:
       staging, estimatedTimeMinutes included. Related: DEBT-3, MIGRATIONS.md §2.
 
   - id: DEBT-36
-    title: "Sections are implied, not modelled — no entity, no ordering, no as-executed record"
+    title: "AWAITING RULING — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
+      AWAITING GARY'S RULING: whether to model Section as a first-class entity
+      with stable ids, accepting a migration plus UI, or to accept that section
+      renames retroactively rewrite historical checklists.
+      THIS BLOCK IS THE FIRST RECORD OF THAT DEFERRAL, NOT A TRANSCRIPTION OF AN
+      EXISTING ONE — stated plainly because the other three AWAITING RULING rows
+      are transcriptions and this one is not. Ruled by Gary 2026-08-02 in the
+      DEBT-TRIAGE-1 task order: the entity work waits until after DEBT-2b, and
+      until he decides whether renames rewriting historical checklists is
+      acceptable. Before today the row carried only a sequencing note ("Sequence
+      it after DEBT-2b") and no ruling at all, so it read as undone work rather
+      than as a decision pending on him.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       FILED 2026-08-01 from DEBT-2a's findings; see docs/prompts/DEBT-2_AUDIT.md §2 and
       §6. This is the DURABLE fix for the class DEBT-2 describes, and it is
       deliberately NOT part of DEBT-2b — it is a product decision plus a
@@ -5353,8 +5483,13 @@ debt:
       count. Related: DEBT-18, DEBT-23, DEBT-26.
 
   - id: DEBT-38
-    title: "A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
+    title: "AWAITING RULING — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
     notes: >
+      AWAITING GARY'S RULING: fix direction (a) a DEPLOY_LOG step inside
+      WORKFLOW.md §2, or (b) `--no-ff` on promotions — or both. Title prefixed
+      2026-08-02 by DEBT-TRIAGE-1 so the row stops reading as backlog; the
+      deferral is the row's own ("the choice is Gary's"), transcribed, not new.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       FILED 2026-08-01 by DOCS-2, on Gary's rider. The promotion 746c1be
       (2026-07-29 08:24, twenty-one commits carrying PERM-6, PERM-7, DEBT-8,
       DEBT-10 and DEBT-14) reached production with NO docs/DEPLOY_LOG.md entry
@@ -5495,9 +5630,18 @@ debt:
 
   - id: DEBT-41
     title: >
-      A blocker entry can only be LIVE or RESOLVED — there is no value for the
-      half-closed state two entries are actually in
+      AWAITING RULING — A blocker entry can only be LIVE or RESOLVED — there is
+      no value for the half-closed state two entries are actually in
     notes: >
+      AWAITING GARY'S RULING: nothing until a NEW half-closed exemplar appears;
+      then whether a third BlockerEntry state is worth designing. Title prefixed
+      2026-08-02 by DEBT-TRIAGE-1 so the row stops reading as backlog; the
+      deferral and its trigger are the row's own ("KEEP AS-IS... accepted by
+      Gary 2026-08-01", "WATCH FOR MORE EXAMPLES BEFORE ACTING"), transcribed,
+      not new. The prefix is added to a title this row's own text already flags
+      as dated-and-deliberately-unrewritten ("two entries"); prefixing it does
+      not touch that claim.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       FILED 2026-08-01 by P-4, on Gary's ruling, from the audit that added the
       `resolved` flag. Filed rather than fixed because inventing a third state
       was not in that session's scope and because two examples is thin evidence
@@ -5597,9 +5741,15 @@ debt:
 
   - id: DEBT-42
     title: >
-      `deferred` and `open` keep resolved entries in the array forever, the same
-      defect P-4 fixed for `blockers`
+      AWAITING RULING — `deferred` and `open` keep resolved entries in the array
+      forever, the same defect P-4 fixed for `blockers`
     notes: >
+      AWAITING GARY'S RULING: nothing until a surface COUNTS `deferred` or
+      `open`; that event is the trigger, and the fix is already designed. Title
+      prefixed 2026-08-02 by DEBT-TRIAGE-1 so the row stops reading as backlog;
+      the deferral and its trigger are the row's own ("on Gary's explicit ruling
+      to FLAG AND NOT FIX", "WHAT WOULD CHANGE THAT"), transcribed, not new.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       FILED 2026-08-01 by P-4, on Gary's explicit ruling to FLAG AND NOT FIX.
       THE FACT: `deferred` and `open` are still `string[]` (src/lib/roadmap.ts)
       and carry no way to mark an entry closed, so resolved entries stay in the
@@ -5633,9 +5783,100 @@ debt:
 
   - id: DEBT-43
     title: >
-      Every `border-[var(--color-*)]` on /internal/roadmap silently renders as
-      the default border colour — the arbitrary utility emits no border-color
+      Every `border-[var(--color-*)]` in the app silently renders as the default
+      border colour — an UNLAYERED `*` rule in globals.css overrides every
+      border-color utility
     notes: >
+      MECHANISM CORRECTED 2026-08-02 by DEBT-TRIAGE-1. The OBSERVATION below is
+      right and its EXPLANATION is false, and both fixes it proposes would have
+      failed. Everything in this block was measured at HEAD cc1fffc against a
+      fresh `npm run build`, not inherited from the triage audit — which had
+      itself inherited P-4's numbers and found them wrong. The TITLE was
+      corrected too: it carried the false claim itself, and a title stating a
+      checkable fact that is wrong gets fixed (the DEBT-33 rule). The original
+      read "Every `border-[var(--color-*)]` on /internal/roadmap silently
+      renders as the default border colour — the arbitrary utility emits no
+      border-color"; the second clause was false and the first understated the
+      scope to one page.
+      THE FALSE CLAIM, struck: "Tailwind cannot tell whether an opaque var()
+      inside the BARE border-[…] utility is a width or a colour", so the
+      border-color declaration is never emitted. FALSE, and refuted by the
+      compiled stylesheet on its face — one grep would have done it. In
+      .next/static/chunks at HEAD, with brace depth and enclosing at-rule
+      measured rather than eyeballed: .border-\[var\(--color-warning\)\] emits
+      border-color:var(--color-warning) at depth 1 inside @layer utilities, and
+      .border-\[var\(--color-warning-border\)\] emits
+      border-color:var(--color-warning-border) the same way. THE DECLARATION IS
+      EMITTED. The dev chunk agrees — universal rule at :4462 depth 0, utilities
+      at depth 1.
+      THE REAL MECHANISM: `* { border-color: var(--color-border) }` at
+      src/app/globals.css:61 is UNLAYERED — source brace depth 0, since the
+      `@theme inline` block closes at :59 — while `@import "tailwindcss"` puts
+      every utility inside `@layer utilities` at depth 1. Unlayered normal
+      author declarations outrank every layered one regardless of specificity,
+      so that one 0-0-0 rule overrides every border-color utility in the
+      application.
+      BOTH PROPOSED FIXES FAIL, for the same reason.
+      `border-l-[var(--color-warning)]` emits border-left-color and is still
+      layered; the unlayered shorthand expands into four longhands INCLUDING
+      border-left-color, so it loses. `border-warning` emits
+      border-color:#efa201 and is also layered, so it loses too. Both were
+      measured in the compiled chunk at depth 1.
+      THE ROW'S PROSE CONTAMINATED TWO INDEPENDENT MEASUREMENTS, IN OPPOSITE
+      DIRECTIONS. `.border-warning{border-color:#efa201}` really is in the
+      compiled chunk — solely because the string sits in THIS ROW'S OWN NOTES,
+      which `prebuild` writes into src/generated/roadmap.ts (:1327 at the time
+      of writing) where Tailwind's content scanner reads it as source. Zero real
+      usages exist in src. That is the first direction: the row manufactured
+      evidence that its own suggested fix was already in use. The second
+      direction inflated the scope count — a raw grep over src returned 96
+      wrong-coloured sites, four of which were this row quoting itself,
+      INCLUDING THE ONLY `border-l-[var(--color-*)]` "usage" in the repo, which
+      was the row citing its own proposed fix. DEBT-TRIAGE-1 caught the first
+      contamination and then fell for the second in the same session, which is
+      why this is recorded as its own paragraph rather than as a footnote.
+      THE RULE THAT FALLS OUT OF IT, and it should be legible without reading
+      the rest of this row: A GENERATED FILE CONTAINING THE ROW'S OWN TEXT IS IN
+      THE MEASUREMENT PATH. src/generated/roadmap.ts is generated from
+      docs/ROADMAP.yaml by scripts/generate-roadmap.mjs on every `predev` and
+      `prebuild`, is gitignored, and carries every debt row's notes as string
+      literals. ANYONE GREPPING src FOR EVIDENCE ABOUT A DEBT ROW MUST EXCLUDE
+      src/generated/roadmap.ts. It is scanned by Tailwind, it is searched by
+      every default grep, and it says whatever the row says.
+      THE REASONING ERROR, which is worth more than the fix. A plausible
+      mechanism was inferred from a correct observation and never tested against
+      the one artifact that would have refuted it in a single grep. The browser
+      measurement was real and right; the explanation invented for it was never
+      checked. SAME FAMILY AS DEBT-15 AND DEBT-23. DEBT-15's own closing text
+      names the shape — "a suggestive artifact beat a cheap direct check... The
+      artifact is never the measurement" — and DEBT-23 was withdrawn for a row
+      built on a misread grep. This is the third instance, and in all three the
+      cheap direct check was available and skipped.
+      FIX DIRECTION, DELIBERATELY NOT APPLIED: one line — wrap globals.css:61 in
+      `@layer base`. That puts the reset below utilities in the cascade and
+      every existing call site starts working with NO call-site edits at all.
+      The row as originally written would have sent someone to edit every call
+      site for no effect. DO NOT APPLY IT HERE — a visual change across 92 sites
+      gets its own session, and Gary will confirm the diagnosis in a browser
+      before authorising it.
+      SCOPE, re-measured at HEAD excluding src/generated/roadmap.ts: 560
+      occurrences of `border-[var(--color-*)]` across 106 files in src. 468 are
+      `border-[var(--color-border)]` — the same value the universal rule already
+      forces, so they are invisible no-ops in either direction and need no edit
+      even after the fix. 92 CARRY A DIFFERENT TOKEN AND RENDER THE WRONG
+      COLOUR, of which 45 are `--color-primary` — the selected-state affordance
+      app-wide, which is the real user-facing cost and is named nowhere in the
+      original text below. Zero side-named `border-l/t/r/b-[var(--color-*)]`
+      exist in real source. This row's own "11 elements on /internal/roadmap" is
+      a small fraction of that: it is the count for the one page that happened
+      to be open when the row was filed.
+      EVIDENCE LIMIT ON THIS CORRECTION: static analysis of the compiled
+      stylesheet plus the cascade-layer rule, NOT a browser measurement. Gary
+      will confirm in the browser before authorising the fix. Note the
+      asymmetry, because it is what makes the falsification safe to act on
+      already: the refuted half needs no cascade reasoning at all — "the
+      declaration is missing" is contradicted by the stylesheet directly.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       FOUND 2026-08-01 by P-4 while verifying that page in a browser, and filed
       rather than fixed: it is a pre-existing design-system defect, it predates
       P-4 and is untouched by it, and fixing it is a Tailwind-config question
