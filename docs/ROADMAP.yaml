@@ -6165,11 +6165,116 @@ debt:
       Related: P-4, DEBT-41 (SEC-1's entry is an example of both).
 
   - id: DEBT-43
+    status: staging
+    commits: ["06befd2"]
     title: >
       Every `border-[var(--color-*)]` in the app silently renders as the default
       border colour — an UNLAYERED `*` rule in globals.css overrides every
       border-color utility
     notes: >
+      CLOSED 2026-08-02 in 06befd2, by the one-line fix this row named and
+      deliberately did not apply: globals.css:61 wrapped in `@layer base`. Four
+      lines changed, zero call sites edited, no Tailwind config touched.
+      MECHANISM RE-VERIFIED INDEPENDENTLY AT HEAD before the change, because
+      this row's own history says to. Fresh `rm -rf .next && npm run build`,
+      brace-depth walk of the emitted chunk with the enclosing at-rule chain
+      recorded per block. BEFORE: `*{border-color:var(--color-border)}` at depth
+      0 with no enclosing at-rule — unlayered — and all 25 matching
+      `.border-\[var\(--color-*\)\]` blocks at depth 1 inside `@layer utilities`
+      (11 of those at depth 2 inside `@layer utilities > @supports(color-mix)`,
+      the opacity-modifier variants). AFTER: the universal rule at depth 1
+      enclosed by `@layer base`, merged into Tailwind's own base block — there
+      is exactly one `@layer base` block and one `@layer utilities` block — and
+      the 25 utility blocks unchanged at depth 1 in `@layer utilities`.
+      EMITTED LAYER ORDER, which is what makes this a fix rather than a
+      relocation: properties (byte 17) -> theme (1,922) -> base (9,441) ->
+      components (13,095, a bare statement) -> utilities (13,096). `base`
+      precedes `utilities` on first appearance, so utilities win. The `*` rule
+      lands at byte 13,042, inside base.
+      SCOPE REPRODUCED EXACTLY, unit = OCCURRENCES (`grep -o`), excluding
+      src/generated/roadmap.ts — both stated because this row requires both:
+      560 / 468 / 92 / 45.
+      THE 468 `--color-border` OCCURRENCES ARE UNAFFECTED, before and after.
+      They ask for the value the universal rule already forced, so they got it
+      by accident before and get it by the cascade now. No edit, no visual
+      change, in either direction. This is the largest class and it is a no-op.
+      A SECOND CLASS OF NO-OP, found while measuring and not previously
+      recorded: the 4 `--color-input` occurrences (ui/input.tsx, ui/select.tsx,
+      ui/textarea.tsx, dashboard/sales-performance-card.tsx). `--color-input`
+      and `--color-border` both compile to `#d7cbc1` — verified in the emitted
+      chunk, not inferred from the source tokens — so those four render
+      identically before and after. The number of occurrences that change
+      VISIBLY is therefore 88, not 92.
+      THE FILE-COUNT DISCREPANCY THIS ROW CARRIED AS UNEXPLAINED IS CLOSED, in
+      the row's favour. `grep -rl --exclude-dir=generated` returns 106 files at
+      HEAD, matching the 106 recorded here; the 108 was the outlier. The 92
+      wrong-coloured occurrences sit in 43 files, not 44.
+      SCOPE WAS WIDER THAN THIS ROW EVER STATED, and this is the one substantive
+      correction the fix session made to it. The 560 counts only ARBITRARY
+      `border-[var(--color-*)]` utilities. NAMED border-color utilities were
+      masked by the identical mechanism and are unmasked by the identical fix:
+      18 of them exist in src (17 `border-transparent`, 1 `border-white`),
+      across ui/switch.tsx, ui/badge.tsx and 9 feature files. Three of the 18
+      are dead (see below), so 15 change. Total occurrences that change visibly:
+      88 + 15 = 103. ANYONE RE-MEASURING THIS CLASS OF BUG MUST GREP FOR NAMED
+      UTILITIES TOO — an arbitrary-value regex silently under-reports it, which
+      is what happened here for the row's whole life.
+      BADGE BEHAVIOUR, RECORDED SO THE VISUAL PASS READS IT AS EXPECTED. All
+      three soft badge variants (success/warning/info, ui/badge.tsx:14-16) carry
+      BOTH `border-transparent` AND `border-[var(--color-*-border)]`. In the
+      stylesheet `.border-transparent` (byte 33,664) is emitted AFTER the three
+      arbitrary utilities (30,418 / 31,977 / 32,698) at equal specificity inside
+      the same layer, so on a naive reading transparent wins and badges would go
+      borderless. THAT READING IS WRONG AND WAS BRIEFLY REPORTED AS FACT before
+      being caught. `cn()` is `twMerge(clsx(...))`, and tailwind-merge strips
+      `border-transparent` as a conflicting border-color class before it ever
+      reaches the DOM — verified by running twMerge over the actual cva strings,
+      not by reading its docs. So: soft badges show a GREY border today and
+      their INTENDED COLOURED border after. Solid badges (default/secondary/
+      destructive, :10-12) carry `border-transparent` alone, which the universal
+      rule also beat — they show an unintended grey 1px ring today and are clean
+      after. ui/switch.tsx:13 is the same solid case. Both are improvements.
+      THE STYLESHEET IS NOT THE DOM — the reasoning error this row exists to
+      teach, committed once more inside the session that fixed it. The
+      byte-offset measurement was real, correctly taken, and answered a question
+      nobody was asking: which class wins IF BOTH REACH THE ELEMENT. One of them
+      never does. Same family as the row's own "a suggestive artifact beat a
+      cheap direct check" — the artifact was the compiled CSS this time instead
+      of the browser, and the cheap direct check was one node invocation. It was
+      caught only because the finding was being written up for a decision rather
+      than filed as a row.
+      NOT FIXED, DELIBERATELY: the three `border-transparent` on badge.tsx:14-16
+      are dead tokens. Removing them is provably behaviour-neutral (twMerge
+      output byte-identical with and without, verified) and is a tidy-up with no
+      cost attached, not deferred work. It is not a row.
+      REMAINING UNLAYERED RULE, reported and untouched: `body` at
+      src/app/globals.css:65 is still at depth 0 unlayered, carrying background,
+      color, font-family and -webkit-font-smoothing. Same hazard one element
+      wide. layout.tsx:14 applies `min-h-full antialiased` to `<body>` today —
+      `antialiased` already collides with the rule's own
+      `-webkit-font-smoothing: antialiased` and is harmless only because both
+      set the same value. A future `bg-*`, `text-*` or `font-*` on that element
+      would silently lose. Cost NONE with no named trigger, so it is a comment
+      at the site rather than a row (Gary, 2026-08-02).
+      GATE: eslint does not cover CSS in this repo — `npx eslint
+      src/app/globals.css` returns "File ignored because no matching
+      configuration was supplied", and the config is eslint-config-next
+      core-web-vitals + typescript with no CSS plugin. Verified rather than
+      assumed, per the prompt. Gated on `npm run build` alone. The two
+      CSS-optimizer warnings in the build log are byte-identical before and
+      after: they are Tailwind failing to compile the literal string
+      `border-[var(--color-*)]` out of src/generated/roadmap.ts, i.e. THIS ROW'S
+      OWN PROSE reaching the compiler. The contamination this row documents is
+      now also a standing build warning.
+      GARY'S VISUAL PASS IS THE REMAINING WORK, not a blocker on the fix: 88
+      arbitrary plus 15 named occurrences across 43-plus files begin rendering
+      what they always asked for. Highest-traffic first — ui/radio-group.tsx:23
+      (every radio indicator ring turns primary orange, unconditional),
+      ui/checkbox.tsx:15 (checked/indeterminate gain a primary border),
+      ui/badge.tsx and ui/switch.tsx as above, then
+      store-view/checklist/[id]/checklist-execution-client.tsx (8),
+      internal/roadmap/roadmap-client.tsx (6) and hr/page.tsx (6, all primary).
+      ── CORRECTED-MECHANISM NOTES BELOW, AS THEY STOOD AT CLOSURE ──
       COST OF DOING NOTHING: 45 of the 92 wrong-coloured sites are
       `--color-primary`, the selected-state affordance app-wide, so a merchant
       using the app sees the wrong border on selection today — LIVE. The one
