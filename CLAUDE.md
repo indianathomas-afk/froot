@@ -337,6 +337,37 @@ once it appeared in a precondition. **When you relocate a measurement, bring its
 provenance with it** — when it was taken, on what branch, by which query — so
 the copy cannot claim more authority than the original had.
 
+**A ROW ID DOES NOT IDENTIFY A BRANCH. Resolve ids from scratch on every branch
+you write to, and never carry one across.** Recorded 2026-08-02 (Gary's
+observation) during DEBT-9 Phase 4, which set a flag on two staff members on
+staging and then on production.
+
+The ids were **identical on both branches** — `cmqxfyiwy000004l49ps3w1tf` and
+`cmqxfyjt1000004jtbfzj9jmz` — because staging was branched from production and
+inherited its rows. So were the organisation id and the store ids.
+
+Note what that does to the safety rail. The Phase 4 `UPDATE` was deliberately
+written as `WHERE id IN (…) AND "organizationId" = …`, id-keyed and org-guarded,
+specifically so a wrong value could not match. **On sibling Neon branches that
+guard is inert**: every value in it is valid on both, so a staging id pasted
+into a production query matches, updates, and returns exactly the rows you
+expected. There is no error, no zero-row result, nothing to notice. The rule
+held on the day it was written down **by discipline, not by enforcement** — the
+guard could not have caught the mistake it looks like it is guarding against.
+
+This is the § Database Evidence failure mode one layer deeper. The branch label
+protects the *reading* of a result; nothing protects the *targeting* of a write,
+because the identifier that would distinguish the branches is the one thing the
+branches share. Which is why the discipline has to be procedural: **re-run the
+resolve query on the branch you are about to write to, every time, even when you
+already have the id on screen from ten minutes ago.**
+
+Corollary for anything destructive: a `DELETE` or an `UPDATE` composed against
+one branch will execute cleanly against its sibling. Prefer statements that
+report what they touched — `RETURNING`, and a row count you assert against an
+expected number — so a right-shaped result on the wrong branch is at least
+*visible* afterwards.
+
 ## Browser Evidence — Precondition
 
 **Every observation taken in a browser must name the ORGANIZATION ID it was

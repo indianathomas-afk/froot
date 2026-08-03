@@ -3915,6 +3915,15 @@ debt:
       Urgency is low; the cost of leaving it is that the first document either
       owner signs freezes an arbitrary one of nine stores into a legal record.
       ────────────────────────────────────────────────────────────────
+      PHASE 4 IS DONE ON BOTH ENVIRONMENTS — staging 2026-08-02
+      (br-square-feather-a63z92vz), production 2026-08-02
+      (br-sparkling-block-a620qvg4), two rows each, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd. Gary Thomas
+      (cmqxfyiwy000004l49ps3w1tf) and Kelton Thomas
+      (cmqxfyjt1000004jtbfzj9jmz) are isCorporate on production, which is the
+      only branch that ever carried the condition — 9 assignments and 0
+      primaries each there, against 1 and 3 on staging. Code promoted as
+      de3ba40. What remains is THIS GATE, nothing else.
       GATE ON THE PHASE 4 PROMOTION — added 2026-08-02 at the close of Phase 3
       (Gary's ruling). THIS IS A GATE, NOT A NICE-TO-HAVE. Phases 1-3 shipped
       code; the fix is not live until the flags are set on production, and

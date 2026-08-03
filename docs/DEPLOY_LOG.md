@@ -4,6 +4,86 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-08-02 (night) — PRODUCTION promotion (PERM-6/7 closure + P-4 + DEBT-TRIAGE + DEBT-43/13/29 + DEBT-9 Phases 1–3) + DEBT-9 Phase 4 production data
+
+- **Promotion SHA:** `de3ba40` — full: `de3ba40bd3767dec10f81afb313b575e3cd858df`.
+  Pushed to `origin/main` 2026-08-02.
+- **FAST-FORWARD, not a merge.** `origin/main` was `7b590b3`, which is an
+  ancestor of `de3ba40`, and `46d6571`'s parent IS `7b590b3` — the set is
+  contiguous. **`git revert -m 1` does not apply.**
+- **TWENTY-EIGHT commits, not 27.** Stated explicitly because the range that
+  gets quoted, `46d6571..de3ba40`, is git notation and EXCLUDES `46d6571` —
+  which is itself unpromoted. The promotion set is `origin/main..de3ba40` = 28.
+  A rollback built from 27 would strand `46d6571` on main.
+- **Rollback = revert all 28 in reverse order**, then push main:
+  `de3ba40 04388f0 4adcb13 5d59cda 18d2f5e 24894fa 5da1008 65c20cb 00e454a
+  778cf10 ffee362 790cfc4 04da67f 475e425 06befd2 bc0e43c 5faec45 3d57fb6
+  4a058ff 8b855d3 cc1fffc ca64632 1dbe9ca eb95883 3a2f7ac b76860d bed3a9e
+  46d6571`
+- **What shipped**, by theme:
+  - **PERM-6/7 closure and record repair** (`46d6571`, `bed3a9e`, `ca64632`,
+    `cc1fffc`, `b76860d`) — invite-gate blocker cleared, Task 7 closed on
+    unreachability, DEBT-39/40/44 filed, and the Neon branch-label technique.
+  - **P-4** (`3a2f7ac`, `eb95883`) — the roadmap UI learns a blocker entry can
+    be resolved; 8 resolved entries migrated. **P-4 ships while still
+    `in_progress`, deliberately** (Gary, 2026-08-02): `/internal/roadmap` is
+    ADMIN-gated and internal, with no merchant-facing surface, so an
+    in-progress phase's UI reaching production carries no tenant risk. Not a
+    precedent for merchant-facing phases.
+  - **DEBT-TRIAGE-1/2** (`8b855d3`, `4a058ff`, `3d57fb6`, `5faec45`, `bc0e43c`)
+    — record halves relocated into the code they fire in, a COST OF DOING
+    NOTHING line on every open row, DEBT-19/DEBT-35 closed, DEBT-45/46/47 filed.
+  - **DEBT-43** (`1dbe9ca`, `06befd2`, `475e425`, `04da67f`, `790cfc4`,
+    `5da1008`, `24894fa`) — universal border reset wrapped in `@layer base`;
+    `docs/` excluded from the Tailwind scanner.
+  - **DEBT-13** (`ffee362`, `778cf10`) — `/staff` lists staff who work at a
+    store but are based elsewhere.
+  - **DEBT-29** (`00e454a`, `65c20cb`) — the template form stops claiming the
+    availability window works.
+  - **DEBT-9 Phases 1–3** (`18d2f5e`, `5d59cda`, `4adcb13`, `04388f0`,
+    `de3ba40`) — `StaffMember.isCorporate`, the `primaryStoreName()` corporate
+    branch and the training-cert reroute, and the four Phase 3 surfaces
+    including the acknowledgments-route server guard.
+- **MIGRATION — one, applied on this promotion:**
+  `20260802162617_debt9_staff_corporate_location` —
+  `ALTER TABLE "StaffMember" ADD COLUMN "isCorporate" BOOLEAN NOT NULL DEFAULT false`.
+  Additive, metadata-only on PG 11+, no backfill. Confirmed present on branch
+  `production` (`br-sparkling-block-a620qvg4`) after the `de3ba40` build:
+  boolean, NOT NULL, default false.
+  **On rollback: do NOT drop the column.** Reverting the code leaves an unread
+  additive column, which is harmless; dropping it is a destructive migration
+  against production for no benefit.
+- **DEBT-9 PHASE 4 PRODUCTION DATA — branch `production`
+  (`br-sparkling-block-a620qvg4`), org `cf888f2d-f234-48c7-8097-fd5b44b5b3dd`:**
+  ids resolved from scratch on the production branch, then
+  `UPDATE "StaffMember" SET "isCorporate" = true` keyed on ids and org-guarded,
+  **returned exactly 2 rows** — `cmqxfyiwy000004l49ps3w1tf` (Gary Thomas) and
+  `cmqxfyjt1000004jtbfzj9jmz` (Kelton Thomas). The confirmation query shows
+  exactly those two corporate in the org and nobody else.
+  **Production carried 9 assignments and 0 primaries for each** — production is
+  the ONLY branch that ever had the condition DEBT-9 describes (staging had 1
+  and 3; dev had 9 and 9 but is not a live environment).
+- **THE IDS ARE IDENTICAL ON STAGING AND PRODUCTION**, because staging was
+  branched from production. `cmqxfyiwy…` and `cmqxfyjt1…` are the same strings
+  on both. **A cross-branch paste would have matched silently and succeeded**
+  — the `id IN (…) AND "organizationId" = …` guard could not have caught it,
+  because every value in it is valid on both branches. The "resolve from
+  scratch on each branch" rule held here by discipline, not by enforcement.
+  Recorded in CLAUDE.md § Database Evidence, since it fires on any cross-branch
+  database work, not only this row.
+- **DEBT-9 STAYS OPEN.** The flags are live on production; the GATE is not
+  satisfied. Still owed: the four-phase ceremony walk as a corporate member,
+  the frozen `HrDocumentAcknowledgment.storeName` read back as "Corporate",
+  the rendered PDF's Store line, and a non-corporate walk proving the picker's
+  selection is what gets stamped. Phase 3's (a), (c) and (d) still carry NO
+  rendered evidence. See the GATE paragraph on the DEBT-9 row.
+- **Verification owed AFTER this promotion** — three rows shipped at
+  `status: staging` and their checks are re-run against production per the
+  convention in the entries below: **DEBT-43** (borders render; `npm run dev`
+  unaffected), **DEBT-13** (`/staff` "Also works here" block for a
+  multi-store member), **DEBT-29** (template form copy). Flip all three to
+  `shipped` with `de3ba40` once confirmed.
+
 ## 2026-08-02 (evening) — STAGING deploy + DEBT-9 Phase 4 staging data — NOT a promotion
 
 - **Staging SHA:** `04388f0` — full: `04388f0e1423ce7ac74f884273f79696412a5695`.
