@@ -118,9 +118,17 @@ export async function POST(req: Request) {
 
     // Check for a pending invite to recover the originally intended app role +
     // store assignment. Case-insensitive: older rows may hold mixed-case emails.
+    //
+    // DEBT-46: orderBy is load-bearing, not cosmetic. The unique index is
+    // ("organizationId", "email") on plain text, so an insensitive match can
+    // hit TWO rows — a pre-3c7d0a0 mixed-case row and a lowercase re-invite of
+    // the same address — and findFirst without an order picks arbitrarily.
+    // That made the role grant nondeterministic. Newest wins (Gary's ruling R1,
+    // 2026-08-03); /users resolves the same collision the same way.
     const pending = userEmail
       ? await prisma.pendingInvite.findFirst({
           where: { organizationId: org.id, email: { equals: userEmail, mode: "insensitive" } },
+          orderBy: { createdAt: "desc" },
         })
       : null
 

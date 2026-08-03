@@ -43,7 +43,45 @@ async function getData() {
     }),
   ])
   const storeById = new Map(stores.map((s) => [s.id, s]))
-  const pendingByEmail = new Map(pendingInviteRecords.map((p) => [p.email, p]))
+
+  // DEBT-46. Keyed on the NORMALISED email. This was keyed on the raw column
+  // while BOTH of its consumers look up with a normalised address, so a row
+  // written before 3c7d0a0 (2026-07-22) holding mixed case missed silently —
+  // and one of those consumers writes a ROLE (see the create branch below), so
+  // the miss was a privilege outcome rather than a render bug. The comment
+  // there claims this page "mirrors resolvedRole so the two writers cannot
+  // drift"; on case, they had.
+  //
+  // NEWEST createdAt WINS (Gary's ruling R1, 2026-08-03), and the tiebreak is
+  // the point rather than a detail. The unique index is
+  // ("organizationId", "email") on plain text — case-SENSITIVE — so
+  // `Taylin@keva.com` and `taylin@keva.com` are DISTINCT rows in one org, and
+  // normalising the key collapses them. Built with `new Map(...)` that
+  // collision would resolve last-wins over an UNORDERED findMany: a role
+  // decided by Postgres row order. Zero colliding rows exist on any branch
+  // (measured 2026-08-03 across production, preview/main and preview/staging);
+  // this keeps it deterministic if one ever appears. The webhook's consume path
+  // carries the matching orderBy so the two role writers cannot resolve the
+  // same collision differently.
+  const pendingByEmail = new Map<string, (typeof pendingInviteRecords)[number]>()
+  for (const p of pendingInviteRecords) {
+    const key = normalizeEmail(p.email)
+    if (!key) continue
+    const existing = pendingByEmail.get(key)
+    if (!existing) {
+      pendingByEmail.set(key, p)
+      continue
+    }
+    const [kept, ignored] = p.createdAt > existing.createdAt ? [p, existing] : [existing, p]
+    // Named row ids on both sides: a collapsed collision is invisible in the
+    // rendered page by construction, so the log line is the only trace.
+    console.warn(
+      `[users] PendingInvite collision on ${key} in org ${org.id}: kept ${kept.id} ` +
+        `(${kept.role}, ${kept.createdAt.toISOString()}), ignored ${ignored.id} ` +
+        `(${ignored.role}, ${ignored.createdAt.toISOString()})`
+    )
+    pendingByEmail.set(key, kept)
+  }
   // PERM-7 Task 4: location contact address -> store, so a login signing in as
   // a location can be recognised as a device rather than a person.
   const storeByContactEmail = new Map<string, (typeof stores)[number]>()
@@ -154,7 +192,10 @@ async function getData() {
   })
 
   const pendingInvites = pendingInvitations.data.map((inv) => {
-    const pendingRecord = pendingByEmail.get(inv.emailAddress)
+    // DEBT-46: normalised, matching the map's key. Clerk echoes the address as
+    // it was invited, so a mixed-case invitation missed its own row here and
+    // rendered with a defaulted role and no store chips.
+    const pendingRecord = pendingByEmail.get(normalizeEmail(inv.emailAddress) ?? "")
     return {
       id: inv.id,
       email: inv.emailAddress,

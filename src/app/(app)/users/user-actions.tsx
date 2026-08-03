@@ -287,15 +287,29 @@ export function EditUserButton({
 }
 
 // ── Remove User ───────────────────────────────────────────────────────────────
+// DEBT-46, Gary's ruling 2026-08-03. This carried the SAME fire-and-forget
+// defect as RevokeInviteButton below — no res.ok, no error state, an
+// unconditional router.refresh() — twenty lines from where that one was fixed,
+// on the more destructive of the two: this removes a user from the
+// organization. A failure rendered as a success, and the row simply reappeared
+// on refresh with no explanation. res.ok handling ONLY; the confirm() and the
+// route it calls are deliberately untouched.
 export function RemoveUserButton({ clerkUserId, userName }: { clerkUserId: string; userName: string }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   async function handleRemove() {
     if (!confirm(`Remove ${userName || "this user"} from the organization?`)) return
     setLoading(true)
+    setError(null)
     try {
-      await fetch(`/api/users/${clerkUserId}`, { method: "DELETE" })
+      const res = await fetch(`/api/users/${clerkUserId}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? "Failed to remove user")
+        return
+      }
       router.refresh()
     } finally {
       setLoading(false)
@@ -303,9 +317,12 @@ export function RemoveUserButton({ clerkUserId, userName }: { clerkUserId: strin
   }
 
   return (
-    <button onClick={handleRemove} disabled={loading} className="p-1 rounded hover:bg-[var(--color-accent)]">
-      <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]" />
-    </button>
+    <div className="flex flex-col items-end gap-1">
+      <button onClick={handleRemove} disabled={loading} className="p-1 rounded hover:bg-[var(--color-accent)]">
+        <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]" />
+      </button>
+      {error && <p className="text-xs text-[var(--color-destructive)] max-w-[16rem] text-right">{error}</p>}
+    </div>
   )
 }
 
