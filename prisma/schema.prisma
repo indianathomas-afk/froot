@@ -240,6 +240,23 @@ model StaffMember {
   // untouched and auditable.
   signingCycle       Int       @default(1)
   rehiredAt          DateTime?
+  // DEBT-9: this person's work location is the COMPANY, not a store. Square has
+  // no concept of a primary or master location — corporate staff are
+  // ALL_CURRENT_AND_FUTURE_LOCATIONS, so the sync expands them to one
+  // StoreStaffAssignment per store with nothing to derive a home from
+  // (square.ts:265-268). primaryStoreName() would then stamp whichever store
+  // sorts first alphabetically into a signed legal record. A boolean, not a
+  // label: five of the six consumers need a predicate ("which bucket?",
+  // "exclude?", "suppress the warning?"), and only primaryStoreName() needs the
+  // string, which is the CORPORATE_STORE_LABEL constant in lib/hr.ts.
+  //
+  // NOT a synthetic "Corporate" Store row (Gary, 2026-08-02): Store rows are
+  // Square-linked, and a fake one leaks into every store picker, forecast,
+  // coverage calculation, checklist scope, roster and the /staff grouping.
+  //
+  // false — the default, and every pre-existing row — means "homed at a store",
+  // which is the behaviour everyone has today.
+  isCorporate        Boolean   @default(false)
   createdAt          DateTime  @default(now())
 
   organization        Organization             @relation(fields: [organizationId], references: [id])

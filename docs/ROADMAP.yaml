@@ -7236,3 +7236,50 @@ debt:
       offsets appearing in the codebase — at which point the IMPLEMENT direction
       was taken and this row describes history. Related: DEBT-29 (the relabel
       half, closed), DEBT-1, DEBT-32, DEBT-30.
+
+  - id: DEBT-49
+    title: >
+      No admin control sets StaffMember.isCorporate — the DEBT-9 designation is
+      SQL-only, so a corporate hire cannot be marked without a Neon console
+    notes: >
+      COST OF DOING NOTHING: The two known corporate staff are set by SQL in
+      DEBT-9 Phase 4 and every read path honours the flag, so nothing is wrong
+      for anyone who exists today; the gap opens only when a THIRD corporate
+      person is hired and no one in the product can mark them — LATENT (trigger:
+      the next corporate hire, or any store-homed employee moving to corporate.
+      Until then the flag is correct for 100% of rows).
+      CREATED 2026-08-02 by Gary's ruling deferring DEBT-9 Phase 3d. The reason
+      for the defer was scope, not doubt: DEBT-9 Phase 0 finding 4 added the
+      whole self-serve signing path to that session, which put HR-11 ceremony
+      re-verification on the critical path, and the toggle has no users today.
+      Prompt: docs/prompts/DEBT-9_corporate_work_location.md.
+      THE ASSESSMENT IS THE CONTENT OF THIS ROW — measured at head during
+      DEBT-9 Phase 0, recorded so it is not re-derived. Two things make this
+      bigger than a checkbox, and both are easy to miss on a second look:
+      (1) THE GATE ASYMMETRY. The natural home, StaffEditActions, renders for
+      ADMIN *and* in-scope MANAGER — src/app/(app)/staff/[id]/page.tsx:545 gates
+      it on canSeeNotes (:87, ADMIN || MANAGER). But the brief requires this
+      control to match the PRIMARY-STORE CHIP path, which is ADMIN-only:
+      src/app/(app)/staff/page.tsx:266 passes canEdit={isAdmin}. PATCH
+      /api/staff/[id] admits managers wholesale (route.ts:29-32) and documents
+      the asymmetry it already lives with at :94-98. So isCorporate would be the
+      FIRST field in that route needing its own per-field role gate. The
+      recommendation at the time — not ruled on — was a separate ADMIN-gated
+      control rendered NEXT TO StaffEditActions rather than a field inside the
+      manager-visible dialog, precisely to avoid adding a per-field gate to a
+      shared route.
+      (2) THE STALE-STAR RULE, genuinely undecided. Flagging someone Corporate
+      while they still hold an isPrimary assignment leaves a starred chip on
+      /staff/[id] (page.tsx:501-507) that primaryStoreName() now ignores — the
+      UI would assert a home store the signed record contradicts. Whoever builds
+      this must pick one: clear isPrimary on flagging, refuse the flag while a
+      primary is set, or render the star suppressed for corporate staff. The
+      Zod schema (route.ts:7-17), the dialog state (staff-edit-actions.tsx:56)
+      and BOTH transaction branches (route.ts:125-153) have to agree on whichever
+      is chosen — the branch that replaces assignments wholesale and the
+      light-touch branch that only moves the flag.
+      NOT A BLOCKER ON ANYTHING. DEBT-9's read paths, surfaces and data all ship
+      without it; this row is purely the write affordance.
+      Disconfirmed by: an isCorporate control appearing in staff-edit-actions.tsx
+      or beside it with an ADMIN check in PATCH /api/staff/[id]. Related: DEBT-9
+      (the parent), BUILD-2 (the primary-store chip path this must match).
