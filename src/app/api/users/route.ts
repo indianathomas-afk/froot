@@ -1,39 +1,12 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
-// Subpath export, not the package root — @clerk/backend exposes this only via
-// "./errors" (see its package.json exports map).
-import type { ClerkAPIResponseError } from "@clerk/backend/errors"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
-import { normalizeEmail } from "@/lib/clerk"
+import { isClerkErrorPayload, normalizeEmail } from "@/lib/clerk"
 import { plusAddress } from "@/lib/device-login"
 
-/**
- * DEBT-15. Duck-type on the PAYLOAD, not the class. The import above is
- * TYPE-ONLY, so no ClerkAPIResponseError identity reaches the bundle and it
- * cannot matter how many times Turbopack inlines that class.
- *
- * All THREE checks are load-bearing. `clerkError` is a field on the BASE
- * ClerkError, so it alone establishes nothing about shape; `errors` and a
- * numeric `status` are what the branch below actually consumes (errors[0].code,
- * err.status). A sibling ClerkError subclass carrying clerkError and errors but
- * no numeric status must fall through to the generic handler rather than
- * produce a wrong code.
- *
- * CHEAP HARDENING, NOT A BUG FIX. This is NOT the fix for the PERM-7 staging
- * collision failure — that had an entirely different cause (staging was running
- * a deployment that predated every PERM-7 commit). Do not let the two be
- * conflated.
- */
-function isClerkErrorPayload(err: unknown): err is ClerkAPIResponseError {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "clerkError" in err &&
-    Array.isArray((err as { errors?: unknown }).errors) &&
-    typeof (err as { status?: unknown }).status === "number"
-  )
-}
+// isClerkErrorPayload moved to src/lib/clerk.ts on 2026-08-03 so the
+// staff-invite route can share it; its DEBT-15 rationale moved with it.
 
 // GET: list all org members with their DB user record + store assignments
 export async function GET() {

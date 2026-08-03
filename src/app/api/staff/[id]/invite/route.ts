@@ -2,7 +2,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
-import { normalizeEmail } from "@/lib/clerk"
+import { isClerkErrorPayload, normalizeEmail } from "@/lib/clerk"
 
 // POST /api/staff/[id]/invite — HR-7 route (A): invite a staff member who has
 // an email to a Clerk STAFF login for /my/* self-service. Reuses the /users
@@ -74,7 +74,66 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
     return NextResponse.json({ invitation: { id: invitation.id, emailAddress: invitation.emailAddress } }, { status: 201 })
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to send invitation"
-    return NextResponse.json({ error: msg }, { status: 400 })
+    // DEBT-9 gate walk, 2026-08-03. This catch was:
+    //     const msg = err instanceof Error ? err.message : "Failed to send invitation"
+    //     return NextResponse.json({ error: msg }, { status: 400 })
+    // which rendered Clerk's bare word "Forbidden" beside a Froot button with
+    // no attribution. It reads as a Froot authorization failure, and cost
+    // twenty minutes spent on this file's ONLY 403 (line 19) — which could not
+    // have fired, because the button that calls this route is itself behind
+    // the same ADMIN/MANAGER gate that 403 enforces.
+    // THE ORIGIN OF AN ERROR IS PART OF THE ERROR.
+    //
+    // Mirrors POST /api/users (users/route.ts): switch on the Clerk error CODE,
+    // never the message text — the message is prose Clerk is free to reword
+    // (DECISIONS.md 2026-07-28). A MAPPED code is a known condition and gets
+    // Froot's own actionable wording, with `code` preserving the original; an
+    // UNMAPPED one is passed through verbatim, because rewording there would
+    // discard information we do not have (Gary, 2026-08-03).
+    if (isClerkErrorPayload(err)) {
+      const code = err.errors[0]?.code
+      if (code === "already_a_member_in_organization") {
+        return NextResponse.json(
+          {
+            error: `Clerk: ${email} already has a login in this organization, so it can't be invited again. If this staff member should be that login, the link is missing on our side — their StaffMember.userId is null.`,
+            code,
+            source: "clerk",
+          },
+          { status: 409 }
+        )
+      }
+      if (code === "organization_invitation_not_unique") {
+        return NextResponse.json(
+          {
+            error: `Clerk: ${email} already has a pending invitation for this organization. Resend or revoke it in Clerk before inviting again.`,
+            code,
+            source: "clerk",
+          },
+          { status: 409 }
+        )
+      }
+      return NextResponse.json(
+        {
+          error: `Clerk refused this invitation (${code ?? "no code"}): ${
+            err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "no message given"
+          }`,
+          code,
+          source: "clerk",
+        },
+        { status: err.status >= 400 && err.status < 500 ? err.status : 400 }
+      )
+    }
+    // Labelling BOTH sides is the actual fix: a Froot-side throw must not be
+    // confusable with a Clerk rejection either, or the next reader repeats the
+    // twenty minutes in the opposite direction.
+    return NextResponse.json(
+      {
+        error: `Invitation failed before Clerk accepted it: ${
+          err instanceof Error ? err.message : "unknown error"
+        }`,
+        source: "froot",
+      },
+      { status: 400 }
+    )
   }
 }

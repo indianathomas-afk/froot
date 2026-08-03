@@ -78,6 +78,24 @@ export async function POST(req: Request) {
       },
     })
 
+    // "org:manager" IS UNREACHABLE ON THE PRODUCTION CLERK INSTANCE and is a
+    // forward-compatible fallback, not the manager path. Verified 2026-08-03:
+    // Configure → Roles & Permissions reads 2/2 used — the Hobby plan's cap on
+    // custom roles — and holds exactly org:admin and org:member. Clerk cannot
+    // send org:manager, so this entry never fires.
+    //
+    // MANAGERS ARE PROVISIONED FROM PendingInvite.role, which takes precedence
+    // over this map at :109 (`pending?.role ?? roleMap[...] ?? "STAFF"`).
+    // POST /api/users writes the intended app role onto the PendingInvite and
+    // invites Clerk as org:admin/org:member only (users/route.ts), and an admin
+    // can set the role directly afterwards via PATCH /api/users/[id], whose
+    // clerkRoleFor() likewise only ever returns those two keys. The app role
+    // and the Clerk role are deliberately not the same vocabulary.
+    //
+    // THE ONE REAL CONSEQUENCE, so it is not discovered as a bug: a member
+    // added to the org DIRECTLY in the Clerk dashboard has no PendingInvite,
+    // so this map is all there is — and they land as STAFF whatever was
+    // intended. Provision through /users, or fix the role afterwards.
     const roleMap: Record<string, string> = {
       "org:admin": "ADMIN",
       "org:manager": "MANAGER",

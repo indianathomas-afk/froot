@@ -180,6 +180,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // mid-ceremony for a condition they cannot see or fix is worse than a stable
   // correct value (ruling 6, warn-don't-throw). The submitted value is not an
   // attack and not an error — it is a client that has not caught up yet.
+  //
+  // GATE-WALK FINDING, 2026-08-03 — AN ATTESTED WALK CANNOT TEST THIS GUARD.
+  // The order of this disjunct is load-bearing for TESTING, not for behaviour:
+  // on the attested path `isAttested` is already true (:83), so
+  // `staff.isCorporate` is never evaluated. The corporate branch is reachable
+  // ONLY from self-serve.
+  //
+  // So an attested acknowledgment for a corporate member stamps "Corporate"
+  // from primaryStoreName() alone — Phase 2 behaviour, which predates this
+  // guard entirely. It would have passed before this line existed. A green
+  // attested walk is NOT guard coverage; it is resolver coverage.
+  //
+  // Testing this line requires a self-serve session AS a corporate staff
+  // member: a Clerk login whose email matches the StaffMember, or a
+  // StaffMember.userId link. Do not accept an attested result as evidence that
+  // a stale client's storeId is ignored — that path never sends one.
   let storeName: string | null
   if (isAttested || staff.isCorporate) {
     storeName = primaryStoreName(staff)
