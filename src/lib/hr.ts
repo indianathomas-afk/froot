@@ -46,11 +46,13 @@ export async function findStaffMemberForUser(
 // `.find((a) => a.isPrimary) ?? storeAssignments[0]`, which is deterministic
 // only because every caller happens to select with
 // `orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }]` — hr.ts:23,
-// api/hr/forms/shared.ts:48, api/hr/documents/[id]/acknowledgments/route.ts:99.
-// That is a property of the callers, not of this function, and the value it
-// returns is FROZEN into a legal record: HrDocumentAcknowledgment.storeName,
-// FormSubmission.storeName, and the certificate line on the signed PDF
-// (hr-signed-pdf.ts:615, :426, :670). One future caller forgetting the orderBy
+// api/hr/forms/shared.ts:48, api/hr/documents/[id]/acknowledgments/route.ts:99,
+// hr-signed-pdf.ts:765. That is a property of the callers, not of this
+// function, and the value it returns is FROZEN into a legal record:
+// HrDocumentAcknowledgment.storeName, FormSubmission.storeName, and four
+// stamped lines on the signed PDFs — hr-signed-pdf.ts:427 (Certificate of
+// Acknowledgment), :616 and :671 (form header and Certificate of Execution),
+// :813 (Certificate of Training). One future caller forgetting the orderBy
 // would make a signed document's store name depend on row order.
 //
 // BUILD-2 audit (2026-07-29) confirmed this is a NO-OP against both current
@@ -59,12 +61,40 @@ export async function findStaffMemberForUser(
 // element — with one primary, with none, and with duplicates. The behaviour
 // change is only for a caller that does not order, which is the point.
 //
-// Note this does NOT fix DEBT-9: a staff member with no primary still resolves
-// to an arbitrary-but-stable store. It makes that stability a guarantee here
-// rather than a coincidence.
+// DEBT-9 (2026-08-02) adds the corporate branch, and it is the half BUILD-2
+// could not reach. BUILD-2 made a no-primary staff member resolve to an
+// arbitrary-but-STABLE store; stable is not the same as true. Gary Thomas and
+// Kelton Thomas are corporate — available at every location, homed at none —
+// so Square reports assigned_locations.assignment_type =
+// ALL_CURRENT_AND_FUTURE_LOCATIONS with no location list at all, and the sync
+// expands that into one StoreStaffAssignment per store with nothing to derive a
+// primary from (square.ts:265-268). SQUARE HAS NO CONCEPT OF A PRIMARY OR
+// MASTER LOCATION, so there is no upstream value to import and no hand-set
+// primary that would be true — setting one would freeze "Carson", the
+// alphabetical winner, onto a legal record.
+//
+// So the designation lives on StaffMember.isCorporate, NOT on a synthetic
+// "Corporate" Store row (Gary, 2026-08-02): Store rows are Square-linked, and a
+// fake one leaks into every store picker, forecast, coverage calculation,
+// checklist scope, roster and the /staff grouping.
+//
+// DO NOT "SIMPLIFY" THIS BACK. The corporate branch returning a constant rather
+// than a store name is the entire point; the sort below cannot express "no
+// store is correct here" no matter how it is ordered.
+//
+// Warn, don't throw (ruling 6, same date): this must never throw on the
+// ambiguous case. Failing mid-signing-ceremony for someone who cannot fix it is
+// worse than a wrong-but-stable value, so the guard is a warning on
+// /staff/[id], where an admin is already looking — not an exception here.
+export const CORPORATE_STORE_LABEL = "Corporate"
+
 export function primaryStoreName(
-  staff: { storeAssignments: { isPrimary: boolean; store: { name: string } }[] }
+  staff: {
+    isCorporate: boolean
+    storeAssignments: { isPrimary: boolean; store: { name: string } }[]
+  }
 ): string | null {
+  if (staff.isCorporate) return CORPORATE_STORE_LABEL
   const [best] = [...staff.storeAssignments].sort(
     (a, b) =>
       Number(b.isPrimary) - Number(a.isPrimary) || a.store.name.localeCompare(b.store.name)

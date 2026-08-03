@@ -2,6 +2,7 @@ import { createHash } from "crypto"
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from "pdf-lib"
 import { prisma } from "@/lib/prisma"
 import { streamHrFile, uploadHrFile } from "@/lib/hr-files"
+import { primaryStoreName } from "@/lib/hr"
 import type { SubmittedFormValue } from "@/lib/hr-forms"
 
 // HR-4/HR-5 signed-PDF service — the ONE place executed HR artifacts are
@@ -782,7 +783,13 @@ export async function ensureTrainingCertPdf(trainingAssignmentId: string) {
   const org = assignment.trainingModule.organization
   const staff = assignment.staffMember
   const staffName = staff.fullName ?? staff.displayName
-  const primaryStore = staff.storeAssignments[0]?.store.name ?? null
+  // DEBT-9: goes through primaryStoreName() rather than reading [0] inline. The
+  // ordered query above makes the two identical for a store-homed member — that
+  // is why this was safe to hand-inline — but a hand-inlined copy cannot see
+  // isCorporate, so a corporate trainee's Certificate of Training would stamp
+  // their alphabetically-first store while every other signed document said
+  // "Corporate". One resolver, or the documents disagree with each other.
+  const primaryStore = primaryStoreName(staff)
   const trainer = await prisma.user.findUnique({
     where: { id: assignment.certifiedByUserId },
     select: { name: true, email: true },
