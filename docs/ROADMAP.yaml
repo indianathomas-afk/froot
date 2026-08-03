@@ -7510,3 +7510,54 @@ debt:
       display that distinguishes two same-named orgs, appearing in the app
       shell. Related: DEBT-44 (org shell cleanup), CLAUDE.md § Browser Evidence
       (the precondition written the same day this was found).
+
+  - id: DEBT-51
+    title: >
+      An orphaned PendingInvite soft-deadlocks /staff/[id] — the "Invite pending"
+      badge hides the re-invite button and that page has no revoke control
+    notes: >
+      COST OF DOING NOTHING: A staff member whose self-service invite row is
+      orphaned can never be re-invited from their own page — the button that
+      would do it is hidden by the very row that is stuck — LATENT, and only
+      for rows carrying a staffMemberId (trigger: any orphaned staff invite;
+      zero measured today, since the one live orphan on preview/staging
+      (kevajuice14@icloud.com) has staffMemberId null and the production row
+      karson@keva.com was revoked 2026-08-03).
+      CREATED 2026-08-03 by Gary's ruling during DEBT-46 Phase 0. Deferred on
+      COST, not doubt — see the reasoning below. Prompt:
+      docs/prompts/DEBT-46_pending_invite_case_and_orphans.md.
+      THE MECHANISM, measured at head during DEBT-46 Phase 0.
+      src/app/(app)/staff/[id]/page.tsx:92 reads invitePending with a
+      findFirst on staffMemberId — NO Clerk call, so it is the one
+      database-driven PendingInvite surface in the app and the only place an
+      orphan renders at all. It renders as a warning badge (page.tsx:505) and,
+      at self-service-actions.tsx:170, it GATES the "Invite to self-service"
+      button: `email && !hasLogin && !invitePending`. So the orphan is not
+      merely visible-but-stale, it actively blocks the recovery action. The
+      page carries no revoke or delete control, so the only exits are accepting
+      the dead invitation or terminating the member (staff-termination.ts:60
+      deletes by staffMemberId and does clear it).
+      WHY DEFERRED RATHER THAN FOLDED INTO DEBT-46 PHASE 3. Two reasons, and
+      the second is the one that decided it.
+      (1) PHASE 3 RELIEVES IT AS A SIDE EFFECT. Phase 3 lists orphaned
+      PendingInvite rows on /users with a delete action; deleting the orphan
+      there clears the row, which un-hides the button here. So an admin who
+      knows about /users is never permanently stuck — the deadlock is on this
+      page, not in the data.
+      (2) THE FIX COSTS A CLERK CALL ON A PAGE THAT MAKES NONE. Making
+      /staff/[id] self-sufficient means classifying the row against Clerk's
+      invitation list — the same classification Phase 3 builds — which adds a
+      Clerk round-trip to a staff detail page that currently makes zero, on
+      every staff view. That is a real per-load cost for a case with no
+      measured instances.
+      WHAT A FIX WOULD LOOK LIKE, so it is not re-derived: either pass the
+      classification down from a shared helper (cheapest if Phase 3 already
+      built one and something upstream is already fetching invitations), or
+      gate the button on `!invitePending || inviteIsOrphaned` with the orphan
+      determination made server-side. Do NOT simply drop the badge — it is
+      correct information; the defect is that it gates an action.
+      Disconfirmed by: /staff/[id] offering a way to clear or ignore a stuck
+      invite, or the re-invite button ceasing to be gated on a row whose Clerk
+      invitation is not pending. Related: DEBT-46 (the parent — Phase 3 is the
+      /users half of the same design gap), HR-7 (which created the
+      staffMemberId invite path this deadlocks on).
