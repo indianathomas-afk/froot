@@ -50,11 +50,22 @@ export default async function MyAcknowledgePage({
   const primaryStoreIds = new Set(
     staffMember.storeAssignments.filter((a) => a.isPrimary).map((a) => a.storeId)
   )
-  const stores = assignedStores.map((s) => ({
-    id: s.id,
-    name: s.name,
-    isPrimary: primaryStoreIds.has(s.id),
-  }))
+  // DEBT-9: sorted isPrimary-desc-then-name-asc, the same comparator
+  // primaryStoreName() uses internally. signing-client.tsx pre-selects
+  // `find(isPrimary) ?? stores[0]`, and that selection is submitted verbatim and
+  // FROZEN into the signed record — so for a staff member with 2+ assignments
+  // and no primary, an unordered array meant the stamped store was whatever
+  // Postgres returned first, and could differ between two loads of the same page.
+  //
+  // WHY DEBT-22 MISSED THIS, which is the reusable part: DEBT-22 swept the
+  // codebase for unordered `storeAssignments` loads and correctly reported it
+  // had fixed the last one. This is not a storeAssignments load. It is a STORE
+  // load keyed by assignment ids (getActiveStaffSelf doesn't join store names),
+  // so the grep pattern that found every other instance could not match it. A
+  // sweep is only as complete as the shape it searches for.
+  const stores = assignedStores
+    .map((s) => ({ id: s.id, name: s.name, isPrimary: primaryStoreIds.has(s.id) }))
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.name.localeCompare(b.name))
   // Confirmed anchors → inline affordance + identity-chip placement.
   const clientAnchors = await prisma.documentAnchor.findMany({
     where: { hrDocumentVersionId: version.id, confirmed: true },
@@ -90,7 +101,12 @@ export default async function MyAcknowledgePage({
           required: c.required,
           done: doneIds.has(c.id),
         }))}
-        staff={{ id: staffMember.id, name: staffMember.fullName.trim(), stores }}
+        staff={{
+          id: staffMember.id,
+          name: staffMember.fullName.trim(),
+          isCorporate: staffMember.isCorporate,
+          stores,
+        }}
         anchors={clientAnchors}
         backHref="/my/documents"
         backLabel="My Documents"

@@ -57,6 +57,8 @@ export type StaffComplianceDetail = {
   displayName: string
   fullName: string | null
   active: boolean
+  /** DEBT-9: work location is the company, not a store — see prisma/schema. */
+  isCorporate: boolean
   primaryStoreId: string | null
   primaryStoreName: string | null
   storeIds: string[]
@@ -321,6 +323,7 @@ export async function computeStaffComplianceDetails(
       displayName: member.displayName,
       fullName: member.fullName,
       active: member.status === "ACTIVE",
+      isCorporate: member.isCorporate,
       primaryStoreId: primary?.store.id ?? null,
       primaryStoreName: primary?.store.name ?? null,
       storeIds: memberStoreIds,
@@ -382,8 +385,18 @@ export async function getOrgComplianceRollup(
     where: {
       organizationId,
       status: "ACTIVE",
+      // DEBT-9: corporate staff are excluded from EVERY store-scoped surface, so
+      // a MANAGER never sees them at all — not in By Store, not in the KPI
+      // cards, not in the employee table, not in the agreements panel. Excluded
+      // HERE, at the fetch, rather than at the byStore grouping below, because
+      // "a manager never sees them" is one claim and one filter; filtering only
+      // the grouping would leave them in that manager's totals and table.
+      // No store manager is responsible for corporate staff, and counting them
+      // anywhere store-scoped permanently drags some store's number (Gary,
+      // 2026-08-02). ADMIN (storeIds null) is unaffected here and retains them
+      // in totals and the employee table — only the byStore grouping skips them.
       ...(scoped
-        ? { storeAssignments: { some: { storeId: { in: opts.storeIds! } } } }
+        ? { isCorporate: false, storeAssignments: { some: { storeId: { in: opts.storeIds! } } } }
         : {}),
     },
     select: { id: true },
@@ -405,6 +418,14 @@ export async function getOrgComplianceRollup(
 
   const byStore = new Map<string | null, StaffComplianceDetail[]>()
   for (const s of staff) {
+    // DEBT-9: corporate staff are never bucketed under a store. On the ADMIN
+    // path they are still in `staff` — and therefore in the org-wide totals and
+    // the employee table — so this skip is the ONLY thing keeping them out of
+    // By Store. They cannot reach here on a manager's path; the fetch above
+    // already dropped them. Not an "Unassigned" bucket either: unassigned means
+    // no store on file, which is a data gap someone should fix. Corporate is
+    // the answer, not the absence of one.
+    if (s.isCorporate) continue
     // A member whose primary store is outside a manager's scope still appears
     // under one of the manager's stores they're assigned to.
     const groupId =

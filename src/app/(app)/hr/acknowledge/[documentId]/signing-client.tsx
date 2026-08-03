@@ -59,7 +59,14 @@ export function SigningClient({
   // name = the LEGAL Full Name on file (read-only context; the signer types
   // their own signature). stores = the signer's assigned stores for the
   // select-from-assigned store picker.
-  staff: { id: string; name: string; stores: { id: string; name: string; isPrimary: boolean }[] }
+  staff: {
+    id: string
+    name: string
+    // DEBT-9: hides the store picker. UX ONLY — the server ignores any storeId
+    // a corporate signer's client submits (acknowledgments/route.ts:170-186).
+    isCorporate: boolean
+    stores: { id: string; name: string; isPrimary: boolean }[]
+  }
   // Confirmed anchors for the current version — coordinates let the ceremony
   // place affordances (Item 2) and read-only identity chips (Item 1) AT the
   // line, not corner-docked. Empty for docs that were never anchor-detected
@@ -88,8 +95,12 @@ export function SigningClient({
   const [initialsText, setInitialsText] = useState("")
   // Store that will be stamped — signer picks from their assigned stores,
   // pre-selected to primary. Captured once and sent with every entry.
+  // DEBT-9: a corporate signer picks nothing and sends nothing; the server
+  // resolves their store as "Corporate" and ignores this field either way.
   const primaryStore = staff.stores.find((s) => s.isPrimary) ?? staff.stores[0] ?? null
-  const [selectedStoreId, setSelectedStoreId] = useState<string>(primaryStore?.id ?? "")
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(
+    staff.isCorporate ? "" : (primaryStore?.id ?? "")
+  )
   // "This isn't my name" — the signer disputes the legal name on file; signing
   // pauses and escalates to an admin (F3 block-and-escalate).
   const [nameDisputed, setNameDisputed] = useState(false)
@@ -335,7 +346,14 @@ export function SigningClient({
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-[var(--color-muted-foreground)] font-normal">Store</Label>
-                {staff.stores.length > 0 ? (
+                {staff.isCorporate ? (
+                  <p className="text-sm text-[var(--color-foreground)]">
+                    Corporate
+                    <span className="block text-xs text-[var(--color-muted-foreground)]">
+                      Your work location is the company, not a store.
+                    </span>
+                  </p>
+                ) : staff.stores.length > 0 ? (
                   <select
                     value={selectedStoreId}
                     onChange={(e) => setSelectedStoreId(e.target.value)}

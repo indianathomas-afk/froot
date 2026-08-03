@@ -130,8 +130,13 @@ export default async function HrCompliancePage() {
         <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden mb-8">
           <div className="px-6 py-4 border-b border-[var(--color-border)]">
             <h2 className="font-semibold text-[var(--color-foreground)]">By Store</h2>
+            {/* DEBT-9: the second sentence is load-bearing, not decoration.
+                Corporate staff are in the org-wide totals above but under no
+                store here, so these columns deliberately sum to LESS than the
+                KPI cards. Without saying so, the first admin to add them up
+                reports a bug. */}
             <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-              Staff are counted under their primary store
+              Staff are counted under their primary store. Corporate staff are counted org-wide only.
             </p>
           </div>
           <table className="w-full">

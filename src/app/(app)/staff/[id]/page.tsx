@@ -101,7 +101,17 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // it's surfaced for an ADMIN/MANAGER to reconcile at the source — write-back
   // from the ceremony is never automatic (a mistyped signature must not rewrite
   // the roster). See DECISIONS.
-  const noStore = member.storeAssignments.length === 0
+  // DEBT-9: both store warnings are silenced for corporate staff, and the
+  // reason differs for each. `noStore` claims signed documents "stamp a blank
+  // store" — false for them, since primaryStoreName() returns "Corporate"
+  // regardless of assignments. `noPrimary` names a fix that must not be applied
+  // to them: setting a primary would write a store name that is not true, which
+  // is the whole reason the designation exists.
+  const noStore = !member.isCorporate && member.storeAssignments.length === 0
+  const noPrimary =
+    !member.isCorporate &&
+    member.storeAssignments.length >= 2 &&
+    !member.storeAssignments.some((a) => a.isPrimary)
   const nameMismatches = canSeeNotes
     ? (
         await prisma.hrDocumentAcknowledgment.findMany({
@@ -482,6 +492,13 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[var(--color-foreground)]">{member.displayName}</h1>
+            {/* DEBT-9: READ-ONLY. The admin control that SETS this is deferred
+                to DEBT-49; Phase 4 sets it by SQL. Without a badge the flag is
+                invisible in the product, so nobody can confirm it landed
+                without a database query. Display only — do not grow a write
+                path here, that is DEBT-49's and it carries an unresolved rule
+                about what happens to a stale isPrimary star. */}
+            {member.isCorporate && <Badge variant="info">Corporate</Badge>}
             {member.squareTeamMemberId && <Badge variant="info">Synced from Square</Badge>}
             {member.status === "TERMINATED" && <Badge variant="destructive">Terminated</Badge>}
             {member.status !== "TERMINATED" && member.userId && <Badge variant="success">Self-service login</Badge>}
@@ -523,6 +540,12 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           {canSeeNotes && noStore && (
             <p className="text-sm text-[var(--color-warning,#efa201)] mt-2">
               No store assigned — signed documents stamp a blank store. Assign a store below.
+            </p>
+          )}
+          {canSeeNotes && noPrimary && (
+            <p className="text-sm text-[var(--color-warning,#efa201)] mt-2">
+              No primary store — signed documents stamp whichever store sorts first. Set a primary
+              below.
             </p>
           )}
           {canSeeNotes && nameMismatches.length > 0 && (

@@ -129,6 +129,7 @@ export default async function AcknowledgePage({
   const clientStaff = {
     id: staff.id,
     name: staff.fullName.trim(),
+    isCorporate: staff.isCorporate,
     stores: staff.storeAssignments.map((a) => ({
       id: a.storeId,
       name: a.store.name,

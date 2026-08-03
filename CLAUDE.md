@@ -314,6 +314,45 @@ once it appeared in a precondition. **When you relocate a measurement, bring its
 provenance with it** — when it was taken, on what branch, by which query — so
 the copy cannot claim more authority than the original had.
 
+## Browser Evidence — Precondition
+
+**Every observation taken in a browser must name the ORGANIZATION ID it was
+taken under, on the same line as the observation. A screenshot or a page reading
+without a named org id does not count.** This is the § Database Evidence rule
+applied to the other place evidence is gathered: there the under-specified
+identifier is the branch, here it is the active Clerk org.
+
+```
+org_3FhYUR4l0ue7egug1I0Ig8wxOVn  /staff → nine store cards + Corporate   ← usable
+                                 /staff → one Unassigned card            ← not evidence
+```
+
+Recorded 2026-08-02 during DEBT-9 Phase 3. Dev holds **two organizations both
+named "Keva Juice"** — `org_3FhYUR4l0ue7egug1I0Ig8wxOVn` (9 stores, 6 staff) and
+`org_3FhMmIWVjja5HYpsou8n6rVtZn2` (0 stores, 1 staff) — so a session can be on
+the wrong one while every visible signal says it is fine.
+
+**The failure mode is the branch-label one exactly, and it is worse in a browser
+because more things agree with you.** `/staff` was requested as a correctly
+authenticated ADMIN. It returned 200. It rendered a plausible roster. Both orgs
+carry `hr` in `activeModules`, so the module gate passed too. Nothing anywhere
+errored — and the org was not the one under test.
+
+**The counterfactual is the point of writing this down.** What caught it was a
+harness run earlier the same session against a NAMED org id, whose six staff did
+not include the member the browser was showing. Without that prior output the
+finding would have been filed as *"the Corporate card doesn't render"* — a
+Phase 3 defect report about code that was working. An error is cheap; you fix
+it and move on. **A wrong answer that looks like a finding costs a whole
+investigation, and it argues back**, because every observation supporting it is
+real.
+
+Corollary, learned the same hour: **verify the org by a structural fact, not by
+its name** — store count, a known member, anything the duplicate does not share.
+Two rows answering to "Keva Juice" make the name worthless as a check, and the
+app offers no in-app switcher to confirm against (see the org-switcher row in
+`docs/ROADMAP.yaml`).
+
 ## Git Rules
 
 Claude Code **commits when asked and never pushes** — including when the

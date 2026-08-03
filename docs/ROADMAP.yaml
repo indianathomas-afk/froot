@@ -3914,6 +3914,54 @@ debt:
       before either account signs anything, and before BUILD-2's index lands.
       Urgency is low; the cost of leaving it is that the first document either
       owner signs freezes an arbitrary one of nine stores into a legal record.
+      ────────────────────────────────────────────────────────────────
+      GATE ON THE PHASE 4 PROMOTION — added 2026-08-02 at the close of Phase 3
+      (Gary's ruling). THIS IS A GATE, NOT A NICE-TO-HAVE. Phases 1-3 shipped
+      code; the fix is not live until the flags are set on production, and
+      three of the four Phase 3 items carry NO RENDERED EVIDENCE:
+        (a) the /staff Corporate card and its "All N locations" chip IN PAGE
+            CONTEXT — the chip component itself IS evidenced, see below;
+        (c) the /staff/[id] no-primary warning and the read-only Corporate
+            badge;
+        (d) the acknowledgments-route server guard, and WHAT A SIGNED DOCUMENT
+            ACTUALLY STAMPS — the frozen HrDocumentAcknowledgment.storeName
+            rows and the rendered PDF's Store line.
+      They shipped on `next build` (types + compile), a code read, and the
+      isCorporate DATA PATH exercised end to end by a harness against branch
+      dev (br-broad-wave-a6vpjdw0). That is real but it is not the output.
+      Phase 2 verified the RESOLVER and said so explicitly; nothing anywhere
+      has yet observed what a document stamps.
+      WHY IT DEFERRED, so it is not read as laziness: the dev Clerk account
+      reachable in the browser is a member of exactly one org, the 0-store
+      twin — the fixture, the 9 stores and the test document all live in the
+      other same-named org, whose admin is a DIFFERENT Clerk account on the
+      SAME email. See DEBT-50. Rather than manufacture accounts, the walk moves
+      to staging after Phase 4, where the evidence is strictly better: real
+      corporate staff, real environment, real records.
+      WHAT THE WALK MUST PRODUCE, named so it cannot be waved through: the full
+      four-phase self-serve ceremony (consent → review → finalize → done) as a
+      CORPORATE staff member on a real acknowledgment document; the resulting
+      HrDocumentAcknowledgment.storeName rows read back and equal to
+      "Corporate"; the generated PDF's Store line read back and equal to
+      "Corporate"; then the same walk as a NON-corporate multi-store member
+      showing the picker still appears and its selection is what gets stamped.
+      Every observation names its branch AND its org id (CLAUDE.md § Database
+      Evidence, § Browser Evidence).
+      WHAT IS ALREADY EVIDENCED, so the walk is not re-done wholesale:
+      StaffLocationChips, the one component this phase rewrote, was verified
+      2026-08-02 on a temporary public /menu preview — ten assertions off
+      server-rendered HTML across four cases. Corporate collapses to a single
+      "All 9 locations" chip with canEdit both true and false (the corporate
+      branch returns BEFORE the chip loop, so no set-primary click is reachable
+      for someone whose primary is deliberately unset); the unflagged control
+      with the same nine assignments renders 8 chips + "+1"; ten
+      "Make X the primary store" buttons across the two control cases and zero
+      from corporate. The preview page was deleted at close.
+      And (b) /hr/compliance IS evidenced, before and after, on branch dev:
+      ADMIN org-wide totals byte-identical (staffCount=6, requiredTotal=7,
+      pct=14) with corporate dropped from By Store only (Carson 4 staff → 3,
+      1/5 → 1/4, 20% → 25%); both MANAGERs lose them entirely from KPIs, By
+      Store and the employee table. That half needs no re-walking.
 
   - id: DEBT-10
     status: verified
@@ -7283,3 +7331,81 @@ debt:
       Disconfirmed by: an isCorporate control appearing in staff-edit-actions.tsx
       or beside it with an ADMIN check in PATCH /api/staff/[id]. Related: DEBT-9
       (the parent), BUILD-2 (the primary-store chip path this must match).
+
+  - id: DEBT-50
+    title: >
+      No in-app organization switcher — once an active org is set there is no
+      way to change it, and two orgs answer to the name "Keva Juice"
+    notes: >
+      COST OF DOING NOTHING: Nobody is blocked from working, because a session
+      that lands on the right org stays on it; the cost lands on whoever needs
+      to CHANGE org — they must leave the app for the Clerk account portal or
+      sign out — and on anyone verifying anything in a browser, who has no way
+      to confirm in-app which org they are looking at — LATENT (trigger: named
+      and it already fired once. Any user belonging to 2+ orgs, which on dev is
+      gary@kevajuice.com today; and any browser verification session, which is
+      how this was found).
+      FOUND 2026-08-02 during DEBT-9 Phase 3, by walking into it. A ceremony
+      walk was started against org_3FhMmIWVjja5HYpsou8n6rVtZn2 while the fixture
+      under test lived in org_3FhYUR4l0ue7egug1I0Ig8wxOVn. /staff returned 200,
+      rendered a plausible roster, and passed the hr module gate — both orgs
+      carry hr in activeModules. Nothing errored. The session was simply looking
+      at the wrong company. Prompt:
+      docs/prompts/DEBT-9_corporate_work_location.md.
+      CORRECTION, SAME SESSION, AND IT CHANGES WHAT THIS ROW IS FOR. The first
+      draft of this row said the session was on the wrong org and needed a
+      switcher. Measured afterwards in the page via window.Clerk, that was
+      wrong: the signed-in account had membershipCount = 1. THERE WAS NO SWITCH
+      TO MAKE. The actual condition is DUPLICATE CLERK ACCOUNTS SHARING AN
+      EMAIL — two accounts both `gary@kevajuice.com`,
+      user_3FhMl9WeyNaGexqdaCEa5gEkU6P (admin of the 0-store org) and
+      user_3FhYUMgQoq9CFsnypYy3in9ajCg (admin of the 9-store org) — each a
+      member of exactly one of the two same-named orgs. A switcher would NOT
+      have resolved that incident; nothing in-app could have, because the
+      account genuinely could not reach the other org.
+      SO THE (a) HALF BELOW IS THE VALUABLE ONE, and this correction is why. A
+      persistent active-org display would have shown the session was somewhere
+      unexpected within seconds. The (b) switch half remains worth building on
+      its own merits and would not have helped here. Recorded rather than
+      quietly rewritten because the wrong diagnosis was ARRIVED AT from real
+      evidence and held for several minutes — the roster was genuinely the
+      wrong org's, which made "you're on the wrong org, switch" feel complete.
+      THE STATE AT HEAD: src/app/(app)/layout.tsx:20 renders Clerk's
+      <OrganizationList> ONLY inside `if (!orgId)`. Once Clerk has an active
+      org that branch is unreachable, and nothing else in the app renders an
+      OrganizationSwitcher — grepped at head, the only other setActive hits are
+      unrelated useState calls in labor settings and the roadmap client. The
+      sidebar shows the user's name and email and a Sign out button; it does
+      NOT show which organization is active.
+      TWO PARTS, and the cheap one is worth more than the expensive one.
+      (a) DISPLAY the active org name somewhere persistent — the sidebar, next
+      to the user block. Cheap, and it is what turns a silent wrong-org session
+      into an obvious one. (b) SWITCH orgs in-app, via Clerk's
+      <OrganizationSwitcher>. More involved: it needs a decision about what
+      happens to in-flight state on switch, and every page is org-scoped.
+      Doing (a) alone would have prevented the incident above.
+      DISPLAY IS NOT ENOUGH ON ITS OWN, and this is the part not to lose: BOTH
+      dev orgs are named "Keva Juice". A sidebar showing the NAME would have
+      read "Keva Juice" in the wrong org too. Whatever is displayed must
+      disambiguate duplicates — the org id, or a slug, or a store count. This
+      is the same lesson as the branch-vs-branch-id rule in CLAUDE.md § Database
+      Evidence: a name is not an identifier.
+      RELATED CLEANUP, not this row: the duplicate orgs AND the duplicate
+      accounts. DEBT-44 owns deleting dead org shells on staging; dev has the
+      same condition and worse (four orgs, two named "Keva Juice", two empty;
+      plus two Clerk accounts on one email). Cleaning dev is not tracked
+      anywhere yet — but note that cleanup would NOT close this row, because a
+      single-org user today is a two-org user tomorrow.
+      MEASURED AT HEAD on branch dev (br-broad-wave-a6vpjdw0), 2026-08-02, so
+      the next reader does not re-derive it:
+        org_3FhYUR4l0ue7egug1I0Ig8wxOVn  "Keva Juice"  9 stores  6 staff
+          ADMIN gary@kevajuice.com   user_3FhYUMgQoq9CFsnypYy3in9ajCg
+          ADMIN taylin@keva.com      user_3G9oexUgTFFOEkH4Eu6UKLXdp4O
+        org_3FhMmIWVjja5HYpsou8n6rVtZn2  "Keva Juice"  0 stores  1 staff
+          ADMIN gary@kevajuice.com   user_3FhMl9WeyNaGexqdaCEa5gEkU6P
+      Only the FIRST org can exercise anything store-shaped. Any future browser
+      verification on dev should assert its org id before trusting a screen.
+      Disconfirmed by: an OrganizationSwitcher, or a persistent active-org
+      display that distinguishes two same-named orgs, appearing in the app
+      shell. Related: DEBT-44 (org shell cleanup), CLAUDE.md § Browser Evidence
+      (the precondition written the same day this was found).

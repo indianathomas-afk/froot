@@ -118,6 +118,7 @@ function StaffRow({
           <StaffLocationChips
             staffId={member.id}
             canEdit={canEdit}
+            isCorporate={member.isCorporate}
             assignments={member.storeAssignments.map((a) => ({
               storeId: a.store.id,
               storeName: a.store.name,
@@ -154,6 +155,15 @@ export default async function StaffPage() {
   // `some` assignment in their scope, so a member with zero assignments is
   // never fetched for them.
   const unassigned: RosterMember[] = []
+  // DEBT-9: corporate staff get their own group. They are shown to MANAGERS as
+  // well as ADMINs (Gary, 2026-08-02) — NOT because a manager is responsible for
+  // them (ruling 4 removes them from every store-scoped compliance surface) but
+  // because ruling 5 preserves manager ATTESTATION reach, and a manager who
+  // cannot find someone in the directory cannot attest a document for them.
+  // Without this bucket they would fall through to the homeStore branch below
+  // and be listed under whichever store sorts first — the exact claim this
+  // phase exists to stop making.
+  const corporate: RosterMember[] = []
 
   const push = (map: Map<string, RosterMember[]>, storeId: string, member: RosterMember) => {
     if (!map.has(storeId)) map.set(storeId, [])
@@ -161,6 +171,10 @@ export default async function StaffPage() {
   }
 
   for (const member of staff) {
+    if (member.isCorporate) {
+      corporate.push(member)
+      continue
+    }
     if (member.storeAssignments.length === 0) {
       unassigned.push(member)
       continue
@@ -291,6 +305,46 @@ export default async function StaffPage() {
               </div>
             )
           })}
+          {corporate.length > 0 && (
+            <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+              <div className="px-6 py-4 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🏢</span>
+                  <div>
+                    <h3 className="font-semibold text-[var(--color-foreground)]">Corporate</h3>
+                    <p className="text-xs text-[var(--color-muted-foreground)]">
+                      {corporate.length} team member{corporate.length !== 1 ? "s" : ""} · available at every
+                      location, based at none
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[var(--color-border)]">
+                    <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
+                    <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
+                    <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
+                    {hrActive && (
+                      <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
+                    )}
+                    <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {corporate.map((member) => (
+                    <StaffRow
+                      key={member.id}
+                      member={member}
+                      hrActive={hrActive}
+                      canEdit={isAdmin}
+                      pct={summaries.get(member.id)?.pct ?? null}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           {unassigned.length > 0 && (
             <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
               <div className="px-6 py-4 border-b border-[var(--color-border)]">

@@ -416,10 +416,13 @@ export function StaffLocationChips({
   staffId,
   assignments,
   canEdit,
+  isCorporate = false,
 }: {
   staffId: string
   assignments: { storeId: string; storeName: string; isPrimary: boolean }[]
   canEdit: boolean
+  /** DEBT-9: collapse to a count and offer no primary-store chip-click. */
+  isCorporate?: boolean
 }) {
   const [saving, setSaving] = useState(false)
   const router = useRouter()
@@ -436,6 +439,24 @@ export function StaffLocationChips({
     } finally {
       setSaving(false)
     }
+  }
+
+  // DEBT-9: corporate staff are available at every location and homed at none,
+  // so the individual chips are accurate but say the wrong thing — nine chips
+  // read as "based at nine places" when the point is that they are based at
+  // none. Collapsed to a count; the full list stays on /staff/[id], which is
+  // where assignments are actually managed. Returning BEFORE the chip loop also
+  // means the canEdit branch is never reached, so the primary-store chip-click
+  // cannot be offered for someone whose primary store is deliberately unset.
+  if (isCorporate) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full text-xs font-medium px-2 py-0.5 bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+        title={assignments.map((a) => a.storeName).join(", ")}
+      >
+        All {assignments.length} location{assignments.length !== 1 ? "s" : ""}
+      </span>
+    )
   }
 
   const shown = assignments.slice(0, 8)

@@ -167,8 +167,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Store to stamp: self-serve uses the signer's SELECTED store (validated
   // against their assignments); a missing selection stamps blank (no store on
   // file). Manager-attested keeps the automatic primary — no selector there.
+  //
+  // DEBT-9: corporate staff resolve through primaryStoreName() like the attested
+  // path, and any submitted storeId is IGNORED. THE SERVER IS THE GUARD, not the
+  // hidden picker in signing-client.tsx — a stale tab loaded before the flag was
+  // set still holds a nine-store <select> and posts a storeId, and this is the
+  // only thing standing between that and a store name frozen into a signed legal
+  // record. Client-side hiding is UX; deleting it must not change what is
+  // stamped.
+  //
+  // IGNORED, deliberately, rather than rejected with a 400: failing someone
+  // mid-ceremony for a condition they cannot see or fix is worse than a stable
+  // correct value (ruling 6, warn-don't-throw). The submitted value is not an
+  // attack and not an error — it is a client that has not caught up yet.
   let storeName: string | null
-  if (isAttested) {
+  if (isAttested || staff.isCorporate) {
     storeName = primaryStoreName(staff)
   } else if (storeId) {
     const selected = staff.storeAssignments.find((a) => a.storeId === storeId)

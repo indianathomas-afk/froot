@@ -30,6 +30,15 @@ export default async function MyPortalPage() {
   const { staffMember, org, dbUser } = self
 
   // Primary store (staffSelfInclude orders isPrimary first).
+  //
+  // DEBT-9, knowingly left as-is (Gary, 2026-08-02): for a CORPORATE staff
+  // member this is the alphabetically-first of their nine stores, so their own
+  // portal shows one arbitrary store's message feed, corporate-update targeting
+  // and page subtitle. Deliberately not fixed here — nothing on this page is
+  // frozen into a legal record, which is what DEBT-9 was about, and there is no
+  // obviously right answer for whose feed a company-wide employee should see
+  // (all nine merged? none? a picker?). If that question ever gets answered,
+  // this is the line.
   const primaryStore = staffMember.storeAssignments[0]?.store ?? null
 
   const now = new Date()
