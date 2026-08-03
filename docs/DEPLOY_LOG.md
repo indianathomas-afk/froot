@@ -4,6 +4,51 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-08-02 (evening) — STAGING deploy + DEBT-9 Phase 4 staging data — NOT a promotion
+
+- **Staging SHA:** `04388f0` — full: `04388f0e1423ce7ac74f884273f79696412a5695`.
+  Pushed to `origin/staging` 2026-08-02. **`origin/main` remains `7b590b3` —
+  nothing was promoted to production.**
+- **Deployed SHA confirmed** on `froot-git-staging-indianathomas-2483s-projects.vercel.app`
+  → `dpl_39Up3adkojKwsr3iapuZeZGm6EvX`, READY. **Note the method, because the one
+  in CLAUDE.md no longer works:** `vercel inspect --json` returns a trimmed object
+  on CLI 58.4.4 with no git metadata at all, so the documented
+  `| grep -i githubCommitSha` finds nothing. Confirmation was instead
+  `vercel ls --meta githubCommitSha=<FULL 40-char sha>` returning the same
+  deployment the staging alias points at. The short SHA does not match — the
+  filter compares the full value.
+- **Migration applied by the build:** `20260802162617_debt9_staff_corporate_location`
+  — `ALTER TABLE "StaffMember" ADD COLUMN "isCorporate" BOOLEAN NOT NULL DEFAULT false`.
+  Additive; existing rows unaffected (false = homed at a store = prior behaviour).
+- **DEBT-9 Phase 4 DATA — branch `preview/staging` (`br-square-feather-a63z92vz`),
+  org `cf888f2d-f234-48c7-8097-fd5b44b5b3dd`:**
+  `UPDATE "StaffMember" SET "isCorporate" = true`, keyed on ids and org-guarded,
+  returned **exactly 2 rows** — `cmqxfyiwy000004l49ps3w1tf` (Gary Thomas) and
+  `cmqxfyjt1000004jtbfzj9jmz` (Kelton Thomas), both ACTIVE. Query 4c confirms
+  those two are the only corporate members in the org.
+  The BEFORE/AFTER fingerprint pair was skipped. `RETURNING` proving exactly two
+  rows changed, plus 4c showing exactly two corporate now (therefore zero
+  before), covers what the fingerprint was for.
+  **Staging is not shaped like production:** assignment counts there are 1 and 3,
+  not 9 each. Staging does not reproduce the nine-store ambiguity DEBT-9 exists
+  for.
+- **Production: NOT done.** Phase 4 production SQL is pending and must resolve
+  both members' ids on `production` from scratch — no staging id may be reused.
+- **Gate NOT satisfied.** DEBT-9 carries a GATE ON THE PHASE 4 PROMOTION: the
+  four-phase ceremony walk, the frozen `HrDocumentAcknowledgment.storeName` read
+  back as "Corporate", and the PDF's Store line. It could not run here — Clerk's
+  `verified-snapper-7` instance is shared by local and staging, and the
+  browser-reachable account belongs to exactly one org, which is not
+  `org_3FhYUR4l0ue7egug1I0Ig8wxOVn` (DEBT-50). Adding the membership was
+  considered and rejected: the webhook may not reach staging, leaving a session
+  that is an org member with no `User` row. **The walk moves to PRODUCTION after
+  Phase 4 production**, against the real nine-assignment accounts.
+- **Unpromoted stack: 27 commits**, `46d6571..04388f0` inclusive — `46d6571`
+  itself is not an ancestor of `origin/main`. Spans PERM-6/7 closure, P-4,
+  DEBT-TRIAGE-1/2, DEBT-43, DEBT-13, DEBT-29 and DEBT-9 Phases 1–3. The
+  production promotion entry, with its own SHA and verification list, is owed
+  separately when that happens.
+
 ## 2026-08-01 (evening) — PRODUCTION promotion (DEBT-SWEEP + the audit relocation)
 
 - **Promotion SHA:** `97ed309` — full: `97ed30949a5d5be875a1a957a6beb9664a4855cf`.

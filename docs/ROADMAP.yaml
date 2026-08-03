@@ -3935,9 +3935,31 @@ debt:
       reachable in the browser is a member of exactly one org, the 0-store
       twin — the fixture, the 9 stores and the test document all live in the
       other same-named org, whose admin is a DIFFERENT Clerk account on the
-      SAME email. See DEBT-50. Rather than manufacture accounts, the walk moves
-      to staging after Phase 4, where the evidence is strictly better: real
-      corporate staff, real environment, real records.
+      SAME email. See DEBT-50. Rather than manufacture accounts, the walk was
+      moved off dev.
+      THE WALK RUNS ON PRODUCTION, NOT STAGING — moved 2026-08-02 by Gary's
+      ruling, after staging was tried and rejected. This paragraph previously
+      said staging; it was wrong, and the reasoning matters more than the
+      destination. Clerk's verified-snapper-7 instance is SHARED by local and
+      staging, so the membership that blocks the walk on dev blocks it on
+      staging identically — auth() hands staging the same single-membership
+      orgId no matter which database is behind it. The available workaround was
+      to add the browser account to org_3FhYUR4l0ue7egug1I0Ig8wxOVn in the
+      Clerk dashboard, and it was REJECTED on its own merits: the
+      organizationMembership.created webhook may not reach staging, which would
+      leave a session that is an org member with NO User row — a new failure
+      mode introduced into staging in order to chase a verification — and
+      hand-inserting the User row to paper over that is worse. Do not revisit
+      it on the next reader's instinct; the cost is a manufactured identity in
+      a shared environment.
+      PRODUCTION IS ALSO THE BETTER EVIDENCE, which is what makes this a
+      genuine improvement and not a retreat. Staging does NOT reproduce the
+      condition: measured on preview/staging (br-square-feather-a63z92vz)
+      2026-08-02, Gary Thomas has ONE assignment there and Kelton THREE — not
+      nine each. The nine-store ALL_CURRENT_AND_FUTURE_LOCATIONS shape that
+      DEBT-9 exists for is a PRODUCTION condition. A staging walk would have
+      exercised the corporate branch against a population that never had the
+      bug.
       WHAT THE WALK MUST PRODUCE, named so it cannot be waved through: the full
       four-phase self-serve ceremony (consent → review → finalize → done) as a
       CORPORATE staff member on a real acknowledgment document; the resulting

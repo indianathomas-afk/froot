@@ -187,12 +187,35 @@ local `HEAD`. If it does not, STOP and push first. This is a precondition, not a
 checklist item.**
 
 ```bash
-git rev-parse --short HEAD                      # what you think you are testing
-npx vercel inspect <staging-alias> --json | grep -i githubCommitSha
+git rev-parse HEAD                              # FULL 40-char sha — the filter below needs it
+npx vercel inspect <staging-alias>              # → which deployment the alias serves
+npx vercel ls --meta githubCommitSha=<full-sha> # → must return that same deployment
 ```
 
 If the SHAs differ, every observation is about different code and the entire
 pass is void — including the passes, not just the failures.
+
+**The old one-liner was `npx vercel inspect <alias> --json | grep -i
+githubCommitSha`. It stopped working and the way it fails is the reason this
+paragraph exists.** Corrected 2026-08-02 during DEBT-9 Phase 3. On Vercel CLI
+58.4.4 `inspect --json` returns a trimmed object — `id, name, url, target,
+readyState, createdAt, aliases, builds, contextName` — with **no git metadata at
+all**. The grep therefore returns empty.
+
+Note the direction of that failure. An empty grep reads as *"the deployed SHA
+doesn't match"*, which sends you to push, redeploy, and re-check — and it will
+read empty again, because the field is gone, not different. The check cannot
+produce a false PASS, only a false FAIL, so nothing was ever verified against
+the wrong code by it; the cost is an hour chasing a deploy that already landed.
+**Confirm the field is present before trusting its absence** — this applies to
+any grep-based gate, not just this one.
+
+Two traps in the replacement, both hit on the first attempt: `--meta
+githubCommitSha` compares the **full 40-character** sha, so the short form
+returns "No deployments found" — indistinguishable from a genuine mismatch. And
+`--meta githubCommitRef=<branch>` lists that branch's deployments but does not
+tell you which one the alias currently serves; pair it with `inspect` on the
+alias, and match the deployment id.
 
 Recorded 2026-07-28 after a full PERM-7 staging pass was run against a
 deployment created **32 minutes before the first of six unpushed commits**. Two
