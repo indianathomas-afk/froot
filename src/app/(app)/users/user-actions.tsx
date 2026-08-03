@@ -310,15 +310,28 @@ export function RemoveUserButton({ clerkUserId, userName }: { clerkUserId: strin
 }
 
 // ── Revoke Invitation ────────────────────────────────────────────────────────
+// DEBT-46. The route half of this fix is worth nothing without this half: the
+// fetch below used to discard its response entirely — no res.ok, no error
+// state, an unconditional router.refresh() — so a failed revoke and a
+// successful one were indistinguishable ON SCREEN whatever the server returned.
+// Making the route honest and leaving this alone would have shipped a 404 that
+// no admin could ever see. Mirrors the pattern in staff/[id]/self-service-actions.tsx.
 export function RevokeInviteButton({ invitationId, email }: { invitationId: string; email: string }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   async function handleRevoke() {
     if (!confirm(`Revoke the pending invitation for ${email}?`)) return
     setLoading(true)
+    setError(null)
     try {
-      await fetch(`/api/users/invitations/${invitationId}`, { method: "DELETE" })
+      const res = await fetch(`/api/users/invitations/${invitationId}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? "Failed to revoke invitation")
+        return
+      }
       router.refresh()
     } finally {
       setLoading(false)
@@ -326,8 +339,11 @@ export function RevokeInviteButton({ invitationId, email }: { invitationId: stri
   }
 
   return (
-    <button onClick={handleRevoke} disabled={loading} className="p-1 rounded hover:bg-[var(--color-accent)]" title="Revoke invitation">
-      <X className="h-4 w-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]" />
-    </button>
+    <div className="flex flex-col items-end gap-1">
+      <button onClick={handleRevoke} disabled={loading} className="p-1 rounded hover:bg-[var(--color-accent)]" title="Revoke invitation">
+        <X className="h-4 w-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]" />
+      </button>
+      {error && <p className="text-xs text-[var(--color-destructive)] max-w-[16rem] text-right">{error}</p>}
+    </div>
   )
 }
