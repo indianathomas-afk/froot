@@ -2,7 +2,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
-import { isClerkErrorPayload, normalizeEmail } from "@/lib/clerk"
+import { fetchAllClerkPages, isClerkErrorPayload, normalizeEmail } from "@/lib/clerk"
 import { plusAddress } from "@/lib/device-login"
 
 // isClerkErrorPayload moved to src/lib/clerk.ts on 2026-08-03 so the
@@ -20,8 +20,17 @@ export async function GET() {
   }
 
   const clerk = await clerkClient()
-  const [memberships, org] = await Promise.all([
-    clerk.organizations.getOrganizationMembershipList({ organizationId: orgId, limit: 100 }),
+  // DEBT-46 Phase 3 step 1. This is the API twin of /users, which drains the
+  // same call — leaving this one capped at 100 would mean the page and its own
+  // API disagreed about who is in the org, an inconsistency the page fix would
+  // have created. A member past the hundredth is UNREMOVABLE through the UI,
+  // and unlike an invitation nothing expires them out of the way.
+  const [memberList, org] = await Promise.all([
+    fetchAllClerkPages(
+      ({ limit, offset }) =>
+        clerk.organizations.getOrganizationMembershipList({ organizationId: orgId, limit, offset }),
+      { label: `GET /api/users memberships for org ${orgId}`, warnAbove: 100 }
+    ),
     prisma.organization.findUnique({ where: { clerkOrgId: orgId } }),
   ])
 
@@ -33,7 +42,7 @@ export async function GET() {
   })
   const dbByClerkId = new Map(dbUsers.map((u) => [u.clerkUserId, u]))
 
-  const users = memberships.data.map((m) => {
+  const users = memberList.map((m) => {
     const clerkUser = m.publicUserData
     const dbUser = clerkUser?.userId ? dbByClerkId.get(clerkUser.userId) : null
     return {

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { format } from "date-fns"
 import { InviteUserButton, EditUserButton, RemoveUserButton, RevokeInviteButton } from "./user-actions"
 import { requireAdmin } from "@/lib/auth"
-import { getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
+import { fetchAllClerkPages, getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
 import { isAboveStore } from "@/lib/device-login"
 import { ShieldAlert, Tablet } from "lucide-react"
 import { redirect } from "next/navigation"
@@ -20,9 +20,33 @@ async function getData() {
   if (!orgId) return { members: [], pendingInvites: [], stores: [] }
 
   const clerk = await clerkClient()
-  const [memberships, pendingInvitations, org] = await Promise.all([
-    clerk.organizations.getOrganizationMembershipList({ organizationId: orgId, limit: 100 }),
-    clerk.organizations.getOrganizationInvitationList({ organizationId: orgId, status: ["pending"] }),
+  // DEBT-46 Phase 3 step 1. Both of these were capped and neither said so.
+  //
+  // The invitation call passed NO limit, so Clerk's default of 10 applied — a
+  // number that appears in no signature (see fetchAllClerkPages). Past ten
+  // pending invitations the rest simply did not render, and an invitation that
+  // does not render cannot be revoked: the button lives on the row.
+  //
+  // The membership call passed limit: 100, which is the same defect with a
+  // further-off trigger and a worse consequence — a member past the hundredth
+  // is not merely unrevokable but UNREMOVABLE through the UI, and unlike an
+  // invitation nothing expires them out of the way.
+  const [memberList, pendingInvitationList, org] = await Promise.all([
+    fetchAllClerkPages(
+      ({ limit, offset }) =>
+        clerk.organizations.getOrganizationMembershipList({ organizationId: orgId, limit, offset }),
+      { label: `/users memberships for org ${orgId}`, warnAbove: 100 }
+    ),
+    fetchAllClerkPages(
+      ({ limit, offset }) =>
+        clerk.organizations.getOrganizationInvitationList({
+          organizationId: orgId,
+          status: ["pending"],
+          limit,
+          offset,
+        }),
+      { label: `pending invitations for org ${orgId}`, warnAbove: 10 }
+    ),
     prisma.organization.findUnique({ where: { clerkOrgId: orgId } }),
   ])
 
@@ -100,7 +124,7 @@ async function getData() {
   const dbByClerkId = new Map(dbUsers.map((u) => [u.clerkUserId, u]))
 
   // Auto-sync any Clerk member who has no DB User record yet
-  const unsyncedMembers = memberships.data.filter((m) => {
+  const unsyncedMembers = memberList.filter((m) => {
     const uid = m.publicUserData?.userId
     return uid && !dbByClerkId.has(uid)
   })
@@ -144,7 +168,7 @@ async function getData() {
     refreshed.forEach((u) => dbByClerkId.set(u.clerkUserId, u))
   }
 
-  const members = memberships.data.map((m) => {
+  const members = memberList.map((m) => {
     const pub = m.publicUserData
     const dbUser = pub?.userId ? dbByClerkId.get(pub.userId) : null
 
@@ -191,7 +215,7 @@ async function getData() {
     }
   })
 
-  const pendingInvites = pendingInvitations.data.map((inv) => {
+  const pendingInvites = pendingInvitationList.map((inv) => {
     // DEBT-46: normalised, matching the map's key. Clerk echoes the address as
     // it was invited, so a mixed-case invitation missed its own row here and
     // rendered with a defaulted role and no store chips.

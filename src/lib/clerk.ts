@@ -50,3 +50,59 @@ export async function getClerkPrimaryEmail(clerkUserId: string): Promise<string 
   const primary = user.primaryEmailAddress?.emailAddress ?? user.emailAddresses[0]?.emailAddress
   return normalizeEmail(primary)
 }
+
+const CLERK_PAGE_SIZE = 100
+
+/**
+ * DEBT-46 Phase 3 step 1. Drain a Clerk paginated list endpoint instead of
+ * taking whatever the first page happens to hold.
+ *
+ * CLERK'S LIST ENDPOINTS RETURN THE FIRST **10** ITEMS BY DEFAULT. That number
+ * is not in any signature — it is documented only in a doc comment on
+ * PaginatedResourceResponse in @clerk/backend, which is why a call that passes
+ * no `limit` reads as "give me all of them" and is not. /users called
+ * getOrganizationInvitationList with no limit at all, so an org with more than
+ * ten pending invitations rendered ten, and the rest were invisible — which on
+ * that page means UNREVOKABLE, the same harm as an orphaned PendingInvite
+ * reached by a different route. Do not "simplify" this back to a bare call.
+ *
+ * A RAISED LIMIT IS NOT THE FIX, a loop is. `totalCount` gives a real
+ * termination condition; advancing by what was RETURNED rather than by what was
+ * REQUESTED keeps that correct against a server-side cap this codebase cannot
+ * verify (no maximum is documented in the installed types, and encoding a
+ * guessed ceiling would just move the silent truncation); and the zero-row
+ * break stops the loop spinning if a page ever comes back empty while
+ * totalCount still claims more.
+ *
+ * `warnAbove` is the count this call used to silently cap at. It fires zero
+ * times against any data measured on 2026-08-03 and announces itself the first
+ * time an org crosses the threshold — which is the best available signal, since
+ * reproducing the bug on staging would take eleven test principals and the
+ * fixed and unfixed code render identically below the threshold.
+ */
+export async function fetchAllClerkPages<T>(
+  fetchPage: (params: { limit: number; offset: number }) => Promise<{ data: T[]; totalCount: number }>,
+  { label, warnAbove }: { label: string; warnAbove: number }
+): Promise<T[]> {
+  const all: T[] = []
+  let offset = 0
+  let totalCount = 0
+
+  for (;;) {
+    const page = await fetchPage({ limit: CLERK_PAGE_SIZE, offset })
+    totalCount = page.totalCount
+    if (page.data.length === 0) break
+    all.push(...page.data)
+    offset += page.data.length
+    if (all.length >= totalCount) break
+  }
+
+  if (totalCount > warnAbove) {
+    console.warn(
+      `[clerk] ${label}: ${totalCount} total, above the ${warnAbove} this call used to stop at — ` +
+        `everything past that was silently invisible before DEBT-46. Fetched ${all.length}.`
+    )
+  }
+
+  return all
+}

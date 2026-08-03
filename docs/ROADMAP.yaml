@@ -7561,3 +7561,106 @@ debt:
       invitation is not pending. Related: DEBT-46 (the parent — Phase 3 is the
       /users half of the same design gap), HR-7 (which created the
       staffMemberId invite path this deadlocks on).
+
+  - id: DEBT-52
+    title: >
+      No surface lists an orphaned PendingInvite — a row whose Clerk invitation
+      is gone still carries a role grant nothing can show, and expiry makes one
+      with nobody touching anything
+    notes: >
+      COST OF DOING NOTHING: Two orphans exist right now and neither is visible
+      in the product; each carries the app role its invite was written with, and
+      that role BEATS the Clerk membership role on acceptance — ACTIVE, not
+      latent (trigger: already fired twice, and expiry fires it again on every
+      invitation that is neither accepted nor revoked before it lapses).
+      CREATED 2026-08-03 by Gary's ruling scoping DEBT-46 Phase 3 to step 1
+      only. Step 1 (pagination) SHIPPED; this row is the remainder, deferred for
+      fresh attention rather than for doubt. Prompt:
+      docs/prompts/DEBT-46_pending_invite_case_and_orphans.md.
+      THE DESIGN GAP. /users builds its pending list from CLERK
+      (getOrganizationInvitationList, status pending) and uses the database rows
+      only as a lookup map — so a PendingInvite whose Clerk invitation is
+      revoked, expired or accepted-without-webhook renders NOWHERE. /stores
+      reads the rows but only flattens them into takenEmails, where an orphan
+      silently reserves an address and steers the admin to a plus-addressed
+      variant for a reason it never states. /staff/[id] is the sole
+      database-driven surface and shows only a boolean badge, for rows carrying
+      a staffMemberId (DEBT-51). Rows written by POST /api/users — the dangerous
+      shape, ADMIN with zero stores — have staffMemberId null and NO surface at
+      all.
+      WHY THE GRANT MATTERS: the webhook resolves the app role as
+      `pending?.role ?? roleMap[membership.role] ?? "STAFF"`, so the row wins.
+      It fires on the upsert's CREATE branch only — a first-time acceptor, a NEW
+      Clerk account on the same address, or an identity whose User row was
+      deleted while its Clerk user survived. It does NOT re-role an existing
+      member; the broader claim is wrong and has been stated wrongly before.
+      FOUR WAYS AN ORPHAN IS MADE, measured or code-derived 2026-08-03, one of
+      them now closed:
+      (1) revoke-first-delete-second on a case-mismatched row — CLOSED by
+      426f07c, which reversed the order and made the delete insensitive;
+      (2) a revoke performed in the CLERK DASHBOARD, which never reaches
+      /api/users/invitations/[invitationId] — the webhook handles five event
+      types and NONE of them are invitation events, so nothing in Froot reacts;
+      (3) /users auto-sync creating the User without deleting the PendingInvite
+      (page.tsx) — only the webhook deletes, so any acceptance the webhook does
+      not complete strands the row, and merely LOADING /users is enough;
+      (4) EXPIRY, which needs no user action at all: Clerk drops the invitation
+      from the pending list, nothing deletes the row, and the grant goes
+      invisible while everyone is asleep. This is the strongest argument for the
+      row and it is the one nobody can be trained out of.
+      THE TWO LIVE ORPHANS, both named by branch per CLAUDE.md § Database
+      Evidence: preview/staging (br-square-feather-a63z92vz), org cf888f2d…
+      (org_3FhYUR4l0ue7egug1I0Ig8wxOVn), kevajuice14@icloud.com STORE 1 store
+      createdAt 2026-06-30 — a User exists for that address, so it was accepted
+      and the row survived, which is path (3); Clerk logs FIVE invitations to it
+      (3 accepted, 2 revoked), the revoked pair being path (2)'s own record.
+      preview/main (br-purple-rain-a6m62xww) inherits karson@keva.com from
+      production. The production copy was revoked 2026-08-03 and its deletion
+      MEASURED (karson_rows = 0 on br-sparkling-block-a620qvg4) — that one is
+      closed, and it is the reason this row is not urgent.
+      THE WORK, in order. (a) classify every PendingInvite against Clerk by
+      fetching all four statuses (pending/accepted/revoked/expired) — ONE call,
+      not an extra one, since the pending list becomes a filter over the same
+      data, and step 1's fetchAllClerkPages already drains it; (b) an "orphaned
+      invites" section on /users rendered only when non-empty, showing role,
+      stores, createdAt and WHICH of the four statuses explains it; (c) DELETE
+      /api/users/pending-invites/[id], keyed on PendingInvite.id and NOT on a
+      Clerk invitation id which by definition may not exist, 404 on count zero
+      like 426f07c; (d) ONE-WORD HARDENING that (c) is what makes necessary —
+      webhooks/clerk/route.ts delete -> deleteMany, because an admin deleting an
+      accepted-bucket orphan in the seconds before the webhook fires would throw
+      P2025 and Svix would retry that 500 forever.
+      NOT A SUBSTITUTE: handling organizationInvitation.* webhook events would
+      close paths (2) and (3) at the source, but it is unconfirmed that Clerk
+      emits an EXPIRY event at all — and expiry is the path with no user action
+      behind it. The UI surface is required either way.
+      TWO CLERK LIST CALLS ARE STILL CAPPED, deferred by Gary 2026-08-03 with
+      the severity analysis attached so it is not re-derived. Both are the same
+      defect DEBT-46 Phase 3 step 1 fixed on /users and GET /api/users — Clerk's
+      list endpoints return the first TEN by default — and both are three-line
+      changes against the helper that now exists, src/lib/clerk.ts
+      fetchAllClerkPages. Deferred because both fail in survivable directions,
+      not because they are wrong:
+      (i) src/lib/staff-termination.ts:73 — getOrganizationInvitationList with
+      NO limit, so terminating a staff member revokes their pending Clerk
+      invitation only if it sits in the first ten. Past that the invitation
+      stays live and redeemable AFTER termination. LESS SEVERE THAN IT READS:
+      the PendingInvite row is deleted by id regardless, so the role grant is
+      already gone and an acceptor lands STAFF via roleMap, and the status gate
+      catches an accepted-later invite (the catch block there says so). Residual
+      is a terminated person obtaining a STAFF login — real, but not an
+      escalation. Trigger: >10 pending invitations in the org at termination.
+      (ii) src/app/api/users/[id]/route.ts:135 —
+      clerk.users.getOrganizationMembershipList with NO limit. This lists the
+      ORGS A USER belongs to, not the members of an org, so the threshold is a
+      user in more than ten organizations. Past it the membership is not found
+      and the route returns 409 "User has no Clerk membership in this
+      organization" for a user who has one. FAILS CLOSED — it refuses the role
+      edit rather than mis-granting, which is the right direction to fail, and
+      is why this is the lower priority of the two. Note DEBT-50: multi-org
+      users already exist here, so the trigger is not exotic, only distant.
+      Disconfirmed by: /users showing a PendingInvite whose Clerk invitation is
+      not pending, with a way to delete it; and both call sites above draining
+      through fetchAllClerkPages. Related: DEBT-46 (the parent), DEBT-51 (the
+      /staff/[id] half, which this relieves as a side effect), DEBT-50 (the
+      multi-org condition behind (ii)'s trigger).
