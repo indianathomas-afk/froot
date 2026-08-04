@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     )
   }
 
-  const [dbUser, org] = await Promise.all([
+  const [userRow, org] = await Promise.all([
     userId
       ? prisma.user.findUnique({
           where: { clerkUserId: userId },
@@ -39,9 +39,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : null,
     prisma.organization.findUnique({
       where: { clerkOrgId: orgId },
-      select: { activeModules: true, instagramEnabled: true, instagramAccessToken: true },
+      select: { id: true, activeModules: true, instagramEnabled: true, instagramAccessToken: true },
     }),
   ])
+
+  // DEBT-55 (first of its 21 sites, fixed 2026-08-04 alongside PERM-5B). This
+  // lookup is org-blind — clerkUserId is globally unique, so an identity with
+  // memberships in two orgs resolves to the row of whichever org created it,
+  // and THIS FILE renders the sidebar every other page inherits. Cross-org, it
+  // drew the other org's nav: an ADMIN sidebar whose every destination denies,
+  // which is exactly the overpromising sidebar seen during F1 verification.
+  //
+  // A wrong-org row is treated as ABSENT — the same shape getCurrentUser()
+  // uses (src/lib/auth.ts) — so the fallback below serves the STAFF nav rather
+  // than a borrowed one. UI only; every gate behind these pages already
+  // refused independently via the DEBT-53 guard.
+  const dbUser = userRow && org && userRow.organizationId === org.id ? userRow : null
 
   // HR-7: employee logins (STAFF role explicitly linked to a StaffMember by
   // the invite webhook) see only the /my/* portal — never the admin shell.

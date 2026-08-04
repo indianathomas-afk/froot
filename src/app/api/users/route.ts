@@ -118,6 +118,11 @@ export async function POST(req: Request) {
       redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite`,
     })
 
+    // PERM-5: invites deliberately carry NO capability overrides — "invite,
+    // then edit" is the v1 flow (Gary, 2026-08-04). Overrides on PendingInvite
+    // were considered and excluded in the storage analysis because they reopen
+    // the churn/restore question this phase settled by putting the set on User.
+    // Arrive-dialled-down device provisioning is a scoped future decision.
     await prisma.pendingInvite.upsert({
       where: { organizationId_email: { organizationId: org.id, email } },
       update: { role, storeIds: inviteStoreIds },
