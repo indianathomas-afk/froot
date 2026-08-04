@@ -1282,7 +1282,8 @@ phases:
   - id: PERM-5
     track: permissions
     size: L
-    status: planned
+    status: in_progress
+    commits: [5119a6b, 24eb289]
     title: "Per-user capability overrides — the toggle layer"
     notes: >
       Grant or remove a capability for ONE user against their role baseline —
@@ -1319,8 +1320,54 @@ phases:
       down is a real task, and PERM-6 (which clears the blocker below) is
       already a PERM-7 prerequisite — so the ordering falls out naturally as
       PERM-6 → PERM-7 → PERM-5.
+      SPLIT INTO THREE SESSIONS 2026-08-03/04. A = the toggle-inventory audit
+      (read-only, docs/prompts/PERM-5A_toggle_inventory_audit.md). B = the
+      machinery (docs/prompts/PERM-5B_override_machinery_build.md). C = the
+      call-site migration sweep that makes it reach.
+      SESSION B BUILT 2026-08-04 — 5119a6b (schema + can() seam) and 24eb289
+      (grid UI + footer). User.deniedCapabilities String[], additive; migration
+      20260804123449_perm5_user_denied_capabilities. THE ONE RULE is structural
+      rather than conventional: in can() the ceiling is evaluated FIRST and the
+      only `return true` sits after it, so the override block below can subtract
+      and nothing else. Three-state CapabilityOverride ({loaded,denied} |
+      {loaded:false}) because a bare array's load failure yields [] and silently
+      restores the full role baseline; overridesFrom() reads an UNSELECTED
+      column as a failure, so a `select` that omits the field fails closed. The
+      set loads once per request on the row getCurrentUser() already fetches and
+      is threaded as `actor` through all 41 existing can()/scope() call sites.
+      The grid renders a maintained ENFORCED_CAPABILITIES list (15), not the
+      registry — 24 registry entries have no call sites and 15 are nav-only.
+      Session C adds grid rows by appending to that one array.
       Session prompt: docs/prompts/PERM-5_per_user_capability_overrides.md
+    deferred:
+      - >
+        SESSION C — the call-site migration sweep (~45 inline role checks:
+        Staff ~18, Users 8, Templates 7, Stores 5, Settings 2, Dashboard 2,
+        Reports 1). B ships the machinery; C is what makes Gary's two
+        motivating examples ("inventory yes / staff no", "staff view / no
+        edit") expressible. C's first two appends to ENFORCED_CAPABILITIES are
+        templates.manage and inventory.po.manage, held out of the B grid
+        because they are enforced only by a page redirect today — denying one
+        would hide a page while its API kept answering (Gary, 2026-08-04).
+      - >
+        HR migration (35 routes, 13 pages) — its own future row per the audit.
+      - >
+        Per-user-per-store granularity is OUT and recorded as a limitation:
+        kevajuice14@icloud.com is one MANAGER device across Las Brisas + South
+        Reno, so "no labor at one, yes at the other" is not expressible per
+        user. The v1 answer is two device accounts; the grid says so in copy.
     blockers:
+      - >
+        MIGRATION NOT YET APPLIED ANYWHERE. 20260804123449 is committed but has
+        not been run against the local dev DB, and staging/production apply it
+        via `prisma migrate deploy` on their next Vercel build. Any page or
+        route that reads a User row will error until it lands, so the Task B4
+        staging pass cannot run before it. Migration SQL:
+        ALTER TABLE "User" ADD COLUMN "deniedCapabilities" TEXT[].
+        (Written as a plain string, not `resolved: false` — the generator
+        infers `resolved: true` as a literal type from the existing entries and
+        a false one fails `next build`. Same defect P-4 tracks from the other
+        side: blocker state is not modelled.)
       - resolved: true
         text: >
           RESOLVED 2026-07-27 by PERM-6 Task 5 — kept in full below as the record
