@@ -7166,7 +7166,76 @@ debt:
       product — /users renders from Clerk's list, and the revoke that should
       delete the row compares email case-sensitively and reports success when it
       deletes nothing
+    status: shipped
     notes: >
+      CLOSED 2026-08-03 — THE MANUFACTURING PATHS, NOT THE ORPHANS. Read that
+      line before the rest: this row closes on what MADE orphans and what LIED
+      about it, NOT on the orphans themselves. Two live rows remain unreachable
+      and unremovable through the product, and DEBT-52 carries them.
+      THE REASON GIVEN FOR CLOSING WAS WRONG AND IS RECORDED HERE RATHER THAN
+      QUIETLY DROPPED. The proposal was that Phase 1 fixed "unremovable", which
+      is FALSE for the rows that are actually stuck: the revoke route declines
+      to delete an orphan by design (404 when Clerk has no such invitation, 409
+      when its status is not pending, no delete on either path), and it is
+      unreachable for one anyway since it is keyed on a Clerk invitationId that
+      an orphan does not have. What Phase 1 fixed is narrower — the button no
+      longer MANUFACTURES orphans and no longer reports success when it deletes
+      nothing. This row closes instead on the split-out clause in its own text
+      below ("the lifecycle question ... has outgrown this row and should be
+      split out then"), and on keeping its now-stale paragraphs readable as
+      history rather than as current claims.
+      SHIPPED: 426f07c — the revoke route deletes the DB row BEFORE the Clerk
+      invitation, matches case-insensitively, returns 404 when Clerk has no such
+      invitation and 409 naming the status when it is not pending, and
+      RevokeInviteButton reads res.ok and renders the error it used to discard.
+      The count is REPORTED, not failed: under DB-first ordering a 404-on-zero
+      would return before the revoke and leave a dashboard-created invitation
+      live while reporting "not found", so this row's own "return 404 on zero"
+      suggestion was ruled against (R5) and the reasoning lives at the route.
+      d098530 — both role writers resolve PendingInvite by NORMALISED email,
+      newest createdAt wins, with a console.warn naming both row ids on a
+      collision and the matching orderBy on the webhook, so the two writers
+      cannot resolve one collision differently; also fixed RemoveUserButton,
+      which carried the identical fire-and-forget defect twenty lines away on
+      the more destructive action. 736ac99 — Clerk's list endpoints return the
+      first TEN by default, so /users was showing at most ten pending
+      invitations and the rest were invisible, which on that page means
+      unrevokable; /users and GET /api/users now drain via fetchAllClerkPages.
+      58589c9 — the session brief,
+      docs/prompts/DEBT-46_pending_invite_case_and_orphans.md.
+      NOT SHIPPED, and carried by DEBT-52: the orphan surface. No page lists a
+      PendingInvite on its own merits, so a row whose Clerk invitation is
+      revoked, expired or accepted-without-webhook still renders nowhere. Two
+      exist: kevajuice14@icloud.com on preview/staging
+      (br-square-feather-a63z92vz) and the inherited karson@keva.com on
+      preview/main (br-purple-rain-a6m62xww). The production copy of the latter
+      was revoked and its deletion MEASURED — karson_rows = 0 on
+      br-sparkling-block-a620qvg4. Also unshipped: two Clerk list calls still
+      capped at ten (staff-termination.ts:73, users/[id]/route.ts:135), both
+      deferred with severity analysis on DEBT-52, and the /staff/[id] deadlock
+      on DEBT-51.
+      736ac99 IS NOT BEHAVIOUR-VERIFIED AND CANNOT BE HERE. The truncation
+      symptom needs more than ten SIMULTANEOUSLY PENDING invitations in one org;
+      below that threshold the fixed and unfixed code render byte-identical
+      pages. Staging is nowhere near it — one PendingInvite row on the whole
+      branch. Reproducing it would take eleven test principals. It rests on the
+      Clerk type contract and review. The warnAbove log line is the substitute
+      for a test: zero firings against anything measured on 2026-08-03, and a
+      real count the first time an org crosses. A clean staging pass proves
+      absence of REGRESSION, not that the truncation is fixed.
+      THE CASE TRAP TURNED OUT TO BE EMPTY. Measured 2026-08-03 across all three
+      branches — the two below plus production (br-sparkling-block-a620qvg4) —
+      mixed_case_rows = 0 everywhere, and ci_sibling_count = 1 on every row that
+      returned it, so the collision the fix guards against has no instance
+      either. The paragraphs below saying production and preview/main "have
+      never been examined" were true when written and are superseded by that
+      measurement. d098530 is therefore HARDENING, not remediation: the danger
+      that actually materialised was orphaning, which no amount of
+      case-normalisation touches. TWO OF THIS ROW'S PARAGRAPHS ARE STALE BY
+      DESIGN AND KEPT UNEDITED — "FIX DIRECTION, not yet ruled" (ruled: R1
+      newest-wins, R3 DB-delete-first, R5 report the count) and the one-branch
+      measurement above.
+      ——— ORIGINAL TEXT BELOW, UNEDITED ———
       COST OF DOING NOTHING: A pending invitation can carry a live role grant
       that no page displays and no button can revoke, and the admin who tried to
       revoke it was told it worked — LIVE (trigger: already fired, on
@@ -7624,6 +7693,22 @@ debt:
       only. Step 1 (pagination) SHIPPED; this row is the remainder, deferred for
       fresh attention rather than for doubt. Prompt:
       docs/prompts/DEBT-46_pending_invite_case_and_orphans.md.
+      STILL UNREACHABLE AND STILL UNREMOVABLE — DEBT-46 CLOSED WITHOUT FIXING
+      EITHER FOR EXISTING ROWS, and this paragraph is the reason that closure is
+      not a claim of safety. DEBT-46's argument was that unreachable AND
+      unremovable together are what make an orphan dangerous. Phase 1 fixed the
+      revoke button MANUFACTURING orphans and fixed it reporting success when it
+      deleted nothing. It did NOT make an existing orphan removable. The route
+      reads the invitation first and returns 404 when Clerk has none or 409 when
+      the status is not pending, and on both paths it declines to delete the row
+      BY DESIGN — deleting on an error return would be a hidden destructive side
+      effect. It is unreachable anyway: the route is keyed on a Clerk
+      invitationId, and the only control that supplies one renders on pending
+      invitations only. So for the two live orphans BOTH halves of DEBT-46's
+      danger condition remain true today, and work item (c) below is the only
+      planned path to removal. Until it ships, the sole way to delete an orphan
+      is by hand in the Neon console, which is how karson@keva.com was cleared
+      on production.
       THE DESIGN GAP. /users builds its pending list from CLERK
       (getOrganizationInvitationList, status pending) and uses the database rows
       only as a lookup map — so a PendingInvite whose Clerk invitation is
@@ -7706,8 +7791,20 @@ debt:
       edit rather than mis-granting, which is the right direction to fail, and
       is why this is the lower priority of the two. Note DEBT-50: multi-org
       users already exist here, so the trigger is not exotic, only distant.
+      MEASUREMENT HAZARD INHERITED FROM DEBT-46, kept because this row will
+      re-run these queries. DEBT-44a's confirmation query on the Taylin row
+      returned `n = 1` with an EMPTY detail string: the detail concatenated
+      `array_length(p."storeIds", 1)`, NULL for an empty array, and
+      `NULL || text` is NULL, so `string_agg` aggregated nothing. Zero stores —
+      the thing that made the invite notable — is what blanked the evidence
+      describing it. Use `coalesce(array_length(...), 0)`, and treat any check
+      whose count and whose detail can disagree as defective.
       Disconfirmed by: /users showing a PendingInvite whose Clerk invitation is
       not pending, with a way to delete it; and both call sites above draining
-      through fetchAllClerkPages. Related: DEBT-46 (the parent), DEBT-51 (the
-      /staff/[id] half, which this relieves as a side effect), DEBT-50 (the
-      multi-org condition behind (ii)'s trigger).
+      through fetchAllClerkPages. Related: DEBT-46 (the parent, CLOSED
+      2026-08-03 on the manufacturing paths only), DEBT-51 (the /staff/[id]
+      half, which this relieves as a side effect), DEBT-50 (the multi-org
+      condition behind (ii)'s trigger), DEBT-44 (where this was found, and the
+      create-branch condition on the precedence), DEBT-17 (which first saw
+      kevajuice14 and correctly declined it), DEBT-47 (the other half of the
+      Clerk/database asymmetry).
