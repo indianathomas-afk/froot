@@ -8021,7 +8021,7 @@ debt:
       the clerkUserId where-clause on :33), which is why a single-line grep
       for both terms returns 20 and not 21.
       (app)/layout.tsx IS DONE — fixed 2026-08-04 in PERM-5B's session
-      (commit below), leaving 20. It came out of the list first because it
+      (commit 2e75029), leaving 20. It came out of the list first because it
       is the one that renders the overpromising sidebar observed during F1
       verification, and because PERM-5B was already editing that file to
       thread the override prop. A wrong-org row is now treated as ABSENT,
