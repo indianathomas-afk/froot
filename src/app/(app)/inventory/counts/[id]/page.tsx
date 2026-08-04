@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { can } from "@/lib/permissions"
+import { actorFor } from "@/lib/auth"
 import { CountClient } from "./count-client"
 
 export default async function CountDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,7 +19,7 @@ export default async function CountDetailPage({ params }: { params: Promise<{ id
   // variance, cost drift) and its API now requires inventory.analytics.view.
   // Ask the same capability here so a counter without it gets a message
   // instead of a screen that loads forever.
-  const canViewSummary = can({ role: dbUser?.role }, "inventory.analytics.view")
+  const canViewSummary = can(actorFor(dbUser), "inventory.analytics.view")
 
   return <CountClient countId={id} canManage={canManage} canViewSummary={canViewSummary} />
 }

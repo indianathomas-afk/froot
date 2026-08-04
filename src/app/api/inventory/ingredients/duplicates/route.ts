@@ -23,8 +23,8 @@ export async function GET() {
   }
 
   // Its page is canManage-gated — the API now matches (PERM-2 §3 #5).
-  const { role } = await getUserStoreScope()
-  if (!can({ role }, "inventory.assets.manage")) {
+  const { actor } = await getUserStoreScope()
+  if (!can(actor, "inventory.assets.manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

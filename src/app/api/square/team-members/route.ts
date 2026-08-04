@@ -27,8 +27,8 @@ export async function GET() {
   // is not in proxy.ts's isPublicRoute, so a Clerk session was always required,
   // and no non-admin button ever called it. A STORE or STAFF account could still
   // reach it by hand from any signed-in page.
-  const { role } = await getUserStoreScope()
-  if (!can({ role }, "staff.sync.square")) {
+  const { actor } = await getUserStoreScope()
+  if (!can(actor, "staff.sync.square")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

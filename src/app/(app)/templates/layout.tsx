@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth"
-import { can } from "@/lib/permissions"
+import { can, type PermissionUser } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 
 // PERM-2 §3 #2: templates are corporate-controlled so procedures stay
@@ -10,13 +10,13 @@ import { redirect } from "next/navigation"
 export default async function TemplatesLayout({ children }: { children: React.ReactNode }) {
   // redirect() throws NEXT_REDIRECT — it must stay outside the try, or the
   // catch swallows it and a denied user renders the page anyway.
-  let role: string | null = null
+  let actor: PermissionUser = { role: null }
   try {
-    const { dbUser } = await getCurrentUser()
-    role = dbUser?.role ?? null
+    const current = await getCurrentUser()
+    actor = current.actor
   } catch {
-    role = null
+    actor = { role: null }
   }
-  if (!can({ role }, "templates.manage")) redirect("/dashboard")
+  if (!can(actor, "templates.manage")) redirect("/dashboard")
   return children
 }

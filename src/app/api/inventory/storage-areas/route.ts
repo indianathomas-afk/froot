@@ -30,9 +30,9 @@ export async function GET(req: Request) {
   const storeId = url.searchParams.get("storeId")
   if (!storeId) return NextResponse.json({ error: "storeId is required" }, { status: 400 })
 
-  const { isAdmin, storeIds, role } = await getUserStoreScope()
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
   // Operational: which areas exist and what gets counted in them (PERM-2 §3 #5).
-  if (!can({ role }, "inventory.assets.view")) {
+  if (!can(actor, "inventory.assets.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (!isAdmin && !storeIds.includes(storeId)) {

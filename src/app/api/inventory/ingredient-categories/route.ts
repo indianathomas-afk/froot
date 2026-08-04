@@ -25,8 +25,8 @@ export async function GET() {
   }
 
   // Operational: category names and GL codes, no pricing (PERM-2 §3 #5).
-  const { role } = await getUserStoreScope()
-  if (!can({ role }, "inventory.assets.view")) {
+  const { actor } = await getUserStoreScope()
+  if (!can(actor, "inventory.assets.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

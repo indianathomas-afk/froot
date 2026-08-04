@@ -36,12 +36,12 @@ export async function GET(req: Request) {
     console.error("[api/dashboard/summary] auth/context error:", err)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const { org, dbUser } = ctx
+  const { org, dbUser, actor } = ctx
   const isAdmin = dbUser?.role === "ADMIN"
   // PERM-2 §3 #6: drives the goal edit affordance on the dashboard card — it
   // must ask the same capability the PUT enforces, or a manager gets a button
   // that 403s.
-  const canManageGoal = can({ role: dbUser?.role }, "dashboard.goal.edit")
+  const canManageGoal = can(actor, "dashboard.goal.edit")
   const scopedStoreIds = dbUser?.storeAssignments.map((a) => a.storeId) ?? []
 
   const url = new URL(req.url)

@@ -34,8 +34,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { role } = await getUserStoreScope()
-  if (!can({ role }, "stores.manage")) {
+  const { actor } = await getUserStoreScope()
+  if (!can(actor, "stores.manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

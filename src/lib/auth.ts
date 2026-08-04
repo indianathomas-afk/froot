@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { findStaffMemberForUser } from "@/lib/hr"
+import { overridesFrom, type PermissionUser } from "@/lib/permissions"
 
 export async function getOrgId(): Promise<string> {
   const { orgId } = await auth()
@@ -81,7 +82,25 @@ export async function getCurrentUser() {
       `[auth] cross-org User row refused: clerkUserId=${userId} row org=${row.organizationId} session org=${org.id} (${org.clerkOrgId})`
     )
   }
-  return { userId, org, dbUser }
+  // PERM-5. THE LOAD POINT. can() is synchronous and overrides live in the
+  // database, so the set is resolved ONCE here — on the row this function
+  // already fetched, costing no extra query — and threaded to every call site
+  // as `actor`. Call sites ask can(actor, ...) instead of can({ role }, ...);
+  // the difference between the two is exactly whether the per-user layer is
+  // consulted, which is why the migration is call-site-by-call-site and not a
+  // flag. A wrong-org row is already null above, so it contributes no
+  // overrides either — the cross-org refusal and the override layer agree.
+  return { userId, org, dbUser, actor: actorFor(dbUser) }
+}
+
+// The one adapter from a Prisma User row to a PermissionUser. Passing the row
+// itself would work structurally, but this keeps the fail-closed reading of an
+// unselected column (overridesFrom's `undefined` case) in one place instead of
+// depending on every caller's `select`.
+export function actorFor(
+  dbUser: { role: string; deniedCapabilities?: string[] | null } | null | undefined
+): PermissionUser {
+  return { role: dbUser?.role, overrides: dbUser ? overridesFrom(dbUser.deniedCapabilities) : undefined }
 }
 
 export async function requireAdmin() {
@@ -148,8 +167,11 @@ export async function getActiveStaffSelf(): Promise<StaffSelfResult> {
 // isAdmin: true means unrestricted (all org stores). Otherwise storeIds is the
 // authoritative allow-list, sourced from StoreUserAssignment — never from URL params.
 export async function getUserStoreScope() {
-  const { dbUser } = await getCurrentUser()
+  const { dbUser, actor } = await getCurrentUser()
   const isAdmin = dbUser?.role === "ADMIN"
   const storeIds = dbUser?.storeAssignments.map((a) => a.storeId) ?? []
-  return { isAdmin, storeIds, role: dbUser?.role ?? null }
+  // PERM-5: `actor` carries the same role PLUS the per-user override set.
+  // `role` stays for the 26 callers that only need the string; anything asking
+  // a capability question must use `actor`, or the override is not consulted.
+  return { isAdmin, storeIds, role: dbUser?.role ?? null, actor }
 }

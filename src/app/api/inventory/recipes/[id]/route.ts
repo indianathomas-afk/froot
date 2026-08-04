@@ -33,8 +33,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   }
 
   // Commercial: returns recipe cost and cost % of menu price (PERM-2 §3 #5).
-  const { role } = await getUserStoreScope()
-  if (!can({ role }, "inventory.costs.view")) {
+  const { actor } = await getUserStoreScope()
+  if (!can(actor, "inventory.costs.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

@@ -27,7 +27,7 @@ import {
 } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
-import { can, type Capability } from "@/lib/permissions"
+import { can, overridesFrom, type Capability } from "@/lib/permissions"
 import { useClerk, useUser } from "@clerk/nextjs"
 import { setSidebarCollapsed, useSidebarCollapsed } from "./use-sidebar-collapsed"
 
@@ -100,6 +100,7 @@ const inventoryNavItems: { href: string; label: string; capability: Capability }
 
 export function Sidebar({
   role,
+  deniedCapabilities,
   activeModules = [],
   instagramEnabled = false,
   hrAvailable = false,
@@ -107,6 +108,15 @@ export function Sidebar({
   staffHasChecklists = false,
 }: {
   role: string
+  // PERM-5. REQUIRED, deliberately undefaulted: a default of [] would let a
+  // caller that forgets to pass it render the full role baseline and look
+  // correct. Missing is a build error instead.
+  //
+  // THIS FILTERING IS UX, NOT ENFORCEMENT — the same caveat the whole nav
+  // layer carries. Hiding a link protects nobody; the server checks the
+  // destination pages and APIs run are the enforcement. The nav asks the
+  // override anyway so that a denied user is not shown a door that 403s.
+  deniedCapabilities: string[]
   activeModules?: string[]
   instagramEnabled?: boolean
   hrAvailable?: boolean
@@ -121,10 +131,14 @@ export function Sidebar({
   const collapsed = useSidebarCollapsed()
   const hrEnabled = hrAvailable && activeModules.includes("hr")
   const laborEnabled = laborAvailable && activeModules.includes("labor")
+  // PERM-5: the server-provided prop path, rebuilt into the same shape the
+  // server-side guards use so the sidebar and the pages it links to cannot
+  // disagree about what this user was denied.
+  const actor = { role, overrides: overridesFrom(deniedCapabilities) }
   const visibleNavItems = navItems
     .filter(
       (item) =>
-        can({ role }, item.capability) &&
+        can(actor, item.capability) &&
         (!item.requiresInstagram || instagramEnabled) &&
         (!item.requiresHr || hrEnabled) &&
         (!item.requiresLabor || laborEnabled) &&
@@ -139,9 +153,9 @@ export function Sidebar({
         : item
     )
   const visibleInventoryItems = activeModules.includes("inventory")
-    ? inventoryNavItems.filter((item) => can({ role }, item.capability))
+    ? inventoryNavItems.filter((item) => can(actor, item.capability))
     : []
-  const canSeeSettings = can({ role }, "settings.access")
+  const canSeeSettings = can(actor, "settings.access")
   // Settings owns /settings, but a more specific nav item (e.g. Labor at
   // /settings/labor) takes precedence — otherwise both would highlight.
   const settingsActive =
@@ -153,7 +167,7 @@ export function Sidebar({
   const [alertCount, setAlertCount] = useState(0)
   // PERM-2 §3 #5: same capability /api/inventory/alerts/count now enforces —
   // the badge must not fire a request it will be 403'd for.
-  const showAlertBadge = activeModules.includes("inventory") && can({ role }, "inventory.analytics.view")
+  const showAlertBadge = activeModules.includes("inventory") && can(actor, "inventory.analytics.view")
   useEffect(() => {
     if (!showAlertBadge) return
     let cancelled = false

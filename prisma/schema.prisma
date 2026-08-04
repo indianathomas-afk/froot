@@ -97,6 +97,18 @@ model User {
   // is what every picker already does. Validated on write AND on read, since
   // assignments churn (Clerk webhook, admin edit) after a default is set.
   defaultStoreId String?
+  // PERM-5: capabilities SUBTRACTED from this user's role baseline. Empty (the
+  // default for every existing row) = pure role baseline. Never additive — see
+  // can() in src/lib/permissions.ts: the ceiling check returns before this list
+  // is read, so an entry here can only turn true into false.
+  //
+  // Survives same-Clerk-account membership churn. The organizationMembership
+  // .created upsert takes its UPDATE branch for a returning clerkUserId and
+  // that branch writes `email` only (api/webhooks/clerk/route.ts), so remove-
+  // and-re-add preserves this column. It is lost only when the person arrives
+  // on a NEW clerkUserId — which restricted mode (production, ON since
+  // 2026-08-04) makes an admin-visible event rather than a silent duplicate.
+  deniedCapabilities String[]
   createdAt      DateTime @default(now())
 
   organization         Organization          @relation(fields: [organizationId], references: [id])

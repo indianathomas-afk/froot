@@ -76,7 +76,7 @@ export async function POST(req: Request) {
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
   const now = new Date()
-  const { isAdmin, storeIds, role } = await getUserStoreScope()
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
 
   let body: Record<string, string> = {}
   try { body = await req.json() } catch { /* no body */ }
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
   // Single-checklist creation: {templateId, storeId}. This INSTANTIATES today's
   // checklist for one store from a template — it never creates a definition.
   if (body.templateId && body.storeId) {
-    if (!can({ role }, "checklists.create")) {
+    if (!can(actor, "checklists.create")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
     // Store scope comes from StoreUserAssignment, never from the request body:
@@ -129,7 +129,7 @@ export async function POST(req: Request) {
 
   // Bulk: generate for all stores × all applicable templates. Org-wide by
   // construction — there is no store to scope it to — so ADMIN only.
-  if (!can({ role }, "checklists.create.bulk")) {
+  if (!can(actor, "checklists.create.bulk")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

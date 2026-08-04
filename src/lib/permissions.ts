@@ -34,10 +34,28 @@
 
 export type PermissionRole = "ADMIN" | "MANAGER" | "STORE" | "STAFF"
 
+// PERM-5. A per-user override, loaded from User.deniedCapabilities. THREE
+// STATES by construction — absent, loaded, or failed — and the third one is
+// the whole point. A bare `Capability[]` cannot express "the load failed", so
+// a failure yields [] and SILENTLY RESTORES THE FULL ROLE BASELINE: the user
+// gets more than the admin granted, at exactly the moment something is wrong.
+// That shape is forbidden. Build one of these with overridesFrom() below.
+export type CapabilityOverride =
+  | { loaded: true; denied: ReadonlySet<Capability> }
+  | { loaded: false }
+
 // Minimal caller shape: works with a Prisma User, a getUserStoreScope()
 // result, or a client component's role prop. Null/undefined/unknown role
 // strings deny (a session with no User row has no capabilities).
-export type PermissionUser = { role: PermissionRole | string | null | undefined }
+export type PermissionUser = {
+  role: PermissionRole | string | null | undefined
+  // PERM-5. ABSENT means "no override layer consulted" — the role baseline,
+  // which is what every pre-PERM-5 `{ role }` call site keeps getting. That
+  // backward compatibility is deliberate: Session C migrates the remaining
+  // inline role checks onto can() incrementally, and an unthreaded call site
+  // must not change behaviour on the day this ships.
+  overrides?: CapabilityOverride | null
+}
 
 // The full registry from docs/PERMISSIONS_INVENTORY.md §5. A typo is a build
 // error. Derived from what the code enforces TODAY — no speculative entries.
@@ -228,13 +246,56 @@ function isPermissionRole(role: unknown): role is PermissionRole {
   return role === "ADMIN" || role === "MANAGER" || role === "STORE" || role === "STAFF"
 }
 
+export function isCapability(value: unknown): value is Capability {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(GRANTS, value)
+}
+
+// PERM-5. The ONE place a stored column becomes a CapabilityOverride — every
+// load point goes through here so the fail-closed rule is written once.
+//
+// `undefined` means the column was NOT SELECTED by the query, and it fails
+// CLOSED. That is the case worth being loud about: a `select` that forgets
+// deniedCapabilities looks identical to a user with no denials, so the quiet
+// reading of undefined would hand back the full role baseline and nothing
+// would ever look wrong. `null` (a pre-migration row) and [] are genuine
+// absences of denials and load normally.
+//
+// Unregistered strings are DROPPED rather than failing the load: a row naming
+// a capability that has since been renamed or removed should not be able to
+// deny anything, and should not brick the user either.
+export function overridesFrom(stored: string[] | null | undefined): CapabilityOverride {
+  if (stored === undefined) return { loaded: false }
+  return { loaded: true, denied: new Set((stored ?? []).filter(isCapability)) }
+}
+
 // Boolean capability check. Deny by default: unknown role or unregistered
 // capability → false.
+//
+// PERM-5 — THE SEAM. Read the order of the returns below, because it is the
+// enforcement of THE ONE RULE (a stored set restricts below the Clerk role
+// ceiling and never elevates above it) and it is structural, not conventional:
+//
+//   * The CEILING is evaluated FIRST and returns before any override is read.
+//   * The only `return true` in this function sits AFTER the ceiling check.
+//   * The override block below contains no `true` literal at all — it can
+//     return false, or defer to a set-membership test whose true case is
+//     reachable only once the ceiling has already said yes.
+//
+// So there is no code path by which an override turns false into true. Adding
+// one would mean adding a `return true` above the ceiling check, which is a
+// visible, reviewable act rather than an accident. scope() calls can() first,
+// so this single insertion covers the scoped/valued path too.
 export function can(user: PermissionUser, capability: Capability): boolean {
+  // ── Ceiling. Every return below this line is false. ──
   if (!isPermissionRole(user.role)) return false
   const granted = GRANTS[capability]
   if (!granted) return false
-  return granted.includes(user.role)
+  if (!granted.includes(user.role)) return false
+  // ── The role allows it. From here an override may only SUBTRACT. ──
+  const override = user.overrides
+  if (!override) return true // absent → pure role baseline
+  if (!override.loaded) return false // fail closed: a failed load restricts
+  return !override.denied.has(capability)
 }
 
 // Scoped/valued capability — returns the LIMIT, not a yes/no. Most granted
@@ -265,9 +326,139 @@ const SCOPE_OVERRIDES: Partial<Record<Capability, Partial<Record<PermissionRole,
   "forecasting.view": { MANAGER: { access: "window", monthsAhead: 1 } },
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PERM-5 — THE GRID LIST. The per-user override grid in the Edit User modal
+// renders THIS array, not the registry above.
+//
+// Why not the registry: of its entries, 24 have zero call sites and 15 are
+// nav-only. A toggle that does nothing is WORSE than no toggle — an admin who
+// flips it believes they restricted someone, and nobody finds out otherwise
+// until it matters. Every entry below is enforced server-side, on both the API
+// and the page wherever both exist.
+//
+// TWO CAPABILITIES ARE DELIBERATELY ABSENT: `templates.manage` and
+// `inventory.po.manage` are enforced only by a page redirect — the APIs behind
+// them (/api/templates, POST /api/inventory/purchase-orders) are still on
+// inline requireAdmin / requireManagerOrAdmin. Denying one would hide the page
+// while its endpoints kept answering, which manufactures the PERM-2 bug class
+// this project has already paid to close twice. Gary's ruling, 2026-08-04:
+// they wait for Session C. THEY ARE C's FIRST TWO APPENDS — once C migrates
+// those routes onto can(), add the entries here and the grid grows. That is
+// the whole maintenance protocol: Session C adds grid rows by appending to
+// this array, in one place.
+export type EnforcedCapability = {
+  capability: Capability
+  area: string
+  label: string
+  // What the admin is actually taking away, in the admin's words. Rendered
+  // under the toggle — the capability id means nothing to whoever is reading.
+  removes: string
+}
+
+export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
+  {
+    capability: "dashboard.goal.edit",
+    area: "Dashboard",
+    label: "Set the daily sales goal",
+    removes: "The goal editor on the dashboard, and PATCH /api/dashboard/goal.",
+  },
+  {
+    capability: "checklists.create",
+    area: "Checklists",
+    label: "Start a checklist",
+    removes: "Starting today's checklist for a store from a template.",
+  },
+  {
+    capability: "checklists.create.bulk",
+    area: "Checklists",
+    label: "Start checklists for every location",
+    removes: "The org-wide fan-out that instantiates every store's checklists at once.",
+  },
+  {
+    capability: "stores.manage",
+    area: "Stores",
+    label: "Import and re-sync locations from Square",
+    removes: "Reading the Square location list and re-syncing a store from Square.",
+  },
+  {
+    capability: "staff.view",
+    area: "Staff",
+    label: "Read the staff directory",
+    removes: "GET /api/staff — the staff roster.",
+  },
+  {
+    capability: "staff.manage",
+    area: "Staff",
+    label: "Add and edit staff members",
+    removes: "Creating staff records.",
+  },
+  {
+    capability: "staff.sync.square",
+    area: "Staff",
+    label: "Import team members from Square",
+    removes: "Reading the Square team list and running the staff sync.",
+  },
+  {
+    capability: "forecasting.view",
+    area: "Forecasting",
+    label: "Open Forecasting",
+    removes: "The Forecasting page and every /api/forecasting read.",
+  },
+  {
+    capability: "forecasting.edit",
+    area: "Forecasting",
+    label: "Edit forecast goals",
+    removes: "Every forecasting write. Reads are unaffected.",
+  },
+  {
+    capability: "forecasting.scope.all",
+    area: "Forecasting",
+    label: "Read every location's forecast",
+    removes: "Exemption from location scoping — they keep their assigned stores only.",
+  },
+  {
+    capability: "inventory.analytics.view",
+    area: "Inventory",
+    label: "Inventory reports and stock alerts",
+    removes: "Reports, Expected Stock, Alerts, the finalized-count summary, and the 12 APIs behind them.",
+  },
+  {
+    capability: "inventory.costs.view",
+    area: "Inventory",
+    label: "Costs and vendor pricing",
+    removes: "Vendor prices, recipe costs and the order guide.",
+  },
+  {
+    capability: "inventory.assets.view",
+    area: "Inventory",
+    label: "Ingredient reference data",
+    removes: "Ingredient categories, storage areas and pars.",
+  },
+  {
+    capability: "inventory.assets.manage",
+    area: "Inventory",
+    label: "Edit recipes and vendors",
+    removes: "Recipe and vendor editing, and the deleted/duplicate ingredient tools.",
+  },
+  {
+    capability: "inventory.adjustments.record",
+    area: "Inventory",
+    label: "Record inventory adjustments",
+    removes: "Loss, transfer and prep adjustments.",
+  },
+]
+
+// Feature-area order for the grid, derived from the list so a new area cannot
+// be added above and then silently fail to render.
+export const ENFORCED_CAPABILITY_AREAS: readonly string[] = [
+  ...new Set(ENFORCED_CAPABILITIES.map((e) => e.area)),
+]
+
 export function scope(user: PermissionUser, capability: Capability): CapabilityScope {
   // can() first: deny-by-default, and an override can never elevate a role
-  // that lacks the capability outright.
+  // that lacks the capability outright. PERM-5 rides in on this line too — a
+  // per-user denial makes can() false, so the scoped path answers "none"
+  // without SCOPE_OVERRIDES needing to know the override layer exists.
   if (!can(user, capability)) return { access: "none" }
   const override = isPermissionRole(user.role) ? SCOPE_OVERRIDES[capability]?.[user.role] : undefined
   return override ?? { access: "unrestricted" }

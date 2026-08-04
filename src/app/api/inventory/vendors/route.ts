@@ -33,8 +33,8 @@ export async function GET() {
   }
 
   // Commercial: the vendor list is the spine of the pricing surface (PERM-2 §3 #5).
-  const { role } = await getUserStoreScope()
-  if (!can({ role }, "inventory.costs.view")) {
+  const { actor } = await getUserStoreScope()
+  if (!can(actor, "inventory.costs.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { convert } from "@/lib/units"
-import { getCurrentUser, requireModule } from "@/lib/auth"
+import { actorFor, getCurrentUser, requireModule } from "@/lib/auth"
 import { auth } from "@clerk/nextjs/server"
 
 // ─── Shared helpers for the adjustments API (Phase I-6) ──────────────────────
@@ -95,7 +95,7 @@ export async function adjustmentRouteContext() {
     isManagerOrAdmin: dbUser.role === "ADMIN" || dbUser.role === "MANAGER",
     storeIds: dbUser.storeAssignments.map((a) => a.storeId),
   }
-  return { org, scope, dbUser }
+  return { org, scope, dbUser, actor: actorFor(dbUser) }
 }
 
 export function canAccessStore(scope: { isAdmin: boolean; storeIds: string[] }, storeId: string): boolean {

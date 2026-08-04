@@ -78,6 +78,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen">
       <Sidebar
         role={dbUser?.role ?? "STAFF"}
+        // PERM-5. NO User ROW → [] → the STAFF-fallback nav renders exactly as
+        // it did before this phase. Chosen, not incidental (Gary, 2026-08-04).
+        //
+        // The fail-closed rule in overridesFrom() is about a column that should
+        // have been READ and was not — an unselected field, which would
+        // otherwise look identical to "no denials" and hand back the full role
+        // baseline. "No row" is a different fact: there is no user to hold
+        // denials, so [] is the truthful value rather than a guess. Tightening
+        // it here would change real behaviour for zero security gain, because
+        // the sidebar is UX and the server guards already deny these sessions.
+        deniedCapabilities={dbUser?.deniedCapabilities ?? []}
         activeModules={org?.activeModules ?? []}
         instagramEnabled={!!org?.instagramEnabled && !!org?.instagramAccessToken}
         hrAvailable={hrModuleAvailable(orgId)}

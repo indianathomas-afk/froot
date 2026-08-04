@@ -11,7 +11,7 @@ export async function GET() {
   const { org } = ctx
 
   // Operational: destination suggestions for the transfer form (PERM-2 §3 #5).
-  if (!can({ role: ctx.dbUser.role }, "inventory.adjustments.record")) {
+  if (!can(ctx.actor, "inventory.adjustments.record")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

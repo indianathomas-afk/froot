@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type { Store, User } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { getCurrentUser } from "@/lib/auth"
+import { actorFor, getCurrentUser } from "@/lib/auth"
 import { can, scope, type CapabilityScope } from "@/lib/permissions"
 import { forecastWindowFrom, type ForecastWindow } from "@/lib/forecast-window"
 import { localDateStr } from "@/lib/reports"
@@ -43,7 +43,7 @@ export async function requireForecastContext(
   }
   if (!userId || !org) return { error: NextResponse.json({ error: "Org not found" }, { status: 404 }) }
 
-  const actor = { role: dbUser?.role }
+  const actor = actorFor(dbUser)
   if (opts.write && !can(actor, "forecasting.edit")) {
     return { error: NextResponse.json({ error: "Admin access required" }, { status: 403 }) }
   }

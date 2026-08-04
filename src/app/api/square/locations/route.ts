@@ -30,8 +30,8 @@ export async function GET() {
   // than widening it. Deliberately NOT stores.view (MANAGE) — no manager page
   // requests this payload, and narrowing later, once something depends on it,
   // is the hard direction.
-  const { role } = await getUserStoreScope()
-  if (!can({ role }, "stores.manage")) {
+  const { actor } = await getUserStoreScope()
+  if (!can(actor, "stores.manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

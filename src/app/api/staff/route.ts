@@ -24,10 +24,10 @@ export async function GET() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
-  const { isAdmin, storeIds, role } = await getUserStoreScope()
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
   // PERM-2 §3 #3: matches the /staff pages (ADMIN/MANAGER). A STAFF-role user
   // has no need for a coworker directory — that information is in Square.
-  if (!can({ role }, "staff.view")) {
+  if (!can(actor, "staff.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const staff = await prisma.staffMember.findMany({
@@ -51,8 +51,8 @@ export async function POST(req: Request) {
 
   // PERM-2 §3 #3: this route was entirely unguarded — any org member could
   // create a staff record. Security fix, not a preference.
-  const { isAdmin, storeIds: scopeStoreIds, role } = await getUserStoreScope()
-  if (!can({ role }, "staff.manage")) {
+  const { isAdmin, storeIds: scopeStoreIds, actor } = await getUserStoreScope()
+  if (!can(actor, "staff.manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

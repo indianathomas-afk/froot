@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type { InventoryCount, User } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { getCurrentUser, requireModule } from "@/lib/auth"
+import { actorFor, getCurrentUser, requireModule } from "@/lib/auth"
 import { can, type Capability } from "@/lib/permissions"
 
 export function ingredientDisplayName(i: { brand: string | null; name: string }) {
@@ -47,7 +47,7 @@ export async function requireCountsContext(
     return { error: NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 }) }
   }
 
-  if (capability && !can({ role: dbUser?.role }, capability)) {
+  if (capability && !can(actorFor(dbUser), capability)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
   }
 

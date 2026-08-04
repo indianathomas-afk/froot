@@ -17,7 +17,7 @@ export async function GET() {
   // Operational: the reason list is what the floor picks from when recording a
   // loss — granted to every role, but stated through the capability so the
   // override layer has a hook (PERM-2 §3 #5).
-  if (!can({ role: ctx.dbUser.role }, "inventory.adjustments.record")) {
+  if (!can(ctx.actor, "inventory.adjustments.record")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

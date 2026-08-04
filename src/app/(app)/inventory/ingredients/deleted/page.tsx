@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { can } from "@/lib/permissions"
+import { actorFor } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { DeletedIngredientsClient } from "./deleted-client"
 
@@ -15,7 +16,7 @@ export default async function DeletedIngredientsPage() {
 
   const dbUser = userId ? await prisma.user.findUnique({ where: { clerkUserId: userId } }) : null
   // PERM-2 §3 #5: same capability its data APIs enforce.
-  if (!can({ role: dbUser?.role }, "inventory.assets.manage")) redirect("/inventory/ingredients")
+  if (!can(actorFor(dbUser), "inventory.assets.manage")) redirect("/inventory/ingredients")
 
   const deleted = await prisma.ingredient.findMany({
     where: { organizationId: org.id, deletedAt: { not: null } },

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { BarChart2 } from "lucide-react"
 import Link from "next/link"
-import { getUserStoreScope } from "@/lib/auth"
+import { actorFor, getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { ReportsClient } from "./reports-client"
 
@@ -38,9 +38,9 @@ export default async function InventoryReportsPage() {
   }
 
   const dbUser = userId ? await prisma.user.findUnique({ where: { clerkUserId: userId } }) : null
-  const role = dbUser?.role ?? "STAFF"
   // PERM-2 §3 #5: same capability its data APIs enforce.
-  if (!can({ role }, "inventory.analytics.view")) redirect("/dashboard")
+  // PERM-5: actorFor carries the per-user override set alongside the role.
+  if (!can(actorFor(dbUser), "inventory.analytics.view")) redirect("/dashboard")
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   const stores = await prisma.store.findMany({

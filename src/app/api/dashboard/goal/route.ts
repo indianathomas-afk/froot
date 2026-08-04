@@ -23,9 +23,9 @@ export async function PUT(req: Request) {
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const { org, dbUser } = ctx
+  const { org, dbUser, actor } = ctx
   const isAdmin = dbUser?.role === "ADMIN"
-  if (!can({ role: dbUser?.role }, "dashboard.goal.edit")) {
+  if (!can(actor, "dashboard.goal.edit")) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 })
   }
 

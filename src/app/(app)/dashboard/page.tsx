@@ -19,7 +19,7 @@ async function getDashboardData() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return null
 
-  const { isAdmin, storeIds, role } = await getUserStoreScope()
+  const { isAdmin, storeIds, role, actor } = await getUserStoreScope()
 
   const stores = await prisma.store.findMany({
     where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
@@ -53,7 +53,7 @@ async function getDashboardData() {
   // PERM-3: the two "Forecasting →" links on this page must ask the same
   // capability that gates the destination, or STORE/STAFF are shown a link that
   // dead-ends in a redirect. Absent, not disabled.
-  const canViewForecasting = can({ role }, "forecasting.view")
+  const canViewForecasting = can(actor, "forecasting.view")
 
   return { stores, countRecency, laborEnabled, canViewForecasting }
 }
