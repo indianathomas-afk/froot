@@ -64,10 +64,23 @@ export async function getCurrentUser() {
   const { userId } = await auth()
   if (!userId) throw new Error("Unauthorized")
   const org = await getOrganization()
-  const dbUser = await prisma.user.findUnique({
+  const row = await prisma.user.findUnique({
     where: { clerkUserId: userId },
     include: { storeAssignments: true },
   })
+  // DEBT-50 / F1. clerkUserId is @unique, so ONE User row exists per Clerk
+  // identity, globally — an identity with memberships in two orgs resolves
+  // to the row of whichever org it was created in. Without this test that
+  // row's ROLE is handed to the session's org: an ADMIN of org A is
+  // admitted as ADMIN of org B, and isAdmin short-circuits store scoping.
+  // A wrong-org row is treated as ABSENT, the same shape getActiveStaffSelf()
+  // uses below. Never fall through to the row's role.
+  const dbUser = row && row.organizationId === org.id ? row : null
+  if (row && !dbUser) {
+    console.warn(
+      `[auth] cross-org User row refused: clerkUserId=${userId} row org=${row.organizationId} session org=${org.id} (${org.clerkOrgId})`
+    )
+  }
   return { userId, org, dbUser }
 }
 
