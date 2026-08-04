@@ -4275,10 +4275,30 @@ debt:
       least legible — but it should be a decision, not a surprise.
 
   - id: DEBT-13
-    status: staging
+    status: shipped
     commits: ["ffee362"]
     title: "A MANAGER cannot see a staff member who works at their store but is homed elsewhere — /staff groups by primary store"
     notes: >
+      SHIPPED — VERIFIED ON PRODUCTION 2026-08-03. Promoted in the de3ba40
+      production promotion of 2026-08-02; implementing commits ffee362 and
+      778cf10 (docs/DEPLOY_LOG.md names the full set). Observed on
+      www.usefroot.com: /staff shows "Also works here — 2 members based at
+      another store" holding Aaliyah Rose (Home store: Meadowood Mall) and
+      Chase Nyman (Home store: University Village) under Carson, with the header
+      reading "1 team member · 2 also work here".
+      THE OBSERVATION WAS TAKEN IN A SINGLE-STORE VIEW SIGNED IN AS
+      indianathomas@live.com — NOT as ADMIN, and that is what makes it evidence
+      rather than a formality. This row is about what a STORE-SCOPED user can
+      see; the ADMIN view is unchanged by construction, so an ADMIN session
+      could not have evidenced the fix either way. Same shape as DEBT-9's
+      self-serve-rather-than-attested walk: the principal you verify AS is part
+      of the evidence, not an incidental detail of how it was collected.
+      ORG ID NOT NAMED in the report this was recorded from, contrary to
+      CLAUDE.md § Browser Evidence. What identifies the view instead is
+      structural — two named staff, their two named home stores, and exact
+      header counts — which is that section's own corollary (verify by a
+      structural fact, not by a name) doing the work the id would have done.
+      Recorded as a gap so no future reader assumes the id was checked.
       CLOSED 2026-08-02 in ffee362. One file, src/app/(app)/staff/page.tsx — no
       permissions change, no query change, no schema, no migration. The query
       was always correct; this was a render decision, exactly as the row's FIX
@@ -5530,10 +5550,25 @@ debt:
       rather than a find-and-replace. Related: DEBT-5, DEBT-27.
 
   - id: DEBT-29
-    status: staging
+    status: shipped
     commits: ["00e454a"]
     title: "The template availability window is collected, stored, exported — and never enforced"
     notes: >
+      SHIPPED — VERIFIED ON PRODUCTION 2026-08-03. Promoted in the de3ba40
+      production promotion of 2026-08-02; implementing commits 00e454a and
+      65c20cb (docs/DEPLOY_LOG.md). Observed on www.usefroot.com:
+      /templates/new reads "Recorded for reference. Not yet used to show or hide
+      checklists." under the offsets and "A label for staff — checklists stay
+      visible all day." under the run field, and the Preview card is GONE.
+      WHAT SHIPPED IS THE COPY, NOT THE FEATURE — stated here because the row's
+      title still describes an unenforced window and a reader skimming
+      `status: shipped` could take it for enforcement. The availability window
+      is STILL not enforced on production. This row closes on the form no longer
+      claiming otherwise, exactly as the relabel half always said.
+      ORG ID NOT NAMED in the report this was recorded from (CLAUDE.md
+      § Browser Evidence). Lower stakes here than elsewhere — the observation is
+      static form copy on a create page, which renders identically in any org —
+      but recorded so the gap is not assumed to have been checked.
       CLOSED 2026-08-02 in 00e454a by DEBT-29-RELABEL — THE RELABEL HALF ONLY.
       Prompt:
       docs/prompts/DEBT-29-RELABEL_honest_copy.md. The form no longer claims the
@@ -6483,13 +6518,25 @@ debt:
       Related: P-4, DEBT-41 (SEC-1's entry is an example of both).
 
   - id: DEBT-43
-    status: staging
+    status: shipped
     commits: ["06befd2", "04da67f"]
     title: >
       Every `border-[var(--color-*)]` in the app silently renders as the default
       border colour — an UNLAYERED `*` rule in globals.css overrides every
       border-color utility
     notes: >
+      SHIPPED — VERIFIED ON PRODUCTION 2026-08-03. Promoted in the de3ba40
+      production promotion of 2026-08-02; implementing commits 1dbe9ca, 06befd2,
+      475e425, 04da67f, 790cfc4, 5da1008 and 24894fa — SEVEN, where this row's
+      `commits` field names two, so treat docs/DEPLOY_LOG.md as the authority on
+      the set. Observed on www.usefroot.com: borders render their intended
+      colours across /staff and /templates. The universal reset is wrapped in
+      `@layer base`, so the border-color utilities win.
+      ORG ID NOT NAMED in the report this was recorded from (CLAUDE.md
+      § Browser Evidence). Least consequential of the three flips taken the same
+      day — this is a global stylesheet observation with no org-scoped data in
+      it — but recorded rather than waived, since the value of that precondition
+      is that it is not judged case by case.
       FIFTH CORRECTION 2026-08-02, recorded by DEBT-29-RELABEL, and it is the
       one with a running cost: THIS ROW'S OWN PROSE BROKE `npm run dev` FOR THE
       WHOLE APP, and had done since 1dbe9ca (2026-08-01 22:20) — the commit that
