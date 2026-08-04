@@ -5,6 +5,62 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## DEBT-50 mechanism ruled; production sign-up closed (F3) — 2026-08-04 (Gary)
+
+THE MECHANISM RULING. Production Clerk holds NO duplicate identities:
+kevajuice14@icloud.com and gary@kevajuice.com each return exactly one
+identity on the production instance (verified in the dashboard 2026-08-04).
+The two "duplicates" measured in the production database (branch
+br-sparkling-block-a620qvg4, queries a-d, all with branch id on output) are
+fossils, not live twins:
+- gary@kevajuice.com's second row belongs to the DEV instance's Keva Juice
+  org (org_3FhMmIWVjja5HYpsou8n6rVtZn2) — cross-instance contamination from
+  a period when dev-configured code wrote into this database. Production
+  Clerk can never authenticate that identity; the row is a permanent
+  fossil.
+- kevajuice14@icloud.com's second row (user_3Fq6iuvkhK4TSsmdaJ8yMMcT4rf,
+  STAFF, created 2026-07-03) points at a Clerk identity that NO LONGER
+  EXISTS — a deleted account whose row survived because there is no
+  user.deleted handler. This is DEBT-47's consequence measured in the wild.
+The LIVE duplicate pair (two gary@kevajuice.com identities) exists only on
+the dev instance, where the enabling conditions were: public sign-up, no
+account linking, password + Apple + Google all enabled, AND the
+accept-invite sign-up default (H2 — fixed by F4/3784c34). No single
+hypothesis "won"; H2 was a real armed mechanism and is closed, H1's OAuth
+door was never open on production (Apple/Google still "Setup required"),
+and H3 (open org creation) is how the vanity orgs appeared.
+
+THE F3 RULING (Gary). Production Clerk restricted mode: ON, effective
+2026-08-04. Public sign-up had already produced one uninvited account
+(blankettegirl@gmail.com, signed up ~2026-07-27, created "My Organization",
+saw only its own empty org — tenant isolation held, no Keva data exposed).
+Account and org deleted 2026-08-04; "Keva Smoothie Company" (Gary's 7-03
+testing artifact, sole member gary@keva.com) also deleted. Froot is
+invite-only by design; nothing legitimate arrives via public sign-up. The
+dev instance deliberately stays open for testing.
+INSTANCE DIVERGENCE recorded while ruling: dev REQUIRES a username as an
+identifier, production has username OFF; dev has live shared-credential
+Apple/Google, production has neither configured. The two instances are
+independently configured — never assume a Clerk behavior transfers between
+them.
+
+### Process notes from the same session — recorded, not ruled
+
+Placed here by Gary's ruling 2026-08-04 rather than in CLAUDE.md: none of
+the three is a rule anyone must follow today, and each is a thread the next
+person in this area should be able to pick up.
+
+- Dev-instance webhooks/config once wrote into the production database
+  (the gary@ dev-org row proves it). Worth one grep someday for how, so it
+  cannot recur — likely historical env mix, possibly pre-dating the
+  three-branch Neon setup.
+- Clerk dev instance has Test mode ON (+clerk_test emails, code 424242) —
+  another way dev accumulates odd accounts; fine, just known.
+- The /users invite-dialog copy actively teaches plus-addressing as the
+  workaround for "email already has a login" — accurate, but it multiplies
+  accounts per human; revisit the copy when the invite guard question is
+  next opened.
+
 ## PERM-7 Task 7 — the derived device name OVERRIDES the sign-up form, it does not fill a blank — 2026-07-28 (Gary ruled, confirming Claude's implementation)
 
 Recorded because the override is the entire point and a later session will
