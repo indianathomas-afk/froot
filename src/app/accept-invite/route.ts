@@ -25,7 +25,14 @@ export function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/sign-in", request.url))
   }
 
-  const dest = status === "sign_in" ? "/sign-in" : "/sign-up"
+  // DEBT-50 / F4. sign_up is the ONLY status meaning "this address has no
+  // account yet" — it is the allow-list, not sign_in. Anything else (absent,
+  // malformed, a status Clerk adds later) falls to /sign-in, because /sign-up
+  // is the one destination that can MINT a second identity for an address that
+  // already has one. An existing user on /sign-in is where they belong; a new
+  // user on /sign-in has a "sign up" link one click away. The failure direction
+  // must be toward the flow that cannot create an identity.
+  const dest = status === "sign_up" ? "/sign-up" : "/sign-in"
   const url = new URL(dest, request.url)
   url.searchParams.set("__clerk_ticket", ticket)
   return NextResponse.redirect(url)
