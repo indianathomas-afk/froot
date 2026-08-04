@@ -1,12 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Pencil, Trash2, X } from "lucide-react"
+import { Plus, Pencil, Trash2, X, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
+import {
+  can, ENFORCED_CAPABILITIES, ENFORCED_CAPABILITY_AREAS, type Capability,
+} from "@/lib/permissions"
 
 type Store = { id: string; name: string; storeNumber: string | null }
 
@@ -135,6 +142,7 @@ export function EditUserButton({
   currentRole,
   currentStoreIds,
   currentDefaultStoreId,
+  currentDeniedCapabilities,
   stores,
   userName,
 }: {
@@ -142,6 +150,8 @@ export function EditUserButton({
   currentRole: string
   currentStoreIds: string[]
   currentDefaultStoreId: string | null
+  // PERM-5. The capabilities currently subtracted from this user's role.
+  currentDeniedCapabilities: string[]
   stores: Store[]
   userName: string
 }) {
@@ -152,7 +162,44 @@ export function EditUserButton({
   const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set(currentStoreIds))
   // BUILD-2. "" is the wire form of null — see handleSave.
   const [defaultStore, setDefaultStore] = useState(currentDefaultStoreId ?? "")
+  const [denied, setDenied] = useState<Set<string>>(new Set(currentDeniedCapabilities))
+  // UX-1: shown when a close is attempted with unsaved edits.
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const router = useRouter()
+
+  // UX-1 (the half nobody sees until it bites): this state used to persist
+  // across closes, so cancelling out of a half-made change and reopening the
+  // modal showed the ABANDONED values as though they were saved — and saving
+  // from there would write them. Reset from props on every open.
+  function reset() {
+    setRole(currentRole)
+    setSelectedStores(new Set(currentStoreIds))
+    setDefaultStore(currentDefaultStoreId ?? "")
+    setDenied(new Set(currentDeniedCapabilities))
+    setError("")
+  }
+
+  const sameSet = (a: Set<string>, b: string[]) => a.size === b.length && b.every((x) => a.has(x))
+  const dirty =
+    role !== currentRole ||
+    !sameSet(selectedStores, currentStoreIds) ||
+    (currentDefaultStoreId ?? "") !== defaultStore ||
+    !sameSet(denied, currentDeniedCapabilities)
+
+  // UX-1: every close path routes through here — the X, the overlay, Escape
+  // and the Cancel button — so none of them can silently discard edits.
+  function requestClose(next: boolean) {
+    if (next) {
+      reset()
+      setOpen(true)
+      return
+    }
+    if (dirty && !saving) {
+      setConfirmDiscard(true)
+      return
+    }
+    setOpen(false)
+  }
 
   // BUILD-2. Options come from the locations selected in THIS modal, not the
   // saved set, so "add store B and make it the default" works in one save.
@@ -163,6 +210,23 @@ export function EditUserButton({
   // the user can see — otherwise the modal would submit a default the server is
   // bound to reject with a 400 the admin cannot act on.
   const effectiveDefault = defaultOptions.some((s) => s.id === defaultStore) ? defaultStore : ""
+
+  // PERM-5. Same reasoning as effectiveDefault above, applied to overrides:
+  // send the values the admin can SEE. Switching role in this modal changes
+  // which capabilities the ceiling grants, and a denial of something the new
+  // role never had is a no-op the server drops anyway — so drop it here too
+  // rather than submitting a set the server will quietly rewrite.
+  const effectiveDenied = ENFORCED_CAPABILITIES.filter(
+    (e) => denied.has(e.capability) && can({ role }, e.capability)
+  ).map((e) => e.capability)
+
+  function toggleDenied(capability: Capability) {
+    setDenied((prev) => {
+      const next = new Set(prev)
+      next.has(capability) ? next.delete(capability) : next.add(capability)
+      return next
+    })
+  }
 
   function toggleStore(id: string) {
     // Deselecting the default location clears it, mirroring the staff dialog's
@@ -188,6 +252,7 @@ export function EditUserButton({
           role,
           storeIds: Array.from(selectedStores),
           defaultStoreId: effectiveDefault || null,
+          deniedCapabilities: effectiveDenied,
         }),
       })
       if (!res.ok) {
@@ -210,15 +275,21 @@ export function EditUserButton({
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="p-1 rounded hover:bg-[var(--color-accent)]">
+      <button onClick={() => requestClose(true)} className="p-1 rounded hover:bg-[var(--color-accent)]">
         <Pencil className="h-4 w-4 text-[var(--color-muted-foreground)]" />
       </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+      <Dialog open={open} onOpenChange={requestClose}>
+        {/* UX-1. The scroll used to live on DialogContent, which put the Save
+            button below the fold of a form that only got longer — and PERM-5
+            adds fifteen more rows to it. The overflow moves to the body div
+            below so the footer stays pinned and visible at any height.
+            DialogContent defaults to `grid`; flex-col is what lets the body
+            take the remaining space. Scoped to this modal, not dialog.tsx. */}
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit User — {userName}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 overflow-y-auto -mx-1 px-1">
             <div className="space-y-1.5">
               <Label>Role</Label>
               <div className="space-y-2">
@@ -274,14 +345,97 @@ export function EditUserButton({
                 </select>
               </div>
             )}
+            {/* PERM-5 — the override grid. Restrict-only, and the UI is where
+                that is made obvious: a capability the role grants renders as a
+                switchable toggle, one it does NOT grant renders locked and
+                disabled. There is no control on this screen that grants. */}
+            <div className="space-y-1.5 border-t border-[var(--color-border)] pt-4">
+              <Label>Capability overrides</Label>
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Turn things off for this person only. You can restrict below what their role
+                allows, never above it — to give more access, change the role.
+              </p>
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Overrides follow this user to <strong>every</strong> location they are assigned to;
+                they cannot be set per location. For &ldquo;no labor at one store, yes at
+                another&rdquo;, use a separate login per store.
+              </p>
+              <div className="border border-[var(--color-border)] rounded-lg p-2 space-y-3">
+                {ENFORCED_CAPABILITY_AREAS.map((area) => (
+                  <div key={area} className="space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-foreground)] px-1">
+                      {area}
+                    </p>
+                    {ENFORCED_CAPABILITIES.filter((e) => e.area === area).map((e) => {
+                      const grantedByRole = can({ role }, e.capability)
+                      const on = grantedByRole && !denied.has(e.capability)
+                      return (
+                        <label
+                          key={e.capability}
+                          className={`flex items-start gap-2 p-2 rounded text-sm ${
+                            grantedByRole ? "hover:bg-[var(--color-accent)] cursor-pointer" : "opacity-60"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={on}
+                            disabled={!grantedByRole}
+                            onChange={() => toggleDenied(e.capability)}
+                          />
+                          <span className="flex-1">
+                            <span className="flex items-center gap-1.5">
+                              {e.label}
+                              {!grantedByRole && <Lock className="h-3 w-3 text-[var(--color-muted-foreground)]" />}
+                            </span>
+                            <span className="block text-xs text-[var(--color-muted-foreground)]">
+                              {grantedByRole ? e.removes : "Not granted by this role"}
+                            </span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+              {effectiveDenied.length > 0 && (
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  {effectiveDenied.length} capabilit{effectiveDenied.length === 1 ? "y" : "ies"} removed
+                </p>
+              )}
+            </div>
             {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => requestClose(false)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* UX-1: the modal had no dirty-state guard at all, so the X, Escape and
+          a mis-aimed overlay click all discarded edits without a word. */}
+      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The changes you made to {userName} have not been saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmDiscard(false)
+                reset()
+                setOpen(false)
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

@@ -197,6 +197,7 @@ async function getData() {
       role: dbUser?.role ?? "STAFF",
       storeAssignments: dbUser?.storeAssignments ?? [],
       defaultStoreId: dbUser?.defaultStoreId ?? null,
+      deniedCapabilities: dbUser?.deniedCapabilities ?? [],
       createdAt: new Date(m.createdAt),
       // PERM-7 Task 4 — ambient, not a moment. A one-time warning at
       // provisioning is forgotten in a week; the next admin needs the fact
@@ -333,6 +334,7 @@ export default async function UsersPage() {
                           currentRole={member.role}
                           currentStoreIds={member.storeAssignments.map((a) => a.storeId)}
                           currentDefaultStoreId={member.defaultStoreId}
+                          currentDeniedCapabilities={member.deniedCapabilities}
                           stores={storeProps}
                           userName={member.name || member.email}
                         />

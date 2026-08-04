@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireAdmin } from "@/lib/auth"
+import { can, isCapability, type Capability } from "@/lib/permissions"
 import { findStaffMemberForUser } from "@/lib/hr"
 import { validateDefaultStore } from "@/lib/default-store"
 
@@ -13,6 +14,11 @@ const patchSchema = z.object({
   // (clear the default, restore alphabetically-first) and must be
   // distinguishable from "not sent".
   defaultStoreId: z.string().min(1).nullish(),
+  // PERM-5. Optional, not defaulted: absent means "this caller did not touch
+  // overrides" and the stored set is left alone, matching defaultStoreId's
+  // reasoning above. Validated against the registry below, not here, so the
+  // 400 can name what was wrong.
+  deniedCapabilities: z.array(z.string()).optional(),
 })
 
 // Clerk memberships only distinguish admin vs member — MANAGER / STORE / STAFF
@@ -44,7 +50,35 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
-  const { role, storeIds, defaultStoreId } = parsed.data
+  const { role, storeIds, defaultStoreId, deniedCapabilities } = parsed.data
+
+  // PERM-5. Two rules, and they fail differently on purpose.
+  //
+  // An UNREGISTERED capability is a 400: it is a client bug or a hand-rolled
+  // request, and storing it would put a string in the column that can() can
+  // never match — a denial that silently does nothing forever.
+  //
+  // A denial of a capability the RESULTING role does not grant is DROPPED, not
+  // rejected. It is a no-op today (the ceiling already denies it) and a
+  // landmine tomorrow: promote the user later and they would silently lack
+  // something their new role grants, with nothing on screen to explain why.
+  // Filtered against the role this request WILL PRODUCE — the same discipline
+  // validateDefaultStore uses below, and the answer to "does a role change
+  // clear stored denials?": yes, for exactly the denials the new role does not
+  // grant. Everything else survives the role change untouched.
+  let nextDenied: Capability[] | undefined
+  if (deniedCapabilities !== undefined) {
+    const unknown = deniedCapabilities.filter((c) => !isCapability(c))
+    if (unknown.length > 0) {
+      return NextResponse.json(
+        { error: `Unknown capability: ${unknown.join(", ")}` },
+        { status: 400 }
+      )
+    }
+    nextDenied = [...new Set(deniedCapabilities.filter(isCapability))].filter((c) =>
+      can({ role }, c)
+    )
+  }
 
   const existing = await prisma.user.findFirst({ where: { id, organizationId: org.id } })
   if (!existing) {
@@ -53,6 +87,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   // Self-role-change is blocked outright: combined with the last-admin guard
   // it is the lockout path (an admin demoting themselves).
+  //
+  // PERM-5 self-lockout: THIS LINE IS ALSO THE OVERRIDE GUARD, and no second
+  // one was added. It refuses the whole request when caller === target, so an
+  // admin cannot deny themselves anything through this route at all. Nothing
+  // in the current grid could strand an admin even if they could — users.manage
+  // is not load-bearing yet (/users and this route both use requireAdmin, not
+  // can()). SESSION C REQUIREMENT: when users.manage is migrated onto can() and
+  // added to ENFORCED_CAPABILITIES, re-check this — at that point a denial of
+  // users.manage becomes capable of locking an admin out of user management,
+  // and the guard that saves them is this early return.
   if (caller.id === existing.id) {
     return NextResponse.json({ error: "You cannot change your own role" }, { status: 403 })
   }
@@ -161,6 +205,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // Omitted when the client didn't send the field, so a caller that only
       // changes the role cannot silently clear a default it never mentioned.
       ...(defaultStoreId !== undefined ? { defaultStoreId } : {}),
+      // Same omit-when-unsent rule as defaultStoreId: a caller that only
+      // changes the role must not silently clear overrides it never mentioned.
+      ...(nextDenied !== undefined ? { deniedCapabilities: nextDenied } : {}),
       storeAssignments: {
         deleteMany: {},
         create: storeIds.map((storeId: string) => ({ storeId })),
