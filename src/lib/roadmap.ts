@@ -128,6 +128,54 @@ export interface DebtItem {
 }
 
 /**
+ * A pending ruling's state. DELIBERATELY NOT PhaseStatus — `shipped` and
+ * `verified` are meaningless for a decision, and reusing that union would let
+ * one be set.
+ *
+ * `deferred` is NOT a third flavour of open. A deferral IS a decision — just
+ * not the final one — so it does not count toward the "awaiting a call" number
+ * on the page. That is the whole reason it exists as a value rather than being
+ * written as a note on an open entry.
+ */
+export type RulingStatus = "open" | "ruled" | "deferred"
+
+/**
+ * One open decision awaiting Gary's call. Added 2026-08-05.
+ *
+ * A DECISION LOG, NOT A SECOND DEBT TABLE — an entry belongs here only when the
+ * next step is a decision rather than work. The full convention (including why
+ * the source sheet's R8 became a note on DEBT-44 instead of an entry) lives in
+ * the header comment above `rulings:` in docs/ROADMAP.yaml, which is where
+ * whoever adds the next one is standing.
+ *
+ * `ruling` AND `ruled` ARE ABSENT UNTIL A CALL IS MADE — never present-and-
+ * empty. Absence already carries "not yet decided", and a field duplicating
+ * what absence says is the mistake documented on BlockerEntry above for
+ * `resolved: false`: it invites being filled in wholesale, which destroys the
+ * default that makes the scheme readable.
+ *
+ * NO `commits` FIELD, deliberately. A ruling is a decision, not work; the SHA
+ * belongs on whatever row the ruling creates, and a ruling that produced no
+ * commit is the normal case rather than a gap.
+ */
+export interface Ruling {
+  id: string
+  title: string
+  status?: RulingStatus
+  /** ISO date (YYYY-MM-DD) the question was raised. */
+  asked?: string
+  question?: string
+  options?: string[]
+  recommendation?: string
+  /** Present only once decided. */
+  ruling?: string
+  /** ISO date (YYYY-MM-DD) the call was made. Present only once decided. */
+  ruled?: string
+  /** Related row ids — phases, bugs or debt. Rendered as plain text, not links. */
+  links?: string[]
+}
+
+/**
  * Where the "last updated" timestamp on the page actually came from. Rendered
  * verbatim next to the date so a fallback can never masquerade as the real git
  * commit date.
@@ -138,6 +186,7 @@ export interface RoadmapData {
   phases: Phase[]
   bugs: Bug[]
   debt: DebtItem[]
+  rulings: Ruling[]
   /** ISO 8601 instant, or null when neither git nor meta.updated resolved. */
   lastUpdated: string | null
   lastUpdatedSource: LastUpdatedSource

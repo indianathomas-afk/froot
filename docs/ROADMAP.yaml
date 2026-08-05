@@ -7451,6 +7451,14 @@ debt:
       real on the fixture in (1). Delete the PRINCIPALS, not the stores — and
       delete the Clerk side too, since a User row removed while its Clerk user
       survives is a re-provisioning trap rather than a cleanup.
+      ONE MORE FIXTURE, ADDED 2026-08-05: the gary@kevajuice.com PendingInvite
+      from the F4 test still shows Pending on staging /users. It was consumed or
+      errored; the row lingers. Trash icon, ten seconds, next time anyone is on
+      staging. Arrived as R8 on the 2026-08-05 pending-rulings sheet and was
+      moved here by Gary's ruling the same day — it is a chore with no options
+      and no decision in it, so it belongs with the fixtures rather than in the
+      decision log. NOT the Taylin@keva.com ADMIN invite above, which is the
+      sharp one; this is an ordinary leftover.
 
   - id: DEBT-45
     title: >
@@ -8375,3 +8383,216 @@ debt:
       approve-before-run). Check FKs off each User row before deleting.
       Do NOT fold into DEBT-47's handler work — this is the backlog, that
       is the faucet.
+
+# PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
+#
+# A DECISION LOG, NOT A SECOND DEBT TABLE. An entry belongs here only if the
+# next step is a DECISION rather than work. Anything with an obvious answer and
+# only effort in the way is a debt row or a chore note on an existing row — R8
+# on the source sheet was exactly that (a leftover staging invite) and was moved
+# to DEBT-44 by Gary's ruling rather than filed here.
+#
+# Accepted fields: id, title, status, asked, question, options, recommendation,
+# ruling, ruled, links. NOTHING ELSE — src/lib/roadmap.ts types this list and an
+# unknown field type-errors the build, the same way adding `open:` to a debt row
+# does.
+#
+# status: open | ruled | deferred
+#   open     — awaiting a call. Counted in the page's headline number.
+#   ruled    — decided. `ruling` and `ruled` (the date) are then present.
+#   deferred — consciously not deciding yet. NOT counted as open, because a
+#              deferral IS a decision; it just isn't the final one.
+#
+# `ruling:` AND `ruled:` ARE ABSENT UNTIL A CALL IS MADE — never present-and-
+# empty. Absence already carries "not yet decided", and an empty string carrying
+# the same value is the mistake src/lib/roadmap.ts documents at length for
+# `resolved: false` on blocker entries: a field that duplicates what absence says
+# invites filling it in wholesale, which destroys the default that makes the
+# scheme safe.
+#
+# NO `commits:` FIELD, deliberately. A ruling is a decision, not work — the SHA
+# belongs on whatever row the ruling creates, and a ruling that produced no
+# commit is the normal case, not a gap.
+#
+# THE ID GAP AT R7 IS REAL AND INTENTIONAL. The source sheet
+# (docs/prompts/Froot_pending_rulings_sheet.md) carried an R7 asking whether to
+# keep the untracked promotion runbook in the repo. That closed in 1218be3
+# BEFORE this list was built, so it was never imported. The ids here match the
+# sheet one-for-one and were not renumbered to close the hole: renumbering would
+# break the correspondence with a document in docs/prompts/, which is a claim
+# and is never edited (CLAUDE.md § Where documents live).
+#
+# NOT MIGRATED, and it is R6's subject: SIX DEBT ROWS ALREADY OPEN WITH
+# "AWAITING RULING —" IN THEIR TITLES (DEBT-36, 38, 41, 42, 45, 48). That is a
+# pending-rulings convention of its own, predating this one, living inside the
+# debt table. Whether those six move here is R6's question and is not answered
+# by building this list. Until it is ruled, one list linking to the other is the
+# honest state — R6 carries the links.
+rulings:
+  - id: R1
+    status: open
+    asked: 2026-08-05
+    title: >
+      Schedule the DEBT-55 org-blind lookup sweep, or leave it latent
+    question: >
+      Twenty pages — eighteen inventory, plus /hr and /items — still look up the
+      user by Clerk id without checking the org, the same gap F1 closed
+      centrally. UI-only today: every gate behind them refuses independently.
+      It is why a cross-org session still sees an overpromising sidebar, and it
+      is a HARD PREREQUISITE for the org-switcher half of DEBT-50.
+    options:
+      - >
+        (a) Schedule the sweep soon — it is mechanical, one session, mostly one
+        module.
+      - >
+        (b) Leave open until something needs it: the switcher, or a new page
+        copying the pattern.
+      - >
+        (c) Fold it into the next inventory-touching session as a rider.
+    recommendation: >
+      (b), with one addition — a comment in CLAUDE.md or at the pattern's
+      most-copied site saying new pages must use the org-guarded lookup, so the
+      surface stops growing. The defect is latent, the centre is fixed, and no
+      phase currently needs it. A ruling of (a) produces a sweep session prompt;
+      (b) leaves the row open and turns into a comment-placement decision; (c)
+      is a note on the row.
+    links: [DEBT-55, DEBT-50]
+
+  - id: R2
+    status: open
+    asked: 2026-08-05
+    title: >
+      Direction for the DEBT-56 org-move stale row — webhook repair, deletion,
+      or leave it
+    question: >
+      When a member is removed from an org, their DB row keeps pointing at the
+      old org forever and no writer can correct it. Post-F1 such a person
+      degrades to STAFF with no in-app repair; before F1 they silently kept
+      their old role, which was worse. This needs a direction, not a patch.
+    options:
+      - >
+        (a) The webhook moves the row on membership.created when the identity
+        has exactly one membership.
+      - >
+        (b) The webhook deletes the row on membership.deleted — cleaner, but it
+        drops defaultStoreId and every FK hanging off User, so it needs an
+        enumeration first.
+      - >
+        (c) Leave as-is: the console.warn makes any occurrence one log grep, and
+        org moves are rare in a one-org world.
+    recommendation: >
+      (c) for now, revisited when multi-org work starts — at which point (a)
+      versus (b) becomes a design input to that phase rather than a standalone
+      fix. Write that into the row. Ruling (a) or (b) instead means an
+      audit-first session, since the FK enumeration has never been done.
+    links: [DEBT-56]
+
+  - id: R3
+    status: open
+    asked: 2026-08-05
+    title: >
+      Approve the DEBT-57 production fossil cleanup — the only item on the
+      source sheet with a live cost
+    question: >
+      Production holds DB rows pointing at deleted Clerk objects: the
+      kevajuice14 ghost STAFF row INSIDE the live org, which is why the rosters
+      disagree with Clerk today (six rows against five members); the gary@
+      dev-org row; the four rows orphaned by the 2026-08-04 cleanup
+      (blankettegirl, "My Organization", "Keva Smoothie Company", and
+      gary@keva.com's row beneath it); and the "Microsoft" dev org row.
+    options:
+      - >
+        (a) Approve the cleanup session — read-only verification SQL, then
+        hand-authored DELETEs presented for approval and run by Gary in the Neon
+        console.
+      - >
+        (b) Leave documented.
+    recommendation: >
+      (a), this week. It is the one item here with a cost paid by a user of the
+      product rather than by the process — wrong member counts on production —
+      it is small, and the evidence is already gathered. A ruling of (a)
+      produces a session prompt: read-only verify, approved DELETEs, re-verify,
+      branch ids throughout.
+    links: [DEBT-57, DEBT-47]
+
+  - id: R4
+    status: open
+    asked: 2026-08-05
+    title: >
+      square.manage — the registry grants it to ALL roles while every Square
+      route enforces ADMIN
+    question: >
+      The registry and the enforcement disagree, so one of them is wrong.
+      PERM-5's Session C reported it and deliberately left the Square routes
+      unmigrated rather than resolve it unilaterally.
+    options:
+      - >
+        (a) The registry is wrong — change square.manage to ADMIN_ONLY. It
+        matches reality, and Square connect/disconnect/sync are org-level
+        destructive actions; SEC-1 already treats disconnect as ADMIN.
+      - >
+        (b) The enforcement is wrong — widen access. There is no case for this.
+    recommendation: >
+      (a), emphatically. The Square routes then become migratable in a future
+      sweep with zero baseline change. The registry edit rides the next docs or
+      code session; nothing about it needs a session of its own.
+    links: [PERM-5, SEC-1]
+
+  - id: R5
+    status: open
+    asked: 2026-08-05
+    title: >
+      CLAUDE.md § Browser Evidence cites an org id that belongs to production,
+      in a passage describing a dev org
+    question: >
+      The incident report motivating the "name your org id" rule describes
+      org_3FhYUR… as a DEV org with nine stores and six staff. That id is
+      PRODUCTION's. Two readings fit: the incident was on dev and the report
+      pasted the wrong id, which is a label fix; or the session was on
+      PRODUCTION while believing it was dev, which is a historical finding with
+      a trace behind it.
+    options:
+      - >
+        (a) Ten-minute read-only look at the DEBT-9 Phase 3 records first — what
+        did that session DO on that org, observe or write, and do the counts
+        (nine stores, six staff) match production-at-that-date or dev? Then fix
+        the passage accordingly.
+      - >
+        (b) Correct the id and move on.
+    recommendation: >
+      (a). If the counts match dev it is the first reading and a one-line fix;
+      if they match production it is the second, and whatever that session did
+      needs a trace. Discriminating evidence exists, so use it rather than
+      picking the cheaper reading. A ruling of (a) produces a short read-only
+      look-see prompt.
+    links: [DEBT-9]
+
+  - id: R6
+    status: open
+    asked: 2026-08-05
+    title: >
+      Disposition of the six debt rows already carrying AWAITING RULING in
+      their titles
+    question: >
+      DEBT-36, 38, 41, 42, 45 and 48 each open with "AWAITING RULING" and have
+      been pending across several cycles. They predate the source sheet's
+      visibility, so it offers no per-item options for them; this entry asks how
+      to handle the set rather than any one of them.
+    options:
+      - >
+        (a) Extend the analysis with per-item options and a recommendation for
+        each, so the six join the same sitting.
+      - >
+        (b) Rule them directly from the rows without further input — they are
+        marked decisions-not-work and have been in view longer than this list
+        has existed.
+      - >
+        (c) Explicitly defer the six another cycle with a dated note, so they
+        stop being silently pending.
+    recommendation: >
+      (a). The point of a single sitting is that the desk ends clear, and six
+      unexamined items leave it half-done. Note that (a) or (c) also raises a
+      second question this list does not answer — whether the six should MOVE
+      into this list or stay as debt rows. That is worth its own session rather
+      than a side effect of either ruling.
+    links: [DEBT-36, DEBT-38, DEBT-41, DEBT-42, DEBT-45, DEBT-48]
