@@ -336,16 +336,30 @@ const SCOPE_OVERRIDES: Partial<Record<Capability, Partial<Record<PermissionRole,
 // until it matters. Every entry below is enforced server-side, on both the API
 // and the page wherever both exist.
 //
-// TWO CAPABILITIES ARE DELIBERATELY ABSENT: `templates.manage` and
-// `inventory.po.manage` are enforced only by a page redirect — the APIs behind
-// them (/api/templates, POST /api/inventory/purchase-orders) are still on
-// inline requireAdmin / requireManagerOrAdmin. Denying one would hide the page
-// while its endpoints kept answering, which manufactures the PERM-2 bug class
-// this project has already paid to close twice. Gary's ruling, 2026-08-04:
-// they wait for Session C. THEY ARE C's FIRST TWO APPENDS — once C migrates
-// those routes onto can(), add the entries here and the grid grows. That is
-// the whole maintenance protocol: Session C adds grid rows by appending to
-// this array, in one place.
+// B held TWO CAPABILITIES OUT deliberately — `templates.manage` and
+// `inventory.po.manage` were enforced only by a page redirect while the APIs
+// behind them stayed on inline requireAdmin / requireManagerOrAdmin, so
+// denying one would have hidden the page while its endpoints kept answering.
+// PERM-5C migrated those routes and both are now in the list below. The
+// protocol worked exactly as B wrote it: the grid grew by appending here, in
+// one place.
+//
+// PERM-5C ALSO MIGRATED CAPABILITIES THAT ARE STILL HELD OUT, for the same
+// reason B held those two — the enforcement is real but incomplete, and a
+// toggle would promise more than it delivers:
+//   * stores.view — GET /api/stores is the shared store-list endpoint every
+//     page in the app reads, and it serves any member BY DESIGN. Denying
+//     stores.view removes the nav entry and the /stores page; that endpoint
+//     would keep answering. stores.manage covers the writes and IS below.
+//   * settings.access — /settings is a page of toggles whose APIs each carry
+//     their own capability; denying it hides the page, not the toggles.
+//   * dashboard.view — see the redirect-target comment in
+//     (app)/dashboard/page.tsx. There is no safe destination to bounce a
+//     denied user to, because /dashboard is where everything else bounces.
+//   * labor.manage — Labor governance is its own ruling (Session C ruling 5).
+// PATCH /api/users/[id] enforces this list as the DENIABLE set, so none of the
+// four can be denied by a hand-rolled request either. Promoting any of them
+// means fixing the gap named above it first, then appending here.
 export type EnforcedCapability = {
   capability: Capability
   area: string
@@ -379,6 +393,14 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     area: "Stores",
     label: "Import and re-sync locations from Square",
     removes: "Reading the Square location list and re-syncing a store from Square.",
+  },
+  // PERM-5C append — B's first held-out capability, released now that
+  // /api/templates, /[id], /export and /import all ask it.
+  {
+    capability: "templates.manage",
+    area: "Templates",
+    label: "Templates",
+    removes: "The Templates section entirely — the page, editing, and import/export.",
   },
   {
     capability: "staff.view",

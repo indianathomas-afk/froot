@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { denyUnlessTemplatesManage } from "../access"
 import { NextResponse } from "next/server"
-import { requireAdmin } from "@/lib/auth"
 
 // ─── Templates Export ─────────────────────────────────────────────────────────
 // GET /api/templates/export           → CSV download (one row per task)
@@ -49,11 +49,8 @@ export async function GET(req: Request) {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  try {
-    await requireAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const denied = await denyUnlessTemplatesManage()
+  if (denied) return denied
 
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
