@@ -493,6 +493,16 @@ sales caches fresh (signature-verified; see `docs/FORECASTING.md` § Square orde
 
 Square is entirely optional — all features work without it, import buttons only show when connected.
 
+**Before touching Square scopes, `disconnect`, or anything labor-adjacent, read
+the seam design and the five DON'Ts in the `L-2` row of `docs/ROADMAP.yaml`.**
+Deferred build, live constraints — the two that fire in unrelated sessions are:
+never add an OAuth scope opportunistically (every addition re-consents every
+merchant), and never name anything a bare `Shift` (the word is already spent on
+`LaborDaypart`'s "Shift blocks" UI and on store-view handoff notes; Square
+scheduled shifts are `SquareScheduledShift`). Ruling: `docs/DECISIONS.md`
+2026-08-05 — a Square labor integration is strictly optional and can never break
+forecast-driven labor.
+
 ---
 
 ## Instagram Integration

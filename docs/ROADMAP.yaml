@@ -1033,8 +1033,164 @@ phases:
     track: labor
     size: L
     status: planned
-    title: "Team/Labor API — actual worked hours + wages, actual-vs-budget, Nevada OT warning"
-    notes: Needs additive Square OAuth scopes TIMECARDS_READ/WRITE + EMPLOYEES_READ.
+    title: >
+      OPTIONAL Square labor integration — schedules and timecards as an overlay
+      on forecast-driven labor, per-org toggle, off by default
+    notes: >
+      RE-SCOPED 2026-08-05 (Gary's ruling — DECISIONS.md, top entry). Was
+      "Team/Labor API — actual worked hours + wages, actual-vs-budget, Nevada OT
+      warning". Same work; the ruling changes its STATUS from an upgrade path to
+      an OPTIONAL ADD-ON. Keva is migrating to Square Scheduling (all stores by
+      September 2026), but Froot serves businesses that do and do not use
+      Square, so the integration is a boost and never a floor. BUILD IS
+      DEFERRED — this row is the seam design, written so a future build slots in
+      without tearing anything down.
+
+      ABSORBS the 2026-08-02 LABOR-1 draft. That draft proposed a NEW row under
+      a `LABOR-` prefix, which is a third numbering of this thread — the `L-`
+      prefix has been current since the 2026-07-20 reset, and L-2 was already
+      this row. Its phase (d), schedule write-back, was already L-4. Nothing is
+      filed under `LABOR-`; both prompt files stay untouched as dated claims
+      (CLAUDE.md § Where documents live). Superseding prompt:
+      docs/prompts/L-2_square_labor_seam.md.
+
+      REVERSED FROM THAT DRAFT: its phase (c) had coverage-from-actuals
+      SUPERSEDING the L-3 sales-inferred coverage decision. It does not. Real
+      staffing is an overlay ON TOP OF forecast-derived coverage — the
+      replacement path is precisely the one that stops working when Square is
+      off. L-3 (a) stands; StoreHours remains the coverage upgrade path.
+
+      --- SEAM (a) THE TOGGLE ---
+      Instagram's species, NOT activeModules (Gary's ruling, fork F3). Three
+      parts, matching how Labor and HR are already gated:
+        1. Availability gate: SQUARE_LABOR_AVAILABLE env, plus
+           SQUARE_LABOR_INTERNAL_ORG_IDS for production dogfooding — the exact
+           shape of laborModuleAvailable() / hrModuleAvailable()
+           (src/lib/auth.ts:35,53). Server-side only, never NEXT_PUBLIC_.
+        2. Per-org toggle: Organization.squareLaborEnabled Boolean
+           @default(false) — a dedicated column like instagramEnabled
+           (prisma/schema.prisma:28), NOT a fifth entry in activeModules.
+           WHY: activeModules is the BILLABLE ADD-ON list that drives the module
+           cards at settings/page.tsx:63-70. "Weekly Labor Model" is the product
+           the org buys; a Square connection is a DATA SOURCE for a module they
+           already pay for. An activeModules entry would advertise it as a
+           separate purchase AND would permit the incoherent state
+           square-labor-without-labor.
+        3. Enforcement: requireSquareLabor() in src/lib/labor-access.ts, layered
+           over requireLaborView() — both labor gates first, then the two Square
+           gates, each failing to 404 so an org without it cannot probe it.
+           ADMIN-only flip via POST /api/square/labor/toggle, mirroring
+           /api/labor/toggle and /api/instagram/toggle.
+        UI: a control inside the EXISTING Square Integration card on /settings,
+        the way InstagramActions sits inside the Instagram card — not a new
+        module card.
+
+      --- SEAM (b) THE DATA BOUNDARY ---
+      Square-sourced labor lives in clearly-separated storage that no core
+      feature reads. New, prefixed tables — SquareTimecard, SquareScheduledShift
+      — each carrying its own syncedAt and syncState. The core engines
+      (labor-budget.ts, labor-plan.ts, labor-coverage.ts, labor-forecast.ts)
+      NEVER gain a Square-sourced input; they keep reading SalesForecast /
+      DailyGoal. The integration ADDS a comparison layer on top:
+      planned-vs-actual, scheduled-vs-recommended, computed in a NEW module
+      (labor-actuals.ts) that the core never imports.
+      THE BOUNDARY TEST, and it is a real test to run before shipping: DROP
+      EVERY SQUARE-LABOR TABLE AND EVERY EXISTING LABOR SURFACE MUST RENDER
+      BYTE-IDENTICALLY. If anything moves, the boundary leaked.
+      Mirrored Square data is PER-ENVIRONMENT stored data — it does not migrate
+      between Neon branches, exactly like GoalPlan (DECISIONS.md § L-3 (c)).
+      Each branch syncs independently; promoting code moves none of it.
+
+      --- SEAM (c) THE FAILURE POSTURE ---
+      EXACTLY THREE STATES, and the third is the one that gets skipped:
+        OFF — the feature does not exist. No card, no badge, no nav, 404s.
+        ON BUT UNHEALTHY — a degraded BADGE or banner on the comparison layer
+          ("Square labor unavailable — last synced <ts>"), with every core
+          number unchanged and still rendered. The overlay is what degrades.
+        ON AND HEALTHY — the comparison layer renders.
+      NEVER: a crashed page. NEVER: an integration error surfacing as 401/403 —
+      see BUG-1. NEVER: zeros or empty arrays presented as measurements; absent
+      data reads "not synced", which is a different sentence from "0 hours".
+      BUG-1 IS THE ANTI-PATTERN TO NOT REPEAT, and it is live in the very file
+      this seam lands in: src/lib/labor-access.ts:26-31 catches getCurrentUser()
+      failures and returns 401 Unauthorized — its own comment says "this catch
+      also swallows DB/connection errors for every /api/labor route". An
+      infrastructure failure wearing an auth failure's clothes sends the next
+      debugger to Clerk. The Square reads must be caught at the CARD BOUNDARY,
+      typed distinctly from auth outcomes, and logged with the real cause.
+      Also: /api/square/disconnect (which today nulls the three token columns
+      and nothing else — the correct shape) must NEVER cascade into labor data.
+      A disconnected org keeps its mirrored rows and shows them as stale; it
+      does not lose them. Staleness is a badge, not a delete.
+
+      --- SEAM (d) OAUTH SCOPES AND VERSION — THE LONG POLE ---
+      Measured 2026-08-05, NOT resolved. Froot requests, verbatim
+      (src/app/api/square/auth/route.ts:9):
+        MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ
+      Every Labor API scope is absent — TIMECARDS_READ (timecards AND scheduled
+      shifts), TIMECARDS_SETTINGS_READ (break/workweek config), TIMECARDS_WRITE
+      (schedule push, L-4). ADDING ANY OF THEM FORCES EVERY EXISTING MERCHANT
+      CONNECTION BACK THROUGH A CONSENT SCREEN. That is a merchant-facing
+      re-auth rollout, not a deploy — establish it EARLY, it is the long pole,
+      not the code. Second prerequisite: Square-Version is pinned 2024-01-17
+      (src/lib/square.ts:4 — one constant, seven call sites, raw fetch, no
+      `square` npm package), below the 2025-05-21 floor Labor/Timecard endpoints
+      require. Re-verify both at kickoff; this row may sit for months and
+      deprecation timelines move.
+
+      LABOR-0 (docs/prompts/LABOR-0_shift_surface_grep.md) HAS NEVER RUN — it is
+      an unexecuted prompt, filed with three others in 2e75029, with no results
+      record anywhere. RUN IT BEFORE ANY BUILD. A PARTIAL pre-check on
+      2026-08-05 covered its Tasks 2-4 only (read-only greps over src/, excluding
+      src/generated; Task 1c construction-site count and Task 5 webhook inventory
+      NOT done) and found: ZERO hits for deprecated Shift endpoints or
+      labor.shift.* events — the surface is clean, so no Shift-migration row is
+      warranted, per that draft's own conditional; ZERO hits for Timecard,
+      SearchTimecards, WorkweekConfig, TeamMemberWage — no Square labor ingest
+      exists today. Those two answers are load-bearing for this row and are
+      dated; the audit is still owed the other three tasks.
+
+      WAGE DATA STAYS GATED. Hours are not sensitive; dollars are. Any wage half
+      inherits DEBT-10's territory (Square team-member PII — 138 employees'
+      emails were exposed in production) and must serve through
+      labor.costs.view, the MANAGE-tier capability PERM-4 (c) introduces
+      (DECISIONS.md 2026-07-27). Timecard.wage carries a rate ONLY where Square
+      team-member wage settings are configured, so the integration must WARN on
+      the gap rather than render a silent zero — reuse the staff/[id]
+      affordance ("No store assigned — signed documents stamp a blank store").
+
+      DOES NOT INTERACT WITH DEBT-9. Timecards carry their own location, so
+      per-store labor is attributed from Square's data, not from
+      StaffMember.primaryStore. Primary store stays a payroll/legal label and a
+      compliance-rollup bucket. Confirmed 2026-08-02; do not re-derive.
+
+      --- DON'Ts FOR INTERVENING SESSIONS ---
+      Pointer line in CLAUDE.md § Square Integration; the list is here.
+        1. DON'T hardcode "all labor data is forecast-derived" at the seam sites
+           — labor-budget.ts, labor-coverage.ts, labor-plan.ts. Leave the input
+           shape open; an overlay has to be able to arrive.
+        2. DON'T SPEND THE WORD "SHIFT". It is already double-booked:
+           LaborDaypart renders as "Shift blocks" (settings/labor/
+           labor-settings-client.tsx:717) and store-view handoff notes say "next
+           shift". Never introduce a bare `Shift` model, type or column — Square
+           scheduled shifts are SquareScheduledShift, always prefixed.
+        3. DON'T add Square OAuth scopes opportunistically for an unrelated
+           feature. Every addition re-consents every merchant; batch them
+           deliberately or not at all.
+        4. DON'T make /api/square/disconnect cascade into labor data.
+        5. DON'T extend the labor-access.ts 401-masking catch to cover
+           integration errors — that is BUG-1 propagating.
+
+      OPEN QUESTIONS, deferred to kickoff:
+        - Ingest shape: webhook-driven, polled via SearchTimecards, or both.
+          Timecards are edited after the fact (manager corrections), so
+          labor.timecard.created alone is insufficient — an update path is
+          required regardless.
+        - Whether owner/admin accounts who never clock in should appear in
+          labor surfaces at all.
+        - Whether the toggle should auto-disable when Square disconnects, or
+          stay on and show unhealthy. Current lean: stay on and show unhealthy,
+          so a reconnect restores the feature without a second admin action.
 
   - id: L-3
     track: labor
@@ -1047,15 +1203,32 @@ phases:
       Promoted to prod 7-21 via merge 9743899 (carried the full HR/Labor
       backlog; main was 53 commits behind). Coverage stays sales-inferred for
       v1 per decision.
+      THAT DECISION WAS RE-AFFIRMED 2026-08-05, not superseded. A 2026-08-02
+      draft had Square actuals replacing the sales-inferred proxy; Gary's ruling
+      makes the Square labor integration optional, so actuals are an OVERLAY and
+      the proxy stays the always-on path. StoreHours below remains the coverage
+      upgrade path — Square is not it. See L-2 and DECISIONS.md (top entry).
     deferred:
-      - Populating StoreHours with real operating hours (open windows inferred from trailing sales until then)
+      - Populating StoreHours with real operating hours (open windows inferred from trailing sales until then) — still the upgrade path; NOT replaced by L-2's Square actuals (2026-08-05 ruling)
 
   - id: L-4
     track: labor
     size: L
     status: planned
     title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks, Square push"
-    notes: Confirm L-3/L-4 order when scoping past L-2. Shares Square OAuth scopes with L-2.
+    notes: >
+      Confirm L-3/L-4 order when scoping past L-2. Shares Square OAuth scopes
+      with L-2.
+      CROSS-NOTE 2026-08-05 — THE SQUARE PUSH HALF INHERITS L-2's WHOLE SEAM.
+      Gary's ruling (DECISIONS.md, top entry) makes the Square labor integration
+      strictly optional, and write-back is the same integration pointed the other
+      way: it sits behind the same squareLaborEnabled toggle, off by default, and
+      the assignment layer must remain fully usable as a Froot-only scheduler
+      with the toggle off or Square down. Write-back needs TIMECARDS_WRITE on top
+      of L-2's read scopes — the same re-consent event, so scope additions for
+      L-2 and L-4 should be batched into ONE consent moment rather than two.
+      Naming: SquareScheduledShift, never a bare `Shift` — see L-2 DON'T #2, the
+      word is already spent twice in this codebase.
 
   # ---- Permissions ----
 
