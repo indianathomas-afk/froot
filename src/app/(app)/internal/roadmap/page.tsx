@@ -33,6 +33,7 @@ export default async function RoadmapPage() {
       phases={roadmap.phases}
       bugs={roadmap.bugs}
       debt={roadmap.debt}
+      rulings={roadmap.rulings}
       lastUpdated={roadmap.lastUpdated}
       lastUpdatedSource={roadmap.lastUpdatedSource}
     />
