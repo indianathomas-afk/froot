@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { denyUnlessStoresManage } from "../access"
 import { NextResponse } from "next/server"
-import { requireAdmin } from "@/lib/auth"
 import { z } from "zod"
 
 const UpdateStoreSchema = z.object({
@@ -23,7 +23,8 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  try { await requireAdmin() } catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  const denied = await denyUnlessStoresManage()
+  if (denied) return denied
 
   const { id } = await params
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
@@ -40,7 +41,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  try { await requireAdmin() } catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  const denied = await denyUnlessStoresManage()
+  if (denied) return denied
 
   const { id } = await params
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
