@@ -1286,7 +1286,7 @@ phases:
     shipped: 2026-08-04
     # B's two, then Session C's range endpoints — the eleven between them are
     # contiguous and named in the notes rather than listed here.
-    commits: [5119a6b, 24eb289, 6fb4b4f, 2a7e044]
+    commits: [5119a6b, 24eb289, 6fb4b4f, 2a7e044, 72bcf30]
     title: "Per-user capability overrides — the toggle layer"
     notes: >
       Grant or remove a capability for ONE user against their role baseline —
