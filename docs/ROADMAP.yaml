@@ -1355,19 +1355,73 @@ phases:
       UI or API, that grants a capability above the role ceiling; an
       unregistered capability is refused 400; and a denial of something the
       role does not grant stores nothing. The principal ended at zero denials.
-      Session prompt: docs/prompts/PERM-5_per_user_capability_overrides.md
+      SESSION C BUILT 2026-08-04 — 11 commits from 6fb4b4f to 2a7e044, on
+      staging, UNPUSHED at time of writing. 39 inline role checks migrated
+      across eight areas (staff, templates, stores, reports, dashboard,
+      purchase orders, users, settings) plus one security fix. BOTH MOTIVATING
+      EXAMPLES ARE NOW EXPRESSIBLE, which is the only thing this session was
+      for: (a) staff.view on the /staff layout kills nav, page and API
+      together; (b) the /staff/[id] page ran on ONE inline ADMIN||MANAGER flag
+      driving edits, notes, documents, training and compliance alike — there
+      was no seam between reading the page and acting on it, so no override
+      could have expressed one. It splits into staff.manage / staff.notes.use /
+      staff.documents.manage and an unchanged role check for the HR-derived
+      tabs (HR is its own phase).
+      NO BASELINE MOVED anywhere. Two disagreements were found and neither was
+      resolved silently: /settings/labor is ADMIN+MANAGER and C2 proposed the
+      ADMIN_ONLY settings.access for it — migrated to labor.manage instead
+      (Gary's ruling), which matches exactly and is already what the sidebar
+      asks for that link; and square.manage is ALL in the registry while every
+      Square route enforces ADMIN, so those routes stay UNMIGRATED pending a
+      ruling. Where a page affordance was deliberately STRICTER than the API it
+      calls (the /staff list buttons are ADMIN-only over MANAGE-tier routes) the
+      capability was AND-ed with the existing isAdmin rather than replacing it —
+      swapping would have widened.
+      THE GRID GREW 15 → 21 by appending to ENFORCED_CAPABILITIES, one place,
+      exactly as B's protocol said: users.manage, templates.manage,
+      staff.documents.manage, staff.notes.use, reports.view,
+      inventory.po.manage. B's two held-out rows are both released.
+      FOUR CAPABILITIES ARE MIGRATED BUT DELIBERATELY HELD OUT, each with its
+      blocking gap named at the capability — stores.view (GET /api/stores is
+      the shared store list and serves any member by design), dashboard.view
+      (a denied user would have no landing page; /dashboard is where every
+      other guard redirects, so the redirect target must change first),
+      labor.manage (Labor governance is its own ruling), settings.access (its
+      gap is the intended architecture — the toggle APIs belong to module
+      governance, not to this page, so promotion needs a different argument
+      rather than a finished migration). PATCH /api/users/[id] enforces
+      ENFORCED_CAPABILITIES as the DENIABLE set, so none of the four can be
+      denied by a hand-rolled request either — the hidden-page/answering-API
+      state is not merely avoided, it is inexpressible.
+      C4 DISCHARGED. B left a placeholder asking for a re-check once
+      users.manage became load-bearing. It did; the argument holds; the
+      placeholder is replaced by the argument in five steps at the site. The
+      invariant is that at least one ADMIN always holds users.manage, resting
+      on the self-edit refusal and the last-admin removal guard — both named in
+      the comment so weakening either is visible.
+      Session prompt: docs/prompts/PERM-5C_migration_sweep.md
     deferred:
       - >
-        SESSION C — the call-site migration sweep (~45 inline role checks:
-        Staff ~18, Users 8, Templates 7, Stores 5, Settings 2, Dashboard 2,
-        Reports 1). B ships the machinery; C is what makes Gary's two
-        motivating examples ("inventory yes / staff no", "staff view / no
-        edit") expressible. C's first two appends to ENFORCED_CAPABILITIES are
-        templates.manage and inventory.po.manage, held out of the B grid
-        because they are enforced only by a page redirect today — denying one
-        would hide a page while its API kept answering (Gary, 2026-08-04).
+        SESSION C STAGING ACCEPTANCE has not run — the 11 commits are unpushed,
+        so staging does not contain this work. The checklist is in the session
+        report: both motivating examples, the two new staff tiers denied
+        individually, coarse spot-checks on reports/templates/PO, the 400 on a
+        hand-rolled denial of a held-out capability, and the regression that an
+        untouched MANAGER and ADMIN behave exactly as before (ruling 3's proof).
+      - >
+        SQUARE ROUTES UNMIGRATED, pending a ruling. square.manage is ALL in the
+        registry while /api/square/{auth,disconnect,catalog/sync,sales-items/
+        sync} all enforce ADMIN. Migrating onto the registry value would hand
+        every member the Square connection; migrating the registry down to
+        ADMIN_ONLY is a restriction, not a migration. Named in permissions.ts
+        since PERM-1 and still the honest answer: the whole surface needs one
+        decision.
       - >
         HR migration (35 routes, 13 pages) — its own future row per the audit.
+        PERM-5C touched its edge deliberately without entering it: the
+        /staff/[id] HR-derived tabs keep their inline role check, commented, so
+        the HR phase is not begun in the file least likely to be reviewed as
+        part of it.
       - >
         Per-user-per-store granularity is OUT and recorded as a limitation:
         kevajuice14@icloud.com is one MANAGER device across Las Brisas + South
