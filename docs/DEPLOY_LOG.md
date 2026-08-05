@@ -63,7 +63,28 @@ Deploy verification: 2026-07-02T22:00:05Z
   **On rollback: do NOT drop the column.** Reverting the code leaves an unread
   additive column, which is harmless; dropping it is a destructive migration
   against production for no benefit.
-- **Smoke test: pending — see follow-up commit.**
+- **SMOKE TEST PASSED 2026-08-04 (Gary), on www.usefroot.com, org
+  `org_3FhYUR4l0ue7egug1I0Ig8wxOVn`** — every Step 5 checkbox green: the
+  capability grid renders on production, **the Vercel production log search
+  for "cross-org" returned ZERO lines**, and baselines are unchanged at zero
+  denials. Nothing was denied on a production account; day one was observation
+  only, by design. Recorded in a follow-up commit after the entry above, per
+  the runbook's own "amend or follow-up — note which".
+- **ORG ID ATTRIBUTION, corrected here because the contrary is written down
+  elsewhere:** `org_3FhYUR4l0ue7egug1I0Ig8wxOVn` is the **PRODUCTION** Clerk
+  org (Keva Juice, 5 members) — evidenced by the production Clerk dashboard's
+  Organizations list under the Production breadcrumb, and by a production SQL
+  query on `br-sparkling-block-a620qvg4` joining `Organization`
+  `cf888f2d-f234-48c7-8097-fd5b44b5b3dd` to that `clerkOrgId`. CLAUDE.md
+  § Browser Evidence currently attributes the same id to **dev**, alongside
+  `org_3FhMmIWVjja5HYpsou8n6rVtZn2`. The reconciliation is the fossil-row
+  trap this log already documents: staging/dev were branched FROM production
+  and **inherited its `Organization` rows verbatim**, so that `clerkOrgId`
+  string is present in the dev/staging DATABASE while the Clerk org itself
+  lives on the production instance. **Clerk-side truth wins over a DB row.**
+  The dev instance's own Keva Juice orgs are `org_3FhMmIWVjja5HYpsou8n6rVtZn2`
+  and one other. CLAUDE.md is NOT edited by this session (scope was two docs);
+  the correction is filed for a ruling.
 
 ## 2026-08-02 (night) — PRODUCTION promotion (PERM-6/7 closure + P-4 + DEBT-TRIAGE + DEBT-43/13/29 + DEBT-9 Phases 1–3) + DEBT-9 Phase 4 production data
 

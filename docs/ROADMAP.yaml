@@ -1282,7 +1282,8 @@ phases:
   - id: PERM-5
     track: permissions
     size: L
-    status: in_progress
+    status: shipped
+    shipped: 2026-08-04
     # B's two, then Session C's range endpoints — the eleven between them are
     # contiguous and named in the notes rather than listed here.
     commits: [5119a6b, 24eb289, 6fb4b4f, 2a7e044]
@@ -1437,13 +1438,18 @@ phases:
       Session prompt: docs/prompts/PERM-5C_migration_sweep.md
     deferred:
       - >
-        PRODUCTION PROMOTION has not happened. Staging carries A+B+C verified;
-        production has not applied migration 20260804123449 and will not until
-        staging is merged forward, so User.deniedCapabilities does not exist
-        there yet. The row stays in_progress for that reason alone — every
-        session's work is done and verified. Whoever promotes it should read
-        the Neon advisory-lock note (P1002 on the pooler) before assuming a
-        failed deploy means a bad migration.
+        SHIPPED 2026-08-04: promoted in 999cbdc; migration 20260804123449
+        applied to production via migrate deploy (build log confirmed); smoke
+        test passed 2026-08-04 — grid renders on production, zero cross-org log
+        lines, baselines unchanged at zero denials. DEPLOY_LOG entry same
+        date. Still explicitly excluded from this phase: HR migration, the
+        ungoverned surfaces (operational inventory, /messages, /store-view,
+        /labor), Users/Settings view/manage splits, Settings toggle APIs,
+        per-user-per-store granularity, the square.manage baseline ruling.
+        The promotion was a FAST-FORWARD of 32 commits (de3ba40..999cbdc), so
+        no merge commit exists and `git revert -m 1` does not apply — the
+        DEPLOY_LOG entry carries the reverse-order revert list. Smoke test ran
+        on www.usefroot.com under org org_3FhYUR4l0ue7egug1I0Ig8wxOVn.
       - >
         SQUARE ROUTES UNMIGRATED, pending a ruling. square.manage is ALL in the
         registry while /api/square/{auth,disconnect,catalog/sync,sales-items/
