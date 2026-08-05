@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
+import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope, laborModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
@@ -19,7 +20,7 @@ async function getDashboardData() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return null
 
-  const { isAdmin, storeIds, role, actor } = await getUserStoreScope()
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
 
   const stores = await prisma.store.findMany({
     where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
@@ -27,10 +28,31 @@ async function getDashboardData() {
     select: { id: true, name: true, city: true, state: true },
   })
 
-  // Days since last finalized count (kept from Phase I-4) — managers/admins,
-  // inventory module only.
+  // PERM-5C. THE PAGE GUARD /dashboard never had (it was on PERM-5A's
+  // ungoverned list). dashboard.view is ALL, so no role's access changes —
+  // this exists so the landing page is reachable through the same layer as
+  // everything it links to.
+  //
+  // notFound(), NOT redirect(). /dashboard is where every other guard in the
+  // app sends a denied user — the staff, stores, reports and templates layouts
+  // all redirect here — so a redirect from this page could only point at
+  // itself. That is also why dashboard.view is deliberately absent from
+  // ENFORCED_CAPABILITIES: a denied user would have no landing page at all and
+  // no in-app way back. THE REDIRECT TARGET MUST CHANGE BEFORE THIS CAPABILITY
+  // IS EVER PROMOTED TO THE GRID (Gary, 2026-08-04). Until then the branch is
+  // unreachable in practice — every role grants dashboard.view, and PATCH
+  // /api/users/[id] refuses to store a denial that is not in the grid list.
+  if (!can(actor, "dashboard.view")) notFound()
+
+  // Days since last finalized count (kept from Phase I-4), inventory module
+  // only. Was an inline ADMIN||MANAGER test; inventory.analytics.view is
+  // MANAGE — the same tier — and this card is the dashboard face of the
+  // finalized-count summary that capability already governs (see its registry
+  // comment). One denial now takes the reports, the alerts, the summary AND
+  // this card together, instead of leaving a count-recency readout stranded on
+  // the landing page after an admin thought they had removed it.
   let countRecency: { storeId: string; storeName: string; days: number | null }[] = []
-  const canSeeCounts = role === "ADMIN" || role === "MANAGER"
+  const canSeeCounts = can(actor, "inventory.analytics.view")
   if (canSeeCounts && org.activeModules.includes("inventory")) {
     const withCounts = await prisma.store.findMany({
       where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
