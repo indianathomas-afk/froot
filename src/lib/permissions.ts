@@ -436,6 +436,15 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Manager notes",
     removes: "The Notes tab on a staff member, and writing or editing notes.",
   },
+  // PERM-5C append. The only area in the sweep with no API at all — the page
+  // is a server component reading Prisma directly — so nav + page is the whole
+  // surface and one layout guard closes it completely.
+  {
+    capability: "reports.view",
+    area: "Reports",
+    label: "Reports",
+    removes: "The Reports section — completion rates and the seven-day checklist rollup.",
+  },
   {
     capability: "forecasting.view",
     area: "Forecasting",
