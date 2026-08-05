@@ -6875,6 +6875,35 @@ debt:
       border colour — an UNLAYERED `*` rule in globals.css overrides every
       border-color utility
     notes: >
+      READ THIS FIRST — THE FILE TAILWIND SCANS IS docs/ROADMAP.yaml, NOT
+      src/generated/roadmap.ts. Hoisted to the top of this row 2026-08-05 by
+      Gary's ruling. The row stated the WRONG file first and corrected itself
+      several paragraphs down, and that ordering has now cost twice: once inside
+      this row, where two attempts were spent neutralizing the generated file
+      and changed nothing, and once OUTSIDE it, when a 2026-08-05 session brief
+      repeated the wrong claim as its own premise — it read the top of the row
+      and stopped. A ROW THAT MISLEADS A SKIMMER MANUFACTURES FALSE PREMISES
+      DOWNSTREAM, so the correction now sits where the skimmer is.
+      THE CORRECTED RULE, in the order it should be read:
+      (1) TAILWIND SCANS docs/ROADMAP.yaml — the TRACKED file, this prose, in
+      source control. Prose in a row's notes can create real CSS selectors out
+      of ordinary English words. Neutralized in 5da1008 by
+      `@source not "../../docs"` (src/app/globals.css:10); confirm that line
+      still exists before assuming a new row's prose is harmless.
+      (2) TAILWIND DOES NOT SCAN src/generated/roadmap.ts. It is gitignored
+      (.gitignore:47) and Tailwind 4 honours .gitignore. Proven, not inferred:
+      with 5da1008 applied that file still contains two `--color-*` occurrences
+      and dev runs clean.
+      (3) GREPS RUN THE OTHER DIRECTION, and for them the original rule stands —
+      src/generated/roadmap.ts carries every row's notes as string literals, so
+      ANYONE GREPPING src FOR EVIDENCE ABOUT A DEBT ROW MUST EXCLUDE IT. Both
+      files say whatever the row says; only one of them is scanned, and it is
+      not the one the rule further down names.
+      RE-VERIFIED 2026-08-05 while adding the `rulings:` list to this file:
+      emitted CSS byte-identical across the change — 78,350 bytes and 1,031
+      unique class selectors before and after, zero added, zero removed. The
+      exclusion is doing its job, measured rather than assumed.
+      ── PRIOR NOTES BELOW, UNEDITED ──
       SHIPPED — VERIFIED ON PRODUCTION 2026-08-03. Promoted in the de3ba40
       production promotion of 2026-08-02; implementing commits 1dbe9ca, 06befd2,
       475e425, 04da67f, 790cfc4, 5da1008 and 24894fa — SEVEN, where this row's

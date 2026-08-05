@@ -136,6 +136,11 @@ export interface DebtItem {
  * not the final one — so it does not count toward the "awaiting a call" number
  * on the page. That is the whole reason it exists as a value rather than being
  * written as a note on an open entry.
+ *
+ * `isOpenRuling` in roadmap-client.tsx is the single definition of which
+ * rulings are outstanding — read it rather than restating the test here
+ * (DEBT-26), exactly as the two comments above do for `isResolvedBlocker` and
+ * `isResolvedDebt`.
  */
 export type RulingStatus = "open" | "ruled" | "deferred"
 
