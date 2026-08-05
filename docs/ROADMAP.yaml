@@ -1338,6 +1338,23 @@ phases:
       The grid renders a maintained ENFORCED_CAPABILITIES list (15), not the
       registry — 24 registry entries have no call sites and 15 are nav-only.
       Session C adds grid rows by appending to that one array.
+      SESSION B VERIFIED ON STAGING 2026-08-04, against deployed SHA
+      21a80e7c36c1cb2095b86a3ccf81496ed384c33f. Migration 20260804123449
+      reached staging through the pipeline's own `prisma migrate deploy`, never
+      by hand — which is what cleared the blocker below rather than any local
+      action. The Task B4 principal was gary@keva.com (MANAGER, Carson),
+      SUBSTITUTED for the prompt's kevajuice06@icloud.com: that is a production
+      device account and B4 was never going to be run against production. Note
+      the substitution rather than reading the pass as covering the account the
+      prompt named. Result: denying inventory.analytics.view removed the nav
+      entry, the pages and the APIs TOGETHER — PERM-2's discipline held on the
+      first capability that ever exercised it — and forecasting was untouched,
+      which is the whole point of a per-capability grid rather than a per-area
+      one. Restoration verified by re-granting. The three negatives verified
+      too, and they are the load-bearing half: there is NO control anywhere,
+      UI or API, that grants a capability above the role ceiling; an
+      unregistered capability is refused 400; and a denial of something the
+      role does not grant stores nothing. The principal ended at zero denials.
       Session prompt: docs/prompts/PERM-5_per_user_capability_overrides.md
     deferred:
       - >
@@ -1357,17 +1374,25 @@ phases:
         Reno, so "no labor at one, yes at the other" is not expressible per
         user. The v1 answer is two device accounts; the grid says so in copy.
     blockers:
-      - >
-        MIGRATION NOT YET APPLIED ANYWHERE. 20260804123449 is committed but has
-        not been run against the local dev DB, and staging/production apply it
-        via `prisma migrate deploy` on their next Vercel build. Any page or
-        route that reads a User row will error until it lands, so the Task B4
-        staging pass cannot run before it. Migration SQL:
-        ALTER TABLE "User" ADD COLUMN "deniedCapabilities" TEXT[].
-        (Written as a plain string, not `resolved: false` — the generator
-        infers `resolved: true` as a literal type from the existing entries and
-        a false one fails `next build`. Same defect P-4 tracks from the other
-        side: blocker state is not modelled.)
+      - resolved: true
+        text: >
+          RESOLVED 2026-08-04 — 20260804123449 reached staging via the Vercel
+          build's `prisma migrate deploy`, and the Task B4 pass then ran green
+          against 21a80e7 (see the verification note above). PRODUCTION HAS NOT
+          APPLIED IT and will not until staging is promoted; that is the normal
+          pipeline, not an outstanding blocker. Original text kept below,
+          because the shape note in its last sentence is still live guidance for
+          anyone writing the next blocker. ORIGINAL TEXT FOLLOWS:
+          MIGRATION NOT YET APPLIED ANYWHERE. 20260804123449 is committed but has
+          not been run against the local dev DB, and staging/production apply it
+          via `prisma migrate deploy` on their next Vercel build. Any page or
+          route that reads a User row will error until it lands, so the Task B4
+          staging pass cannot run before it. Migration SQL:
+          ALTER TABLE "User" ADD COLUMN "deniedCapabilities" TEXT[].
+          (Written as a plain string, not `resolved: false` — the generator
+          infers `resolved: true` as a literal type from the existing entries and
+          a false one fails `next build`. Same defect P-4 tracks from the other
+          side: blocker state is not modelled.)
       - resolved: true
         text: >
           RESOLVED 2026-07-27 by PERM-6 Task 5 — kept in full below as the record
