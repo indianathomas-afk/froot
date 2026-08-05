@@ -3,9 +3,14 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireAdmin } from "@/lib/auth"
-import { can, isCapability, type Capability } from "@/lib/permissions"
+import { ENFORCED_CAPABILITIES, can, isCapability, type Capability } from "@/lib/permissions"
 import { findStaffMemberForUser } from "@/lib/hr"
 import { validateDefaultStore } from "@/lib/default-store"
+
+// PERM-5C. Derived from the grid list, never maintained beside it — a second
+// hand-written list would be one append away from disagreeing with the UI, and
+// the disagreement would show up as a toggle that 400s.
+const DENIABLE = new Set<Capability>(ENFORCED_CAPABILITIES.map((e) => e.capability))
 
 const patchSchema = z.object({
   role: z.enum(["ADMIN", "MANAGER", "STORE", "STAFF"]),
@@ -52,11 +57,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const { role, storeIds, defaultStoreId, deniedCapabilities } = parsed.data
 
-  // PERM-5. Two rules, and they fail differently on purpose.
+  // PERM-5. Three rules, and they fail differently on purpose.
   //
   // An UNREGISTERED capability is a 400: it is a client bug or a hand-rolled
   // request, and storing it would put a string in the column that can() can
   // never match — a denial that silently does nothing forever.
+  //
+  // PERM-5C. A registered capability that is NOT IN THE GRID is also a 400 —
+  // THE GRID LIST IS THE DENIABLE LIST. Session C migrates several capabilities
+  // onto can() that are deliberately held out of ENFORCED_CAPABILITIES because
+  // denying them would hide a nav entry and a page while an API kept answering:
+  // stores.view (GET /api/stores is the shared store-list endpoint every page
+  // uses and serves any member by design), dashboard.view (the redirect target
+  // problem at (app)/dashboard/page.tsx), settings.access, labor.manage. The
+  // grid cannot produce those denials. Without this check a hand-rolled request
+  // still could, and the result would be the PERM-2 bug class made expressible
+  // INVISIBLY — no toggle to see it by, no screen that shows it on. 400 rather
+  // than a silent drop, deliberately, and for the same reason as the
+  // unregistered case above: nothing legitimate sends one, so a caller that
+  // does is wrong and should be told, not quietly humoured into believing the
+  // denial took. A capability leaving this state is a one-line append to
+  // ENFORCED_CAPABILITIES — the same one place Session C already grows.
   //
   // A denial of a capability the RESULTING role does not grant is DROPPED, not
   // rejected. It is a no-op today (the ceiling already denies it) and a
@@ -75,9 +96,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         { status: 400 }
       )
     }
-    nextDenied = [...new Set(deniedCapabilities.filter(isCapability))].filter((c) =>
-      can({ role }, c)
-    )
+    const registered = [...new Set(deniedCapabilities.filter(isCapability))]
+    const notDeniable = registered.filter((c) => !DENIABLE.has(c))
+    if (notDeniable.length > 0) {
+      return NextResponse.json(
+        { error: `Capability is not individually deniable: ${notDeniable.join(", ")}` },
+        { status: 400 }
+      )
+    }
+    nextDenied = registered.filter((c) => can({ role }, c))
   }
 
   const existing = await prisma.user.findFirst({ where: { id, organizationId: org.id } })
