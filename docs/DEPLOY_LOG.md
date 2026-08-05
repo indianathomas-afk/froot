@@ -4,6 +4,67 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-08-04 — PRODUCTION promotion (DEBT-53/54 security + PERM-5 Sessions B+C + DEBT-50 docs package + DEBT-55 site 1 + DEBT-9/13/29/43/46 closures)
+
+- **Promotion SHA:** `999cbdc` — full: `999cbdc78ffe1f3c7e66d2653aab2497745619b3`.
+  Pushed to `origin/main` 2026-08-04.
+- **FAST-FORWARD, not a merge.** `origin/main`, `origin/staging` and `999cbdc`
+  are all the same commit; the previous production tip `de3ba40` is an ancestor
+  of `999cbdc` and the set is contiguous. **No merge commit exists, so
+  `git revert -m 1` does not apply** — this is the DEBT-38 fact the entry
+  exists to record, since a fast-forward leaves no artifact on the platform.
+- **THIRTY-TWO commits**, `de3ba40..999cbdc`. The exclusive range is correct
+  here — `de3ba40` was itself the previous promotion SHA and is already on
+  production — but note the trap the `de3ba40` entry below documents: that
+  range notation excludes its base, and it is only safe when the base is
+  already promoted. Oldest promoted commit `f4648ca`, newest `999cbdc`.
+- **Rollback = revert all 32 in reverse order**, then push main:
+  `999cbdc bf87743 2a7e044 2d0e0d9 7cf96a7 b08f994 a039212 635bb5f 18b8809
+  13c332a e7685d0 4e4cb82 24fa108 6fb4b4f 21a80e7 2e75029 096edd7 24eb289
+  5119a6b 1024bf6 3784c34 5695aab eabf779 ae61597 736ac99 58589c9 d098530
+  f2082ce 426f07c 3536a30 16d1006 f4648ca`
+  Faster posture if it comes to it: Vercel → promote the `de3ba40` deployment
+  back to current. **The migration is additive and stays either way.**
+- **What shipped**, by theme:
+  - **DEBT-53 / F1 — cross-org privilege escalation guard** (`5695aab`).
+    `getCurrentUser()` no longer returns a `User` row belonging to a different
+    organization than the active Clerk org. Verified on staging with log
+    evidence. **Security.**
+  - **DEBT-54 / F4 — accept-invite fails toward sign-in** (`3784c34`), not
+    sign-up. **Security.**
+  - **PERM-5 Session B — the override machinery** (`5119a6b`, `24eb289`,
+    `096edd7`): `User.deniedCapabilities` via migration `20260804123449`, the
+    `can()` override seam, and the Edit User capability grid (20 rows) on a
+    footer that now works.
+  - **PERM-5 Session C — the 39-site migration sweep** (`6fb4b4f`, `24fa108`,
+    `4e4cb82`, `e7685d0`, `13c332a`, `18b8809`, `635bb5f`, `a039212`,
+    `b08f994`, `7cf96a7`, `2d0e0d9`, `2a7e044`, `bf87743`, `999cbdc`) —
+    inline role checks migrated onto `can()` across Staff, Templates, Stores,
+    Reports, Dashboard, purchase-order writes, `/settings`, `/settings/labor`
+    and Users; the deniable-list rule (the grid list IS the deniable list);
+    and a security fix found mid-sweep — `DELETE /api/staff/[id]` was
+    unguarded (`2a7e044`).
+  - **DEBT-50 docs package** (`1024bf6`) — rows 53–57 filed, the `DECISIONS.md`
+    mechanism entry, and the F3 rulings.
+  - **DEBT-55 site 1/21** (`2e75029`, `21a80e7`) — `(app)/layout.tsx`
+    org-guards the sidebar's user lookup; four follow-on prompts filed.
+  - **Pre-existing closure docs** (`f4648ca`, `16d1006`, `3536a30`, `426f07c`,
+    `f2082ce`, `d098530`, `58589c9`, `736ac99`, `ae61597`, `eabf779`) —
+    DEBT-9 closed on the production gate walk, DEBT-46 closed on the
+    manufacturing paths (Clerk paginated-list drain, invite resolution by
+    normalised email, revoke-order fix), DEBT-13/29/43 shipped against
+    production, DEBT-51/52 filed.
+- **MIGRATION — one, applied on this promotion:**
+  `20260804123449_perm5_user_denied_capabilities` — adds
+  `User.deniedCapabilities`. **Applied to production by the pipeline's
+  `prisma migrate deploy` during this build; the production build log's
+  applying-line was confirmed before this entry was written.** Never run by
+  hand against production.
+  **On rollback: do NOT drop the column.** Reverting the code leaves an unread
+  additive column, which is harmless; dropping it is a destructive migration
+  against production for no benefit.
+- **Smoke test: pending — see follow-up commit.**
+
 ## 2026-08-02 (night) — PRODUCTION promotion (PERM-6/7 closure + P-4 + DEBT-TRIAGE + DEBT-43/13/29 + DEBT-9 Phases 1–3) + DEBT-9 Phase 4 production data
 
 - **Promotion SHA:** `de3ba40` — full: `de3ba40bd3767dec10f81afb313b575e3cd858df`.
