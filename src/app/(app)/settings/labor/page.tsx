@@ -3,6 +3,7 @@ import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, laborModuleAvailable } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { LaborSettingsClient } from "./labor-settings-client"
 
 // Labor configuration hub (ADMIN + MANAGER). Both feature gates first: where
@@ -18,14 +19,28 @@ export default async function LaborSettingsPage() {
   } catch {
     redirect("/dashboard")
   }
-  const { org, dbUser } = ctx
+  const { org, dbUser, actor } = ctx
 
   // Gate 1 (env availability) + Gate 2 (per-org toggle).
   if (!laborModuleAvailable(org.clerkOrgId) || !org.activeModules.includes("labor")) {
     notFound()
   }
-  // RBAC: config is ADMIN + MANAGER only.
-  if (dbUser?.role !== "ADMIN" && dbUser?.role !== "MANAGER") {
+  // PERM-5C, and NOT the capability C2's list proposed. The prompt named
+  // settings.access for this page because it lives under /settings — but
+  // settings.access is ADMIN_ONLY while this check has always been
+  // ADMIN||MANAGER, so applying it would have taken /settings/labor away from
+  // every MANAGER. That is a restriction, and ruling 3 is explicit that this
+  // session changes who enforces and never who is allowed.
+  //
+  // labor.manage is MANAGE — an exact match — and it is already the capability
+  // the sidebar asks for this very link (sidebar.tsx). The nav and the page
+  // agreeing is what ruling 2 wants; pointing them at different capabilities
+  // would have manufactured the disagreement. Gary's ruling, 2026-08-04.
+  //
+  // labor.manage stays OUT of the override grid: Labor governance is its own
+  // ruling (ruling 5), and /api/labor/* still enforces inline, so a denial
+  // would hide this page while those endpoints answered.
+  if (!can(actor, "labor.manage")) {
     redirect("/dashboard")
   }
 
