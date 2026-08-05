@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getCurrentUser, hrModuleAvailable, requireModule } from "@/lib/auth"
+import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 
 // Shared guard for the per-staff HR surfaces (uploaded documents). HR gate

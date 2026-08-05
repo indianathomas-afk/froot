@@ -160,21 +160,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return NextResponse.json({ success: true })
 }
 
-// FOUND BY PERM-5C, NOT FIXED HERE — flagged for Gary as a FIX NOW.
-// This handler has NO role check. Its sibling PATCH above requires
-// staff.manage and the /staff page that drives it is ADMIN-gated, but the
-// route itself admits ANY org member: the same class as PERM-2 §2 #1 (POST
-// /api/staff unguarded), which Gary ruled a security fix rather than a
-// preference. Blast radius is bounded — the record-count check below refuses
-// to delete anyone who has accumulated anything — but "delete a mis-imported
-// staff member" is not a capability every STORE and STAFF login should hold.
-// Not applied in this commit because Session C migrates existing checks and
-// does not invent restrictions (ruling 5); adding one is a behaviour change
-// that needs its own ruling. The fix is one line: the same
-// `if (!can(actor, "staff.manage"))` guard PATCH now carries.
+// SECURITY FIX, found by the PERM-5C sweep and applied on Gary's ruling
+// (2026-08-04). This handler had NO role check of any kind. Its sibling PATCH
+// above has always required manager tier, and the /staff page that drives the
+// button is ADMIN-gated — but the ROUTE admitted any authenticated org member,
+// so a STORE or STAFF login could delete a staff record with a single request.
+// Same class as PERM-2 §2 #1 (POST /api/staff unguarded), which was likewise
+// ruled a security fix rather than a preference.
+//
+// The blast radius was bounded, not absent: the record-count check below
+// refuses to delete anyone who has accumulated task logs, messages, notes,
+// acknowledgments, signed records, submissions, training or documents. So what
+// was reachable is deleting a recently-imported or mistakenly-created member —
+// which is exactly the roster churn nobody would look twice at.
+//
+// staff.manage is the same capability PATCH asks, which is the point: edit and
+// delete are the same authority over the same record, and only one of them was
+// ever enforced.
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { actor } = await getUserStoreScope()
+  if (!can(actor, "staff.manage")) {
+    return NextResponse.json({ error: "Manager or Admin access required" }, { status: 403 })
+  }
 
   const { id } = await params
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
