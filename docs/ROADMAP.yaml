@@ -1181,16 +1181,25 @@ phases:
         5. DON'T extend the labor-access.ts 401-masking catch to cover
            integration errors — that is BUG-1 propagating.
 
-      OPEN QUESTIONS, deferred to kickoff:
+      OPEN QUESTIONS, deferred to kickoff — THREE, of which the third is RULED:
         - Ingest shape: webhook-driven, polled via SearchTimecards, or both.
           Timecards are edited after the fact (manager corrections), so
           labor.timecard.created alone is insufficient — an update path is
           required regardless.
         - Whether owner/admin accounts who never clock in should appear in
           labor surfaces at all.
-        - Whether the toggle should auto-disable when Square disconnects, or
-          stay on and show unhealthy. Current lean: stay on and show unhealthy,
-          so a reconnect restores the feature without a second admin action.
+        - RULED 2026-08-05 (Gary) — THE TOGGLE STAYS ON. A Square disconnect
+          does NOT auto-disable squareLaborEnabled. The org keeps the feature
+          and the overlay drops to seam (c)'s ON BUT UNHEALTHY state; a
+          reconnect restores it with no second admin action. This is seam (c)
+          applied to disconnect rather than a new posture, and it is the same
+          direction as DON'T 4 — /api/square/disconnect nulls the three token
+          columns and touches nothing else, so mirrored rows and the toggle
+          both survive it and read as stale. Recorded in DECISIONS.md.
+          ORIGINAL ENTRY, PRESERVED: "Whether the toggle should auto-disable
+          when Square disconnects, or stay on and show unhealthy. Current lean:
+          stay on and show unhealthy, so a reconnect restores the feature
+          without a second admin action."
 
   - id: L-3
     track: labor

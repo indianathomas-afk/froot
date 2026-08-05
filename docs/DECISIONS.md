@@ -5,6 +5,24 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## A Square disconnect does NOT disable the labor toggle — it degrades the overlay — 2026-08-05 (Gary)
+
+Closes the third of L-2's three open questions, the only one that could be
+settled without kickoff. `squareLaborEnabled` **stays on** when Square
+disconnects. The org keeps the feature; the comparison overlay drops to the
+**ON BUT UNHEALTHY** state of L-2 seam (c) and shows its last-synced stamp.
+**Reconnecting restores the feature with no second admin action** — an admin
+who reconnects never has to remember a toggle they did not turn off.
+
+This is seam (c) applied to disconnect rather than a new posture, and it runs
+the same direction as L-2's DON'T 4: `/api/square/disconnect` nulls the three
+token columns and touches nothing else, so the mirrored rows and the toggle
+both survive it and read as stale. **Staleness is a badge, not a delete** — and
+by this ruling, not an auto-off either.
+
+The other two open questions (ingest shape; whether owner/admin accounts who
+never clock in appear in labor surfaces) remain deferred to kickoff.
+
 ## Square labor integration is STRICTLY OPTIONAL; core labor stays forecast-driven — 2026-08-05 (Gary)
 
 THE RULING, and the anchor for everything on L-2. Keva Juice is migrating to
