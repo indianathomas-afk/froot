@@ -1283,7 +1283,9 @@ phases:
     track: permissions
     size: L
     status: in_progress
-    commits: [5119a6b, 24eb289]
+    # B's two, then Session C's range endpoints — the eleven between them are
+    # contiguous and named in the notes rather than listed here.
+    commits: [5119a6b, 24eb289, 6fb4b4f, 2a7e044]
     title: "Per-user capability overrides — the toggle layer"
     notes: >
       Grant or remove a capability for ONE user against their role baseline —
@@ -1355,8 +1357,8 @@ phases:
       UI or API, that grants a capability above the role ceiling; an
       unregistered capability is refused 400; and a denial of something the
       role does not grant stores nothing. The principal ended at zero denials.
-      SESSION C BUILT 2026-08-04 — 11 commits from 6fb4b4f to 2a7e044, on
-      staging, UNPUSHED at time of writing. 39 inline role checks migrated
+      SESSION C BUILT 2026-08-04 — 11 work commits from 6fb4b4f to 2a7e044 plus
+      this record, on staging. 39 inline role checks migrated
       across eight areas (staff, templates, stores, reports, dashboard,
       purchase orders, users, settings) plus one security fix. BOTH MOTIVATING
       EXAMPLES ARE NOW EXPRESSIBLE, which is the only thing this session was
@@ -1399,15 +1401,49 @@ phases:
       invariant is that at least one ADMIN always holds users.manage, resting
       on the self-edit refusal and the last-admin removal guard — both named in
       the comment so weakening either is visible.
+      SESSION C VERIFIED ON STAGING 2026-08-04 (Gary), against deployed SHA
+      bf87743b6135751aa90699fad4c4104e4e3a1a2e — local HEAD at the time of the
+      pass, so the § Staging Verification precondition held. Principals:
+      gary@keva.com (MANAGER, Carson) and karson@keva.com (ADMIN) on the
+      staging org, org id recorded with the observations.
+      BOTH MOTIVATING EXAMPLES CAME BACK YES, which is the sentence this whole
+      phase existed to be able to write. (a) Denying the staff capabilities
+      removed Staff from the nav, bounced /staff and /staff/[id], and refused
+      /api/staff — with /inventory fully intact, which is the half that proves
+      the grid is per-capability rather than per-area. (b) With ONLY
+      staff.manage denied, /staff rendered and listed, and detail pages opened
+      with no edit, invite or legal-name affordances while Notes and Documents
+      stayed. That is the split of the single canSeeNotes flag paying off: the
+      seam between reading a staff record and acting on it did not exist before
+      this session, so (b) was not merely unimplemented, it was inexpressible.
+      THE NEW TIERS ISOLATE. staff.notes.use denied alone removed the Notes tab
+      and nothing else; staff.documents.manage denied alone removed the uploads
+      block and nothing else. Both had zero call sites before C.
+      SPOT-CHECKS: templates.manage denied on an ADMIN principal took effect —
+      the caveat B's grid carried is gone. inventory.po.manage denied removed PO
+      creation while list and receiving kept working, which is the view/manage
+      split doing its job on the one surface where a coarse denial would have
+      taken receiving away with it.
+      THE NEGATIVES PASSED, and they are the load-bearing half. A denial of
+      stores.view — migrated onto can() but deliberately ungridded — was refused
+      400, so the deniable-list rule is live and the hidden-page/answering-API
+      state is not reachable even by hand. An unregistered capability was
+      refused 400 too.
+      REGRESSION: at zero denials, MANAGER and ADMIN behaviour was byte-
+      identical to pre-sweep. That is ruling 3's proof and the point of the
+      whole session — it changed who ENFORCES, never who is ALLOWED. C4's
+      lockout argument was verified in code at users/[id]/route.ts:100; no
+      guard needed. All principals ended at zero denials.
       Session prompt: docs/prompts/PERM-5C_migration_sweep.md
     deferred:
       - >
-        SESSION C STAGING ACCEPTANCE has not run — the 11 commits are unpushed,
-        so staging does not contain this work. The checklist is in the session
-        report: both motivating examples, the two new staff tiers denied
-        individually, coarse spot-checks on reports/templates/PO, the 400 on a
-        hand-rolled denial of a held-out capability, and the regression that an
-        untouched MANAGER and ADMIN behave exactly as before (ruling 3's proof).
+        PRODUCTION PROMOTION has not happened. Staging carries A+B+C verified;
+        production has not applied migration 20260804123449 and will not until
+        staging is merged forward, so User.deniedCapabilities does not exist
+        there yet. The row stays in_progress for that reason alone — every
+        session's work is done and verified. Whoever promotes it should read
+        the Neon advisory-lock note (P1002 on the pooler) before assuming a
+        failed deploy means a bad migration.
       - >
         SQUARE ROUTES UNMIGRATED, pending a ruling. square.manage is ALL in the
         registry while /api/square/{auth,disconnect,catalog/sync,sales-items/
