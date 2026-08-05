@@ -352,7 +352,13 @@ const SCOPE_OVERRIDES: Partial<Record<Capability, Partial<Record<PermissionRole,
 //     stores.view removes the nav entry and the /stores page; that endpoint
 //     would keep answering. stores.manage covers the writes and IS below.
 //   * settings.access — /settings is a page of toggles whose APIs each carry
-//     their own capability; denying it hides the page, not the toggles.
+//     their own capability (hr.toggle, labor.toggle, instagram.manage,
+//     square.manage) and keep their inline checks, because MODULE GOVERNANCE
+//     owns them rather than this page. Denying settings.access would hide the
+//     page, not the toggles. Note the asymmetry with the others in this list:
+//     here the enforcement gap is by design and permanent, so promotion is not
+//     a matter of finishing a migration — it would need the toggles to be
+//     re-parented under Settings first, which is a different argument.
 //   * dashboard.view — see the redirect-target comment in
 //     (app)/dashboard/page.tsx. There is no safe destination to bounce a
 //     denied user to, because /dashboard is where everything else bounces.

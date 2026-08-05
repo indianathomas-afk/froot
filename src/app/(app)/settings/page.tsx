@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
-import { requireAdmin, hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
+import { getCurrentUser, hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
+import { can, type PermissionUser } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 import { getInstagramTokenStatus } from "@/lib/instagram"
 import { InstagramActions, InstagramConnectButton } from "./instagram-actions"
@@ -19,11 +20,32 @@ async function getOrgData() {
 }
 
 export default async function SettingsPage() {
+  // PERM-5C. Was requireAdmin(). settings.access is ADMIN_ONLY — same baseline,
+  // now override-aware, and the same capability the sidebar has asked for the
+  // Settings link since PERM-1.
+  //
+  // COARSE BY RULING, and HELD OUT OF THE OVERRIDE GRID (Gary, 2026-08-04).
+  // Splitting settings.access into view/manage would duplicate a manage tier
+  // that already exists one level down: every control on this page is governed
+  // by its own capability — hr.toggle, labor.toggle, instagram.manage,
+  // square.manage — and a settings.view that renders a page of switches which
+  // all refuse is worse than removing the page. Those toggle APIs deliberately
+  // keep their inline checks: MODULE GOVERNANCE OWNS THEM, not this page.
+  //
+  // That leaves settings.access enforcing the page and the nav entry but not
+  // the endpoints, which is normally the PERM-2 bug class. It is not
+  // expressible here: settings.access is absent from ENFORCED_CAPABILITIES, so
+  // the grid cannot deny it and PATCH /api/users/[id] rejects a hand-rolled
+  // denial with a 400. No forbidden state exists to reach.
+  //
+  // redirect() throws NEXT_REDIRECT, so it stays outside the try.
+  let actor: PermissionUser = { role: null }
   try {
-    await requireAdmin()
+    actor = (await getCurrentUser()).actor
   } catch {
-    redirect("/dashboard")
+    actor = { role: null }
   }
+  if (!can(actor, "settings.access")) redirect("/dashboard")
 
   const org = await getOrgData()
   const isSquareConnected = !!org?.squareAccessToken
