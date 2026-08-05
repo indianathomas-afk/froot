@@ -59,6 +59,13 @@ export async function DELETE(
 
   const note = await loadNote(noteId, id, access.org.id)
   if (!note) return NextResponse.json({ error: "Note not found" }, { status: 404 })
+  // NOT migrated, deliberately (PERM-5C). staff.notes.use is already enforced
+  // by requireNoteAccess above; this second test is an AUTHORSHIP rule — who
+  // may delete someone ELSE's note — in the same family as messages.moderate's
+  // "delete additionally allows the author" (PL-21). Expressing it would mean
+  // adding a staff.notes.moderate entry to the registry, which is a new
+  // capability rather than a migrated check, and no one has asked to grant or
+  // withhold it separately. Left inline; revisit if a case appears.
   if (note.authorUserId !== access.caller.id && access.caller.role !== "ADMIN") {
     return NextResponse.json(
       { error: "Only the author or an admin can delete a note" },

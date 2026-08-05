@@ -5,6 +5,7 @@ import Link from "next/link"
 import { format } from "date-fns"
 import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { LegalNameControls } from "./legal-name-controls"
@@ -80,15 +81,34 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   const member = await getStaffMember(id, orgId)
   if (!member) notFound()
 
-  // Manager notes and document statuses are ADMIN/MANAGER only — STORE/STAFF
-  // never see the tabs' data and it is never fetched for them. The APIs
-  // enforce the same gates.
-  const { dbUser } = await getCurrentUser()
-  const canSeeNotes = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+  // PERM-5C. This page ran on ONE flag — `canSeeNotes`, an inline
+  // ADMIN||MANAGER test — driving the edit buttons, the notes tab, the
+  // documents tab, training and compliance alike. That is precisely why Gary's
+  // example (b), "keeps /staff read access but cannot edit employees", was not
+  // expressible: there was no seam between reading this page and acting on it.
+  // The flag splits four ways below. Every capability named is MANAGE, and the
+  // check replaced was ADMIN||MANAGER, so NO ROLE GAINS OR LOSES ANYTHING —
+  // what changes is that four independent denials now exist where there was
+  // one undifferentiated tier.
+  const { dbUser, actor } = await getCurrentUser()
 
-  // HR-7 self-service state: linked login / invite still pending. Same
-  // ADMIN/MANAGER tier as the other management surfaces on this page.
-  const invitePending = canSeeNotes
+  // Writes: the edit dialog, the self-service invite, the legal-name
+  // resolutions, and the integrity warnings that exist to prompt a fix.
+  const canManage = can(actor, "staff.manage")
+  // The Notes tab and its three routes.
+  const canSeeNotes = can(actor, "staff.notes.use")
+  // Manager-uploaded files and the five /api/staff/[id]/documents handlers.
+  const canSeeUploads = can(actor, "staff.documents.manage")
+  // HR-derived read tabs (acknowledgment statuses, agreement forms, training,
+  // compliance). DELIBERATELY LEFT ON THE ROLE CHECK: these render HR records
+  // and HR is its own migration phase, out of Session C's scope by ruling 5.
+  // Migrating them onto hr.* capabilities here would start that phase in the
+  // one file least likely to be reviewed as part of it.
+  const canSeeHrTabs = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+
+  // HR-7 self-service state: linked login / invite still pending. Gated with
+  // the write tier — it exists to drive the invite button.
+  const invitePending = canManage
     ? (await prisma.pendingInvite.findFirst({
         where: { organizationId: member.organizationId, staffMemberId: member.id },
         select: { id: true },
@@ -112,7 +132,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
     !member.isCorporate &&
     member.storeAssignments.length >= 2 &&
     !member.storeAssignments.some((a) => a.isPrimary)
-  const nameMismatches = canSeeNotes
+  const nameMismatches = canManage
     ? (
         await prisma.hrDocumentAcknowledgment.findMany({
           where: {
@@ -128,7 +148,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // Stores available in the Edit dialog — scoped like the rest of the app:
   // ADMIN sees all org stores, MANAGER only their own.
   const { isAdmin, storeIds: viewerStoreIds } = await getUserStoreScope()
-  const editStores = canSeeNotes
+  const editStores = canManage
     ? await prisma.store.findMany({
         where: {
           organizationId: member.organizationId,
@@ -145,7 +165,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // bind to the version they were signed against — a re-upload flips the
   // status to "needs-current" while the old record stays downloadable.
   let documentRows: StaffDocumentRow[] = []
-  if (canSeeNotes) {
+  if (canSeeHrTabs) {
     const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
     const docs = await prisma.hrDocument.findMany({
       where: {
@@ -232,7 +252,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // forms with history stay visible so records never disappear; linked
   // Check-Out/Check-In pairs are grouped by the client component.
   let formDocRows: StaffFormDocRow[] = []
-  if (canSeeNotes) {
+  if (canSeeHrTabs) {
     const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
     const formDocs = await prisma.hrDocument.findMany({
       where: {
@@ -308,7 +328,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // the team-visibility flag. Uploader names are stitched via a second query
   // (uploadedByUserId has no FK — uploads survive the uploader's deletion).
   let uploadRows: StaffUploadRow[] = []
-  if (canSeeNotes) {
+  if (canSeeUploads) {
     const uploads = await prisma.staffDocument.findMany({
       where: { staffMemberId: member.id, organizationId: member.organizationId },
       orderBy: { createdAt: "desc" },
@@ -339,7 +359,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   let trainingAssignments: StaffTrainingAssignment[] = []
   let assignableModules: { id: string; title: string }[] = []
   let trainers: { id: string; name: string }[] = []
-  if (canSeeNotes) {
+  if (canSeeHrTabs) {
     const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
     const [assignments, modules, trainerUsers] = await Promise.all([
       prisma.trainingAssignment.findMany({
@@ -449,7 +469,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // from the same records those tabs show. Terminated members still render
   // their records (auditable) behind an exclusion banner.
   let complianceDetail: StaffComplianceDetail | null = null
-  if (canSeeNotes) {
+  if (canSeeHrTabs) {
     complianceDetail = await getStaffComplianceDetail(member.organizationId, member.id)
   }
 
@@ -537,18 +557,18 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               Rehired {format(member.rehiredAt, "MMMM d, yyyy")} — required documents need re-signing
             </p>
           )}
-          {canSeeNotes && noStore && (
+          {canManage && noStore && (
             <p className="text-sm text-[var(--color-warning,#efa201)] mt-2">
               No store assigned — signed documents stamp a blank store. Assign a store below.
             </p>
           )}
-          {canSeeNotes && noPrimary && (
+          {canManage && noPrimary && (
             <p className="text-sm text-[var(--color-warning,#efa201)] mt-2">
               No primary store — signed documents stamp whichever store sorts first. Set a primary
               below.
             </p>
           )}
-          {canSeeNotes && nameMismatches.length > 0 && (
+          {canManage && nameMismatches.length > 0 && (
             <div className="mt-2 rounded-md border border-[var(--color-warning,#efa201)]/40 bg-[var(--color-warning,#efa201)]/10 px-3 py-2 text-xs">
               <p className="font-medium text-[var(--color-foreground)]">
                 Signed under a name different from the record
@@ -565,7 +585,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
             </div>
           )}
         </div>
-        {canSeeNotes && (
+        {canManage && (
           <div className="flex flex-col items-end gap-2">
             <StaffEditActions
               staffId={member.id}
@@ -614,6 +634,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 fullNameLocked={member.fullNameLocked}
                 squareFullName={member.squareFullName}
                 squareLinked={!!member.squareTeamMemberId}
+                canManage={canManage}
               />
               <div>
                 <dt className="text-[var(--color-muted-foreground)]">Email</dt>
@@ -656,17 +677,25 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         </TabsContent>
 
         <TabsContent value="documents" className="mt-4">
-          {canSeeNotes ? (
+          {canSeeHrTabs || canSeeUploads ? (
             <div className="space-y-6">
-              <StaffDocuments staffId={member.id} rows={documentRows} />
-              {formDocRows.length > 0 && (
+              {/* Two capabilities share this tab. The acknowledgment statuses and
+                  agreement forms are HR records (still role-gated, HR's own
+                  phase); the uploaded files are staff.documents.manage, whose
+                  five API handlers this session migrated. Rendered separately so
+                  denying the uploads does not blank the HR half, and vice
+                  versa. */}
+              {canSeeHrTabs && <StaffDocuments staffId={member.id} rows={documentRows} />}
+              {canSeeHrTabs && formDocRows.length > 0 && (
                 <StaffFormDocuments staffId={member.id} rows={formDocRows} />
               )}
-              <StaffUploadedDocuments
-                staffId={member.id}
-                staffName={member.displayName}
-                rows={uploadRows}
-              />
+              {canSeeUploads && (
+                <StaffUploadedDocuments
+                  staffId={member.id}
+                  staffName={member.displayName}
+                  rows={uploadRows}
+                />
+              )}
             </div>
           ) : (
             <div className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
@@ -683,7 +712,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         </TabsContent>
 
         <TabsContent value="training" className="mt-4">
-          {canSeeNotes ? (
+          {canSeeHrTabs ? (
             <StaffTraining
               staffId={member.id}
               staffActive={member.status === "ACTIVE"}
@@ -714,7 +743,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         )}
 
         <TabsContent value="compliance" className="mt-4">
-          {canSeeNotes && complianceDetail ? (
+          {canSeeHrTabs && complianceDetail ? (
             <StaffCompliance detail={complianceDetail} />
           ) : (
             <div className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">

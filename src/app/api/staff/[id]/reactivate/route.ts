@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { fetchSquareTeamMember } from "@/lib/square"
 
 // HR-15: bring a terminated staff member back. Reactivation flips status to
@@ -16,8 +17,10 @@ async function loadScopedMember(id: string) {
   const { orgId } = await auth()
   if (!orgId) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
 
-  const { isAdmin, storeIds, role } = await getUserStoreScope()
-  if (!isAdmin && role !== "MANAGER") {
+  // PERM-5C: was an inline ADMIN||MANAGER check; staff.manage is MANAGE, same
+  // baseline. isAdmin below is store scoping and stays.
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
+  if (!can(actor, "staff.manage")) {
     return { error: NextResponse.json({ error: "Manager or Admin access required" }, { status: 403 }) }
   }
 

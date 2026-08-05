@@ -15,12 +15,19 @@ export function LegalNameControls({
   fullNameLocked,
   squareFullName,
   squareLinked,
+  canManage,
 }: {
   staffId: string
   fullName: string | null
   fullNameLocked: boolean
   squareFullName: string | null
   squareLinked: boolean
+  // PERM-5C. The Full Name VALUE is a read surface (staff.view); the adopt /
+  // write-back buttons are writes and drive PATCH /api/staff/[id] and
+  // /square-writeback, both now behind staff.manage. Required and undefaulted
+  // for the same reason the sidebar's deniedCapabilities prop is: a default of
+  // true would let a caller that forgets it render buttons that 403.
+  canManage: boolean
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<null | "adopt" | "writeback">(null)
@@ -72,22 +79,27 @@ export function LegalNameControls({
             Square shows <span className="font-medium">{squareFullName}</span> — you&apos;ve locked{" "}
             <span className="font-medium">{fullName}</span> as the legal name.
           </p>
-          <div className="flex items-center gap-2 mt-2">
-            <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => call("adopt")}>
-              <RefreshCw className={`h-3.5 w-3.5 ${busy === "adopt" ? "animate-spin" : ""}`} />
-              Use Square&apos;s
-            </Button>
-            {squareLinked && (
-              <Button size="sm" disabled={busy !== null} onClick={() => call("writeback")}>
-                <Upload className={`h-3.5 w-3.5 ${busy === "writeback" ? "animate-spin" : ""}`} />
-                Write back to Square
+          {/* The divergence itself stays VISIBLE without staff.manage — it is a
+              data-integrity fact about signed documents, not an action. Only the
+              two resolutions are withheld. */}
+          {canManage && (
+            <div className="flex items-center gap-2 mt-2">
+              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => call("adopt")}>
+                <RefreshCw className={`h-3.5 w-3.5 ${busy === "adopt" ? "animate-spin" : ""}`} />
+                Use Square&apos;s
               </Button>
-            )}
-          </div>
+              {squareLinked && (
+                <Button size="sm" disabled={busy !== null} onClick={() => call("writeback")}>
+                  <Upload className={`h-3.5 w-3.5 ${busy === "writeback" ? "animate-spin" : ""}`} />
+                  Write back to Square
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {!diverged && squareLinked && fullName && (
+      {canManage && !diverged && squareLinked && fullName && (
         <button
           className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--color-primary)] hover:opacity-80 disabled:opacity-50"
           disabled={busy !== null}

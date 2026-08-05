@@ -398,6 +398,22 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Import team members from Square",
     removes: "Reading the Square team list and running the staff sync.",
   },
+  // PERM-5C appends. Both had ZERO call sites when B wrote the list — the state
+  // ruling 5 calls worse than no toggle — and both became load-bearing through
+  // a single shared guard: api/staff/access.ts for documents (five handlers),
+  // api/staff/[id]/notes/access.ts for notes (three).
+  {
+    capability: "staff.documents.manage",
+    area: "Staff",
+    label: "Staff document files",
+    removes: "Uploading, downloading and deleting files on a staff member's record.",
+  },
+  {
+    capability: "staff.notes.use",
+    area: "Staff",
+    label: "Manager notes",
+    removes: "The Notes tab on a staff member, and writing or editing notes.",
+  },
   {
     capability: "forecasting.view",
     area: "Forecasting",

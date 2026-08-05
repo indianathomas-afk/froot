@@ -3,6 +3,7 @@ import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { getStaffComplianceSummaries, type StaffComplianceSummary } from "@/lib/hr-compliance"
 import { Badge } from "@/components/ui/badge"
 
@@ -10,15 +11,15 @@ const NO_SUMMARIES = new Map<string, StaffComplianceSummary>()
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, hrActive: false, summaries: NO_SUMMARIES }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, hrActive: false, summaries: NO_SUMMARIES }
+  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
   const hrActive = hrModuleAvailable(orgId) && org.activeModules.includes("hr")
 
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
   const storeFilter = isAdmin ? {} : { id: { in: storeIds } }
 
   const [staff, stores] = await Promise.all([
@@ -44,7 +45,17 @@ async function getStaffData() {
     ? await getStaffComplianceSummaries(org.id, staff.map((s) => s.id))
     : NO_SUMMARIES
 
-  return { staff, stores, isAdmin, hrActive, summaries }
+  // PERM-5C. AND-ed with isAdmin, never replacing it. These affordances are
+  // ADMIN-only on this page while POST/PATCH /api/staff are staff.manage
+  // (MANAGE) — the UI is deliberately STRICTER than the API it drives, and
+  // swapping isAdmin for can(staff.manage) would hand every MANAGER the Add and
+  // Delete buttons. That is a widening, which ruling 3 forbids: this session
+  // changes who enforces, never who is allowed. AND-ing only ever subtracts, so
+  // a denied ADMIN stops being shown a button whose request now 403s.
+  const canManage = isAdmin && can(actor, "staff.manage")
+  const canSync = isAdmin && can(actor, "staff.sync.square")
+
+  return { staff, stores, isAdmin, canManage, canSync, hrActive, summaries }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -140,7 +151,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, hrActive, summaries } = await getStaffData()
+  const { staff, stores, isAdmin, canManage, canSync, hrActive, summaries } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -212,11 +223,11 @@ export default async function StaffPage() {
               : `Everyone assigned to your ${stores.length} store${stores.length !== 1 ? "s" : ""}, including staff based at another location.`}
           </p>
         </div>
-        {isAdmin && (
+        {(canSync || canManage) && (
           <div className="flex gap-2">
-            <SyncStaffButton />
-            <ImportStaffButton stores={storeProps} />
-            <AddStaffButton stores={storeProps} />
+            {canSync && <SyncStaffButton />}
+            {canSync && <ImportStaffButton stores={storeProps} />}
+            {canManage && <AddStaffButton stores={storeProps} />}
           </div>
         )}
       </div>
@@ -228,10 +239,10 @@ export default async function StaffPage() {
           </div>
           <p className="font-medium text-[var(--color-foreground)] mb-1">No Staff Members</p>
           <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Add team members to track who completes each task.</p>
-          {isAdmin && (
+          {(canSync || canManage) && (
             <div className="flex gap-2 justify-center">
-              <ImportStaffButton stores={storeProps} />
-              <AddStaffButton stores={storeProps} />
+              {canSync && <ImportStaffButton stores={storeProps} />}
+              {canManage && <AddStaffButton stores={storeProps} />}
             </div>
           )}
         </div>
@@ -277,7 +288,7 @@ export default async function StaffPage() {
                         key={member.id}
                         member={member}
                         hrActive={hrActive}
-                        canEdit={isAdmin}
+                        canEdit={canManage}
                         pct={summaries.get(member.id)?.pct ?? null}
                       />
                     ))}
@@ -295,7 +306,7 @@ export default async function StaffPage() {
                         key={`visiting-${member.id}`}
                         member={member}
                         hrActive={hrActive}
-                        canEdit={isAdmin}
+                        canEdit={canManage}
                         pct={summaries.get(member.id)?.pct ?? null}
                         homeStoreName={member.storeAssignments[0].store.name}
                       />
@@ -337,7 +348,7 @@ export default async function StaffPage() {
                       key={member.id}
                       member={member}
                       hrActive={hrActive}
-                      canEdit={isAdmin}
+                      canEdit={canManage}
                       pct={summaries.get(member.id)?.pct ?? null}
                     />
                   ))}
@@ -358,7 +369,7 @@ export default async function StaffPage() {
                       key={member.id}
                       member={member}
                       hrActive={hrActive}
-                      canEdit={isAdmin}
+                      canEdit={canManage}
                       pct={summaries.get(member.id)?.pct ?? null}
                     />
                   ))}

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 
 const patchSchema = z.object({
   displayName: z.string().trim().min(1).max(200).optional(),
@@ -26,8 +27,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { isAdmin, storeIds: scopeStoreIds, role } = await getUserStoreScope()
-  if (!isAdmin && role !== "MANAGER") {
+  // PERM-5C: was an inline ADMIN||MANAGER check. staff.manage is MANAGE, so
+  // the role baseline is unchanged; the override is now consulted. isAdmin
+  // below is STORE SCOPING, not a role tier — it stays (see permissions.ts
+  // header: scoping is the call site's job, and a denial must not widen it).
+  const { isAdmin, storeIds: scopeStoreIds, actor } = await getUserStoreScope()
+  if (!can(actor, "staff.manage")) {
     return NextResponse.json({ error: "Manager or Admin access required" }, { status: 403 })
   }
 
@@ -155,6 +160,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return NextResponse.json({ success: true })
 }
 
+// FOUND BY PERM-5C, NOT FIXED HERE — flagged for Gary as a FIX NOW.
+// This handler has NO role check. Its sibling PATCH above requires
+// staff.manage and the /staff page that drives it is ADMIN-gated, but the
+// route itself admits ANY org member: the same class as PERM-2 §2 #1 (POST
+// /api/staff unguarded), which Gary ruled a security fix rather than a
+// preference. Blast radius is bounded — the record-count check below refuses
+// to delete anyone who has accumulated anything — but "delete a mis-imported
+// staff member" is not a capability every STORE and STAFF login should hold.
+// Not applied in this commit because Session C migrates existing checks and
+// does not invent restrictions (ruling 5); adding one is a behaviour change
+// that needs its own ruling. The fix is one line: the same
+// `if (!can(actor, "staff.manage"))` guard PATCH now carries.
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

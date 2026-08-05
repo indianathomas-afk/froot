@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { fetchSquareTeamMember, mapAssignedStores } from "@/lib/square"
 import { terminateStaffMember } from "@/lib/staff-termination"
 
@@ -20,8 +21,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { isAdmin, storeIds: scopeStoreIds, role } = await getUserStoreScope()
-  if (!isAdmin && role !== "MANAGER") {
+  // PERM-5C: was an inline ADMIN||MANAGER check; staff.manage is MANAGE, same
+  // baseline. isAdmin below is store scoping and stays. Note this is the
+  // PER-MEMBER resync — the bulk one is staff.sync.square (ADMIN), already
+  // migrated by DEBT-20. Two capabilities on purpose: an override can take the
+  // org-wide Square sync away without taking away fixing one record.
+  const { isAdmin, storeIds: scopeStoreIds, actor } = await getUserStoreScope()
+  if (!can(actor, "staff.manage")) {
     return NextResponse.json({ error: "Manager or Admin access required" }, { status: 403 })
   }
 

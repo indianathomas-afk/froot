@@ -2,6 +2,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { isClerkErrorPayload, normalizeEmail } from "@/lib/clerk"
 
 // POST /api/staff/[id]/invite — HR-7 route (A): invite a staff member who has
@@ -14,8 +15,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { isAdmin, storeIds, role } = await getUserStoreScope()
-  if (!isAdmin && role !== "MANAGER") {
+  // PERM-5C: was an inline ADMIN||MANAGER check; staff.manage is MANAGE, same
+  // baseline. isAdmin below is store scoping and stays. The invite GUARD
+  // itself is explicitly out of Session C's scope — this migrates who is
+  // checked, not what the check permits.
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
+  if (!can(actor, "staff.manage")) {
     return NextResponse.json({ error: "Manager or Admin access required" }, { status: 403 })
   }
 
