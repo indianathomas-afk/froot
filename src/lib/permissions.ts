@@ -394,6 +394,20 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Import and re-sync locations from Square",
     removes: "Reading the Square location list and re-syncing a store from Square.",
   },
+  // PERM-5C append. COARSE BY RULING (Gary, 2026-08-04): one capability covers
+  // seeing the member list, inviting, changing roles and stores, removing a
+  // member and revoking an invitation. /users IS the management surface and GET
+  // /api/users serves nothing else, so a read-only tier would grant "look at
+  // the roster and do nothing". Denying this removes all of it, and the copy
+  // below says so rather than implying a view tier that does not exist.
+  // Self-denial is impossible: PATCH /api/users/[id] refuses caller === target
+  // outright — see the lockout argument at that line.
+  {
+    capability: "users.manage",
+    area: "Users",
+    label: "Users and invitations",
+    removes: "The Users section entirely — the member list, invitations, role and location changes, and removals.",
+  },
   // PERM-5C append — B's first held-out capability, released now that
   // /api/templates, /[id], /export and /import all ask it.
   {

@@ -1,8 +1,8 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { requireUsersManage } from "../access"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { requireAdmin } from "@/lib/auth"
 import { ENFORCED_CAPABILITIES, can, isCapability, type Capability } from "@/lib/permissions"
 import { findStaffMemberForUser } from "@/lib/hr"
 import { validateDefaultStore } from "@/lib/default-store"
@@ -40,12 +40,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  let caller
-  try {
-    caller = await requireAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const access = await requireUsersManage()
+  if (!access.ok) return access.response
+  const caller = access.caller
 
   const { id } = await params
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
@@ -116,14 +113,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // it is the lockout path (an admin demoting themselves).
   //
   // PERM-5 self-lockout: THIS LINE IS ALSO THE OVERRIDE GUARD, and no second
-  // one was added. It refuses the whole request when caller === target, so an
-  // admin cannot deny themselves anything through this route at all. Nothing
-  // in the current grid could strand an admin even if they could — users.manage
-  // is not load-bearing yet (/users and this route both use requireAdmin, not
-  // can()). SESSION C REQUIREMENT: when users.manage is migrated onto can() and
-  // added to ENFORCED_CAPABILITIES, re-check this — at that point a denial of
-  // users.manage becomes capable of locking an admin out of user management,
-  // and the guard that saves them is this early return.
+  // one was added. B deferred the proof because users.manage was not yet
+  // load-bearing. PERM-5C made it load-bearing — this route and /users both ask
+  // can(users.manage) and it is a grid row — so the re-check B asked for was
+  // done, and the argument HOLDS. In full, because a comment that just says
+  // "verified" is worth nothing to whoever changes one of these five lines:
+  //
+  //   1. An admin can never deny THEMSELVES. This early return refuses the
+  //      whole request when caller === target, before any write — including the
+  //      deniedCapabilities write computed above.
+  //   2. So an admin who denies ANOTHER admin necessarily still holds
+  //      users.manage: they used it to make the call.
+  //   3. A denied admin cannot retaliate — requireUsersManage() now refuses
+  //      them at every /api/users handler, and /users bounces.
+  //   4. Removal cannot drain the pool either: DELETE below refuses
+  //      self-removal AND refuses to remove the last ADMIN, so every removal
+  //      requires some other actor who still holds the capability.
+  //   5. A demotion CLEARS the denial rather than stranding it. nextDenied is
+  //      filtered by can({ role }, c) against the role this request will
+  //      produce, and users.manage is ADMIN_ONLY — so demoting a denied admin
+  //      drops the stored entry instead of preserving a landmine for a future
+  //      re-promotion.
+  //
+  // Invariant: at every reachable step at least one ADMIN holds users.manage.
+  // No additional guard exists because none is needed; if you weaken rule 1 or
+  // rule 4, the invariant goes with it and a guard becomes mandatory.
   if (caller.id === existing.id) {
     return NextResponse.json({ error: "You cannot change your own role" }, { status: 403 })
   }
@@ -253,12 +267,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  let caller
-  try {
-    caller = await requireAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const access = await requireUsersManage()
+  if (!access.ok) return access.response
+  const caller = access.caller
 
   const { id } = await params // this is the Clerk user ID
 

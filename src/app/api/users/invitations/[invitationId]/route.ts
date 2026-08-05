@@ -1,7 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { requireUsersManage } from "../../access"
 import { NextResponse } from "next/server"
-import { requireAdmin } from "@/lib/auth"
 
 // DELETE: revoke a pending organization invitation
 //
@@ -35,11 +35,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ invit
   const { orgId, userId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  try {
-    await requireAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const access = await requireUsersManage()
+  if (!access.ok) return access.response
 
   const { invitationId } = await params
   const clerk = await clerkClient()

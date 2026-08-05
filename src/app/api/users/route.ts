@@ -1,7 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { requireUsersManage } from "./access"
 import { NextResponse } from "next/server"
-import { requireAdmin } from "@/lib/auth"
 import { fetchAllClerkPages, isClerkErrorPayload, normalizeEmail } from "@/lib/clerk"
 import { plusAddress } from "@/lib/device-login"
 
@@ -13,11 +13,8 @@ export async function GET() {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  try {
-    await requireAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const access = await requireUsersManage()
+  if (!access.ok) return access.response
 
   const clerk = await clerkClient()
   // DEBT-46 Phase 3 step 1. This is the API twin of /users, which drains the
@@ -73,11 +70,8 @@ export async function POST(req: Request) {
   const { orgId } = await auth()
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  try {
-    await requireAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const access = await requireUsersManage()
+  if (!access.ok) return access.response
 
   const { email: rawEmail, role, storeIds } = await req.json()
   // Normalized at write time so the webhook's invite lookup matches exactly.

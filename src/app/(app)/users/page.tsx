@@ -2,7 +2,8 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { format } from "date-fns"
 import { InviteUserButton, EditUserButton, RemoveUserButton, RevokeInviteButton } from "./user-actions"
-import { requireAdmin } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
+import { can, type PermissionUser } from "@/lib/permissions"
 import { fetchAllClerkPages, getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
 import { isAboveStore } from "@/lib/device-login"
 import { ShieldAlert, Tablet } from "lucide-react"
@@ -234,11 +235,21 @@ async function getData() {
 }
 
 export default async function UsersPage() {
+  // PERM-5C. Was requireAdmin(). users.manage is ADMIN_ONLY, so the role
+  // baseline is unchanged and the sidebar has asked this capability since
+  // PERM-1 — the page now agrees with the nav entry and with all five
+  // /api/users handlers, which is ruling 2's requirement met on all three
+  // layers at once.
+  //
+  // redirect() throws NEXT_REDIRECT, so it stays outside the try — inside, the
+  // catch swallows it and the page renders for a user just denied.
+  let actor: PermissionUser = { role: null }
   try {
-    await requireAdmin()
+    actor = (await getCurrentUser()).actor
   } catch {
-    redirect("/dashboard")
+    actor = { role: null }
   }
+  if (!can(actor, "users.manage")) redirect("/dashboard")
 
   const { members, pendingInvites, stores } = await getData()
 
