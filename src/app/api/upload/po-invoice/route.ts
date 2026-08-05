@@ -1,8 +1,9 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { denyUnlessPoManage } from "../../inventory/purchase-orders/access"
 import { NextResponse } from "next/server"
 import { put, del } from "@vercel/blob"
-import { getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { getUserStoreScope, requireModule } from "@/lib/auth"
 
 // I-7: attach an invoice photo/PDF to a purchase order (BevSpot's Invoice
 // Upload — attachment only, no OCR). Same file rules as task attachments.
@@ -22,11 +23,8 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
   }
-  try {
-    await requireManagerOrAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const denied = await denyUnlessPoManage()
+  if (denied) return denied
 
   const form = await req.formData()
   const file = form.get("file") as File | null

@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { denyUnlessPoManage } from "../../access"
 import { NextResponse } from "next/server"
-import { getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { getUserStoreScope, requireModule } from "@/lib/auth"
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
@@ -16,11 +17,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
   }
 
-  try {
-    await requireManagerOrAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const denied = await denyUnlessPoManage()
+  if (denied) return denied
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   const { id } = await params

@@ -1,8 +1,9 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { denyUnlessPoManage } from "./access"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { getCurrentUser, getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { getCurrentUser, getUserStoreScope, requireModule } from "@/lib/auth"
 import { defaultExpectedAt } from "@/lib/vendor-delivery"
 
 const LineSchema = z.object({
@@ -80,11 +81,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
   }
 
-  try {
-    await requireManagerOrAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const denied = await denyUnlessPoManage()
+  if (denied) return denied
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   const { dbUser } = await getCurrentUser()

@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
-import { getUserStoreScope } from "@/lib/auth"
+import { actorFor, getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { PurchaseOrderDetailClient } from "./po-detail-client"
 
 export default async function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +37,11 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
   })
   const casePriceByIngredient = new Map(vendorPrices.map((v) => [v.ingredientId, v.casePrice]))
 
-  const canManage = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+  // PERM-5C. Was an inline ADMIN||MANAGER test. inventory.po.manage is MANAGE,
+  // the same tier, and it is what every purchase-order write endpoint now
+  // enforces — so this affordance and the request it fires can no longer
+  // disagree under a denial.
+  const canManage = can(actorFor(dbUser), "inventory.po.manage")
 
   return (
     <PurchaseOrderDetailClient

@@ -1,8 +1,9 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { denyUnlessPoManage } from "../access"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { getUserStoreScope, requireManagerOrAdmin, requireModule } from "@/lib/auth"
+import { getUserStoreScope, requireModule } from "@/lib/auth"
 
 const LineSchema = z.object({
   ingredientId: z.string().min(1),
@@ -65,11 +66,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "MODULE_NOT_ACTIVE" }, { status: 403 })
   }
 
-  try {
-    await requireManagerOrAdmin()
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const denied = await denyUnlessPoManage()
+  if (denied) return denied
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   const { id } = await params

@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { ClipboardList } from "lucide-react"
 import Link from "next/link"
-import { getUserStoreScope } from "@/lib/auth"
+import { actorFor, getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { PurchaseOrdersClient } from "./purchase-orders-client"
 
 export default async function PurchaseOrdersPage() {
@@ -36,7 +37,11 @@ export default async function PurchaseOrdersPage() {
   }
 
   const dbUser = userId ? await prisma.user.findUnique({ where: { clerkUserId: userId } }) : null
-  const canCreate = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+  // PERM-5C. Was an inline ADMIN||MANAGER test. inventory.po.manage is MANAGE,
+  // the same tier, and it is what every purchase-order write endpoint now
+  // enforces — so this affordance and the request it fires can no longer
+  // disagree under a denial.
+  const canCreate = can(actorFor(dbUser), "inventory.po.manage")
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   const stores = await prisma.store.findMany({

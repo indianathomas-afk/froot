@@ -493,6 +493,16 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Record inventory adjustments",
     removes: "Loss, transfer and prep adjustments.",
   },
+  // PERM-5C append — B's second held-out capability, released now that the five
+  // write endpoints (create, edit, submit, cancel, invoice upload) ask it. The
+  // READ tier, inventory.po.view, is OPERATIONAL and untouched: the floor keeps
+  // seeing and receiving orders it cannot raise.
+  {
+    capability: "inventory.po.manage",
+    area: "Inventory",
+    label: "Raise and edit purchase orders",
+    removes: "Creating, editing, submitting and cancelling POs, and invoice uploads. Viewing and receiving are unaffected.",
+  },
 ]
 
 // Feature-area order for the grid, derived from the list so a new area cannot
