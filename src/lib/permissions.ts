@@ -172,10 +172,23 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   "storeview.access": OPERATIONAL, // §2 #10: page itself serves any member — needs ruling at migration
   "instagram.view": ALL, // feature gate (connected+enabled) stays at the call site
   "instagram.manage": ADMIN_ONLY,
-  // Today ANY member can connect/disconnect Square (§2 gap #2); catalog syncs
-  // are ADMIN. Recorded as today's dominant answer — the whole surface needs
-  // Gary's ruling before migration.
-  "square.manage": ALL,
+  // R4, ruled 2026-08-06 (Gary): THE REGISTRY WAS WRONG, not the enforcement.
+  // This was ALL — recorded as "today's dominant answer" back when ANY member
+  // could reach connect/disconnect (§2 gap #2). SEC-1 closed that in 2026-07-26
+  // and every Square route has enforced ADMIN since; the registry never caught
+  // up, so the two disagreed and PERM-5's Session C deliberately left the
+  // routes unmigrated rather than resolve it unilaterally.
+  //
+  // NO BEHAVIOUR CHANGES WITH THIS EDIT. Nothing calls can(_, "square.manage")
+  // — it is not in ENFORCED_CAPABILITIES either, so it is not deniable from the
+  // /users grid. The value was documentation that lied. The point of fixing it
+  // is that the Square routes are now migratable onto the registry in a future
+  // sweep with ZERO baseline change; migrating against ALL would have handed
+  // every member the org's Square connection.
+  //
+  // Consistent with L-2's seam: the optional Square-labor toggle is specified
+  // ADMIN-only, matching this value rather than the old one.
+  "square.manage": ADMIN_ONLY,
   "settings.access": ADMIN_ONLY,
   // PERM-2 §3 #5 (Gary, 2026-07-26): inventory is not one permission — it
   // splits by DATA SENSITIVITY. Operational data (counts, adjustments, pars,
