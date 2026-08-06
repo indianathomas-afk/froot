@@ -8413,6 +8413,47 @@ debt:
       Do NOT fold into DEBT-47's handler work — this is the backlog, that
       is the faucet.
 
+  - id: DEBT-58
+    title: >
+      Home-screen standalone mode shipped unverified on hardware — no iPad
+      has launched the web clip, and the device accounts' sign-in method is
+      unknown
+    notes: >
+      COST OF DOING NOTHING: LATENT until pushed, LIVE the moment it reaches
+      a store device (trigger: a counter iPad whose staff sign in with a
+      SOCIAL provider. In a standalone clip that button navigates
+      cross-origin and iOS may hand the callback back to Safari rather than
+      the clip, stranding a half-finished sign-in on the device that is
+      supposed to be the simplest thing in the store).
+      FILED 2026-08-06 by the iOS home-screen icon session, which shipped it.
+      Both commits are UNPUSHED at filing.
+      WHAT IS VERIFIED, and it is only the plumbing: the rendered <head>
+      carries rel="apple-touch-icon" 180x180, apple-mobile-web-app-title
+      "Froot", and rel="manifest"; /apple-icon.png, /icon.png and
+      /manifest.webmanifest all return 200 unauthenticated on local dev.
+      Every one of those is a server-side fact. NOTHING about how iOS
+      actually behaves has been observed — no iPad was involved.
+      THE THREE UNTESTED CLAIMS, in the order they will bite:
+      (1) standalone clips get their own cookie jar, so staff sign in again
+      inside the clip even when Safari is signed in — believed one-time,
+      unconfirmed across relaunch and reboot;
+      (2) the social-provider hop above — <SignIn> is embedded and
+      same-origin, so email/password and email-code should stay inside the
+      clip, but WHICH METHOD THE PERM-7 DEVICE ACCOUNTS USE WAS ASKED AND
+      NEVER ANSWERED, and it is the whole of the risk;
+      (3) no back button — any page with no in-app way back is a dead end,
+      recoverable only by force-quit.
+      THE REVERT IS ONE COMMIT, which is why it shipped this way: the icon
+      fix (c473b72) changes no behaviour and the standalone decision is
+      isolated in the manifest (28bbd8a). Dropping the second commit
+      restores today's Safari-chrome launch and keeps the icon.
+      DO IT: answer the sign-in-method question, then run the iPad checklist
+      in the session report against staging. Delete the existing home-screen
+      tile first — iOS caches the web-clip icon on the BOOKMARK, permanently,
+      so a stale tile will show the old screenshot no matter what the server
+      sends and reads exactly like a failed deploy.
+      Related: PERM-7 (the device accounts this is for).
+
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
 # A DECISION LOG, NOT A SECOND DEBT TABLE. An entry belongs here only if the
