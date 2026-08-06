@@ -120,6 +120,24 @@ Or use the helpers in `src/lib/auth.ts`:
 - Button islands for isolated interactivity live in `*-buttons.tsx` or `*-actions.tsx` files next to the page
 - Print pages live under `src/app/print/` — no sidebar, trigger `window.print()` on load
 
+**A NEW PAGE MUST NOT LOOK THE USER UP BY `clerkUserId` ALONE.** Use
+`getCurrentUser()` from `src/lib/auth.ts`, or `findFirst` with
+`organizationId: org.id` — never a bare
+`prisma.user.findUnique({ where: { clerkUserId } })`. `clerkUserId` is `@unique`
+GLOBALLY, so an identity with memberships in two orgs resolves to whichever
+org's row it was created in, and that row's ROLE is then handed to the current
+session. `getCurrentUser()` has guarded this centrally since DEBT-53/F1; a page
+that rolls its own lookup opts back out of the guard.
+
+Twenty existing pages still do it (DEBT-55). They are UI-only today — every gate
+behind them refuses independently — and **Gary ruled 2026-08-06 (R1) to leave
+them latent** rather than sweep them now. This note exists so the surface stops
+growing while they sit: the sweep is a hard prerequisite for DEBT-50's
+org-switcher half, and it gets more expensive with every page that copies the
+pattern. Exemplars doing it correctly:
+`src/app/api/checklists/[id]/task-log/route.ts:36`,
+`src/app/api/users/[id]/route.ts:201`.
+
 ---
 
 ## Design System

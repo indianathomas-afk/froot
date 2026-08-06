@@ -1060,6 +1060,13 @@ phases:
       replacement path is precisely the one that stops working when Square is
       off. L-3 (a) stands; StoreHours remains the coverage upgrade path.
 
+      REGISTRY DEPENDENCY SETTLED 2026-08-06 by R4. The seam below specifies an
+      ADMIN-only toggle route, chosen to match what Square routes ENFORCE rather
+      than what the registry then said (square.manage was ALL). R4 corrected the
+      registry to ADMIN_ONLY, so the seam and the registry now agree and the
+      future build inherits no contradiction. Had R4 gone the other way, this
+      section would have been the thing to revisit.
+
       --- SEAM (a) THE TOGGLE ---
       Instagram's species, NOT activeModules (Gary's ruling, fork F3). Three
       parts, matching how Labor and HR are already gated:
@@ -1632,6 +1639,23 @@ phases:
         no merge commit exists and `git revert -m 1` does not apply — the
         DEPLOY_LOG entry carries the reverse-order revert list. Smoke test ran
         on www.usefroot.com under org org_3FhYUR4l0ue7egug1I0Ig8wxOVn.
+      - >
+        RESOLVED 2026-08-06 by R4 (Gary): THE REGISTRY WAS WRONG. square.manage
+        is now ADMIN_ONLY in permissions.ts, matching the enforcement every
+        Square route already applies. This closes the entry BELOW, which stays
+        for the record per the house convention — a resolved `deferred`/`open`
+        entry is closed by the entry prepended above it (DEBT-42), the same
+        shape as the SHIPPED entry at the top of this list.
+        NO BEHAVIOUR CHANGED. Nothing calls can(_, "square.manage") — verified
+        at head — and it is not in ENFORCED_CAPABILITIES, so it was never
+        deniable from the /users grid either. The old value was documentation
+        that lied, and the cost of the lie was exactly what the entry below
+        describes: the routes could not be migrated, because migrating onto ALL
+        would have handed every member the org's Square connection.
+        THE SQUARE ROUTES ARE STILL UNMIGRATED — they keep their inline
+        requireAdmin(). What changed is that migrating them is now a
+        zero-baseline-change sweep rather than a decision. Consistent with L-2,
+        whose optional Square-labor toggle is specified ADMIN-only.
       - >
         SQUARE ROUTES UNMIGRATED, pending a ruling. square.manage is ALL in the
         registry while /api/square/{auth,disconnect,catalog/sync,sales-items/
@@ -8344,6 +8368,21 @@ debt:
       20 page-level findUnique({ clerkUserId }) lookups lack the org guard
       getCurrentUser() now has
     notes: >
+      RULED 2026-08-06 — R1 (b): LEAVE LATENT. The central guard is fixed
+      (DEBT-53/F1) and the 20 remaining sites are UI-only; nothing needs the
+      sweep until multi-org work starts, at which point it is a hard
+      prerequisite for DEBT-50's org-switcher half. The row stays OPEN — this
+      is a decision not to schedule it, not a closure.
+      THE STANDING NOTE LANDED IN CLAUDE.md § Page Conventions, not as a
+      comment at a call site. Reasoning, since R1 offered both: the failure
+      mode is a NEW page copying the pattern, and the author of a new page has
+      no particular reason to open layout.tsx or any one of the 20 — but every
+      session reads CLAUDE.md, and § Page Conventions is where someone starting
+      a page is already standing. A comment at the most-copied site is
+      complementary rather than redundant and remains worth adding the next time
+      that file is open for another reason; it was not taken here because this
+      session was docs-only apart from R4's registry line.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       COST OF DOING NOTHING: LATENT — UI-only today (every gate behind
       these pages refuses independently via the DEBT-53 guard), but they
       are why a cross-org session still renders an overpromising sidebar,
@@ -8400,6 +8439,17 @@ debt:
       organizationMembership.deleted leaves User.organizationId pointing at
       the departed org — no writer can ever correct it
     notes: >
+      RULED 2026-08-06 — R2 (c): LEAVE AS-IS, revisit when multi-org work
+      starts. Two grounds, and the second is the load-bearing one. (1) The
+      console.warn in getCurrentUser() makes any occurrence a single Vercel log
+      grep, so the condition is observable rather than silent. (2) The choice
+      between the two fix directions — move the row on membership.created, or
+      delete it on membership.deleted — is a DESIGN INPUT to the multi-org
+      phase, not a standalone job: deletion's FK enumeration only has a right
+      answer once that phase has decided what a User row means across orgs.
+      Fixing it early would commit that phase to one of its own options.
+      The row stays OPEN. Deciding not to schedule is not closure.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       COST OF DOING NOTHING: LATENT, consequence CHANGED by DEBT-53 — a
       user moved between orgs used to be silently served the OLD org's role
       in the new org (the F1 bug firing on a single-membership user); now
@@ -8416,6 +8466,20 @@ debt:
       Production DB fossil rows: cross-instance + deleted-Clerk-identity
       orphans, measured 2026-08-04
     notes: >
+      APPROVED 2026-08-06 — R3 (a). AWAITING ITS SESSION; the cleanup was NOT
+      done when the ruling was recorded, and this row is not closed by the
+      approval. It is the only item on the board with LIVE cost — production
+      member counts and rosters disagree with Clerk today — which is what moved
+      it ahead of R1 and R2, both of which were left latent the same day.
+      SESSION SHAPE, per the ruling and the house rule for destructive work:
+      read-only verification SQL first (every result carrying db + branch id),
+      then hand-authored DELETEs presented for approval and run by GARY in the
+      Neon console, then re-verify. Nothing about this runs from a dev machine —
+      see CLAUDE.md § Environment Variables. Prefer RETURNING and an asserted
+      row count, per § Database Evidence's destructive-statement corollary: the
+      ids below were resolved on production and MUST be re-resolved on the
+      branch being written to, never carried across.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       COST OF DOING NOTHING: LIVE — org member counts and rosters disagree
       with Clerk today (live org: 6 DB rows vs 5 Clerk members). Measured
       on br-sparkling-block-a620qvg4 (queries recorded in the DEBT-50
@@ -8526,8 +8590,9 @@ debt:
 # honest state — R6 carries the links.
 rulings:
   - id: R1
-    status: open
+    status: ruled
     asked: 2026-08-05
+    ruled: 2026-08-06
     title: >
       Schedule the DEBT-55 org-blind lookup sweep, or leave it latent
     question: >
@@ -8552,11 +8617,19 @@ rulings:
       phase currently needs it. A ruling of (a) produces a sweep session prompt;
       (b) leaves the row open and turns into a comment-placement decision; (c)
       is a note on the row.
+    ruling: >
+      (b) LEAVE LATENT. The central guard is fixed and the remaining 20 sites
+      are UI-only; nothing needs them until multi-org work starts. The standing
+      note that new pages must use the org-guarded lookup is added to CLAUDE.md
+      § Page Conventions — chosen over a call-site comment because the failure
+      mode is a NEW page copying the pattern, and its author reads CLAUDE.md
+      rather than any particular one of the 20. DEBT-55 stays open.
     links: [DEBT-55, DEBT-50]
 
   - id: R2
-    status: open
+    status: ruled
     asked: 2026-08-05
+    ruled: 2026-08-06
     title: >
       Direction for the DEBT-56 org-move stale row — webhook repair, deletion,
       or leave it
@@ -8581,11 +8654,18 @@ rulings:
       versus (b) becomes a design input to that phase rather than a standalone
       fix. Write that into the row. Ruling (a) or (b) instead means an
       audit-first session, since the FK enumeration has never been done.
+    ruling: >
+      (c) LEAVE AS-IS, revisit when multi-org work starts. The console.warn
+      makes any occurrence one log grep, and the choice between moving the row
+      and deleting it is a design input to that future phase rather than a
+      standalone job — deciding it early would commit the phase to one of its
+      own options. Noted on DEBT-56, which stays open.
     links: [DEBT-56]
 
   - id: R3
-    status: open
+    status: ruled
     asked: 2026-08-05
+    ruled: 2026-08-06
     title: >
       Approve the DEBT-57 production fossil cleanup — the only item on the
       source sheet with a live cost
@@ -8609,11 +8689,19 @@ rulings:
       it is small, and the evidence is already gathered. A ruling of (a)
       produces a session prompt: read-only verify, approved DELETEs, re-verify,
       branch ids throughout.
+    ruling: >
+      APPROVED (a). It is the only board item with LIVE cost — production member
+      counts disagree with Clerk today — which is why it was approved on the same
+      day R1 and R2 were left latent. The cleanup was NOT performed when this
+      ruling was recorded: DEBT-57 stays open and awaits its own session
+      (read-only verify, hand-authored DELETEs approved and run by Gary in the
+      Neon console, re-verify, branch ids throughout).
     links: [DEBT-57, DEBT-47]
 
   - id: R4
-    status: open
+    status: ruled
     asked: 2026-08-05
+    ruled: 2026-08-06
     title: >
       square.manage — the registry grants it to ALL roles while every Square
       route enforces ADMIN
@@ -8632,7 +8720,17 @@ rulings:
       (a), emphatically. The Square routes then become migratable in a future
       sweep with zero baseline change. The registry edit rides the next docs or
       code session; nothing about it needs a session of its own.
-    links: [PERM-5, SEC-1]
+    ruling: >
+      (a) THE REGISTRY IS WRONG. square.manage changed ALL -> ADMIN_ONLY in
+      src/lib/permissions.ts to match the enforcement every Square route already
+      applies, and which SEC-1 and the L-2 seam both assume. APPLIED 2026-08-06,
+      one line plus its comment. NO BEHAVIOUR CHANGED — nothing calls
+      can(_, "square.manage"), verified at head, and it is not in
+      ENFORCED_CAPABILITIES so it was never deniable from the /users grid. The
+      Square routes remain unmigrated with their inline requireAdmin(); what
+      changed is that migrating them is now a zero-baseline-change sweep rather
+      than a decision. Recorded on PERM-5's open list and on L-2.
+    links: [PERM-5, SEC-1, L-2]
 
   - id: R5
     status: ruled
