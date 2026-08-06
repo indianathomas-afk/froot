@@ -377,14 +377,41 @@ applied to the other place evidence is gathered: there the under-specified
 identifier is the branch, here it is the active Clerk org.
 
 ```
-org_3FhYUR4l0ue7egug1I0Ig8wxOVn  /staff → nine store cards + Corporate   ← usable
-                                 /staff → one Unassigned card            ← not evidence
+production · org_3FhYUR4l0ue7egug1I0Ig8wxOVn  /staff → nine store cards + Corporate  ← usable
+dev · org_3FhMmIWVjja5HYpsou8n6rVtZn2         /staff → one Unassigned card           ← usable
+                                              /staff → one Unassigned card           ← not evidence
 ```
 
 Recorded 2026-08-02 during DEBT-9 Phase 3. Dev holds **two organizations both
 named "Keva Juice"** — `org_3FhYUR4l0ue7egug1I0Ig8wxOVn` (9 stores, 6 staff) and
 `org_3FhMmIWVjja5HYpsou8n6rVtZn2` (0 stores, 1 staff) — so a session can be on
 the wrong one while every visible signal says it is fine.
+
+**Correction appended 2026-08-06 — the attribution above is wrong, and the way
+it is wrong is this section's own lesson one layer down.**
+`org_3FhYUR4l0ue7egug1I0Ig8wxOVn` is a **PRODUCTION** Clerk org (Keva Juice,
+5 members — production Clerk dashboard, 2026-08-04; production SQL on
+`br-sparkling-block-a620qvg4` joining `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd` to that `clerkOrgId`). Dev holds
+`org_3FhMmIWVjja5HYpsou8n6rVtZn2` and one other. **The incident itself is
+recorded accurately** — the browser was on the dev instance, on the 0-store org,
+and the roster it showed was the wrong company's. Nothing production-side was
+touched (R5, ruled 2026-08-06).
+
+What went wrong is the LABEL. The "9 stores, 6 staff" figures came from a SQL
+measurement on branch **dev** (`br-broad-wave-a6vpjdw0`, DEBT-50) — and dev was
+forked from production, inheriting its `Organization` rows verbatim,
+`clerkOrgId` included. So the id was read off a production-originated row
+sitting in the dev database and written down as a dev org. **A Clerk org id
+identifies an INSTANCE, not a database branch; a row carrying it proves only
+that some fork once held that row.** Clerk-side truth wins over a DB row. This
+is § Database Evidence's "A ROW ID DOES NOT IDENTIFY A BRANCH" — which was
+written **55 minutes after this passage**, in the same evening's work
+(`04388f0` 20:57, `f4648ca` 21:52, both 2026-08-02), and would have caught it.
+
+**Therefore name the INSTANCE as well as the org id.** The org id alone was not
+enough here: it was a real id, correctly transcribed, and still put the reader
+in the wrong environment.
 
 **The failure mode is the branch-label one exactly, and it is worse in a browser
 because more things agree with you.** `/staff` was requested as a correctly

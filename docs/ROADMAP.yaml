@@ -8036,6 +8036,32 @@ debt:
           ADMIN gary@kevajuice.com   user_3FhMl9WeyNaGexqdaCEa5gEkU6P
       Only the FIRST org can exercise anything store-shaped. Any future browser
       verification on dev should assert its org id before trusting a screen.
+      CORRECTION APPENDED 2026-08-06 (R5, ruled) — THE FIRST ORG ABOVE IS NOT A
+      DEV ORG. The block is left byte-unchanged because the MEASUREMENT is
+      sound: those rows really are on branch dev, and the branch is named on the
+      line, exactly as the house rule requires. What is wrong is the inference
+      drawn from them. org_3FhYUR4l0ue7egug1I0Ig8wxOVn is a PRODUCTION Clerk org
+      (Keva Juice, 5 members — production Clerk dashboard 2026-08-04, and
+      production SQL on br-sparkling-block-a620qvg4 joining Organization
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd to that clerkOrgId). Dev was forked
+      FROM production and inherited its Organization rows verbatim, clerkOrgId
+      included, so that string is present in the dev DATABASE while the Clerk
+      org itself lives on the production INSTANCE. Clerk-side truth wins over a
+      DB row.
+      WHAT SURVIVES UNCHANGED: the incident, the duplicate-accounts diagnosis,
+      and the (a)-over-(b) conclusion. The browser was on the dev instance
+      throughout — the same session recorded membershipCount = 1 via
+      window.Clerk, and the DEBT-9 gate independently records that the
+      browser-reachable account was NOT a member of org_3FhYUR… and that adding
+      the membership was considered and REJECTED. Nothing production-side was
+      touched on 2026-08-02.
+      WHY THIS IS THE ROW THAT GETS THE CORRECTION: this block is the SOURCE of
+      the same misattribution in CLAUDE.md § Browser Evidence. Correcting that
+      passage while leaving its source intact would re-seed the error from here
+      the next time someone reads the row. Both now carry the same standing
+      lesson — NAME THE INSTANCE AS WELL AS THE ORG ID. A Clerk org id
+      identifies an instance, not a database branch; a row carrying it proves
+      only that some fork once held that row.
       Disconfirmed by: an OrganizationSwitcher, or a persistent active-org
       display that distinguishes two same-named orgs, appearing in the app
       shell. Related: DEBT-44 (org shell cleanup), CLAUDE.md § Browser Evidence
@@ -8609,8 +8635,9 @@ rulings:
     links: [PERM-5, SEC-1]
 
   - id: R5
-    status: open
+    status: ruled
     asked: 2026-08-05
+    ruled: 2026-08-06
     title: >
       CLAUDE.md § Browser Evidence cites an org id that belongs to production,
       in a passage describing a dev org
@@ -8635,6 +8662,12 @@ rulings:
       needs a trace. Discriminating evidence exists, so use it rather than
       picking the cheaper reading. A ruling of (a) produces a short read-only
       look-see prompt.
+    ruling: >
+      Reading (i): the browser was on dev throughout; nothing production-side
+      was touched. The passage's error was labelling a production-originated row
+      (inherited by the dev branch at fork) as a dev-instance org. Corrected in
+      CLAUDE.md and DEBT-50 by appended correction; the standing lesson added is
+      to name the INSTANCE as well as the org id.
     links: [DEBT-9]
 
   - id: R6
