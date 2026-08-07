@@ -198,6 +198,29 @@ now true, which is the opposite of why the library exists.
 consistent with `verification-smoke-pass.md` and `BUILD-2_default_store.md`,
 which were already in `docs/prompts/`.
 
+**AN AUDIT-ONLY SESSION MUST WRITE ITS FINDINGS TO
+`docs/prompts/<NAME>_AUDIT.md` BEFORE IT REPORTS.** Ruled 2026-08-07 (DEBT-45).
+This is DEBT-37's rule — *an observation that lives only in a transcript does
+not exist* — at SESSION scale: an audit is nothing but observations, so a
+session whose entire product is analysis has the largest possible exposure to it
+and, until now, no habit protecting it. **The report summarises the file; it
+does not replace it.** A session that reports findings it never wrote down has
+not delivered them.
+
+The file is the session's own output, not a living document — so it obeys the
+pointers-vs-claims line above like any other artifact in `docs/prompts/`: it is
+a claim wholesale, and nothing in it is ever edited afterwards. Write it at full
+size. `DEBT-1_AUDIT.md` (28k) and `DEBT-2_AUDIT.md` (27k) are the exemplars, and
+they are still cited by live rows today; the DEBT-TRIAGE audit's 22 per-row
+assessments are the counter-example and are simply gone.
+
+**This rule is the BACKSTOP, not the whole mechanism.** The other half — a
+standing line in Gary's prompt template, so the instruction arrives with the
+session rather than waiting to be remembered — lives OUTSIDE this repo and
+cannot be enforced from here. DEBT-45 named that automatic half as the harder
+and more important one. CLAUDE.md catches the sessions the template misses; it
+does not make the artifact automatic.
+
 ## Staging Verification — Precondition
 
 **Before verifying anything on staging, confirm the deployed commit SHA matches
