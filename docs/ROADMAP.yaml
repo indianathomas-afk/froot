@@ -6794,8 +6794,28 @@ debt:
       staging, estimatedTimeMinutes included. Related: DEBT-3, MIGRATIONS.md §2.
 
   - id: DEBT-36
-    title: "AWAITING RULING — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
+    title: "RULED — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
+      RULED 2026-08-07 — RENAMES-REWRITE-HISTORY IS ACCEPTED FOR NOW, AND THE
+      SECTION ENTITY IS INTENDED WORK RATHER THAN A DECLINED OPTION. Gary took
+      the second of the two directions this row put to him, but not immediately:
+      the entity is QUEUED behind the current minor-fix batch, and when it comes
+      up it is to be scoped as a FEATURE PHASE together with DEBT-48's
+      availability window — not as a debt cleanup and not as a rider. Both are
+      template-surface product work that outgrew a debt row, and scoping them in
+      one sitting is the point.
+      WHAT THE ACCEPTANCE COSTS IN THE MEANTIME, stated so it is carried
+      knowingly: until the entity exists, a section rename still retroactively
+      rewrites the headings on every historical completed checklist and every
+      print copy, and there is still no as-executed record of section names
+      anywhere in the system.
+      THE LATENT TRIGGER STANDS UNCHANGED and is the thing to watch: the first
+      section rename on a template that already has completed historical
+      checklists. If that fires before the phase is scoped it ESCALATES THE
+      PRIORITY — what was accepted above is a LATENT defect, not a fired one,
+      and the acceptance does not survive the trigger.
+      Row stays OPEN. Title prefix changed from AWAITING RULING to RULED;
+      nothing below this block is edited.
       COST OF DOING NOTHING: There is no as-executed record of section names
       anywhere in the system, and nobody has renamed one yet — LATENT (trigger:
       the first section rename on a template that already has completed
@@ -6893,8 +6913,36 @@ debt:
       count. Related: DEBT-18, DEBT-23, DEBT-26.
 
   - id: DEBT-38
-    title: "AWAITING RULING — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
+    status: staging
+    commits: ["7d984be"]
+    title: "CLOSED — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
     notes: >
+      CLOSED 2026-08-07 — RULED, AND BOTH FIX DIRECTIONS WERE TAKEN. The row
+      offered (a) a DEPLOY_LOG step inside WORKFLOW.md §2 and (b) `--no-ff` on
+      promotions, and its own last word was that they are not exclusive. Gary
+      ruled BOTH, applied in "7d984be": §2 now writes the docs/DEPLOY_LOG.md
+      entry BETWEEN the merge and the push — a step OF the promotion rather than
+      a thing remembered afterwards — and the promotion merge is
+      `git merge staging --no-ff --no-edit`, which restores the merge commit as
+      the artifact that prompts the entry, restores `git log --merges` as a
+      reconstruction tool, and makes `git revert -m 1 <merge-sha>` the rollback
+      again.
+      WHY BOTH RATHER THAN THE CHEAPER ONE ALONE: (a) by itself leaves the
+      reconstruction and rollback halves broken — `git log --merges` would still
+      return none of these promotions — while (b) by itself restores the
+      artifact without saying what to do when you see it. Each covers the
+      other's gap, which is what "not exclusive" meant.
+      TIMING, AND IT IS WHY THIS WAS RULED NOW RATHER THAN LATER: at ruling time
+      staging was SEVENTEEN commits ahead of main. This row's stated trigger is
+      THE NEXT PRODUCTION PROMOTION, and a delta that size means the trigger is
+      close. The fix lands BEFORE it fires rather than after — which was the
+      entire argument for not carrying this row another cycle.
+      STATUS IS `staging`, NOT `shipped`: "7d984be" is committed on the staging
+      branch and has been neither pushed nor promoted. Flip to `shipped` when it
+      reaches main — and note that under the fix itself, that promotion will
+      write its own DEPLOY_LOG entry. First use of the mechanism is the
+      promotion that carries it.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: DEPLOY_LOG is complete today — the missing entry
       was written 2026-08-01 — and the mechanism that lost it for three days is
       entirely untouched — LATENT (trigger: the next production promotion, which
@@ -7078,9 +7126,33 @@ debt:
 
   - id: DEBT-41
     title: >
-      AWAITING RULING — A blocker entry can only be LIVE or RESOLVED — there is
+      RULED — A blocker entry can only be LIVE or RESOLVED — there is
       no value for the half-closed state two entries are actually in
     notes: >
+      RULED 2026-08-07 — THE STANDING TRIGGER FIRED, SO THIS ROW STOPS BEING A
+      DECISION AND BECOMES WORK. Its own instruction was WATCH FOR MORE EXAMPLES
+      BEFORE ACTING, and after exemplar (a) was relocated away rather than
+      solved, the condition was exactly ONE NEW half-closed exemplar. That
+      exemplar now exists: IG-1's THIRD blockers entry, `blockers[2]`, dated
+      2026-08-06, which opens "SHRUNK TO ITS SURVIVING HALF 2026-08-06 — STILL
+      LIVE, but half of what it asserted is now answered". It is SELF-DESCRIBED
+      as half-closed, it is carried as live, and — unlike exemplar (a) — it was
+      not routed around to make a count come out right. It is the clean new
+      instance the row demanded.
+      SO, PER THIS ROW'S OWN INSTRUCTION, THE THIRD BlockerEntry STATE IS NOW
+      DESIGN WORK. Scope as ruled: SMALL, LOW PRIORITY, and it gets its OWN
+      SESSION rather than riding along — a vocabulary change to a type the whole
+      board reads is precisely the thing that gets half-done inside a sweep,
+      which is how exemplar (a) ended up relocated instead of fixed. The cost
+      being paid meanwhile is unchanged and still small: one internal panel
+      over-counting live blockers by one, in the deliberately-safe direction.
+      THE DO-NOT-FIX-BY-ADDING-`resolved: false` INSTRUCTION IS UNCHANGED and is
+      the first thing that session reads. The absence of the flag already
+      carries "live"; a third state needs its own name and its own render
+      treatment, or it destroys the default that makes the scheme safe.
+      Row stays OPEN, title prefix changed from AWAITING RULING to RULED. The
+      title's "two entries" stays dated-at-filing prose, corrected by the blocks
+      below rather than rewritten — the same treatment it already had.
       COST OF DOING NOTHING: The blockers panel counts BUILD-1's half-closed
       entry as live, so /internal/roadmap over-reports by one in the
       deliberately-safe direction — LATENT (trigger: a SECOND live half-closed
@@ -7210,9 +7282,29 @@ debt:
 
   - id: DEBT-42
     title: >
-      AWAITING RULING — `deferred` and `open` keep resolved entries in the array
+      `deferred` and `open` keep resolved entries in the array
       forever, the same defect P-4 fixed for `blockers`
     notes: >
+      RULED 2026-08-07 — NOTHING WAS PENDING HERE, AND THE PREFIX WAS THE ERROR.
+      No call was owed on this row: the deferral and its trigger were already
+      ruled by Gary on 2026-08-01, explicitly, as FLAG AND NOT FIX. What
+      happened on 2026-08-02 is that DEBT-TRIAGE-1 prefixed the title AWAITING
+      RULING so the row would stop reading as backlog — and over-corrected. A
+      row that was DECIDED was made to read as a row AWAITING a decision, and it
+      then sat in the awaiting-ruling set for five days asking for a call that
+      had been made a day before the prefix was applied.
+      WHAT ACTUALLY STANDS, UNCHANGED: this is a LATENT RECORD, and its trigger
+      is the first surface that derives a COUNT from `deferred` or `open` — a
+      summary tile, a panel headline, a dashboard number. At that moment it
+      becomes the P-4 bug again with the same failure direction, and the fix is
+      already designed and cheaper than P-4's was. Until then no headline count
+      reads either field and the cost is a slightly wrong badge on one collapsed
+      card.
+      PREFIX REMOVED AS MISLABELLED — that is the whole of this ruling. The row
+      stays open, stays latent, and is not waiting on Gary. Note the lesson for
+      the next relabelling pass: a prefix that says a row needs a DECISION is
+      itself a claim, and applying it to a row that has already been decided
+      costs exactly what it cost here.
       COST OF DOING NOTHING: No headline count reads `deferred` or `open` —
       verified at HEAD, both are still `string[]` at roadmap.ts:84-85 — so the
       three resolved entries sitting in those arrays cost a slightly wrong badge
@@ -7881,10 +7973,38 @@ debt:
       sharp one; this is an ordinary leftover.
 
   - id: DEBT-45
+    status: staging
+    commits: ["7d984be"]
     title: >
-      AWAITING RULING — Audit-only sessions leave no artifact: the DEBT-TRIAGE
+      CLOSED — Audit-only sessions leave no artifact: the DEBT-TRIAGE
       audit's 22 per-row assessments exist nowhere in the repo
     notes: >
+      CLOSED 2026-08-07 — RULED YES. Audit-only sessions MUST write their
+      findings to docs/prompts/<NAME>_AUDIT.md BEFORE reporting, and the report
+      SUMMARISES that file rather than replacing it. The rule is in CLAUDE.md
+      § Where documents live, commit "7d984be" — placed there rather than in
+      WORKFLOW.md because that section already governs docs/prompts/ and already
+      draws the pointers-vs-claims line an audit file sits on. DEBT-37's rule —
+      an observation that lives only in a transcript does not exist — now
+      operates at SESSION scale, which is exactly what this row argued for.
+      THE SECOND HALF — WHAT MAKES IT AUTOMATIC RATHER THAN REMEMBERED — IS
+      ANSWERED OUTSIDE THIS REPO: a standing line in Gary's prompt template, so
+      the instruction arrives WITH the session instead of waiting to be recalled
+      by it. That half cannot be enforced from here and deliberately leaves no
+      repo artifact.
+      SO CLAUDE.md IS THE BACKSTOP, NOT THE WHOLE FIX, and the rule says so in
+      its own text rather than leaving a future reader to assume the repo has it
+      covered. It catches the sessions the template misses. This row named the
+      automatic half as the harder question and the reason it was filed rather
+      than fixed; the honest closure is that the two halves landed in two
+      places, only one of which this repo can see.
+      THIS ROW'S SCOPE NOTE STILL HOLDS AND WAS NOT QUIETLY DROPPED: nothing was
+      reconstructed. The missing DEBT-TRIAGE audit stays missing, and the 22
+      assessments now in the rows remain DEBT-TRIAGE-2's own, derived at HEAD
+      and labelled as such.
+      STATUS IS `staging`, NOT `shipped`: "7d984be" is on the staging branch,
+      unpushed and unpromoted. Flip on promotion.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: DEBT-TRIAGE-2 had to re-derive all 22 cost
       assessments from scratch because the audit that produced them left nothing
       behind, and the same hole will swallow the next audit — LATENT (trigger:
@@ -8203,9 +8323,32 @@ debt:
 
   - id: DEBT-48
     title: >
-      AWAITING RULING — Implement the checklist availability window, or remove
+      RULED — Implement the checklist availability window, or remove
       the fields — the half of DEBT-29 that a relabel could not settle
     notes: >
+      RULED 2026-08-07 — PARKED AS THE FEATURE PHASE THIS ROW'S OWN SCOPE NOTE
+      DEMANDED. Neither direction the row put up (build the window, or remove
+      the two offset columns) was taken as a debt-sized job, because the row is
+      right that the subject has outgrown one: per-template availability with
+      overdue states and a day-boundary policy is a feature phase. It gets
+      scoped as one, TOGETHER WITH DEBT-36's Section entity, after the current
+      minor-fix batch — two pieces of template-surface product work parked on
+      the same terms and scoped in the same sitting.
+      GARY'S OVERDUE-NOT-HIDDEN THINKING STANDS EXACTLY AS IT IS RECORDED BELOW
+      — AS THINKING, NOT AS SPEC. Parking the row does not promote it. The block
+      below still says nobody should implement from it without Gary scoping the
+      phase first, and the two questions it leaves open — what OVERDUE does
+      across day boundaries, and what the OFFSETS MEAN once the window is soft —
+      are still unanswered inputs to that scoping rather than settled design.
+      THE THIRD OPTION IS SPUN OUT AND IS NO LONGER THIS ROW'S CARGO. Making the
+      offsets OPTIONAL and BLANK by default is now DEBT-59, filed 2026-08-07 on
+      Gary's explicit ruling. It left this row because its whole value is doing
+      it WHILE NO GATE EXISTS: it is small, it is doable now, and parking it
+      inside a feature phase that has not been scoped yet would have parked it
+      indefinitely — which is precisely the outcome that turns 1 and 2 into real
+      windows on every existing template the day a gate ships.
+      Row stays OPEN, title prefix changed from AWAITING RULING to RULED.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: The form is now honest — it says the phase is a
       label and says the offsets are not yet used — so nobody is misled and
       nothing is broken; what is missing is a capability, not a fix — NONE.
@@ -8923,6 +9066,52 @@ debt:
       sends and reads exactly like a failed deploy.
       Related: PERM-7 (the device accounts this is for).
 
+  - id: DEBT-59
+    title: >
+      Template availability offsets default to 1 and 2 and are written on every
+      save — every existing template carries an invented window nobody chose
+    notes: >
+      COST OF DOING NOTHING: Nothing reads the two offsets today, so nothing
+      misbehaves now — LATENT, but with an unusual shape worth naming: the
+      trigger does not merely EXPOSE the defect, it CONVERTS it into data. The
+      day any availability gate reads these fields, an unchosen 1/2 becomes a
+      REAL window on every existing template row at once, retroactively and
+      silently, and a chosen 1/2 is then indistinguishable from an inherited
+      one. DERIVED AT HEAD 90d8293 by this session.
+      FILED 2026-08-07 ON GARY'S EXPLICIT RULING, spun out of DEBT-48 when that
+      row was parked as a feature phase. SIZE: S. Size is recorded in prose
+      because `debt:` rows accept id/title/status/commits/notes ONLY — `size:`
+      is a `phases:` field and adding it to a debt row type-errors the build,
+      the same way `open:` does (see the header NOTE at the top of this file).
+      THE WORK: make Template.startOffsetHours and Template.endOffsetHours
+      OPTIONAL and BLANK by default, so a template that never chose a window
+      does not carry one.
+      THE STATE AT HEAD 90d8293, so nobody re-derives it:
+      src/app/(app)/templates/template-form.tsx:637-638 defaults them to 1 and 2
+      (`initialData?.startOffsetHours ?? 1`, `?? 2`) and they are written on
+      every save. Nothing reads them back — no availability gate exists
+      anywhere, verified by DEBT-48 at head. The comment immediately above them
+      (:631-636) records why the inputs stay VISIBLE and labelled rather than
+      hidden, and that reasoning is untouched by this row: hiding the inputs was
+      rejected because it would not stop the write, only stop the admin seeing
+      it. This row stops the write instead.
+      DOING IT BEFORE ANY GATE EXISTS IS THE WHOLE VALUE, and it is the only
+      reason this left DEBT-48 rather than waiting for that phase. Now, it is a
+      form default plus a nullable column. After a gate ships, it is a
+      data-correction problem on live templates with no way to tell an operator's
+      deliberate 1/2 from a default nobody picked — the information needed to fix
+      it correctly does not exist once the window is load-bearing.
+      IN SCOPE, NOT A SURPRISE TO BE FOUND MID-SESSION: the CSV export/import
+      parity edge from DEBT-29's reasoning. Emitting null changes what the export
+      writes, and files already on disk were written under the old shape, so the
+      import side has to accept both.
+      THIS IS DELIBERATE WORK GARY ORDERED, not a triage-rule violation. It is
+      filed as a row rather than fixed inline or left as a comment because it is
+      a code change with a data consequence and a hard ordering constraint
+      against another phase — which is what a row is for.
+      Related: DEBT-48 (the parked feature phase this was cargo on), DEBT-29
+      (the relabel that surfaced it as a third option), DEBT-32.
+
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
 # A DECISION LOG, NOT A SECOND DEBT TABLE. An entry belongs here only if the
@@ -8967,6 +9156,14 @@ debt:
 # debt table. Whether those six move here is R6's question and is not answered
 # by building this list. Until it is ruled, one list linking to the other is the
 # honest state — R6 carries the links.
+#
+# RULED 2026-08-07 (R6) — THE PARAGRAPH ABOVE NOW DESCRIBES A STATE THAT NO
+# LONGER EXISTS, and is kept for its reasoning rather than its facts. The six
+# were ruled directly from their rows and NONE of them moved here. No debt row
+# carries "AWAITING RULING" any more, so the competing convention is retired by
+# exhaustion rather than by migration, and there is no second list to link to.
+# New DECISIONS go here; the six stay debt rows because what remains on each is
+# work or a latent record.
 rulings:
   - id: R1
     status: ruled
@@ -9148,8 +9345,9 @@ rulings:
     links: [DEBT-9]
 
   - id: R6
-    status: open
+    status: ruled
     asked: 2026-08-05
+    ruled: 2026-08-07
     title: >
       Disposition of the six debt rows already carrying AWAITING RULING in
       their titles
@@ -9175,4 +9373,34 @@ rulings:
       second question this list does not answer — whether the six should MOVE
       into this list or stay as debt rows. That is worth its own session rather
       than a side effect of either ruling.
+    ruling: >
+      (b) EXECUTED, WITH FRESH EVIDENCE — and this SUPERSEDES the lean toward
+      (a) above. The six were ruled DIRECTLY from the rows, on a verbatim
+      extraction of all six taken at HEAD 90d8293 (report dated 2026-08-06),
+      rather than through per-item option cards. (a)'s whole worry was that six
+      UNEXAMINED items leave the desk half-done; the extraction is what removed
+      "unexamined". The rows were read in full, at head, before the call was
+      made, so building options-and-recommendation apparatus over the same
+      evidence would have been ceremony rather than examination.
+      ALL SIX DISPOSITIONS ARE RECORDED ON THE ROWS THEMSELVES, dated
+      2026-08-07, which is where a reader of any one of them is standing.
+      DEBT-38 CLOSED, both fix directions taken, commit "7d984be". DEBT-45
+      CLOSED, ruled YES, same commit. DEBT-41 converted from a decision into
+      WORK — its standing trigger fired. DEBT-42 relabelled: nothing was ever
+      pending on it and the prefix was the error. DEBT-36 and DEBT-48 parked, to
+      be scoped together as one feature phase after the current minor-fix batch.
+      One new row, DEBT-59, was filed off DEBT-48 for the availability-offset
+      defaults.
+      THE SECOND QUESTION THIS ENTRY RAISED IS MOOT — whether the six should
+      MOVE into this list or stay as debt rows. It was only ever a live question
+      while a competing pending-rulings convention was running inside the debt
+      table; after today NO debt row carries "AWAITING RULING", so there is
+      nothing left to move and the competing convention is retired by
+      exhaustion rather than by migration. Every one of the six stays a debt row,
+      because what remains on each of them is work or a latent record, not a
+      decision. New DECISIONS go in this list, by the convention above the
+      `rulings:` key.
+      THE PANEL ENDS AT 0 AWAITING A CALL, which is what this entry was really
+      asking for — and it is the last of the six to close, deliberately, since a
+      meta-question about a set cannot honestly be settled before the set is.
     links: [DEBT-36, DEBT-38, DEBT-41, DEBT-42, DEBT-45, DEBT-48]
