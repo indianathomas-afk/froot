@@ -628,14 +628,22 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   // opens with a matching dropdown option (and correct offset labels) instead
   // of an empty required field, and cannot be re-persisted on save.
   const [phase, setPhase] = useState(normalizePhase(initialData?.operationalPhase) ?? "Before Opening")
-  // DEBT-29: these two default to 1 and 2 and are written on EVERY StoreHours
-  // save (see the payload below), and nothing reads them back — no availability
-  // gate exists. Hiding the inputs would therefore not stop the write, it would
-  // only stop the admin seeing what gets written; and sending null instead
-  // changes what the CSV export emits, breaking parity with files already on
-  // disk. That is why they stay visible and labelled rather than hidden.
-  const [startOffset, setStartOffset] = useState(initialData?.startOffsetHours ?? 1)
-  const [endOffset, setEndOffset] = useState(initialData?.endOffsetHours ?? 2)
+  // DEBT-59: OPTIONAL and BLANK by default. Nothing reads these back — no
+  // availability gate exists — so a template that never chose a window must not
+  // carry one. `?? null`, never `?? 1`/`?? 2`: the old defaults were invented on
+  // create AND RE-INVENTED every time a NULL row was opened for an unrelated
+  // edit, so genuine blanks decayed into 1/2 one save at a time.
+  // The columns were nullable from the init migration and every write path
+  // (POST, PATCH's spread, import) already persisted null faithfully, so this
+  // form was the only thing manufacturing a value.
+  // DEBT-29's visible-and-labelled decision STANDS: hiding the inputs would not
+  // stop the write, only stop the admin seeing it. Its other stated reason for
+  // keeping the defaults — that emitting null would break CSV parity with files
+  // already on disk — was wrong, and is measured wrong in
+  // docs/prompts/DEBT-59_AUDIT.md §2.5: the export already writes "" for null
+  // and the import already reads "" back as null, unchanged by this row.
+  const [startOffset, setStartOffset] = useState<number | null>(initialData?.startOffsetHours ?? null)
+  const [endOffset, setEndOffset] = useState<number | null>(initialData?.endOffsetHours ?? null)
   const [appliesTo, setAppliesTo] = useState(
     initialData?.storeAssignments?.length ? "selected" : "all"
   )
@@ -956,21 +964,30 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                     </Select>
                     <p className="text-xs text-[var(--color-muted-foreground)]">Orders this checklist in the day and sets which shift hands off to it.</p>
                   </div>
+                  {/* DEBT-59: no ` *` — these are optional, and nothing has ever
+                      enforced them (handleSave's only guard is blankSectionCount).
+                      `?? ""` renders blank, and the empty string maps back to null
+                      rather than through Number(""), which is 0 — before this row
+                      there was no way to express "blank" through this form at all. */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label>{phase === "Before Opening" ? "Starts (hours before opening)" : phase === "During the Day" ? "Starts (hours after opening)" : "Starts (hours before closing)"} *</Label>
-                      <Input type="number" value={startOffset} onChange={(e) => setStartOffset(Number(e.target.value))} min={0} max={24} />
+                      <Label>{phase === "Before Opening" ? "Starts (hours before opening)" : phase === "During the Day" ? "Starts (hours after opening)" : "Starts (hours before closing)"}</Label>
+                      <Input type="number" placeholder="Optional" value={startOffset ?? ""} onChange={(e) => setStartOffset(e.target.value === "" ? null : Number(e.target.value))} min={0} max={24} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>{phase === "Before Opening" ? "Ends (hours after opening)" : phase === "During the Day" ? "Ends (hours before closing)" : "Ends (hours after closing)"} *</Label>
-                      <Input type="number" value={endOffset} onChange={(e) => setEndOffset(Number(e.target.value))} min={0} max={24} />
+                      <Label>{phase === "Before Opening" ? "Ends (hours after opening)" : phase === "During the Day" ? "Ends (hours before closing)" : "Ends (hours after closing)"}</Label>
+                      <Input type="number" placeholder="Optional" value={endOffset ?? ""} onChange={(e) => setEndOffset(e.target.value === "" ? null : Number(e.target.value))} min={0} max={24} />
                     </div>
                   </div>
                   {/* DEBT-29: the Preview card that stood here computed concrete clock
                       times ("Store opens 8:00 AM → Available 07:00 AM - 10:00 AM") for a
                       window nothing enforces. No helper text makes a computed clock time
                       honest, so it was removed rather than reworded. */}
-                  <p className="text-xs text-[var(--color-muted-foreground)]">Recorded for reference. Not yet used to show or hide checklists.</p>
+                  {/* DEBT-59: blank must not be described as "always available".
+                      Nothing reads these fields, so promising a behaviour for the
+                      empty case would re-introduce exactly the claim DEBT-29
+                      stripped out of this box. */}
+                  <p className="text-xs text-[var(--color-muted-foreground)]">Optional. Recorded for reference — not yet used to show or hide checklists. Leave blank if no window has been decided.</p>
                 </div>
               )}
 
