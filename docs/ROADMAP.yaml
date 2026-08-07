@@ -151,23 +151,51 @@ phases:
     title: "Instagram integration — org-level connect, /instagram page, dashboard strip"
     blockers:
       - >
-        UNVERIFIED SINCE 2026-07-10 — flagged 2026-07-27 (reconcile Pass 2a).
-        Both blockers below have sat 17 days with no verification date and no
-        owner. That is the same shape as F-1 (18 days) and F-4 (17 days), both
-        of which turned out to be materially wrong when finally checked — F-1
-        had been satisfied all along, F-4 was worse than recorded. Neither can
-        be verified from the repo: #1 needs the Meta App Review status in the
-        Meta dashboard, #2 needs a Vercel env check for INSTAGRAM_APP_ID /
-        INSTAGRAM_APP_SECRET across every environment. Assign an owner and a
-        check-by date at the next reconcile; do not carry them another 17 days.
+        UNVERIFIED SINCE 2026-07-10 — flagged 2026-07-27 (reconcile Pass 2a),
+        re-dated 2026-08-06. TRUE AGE IS NOW 27 DAYS.
+        THIS ENTRY ASKED NOT TO BE CARRIED ANOTHER 17 DAYS AND WAS CARRIED
+        ANOTHER 10. It is kept, not deleted, precisely because that is the
+        finding: a note whose whole content is "assign an owner" cannot assign
+        one, so it renews itself at every reconcile and reads as progress. This
+        is the third dated stamp on it.
+        FOR GARY — A CALL IS OWED, and it is one of two: assign an owner and a
+        check-by date to the entries below, or DROP this entry and accept that
+        they are carried unowned. Either is fine; the current state is the only
+        one that is not, because it costs a paragraph per reconcile and buys
+        nothing. Assigning owners is not a bookkeeping session's to make, which
+        is why this sweep re-dated it rather than resolving it.
+        PROGRESS SINCE, so the entry is no longer describing two unknowns: #2
+        is now half-answered — the env vars ARE set (see that entry), leaving
+        only the Meta callback registration. #1 is untouched and still needs the
+        Meta App Review status from the Meta dashboard, which no repo read can
+        supply.
+        ORIGINAL FRAMING, PRESERVED: both blockers below had sat 17 days with no
+        verification date and no owner — the same shape as F-1 (18 days) and F-4
+        (dead since 2026-07-10), both of which turned out to be materially wrong
+        when finally checked. F-1 had been satisfied all along; F-4 was worse
+        than recorded.
       - >
         Meta App Review (Advanced Access for instagram_business_basic) not yet
         granted — until then only Instagram accounts with a role on the Meta
         app can connect. Start App Review early.
       - >
-        INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET (optional
-        INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the callback
-        registered in the Meta app — not confirmed done for every env.
+        SHRUNK TO ITS SURVIVING HALF 2026-08-06 — STILL LIVE, but half of what
+        it asserted is now answered. Updated in place rather than closed and
+        re-filed: the entry is genuinely still live, and this is how F-4's and
+        F-5's live entries carry their dated re-checks.
+        THE ENV-VAR HALF IS SETTLED: INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET
+        are set in Vercel, Sensitive, on Preview AND Production (2026-08-06
+        audit; read off the Vercel env list, not from a deploy). Being Sensitive
+        they pull as empty, so their VALUES have not been checked against the
+        Meta app — only their presence.
+        WHAT REMAINS, and it is the whole of this entry now: THE CALLBACK IS NOT
+        CONFIRMED REGISTERED in the Meta app. Note this is the same failure
+        shape as F-4's, where the env var and the subscription are two separate
+        things and setting one without the other yields exactly the silence of
+        doing neither.
+        ORIGINAL ENTRY, PRESERVED: "INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET
+        (optional INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the
+        callback registered in the Meta app — not confirmed done for every env."
     deferred:
       - Posting / comments / insights / Stories
       - Vercel-cron feed-refresh backup
@@ -183,10 +211,29 @@ phases:
 
   - id: UM-2
     track: platform
-    size: M
+    size: S
     status: planned
     title: "Role column on organization members + read-only role-capability matrix page"
     notes: >
+      SHRUNK 2026-08-06 (bookkeeping sweep) — RE-SIZED M -> S BECAUSE MOST OF IT
+      IS ALREADY BUILT. Both pieces were re-checked at source; neither was built
+      by a session that knew this row existed, which is why nothing recorded it.
+      PIECE (1) IS DONE. The row's own note asks the right question — whether the
+      ACCEPTED-MEMBERS table has the column, or only the pending-invitations one
+      — and the answer is that it does. src/app/(app)/users/page.tsx:271 heads
+      the "Organization Members" section, its table at :281 carries a "Role"
+      header at :284, and :316 renders the role through the same ROLE_STYLES
+      badge. Nothing is left of this piece.
+      PIECE (2) IS LARGELY SUBSUMED BY PERM-5B, which built the per-capability
+      view inside the Edit User modal off the live registry — exactly the
+      never-hand-maintain constraint below. src/app/(app)/users/user-actions.tsx:370
+      resolves `can({ role }, e.capability)` per capability and :392 renders the
+      role baseline against it ("Not granted by this role"). So the modal-linked
+      half of the requirement exists and reads from enforcement.
+      WHAT ACTUALLY REMAINS: the STANDALONE baseline matrix page only — a global,
+      read-only role-capability table rendered from GRANTS + SCOPE_OVERRIDES, for
+      reading the whole matrix outside the context of one user. That is the S.
+      Original scope follows, unedited.
       Logged by PERM-3 (2026-07-26), explicitly scoped out of it. Two pieces:
       (1) a role / permission-level column on the organization MEMBERS table of
       /users. Check before building: the users page already renders role badges
@@ -260,16 +307,24 @@ phases:
       blocker entries carry no state for the renderer to read
     track: platform
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-08-02
     commits: [3a2f7ac]
     notes: >
-      STATUS IS `in_progress`, NOT `staging`, and the distinction is deliberate.
-      The work is complete and committed on the local `staging` branch, but
-      Claude never pushes (CLAUDE.md § Git Rules), so nothing is on a Vercel
-      preview and `staging` — which asserts exactly that — would be false. Move
-      it to `staging` on push. This is the same GAP the header NOTE records for
-      audit-only phases: the vocabulary has no value for "done locally, not yet
-      deployed".
+      SHIPPED TO PRODUCTION 2026-08-02 in de3ba40 (docs/DEPLOY_LOG.md,
+      2026-08-02); 3a2f7ac is an ancestor of origin/main. Status corrected from
+      `in_progress` by the 2026-08-06 bookkeeping sweep.
+      WHY IT SAT AT `in_progress` FOR FOUR DAYS, kept because it is the record
+      and not an error: the phase was promoted while deliberately still
+      in_progress (Gary, 2026-08-02) — /internal/roadmap is ADMIN-gated and
+      internal, with no merchant-facing surface, so an in-progress phase's UI
+      reaching production carried no tenant risk. Explicitly NOT a precedent for
+      merchant-facing phases. The status was simply never flipped afterwards.
+      The rationale paragraph that stood here until 2026-08-06 — that the work
+      was committed on local `staging`, unpushed, so `staging` would be false —
+      was true when written and stopped being true at the promotion. That is the
+      failure mode this sweep exists to catch: a correct note outliving its
+      state and reading as current.
       The /internal/roadmap blockers panel counted RESOLVED blocker entries as
       live. Observed 2026-08-01: the panel read "19 across 8 phases" when 8 of
       those 19 were closed, including every entry on PERM-6 and PERM-7 — both
@@ -457,6 +512,27 @@ phases:
       assignments. NOT PATCH /api/users/[id] — that route is requireAdmin and
       deliberately blocks self-edits (users/[id]/route.ts:51-53), the lockout
       guard; weakening it to pass a preference field through is the wrong trade.
+      RE-CONFIRMED 2026-08-06 (bookkeeping sweep), re-read at source at 411ccd2
+      rather than assumed — this row's audit was 2026-07-29 and a scoping
+      measurement that old is exactly what this file has been burned by before.
+      IT ALL STILL HOLDS. All EIGHT family-(a) sites are exact to the line:
+      labor/weekly-plan-client:91, settings/labor/labor-settings-client:72,
+      inventory counts:57, expected:51, reports:187, storage-areas:65,
+      ingredients:140 (note: `parsStoreId`, not `storeId`), orders/new/cart-client:65.
+      The localStorage keys are unchanged and so is the dashboard/messages
+      split: "froot.dashboard.store" is declared in BOTH dashboard-client and
+      messages-client (they share the key, which is the coupling piece (b) has
+      to preserve or deliberately break), and forecasting keeps its own
+      "froot.forecasting.store".
+      ONE POINTER REPAIRED, not a finding: "reports:187" resolves to
+      src/app/(app)/INVENTORY/reports/reports-client.tsx:187. There is also a
+      top-level /reports route, which has no picker at all — so the short form
+      sends a reader to the wrong file, and the wrong file looks like the
+      finding evaporated.
+      READY TO START. Its dependency BUILD-2 shipped to production 2026-07-29
+      (493175e) and landed src/lib/default-store.ts; BUILD-2's own outstanding
+      items are verification, not build, so they gate nothing here. Piece (a)
+      ships alone with no schema and no refactor.
 
   - id: X-1
     track: platform
@@ -464,6 +540,21 @@ phases:
     status: planned
     tags: [pre-launch]
     title: "Activation & QA"
+    blockers:
+      - >
+        UNSCOPED — BLOCKED ON ITSELF. Promoted to a blocker entry 2026-08-06 to
+        make this state machine-readable; until now it was invisible, and an
+        unscoped row is indistinguishable on the board from a ready one.
+        THIS ROW HAS NO NOTES AT ALL — not thin notes, none: `track`, `size`,
+        `status`, `tags` and a two-word title are its entire content. Nobody can
+        start "Activation & QA" from that, and its `size: S` is an estimate of
+        work nobody has described. It carries the [pre-launch] tag, so on its
+        own terms it must close before external merchants.
+        CLEARS WHEN: someone defines what activation and QA mean here — the
+        surfaces covered, what "activated" is true of, and what QA is a gate on.
+        That scoping is itself the next action and is a DECISION, not build
+        work; it is out of scope for bookkeeping (noted by the 2026-08-06 sweep,
+        which is why this entry describes the hole rather than filling it).
 
   # ---- Inventory ----
 
@@ -647,8 +738,15 @@ phases:
         webhooks have NEVER been signature-verified in production, so F-4's
         headline feature — live intraday pacing — has been silently degraded to
         the nightly sales-reconcile backfill since 2026-07-10. The dashboard has
-        been showing day-old pacing, not live pacing, for 17 days without
-        erroring.
+        been showing day-old pacing, not live pacing, CONTINUOUSLY SINCE
+        2026-07-10, without erroring.
+        THE DECAYING NUMBER WAS REPLACED BY ITS DATE 2026-08-06 (bookkeeping
+        sweep). This sentence read "for 17 days" — correct on 2026-07-27, silently
+        wrong every day after, and 27 days understated by the time anyone looked.
+        A duration is only true on the day it is written; the start date stays
+        true. Fixed here rather than left because this figure is quoted onto
+        other rows (IG-1's first blocker cites "F-4 (17 days)"), so the stale
+        arithmetic propagates.
       - >
         The fix is TWO parts and neither alone is sufficient: (a) set
         SQUARE_WEBHOOK_SIGNATURE_KEY per environment, and (b) register a webhook
@@ -658,7 +756,30 @@ phases:
         silence as today.
     open:
       - >
-        Determine whether src/app/api/webhooks/square fails CLOSED (rejects
+        RESOLVED 2026-08-06 AT SOURCE — FAILS CLOSED, CONFIRMED. Prepended as a
+        new entry; the one below stays exactly as written, including its caveat,
+        which is the part that turned out to matter.
+        THE ROUTE WAS READ, which is what the entry below asked for and did not
+        have. src/app/api/webhooks/square/route.ts:47 reads
+        SQUARE_WEBHOOK_SIGNATURE_KEY and :48-50 returns HTTP 500
+        ("SQUARE_WEBHOOK_SIGNATURE_KEY is not configured") when it is unset.
+        That guard is the FIRST statement in the POST handler — it runs before
+        `await req.text()` at :57, so with the key unset the body is never even
+        read, let alone parsed or written. Fail-CLOSED in the strongest form.
+        SO THE F-4 READING HOLDS: this is a BROKEN FEATURE, not an
+        unauthenticated write endpoint. There has been NO exposure window since
+        2026-07-10 and there is nothing to remediate beyond setting the key and
+        registering the subscriptions (the two-part fix in the second blocker).
+        The urgency stays at degraded pacing.
+        THE DOCS CLAIM WAS RIGHT, AND THAT IS NOT THE LESSON. docs/FORECASTING.md:135
+        said exactly this and the entry below still refused to rely on it,
+        citing DEBT-3 and STAGING_SETUP.md as live examples of Froot docs
+        asserting what the code no longer does. Being right this time does not
+        make the caveat wrong — the source reading cost one minute and converted
+        strong evidence into proof, and the fail-open branch would have changed
+        the remediation ORDER. Superseding a docs claim with a source reading is
+        the cheap half of this; refusing to act on the docs claim was the
+        correct half.
         every event when the key is unset — the degradation described above) or
         fails OPEN (skips verification when the key is unset). Fail-open would
         make it an UNAUTHENTICATED WRITE ENDPOINT reachable by anyone who knows
@@ -883,18 +1004,52 @@ phases:
       docs/DECISIONS.md.
     blockers:
       - >
-        UNVERIFIED SINCE 2026-07-24 — flagged 2026-07-27 (reconcile Pass 2a).
-        Both blockers below are PROD-VERIFICATION items with no owner and no
-        check-by date, 3 days old. Neither is checkable from the repo: both
-        require a real signing ceremony in production. They are also cheap to
-        fold into the next prod visit rather than scheduled on their own.
-        Related: SEC-1's open item asks for a production test account, and the
-        same visit could settle several of these at once.
-      - >
-        Certificate shows 'Microsoft' as org name — was a hard prod-promotion
-        gate; shipped un-re-tested. 232d568's certificate dual-name may have
-        fixed it ("Microsoft" is the Clerk DEV-instance test org, so prod may
-        not reproduce) — verify a real signing in prod.
+        UNVERIFIED SINCE 2026-07-24 — flagged 2026-07-27 (reconcile Pass 2a),
+        re-dated 2026-08-06. TRUE AGE IS NOW 13 DAYS, not the 3 this entry was
+        written with.
+        ONE OF THE TWO IS NOW CLOSED. The certificate org-name entry cleared
+        2026-08-06 on HR-14's 2026-08-03 production observation — see the
+        resolved entry directly below. So this note now covers ONE live item:
+        the visual-QA/mobile-tuning check. Kept rather than deleted because the
+        pattern it describes is the finding, and because the surviving item has
+        the same no-owner problem it opened with.
+        FOR GARY — A CALL IS OWED, same as IG-1's: assign an owner and a
+        check-by date to the visual-QA item, or drop this entry and accept it is
+        carried unowned. Not a bookkeeping session's call to make.
+        THE CHEAP PATH IS UNCHANGED AND IS NOW CHEAPER: fold the remaining check
+        into the next production visit rather than scheduling it. That visit
+        already has company — SEC-1's open item asks for a production test
+        account, and BUILD-2 needs its production column/index check plus five
+        UI checks. One visit settles all of them.
+        NOTE ON WHAT CLOSED IT: the answer existed on another row for three days
+        before anyone carried it here. That is the same failure this file keeps
+        finding — a fact recorded where the question isn't.
+      - resolved: true
+        text: >
+          GATE CLEARED 2026-08-06 by carrying an answer that already existed.
+          The entry below asked for a real signing in production; HR-14's gate
+          walk did one on 2026-08-03 and recorded the result on its own row,
+          where nobody looking at HR-11c would find it. Nothing new was
+          observed here — this is a cross-reference, not a verification.
+          THE FACT, and only this fact: on branch production
+          (br-sparkling-block-a620qvg4), organization
+          cf888f2d-f234-48c7-8097-fd5b44b5b3dd, a freshly rendered Certificate
+          of Acknowledgment reads "Generated by Froot for Keva Juice" — NOT
+          "Microsoft". The dev-instance test-org name does not reproduce in
+          production, which is exactly what this entry asked.
+          CARRIED NARROWLY, per HR-14's own instruction not to over-claim from
+          it. It settles the certificate's org name on production today and
+          NOTHING else: not the rename handler (organization.updated still
+          writes name and never slug), not the P2025 missing-row hazard (still
+          update rather than upsert, still untry/catch'd), and nothing about
+          staging, where five rows still answer to "Microsoft". Those remain
+          HR-14's substance and are untouched by this closure.
+      - resolved: true
+        text: >
+          Certificate shows 'Microsoft' as org name — was a hard prod-promotion
+          gate; shipped un-re-tested. 232d568's certificate dual-name may have
+          fixed it ("Microsoft" is the Clerk DEV-instance test org, so prod may
+          not reproduce) — verify a real signing in prod.
       - >
         Visual QA unverified — lift offsets (−118% buttons, −90% chips) shipped
         without the mobile tuning pass; check /my signing on a phone in prod.
@@ -940,10 +1095,14 @@ phases:
       /staff UI is ADMIN/MANAGER; this is the inventory's worst-first finding.
       (4) item 6 — GET /api/staff exposes the staff directory (names, emails,
       assignments) to any member, store-scoped for non-admins.
-      GATED ON BUILD-1 (2026-07-26): this phase touches the schema, and until
-      BUILD-1 lands a local `npm run build` runs migrate deploy against the
-      PRODUCTION branch (DEBT-4). Do not start schema work here before BUILD-1
-      is verified.
+      UNBLOCKED as of BUILD-1's ship — struck 2026-08-06 by the bookkeeping
+      sweep. This row carried "GATED ON BUILD-1 (2026-07-26): this phase touches
+      the schema, and until BUILD-1 lands a local `npm run build` runs migrate
+      deploy against the PRODUCTION branch (DEBT-4)" for eleven days after the
+      gate lifted. BUILD-1 shipped 6a77e68/06b1561 and was verified in
+      production 2026-07-27 (see its own notes, which name SEC-2 and HR-14 as
+      "both gated on this landing first — that gate is now lifted"); DEBT-4 is
+      shipped. Nothing about the schema now stops this phase starting.
       THE ORG NAME ON A SIGNED DOCUMENT IS CORRECT ON PRODUCTION — measured, not
       argued. Observed 2026-08-03 during the DEBT-9 gate walk, branch production
       (br-sparkling-block-a620qvg4), org cf888f2d-f234-48c7-8097-fd5b44b5b3dd:
@@ -982,6 +1141,21 @@ phases:
     status: planned
     title: "Signed-acknowledgment completion emails + org-level recipient routing"
     notes: Prerequisite — wire a real email provider into src/lib/notify.ts (see F-5 blocker).
+    blockers:
+      - >
+        NO REAL EMAIL PROVIDER EXISTS — promoted from prose to a blocker entry
+        2026-08-06 so the board can tell this row from a ready one. Verified at
+        source the same day: src/lib/notify.ts:19-24 is `consoleEmailSender`,
+        which console.logs the message instead of delivering it, and
+        getEmailSender() returns it unconditionally — NOTIFY_EMAIL_PROVIDER is
+        documented at :25 as "console" (default) with "resend" | "smtp" as
+        future options, and nothing reads the variable. This phase is entirely
+        the sending of email, so it cannot start at all, not merely ship
+        degraded.
+        CLEARS WHEN: a provider integration lands behind getEmailSender().
+        THIS ONE GATE BLOCKS THREE THINGS, which is the argument for doing it:
+        HR-16 (this row, wholly), F-5's pace alerts (its own live blocker, same
+        file, same line) and HR-8's reminders. One integration clears all three.
 
   - id: HR-17
     track: hr
@@ -999,8 +1173,96 @@ phases:
       stores); resource download route's admin tier widened to the manage
       tier for the same scope. No schema changes.
 
+  - id: HR-18
+    track: hr
+    size: M
+    status: planned
+    title: "Supervised (proctored) training completion — executed by the trainee, witnessed by an elevated user"
+    notes: >
+      FILED 2026-08-06 by the bookkeeping sweep. The row is the only thing new
+      here — the work was fully specified on 2026-08-05 in
+      docs/prompts/HR-18_supervised_training_completion.md (8fb86bb) and simply
+      never got a board entry, so a written-up phase was invisible to every
+      surface that reads this file.
+      STATUS IS `planned`, AND THAT DIFFERS FROM THE PROMPT ON PURPOSE. The
+      prompt asks for the row at `in_progress`. NO SESSION HAS RUN IT — no
+      commits, no branch, no audit output — and `in_progress` would assert work
+      underway. The prompt is a dated claim and stays unedited (CLAUDE.md
+      § Where documents live); this row records what is true today, and the
+      discrepancy is written down here rather than silently resolved either way.
+      Flip to `in_progress` when a session actually starts.
+      WHAT IT IS — A THIRD CAPTURE PATH, NOT A PERMISSION WIDENING, which is the
+      distinction the prompt spends its first page protecting. Training
+      completions can be captured two ways today: SELF-SERVICE (the team member
+      completes lessons in their own portal) and MANAGER-ATTESTED (an elevated
+      user presses Mark complete, attesting the training happened, recorded
+      against the attester). Both stay exactly as they are — Mark complete is
+      explicitly not to be touched.
+      The third path is SUPERVISED / PROCTORED: an elevated user (ADMIN, MANAGER
+      or STORE) on a shared device opens a proctored session from the team
+      member's Staff profile Training tab and hands the device over. The TEAM
+      MEMBER personally does the lessons and quiz; the completion records as
+      executed by the trainee, supervised by the elevated user.
+      WHY THE THIRD PATH HAS TO EXIST SEPARATELY, and it is a legal argument
+      rather than a modelling preference: a manager attestation says "I confirm
+      this person was trained"; a supervised completion says "this person did
+      the work; I watched". THOSE MUST STAY DISTINGUISHABLE IN THE RECORD
+      FOREVER. Collapsing supervised into attested loses the stronger of the two
+      claims exactly when it is needed.
+      Modules: Staff + HR (training) + Users/roles. The prompt is AUDIT-FIRST —
+      it requires a plan presented and explicitly approved before anything is
+      edited, and forbids fixing anything outside those three modules.
+      Related: PERM-7 (the shared store devices this runs on) and HR-19, which
+      governs the permission surface these routes sit in.
+
+  - id: HR-19
+    track: hr
+    size: L
+    status: planned
+    title: "Migrate the HR permission surface onto the registry — 35 API routes, 13 pages"
+    notes: >
+      FILED 2026-08-06 by the bookkeeping sweep. Not new scope: PERM-5's
+      `deferred` list has named this "its own future row per the audit" since
+      that phase closed, and a deferral pointing at a row that does not exist is
+      a pointer that does not resolve. This row is that target. PERM-5's own
+      deferred list is deliberately NOT edited — it stays the record of what
+      PERM-5 chose not to do.
+      SIZE VERIFIED, not inherited: 35 route.ts files under src/app/api/hr and
+      13 page.tsx files under src/app/(app)/hr, counted at 411ccd2 on
+      2026-08-06. The figure PERM-5 recorded reproduces exactly.
+      NUMBERING: filed under the `hr` track per the sweep instruction, so it
+      takes an HR- id. Its LINEAGE is PERM-, and anyone tracing the permissions
+      work will arrive from PERM-5's deferred entry rather than from the HR
+      sequence — which is why PERM-5 is cited here by id rather than merely
+      alluded to.
+      HOW PERM-5C LEFT THE EDGE, and it is guidance for whoever starts: PERM-5C
+      deliberately touched this surface's boundary WITHOUT entering it. The
+      /staff/[id] HR-derived tabs keep their inline role check, with a comment
+      saying why, so that the HR migration would not be quietly begun inside the
+      file least likely to be reviewed as part of it. Start from that comment.
+      THE OTHER PERM-5 EXCLUSIONS ARE NOT THIS ROW — recorded here because they
+      travel together in PERM-5's list and would otherwise be assumed folded in:
+      (1) THE UNGOVERNED SURFACES — operational inventory, /messages,
+      /store-view, /labor. Not HR, and NOT HOMED ON ANY ROW TODAY.
+      (2) USERS/SETTINGS VIEW/MANAGE SPLITS — not HR, also unhomed.
+      (3) SETTINGS TOGGLE APIs — not HR, also unhomed.
+      Those three are flagged for Gary rather than absorbed: giving them to this
+      row would make an L phase unbounded and would file HR work under a
+      non-HR heading. They need a call about where they land.
+      (4) PER-USER-PER-STORE GRANULARITY is already homed — PERM-5's last
+      deferred entry accepts it as a recorded LIMITATION, not a backlog item.
+      (5) THE square.manage BASELINE was RULED on 2026-08-06 (R4): the registry
+      was wrong, square.manage is now ADMIN_ONLY. The Square ROUTES remain
+      unmigrated, but that is PERM-5's square entry and a separate sweep — and
+      per R4 it is now a zero-baseline-change one.
+
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
+  # NOTHING IS FILED UNDER `LABOR-`, AND NOTHING SHOULD BE. The 2026-08-02
+  # LABOR-1 draft was ABSORBED INTO L-2 (see that row) — it proposed a third
+  # numbering of this thread, and its phase (d) was already L-4. Do not re-file
+  # it. Noted here as well as on L-2 because the draft is findable in
+  # docs/prompts/ and a reader who starts there sees no sign it was absorbed.
 
   - id: L-0
     track: labor
@@ -1207,6 +1469,40 @@ phases:
           when Square disconnects, or stay on and show unhealthy. Current lean:
           stay on and show unhealthy, so a reconnect restores the feature
           without a second admin action."
+    blockers:
+      - >
+        SQUARE OAUTH CARRIES NO LABOR SCOPES — promoted from this row's prose to
+        a blocker entry 2026-08-06 so the board can tell this row from a ready
+        one; re-verified at source the same day. src/app/api/square/auth/route.ts:9
+        requests exactly `MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ
+        EMPLOYEES_READ` — not one labor scope is present, so every read this
+        phase needs 401s today. AND THE API VERSION IS BELOW THE LABOR FLOOR:
+        src/lib/square.ts:4 pins SQUARE_VERSION = "2024-01-17". The two move
+        together — a scope grant against a too-old version buys nothing.
+      - >
+        LABOR-0 HAS NEVER FULLY RUN (docs/prompts/LABOR-0_shift_surface_grep.md)
+        — an unexecuted prompt filed in 2e75029. The 2026-08-05 partial covered
+        Tasks 2-4 only and answered two load-bearing questions in this row's
+        favour; Task 1c (construction-site count) and Task 5 (webhook inventory)
+        are still owed. RUN IT BEFORE ANY BUILD.
+      - >
+        CLEARS WHEN all four are done: LABOR-0 Tasks 1c and 5 run; SQUARE_VERSION
+        bumped past the Labor floor; the labor scopes added; and EVERY MERCHANT
+        RE-CONSENTS. The re-consent is the expensive part and is why CLAUDE.md
+        forbids adding a scope opportunistically — one addition re-consents every
+        connected merchant, so L-2's and L-4's scope additions must be batched
+        into ONE consent moment (see L-4).
+        THE ONLY DATED PRESSURE ON THIS ROW: Keva moves all stores to Square
+        Scheduling by SEPTEMBER 2026. That argues for scoping the work, not for
+        starting it — the build is deferred by ruling, not by the clock.
+      - >
+        BUILD IS DEFERRED BY RULING (Gary, 2026-08-05, DECISIONS.md top entry),
+        which is a DIFFERENT thing from the three gates above and is recorded
+        here so the two are never conflated. Even with every gate cleared this
+        row does not start until the deferral lifts: the Square labor
+        integration is strictly optional and can never become a floor under
+        forecast-driven labor. This row is the seam design, written so a future
+        build slots in without tearing anything down.
 
   - id: L-3
     track: labor
@@ -1245,6 +1541,22 @@ phases:
       L-2 and L-4 should be batched into ONE consent moment rather than two.
       Naming: SquareScheduledShift, never a bare `Shift` — see L-2 DON'T #2, the
       word is already spent twice in this codebase.
+    blockers:
+      - >
+        BEHIND L-2 — promoted from this row's prose to a blocker entry
+        2026-08-06 so the board can tell this row from a ready one. The Square
+        push half inherits L-2's whole seam: the same squareLaborEnabled toggle,
+        off by default, and the assignment layer must stay fully usable as a
+        Froot-only scheduler with the toggle off or Square down. So every gate
+        on L-2 is a gate here — read them there rather than restated here, which
+        is how they drift.
+        THIS ROW ADDS ONE OF ITS OWN: write-back needs TIMECARDS_WRITE on top of
+        L-2's read scopes. That is the SAME re-consent event, which is the whole
+        argument for batching L-2's and L-4's scope additions into one consent
+        moment rather than re-consenting every merchant twice.
+        CLEARS WHEN: L-2 clears, with L-4's write scope included in that single
+        consent. The Froot-only assignment layer — everything except the Square
+        push — is not gated by any of this and could be scoped independently.
 
   # ---- Permissions ----
 
@@ -2880,10 +3192,12 @@ phases:
       callback time — Instagram's equality check would error instead. Not a
       problem at one org; fix alongside the nonce work (e.g. bind the
       initiating org into the state cookie payload and reject on mismatch).
-      GATED ON BUILD-1 (2026-07-26): if the nonce work adds any schema field,
-      it must not start before BUILD-1 is verified — until then a local
-      `npm run build` runs migrate deploy against the PRODUCTION branch
-      (DEBT-4).
+      UNBLOCKED as of BUILD-1's ship — struck 2026-08-06 by the bookkeeping
+      sweep. This row carried "GATED ON BUILD-1 (2026-07-26): if the nonce work
+      adds any schema field, it must not start before BUILD-1 is verified" for
+      eleven days after the gate lifted. BUILD-1 shipped 6a77e68/06b1561,
+      verified in production 2026-07-27, and its own notes name SEC-2 by id as
+      one of the two rows that gate released; DEBT-4 is shipped. Ready to start.
 
   - id: SEC-3
     track: security
@@ -2909,8 +3223,17 @@ phases:
       blobs must be migrated or re-uploaded; the persisted importFileUrl values
       become stale and need a backfill or an on-demand signing indirection.
       Not a schema change in itself, but the backfill may want one — if so it is
-      GATED ON BUILD-1 like SEC-2 (a local build runs migrate deploy against the
-      PRODUCTION branch until then, DEBT-4).
+      UNBLOCKED as of BUILD-1's ship — the trailing "GATED ON BUILD-1 like
+      SEC-2 (a local build runs migrate deploy against the PRODUCTION branch
+      until then, DEBT-4)" was struck 2026-08-06 by the bookkeeping sweep.
+      BUILD-1 shipped 6a77e68/06b1561, verified in production 2026-07-27;
+      DEBT-4 is shipped. If the backfill wants a schema change it can now have
+      one.
+      THE SEVERITY ABOVE IS UNCHANGED AND IS NOT WHAT WAS STRUCK. The exposure
+      is LIVE and UNFIXED: tenant budget files remain retrievable by URL with no
+      authentication at all. Clearing the schema gate makes this row READY TO
+      START, which raises its urgency rather than lowering it — nothing now
+      stands between this finding and a session.
 
   - id: SEC-4
     track: security
@@ -2965,12 +3288,28 @@ phases:
     size: M
     status: planned
     title: "Nutrition — facts editor + label preview"
+    blockers:
+      - >
+        BEHIND N-1 — promoted to a blocker entry 2026-08-06 so the board can
+        tell this row from a ready one. N-1 is `planned`: per its own note the
+        MenuItem / MenuItemNutrition / MenuItemAllergen models and the module
+        flag are scaffolded, but there is NO UI and there are NO routes. This
+        phase is a facts editor over exactly those models, so there is nothing
+        to edit and nothing to edit it with until N-1 builds the surface.
+        CLEARS WHEN: N-1 ships its routes and UI.
 
   - id: N-3
     track: nutrition
     size: M
     status: planned
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
+    blockers:
+      - >
+        BEHIND N-1 — promoted to a blocker entry 2026-08-06, same gate as N-2.
+        N-1 is `planned` with models scaffolded but no UI and no routes, and a
+        public menu page renders the nutrition data those routes would serve.
+        CLEARS WHEN: N-1 ships. In practice this row wants N-2 as well, since a
+        public page with no editor behind it has nothing to publish.
 
   # ---- Square integration ----
 
@@ -3078,6 +3417,25 @@ phases:
       stops presenting as "Connected"; (d) surface token expiry in the settings
       UI, which today reports "Connected" off token presence alone.
     open:
+      - >
+        ANSWERED 2026-08-06 (bookkeeping sweep), at source. Prepended as a new
+        entry rather than edited into the one below, which stays as written —
+        the question was correctly posed and its two branches are the record.
+        IT IS READ. SQUARE_ACCESS_TOKEN appears five times in src/lib/square.ts:
+        :130, :169, :206 and :236 each build `const tokens = [org.squareAccessToken,
+        process.env.SQUARE_ACCESS_TOKEN].filter(Boolean)`, and :51 is the
+        redaction list. Those four ARE the bypassing helpers item (b) names, so
+        the overlap the entry below anticipates is total, not partial.
+        THE FORK COLLAPSES TO BRANCH ONE: this is a SECOND, UN-REFRESHED
+        CREDENTIAL PATH, not a stale credential to delete. Each site falls back
+        to the env token when the per-org OAuth token is absent or empty, so the
+        static credential silently backstops every one of them — it is not
+        covered by SQ-2's refresh work and it would outlive a disconnect.
+        Deleting the variable is therefore NOT the fix on its own: it would
+        break these four call sites for any org relying on the fallback. Item
+        (b) — routing the helpers through getSquareClient — has to land first,
+        which makes (b) a prerequisite of the deletion rather than a sibling.
+        NOT DONE HERE: the fix is code and belongs to this row's session.
       - >
         A static SQUARE_ACCESS_TOKEN exists in Vercel Production AND Preview
         (and in local .env). Determine whether anything still READS it — i.e. a
@@ -3217,6 +3575,15 @@ phases:
       column and index on branch `production` AND driven the five checks. Held
       at `shipped` deliberately rather than claiming more than was checked
       (Gary, 2026-07-30).
+      RE-CONFIRMED 2026-08-06 (bookkeeping sweep) — STILL SHIPPED, STILL NOT
+      VERIFIED, and that is bookkeeping-correct rather than a stale status. The
+      build work reached production 2026-07-29 as 493175e and nothing about it
+      is outstanding. WHAT REMAINS IS VERIFICATION WORK, NOT BUILD WORK: the
+      column/index check on branch `production` plus the five UI checks below.
+      So this row is neither ready-to-start nor blocked — it is done, awaiting a
+      production visit. Cheapest path is to fold it into the next one alongside
+      HR-11c's two prod-verification items and SEC-1's test-account request,
+      which is the same visit.
       CORRECTED 2026-07-29 — THE NONDETERMINISM RATIONALE BELOW IS REFUTED. The
       row claims primaryStoreName() "picks on an unordered query" and "may
       return a different one per request", and that "the codebase is already
@@ -8274,12 +8641,17 @@ debt:
       Clerk/database asymmetry).
 
   - id: DEBT-53
-    status: staging
+    status: shipped
     commits: ["5695aab"]
     title: >
       Cross-org privilege escalation in getCurrentUser() — wrong-org User row
       was admitted with its role
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-04 in 999cbdc; 5695aab is named in that
+      promotion's DEPLOY_LOG entry and is an ancestor of origin/main. Status
+      corrected from `staging` by the 2026-08-06 bookkeeping sweep — the row
+      recorded its staging verification and was never advanced when the same
+      commit went to prod the following day.
       VERIFIED ON STAGING 2026-08-04 (Gary). Deployed SHA confirmed
       3784c34c511f898087af57ce9ffa3820db18f583. Guard-path test: a
       two-membership identity (indianathomas+f1test, dev instance) with its
@@ -8330,12 +8702,15 @@ debt:
       overpromising sidebar. Own row: DEBT-55, which carries the site list.
 
   - id: DEBT-54
-    status: staging
+    status: shipped
     commits: ["3784c34"]
     title: >
       accept-invite failed toward sign-up — the one flow that can mint a
       duplicate identity
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-04 in 999cbdc, the same promotion as
+      DEBT-53; 3784c34 is an ancestor of origin/main. Status corrected from
+      `staging` by the 2026-08-06 bookkeeping sweep.
       VERIFIED ON STAGING 2026-08-04 (Gary), same deployed SHA as DEBT-53.
       Three tests: (1) real invite link for an existing dev-instance account
       (gary@kevajuice.com) landed on /sign-in with __clerk_ticket intact;
@@ -8516,7 +8891,11 @@ debt:
       the clip, stranding a half-finished sign-in on the device that is
       supposed to be the simplest thing in the store).
       FILED 2026-08-06 by the iOS home-screen icon session, which shipped it.
-      Both commits are UNPUSHED at filing.
+      "Both commits are UNPUSHED at filing" was struck 2026-08-06 by the
+      bookkeeping sweep: c473b72 and 28bbd8a are both on origin/staging. They
+      are NOT on origin/main, so this is on the staging preview and not in
+      production — which leaves the cost line above exactly as written, since
+      the trigger is a store device, not a branch.
       WHAT IS VERIFIED, and it is only the plumbing: the rendered <head>
       carries rel="apple-touch-icon" 180x180, apple-mobile-web-app-title
       "Froot", and rel="manifest"; /apple-icon.png, /icon.png and
