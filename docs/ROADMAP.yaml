@@ -9067,10 +9067,64 @@ debt:
       Related: PERM-7 (the device accounts this is for).
 
   - id: DEBT-59
+    status: staging
+    commits: ["2ccca7d"]
     title: >
-      Template availability offsets default to 1 and 2 and are written on every
-      save — every existing template carries an invented window nobody chose
+      CLOSED — Template availability offsets default to 1 and 2 and are written
+      on every save — every existing template carries an invented window nobody
+      chose
     notes: >
+      CLOSED 2026-08-07 IN "2ccca7d" — THE WRITE IS STOPPED. The form no longer
+      manufactures a value: state initialises from `initialData ?? null`, the
+      inputs render blank and map "" back to null, both labels lost the ` *`
+      they never earned, and the helper copy says blank is allowed without
+      saying what blank MEANS — which would have promised the gate DEBT-29
+      stripped this box of promising.
+      THE ROW OVERSTATED THE WORK, AND THE AUDIT IS WHY THIS WAS ONE FILE.
+      Full findings: docs/prompts/DEBT-59_AUDIT.md, written at head ac59d64.
+      Three claims below did not survive it. (1) "a form default plus a nullable
+      column" — BOTH COLUMNS WERE ALREADY NULLABLE with no `@default`, since
+      prisma/migrations/20260627002005_init. No migration, no SQL, no schema
+      limb at all. (2) the CSV parity edge listed as IN SCOPE — the export
+      already writes "" for null (export/route.ts:41) and the import already
+      reads "" back as null (import/route.ts:31-38, :139-140). Symmetric in both
+      directions, always was, and neither file was touched. (3) "rows carrying
+      exactly 1/2 were almost certainly never chosen" — see the ruling below.
+      Every write path was mapped by reading, not grepping, because PATCH
+      /api/templates/[id] writes these columns through an unnamed spread that a
+      field-name grep does not return — the trap its own comment records at
+      :51-55. All four persisted null faithfully already. The form was the only
+      manufacturer.
+      ONE DEFECT THE ROW DID NOT HAVE, AND IT WAS THE CORROSIVE HALF: `?? 1` /
+      `?? 2` fired not only on create but every time a template ALREADY HOLDING
+      NULL was opened for an unrelated edit. Renaming a template or adding a
+      task converted a genuine blank into a written 1/2. The affected population
+      was growing on its own, without anyone touching the window.
+      A SECOND, SMALLER ONE: `Number("")` is 0, so clearing an offset wrote 0,
+      not null. Before this commit there was no way to express blank through
+      this form at all — which is why the row was a code change and not copy.
+      EXISTING ROWS ARE DELIBERATELY UNTOUCHED — GARY'S RULING 2026-08-07, taken
+      against this row's own lean toward a backfill. Two reasons. The seed
+      script scripts/import-keva-templates.ts wrote a DELIBERATE 1/2 to Opener
+      Checklist and Closer Checklist (its eight templates carry five distinct
+      combinations including three explicit nulls), so a value-matched backfill
+      is known-lossy before it runs, and renames and duplicates leak past any
+      name-based carve-out. And the deliberate/invented distinction is weak in
+      BOTH directions: NO PRE-GATE OFFSET WAS CHOSEN AGAINST A DEFINITION OF
+      WHAT AN OFFSET MEANS — an operator typing 3 and 4 into a field labelled
+      "not yet used" did not choose a window either. The feature phase should
+      treat every pre-gate value as unreliable regardless of what it says.
+      WHAT THIS ROW DID AND DID NOT RETIRE, stated rather than implied. The
+      MECHANISM is retired in full. The HARM in the COST line below is retired
+      FORWARD ONLY: rows already carrying 1/2 still convert the day a gate
+      reads them. What the fix buys on those is that it FREEZES THE SET as of
+      "2ccca7d" — previously it grew with every unrelated edit — so the count is
+      now fixed and countable instead of moving. The blast-radius query is
+      preserved in the audit §4 (anchored per CLAUDE.md § Database Evidence) and
+      was NOT run: this session queried no database. HANDED TO DEBT-48's
+      scoping, which has to decide what an offset means before it can decide
+      what those rows are worth.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: Nothing reads the two offsets today, so nothing
       misbehaves now — LATENT, but with an unusual shape worth naming: the
       trigger does not merely EXPOSE the defect, it CONVERTS it into data. The
