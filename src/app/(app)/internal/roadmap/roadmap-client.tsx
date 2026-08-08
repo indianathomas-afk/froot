@@ -14,6 +14,7 @@ import {
   type LastUpdatedSource,
   type Phase,
   type PhaseStatus,
+  type Ruling,
 } from "@/lib/roadmap"
 
 // Track accents, drawn from the app's own tokens where a semantic one fits and
@@ -92,8 +93,25 @@ function relativeAge(iso: string) {
   return `${days} day${days === 1 ? "" : "s"} ago`
 }
 
+/**
+ * A date from the YAML, rendered as the day it says.
+ *
+ * FIXED 2026-08-05 (Gary's ruling), and it was wrong for every date on the
+ * board, not just the new ones. `new Date("2026-06-26")` is parsed as UTC
+ * MIDNIGHT by spec, so `toLocaleDateString` rendered it a day EARLY in every
+ * timezone west of UTC: P-0's `shipped: 2026-06-26` displayed as "Jun 25, 2026"
+ * in America/Los_Angeles, and so did every other shipped badge.
+ *
+ * The fix is to read a bare `YYYY-MM-DD` as a CALENDAR DAY and build a LOCAL
+ * date from its parts. That is what these fields are — `shipped`, `asked` and
+ * `ruled` name a day, not an instant. The `new Date(iso)` path stays for real
+ * timestamps, which is what `lastUpdated` carries.
+ */
 function formatDate(iso: string) {
-  const date = new Date(iso)
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  const date = parts
+    ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]))
+    : new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
   return date.toLocaleDateString(undefined, {
     year: "numeric",
@@ -133,6 +151,24 @@ function blockerText(entry: BlockerEntry) {
   return typeof entry === "string" ? entry : entry.text
 }
 
+/**
+ * A ruling is AWAITING A CALL only while it is `open`, and a MISSING status
+ * counts as open — the same direction isResolvedDebt and isResolvedBlocker take,
+ * for the same reason: an unclassified entry keeps demanding attention, so the
+ * headline count can over-report but never under-report.
+ *
+ * `deferred` is NOT open. A deferral is a decision — just not the final one —
+ * and folding it back into the awaiting count would mean the number never falls
+ * when Gary consciously decides to wait, which is exactly the call the value
+ * exists to record.
+ *
+ * THIS FUNCTION IS THE SINGLE DEFINITION of which rulings are outstanding;
+ * src/lib/roadmap.ts points here rather than restating it (DEBT-26).
+ */
+function isOpenRuling(item: Ruling) {
+  return (item.status ?? "open") === "open"
+}
+
 function liveBlockers(phase: Phase) {
   return (phase.blockers ?? []).filter((entry) => !isResolvedBlocker(entry))
 }
@@ -154,6 +190,7 @@ interface RoadmapClientProps {
   phases: Phase[]
   bugs: Bug[]
   debt: DebtItem[]
+  rulings: Ruling[]
   lastUpdated: string | null
   lastUpdatedSource: LastUpdatedSource
 }
@@ -162,6 +199,7 @@ export function RoadmapClient({
   phases,
   bugs,
   debt,
+  rulings,
   lastUpdated,
   lastUpdatedSource,
 }: RoadmapClientProps) {
@@ -277,6 +315,13 @@ export function RoadmapClient({
         livePhases={livePhases}
         resolvedOnlyPhases={resolvedOnlyPhases}
       />
+
+      {/* Above the search box, and DELIBERATELY NOT WIRED TO IT (Gary's ruling
+          2026-08-05). The box sits below this section, is labelled "Search
+          phases", and counts phases — filtering this list from a control
+          underneath it would mislead. Revisit only if the list outgrows a
+          screenful. */}
+      <RulingsPanel rulings={rulings} />
 
       <PipelinePanel stagingPhases={stagingPhases} totalPhases={phases.length} />
 
@@ -574,6 +619,168 @@ function BlockersPanel({
         </details>
       )}
     </section>
+  )
+}
+
+/**
+ * Open decisions, on the same page as the phases, bugs and debt they attach to.
+ *
+ * PLAIN CARD TREATMENT, not the warning tones the blockers panel uses. Two
+ * alarm-coloured panels stacked would flatten the distinction the top of this
+ * page exists to make: a blocker is stopping a promotion right now, a ruling is
+ * waiting on a person. Same components and tokens as PipelinePanel — no new
+ * design language.
+ *
+ * The count lives in the header rather than as a fifth summary tile: the tile
+ * grid is lg:grid-cols-4 and a fifth would relayout it, and BlockersPanel
+ * already sets the precedent of carrying its count beside its heading.
+ */
+function RulingsPanel({ rulings }: { rulings: Ruling[] }) {
+  // Split once, render twice — the BugsAndDebt pattern. Ruled and deferred
+  // entries never leave the page: a ruling that is recorded and then hidden is
+  // the loss this section was built to stop.
+  const open = rulings.filter(isOpenRuling)
+  const settled = rulings.filter((item) => !isOpenRuling(item))
+
+  if (rulings.length === 0) return null
+  return (
+    <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-card)] p-4">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <h2 className="text-sm font-semibold text-[var(--color-foreground)]">
+          Pending rulings — decisions, not work
+        </h2>
+        <span className="text-xs text-[var(--color-muted-foreground)]">
+          {open.length} awaiting a call
+          {settled.length > 0 && ` · ${settled.length} settled`}
+        </span>
+      </div>
+
+      {open.length === 0 ? (
+        <p className="text-sm text-[var(--color-muted-foreground)]">
+          Nothing is awaiting a call.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {open.map((item) => (
+            <RulingCard key={item.id} item={item} />
+          ))}
+        </ul>
+      )}
+
+      {settled.length > 0 && (
+        // Native <details>, same choice as "Resolved debt" and "Resolved gates".
+        <details className="mt-3">
+          <summary className="text-sm font-semibold cursor-pointer text-[var(--color-foreground)]">
+            Ruled &amp; deferred ({settled.length})
+          </summary>
+          <ul className="space-y-3 mt-3">
+            {settled.map((item) => (
+              <RulingCard key={item.id} item={item} />
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  )
+}
+
+/** One ruling, shared by both groups so they cannot drift apart. */
+function RulingCard({ item }: { item: Ruling }) {
+  const status = item.status ?? "open"
+  return (
+    <li className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-3">
+      <div className="flex flex-wrap items-center gap-2 mb-1.5">
+        <span className="text-xs font-bold text-[var(--color-foreground)]">
+          {item.id}
+        </span>
+        {status === "open" && <Badge variant="warning">awaiting a call</Badge>}
+        {status === "ruled" && <Badge variant="success">ruled</Badge>}
+        {status === "deferred" && <Badge variant="outline">deferred</Badge>}
+        {item.asked && (
+          <span className="text-[10px] text-[var(--color-muted-foreground)]">
+            asked {formatDate(item.asked)}
+          </span>
+        )}
+      </div>
+
+      <p className="text-sm font-medium text-[var(--color-foreground)]">
+        {item.title}
+      </p>
+
+      {item.question && (
+        <p className="text-xs leading-relaxed text-[var(--color-muted-foreground)] mt-1.5">
+          {item.question}
+        </p>
+      )}
+
+      <div className="mt-3 space-y-3">
+        <DetailList label="Options" items={item.options} />
+        {item.recommendation && (
+          <LabelledProse label="Recommendation" text={item.recommendation} />
+        )}
+        {/* The ruling renders LAST and in the foreground colour — once a call is
+            made it is the part of the entry that matters, and the options above
+            it become the record of what was considered rather than a live
+            choice. */}
+        {item.ruling && (
+          <LabelledProse
+            label={item.ruled ? `Ruling — ${formatDate(item.ruled)}` : "Ruling"}
+            text={item.ruling}
+            tone="foreground"
+          />
+        )}
+        {item.links && item.links.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)] mb-1">
+              Related
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {item.links.map((id) => (
+                <span
+                  key={id}
+                  className="inline-flex items-center rounded bg-[var(--color-muted)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-foreground)]"
+                >
+                  {id}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </li>
+  )
+}
+
+/**
+ * A labelled block of prose, in DetailList's visual language — same label
+ * treatment, same left rule — for the fields that carry one paragraph rather
+ * than a list.
+ */
+function LabelledProse({
+  label,
+  text,
+  tone,
+}: {
+  label: string
+  text: string
+  tone?: "foreground"
+}) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)] mb-1">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "text-xs leading-relaxed pl-2 border-l-2 border-[var(--color-border)]",
+          tone === "foreground"
+            ? "text-[var(--color-foreground)]"
+            : "text-[var(--color-muted-foreground)]",
+        )}
+      >
+        {text}
+      </p>
+    </div>
   )
 }
 

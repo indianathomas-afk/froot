@@ -120,6 +120,24 @@ Or use the helpers in `src/lib/auth.ts`:
 - Button islands for isolated interactivity live in `*-buttons.tsx` or `*-actions.tsx` files next to the page
 - Print pages live under `src/app/print/` — no sidebar, trigger `window.print()` on load
 
+**A NEW PAGE MUST NOT LOOK THE USER UP BY `clerkUserId` ALONE.** Use
+`getCurrentUser()` from `src/lib/auth.ts`, or `findFirst` with
+`organizationId: org.id` — never a bare
+`prisma.user.findUnique({ where: { clerkUserId } })`. `clerkUserId` is `@unique`
+GLOBALLY, so an identity with memberships in two orgs resolves to whichever
+org's row it was created in, and that row's ROLE is then handed to the current
+session. `getCurrentUser()` has guarded this centrally since DEBT-53/F1; a page
+that rolls its own lookup opts back out of the guard.
+
+Twenty existing pages still do it (DEBT-55). They are UI-only today — every gate
+behind them refuses independently — and **Gary ruled 2026-08-06 (R1) to leave
+them latent** rather than sweep them now. This note exists so the surface stops
+growing while they sit: the sweep is a hard prerequisite for DEBT-50's
+org-switcher half, and it gets more expensive with every page that copies the
+pattern. Exemplars doing it correctly:
+`src/app/api/checklists/[id]/task-log/route.ts:36`,
+`src/app/api/users/[id]/route.ts:201`.
+
 ---
 
 ## Design System
@@ -179,6 +197,29 @@ now true, which is the opposite of why the library exists.
 `DEBT-1_AUDIT.md` and `DEBT-2_AUDIT.md` moved here 2026-08-01, making the rule
 consistent with `verification-smoke-pass.md` and `BUILD-2_default_store.md`,
 which were already in `docs/prompts/`.
+
+**AN AUDIT-ONLY SESSION MUST WRITE ITS FINDINGS TO
+`docs/prompts/<NAME>_AUDIT.md` BEFORE IT REPORTS.** Ruled 2026-08-07 (DEBT-45).
+This is DEBT-37's rule — *an observation that lives only in a transcript does
+not exist* — at SESSION scale: an audit is nothing but observations, so a
+session whose entire product is analysis has the largest possible exposure to it
+and, until now, no habit protecting it. **The report summarises the file; it
+does not replace it.** A session that reports findings it never wrote down has
+not delivered them.
+
+The file is the session's own output, not a living document — so it obeys the
+pointers-vs-claims line above like any other artifact in `docs/prompts/`: it is
+a claim wholesale, and nothing in it is ever edited afterwards. Write it at full
+size. `DEBT-1_AUDIT.md` (28k) and `DEBT-2_AUDIT.md` (27k) are the exemplars, and
+they are still cited by live rows today; the DEBT-TRIAGE audit's 22 per-row
+assessments are the counter-example and are simply gone.
+
+**This rule is the BACKSTOP, not the whole mechanism.** The other half — a
+standing line in Gary's prompt template, so the instruction arrives with the
+session rather than waiting to be remembered — lives OUTSIDE this repo and
+cannot be enforced from here. DEBT-45 named that automatic half as the harder
+and more important one. CLAUDE.md catches the sessions the template misses; it
+does not make the artifact automatic.
 
 ## Staging Verification — Precondition
 
@@ -377,14 +418,41 @@ applied to the other place evidence is gathered: there the under-specified
 identifier is the branch, here it is the active Clerk org.
 
 ```
-org_3FhYUR4l0ue7egug1I0Ig8wxOVn  /staff → nine store cards + Corporate   ← usable
-                                 /staff → one Unassigned card            ← not evidence
+production · org_3FhYUR4l0ue7egug1I0Ig8wxOVn  /staff → nine store cards + Corporate  ← usable
+dev · org_3FhMmIWVjja5HYpsou8n6rVtZn2         /staff → one Unassigned card           ← usable
+                                              /staff → one Unassigned card           ← not evidence
 ```
 
 Recorded 2026-08-02 during DEBT-9 Phase 3. Dev holds **two organizations both
 named "Keva Juice"** — `org_3FhYUR4l0ue7egug1I0Ig8wxOVn` (9 stores, 6 staff) and
 `org_3FhMmIWVjja5HYpsou8n6rVtZn2` (0 stores, 1 staff) — so a session can be on
 the wrong one while every visible signal says it is fine.
+
+**Correction appended 2026-08-06 — the attribution above is wrong, and the way
+it is wrong is this section's own lesson one layer down.**
+`org_3FhYUR4l0ue7egug1I0Ig8wxOVn` is a **PRODUCTION** Clerk org (Keva Juice,
+5 members — production Clerk dashboard, 2026-08-04; production SQL on
+`br-sparkling-block-a620qvg4` joining `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd` to that `clerkOrgId`). Dev holds
+`org_3FhMmIWVjja5HYpsou8n6rVtZn2` and one other. **The incident itself is
+recorded accurately** — the browser was on the dev instance, on the 0-store org,
+and the roster it showed was the wrong company's. Nothing production-side was
+touched (R5, ruled 2026-08-06).
+
+What went wrong is the LABEL. The "9 stores, 6 staff" figures came from a SQL
+measurement on branch **dev** (`br-broad-wave-a6vpjdw0`, DEBT-50) — and dev was
+forked from production, inheriting its `Organization` rows verbatim,
+`clerkOrgId` included. So the id was read off a production-originated row
+sitting in the dev database and written down as a dev org. **A Clerk org id
+identifies an INSTANCE, not a database branch; a row carrying it proves only
+that some fork once held that row.** Clerk-side truth wins over a DB row. This
+is § Database Evidence's "A ROW ID DOES NOT IDENTIFY A BRANCH" — which was
+written **55 minutes after this passage**, in the same evening's work
+(`04388f0` 20:57, `f4648ca` 21:52, both 2026-08-02), and would have caught it.
+
+**Therefore name the INSTANCE as well as the org id.** The org id alone was not
+enough here: it was a real id, correctly transcribed, and still put the reader
+in the wrong environment.
 
 **The failure mode is the branch-label one exactly, and it is worse in a browser
 because more things agree with you.** `/staff` was requested as a correctly
@@ -492,6 +560,16 @@ One OAuth connection per org. Tokens stored encrypted on `Organization.squareAcc
 sales caches fresh (signature-verified; see `docs/FORECASTING.md` § Square order webhooks).
 
 Square is entirely optional — all features work without it, import buttons only show when connected.
+
+**Before touching Square scopes, `disconnect`, or anything labor-adjacent, read
+the seam design and the five DON'Ts in the `L-2` row of `docs/ROADMAP.yaml`.**
+Deferred build, live constraints — the two that fire in unrelated sessions are:
+never add an OAuth scope opportunistically (every addition re-consents every
+merchant), and never name anything a bare `Shift` (the word is already spent on
+`LaborDaypart`'s "Shift blocks" UI and on store-view handoff notes; Square
+scheduled shifts are `SquareScheduledShift`). Ruling: `docs/DECISIONS.md`
+2026-08-05 — a Square labor integration is strictly optional and can never break
+forecast-driven labor.
 
 ---
 

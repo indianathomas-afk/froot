@@ -151,23 +151,51 @@ phases:
     title: "Instagram integration — org-level connect, /instagram page, dashboard strip"
     blockers:
       - >
-        UNVERIFIED SINCE 2026-07-10 — flagged 2026-07-27 (reconcile Pass 2a).
-        Both blockers below have sat 17 days with no verification date and no
-        owner. That is the same shape as F-1 (18 days) and F-4 (17 days), both
-        of which turned out to be materially wrong when finally checked — F-1
-        had been satisfied all along, F-4 was worse than recorded. Neither can
-        be verified from the repo: #1 needs the Meta App Review status in the
-        Meta dashboard, #2 needs a Vercel env check for INSTAGRAM_APP_ID /
-        INSTAGRAM_APP_SECRET across every environment. Assign an owner and a
-        check-by date at the next reconcile; do not carry them another 17 days.
+        UNVERIFIED SINCE 2026-07-10 — flagged 2026-07-27 (reconcile Pass 2a),
+        re-dated 2026-08-06. TRUE AGE IS NOW 27 DAYS.
+        THIS ENTRY ASKED NOT TO BE CARRIED ANOTHER 17 DAYS AND WAS CARRIED
+        ANOTHER 10. It is kept, not deleted, precisely because that is the
+        finding: a note whose whole content is "assign an owner" cannot assign
+        one, so it renews itself at every reconcile and reads as progress. This
+        is the third dated stamp on it.
+        FOR GARY — A CALL IS OWED, and it is one of two: assign an owner and a
+        check-by date to the entries below, or DROP this entry and accept that
+        they are carried unowned. Either is fine; the current state is the only
+        one that is not, because it costs a paragraph per reconcile and buys
+        nothing. Assigning owners is not a bookkeeping session's to make, which
+        is why this sweep re-dated it rather than resolving it.
+        PROGRESS SINCE, so the entry is no longer describing two unknowns: #2
+        is now half-answered — the env vars ARE set (see that entry), leaving
+        only the Meta callback registration. #1 is untouched and still needs the
+        Meta App Review status from the Meta dashboard, which no repo read can
+        supply.
+        ORIGINAL FRAMING, PRESERVED: both blockers below had sat 17 days with no
+        verification date and no owner — the same shape as F-1 (18 days) and F-4
+        (dead since 2026-07-10), both of which turned out to be materially wrong
+        when finally checked. F-1 had been satisfied all along; F-4 was worse
+        than recorded.
       - >
         Meta App Review (Advanced Access for instagram_business_basic) not yet
         granted — until then only Instagram accounts with a role on the Meta
         app can connect. Start App Review early.
       - >
-        INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET (optional
-        INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the callback
-        registered in the Meta app — not confirmed done for every env.
+        SHRUNK TO ITS SURVIVING HALF 2026-08-06 — STILL LIVE, but half of what
+        it asserted is now answered. Updated in place rather than closed and
+        re-filed: the entry is genuinely still live, and this is how F-4's and
+        F-5's live entries carry their dated re-checks.
+        THE ENV-VAR HALF IS SETTLED: INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET
+        are set in Vercel, Sensitive, on Preview AND Production (2026-08-06
+        audit; read off the Vercel env list, not from a deploy). Being Sensitive
+        they pull as empty, so their VALUES have not been checked against the
+        Meta app — only their presence.
+        WHAT REMAINS, and it is the whole of this entry now: THE CALLBACK IS NOT
+        CONFIRMED REGISTERED in the Meta app. Note this is the same failure
+        shape as F-4's, where the env var and the subscription are two separate
+        things and setting one without the other yields exactly the silence of
+        doing neither.
+        ORIGINAL ENTRY, PRESERVED: "INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET
+        (optional INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the
+        callback registered in the Meta app — not confirmed done for every env."
     deferred:
       - Posting / comments / insights / Stories
       - Vercel-cron feed-refresh backup
@@ -183,10 +211,29 @@ phases:
 
   - id: UM-2
     track: platform
-    size: M
+    size: S
     status: planned
     title: "Role column on organization members + read-only role-capability matrix page"
     notes: >
+      SHRUNK 2026-08-06 (bookkeeping sweep) — RE-SIZED M -> S BECAUSE MOST OF IT
+      IS ALREADY BUILT. Both pieces were re-checked at source; neither was built
+      by a session that knew this row existed, which is why nothing recorded it.
+      PIECE (1) IS DONE. The row's own note asks the right question — whether the
+      ACCEPTED-MEMBERS table has the column, or only the pending-invitations one
+      — and the answer is that it does. src/app/(app)/users/page.tsx:271 heads
+      the "Organization Members" section, its table at :281 carries a "Role"
+      header at :284, and :316 renders the role through the same ROLE_STYLES
+      badge. Nothing is left of this piece.
+      PIECE (2) IS LARGELY SUBSUMED BY PERM-5B, which built the per-capability
+      view inside the Edit User modal off the live registry — exactly the
+      never-hand-maintain constraint below. src/app/(app)/users/user-actions.tsx:370
+      resolves `can({ role }, e.capability)` per capability and :392 renders the
+      role baseline against it ("Not granted by this role"). So the modal-linked
+      half of the requirement exists and reads from enforcement.
+      WHAT ACTUALLY REMAINS: the STANDALONE baseline matrix page only — a global,
+      read-only role-capability table rendered from GRANTS + SCOPE_OVERRIDES, for
+      reading the whole matrix outside the context of one user. That is the S.
+      Original scope follows, unedited.
       Logged by PERM-3 (2026-07-26), explicitly scoped out of it. Two pieces:
       (1) a role / permission-level column on the organization MEMBERS table of
       /users. Check before building: the users page already renders role badges
@@ -260,16 +307,24 @@ phases:
       blocker entries carry no state for the renderer to read
     track: platform
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-08-02
     commits: [3a2f7ac]
     notes: >
-      STATUS IS `in_progress`, NOT `staging`, and the distinction is deliberate.
-      The work is complete and committed on the local `staging` branch, but
-      Claude never pushes (CLAUDE.md § Git Rules), so nothing is on a Vercel
-      preview and `staging` — which asserts exactly that — would be false. Move
-      it to `staging` on push. This is the same GAP the header NOTE records for
-      audit-only phases: the vocabulary has no value for "done locally, not yet
-      deployed".
+      SHIPPED TO PRODUCTION 2026-08-02 in de3ba40 (docs/DEPLOY_LOG.md,
+      2026-08-02); 3a2f7ac is an ancestor of origin/main. Status corrected from
+      `in_progress` by the 2026-08-06 bookkeeping sweep.
+      WHY IT SAT AT `in_progress` FOR FOUR DAYS, kept because it is the record
+      and not an error: the phase was promoted while deliberately still
+      in_progress (Gary, 2026-08-02) — /internal/roadmap is ADMIN-gated and
+      internal, with no merchant-facing surface, so an in-progress phase's UI
+      reaching production carried no tenant risk. Explicitly NOT a precedent for
+      merchant-facing phases. The status was simply never flipped afterwards.
+      The rationale paragraph that stood here until 2026-08-06 — that the work
+      was committed on local `staging`, unpushed, so `staging` would be false —
+      was true when written and stopped being true at the promotion. That is the
+      failure mode this sweep exists to catch: a correct note outliving its
+      state and reading as current.
       The /internal/roadmap blockers panel counted RESOLVED blocker entries as
       live. Observed 2026-08-01: the panel read "19 across 8 phases" when 8 of
       those 19 were closed, including every entry on PERM-6 and PERM-7 — both
@@ -457,6 +512,163 @@ phases:
       assignments. NOT PATCH /api/users/[id] — that route is requireAdmin and
       deliberately blocks self-edits (users/[id]/route.ts:51-53), the lockout
       guard; weakening it to pass a preference field through is the wrong trade.
+      RE-CONFIRMED 2026-08-06 (bookkeeping sweep), re-read at source at 411ccd2
+      rather than assumed — this row's audit was 2026-07-29 and a scoping
+      measurement that old is exactly what this file has been burned by before.
+      IT ALL STILL HOLDS. All EIGHT family-(a) sites are exact to the line:
+      labor/weekly-plan-client:91, settings/labor/labor-settings-client:72,
+      inventory counts:57, expected:51, reports:187, storage-areas:65,
+      ingredients:140 (note: `parsStoreId`, not `storeId`), orders/new/cart-client:65.
+      The localStorage keys are unchanged and so is the dashboard/messages
+      split: "froot.dashboard.store" is declared in BOTH dashboard-client and
+      messages-client (they share the key, which is the coupling piece (b) has
+      to preserve or deliberately break), and forecasting keeps its own
+      "froot.forecasting.store".
+      ONE POINTER REPAIRED, not a finding: "reports:187" resolves to
+      src/app/(app)/INVENTORY/reports/reports-client.tsx:187. There is also a
+      top-level /reports route, which has no picker at all — so the short form
+      sends a reader to the wrong file, and the wrong file looks like the
+      finding evaporated.
+      READY TO START. Its dependency BUILD-2 shipped to production 2026-07-29
+      (493175e) and landed src/lib/default-store.ts; BUILD-2's own outstanding
+      items are verification, not build, so they gate nothing here. Piece (a)
+      ships alone with no schema and no refactor.
+
+  - id: TPL-1
+    track: platform
+    size: M
+    status: staging
+    commits: ["8461a48", "182ca1c"]
+    title: "Template types become a first-class managed entity — create, colour, choose, filter"
+    notes: >
+      VERIFIED 2026-08-07 by Gary on staging — BROWSER WALKTHROUGH PASSED IN
+      FULL: the Type select on the template form (pre-selected on edit, colour
+      dots on the options), the Manage Types dialog (create, rename with the
+      count warning, delete blocked while in use with reassign offered, delete
+      of an unused type), the filter chips composing with the Active/Archived
+      tabs, and badges rendering from stored colours.
+      BACKFILL EVIDENCE, both branches named per CLAUDE.md § Database Evidence:
+      preview/staging br-square-feather-a63z92vz — unlinked 0, total 16
+      (2026-08-07). dev br-broad-wave-a6vpjdw0 — unlinked 0, total 8. Production
+      is NOT yet measured; its evidence lands with the promotion and is the
+      precondition for filing TPL-2.
+      DATE NOTE, so the sequence is not read as two separate days: the blocks
+      below are dated 2026-08-08, taken from the header on Gary's Q1-Q7 ruling
+      message. The verification, the promotion and this rider are 2026-08-07.
+      The build and the ruling did not span a day; only the labels disagree, and
+      they are left as written rather than rewritten.
+      TPL-1b SHIPPED TO staging IN "182ca1c" (2026-08-08) — BOTH PHASES ARE NOW
+      IN. Management UI, CRUD routes, delete-blocked-with-reassign, filter chips
+      and sort, badges from stored colours, CSV type resolution, and the starter
+      seed at org creation. TPL-1a ("8461a48") was verified on dev the same day
+      — unlinked=0 on br-broad-wave — and pushed to staging 2026-08-07.
+      ENTRY POINT RULED 2026-08-07 BY GARY, AND IT SUPERSEDES THE PHASE A PLAN:
+      type management lives WITH templates, not in Settings. No Settings tab was
+      created. A "Manage Types" button in the /templates header opens a dialog,
+      following the precedent of
+      src/app/(app)/inventory/ingredients/category-manager-dialog.tsx — the same
+      shape one level down, where ingredient categories are managed from the
+      list they belong to rather than from global Settings. Dialog over
+      subroute because the surface is a short list with inline edits, and a
+      subroute would need its own layout and its own capability guard while
+      navigating away from the list you are about to filter.
+      NO CAPABILITY WAS ADDED AND permissions.ts WAS NOT TOUCHED (Q3).
+      templates/layout.tsx already gates the whole /templates surface on
+      templates.manage, which is ADMIN_ONLY, so the button inherits ADMIN and a
+      second check on it could only ever disagree with the layout.
+      THE PRECEDENT WAS COPIED BUT NOT WHOLESALE, recorded because the next
+      person to use api/inventory/ingredient-categories as a model should know:
+      it calls `Schema.parse(body)` bare (a malformed body is a 500) and has no
+      P2002 handling (a duplicate name is a 500). api/template-types uses
+      safeParse and returns 409. A comment now sits on the older file pointing
+      at the newer pair; its status codes were NOT changed, which is a live
+      route and not this row's business.
+      RENAME REWRITES HISTORY, KNOWINGLY — DEBT-36's class, not a new trade.
+      Checklist holds no snapshot of the type (TYPE-1_AUDIT §3.4), so renaming
+      re-renders every historical completed checklist and print copy under the
+      new name. DEBT-36 accepted exactly this for section names on 2026-08-07.
+      What TPL-1b adds is that the rename is never silent: an AlertDialog shows
+      the affected count first (Gary, Q4). If the cost stops being acceptable,
+      it is a snapshot column on Checklist and it belongs with DEBT-36's entity
+      phase, not here.
+      TWO COUNTS, DELIBERATELY DIFFERENT, so nobody "fixes" one into the other.
+      The manage dialog's count is org-wide and ARCHIVED-INCLUSIVE because it
+      governs deletion — an archived template still holds the FK and still trips
+      ON DELETE RESTRICT, so a client-derived count would read 0, enable delete
+      and then eat a 409 (Gary, Q1). The filter chips' counts are per-view, so a
+      chip's number always matches what clicking it shows.
+      TemplateType.active HAS NO WRITER and that is intended (Gary, Q2): the
+      ruled model is delete-or-keep with reassignment in front of delete, and no
+      deactivate control was built. The field is commented in schema.prisma and
+      revisited at TPL-2, not dropped — dropping it would be a schema change.
+      ROWS IMPORTED DURING THE TPL-1a WINDOW KEEP typeId = NULL (Gary, Q3 — no
+      backfill). They render correctly from the legacy string in neutral grey
+      and simply cannot be duplicated until opened. Imports after "182ca1c"
+      carry a real typeId.
+      ── PHASE A NOTES BELOW, UNEDITED ── They say "TPL-1b — NOT STARTED" and
+      place the management UI in Settings. Both were true when written on
+      2026-08-08 and are superseded by the two blocks above; the text is left
+      exactly as it stood, per the convention DEBT-59 and DEBT-36 follow — the
+      prose is the record of what was believed, and corrections are prepended,
+      never edited in.
+      RULED 2026-08-07 by Gary as option (a), extended, on the TYPE-1
+      investigation: operators CREATE types (name + badge colours), pick one on
+      the template form, and filter the templates list by type. Q1-Q7 ruled
+      2026-08-08. Full audit, re-verified at 2d5b93d:
+      docs/prompts/TYPE-1_AUDIT.md.
+      THE DEFECT, so nobody re-derives it. Template.type is String NOT NULL with
+      no default (prisma/schema.prisma:306) and the template form was shipped
+      with the field wired end to end and the CONTROL OMITTED — state at
+      template-form.tsx:624, payload key at :798, API handling it, colour map
+      rendering it, and no input anywhere in 1239 lines. So
+      `type: templateData.type || "Mid-Shift"` (api/templates/route.ts:89) was
+      the fallback catching a value that was never collected, and every template
+      made through Create became a "Mid-Shift". THE CONTROL IS THE FIX; THE
+      DEFAULT WAS THE SYMPTOM. Removing the default without adding the control
+      turns creation into a NOT NULL violation, which is why they ship together.
+      The eight live values came from scripts/import-keva-templates.ts, a one-off
+      seed no operator can reach; the colours were a hardcoded map at
+      templates-client.tsx:12-22 written to match that script.
+      TPL-1a — SHIPPED TO staging IN "8461a48" (2026-08-08). TemplateType (per-org,
+      the third instance of the IngredientCategory/LossReason pattern), nullable
+      Template.typeId FK ON DELETE RESTRICT, migration
+      20260808103000_tpl1a_template_type_entity seeding + backfilling, the
+      required Type select on the form, and typeId resolved org-scoped on both
+      POST and PATCH with a 400 for missing/unknown. ADDITIVE ONLY — Template.type
+      keeps being written from the chosen type's name, so all six read sites and
+      the CSV export are untouched.
+      TPL-1b — NOT STARTED. Settings management UI (create/rename/recolor,
+      delete blocked while in use with a Reassign action), type filter chips on
+      /templates, the list badge reading stored colours, and CSV import matching
+      names to the org's types. Gary ruled the split 2026-08-07 (Q7) rather than
+      compress: do not start it inside TPL-1a's session.
+      COLOURS ARE KEYS, NOT CLASS STRINGS, and this is a build constraint rather
+      than a preference. Tailwind 4 runs CSS-first here (globals.css:1, no
+      tailwind.config.*, no safelist) and generates utilities by scanning source
+      text, so a class string read out of the database is never generated and the
+      badge renders unstyled. src/lib/badge-presets.ts holds the literals; the
+      column stores the key. Audit §7.
+      THE STARTER SET IS NOT THE DEBT-59 FAILURE MODE, and the distinction is on
+      the record deliberately (Gary, Q5, 2026-08-08). The migration seeds Opener
+      / Mid-Shift / Closer / Cleaning for any org that would otherwise end at
+      zero types, and org creation will do the same. Without it a fresh org has
+      an empty required select and CANNOT CREATE A TEMPLATE AT ALL. DEBT-59's
+      offsets were a value stamped silently onto a record nobody chose; these are
+      renameable, deletable defaults offered to an operator who can see them.
+      That is the line — visible and editable, versus silent and persisted.
+      "Audit" IS NOT SEEDED (Gary, Q1). It is a ninth style in the old colour map
+      that no write path has ever produced. If the backfill query finds a row
+      carrying it, it rides the normal seed like any other value and the ruling
+      is moot.
+      TPL-2 — RETIRE Template.type — IS DELIBERATELY NOT FILED YET (Gary, Q6). It
+      gets filed only once this backfill is proven on all three branches. Two
+      sites will have to be answered for then: api/checklists/route.ts:59 emits
+      `templateType` that nothing consumes, and api/stores/[id]/templates/route.ts:60
+      emits `type` declared on TemplateOption but never rendered.
+      NOTE FOR WHOEVER RUNS THE SQL: TemplateType ids are generated PER BRANCH,
+      so unlike the inherited Organization/Store rows they will NOT match across
+      dev/staging/production. Never paste one across — the inverse of the trap in
+      CLAUDE.md § Database Evidence.
 
   - id: X-1
     track: platform
@@ -464,6 +676,21 @@ phases:
     status: planned
     tags: [pre-launch]
     title: "Activation & QA"
+    blockers:
+      - >
+        UNSCOPED — BLOCKED ON ITSELF. Promoted to a blocker entry 2026-08-06 to
+        make this state machine-readable; until now it was invisible, and an
+        unscoped row is indistinguishable on the board from a ready one.
+        THIS ROW HAS NO NOTES AT ALL — not thin notes, none: `track`, `size`,
+        `status`, `tags` and a two-word title are its entire content. Nobody can
+        start "Activation & QA" from that, and its `size: S` is an estimate of
+        work nobody has described. It carries the [pre-launch] tag, so on its
+        own terms it must close before external merchants.
+        CLEARS WHEN: someone defines what activation and QA mean here — the
+        surfaces covered, what "activated" is true of, and what QA is a gate on.
+        That scoping is itself the next action and is a DECISION, not build
+        work; it is out of scope for bookkeeping (noted by the 2026-08-06 sweep,
+        which is why this entry describes the hole rather than filling it).
 
   # ---- Inventory ----
 
@@ -647,8 +874,15 @@ phases:
         webhooks have NEVER been signature-verified in production, so F-4's
         headline feature — live intraday pacing — has been silently degraded to
         the nightly sales-reconcile backfill since 2026-07-10. The dashboard has
-        been showing day-old pacing, not live pacing, for 17 days without
-        erroring.
+        been showing day-old pacing, not live pacing, CONTINUOUSLY SINCE
+        2026-07-10, without erroring.
+        THE DECAYING NUMBER WAS REPLACED BY ITS DATE 2026-08-06 (bookkeeping
+        sweep). This sentence read "for 17 days" — correct on 2026-07-27, silently
+        wrong every day after, and 27 days understated by the time anyone looked.
+        A duration is only true on the day it is written; the start date stays
+        true. Fixed here rather than left because this figure is quoted onto
+        other rows (IG-1's first blocker cites "F-4 (17 days)"), so the stale
+        arithmetic propagates.
       - >
         The fix is TWO parts and neither alone is sufficient: (a) set
         SQUARE_WEBHOOK_SIGNATURE_KEY per environment, and (b) register a webhook
@@ -658,7 +892,30 @@ phases:
         silence as today.
     open:
       - >
-        Determine whether src/app/api/webhooks/square fails CLOSED (rejects
+        RESOLVED 2026-08-06 AT SOURCE — FAILS CLOSED, CONFIRMED. Prepended as a
+        new entry; the one below stays exactly as written, including its caveat,
+        which is the part that turned out to matter.
+        THE ROUTE WAS READ, which is what the entry below asked for and did not
+        have. src/app/api/webhooks/square/route.ts:47 reads
+        SQUARE_WEBHOOK_SIGNATURE_KEY and :48-50 returns HTTP 500
+        ("SQUARE_WEBHOOK_SIGNATURE_KEY is not configured") when it is unset.
+        That guard is the FIRST statement in the POST handler — it runs before
+        `await req.text()` at :57, so with the key unset the body is never even
+        read, let alone parsed or written. Fail-CLOSED in the strongest form.
+        SO THE F-4 READING HOLDS: this is a BROKEN FEATURE, not an
+        unauthenticated write endpoint. There has been NO exposure window since
+        2026-07-10 and there is nothing to remediate beyond setting the key and
+        registering the subscriptions (the two-part fix in the second blocker).
+        The urgency stays at degraded pacing.
+        THE DOCS CLAIM WAS RIGHT, AND THAT IS NOT THE LESSON. docs/FORECASTING.md:135
+        said exactly this and the entry below still refused to rely on it,
+        citing DEBT-3 and STAGING_SETUP.md as live examples of Froot docs
+        asserting what the code no longer does. Being right this time does not
+        make the caveat wrong — the source reading cost one minute and converted
+        strong evidence into proof, and the fail-open branch would have changed
+        the remediation ORDER. Superseding a docs claim with a source reading is
+        the cheap half of this; refusing to act on the docs claim was the
+        correct half.
         every event when the key is unset — the degradation described above) or
         fails OPEN (skips verification when the key is unset). Fail-open would
         make it an UNAUTHENTICATED WRITE ENDPOINT reachable by anyone who knows
@@ -883,18 +1140,52 @@ phases:
       docs/DECISIONS.md.
     blockers:
       - >
-        UNVERIFIED SINCE 2026-07-24 — flagged 2026-07-27 (reconcile Pass 2a).
-        Both blockers below are PROD-VERIFICATION items with no owner and no
-        check-by date, 3 days old. Neither is checkable from the repo: both
-        require a real signing ceremony in production. They are also cheap to
-        fold into the next prod visit rather than scheduled on their own.
-        Related: SEC-1's open item asks for a production test account, and the
-        same visit could settle several of these at once.
-      - >
-        Certificate shows 'Microsoft' as org name — was a hard prod-promotion
-        gate; shipped un-re-tested. 232d568's certificate dual-name may have
-        fixed it ("Microsoft" is the Clerk DEV-instance test org, so prod may
-        not reproduce) — verify a real signing in prod.
+        UNVERIFIED SINCE 2026-07-24 — flagged 2026-07-27 (reconcile Pass 2a),
+        re-dated 2026-08-06. TRUE AGE IS NOW 13 DAYS, not the 3 this entry was
+        written with.
+        ONE OF THE TWO IS NOW CLOSED. The certificate org-name entry cleared
+        2026-08-06 on HR-14's 2026-08-03 production observation — see the
+        resolved entry directly below. So this note now covers ONE live item:
+        the visual-QA/mobile-tuning check. Kept rather than deleted because the
+        pattern it describes is the finding, and because the surviving item has
+        the same no-owner problem it opened with.
+        FOR GARY — A CALL IS OWED, same as IG-1's: assign an owner and a
+        check-by date to the visual-QA item, or drop this entry and accept it is
+        carried unowned. Not a bookkeeping session's call to make.
+        THE CHEAP PATH IS UNCHANGED AND IS NOW CHEAPER: fold the remaining check
+        into the next production visit rather than scheduling it. That visit
+        already has company — SEC-1's open item asks for a production test
+        account, and BUILD-2 needs its production column/index check plus five
+        UI checks. One visit settles all of them.
+        NOTE ON WHAT CLOSED IT: the answer existed on another row for three days
+        before anyone carried it here. That is the same failure this file keeps
+        finding — a fact recorded where the question isn't.
+      - resolved: true
+        text: >
+          GATE CLEARED 2026-08-06 by carrying an answer that already existed.
+          The entry below asked for a real signing in production; HR-14's gate
+          walk did one on 2026-08-03 and recorded the result on its own row,
+          where nobody looking at HR-11c would find it. Nothing new was
+          observed here — this is a cross-reference, not a verification.
+          THE FACT, and only this fact: on branch production
+          (br-sparkling-block-a620qvg4), organization
+          cf888f2d-f234-48c7-8097-fd5b44b5b3dd, a freshly rendered Certificate
+          of Acknowledgment reads "Generated by Froot for Keva Juice" — NOT
+          "Microsoft". The dev-instance test-org name does not reproduce in
+          production, which is exactly what this entry asked.
+          CARRIED NARROWLY, per HR-14's own instruction not to over-claim from
+          it. It settles the certificate's org name on production today and
+          NOTHING else: not the rename handler (organization.updated still
+          writes name and never slug), not the P2025 missing-row hazard (still
+          update rather than upsert, still untry/catch'd), and nothing about
+          staging, where five rows still answer to "Microsoft". Those remain
+          HR-14's substance and are untouched by this closure.
+      - resolved: true
+        text: >
+          Certificate shows 'Microsoft' as org name — was a hard prod-promotion
+          gate; shipped un-re-tested. 232d568's certificate dual-name may have
+          fixed it ("Microsoft" is the Clerk DEV-instance test org, so prod may
+          not reproduce) — verify a real signing in prod.
       - >
         Visual QA unverified — lift offsets (−118% buttons, −90% chips) shipped
         without the mobile tuning pass; check /my signing on a phone in prod.
@@ -940,10 +1231,14 @@ phases:
       /staff UI is ADMIN/MANAGER; this is the inventory's worst-first finding.
       (4) item 6 — GET /api/staff exposes the staff directory (names, emails,
       assignments) to any member, store-scoped for non-admins.
-      GATED ON BUILD-1 (2026-07-26): this phase touches the schema, and until
-      BUILD-1 lands a local `npm run build` runs migrate deploy against the
-      PRODUCTION branch (DEBT-4). Do not start schema work here before BUILD-1
-      is verified.
+      UNBLOCKED as of BUILD-1's ship — struck 2026-08-06 by the bookkeeping
+      sweep. This row carried "GATED ON BUILD-1 (2026-07-26): this phase touches
+      the schema, and until BUILD-1 lands a local `npm run build` runs migrate
+      deploy against the PRODUCTION branch (DEBT-4)" for eleven days after the
+      gate lifted. BUILD-1 shipped 6a77e68/06b1561 and was verified in
+      production 2026-07-27 (see its own notes, which name SEC-2 and HR-14 as
+      "both gated on this landing first — that gate is now lifted"); DEBT-4 is
+      shipped. Nothing about the schema now stops this phase starting.
       THE ORG NAME ON A SIGNED DOCUMENT IS CORRECT ON PRODUCTION — measured, not
       argued. Observed 2026-08-03 during the DEBT-9 gate walk, branch production
       (br-sparkling-block-a620qvg4), org cf888f2d-f234-48c7-8097-fd5b44b5b3dd:
@@ -982,6 +1277,21 @@ phases:
     status: planned
     title: "Signed-acknowledgment completion emails + org-level recipient routing"
     notes: Prerequisite — wire a real email provider into src/lib/notify.ts (see F-5 blocker).
+    blockers:
+      - >
+        NO REAL EMAIL PROVIDER EXISTS — promoted from prose to a blocker entry
+        2026-08-06 so the board can tell this row from a ready one. Verified at
+        source the same day: src/lib/notify.ts:19-24 is `consoleEmailSender`,
+        which console.logs the message instead of delivering it, and
+        getEmailSender() returns it unconditionally — NOTIFY_EMAIL_PROVIDER is
+        documented at :25 as "console" (default) with "resend" | "smtp" as
+        future options, and nothing reads the variable. This phase is entirely
+        the sending of email, so it cannot start at all, not merely ship
+        degraded.
+        CLEARS WHEN: a provider integration lands behind getEmailSender().
+        THIS ONE GATE BLOCKS THREE THINGS, which is the argument for doing it:
+        HR-16 (this row, wholly), F-5's pace alerts (its own live blocker, same
+        file, same line) and HR-8's reminders. One integration clears all three.
 
   - id: HR-17
     track: hr
@@ -999,8 +1309,96 @@ phases:
       stores); resource download route's admin tier widened to the manage
       tier for the same scope. No schema changes.
 
+  - id: HR-18
+    track: hr
+    size: M
+    status: planned
+    title: "Supervised (proctored) training completion — executed by the trainee, witnessed by an elevated user"
+    notes: >
+      FILED 2026-08-06 by the bookkeeping sweep. The row is the only thing new
+      here — the work was fully specified on 2026-08-05 in
+      docs/prompts/HR-18_supervised_training_completion.md (8fb86bb) and simply
+      never got a board entry, so a written-up phase was invisible to every
+      surface that reads this file.
+      STATUS IS `planned`, AND THAT DIFFERS FROM THE PROMPT ON PURPOSE. The
+      prompt asks for the row at `in_progress`. NO SESSION HAS RUN IT — no
+      commits, no branch, no audit output — and `in_progress` would assert work
+      underway. The prompt is a dated claim and stays unedited (CLAUDE.md
+      § Where documents live); this row records what is true today, and the
+      discrepancy is written down here rather than silently resolved either way.
+      Flip to `in_progress` when a session actually starts.
+      WHAT IT IS — A THIRD CAPTURE PATH, NOT A PERMISSION WIDENING, which is the
+      distinction the prompt spends its first page protecting. Training
+      completions can be captured two ways today: SELF-SERVICE (the team member
+      completes lessons in their own portal) and MANAGER-ATTESTED (an elevated
+      user presses Mark complete, attesting the training happened, recorded
+      against the attester). Both stay exactly as they are — Mark complete is
+      explicitly not to be touched.
+      The third path is SUPERVISED / PROCTORED: an elevated user (ADMIN, MANAGER
+      or STORE) on a shared device opens a proctored session from the team
+      member's Staff profile Training tab and hands the device over. The TEAM
+      MEMBER personally does the lessons and quiz; the completion records as
+      executed by the trainee, supervised by the elevated user.
+      WHY THE THIRD PATH HAS TO EXIST SEPARATELY, and it is a legal argument
+      rather than a modelling preference: a manager attestation says "I confirm
+      this person was trained"; a supervised completion says "this person did
+      the work; I watched". THOSE MUST STAY DISTINGUISHABLE IN THE RECORD
+      FOREVER. Collapsing supervised into attested loses the stronger of the two
+      claims exactly when it is needed.
+      Modules: Staff + HR (training) + Users/roles. The prompt is AUDIT-FIRST —
+      it requires a plan presented and explicitly approved before anything is
+      edited, and forbids fixing anything outside those three modules.
+      Related: PERM-7 (the shared store devices this runs on) and HR-19, which
+      governs the permission surface these routes sit in.
+
+  - id: HR-19
+    track: hr
+    size: L
+    status: planned
+    title: "Migrate the HR permission surface onto the registry — 35 API routes, 13 pages"
+    notes: >
+      FILED 2026-08-06 by the bookkeeping sweep. Not new scope: PERM-5's
+      `deferred` list has named this "its own future row per the audit" since
+      that phase closed, and a deferral pointing at a row that does not exist is
+      a pointer that does not resolve. This row is that target. PERM-5's own
+      deferred list is deliberately NOT edited — it stays the record of what
+      PERM-5 chose not to do.
+      SIZE VERIFIED, not inherited: 35 route.ts files under src/app/api/hr and
+      13 page.tsx files under src/app/(app)/hr, counted at 411ccd2 on
+      2026-08-06. The figure PERM-5 recorded reproduces exactly.
+      NUMBERING: filed under the `hr` track per the sweep instruction, so it
+      takes an HR- id. Its LINEAGE is PERM-, and anyone tracing the permissions
+      work will arrive from PERM-5's deferred entry rather than from the HR
+      sequence — which is why PERM-5 is cited here by id rather than merely
+      alluded to.
+      HOW PERM-5C LEFT THE EDGE, and it is guidance for whoever starts: PERM-5C
+      deliberately touched this surface's boundary WITHOUT entering it. The
+      /staff/[id] HR-derived tabs keep their inline role check, with a comment
+      saying why, so that the HR migration would not be quietly begun inside the
+      file least likely to be reviewed as part of it. Start from that comment.
+      THE OTHER PERM-5 EXCLUSIONS ARE NOT THIS ROW — recorded here because they
+      travel together in PERM-5's list and would otherwise be assumed folded in:
+      (1) THE UNGOVERNED SURFACES — operational inventory, /messages,
+      /store-view, /labor. Not HR, and NOT HOMED ON ANY ROW TODAY.
+      (2) USERS/SETTINGS VIEW/MANAGE SPLITS — not HR, also unhomed.
+      (3) SETTINGS TOGGLE APIs — not HR, also unhomed.
+      Those three are flagged for Gary rather than absorbed: giving them to this
+      row would make an L phase unbounded and would file HR work under a
+      non-HR heading. They need a call about where they land.
+      (4) PER-USER-PER-STORE GRANULARITY is already homed — PERM-5's last
+      deferred entry accepts it as a recorded LIMITATION, not a backlog item.
+      (5) THE square.manage BASELINE was RULED on 2026-08-06 (R4): the registry
+      was wrong, square.manage is now ADMIN_ONLY. The Square ROUTES remain
+      unmigrated, but that is PERM-5's square entry and a separate sweep — and
+      per R4 it is now a zero-baseline-change one.
+
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
+  # NOTHING IS FILED UNDER `LABOR-`, AND NOTHING SHOULD BE. The 2026-08-02
+  # LABOR-1 draft was ABSORBED INTO L-2 (see that row) — it proposed a third
+  # numbering of this thread, and its phase (d) was already L-4. Do not re-file
+  # it. Noted here as well as on L-2 because the draft is findable in
+  # docs/prompts/ and a reader who starts there sees no sign it was absorbed.
 
   - id: L-0
     track: labor
@@ -1033,8 +1431,214 @@ phases:
     track: labor
     size: L
     status: planned
-    title: "Team/Labor API — actual worked hours + wages, actual-vs-budget, Nevada OT warning"
-    notes: Needs additive Square OAuth scopes TIMECARDS_READ/WRITE + EMPLOYEES_READ.
+    title: >
+      OPTIONAL Square labor integration — schedules and timecards as an overlay
+      on forecast-driven labor, per-org toggle, off by default
+    notes: >
+      RE-SCOPED 2026-08-05 (Gary's ruling — DECISIONS.md, top entry). Was
+      "Team/Labor API — actual worked hours + wages, actual-vs-budget, Nevada OT
+      warning". Same work; the ruling changes its STATUS from an upgrade path to
+      an OPTIONAL ADD-ON. Keva is migrating to Square Scheduling (all stores by
+      September 2026), but Froot serves businesses that do and do not use
+      Square, so the integration is a boost and never a floor. BUILD IS
+      DEFERRED — this row is the seam design, written so a future build slots in
+      without tearing anything down.
+
+      ABSORBS the 2026-08-02 LABOR-1 draft. That draft proposed a NEW row under
+      a `LABOR-` prefix, which is a third numbering of this thread — the `L-`
+      prefix has been current since the 2026-07-20 reset, and L-2 was already
+      this row. Its phase (d), schedule write-back, was already L-4. Nothing is
+      filed under `LABOR-`; both prompt files stay untouched as dated claims
+      (CLAUDE.md § Where documents live). Superseding prompt:
+      docs/prompts/L-2_square_labor_seam.md.
+
+      REVERSED FROM THAT DRAFT: its phase (c) had coverage-from-actuals
+      SUPERSEDING the L-3 sales-inferred coverage decision. It does not. Real
+      staffing is an overlay ON TOP OF forecast-derived coverage — the
+      replacement path is precisely the one that stops working when Square is
+      off. L-3 (a) stands; StoreHours remains the coverage upgrade path.
+
+      REGISTRY DEPENDENCY SETTLED 2026-08-06 by R4. The seam below specifies an
+      ADMIN-only toggle route, chosen to match what Square routes ENFORCE rather
+      than what the registry then said (square.manage was ALL). R4 corrected the
+      registry to ADMIN_ONLY, so the seam and the registry now agree and the
+      future build inherits no contradiction. Had R4 gone the other way, this
+      section would have been the thing to revisit.
+
+      --- SEAM (a) THE TOGGLE ---
+      Instagram's species, NOT activeModules (Gary's ruling, fork F3). Three
+      parts, matching how Labor and HR are already gated:
+        1. Availability gate: SQUARE_LABOR_AVAILABLE env, plus
+           SQUARE_LABOR_INTERNAL_ORG_IDS for production dogfooding — the exact
+           shape of laborModuleAvailable() / hrModuleAvailable()
+           (src/lib/auth.ts:35,53). Server-side only, never NEXT_PUBLIC_.
+        2. Per-org toggle: Organization.squareLaborEnabled Boolean
+           @default(false) — a dedicated column like instagramEnabled
+           (prisma/schema.prisma:28), NOT a fifth entry in activeModules.
+           WHY: activeModules is the BILLABLE ADD-ON list that drives the module
+           cards at settings/page.tsx:63-70. "Weekly Labor Model" is the product
+           the org buys; a Square connection is a DATA SOURCE for a module they
+           already pay for. An activeModules entry would advertise it as a
+           separate purchase AND would permit the incoherent state
+           square-labor-without-labor.
+        3. Enforcement: requireSquareLabor() in src/lib/labor-access.ts, layered
+           over requireLaborView() — both labor gates first, then the two Square
+           gates, each failing to 404 so an org without it cannot probe it.
+           ADMIN-only flip via POST /api/square/labor/toggle, mirroring
+           /api/labor/toggle and /api/instagram/toggle.
+        UI: a control inside the EXISTING Square Integration card on /settings,
+        the way InstagramActions sits inside the Instagram card — not a new
+        module card.
+
+      --- SEAM (b) THE DATA BOUNDARY ---
+      Square-sourced labor lives in clearly-separated storage that no core
+      feature reads. New, prefixed tables — SquareTimecard, SquareScheduledShift
+      — each carrying its own syncedAt and syncState. The core engines
+      (labor-budget.ts, labor-plan.ts, labor-coverage.ts, labor-forecast.ts)
+      NEVER gain a Square-sourced input; they keep reading SalesForecast /
+      DailyGoal. The integration ADDS a comparison layer on top:
+      planned-vs-actual, scheduled-vs-recommended, computed in a NEW module
+      (labor-actuals.ts) that the core never imports.
+      THE BOUNDARY TEST, and it is a real test to run before shipping: DROP
+      EVERY SQUARE-LABOR TABLE AND EVERY EXISTING LABOR SURFACE MUST RENDER
+      BYTE-IDENTICALLY. If anything moves, the boundary leaked.
+      Mirrored Square data is PER-ENVIRONMENT stored data — it does not migrate
+      between Neon branches, exactly like GoalPlan (DECISIONS.md § L-3 (c)).
+      Each branch syncs independently; promoting code moves none of it.
+
+      --- SEAM (c) THE FAILURE POSTURE ---
+      EXACTLY THREE STATES, and the third is the one that gets skipped:
+        OFF — the feature does not exist. No card, no badge, no nav, 404s.
+        ON BUT UNHEALTHY — a degraded BADGE or banner on the comparison layer
+          ("Square labor unavailable — last synced <ts>"), with every core
+          number unchanged and still rendered. The overlay is what degrades.
+        ON AND HEALTHY — the comparison layer renders.
+      NEVER: a crashed page. NEVER: an integration error surfacing as 401/403 —
+      see BUG-1. NEVER: zeros or empty arrays presented as measurements; absent
+      data reads "not synced", which is a different sentence from "0 hours".
+      BUG-1 IS THE ANTI-PATTERN TO NOT REPEAT, and it is live in the very file
+      this seam lands in: src/lib/labor-access.ts:26-31 catches getCurrentUser()
+      failures and returns 401 Unauthorized — its own comment says "this catch
+      also swallows DB/connection errors for every /api/labor route". An
+      infrastructure failure wearing an auth failure's clothes sends the next
+      debugger to Clerk. The Square reads must be caught at the CARD BOUNDARY,
+      typed distinctly from auth outcomes, and logged with the real cause.
+      Also: /api/square/disconnect (which today nulls the three token columns
+      and nothing else — the correct shape) must NEVER cascade into labor data.
+      A disconnected org keeps its mirrored rows and shows them as stale; it
+      does not lose them. Staleness is a badge, not a delete.
+
+      --- SEAM (d) OAUTH SCOPES AND VERSION — THE LONG POLE ---
+      Measured 2026-08-05, NOT resolved. Froot requests, verbatim
+      (src/app/api/square/auth/route.ts:9):
+        MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ
+      Every Labor API scope is absent — TIMECARDS_READ (timecards AND scheduled
+      shifts), TIMECARDS_SETTINGS_READ (break/workweek config), TIMECARDS_WRITE
+      (schedule push, L-4). ADDING ANY OF THEM FORCES EVERY EXISTING MERCHANT
+      CONNECTION BACK THROUGH A CONSENT SCREEN. That is a merchant-facing
+      re-auth rollout, not a deploy — establish it EARLY, it is the long pole,
+      not the code. Second prerequisite: Square-Version is pinned 2024-01-17
+      (src/lib/square.ts:4 — one constant, seven call sites, raw fetch, no
+      `square` npm package), below the 2025-05-21 floor Labor/Timecard endpoints
+      require. Re-verify both at kickoff; this row may sit for months and
+      deprecation timelines move.
+
+      LABOR-0 (docs/prompts/LABOR-0_shift_surface_grep.md) HAS NEVER RUN — it is
+      an unexecuted prompt, filed with three others in 2e75029, with no results
+      record anywhere. RUN IT BEFORE ANY BUILD. A PARTIAL pre-check on
+      2026-08-05 covered its Tasks 2-4 only (read-only greps over src/, excluding
+      src/generated; Task 1c construction-site count and Task 5 webhook inventory
+      NOT done) and found: ZERO hits for deprecated Shift endpoints or
+      labor.shift.* events — the surface is clean, so no Shift-migration row is
+      warranted, per that draft's own conditional; ZERO hits for Timecard,
+      SearchTimecards, WorkweekConfig, TeamMemberWage — no Square labor ingest
+      exists today. Those two answers are load-bearing for this row and are
+      dated; the audit is still owed the other three tasks.
+
+      WAGE DATA STAYS GATED. Hours are not sensitive; dollars are. Any wage half
+      inherits DEBT-10's territory (Square team-member PII — 138 employees'
+      emails were exposed in production) and must serve through
+      labor.costs.view, the MANAGE-tier capability PERM-4 (c) introduces
+      (DECISIONS.md 2026-07-27). Timecard.wage carries a rate ONLY where Square
+      team-member wage settings are configured, so the integration must WARN on
+      the gap rather than render a silent zero — reuse the staff/[id]
+      affordance ("No store assigned — signed documents stamp a blank store").
+
+      DOES NOT INTERACT WITH DEBT-9. Timecards carry their own location, so
+      per-store labor is attributed from Square's data, not from
+      StaffMember.primaryStore. Primary store stays a payroll/legal label and a
+      compliance-rollup bucket. Confirmed 2026-08-02; do not re-derive.
+
+      --- DON'Ts FOR INTERVENING SESSIONS ---
+      Pointer line in CLAUDE.md § Square Integration; the list is here.
+        1. DON'T hardcode "all labor data is forecast-derived" at the seam sites
+           — labor-budget.ts, labor-coverage.ts, labor-plan.ts. Leave the input
+           shape open; an overlay has to be able to arrive.
+        2. DON'T SPEND THE WORD "SHIFT". It is already double-booked:
+           LaborDaypart renders as "Shift blocks" (settings/labor/
+           labor-settings-client.tsx:717) and store-view handoff notes say "next
+           shift". Never introduce a bare `Shift` model, type or column — Square
+           scheduled shifts are SquareScheduledShift, always prefixed.
+        3. DON'T add Square OAuth scopes opportunistically for an unrelated
+           feature. Every addition re-consents every merchant; batch them
+           deliberately or not at all.
+        4. DON'T make /api/square/disconnect cascade into labor data.
+        5. DON'T extend the labor-access.ts 401-masking catch to cover
+           integration errors — that is BUG-1 propagating.
+
+      OPEN QUESTIONS, deferred to kickoff — THREE, of which the third is RULED:
+        - Ingest shape: webhook-driven, polled via SearchTimecards, or both.
+          Timecards are edited after the fact (manager corrections), so
+          labor.timecard.created alone is insufficient — an update path is
+          required regardless.
+        - Whether owner/admin accounts who never clock in should appear in
+          labor surfaces at all.
+        - RULED 2026-08-05 (Gary) — THE TOGGLE STAYS ON. A Square disconnect
+          does NOT auto-disable squareLaborEnabled. The org keeps the feature
+          and the overlay drops to seam (c)'s ON BUT UNHEALTHY state; a
+          reconnect restores it with no second admin action. This is seam (c)
+          applied to disconnect rather than a new posture, and it is the same
+          direction as DON'T 4 — /api/square/disconnect nulls the three token
+          columns and touches nothing else, so mirrored rows and the toggle
+          both survive it and read as stale. Recorded in DECISIONS.md.
+          ORIGINAL ENTRY, PRESERVED: "Whether the toggle should auto-disable
+          when Square disconnects, or stay on and show unhealthy. Current lean:
+          stay on and show unhealthy, so a reconnect restores the feature
+          without a second admin action."
+    blockers:
+      - >
+        SQUARE OAUTH CARRIES NO LABOR SCOPES — promoted from this row's prose to
+        a blocker entry 2026-08-06 so the board can tell this row from a ready
+        one; re-verified at source the same day. src/app/api/square/auth/route.ts:9
+        requests exactly `MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ
+        EMPLOYEES_READ` — not one labor scope is present, so every read this
+        phase needs 401s today. AND THE API VERSION IS BELOW THE LABOR FLOOR:
+        src/lib/square.ts:4 pins SQUARE_VERSION = "2024-01-17". The two move
+        together — a scope grant against a too-old version buys nothing.
+      - >
+        LABOR-0 HAS NEVER FULLY RUN (docs/prompts/LABOR-0_shift_surface_grep.md)
+        — an unexecuted prompt filed in 2e75029. The 2026-08-05 partial covered
+        Tasks 2-4 only and answered two load-bearing questions in this row's
+        favour; Task 1c (construction-site count) and Task 5 (webhook inventory)
+        are still owed. RUN IT BEFORE ANY BUILD.
+      - >
+        CLEARS WHEN all four are done: LABOR-0 Tasks 1c and 5 run; SQUARE_VERSION
+        bumped past the Labor floor; the labor scopes added; and EVERY MERCHANT
+        RE-CONSENTS. The re-consent is the expensive part and is why CLAUDE.md
+        forbids adding a scope opportunistically — one addition re-consents every
+        connected merchant, so L-2's and L-4's scope additions must be batched
+        into ONE consent moment (see L-4).
+        THE ONLY DATED PRESSURE ON THIS ROW: Keva moves all stores to Square
+        Scheduling by SEPTEMBER 2026. That argues for scoping the work, not for
+        starting it — the build is deferred by ruling, not by the clock.
+      - >
+        BUILD IS DEFERRED BY RULING (Gary, 2026-08-05, DECISIONS.md top entry),
+        which is a DIFFERENT thing from the three gates above and is recorded
+        here so the two are never conflated. Even with every gate cleared this
+        row does not start until the deferral lifts: the Square labor
+        integration is strictly optional and can never become a floor under
+        forecast-driven labor. This row is the seam design, written so a future
+        build slots in without tearing anything down.
 
   - id: L-3
     track: labor
@@ -1047,15 +1651,48 @@ phases:
       Promoted to prod 7-21 via merge 9743899 (carried the full HR/Labor
       backlog; main was 53 commits behind). Coverage stays sales-inferred for
       v1 per decision.
+      THAT DECISION WAS RE-AFFIRMED 2026-08-05, not superseded. A 2026-08-02
+      draft had Square actuals replacing the sales-inferred proxy; Gary's ruling
+      makes the Square labor integration optional, so actuals are an OVERLAY and
+      the proxy stays the always-on path. StoreHours below remains the coverage
+      upgrade path — Square is not it. See L-2 and DECISIONS.md (top entry).
     deferred:
-      - Populating StoreHours with real operating hours (open windows inferred from trailing sales until then)
+      - Populating StoreHours with real operating hours (open windows inferred from trailing sales until then) — still the upgrade path; NOT replaced by L-2's Square actuals (2026-08-05 ruling)
 
   - id: L-4
     track: labor
     size: L
     status: planned
     title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks, Square push"
-    notes: Confirm L-3/L-4 order when scoping past L-2. Shares Square OAuth scopes with L-2.
+    notes: >
+      Confirm L-3/L-4 order when scoping past L-2. Shares Square OAuth scopes
+      with L-2.
+      CROSS-NOTE 2026-08-05 — THE SQUARE PUSH HALF INHERITS L-2's WHOLE SEAM.
+      Gary's ruling (DECISIONS.md, top entry) makes the Square labor integration
+      strictly optional, and write-back is the same integration pointed the other
+      way: it sits behind the same squareLaborEnabled toggle, off by default, and
+      the assignment layer must remain fully usable as a Froot-only scheduler
+      with the toggle off or Square down. Write-back needs TIMECARDS_WRITE on top
+      of L-2's read scopes — the same re-consent event, so scope additions for
+      L-2 and L-4 should be batched into ONE consent moment rather than two.
+      Naming: SquareScheduledShift, never a bare `Shift` — see L-2 DON'T #2, the
+      word is already spent twice in this codebase.
+    blockers:
+      - >
+        BEHIND L-2 — promoted from this row's prose to a blocker entry
+        2026-08-06 so the board can tell this row from a ready one. The Square
+        push half inherits L-2's whole seam: the same squareLaborEnabled toggle,
+        off by default, and the assignment layer must stay fully usable as a
+        Froot-only scheduler with the toggle off or Square down. So every gate
+        on L-2 is a gate here — read them there rather than restated here, which
+        is how they drift.
+        THIS ROW ADDS ONE OF ITS OWN: write-back needs TIMECARDS_WRITE on top of
+        L-2's read scopes. That is the SAME re-consent event, which is the whole
+        argument for batching L-2's and L-4's scope additions into one consent
+        moment rather than re-consenting every merchant twice.
+        CLEARS WHEN: L-2 clears, with L-4's write scope included in that single
+        consent. The Froot-only assignment layer — everything except the Square
+        push — is not gated by any of this and could be scoped independently.
 
   # ---- Permissions ----
 
@@ -1282,10 +1919,11 @@ phases:
   - id: PERM-5
     track: permissions
     size: L
-    status: in_progress
+    status: shipped
+    shipped: 2026-08-04
     # B's two, then Session C's range endpoints — the eleven between them are
     # contiguous and named in the notes rather than listed here.
-    commits: [5119a6b, 24eb289, 6fb4b4f, 2a7e044]
+    commits: [5119a6b, 24eb289, 6fb4b4f, 2a7e044, 72bcf30]
     title: "Per-user capability overrides — the toggle layer"
     notes: >
       Grant or remove a capability for ONE user against their role baseline —
@@ -1437,13 +2075,35 @@ phases:
       Session prompt: docs/prompts/PERM-5C_migration_sweep.md
     deferred:
       - >
-        PRODUCTION PROMOTION has not happened. Staging carries A+B+C verified;
-        production has not applied migration 20260804123449 and will not until
-        staging is merged forward, so User.deniedCapabilities does not exist
-        there yet. The row stays in_progress for that reason alone — every
-        session's work is done and verified. Whoever promotes it should read
-        the Neon advisory-lock note (P1002 on the pooler) before assuming a
-        failed deploy means a bad migration.
+        SHIPPED 2026-08-04: promoted in 999cbdc; migration 20260804123449
+        applied to production via migrate deploy (build log confirmed); smoke
+        test passed 2026-08-04 — grid renders on production, zero cross-org log
+        lines, baselines unchanged at zero denials. DEPLOY_LOG entry same
+        date. Still explicitly excluded from this phase: HR migration, the
+        ungoverned surfaces (operational inventory, /messages, /store-view,
+        /labor), Users/Settings view/manage splits, Settings toggle APIs,
+        per-user-per-store granularity, the square.manage baseline ruling.
+        The promotion was a FAST-FORWARD of 32 commits (de3ba40..999cbdc), so
+        no merge commit exists and `git revert -m 1` does not apply — the
+        DEPLOY_LOG entry carries the reverse-order revert list. Smoke test ran
+        on www.usefroot.com under org org_3FhYUR4l0ue7egug1I0Ig8wxOVn.
+      - >
+        RESOLVED 2026-08-06 by R4 (Gary): THE REGISTRY WAS WRONG. square.manage
+        is now ADMIN_ONLY in permissions.ts, matching the enforcement every
+        Square route already applies. This closes the entry BELOW, which stays
+        for the record per the house convention — a resolved `deferred`/`open`
+        entry is closed by the entry prepended above it (DEBT-42), the same
+        shape as the SHIPPED entry at the top of this list.
+        NO BEHAVIOUR CHANGED. Nothing calls can(_, "square.manage") — verified
+        at head — and it is not in ENFORCED_CAPABILITIES, so it was never
+        deniable from the /users grid either. The old value was documentation
+        that lied, and the cost of the lie was exactly what the entry below
+        describes: the routes could not be migrated, because migrating onto ALL
+        would have handed every member the org's Square connection.
+        THE SQUARE ROUTES ARE STILL UNMIGRATED — they keep their inline
+        requireAdmin(). What changed is that migrating them is now a
+        zero-baseline-change sweep rather than a decision. Consistent with L-2,
+        whose optional Square-labor toggle is specified ADMIN-only.
       - >
         SQUARE ROUTES UNMIGRATED, pending a ruling. square.manage is ALL in the
         registry while /api/square/{auth,disconnect,catalog/sync,sales-items/
@@ -2668,10 +3328,12 @@ phases:
       callback time — Instagram's equality check would error instead. Not a
       problem at one org; fix alongside the nonce work (e.g. bind the
       initiating org into the state cookie payload and reject on mismatch).
-      GATED ON BUILD-1 (2026-07-26): if the nonce work adds any schema field,
-      it must not start before BUILD-1 is verified — until then a local
-      `npm run build` runs migrate deploy against the PRODUCTION branch
-      (DEBT-4).
+      UNBLOCKED as of BUILD-1's ship — struck 2026-08-06 by the bookkeeping
+      sweep. This row carried "GATED ON BUILD-1 (2026-07-26): if the nonce work
+      adds any schema field, it must not start before BUILD-1 is verified" for
+      eleven days after the gate lifted. BUILD-1 shipped 6a77e68/06b1561,
+      verified in production 2026-07-27, and its own notes name SEC-2 by id as
+      one of the two rows that gate released; DEBT-4 is shipped. Ready to start.
 
   - id: SEC-3
     track: security
@@ -2697,8 +3359,17 @@ phases:
       blobs must be migrated or re-uploaded; the persisted importFileUrl values
       become stale and need a backfill or an on-demand signing indirection.
       Not a schema change in itself, but the backfill may want one — if so it is
-      GATED ON BUILD-1 like SEC-2 (a local build runs migrate deploy against the
-      PRODUCTION branch until then, DEBT-4).
+      UNBLOCKED as of BUILD-1's ship — the trailing "GATED ON BUILD-1 like
+      SEC-2 (a local build runs migrate deploy against the PRODUCTION branch
+      until then, DEBT-4)" was struck 2026-08-06 by the bookkeeping sweep.
+      BUILD-1 shipped 6a77e68/06b1561, verified in production 2026-07-27;
+      DEBT-4 is shipped. If the backfill wants a schema change it can now have
+      one.
+      THE SEVERITY ABOVE IS UNCHANGED AND IS NOT WHAT WAS STRUCK. The exposure
+      is LIVE and UNFIXED: tenant budget files remain retrievable by URL with no
+      authentication at all. Clearing the schema gate makes this row READY TO
+      START, which raises its urgency rather than lowering it — nothing now
+      stands between this finding and a session.
 
   - id: SEC-4
     track: security
@@ -2753,12 +3424,28 @@ phases:
     size: M
     status: planned
     title: "Nutrition — facts editor + label preview"
+    blockers:
+      - >
+        BEHIND N-1 — promoted to a blocker entry 2026-08-06 so the board can
+        tell this row from a ready one. N-1 is `planned`: per its own note the
+        MenuItem / MenuItemNutrition / MenuItemAllergen models and the module
+        flag are scaffolded, but there is NO UI and there are NO routes. This
+        phase is a facts editor over exactly those models, so there is nothing
+        to edit and nothing to edit it with until N-1 builds the surface.
+        CLEARS WHEN: N-1 ships its routes and UI.
 
   - id: N-3
     track: nutrition
     size: M
     status: planned
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
+    blockers:
+      - >
+        BEHIND N-1 — promoted to a blocker entry 2026-08-06, same gate as N-2.
+        N-1 is `planned` with models scaffolded but no UI and no routes, and a
+        public menu page renders the nutrition data those routes would serve.
+        CLEARS WHEN: N-1 ships. In practice this row wants N-2 as well, since a
+        public page with no editor behind it has nothing to publish.
 
   # ---- Square integration ----
 
@@ -2866,6 +3553,25 @@ phases:
       stops presenting as "Connected"; (d) surface token expiry in the settings
       UI, which today reports "Connected" off token presence alone.
     open:
+      - >
+        ANSWERED 2026-08-06 (bookkeeping sweep), at source. Prepended as a new
+        entry rather than edited into the one below, which stays as written —
+        the question was correctly posed and its two branches are the record.
+        IT IS READ. SQUARE_ACCESS_TOKEN appears five times in src/lib/square.ts:
+        :130, :169, :206 and :236 each build `const tokens = [org.squareAccessToken,
+        process.env.SQUARE_ACCESS_TOKEN].filter(Boolean)`, and :51 is the
+        redaction list. Those four ARE the bypassing helpers item (b) names, so
+        the overlap the entry below anticipates is total, not partial.
+        THE FORK COLLAPSES TO BRANCH ONE: this is a SECOND, UN-REFRESHED
+        CREDENTIAL PATH, not a stale credential to delete. Each site falls back
+        to the env token when the per-org OAuth token is absent or empty, so the
+        static credential silently backstops every one of them — it is not
+        covered by SQ-2's refresh work and it would outlive a disconnect.
+        Deleting the variable is therefore NOT the fix on its own: it would
+        break these four call sites for any org relying on the fallback. Item
+        (b) — routing the helpers through getSquareClient — has to land first,
+        which makes (b) a prerequisite of the deletion rather than a sibling.
+        NOT DONE HERE: the fix is code and belongs to this row's session.
       - >
         A static SQUARE_ACCESS_TOKEN exists in Vercel Production AND Preview
         (and in local .env). Determine whether anything still READS it — i.e. a
@@ -3005,6 +3711,15 @@ phases:
       column and index on branch `production` AND driven the five checks. Held
       at `shipped` deliberately rather than claiming more than was checked
       (Gary, 2026-07-30).
+      RE-CONFIRMED 2026-08-06 (bookkeeping sweep) — STILL SHIPPED, STILL NOT
+      VERIFIED, and that is bookkeeping-correct rather than a stale status. The
+      build work reached production 2026-07-29 as 493175e and nothing about it
+      is outstanding. WHAT REMAINS IS VERIFICATION WORK, NOT BUILD WORK: the
+      column/index check on branch `production` plus the five UI checks below.
+      So this row is neither ready-to-start nor blocked — it is done, awaiting a
+      production visit. Cheapest path is to fold it into the next one alongside
+      HR-11c's two prod-verification items and SEC-1's test-account request,
+      which is the same visit.
       CORRECTED 2026-07-29 — THE NONDETERMINISM RATIONALE BELOW IS REFUTED. The
       row claims primaryStoreName() "picks on an unordered query" and "may
       return a different one per request", and that "the codebase is already
@@ -6215,8 +6930,28 @@ debt:
       staging, estimatedTimeMinutes included. Related: DEBT-3, MIGRATIONS.md §2.
 
   - id: DEBT-36
-    title: "AWAITING RULING — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
+    title: "RULED — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
+      RULED 2026-08-07 — RENAMES-REWRITE-HISTORY IS ACCEPTED FOR NOW, AND THE
+      SECTION ENTITY IS INTENDED WORK RATHER THAN A DECLINED OPTION. Gary took
+      the second of the two directions this row put to him, but not immediately:
+      the entity is QUEUED behind the current minor-fix batch, and when it comes
+      up it is to be scoped as a FEATURE PHASE together with DEBT-48's
+      availability window — not as a debt cleanup and not as a rider. Both are
+      template-surface product work that outgrew a debt row, and scoping them in
+      one sitting is the point.
+      WHAT THE ACCEPTANCE COSTS IN THE MEANTIME, stated so it is carried
+      knowingly: until the entity exists, a section rename still retroactively
+      rewrites the headings on every historical completed checklist and every
+      print copy, and there is still no as-executed record of section names
+      anywhere in the system.
+      THE LATENT TRIGGER STANDS UNCHANGED and is the thing to watch: the first
+      section rename on a template that already has completed historical
+      checklists. If that fires before the phase is scoped it ESCALATES THE
+      PRIORITY — what was accepted above is a LATENT defect, not a fired one,
+      and the acceptance does not survive the trigger.
+      Row stays OPEN. Title prefix changed from AWAITING RULING to RULED;
+      nothing below this block is edited.
       COST OF DOING NOTHING: There is no as-executed record of section names
       anywhere in the system, and nobody has renamed one yet — LATENT (trigger:
       the first section rename on a template that already has completed
@@ -6314,8 +7049,36 @@ debt:
       count. Related: DEBT-18, DEBT-23, DEBT-26.
 
   - id: DEBT-38
-    title: "AWAITING RULING — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
+    status: staging
+    commits: ["7d984be"]
+    title: "CLOSED — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
     notes: >
+      CLOSED 2026-08-07 — RULED, AND BOTH FIX DIRECTIONS WERE TAKEN. The row
+      offered (a) a DEPLOY_LOG step inside WORKFLOW.md §2 and (b) `--no-ff` on
+      promotions, and its own last word was that they are not exclusive. Gary
+      ruled BOTH, applied in "7d984be": §2 now writes the docs/DEPLOY_LOG.md
+      entry BETWEEN the merge and the push — a step OF the promotion rather than
+      a thing remembered afterwards — and the promotion merge is
+      `git merge staging --no-ff --no-edit`, which restores the merge commit as
+      the artifact that prompts the entry, restores `git log --merges` as a
+      reconstruction tool, and makes `git revert -m 1 <merge-sha>` the rollback
+      again.
+      WHY BOTH RATHER THAN THE CHEAPER ONE ALONE: (a) by itself leaves the
+      reconstruction and rollback halves broken — `git log --merges` would still
+      return none of these promotions — while (b) by itself restores the
+      artifact without saying what to do when you see it. Each covers the
+      other's gap, which is what "not exclusive" meant.
+      TIMING, AND IT IS WHY THIS WAS RULED NOW RATHER THAN LATER: at ruling time
+      staging was SEVENTEEN commits ahead of main. This row's stated trigger is
+      THE NEXT PRODUCTION PROMOTION, and a delta that size means the trigger is
+      close. The fix lands BEFORE it fires rather than after — which was the
+      entire argument for not carrying this row another cycle.
+      STATUS IS `staging`, NOT `shipped`: "7d984be" is committed on the staging
+      branch and has been neither pushed nor promoted. Flip to `shipped` when it
+      reaches main — and note that under the fix itself, that promotion will
+      write its own DEPLOY_LOG entry. First use of the mechanism is the
+      promotion that carries it.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: DEPLOY_LOG is complete today — the missing entry
       was written 2026-08-01 — and the mechanism that lost it for three days is
       entirely untouched — LATENT (trigger: the next production promotion, which
@@ -6499,9 +7262,33 @@ debt:
 
   - id: DEBT-41
     title: >
-      AWAITING RULING — A blocker entry can only be LIVE or RESOLVED — there is
+      RULED — A blocker entry can only be LIVE or RESOLVED — there is
       no value for the half-closed state two entries are actually in
     notes: >
+      RULED 2026-08-07 — THE STANDING TRIGGER FIRED, SO THIS ROW STOPS BEING A
+      DECISION AND BECOMES WORK. Its own instruction was WATCH FOR MORE EXAMPLES
+      BEFORE ACTING, and after exemplar (a) was relocated away rather than
+      solved, the condition was exactly ONE NEW half-closed exemplar. That
+      exemplar now exists: IG-1's THIRD blockers entry, `blockers[2]`, dated
+      2026-08-06, which opens "SHRUNK TO ITS SURVIVING HALF 2026-08-06 — STILL
+      LIVE, but half of what it asserted is now answered". It is SELF-DESCRIBED
+      as half-closed, it is carried as live, and — unlike exemplar (a) — it was
+      not routed around to make a count come out right. It is the clean new
+      instance the row demanded.
+      SO, PER THIS ROW'S OWN INSTRUCTION, THE THIRD BlockerEntry STATE IS NOW
+      DESIGN WORK. Scope as ruled: SMALL, LOW PRIORITY, and it gets its OWN
+      SESSION rather than riding along — a vocabulary change to a type the whole
+      board reads is precisely the thing that gets half-done inside a sweep,
+      which is how exemplar (a) ended up relocated instead of fixed. The cost
+      being paid meanwhile is unchanged and still small: one internal panel
+      over-counting live blockers by one, in the deliberately-safe direction.
+      THE DO-NOT-FIX-BY-ADDING-`resolved: false` INSTRUCTION IS UNCHANGED and is
+      the first thing that session reads. The absence of the flag already
+      carries "live"; a third state needs its own name and its own render
+      treatment, or it destroys the default that makes the scheme safe.
+      Row stays OPEN, title prefix changed from AWAITING RULING to RULED. The
+      title's "two entries" stays dated-at-filing prose, corrected by the blocks
+      below rather than rewritten — the same treatment it already had.
       COST OF DOING NOTHING: The blockers panel counts BUILD-1's half-closed
       entry as live, so /internal/roadmap over-reports by one in the
       deliberately-safe direction — LATENT (trigger: a SECOND live half-closed
@@ -6631,9 +7418,29 @@ debt:
 
   - id: DEBT-42
     title: >
-      AWAITING RULING — `deferred` and `open` keep resolved entries in the array
+      `deferred` and `open` keep resolved entries in the array
       forever, the same defect P-4 fixed for `blockers`
     notes: >
+      RULED 2026-08-07 — NOTHING WAS PENDING HERE, AND THE PREFIX WAS THE ERROR.
+      No call was owed on this row: the deferral and its trigger were already
+      ruled by Gary on 2026-08-01, explicitly, as FLAG AND NOT FIX. What
+      happened on 2026-08-02 is that DEBT-TRIAGE-1 prefixed the title AWAITING
+      RULING so the row would stop reading as backlog — and over-corrected. A
+      row that was DECIDED was made to read as a row AWAITING a decision, and it
+      then sat in the awaiting-ruling set for five days asking for a call that
+      had been made a day before the prefix was applied.
+      WHAT ACTUALLY STANDS, UNCHANGED: this is a LATENT RECORD, and its trigger
+      is the first surface that derives a COUNT from `deferred` or `open` — a
+      summary tile, a panel headline, a dashboard number. At that moment it
+      becomes the P-4 bug again with the same failure direction, and the fix is
+      already designed and cheaper than P-4's was. Until then no headline count
+      reads either field and the cost is a slightly wrong badge on one collapsed
+      card.
+      PREFIX REMOVED AS MISLABELLED — that is the whole of this ruling. The row
+      stays open, stays latent, and is not waiting on Gary. Note the lesson for
+      the next relabelling pass: a prefix that says a row needs a DECISION is
+      itself a claim, and applying it to a row that has already been decided
+      costs exactly what it cost here.
       COST OF DOING NOTHING: No headline count reads `deferred` or `open` —
       verified at HEAD, both are still `string[]` at roadmap.ts:84-85 — so the
       three resolved entries sitting in those arrays cost a slightly wrong badge
@@ -6687,6 +7494,35 @@ debt:
       border colour — an UNLAYERED `*` rule in globals.css overrides every
       border-color utility
     notes: >
+      READ THIS FIRST — THE FILE TAILWIND SCANS IS docs/ROADMAP.yaml, NOT
+      src/generated/roadmap.ts. Hoisted to the top of this row 2026-08-05 by
+      Gary's ruling. The row stated the WRONG file first and corrected itself
+      several paragraphs down, and that ordering has now cost twice: once inside
+      this row, where two attempts were spent neutralizing the generated file
+      and changed nothing, and once OUTSIDE it, when a 2026-08-05 session brief
+      repeated the wrong claim as its own premise — it read the top of the row
+      and stopped. A ROW THAT MISLEADS A SKIMMER MANUFACTURES FALSE PREMISES
+      DOWNSTREAM, so the correction now sits where the skimmer is.
+      THE CORRECTED RULE, in the order it should be read:
+      (1) TAILWIND SCANS docs/ROADMAP.yaml — the TRACKED file, this prose, in
+      source control. Prose in a row's notes can create real CSS selectors out
+      of ordinary English words. Neutralized in 5da1008 by
+      `@source not "../../docs"` (src/app/globals.css:10); confirm that line
+      still exists before assuming a new row's prose is harmless.
+      (2) TAILWIND DOES NOT SCAN src/generated/roadmap.ts. It is gitignored
+      (.gitignore:47) and Tailwind 4 honours .gitignore. Proven, not inferred:
+      with 5da1008 applied that file still contains two `--color-*` occurrences
+      and dev runs clean.
+      (3) GREPS RUN THE OTHER DIRECTION, and for them the original rule stands —
+      src/generated/roadmap.ts carries every row's notes as string literals, so
+      ANYONE GREPPING src FOR EVIDENCE ABOUT A DEBT ROW MUST EXCLUDE IT. Both
+      files say whatever the row says; only one of them is scanned, and it is
+      not the one the rule further down names.
+      RE-VERIFIED 2026-08-05 while adding the `rulings:` list to this file:
+      emitted CSS byte-identical across the change — 78,350 bytes and 1,031
+      unique class selectors before and after, zero added, zero removed. The
+      exclusion is doing its job, measured rather than assumed.
+      ── PRIOR NOTES BELOW, UNEDITED ──
       SHIPPED — VERIFIED ON PRODUCTION 2026-08-03. Promoted in the de3ba40
       production promotion of 2026-08-02; implementing commits 1dbe9ca, 06befd2,
       475e425, 04da67f, 790cfc4, 5da1008 and 24894fa — SEVEN, where this row's
@@ -7263,12 +8099,48 @@ debt:
       real on the fixture in (1). Delete the PRINCIPALS, not the stores — and
       delete the Clerk side too, since a User row removed while its Clerk user
       survives is a re-provisioning trap rather than a cleanup.
+      ONE MORE FIXTURE, ADDED 2026-08-05: the gary@kevajuice.com PendingInvite
+      from the F4 test still shows Pending on staging /users. It was consumed or
+      errored; the row lingers. Trash icon, ten seconds, next time anyone is on
+      staging. Arrived as R8 on the 2026-08-05 pending-rulings sheet and was
+      moved here by Gary's ruling the same day — it is a chore with no options
+      and no decision in it, so it belongs with the fixtures rather than in the
+      decision log. NOT the Taylin@keva.com ADMIN invite above, which is the
+      sharp one; this is an ordinary leftover.
 
   - id: DEBT-45
+    status: staging
+    commits: ["7d984be"]
     title: >
-      AWAITING RULING — Audit-only sessions leave no artifact: the DEBT-TRIAGE
+      CLOSED — Audit-only sessions leave no artifact: the DEBT-TRIAGE
       audit's 22 per-row assessments exist nowhere in the repo
     notes: >
+      CLOSED 2026-08-07 — RULED YES. Audit-only sessions MUST write their
+      findings to docs/prompts/<NAME>_AUDIT.md BEFORE reporting, and the report
+      SUMMARISES that file rather than replacing it. The rule is in CLAUDE.md
+      § Where documents live, commit "7d984be" — placed there rather than in
+      WORKFLOW.md because that section already governs docs/prompts/ and already
+      draws the pointers-vs-claims line an audit file sits on. DEBT-37's rule —
+      an observation that lives only in a transcript does not exist — now
+      operates at SESSION scale, which is exactly what this row argued for.
+      THE SECOND HALF — WHAT MAKES IT AUTOMATIC RATHER THAN REMEMBERED — IS
+      ANSWERED OUTSIDE THIS REPO: a standing line in Gary's prompt template, so
+      the instruction arrives WITH the session instead of waiting to be recalled
+      by it. That half cannot be enforced from here and deliberately leaves no
+      repo artifact.
+      SO CLAUDE.md IS THE BACKSTOP, NOT THE WHOLE FIX, and the rule says so in
+      its own text rather than leaving a future reader to assume the repo has it
+      covered. It catches the sessions the template misses. This row named the
+      automatic half as the harder question and the reason it was filed rather
+      than fixed; the honest closure is that the two halves landed in two
+      places, only one of which this repo can see.
+      THIS ROW'S SCOPE NOTE STILL HOLDS AND WAS NOT QUIETLY DROPPED: nothing was
+      reconstructed. The missing DEBT-TRIAGE audit stays missing, and the 22
+      assessments now in the rows remain DEBT-TRIAGE-2's own, derived at HEAD
+      and labelled as such.
+      STATUS IS `staging`, NOT `shipped`: "7d984be" is on the staging branch,
+      unpushed and unpromoted. Flip on promotion.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: DEBT-TRIAGE-2 had to re-derive all 22 cost
       assessments from scratch because the audit that produced them left nothing
       behind, and the same hole will swallow the next audit — LATENT (trigger:
@@ -7587,9 +8459,32 @@ debt:
 
   - id: DEBT-48
     title: >
-      AWAITING RULING — Implement the checklist availability window, or remove
+      RULED — Implement the checklist availability window, or remove
       the fields — the half of DEBT-29 that a relabel could not settle
     notes: >
+      RULED 2026-08-07 — PARKED AS THE FEATURE PHASE THIS ROW'S OWN SCOPE NOTE
+      DEMANDED. Neither direction the row put up (build the window, or remove
+      the two offset columns) was taken as a debt-sized job, because the row is
+      right that the subject has outgrown one: per-template availability with
+      overdue states and a day-boundary policy is a feature phase. It gets
+      scoped as one, TOGETHER WITH DEBT-36's Section entity, after the current
+      minor-fix batch — two pieces of template-surface product work parked on
+      the same terms and scoped in the same sitting.
+      GARY'S OVERDUE-NOT-HIDDEN THINKING STANDS EXACTLY AS IT IS RECORDED BELOW
+      — AS THINKING, NOT AS SPEC. Parking the row does not promote it. The block
+      below still says nobody should implement from it without Gary scoping the
+      phase first, and the two questions it leaves open — what OVERDUE does
+      across day boundaries, and what the OFFSETS MEAN once the window is soft —
+      are still unanswered inputs to that scoping rather than settled design.
+      THE THIRD OPTION IS SPUN OUT AND IS NO LONGER THIS ROW'S CARGO. Making the
+      offsets OPTIONAL and BLANK by default is now DEBT-59, filed 2026-08-07 on
+      Gary's explicit ruling. It left this row because its whole value is doing
+      it WHILE NO GATE EXISTS: it is small, it is doable now, and parking it
+      inside a feature phase that has not been scoped yet would have parked it
+      indefinitely — which is precisely the outcome that turns 1 and 2 into real
+      windows on every existing template the day a gate ships.
+      Row stays OPEN, title prefix changed from AWAITING RULING to RULED.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: The form is now honest — it says the phase is a
       label and says the offsets are not yet used — so nobody is misled and
       nothing is broken; what is missing is a capability, not a fix — NONE.
@@ -7811,6 +8706,32 @@ debt:
           ADMIN gary@kevajuice.com   user_3FhMl9WeyNaGexqdaCEa5gEkU6P
       Only the FIRST org can exercise anything store-shaped. Any future browser
       verification on dev should assert its org id before trusting a screen.
+      CORRECTION APPENDED 2026-08-06 (R5, ruled) — THE FIRST ORG ABOVE IS NOT A
+      DEV ORG. The block is left byte-unchanged because the MEASUREMENT is
+      sound: those rows really are on branch dev, and the branch is named on the
+      line, exactly as the house rule requires. What is wrong is the inference
+      drawn from them. org_3FhYUR4l0ue7egug1I0Ig8wxOVn is a PRODUCTION Clerk org
+      (Keva Juice, 5 members — production Clerk dashboard 2026-08-04, and
+      production SQL on br-sparkling-block-a620qvg4 joining Organization
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd to that clerkOrgId). Dev was forked
+      FROM production and inherited its Organization rows verbatim, clerkOrgId
+      included, so that string is present in the dev DATABASE while the Clerk
+      org itself lives on the production INSTANCE. Clerk-side truth wins over a
+      DB row.
+      WHAT SURVIVES UNCHANGED: the incident, the duplicate-accounts diagnosis,
+      and the (a)-over-(b) conclusion. The browser was on the dev instance
+      throughout — the same session recorded membershipCount = 1 via
+      window.Clerk, and the DEBT-9 gate independently records that the
+      browser-reachable account was NOT a member of org_3FhYUR… and that adding
+      the membership was considered and REJECTED. Nothing production-side was
+      touched on 2026-08-02.
+      WHY THIS IS THE ROW THAT GETS THE CORRECTION: this block is the SOURCE of
+      the same misattribution in CLAUDE.md § Browser Evidence. Correcting that
+      passage while leaving its source intact would re-seed the error from here
+      the next time someone reads the row. Both now carry the same standing
+      lesson — NAME THE INSTANCE AS WELL AS THE ORG ID. A Clerk org id
+      identifies an instance, not a database branch; a row carrying it proves
+      only that some fork once held that row.
       Disconfirmed by: an OrganizationSwitcher, or a persistent active-org
       display that distinguishes two same-named orgs, appearing in the app
       shell. Related: DEBT-44 (org shell cleanup), CLAUDE.md § Browser Evidence
@@ -7999,12 +8920,17 @@ debt:
       Clerk/database asymmetry).
 
   - id: DEBT-53
-    status: staging
+    status: shipped
     commits: ["5695aab"]
     title: >
       Cross-org privilege escalation in getCurrentUser() — wrong-org User row
       was admitted with its role
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-04 in 999cbdc; 5695aab is named in that
+      promotion's DEPLOY_LOG entry and is an ancestor of origin/main. Status
+      corrected from `staging` by the 2026-08-06 bookkeeping sweep — the row
+      recorded its staging verification and was never advanced when the same
+      commit went to prod the following day.
       VERIFIED ON STAGING 2026-08-04 (Gary). Deployed SHA confirmed
       3784c34c511f898087af57ce9ffa3820db18f583. Guard-path test: a
       two-membership identity (indianathomas+f1test, dev instance) with its
@@ -8055,12 +8981,15 @@ debt:
       overpromising sidebar. Own row: DEBT-55, which carries the site list.
 
   - id: DEBT-54
-    status: staging
+    status: shipped
     commits: ["3784c34"]
     title: >
       accept-invite failed toward sign-up — the one flow that can mint a
       duplicate identity
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-04 in 999cbdc, the same promotion as
+      DEBT-53; 3784c34 is an ancestor of origin/main. Status corrected from
+      `staging` by the 2026-08-06 bookkeeping sweep.
       VERIFIED ON STAGING 2026-08-04 (Gary), same deployed SHA as DEBT-53.
       Three tests: (1) real invite link for an existing dev-instance account
       (gary@kevajuice.com) landed on /sign-in with __clerk_ticket intact;
@@ -8093,6 +9022,21 @@ debt:
       20 page-level findUnique({ clerkUserId }) lookups lack the org guard
       getCurrentUser() now has
     notes: >
+      RULED 2026-08-06 — R1 (b): LEAVE LATENT. The central guard is fixed
+      (DEBT-53/F1) and the 20 remaining sites are UI-only; nothing needs the
+      sweep until multi-org work starts, at which point it is a hard
+      prerequisite for DEBT-50's org-switcher half. The row stays OPEN — this
+      is a decision not to schedule it, not a closure.
+      THE STANDING NOTE LANDED IN CLAUDE.md § Page Conventions, not as a
+      comment at a call site. Reasoning, since R1 offered both: the failure
+      mode is a NEW page copying the pattern, and the author of a new page has
+      no particular reason to open layout.tsx or any one of the 20 — but every
+      session reads CLAUDE.md, and § Page Conventions is where someone starting
+      a page is already standing. A comment at the most-copied site is
+      complementary rather than redundant and remains worth adding the next time
+      that file is open for another reason; it was not taken here because this
+      session was docs-only apart from R4's registry line.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       COST OF DOING NOTHING: LATENT — UI-only today (every gate behind
       these pages refuses independently via the DEBT-53 guard), but they
       are why a cross-org session still renders an overpromising sidebar,
@@ -8149,6 +9093,17 @@ debt:
       organizationMembership.deleted leaves User.organizationId pointing at
       the departed org — no writer can ever correct it
     notes: >
+      RULED 2026-08-06 — R2 (c): LEAVE AS-IS, revisit when multi-org work
+      starts. Two grounds, and the second is the load-bearing one. (1) The
+      console.warn in getCurrentUser() makes any occurrence a single Vercel log
+      grep, so the condition is observable rather than silent. (2) The choice
+      between the two fix directions — move the row on membership.created, or
+      delete it on membership.deleted — is a DESIGN INPUT to the multi-org
+      phase, not a standalone job: deletion's FK enumeration only has a right
+      answer once that phase has decided what a User row means across orgs.
+      Fixing it early would commit that phase to one of its own options.
+      The row stays OPEN. Deciding not to schedule is not closure.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       COST OF DOING NOTHING: LATENT, consequence CHANGED by DEBT-53 — a
       user moved between orgs used to be silently served the OLD org's role
       in the new org (the F1 bug firing on a single-membership user); now
@@ -8165,6 +9120,20 @@ debt:
       Production DB fossil rows: cross-instance + deleted-Clerk-identity
       orphans, measured 2026-08-04
     notes: >
+      APPROVED 2026-08-06 — R3 (a). AWAITING ITS SESSION; the cleanup was NOT
+      done when the ruling was recorded, and this row is not closed by the
+      approval. It is the only item on the board with LIVE cost — production
+      member counts and rosters disagree with Clerk today — which is what moved
+      it ahead of R1 and R2, both of which were left latent the same day.
+      SESSION SHAPE, per the ruling and the house rule for destructive work:
+      read-only verification SQL first (every result carrying db + branch id),
+      then hand-authored DELETEs presented for approval and run by GARY in the
+      Neon console, then re-verify. Nothing about this runs from a dev machine —
+      see CLAUDE.md § Environment Variables. Prefer RETURNING and an asserted
+      row count, per § Database Evidence's destructive-statement corollary: the
+      ids below were resolved on production and MUST be re-resolved on the
+      branch being written to, never carried across.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       COST OF DOING NOTHING: LIVE — org member counts and rosters disagree
       with Clerk today (live org: 6 DB rows vs 5 Clerk members). Measured
       on br-sparkling-block-a620qvg4 (queries recorded in the DEBT-50
@@ -8187,3 +9156,444 @@ debt:
       approve-before-run). Check FKs off each User row before deleting.
       Do NOT fold into DEBT-47's handler work — this is the backlog, that
       is the faucet.
+
+  - id: DEBT-58
+    title: >
+      Home-screen standalone mode shipped unverified on hardware — no iPad
+      has launched the web clip, and the device accounts' sign-in method is
+      unknown
+    notes: >
+      COST OF DOING NOTHING: LATENT until pushed, LIVE the moment it reaches
+      a store device (trigger: a counter iPad whose staff sign in with a
+      SOCIAL provider. In a standalone clip that button navigates
+      cross-origin and iOS may hand the callback back to Safari rather than
+      the clip, stranding a half-finished sign-in on the device that is
+      supposed to be the simplest thing in the store).
+      FILED 2026-08-06 by the iOS home-screen icon session, which shipped it.
+      "Both commits are UNPUSHED at filing" was struck 2026-08-06 by the
+      bookkeeping sweep: c473b72 and 28bbd8a are both on origin/staging. They
+      are NOT on origin/main, so this is on the staging preview and not in
+      production — which leaves the cost line above exactly as written, since
+      the trigger is a store device, not a branch.
+      WHAT IS VERIFIED, and it is only the plumbing: the rendered <head>
+      carries rel="apple-touch-icon" 180x180, apple-mobile-web-app-title
+      "Froot", and rel="manifest"; /apple-icon.png, /icon.png and
+      /manifest.webmanifest all return 200 unauthenticated on local dev.
+      Every one of those is a server-side fact. NOTHING about how iOS
+      actually behaves has been observed — no iPad was involved.
+      THE THREE UNTESTED CLAIMS, in the order they will bite:
+      (1) standalone clips get their own cookie jar, so staff sign in again
+      inside the clip even when Safari is signed in — believed one-time,
+      unconfirmed across relaunch and reboot;
+      (2) the social-provider hop above — <SignIn> is embedded and
+      same-origin, so email/password and email-code should stay inside the
+      clip, but WHICH METHOD THE PERM-7 DEVICE ACCOUNTS USE WAS ASKED AND
+      NEVER ANSWERED, and it is the whole of the risk;
+      (3) no back button — any page with no in-app way back is a dead end,
+      recoverable only by force-quit.
+      THE REVERT IS ONE COMMIT, which is why it shipped this way: the icon
+      fix (c473b72) changes no behaviour and the standalone decision is
+      isolated in the manifest (28bbd8a). Dropping the second commit
+      restores today's Safari-chrome launch and keeps the icon.
+      DO IT: answer the sign-in-method question, then run the iPad checklist
+      in the session report against staging. Delete the existing home-screen
+      tile first — iOS caches the web-clip icon on the BOOKMARK, permanently,
+      so a stale tile will show the old screenshot no matter what the server
+      sends and reads exactly like a failed deploy.
+      Related: PERM-7 (the device accounts this is for).
+
+  - id: DEBT-59
+    status: staging
+    commits: ["2ccca7d"]
+    title: >
+      CLOSED — Template availability offsets default to 1 and 2 and are written
+      on every save — every existing template carries an invented window nobody
+      chose
+    notes: >
+      VERIFIED 2026-08-07 by Gary on staging: all nine manual checks passed,
+      including clear-to-blank (not 0), unrelated-edit preservation, and
+      export/import blank round-trip.
+      CLOSED 2026-08-07 IN "2ccca7d" — THE WRITE IS STOPPED. The form no longer
+      manufactures a value: state initialises from `initialData ?? null`, the
+      inputs render blank and map "" back to null, both labels lost the ` *`
+      they never earned, and the helper copy says blank is allowed without
+      saying what blank MEANS — which would have promised the gate DEBT-29
+      stripped this box of promising.
+      THE ROW OVERSTATED THE WORK, AND THE AUDIT IS WHY THIS WAS ONE FILE.
+      Full findings: docs/prompts/DEBT-59_AUDIT.md, written at head ac59d64.
+      Three claims below did not survive it. (1) "a form default plus a nullable
+      column" — BOTH COLUMNS WERE ALREADY NULLABLE with no `@default`, since
+      prisma/migrations/20260627002005_init. No migration, no SQL, no schema
+      limb at all. (2) the CSV parity edge listed as IN SCOPE — the export
+      already writes "" for null (export/route.ts:41) and the import already
+      reads "" back as null (import/route.ts:31-38, :139-140). Symmetric in both
+      directions, always was, and neither file was touched. (3) "rows carrying
+      exactly 1/2 were almost certainly never chosen" — see the ruling below.
+      Every write path was mapped by reading, not grepping, because PATCH
+      /api/templates/[id] writes these columns through an unnamed spread that a
+      field-name grep does not return — the trap its own comment records at
+      :51-55. All four persisted null faithfully already. The form was the only
+      manufacturer.
+      ONE DEFECT THE ROW DID NOT HAVE, AND IT WAS THE CORROSIVE HALF: `?? 1` /
+      `?? 2` fired not only on create but every time a template ALREADY HOLDING
+      NULL was opened for an unrelated edit. Renaming a template or adding a
+      task converted a genuine blank into a written 1/2. The affected population
+      was growing on its own, without anyone touching the window.
+      A SECOND, SMALLER ONE: `Number("")` is 0, so clearing an offset wrote 0,
+      not null. Before this commit there was no way to express blank through
+      this form at all — which is why the row was a code change and not copy.
+      EXISTING ROWS ARE DELIBERATELY UNTOUCHED — GARY'S RULING 2026-08-07, taken
+      against this row's own lean toward a backfill. Two reasons. The seed
+      script scripts/import-keva-templates.ts wrote a DELIBERATE 1/2 to Opener
+      Checklist and Closer Checklist (its eight templates carry five distinct
+      combinations including three explicit nulls), so a value-matched backfill
+      is known-lossy before it runs, and renames and duplicates leak past any
+      name-based carve-out. And the deliberate/invented distinction is weak in
+      BOTH directions: NO PRE-GATE OFFSET WAS CHOSEN AGAINST A DEFINITION OF
+      WHAT AN OFFSET MEANS — an operator typing 3 and 4 into a field labelled
+      "not yet used" did not choose a window either. The feature phase should
+      treat every pre-gate value as unreliable regardless of what it says.
+      WHAT THIS ROW DID AND DID NOT RETIRE, stated rather than implied. The
+      MECHANISM is retired in full. The HARM in the COST line below is retired
+      FORWARD ONLY: rows already carrying 1/2 still convert the day a gate
+      reads them. What the fix buys on those is that it FREEZES THE SET as of
+      "2ccca7d" — previously it grew with every unrelated edit — so the count is
+      now fixed and countable instead of moving. The blast-radius query is
+      preserved in the audit §4 (anchored per CLAUDE.md § Database Evidence) and
+      was NOT run: this session queried no database. HANDED TO DEBT-48's
+      scoping, which has to decide what an offset means before it can decide
+      what those rows are worth.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
+      COST OF DOING NOTHING: Nothing reads the two offsets today, so nothing
+      misbehaves now — LATENT, but with an unusual shape worth naming: the
+      trigger does not merely EXPOSE the defect, it CONVERTS it into data. The
+      day any availability gate reads these fields, an unchosen 1/2 becomes a
+      REAL window on every existing template row at once, retroactively and
+      silently, and a chosen 1/2 is then indistinguishable from an inherited
+      one. DERIVED AT HEAD 90d8293 by this session.
+      FILED 2026-08-07 ON GARY'S EXPLICIT RULING, spun out of DEBT-48 when that
+      row was parked as a feature phase. SIZE: S. Size is recorded in prose
+      because `debt:` rows accept id/title/status/commits/notes ONLY — `size:`
+      is a `phases:` field and adding it to a debt row type-errors the build,
+      the same way `open:` does (see the header NOTE at the top of this file).
+      THE WORK: make Template.startOffsetHours and Template.endOffsetHours
+      OPTIONAL and BLANK by default, so a template that never chose a window
+      does not carry one.
+      THE STATE AT HEAD 90d8293, so nobody re-derives it:
+      src/app/(app)/templates/template-form.tsx:637-638 defaults them to 1 and 2
+      (`initialData?.startOffsetHours ?? 1`, `?? 2`) and they are written on
+      every save. Nothing reads them back — no availability gate exists
+      anywhere, verified by DEBT-48 at head. The comment immediately above them
+      (:631-636) records why the inputs stay VISIBLE and labelled rather than
+      hidden, and that reasoning is untouched by this row: hiding the inputs was
+      rejected because it would not stop the write, only stop the admin seeing
+      it. This row stops the write instead.
+      DOING IT BEFORE ANY GATE EXISTS IS THE WHOLE VALUE, and it is the only
+      reason this left DEBT-48 rather than waiting for that phase. Now, it is a
+      form default plus a nullable column. After a gate ships, it is a
+      data-correction problem on live templates with no way to tell an operator's
+      deliberate 1/2 from a default nobody picked — the information needed to fix
+      it correctly does not exist once the window is load-bearing.
+      IN SCOPE, NOT A SURPRISE TO BE FOUND MID-SESSION: the CSV export/import
+      parity edge from DEBT-29's reasoning. Emitting null changes what the export
+      writes, and files already on disk were written under the old shape, so the
+      import side has to accept both.
+      THIS IS DELIBERATE WORK GARY ORDERED, not a triage-rule violation. It is
+      filed as a row rather than fixed inline or left as a comment because it is
+      a code change with a data consequence and a hard ordering constraint
+      against another phase — which is what a row is for.
+      Related: DEBT-48 (the parked feature phase this was cargo on), DEBT-29
+      (the relabel that surfaced it as a third option), DEBT-32.
+
+# PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
+#
+# A DECISION LOG, NOT A SECOND DEBT TABLE. An entry belongs here only if the
+# next step is a DECISION rather than work. Anything with an obvious answer and
+# only effort in the way is a debt row or a chore note on an existing row — R8
+# on the source sheet was exactly that (a leftover staging invite) and was moved
+# to DEBT-44 by Gary's ruling rather than filed here.
+#
+# Accepted fields: id, title, status, asked, question, options, recommendation,
+# ruling, ruled, links. NOTHING ELSE — src/lib/roadmap.ts types this list and an
+# unknown field type-errors the build, the same way adding `open:` to a debt row
+# does.
+#
+# status: open | ruled | deferred
+#   open     — awaiting a call. Counted in the page's headline number.
+#   ruled    — decided. `ruling` and `ruled` (the date) are then present.
+#   deferred — consciously not deciding yet. NOT counted as open, because a
+#              deferral IS a decision; it just isn't the final one.
+#
+# `ruling:` AND `ruled:` ARE ABSENT UNTIL A CALL IS MADE — never present-and-
+# empty. Absence already carries "not yet decided", and an empty string carrying
+# the same value is the mistake src/lib/roadmap.ts documents at length for
+# `resolved: false` on blocker entries: a field that duplicates what absence says
+# invites filling it in wholesale, which destroys the default that makes the
+# scheme safe.
+#
+# NO `commits:` FIELD, deliberately. A ruling is a decision, not work — the SHA
+# belongs on whatever row the ruling creates, and a ruling that produced no
+# commit is the normal case, not a gap.
+#
+# THE ID GAP AT R7 IS REAL AND INTENTIONAL. The source sheet
+# (docs/prompts/Froot_pending_rulings_sheet.md) carried an R7 asking whether to
+# keep the untracked promotion runbook in the repo. That closed in 1218be3
+# BEFORE this list was built, so it was never imported. The ids here match the
+# sheet one-for-one and were not renumbered to close the hole: renumbering would
+# break the correspondence with a document in docs/prompts/, which is a claim
+# and is never edited (CLAUDE.md § Where documents live).
+#
+# NOT MIGRATED, and it is R6's subject: SIX DEBT ROWS ALREADY OPEN WITH
+# "AWAITING RULING —" IN THEIR TITLES (DEBT-36, 38, 41, 42, 45, 48). That is a
+# pending-rulings convention of its own, predating this one, living inside the
+# debt table. Whether those six move here is R6's question and is not answered
+# by building this list. Until it is ruled, one list linking to the other is the
+# honest state — R6 carries the links.
+#
+# RULED 2026-08-07 (R6) — THE PARAGRAPH ABOVE NOW DESCRIBES A STATE THAT NO
+# LONGER EXISTS, and is kept for its reasoning rather than its facts. The six
+# were ruled directly from their rows and NONE of them moved here. No debt row
+# carries "AWAITING RULING" any more, so the competing convention is retired by
+# exhaustion rather than by migration, and there is no second list to link to.
+# New DECISIONS go here; the six stay debt rows because what remains on each is
+# work or a latent record.
+rulings:
+  - id: R1
+    status: ruled
+    asked: 2026-08-05
+    ruled: 2026-08-06
+    title: >
+      Schedule the DEBT-55 org-blind lookup sweep, or leave it latent
+    question: >
+      Twenty pages — eighteen inventory, plus /hr and /items — still look up the
+      user by Clerk id without checking the org, the same gap F1 closed
+      centrally. UI-only today: every gate behind them refuses independently.
+      It is why a cross-org session still sees an overpromising sidebar, and it
+      is a HARD PREREQUISITE for the org-switcher half of DEBT-50.
+    options:
+      - >
+        (a) Schedule the sweep soon — it is mechanical, one session, mostly one
+        module.
+      - >
+        (b) Leave open until something needs it: the switcher, or a new page
+        copying the pattern.
+      - >
+        (c) Fold it into the next inventory-touching session as a rider.
+    recommendation: >
+      (b), with one addition — a comment in CLAUDE.md or at the pattern's
+      most-copied site saying new pages must use the org-guarded lookup, so the
+      surface stops growing. The defect is latent, the centre is fixed, and no
+      phase currently needs it. A ruling of (a) produces a sweep session prompt;
+      (b) leaves the row open and turns into a comment-placement decision; (c)
+      is a note on the row.
+    ruling: >
+      (b) LEAVE LATENT. The central guard is fixed and the remaining 20 sites
+      are UI-only; nothing needs them until multi-org work starts. The standing
+      note that new pages must use the org-guarded lookup is added to CLAUDE.md
+      § Page Conventions — chosen over a call-site comment because the failure
+      mode is a NEW page copying the pattern, and its author reads CLAUDE.md
+      rather than any particular one of the 20. DEBT-55 stays open.
+    links: [DEBT-55, DEBT-50]
+
+  - id: R2
+    status: ruled
+    asked: 2026-08-05
+    ruled: 2026-08-06
+    title: >
+      Direction for the DEBT-56 org-move stale row — webhook repair, deletion,
+      or leave it
+    question: >
+      When a member is removed from an org, their DB row keeps pointing at the
+      old org forever and no writer can correct it. Post-F1 such a person
+      degrades to STAFF with no in-app repair; before F1 they silently kept
+      their old role, which was worse. This needs a direction, not a patch.
+    options:
+      - >
+        (a) The webhook moves the row on membership.created when the identity
+        has exactly one membership.
+      - >
+        (b) The webhook deletes the row on membership.deleted — cleaner, but it
+        drops defaultStoreId and every FK hanging off User, so it needs an
+        enumeration first.
+      - >
+        (c) Leave as-is: the console.warn makes any occurrence one log grep, and
+        org moves are rare in a one-org world.
+    recommendation: >
+      (c) for now, revisited when multi-org work starts — at which point (a)
+      versus (b) becomes a design input to that phase rather than a standalone
+      fix. Write that into the row. Ruling (a) or (b) instead means an
+      audit-first session, since the FK enumeration has never been done.
+    ruling: >
+      (c) LEAVE AS-IS, revisit when multi-org work starts. The console.warn
+      makes any occurrence one log grep, and the choice between moving the row
+      and deleting it is a design input to that future phase rather than a
+      standalone job — deciding it early would commit the phase to one of its
+      own options. Noted on DEBT-56, which stays open.
+    links: [DEBT-56]
+
+  - id: R3
+    status: ruled
+    asked: 2026-08-05
+    ruled: 2026-08-06
+    title: >
+      Approve the DEBT-57 production fossil cleanup — the only item on the
+      source sheet with a live cost
+    question: >
+      Production holds DB rows pointing at deleted Clerk objects: the
+      kevajuice14 ghost STAFF row INSIDE the live org, which is why the rosters
+      disagree with Clerk today (six rows against five members); the gary@
+      dev-org row; the four rows orphaned by the 2026-08-04 cleanup
+      (blankettegirl, "My Organization", "Keva Smoothie Company", and
+      gary@keva.com's row beneath it); and the "Microsoft" dev org row.
+    options:
+      - >
+        (a) Approve the cleanup session — read-only verification SQL, then
+        hand-authored DELETEs presented for approval and run by Gary in the Neon
+        console.
+      - >
+        (b) Leave documented.
+    recommendation: >
+      (a), this week. It is the one item here with a cost paid by a user of the
+      product rather than by the process — wrong member counts on production —
+      it is small, and the evidence is already gathered. A ruling of (a)
+      produces a session prompt: read-only verify, approved DELETEs, re-verify,
+      branch ids throughout.
+    ruling: >
+      APPROVED (a). It is the only board item with LIVE cost — production member
+      counts disagree with Clerk today — which is why it was approved on the same
+      day R1 and R2 were left latent. The cleanup was NOT performed when this
+      ruling was recorded: DEBT-57 stays open and awaits its own session
+      (read-only verify, hand-authored DELETEs approved and run by Gary in the
+      Neon console, re-verify, branch ids throughout).
+    links: [DEBT-57, DEBT-47]
+
+  - id: R4
+    status: ruled
+    asked: 2026-08-05
+    ruled: 2026-08-06
+    title: >
+      square.manage — the registry grants it to ALL roles while every Square
+      route enforces ADMIN
+    question: >
+      The registry and the enforcement disagree, so one of them is wrong.
+      PERM-5's Session C reported it and deliberately left the Square routes
+      unmigrated rather than resolve it unilaterally.
+    options:
+      - >
+        (a) The registry is wrong — change square.manage to ADMIN_ONLY. It
+        matches reality, and Square connect/disconnect/sync are org-level
+        destructive actions; SEC-1 already treats disconnect as ADMIN.
+      - >
+        (b) The enforcement is wrong — widen access. There is no case for this.
+    recommendation: >
+      (a), emphatically. The Square routes then become migratable in a future
+      sweep with zero baseline change. The registry edit rides the next docs or
+      code session; nothing about it needs a session of its own.
+    ruling: >
+      (a) THE REGISTRY IS WRONG. square.manage changed ALL -> ADMIN_ONLY in
+      src/lib/permissions.ts to match the enforcement every Square route already
+      applies, and which SEC-1 and the L-2 seam both assume. APPLIED 2026-08-06,
+      one line plus its comment. NO BEHAVIOUR CHANGED — nothing calls
+      can(_, "square.manage"), verified at head, and it is not in
+      ENFORCED_CAPABILITIES so it was never deniable from the /users grid. The
+      Square routes remain unmigrated with their inline requireAdmin(); what
+      changed is that migrating them is now a zero-baseline-change sweep rather
+      than a decision. Recorded on PERM-5's open list and on L-2.
+    links: [PERM-5, SEC-1, L-2]
+
+  - id: R5
+    status: ruled
+    asked: 2026-08-05
+    ruled: 2026-08-06
+    title: >
+      CLAUDE.md § Browser Evidence cites an org id that belongs to production,
+      in a passage describing a dev org
+    question: >
+      The incident report motivating the "name your org id" rule describes
+      org_3FhYUR… as a DEV org with nine stores and six staff. That id is
+      PRODUCTION's. Two readings fit: the incident was on dev and the report
+      pasted the wrong id, which is a label fix; or the session was on
+      PRODUCTION while believing it was dev, which is a historical finding with
+      a trace behind it.
+    options:
+      - >
+        (a) Ten-minute read-only look at the DEBT-9 Phase 3 records first — what
+        did that session DO on that org, observe or write, and do the counts
+        (nine stores, six staff) match production-at-that-date or dev? Then fix
+        the passage accordingly.
+      - >
+        (b) Correct the id and move on.
+    recommendation: >
+      (a). If the counts match dev it is the first reading and a one-line fix;
+      if they match production it is the second, and whatever that session did
+      needs a trace. Discriminating evidence exists, so use it rather than
+      picking the cheaper reading. A ruling of (a) produces a short read-only
+      look-see prompt.
+    ruling: >
+      Reading (i): the browser was on dev throughout; nothing production-side
+      was touched. The passage's error was labelling a production-originated row
+      (inherited by the dev branch at fork) as a dev-instance org. Corrected in
+      CLAUDE.md and DEBT-50 by appended correction; the standing lesson added is
+      to name the INSTANCE as well as the org id.
+    links: [DEBT-9]
+
+  - id: R6
+    status: ruled
+    asked: 2026-08-05
+    ruled: 2026-08-07
+    title: >
+      Disposition of the six debt rows already carrying AWAITING RULING in
+      their titles
+    question: >
+      DEBT-36, 38, 41, 42, 45 and 48 each open with "AWAITING RULING" and have
+      been pending across several cycles. They predate the source sheet's
+      visibility, so it offers no per-item options for them; this entry asks how
+      to handle the set rather than any one of them.
+    options:
+      - >
+        (a) Extend the analysis with per-item options and a recommendation for
+        each, so the six join the same sitting.
+      - >
+        (b) Rule them directly from the rows without further input — they are
+        marked decisions-not-work and have been in view longer than this list
+        has existed.
+      - >
+        (c) Explicitly defer the six another cycle with a dated note, so they
+        stop being silently pending.
+    recommendation: >
+      (a). The point of a single sitting is that the desk ends clear, and six
+      unexamined items leave it half-done. Note that (a) or (c) also raises a
+      second question this list does not answer — whether the six should MOVE
+      into this list or stay as debt rows. That is worth its own session rather
+      than a side effect of either ruling.
+    ruling: >
+      (b) EXECUTED, WITH FRESH EVIDENCE — and this SUPERSEDES the lean toward
+      (a) above. The six were ruled DIRECTLY from the rows, on a verbatim
+      extraction of all six taken at HEAD 90d8293 (report dated 2026-08-06),
+      rather than through per-item option cards. (a)'s whole worry was that six
+      UNEXAMINED items leave the desk half-done; the extraction is what removed
+      "unexamined". The rows were read in full, at head, before the call was
+      made, so building options-and-recommendation apparatus over the same
+      evidence would have been ceremony rather than examination.
+      ALL SIX DISPOSITIONS ARE RECORDED ON THE ROWS THEMSELVES, dated
+      2026-08-07, which is where a reader of any one of them is standing.
+      DEBT-38 CLOSED, both fix directions taken, commit "7d984be". DEBT-45
+      CLOSED, ruled YES, same commit. DEBT-41 converted from a decision into
+      WORK — its standing trigger fired. DEBT-42 relabelled: nothing was ever
+      pending on it and the prefix was the error. DEBT-36 and DEBT-48 parked, to
+      be scoped together as one feature phase after the current minor-fix batch.
+      One new row, DEBT-59, was filed off DEBT-48 for the availability-offset
+      defaults.
+      THE SECOND QUESTION THIS ENTRY RAISED IS MOOT — whether the six should
+      MOVE into this list or stay as debt rows. It was only ever a live question
+      while a competing pending-rulings convention was running inside the debt
+      table; after today NO debt row carries "AWAITING RULING", so there is
+      nothing left to move and the competing convention is retired by
+      exhaustion rather than by migration. Every one of the six stays a debt row,
+      because what remains on each of them is work or a latent record, not a
+      decision. New DECISIONS go in this list, by the convention above the
+      `rulings:` key.
+      THE PANEL ENDS AT 0 AWAITING A CALL, which is what this entry was really
+      asking for — and it is the last of the six to close, deliberately, since a
+      meta-question about a set cannot honestly be settled before the set is.
+    links: [DEBT-36, DEBT-38, DEBT-41, DEBT-42, DEBT-45, DEBT-48]

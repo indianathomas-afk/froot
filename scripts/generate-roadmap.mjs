@@ -104,6 +104,11 @@ function withStringCommits(entries) {
 const phases = withStringCommits(normalize(raw.phases))
 const bugs = withStringCommits(normalize(raw.bugs ?? []))
 const debt = withStringCommits(normalize(raw.debt ?? []))
+// Rulings carry no `commits` by design (see the header comment above `rulings:`
+// in the YAML), so they skip withStringCommits rather than being run through it
+// defensively — a coercion for a field the type does not have would only hide
+// the type error that is supposed to catch it.
+const rulings = normalize(raw.rulings ?? [])
 
 const fromGit = gitCommitDate()
 const fromMeta = metaUpdatedToIso(raw.meta?.updated)
@@ -122,6 +127,7 @@ const data = {
   phases,
   bugs,
   debt,
+  rulings,
   lastUpdated,
   lastUpdatedSource,
   generatedAt: new Date().toISOString(),
@@ -152,5 +158,5 @@ const sourceNote =
       : "unknown (FALLBACK — neither git nor meta.updated resolved)"
 
 console.log(
-  `[roadmap] ${phases.length} phases, ${bugs.length} bugs, ${debt.length} debt — last updated from ${sourceNote}`,
+  `[roadmap] ${phases.length} phases, ${bugs.length} bugs, ${debt.length} debt, ${rulings.length} rulings — last updated from ${sourceNote}`,
 )

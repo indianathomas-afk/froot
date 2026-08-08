@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessTemplatesManage } from "../access"
+import { resolveTemplateType } from "../template-type"
 import { NextResponse } from "next/server"
 import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
 
@@ -34,7 +35,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     id?: string; sectionName: string; description: string; estimatedTimeMinutes?: number | null;
     requiresPhoto?: boolean; requiresTemp?: boolean; isCritical?: boolean; orderIndex?: number; excludedStoreIds?: string[]; videoUrl?: string | null;
   }
-  const { tasks, storeIds, appliesTo, ...templateData } = body
+  // TPL-1a: `type` and `typeId` are pulled OUT of templateData deliberately, so
+  // the wholesale spread below cannot carry either of them to the DB. They are
+  // written back explicitly from the resolved row. Before this row the spread
+  // wrote `type` unvalidated and with no default — a body carrying `type: ""`
+  // put an empty string in a NOT NULL column, and after this row an unresolved
+  // typeId would have been a cross-tenant write. See
+  // docs/prompts/TYPE-1_AUDIT.md §2.2 and api/templates/template-type.ts.
+  const { tasks, storeIds, appliesTo, type: _clientType, typeId, ...templateData } = body
+  void _clientType
   const incomingTasks: IncomingTask[] = Array.isArray(tasks) ? tasks : []
 
   // DEBT-2b: sectionName is DELIBERATELY free text — no enum, no canonical
@@ -63,6 +72,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     templateData.operationalPhase = phase
   }
+
+  // TPL-1a: resolved BEFORE the transaction and before the spread, org-scoped.
+  // Same 400 shape as the phase rejection above — no silent default on this
+  // path either.
+  const resolved = await resolveTemplateType(org.id, typeId)
+  if (!resolved.ok) return resolved.response
 
   try {
     const existingTaskIds = new Set(
@@ -107,6 +122,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         where: { id },
         data: {
           ...templateData,
+          // After the spread, so a stray key in templateData cannot win.
+          typeId: resolved.type.id,
+          type: resolved.type.name,
           appliesTo: appliesTo ?? "all",
           tasks: toCreate.length ? { create: toCreate.map(taskData) } : undefined,
           storeAssignments: storeIds?.length

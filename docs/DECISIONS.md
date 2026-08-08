@@ -5,6 +5,67 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## A Square disconnect does NOT disable the labor toggle — it degrades the overlay — 2026-08-05 (Gary)
+
+Closes the third of L-2's three open questions, the only one that could be
+settled without kickoff. `squareLaborEnabled` **stays on** when Square
+disconnects. The org keeps the feature; the comparison overlay drops to the
+**ON BUT UNHEALTHY** state of L-2 seam (c) and shows its last-synced stamp.
+**Reconnecting restores the feature with no second admin action** — an admin
+who reconnects never has to remember a toggle they did not turn off.
+
+This is seam (c) applied to disconnect rather than a new posture, and it runs
+the same direction as L-2's DON'T 4: `/api/square/disconnect` nulls the three
+token columns and touches nothing else, so the mirrored rows and the toggle
+both survive it and read as stale. **Staleness is a badge, not a delete** — and
+by this ruling, not an auto-off either.
+
+The other two open questions (ingest shape; whether owner/admin accounts who
+never clock in appear in labor surfaces) remain deferred to kickoff.
+
+## Square labor integration is STRICTLY OPTIONAL; core labor stays forecast-driven — 2026-08-05 (Gary)
+
+THE RULING, and the anchor for everything on L-2. Keva Juice is migrating to
+Square Scheduling, with all stores switched by **September 2026**. That makes a
+Square labor integration — schedules, timecards, actuals — worth building. It
+does **not** make it a dependency.
+
+**Froot serves businesses that do and do not use Square.** So the integration is
+a feature boost, not a floor:
+
+- **Per-org toggleable, OFF BY DEFAULT.** An org that never touches Square sees
+  no trace of it.
+- **Core labor never depends on it.** Budgeting, coverage and targets are
+  forecast-driven and must keep working with the integration off, disconnected,
+  mid-outage, or returning garbage.
+- **A broken integration can never break core labor.** Not a crashed page, not a
+  masked auth error, not a zero rendered as a measurement.
+
+**BUILD IS DEFERRED.** This session designed the seam only, so a future build
+slots in without tearing anything down. The seam lives in L-2's notes; the
+DON'Ts for intervening sessions live there too, with a pointer line in
+CLAUDE.md § Square Integration.
+
+**THIS REVERSES ONE THING — read it before scoping L-2.** The 2026-08-02 draft
+(`docs/prompts/LABOR-1_row_draft.md`, phase c) proposed that coverage-from-
+actuals would **supersede** the L-3 decision to keep coverage sales-inferred
+(§ L-3 (a) below), retiring the proxy. Under this ruling it does not. Real
+staffing data is an **optional overlay on top of** forecast-derived coverage,
+never a replacement for it — because the replacement path is exactly the one
+that stops working when Square is off. **The L-3 (a) decision stands.**
+`StoreHours` remains the upgrade path for coverage, not Square.
+
+Two facts recorded with the ruling, both measured 2026-08-05 and neither
+resolved here:
+
+1. Froot's Square OAuth requests `MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ
+   EMPLOYEES_READ` and nothing else. Every Labor API scope is missing, and
+   adding one sends **every existing merchant connection back through a consent
+   screen**. That is a merchant-facing re-auth rollout, not a deploy, and it is
+   the long pole on this thread.
+2. The Square client pins `Square-Version` `2024-01-17`, below the `2025-05-21`
+   floor the Labor/Timecard endpoints require.
+
 ## DEBT-50 mechanism ruled; production sign-up closed (F3) — 2026-08-04 (Gary)
 
 THE MECHANISM RULING. Production Clerk holds NO duplicate identities:

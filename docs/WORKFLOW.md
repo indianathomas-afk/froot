@@ -28,10 +28,27 @@ Test it at froot-git-staging-….vercel.app.
 ```bash
 git checkout main
 git pull origin main          # make sure local main is current
-git merge staging --no-edit   # --no-edit = no editor popup, uses default message
+git merge staging --no-ff --no-edit   # --no-ff = always make a merge commit; --no-edit = no editor popup
+                              # ── now write the docs/DEPLOY_LOG.md entry, BEFORE the push ──
 git push origin main          # → Vercel auto-deploys www.usefroot.com
 git checkout staging          # go back to staging for your next work
 ```
+
+**Write the `docs/DEPLOY_LOG.md` entry between the merge and the push — it is a
+step of the promotion, not a thing remembered afterwards.** The merge commit
+from the line above is what you cite in it: date, merge SHA, what the promotion
+carried, and the rollback line. Committing that entry on `main` before pushing
+means the log and the code reach production together; an entry deferred until
+after the push is an entry nobody is holding a reason to write.
+
+**Why `--no-ff`.** Without it a promotion where `main` has not moved
+independently fast-forwards and creates no merge commit at all — so there is no
+artifact prompting anyone to write the log entry, `git log --merges` returns
+none of those promotions when you are reconstructing history after the fact, and
+rollback becomes a hand-assembled reverse-order revert range instead of a
+one-line `git revert -m 1 <merge-sha>`. That is exactly what you do not want to
+be assembling under pressure. (DEBT-38: five of seven pushes to main went
+unlogged this way, one of them for three days.)
 
 That's the whole release. Watch the deploy at vercel.com → Deployments →
 wait for "Ready" on the Production row.

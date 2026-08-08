@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2 } from "lucide-react"
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { badgePreset } from "@/lib/badge-presets"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -51,6 +52,7 @@ interface TemplateFormProps {
     name: string
     description: string | null
     type: string
+    typeId: string | null
     frequency: string
     availabilityType: string
     operationalPhase: string | null
@@ -621,21 +623,35 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
 
   const [name, setName] = useState(initialData?.name ?? "")
   const [description, setDescription] = useState(initialData?.description ?? "")
-  const [type, setType] = useState(initialData?.type ?? "")
+  // TPL-1a: was `useState(initialData?.type ?? "")` — a pass-through with no
+  // control, whose "" on create is what POST turned into "Mid-Shift". The form
+  // now holds the CHOSEN TYPE'S ID and the API writes the name from it, so the
+  // string column can never disagree with the row it came from.
+  const [typeId, setTypeId] = useState(initialData?.typeId ?? "")
+  const [templateTypes, setTemplateTypes] = useState<{ id: string; name: string; colorKey: string }[]>([])
+  const [typesLoading, setTypesLoading] = useState(true)
   const [frequency, setFrequency] = useState(initialData?.frequency ?? "Daily")
   const [availType, setAvailType] = useState(initialData?.availabilityType ?? "StoreHours")
   // DEBT-1b: normalised on the way in, so a row written before the backfill
   // opens with a matching dropdown option (and correct offset labels) instead
   // of an empty required field, and cannot be re-persisted on save.
   const [phase, setPhase] = useState(normalizePhase(initialData?.operationalPhase) ?? "Before Opening")
-  // DEBT-29: these two default to 1 and 2 and are written on EVERY StoreHours
-  // save (see the payload below), and nothing reads them back — no availability
-  // gate exists. Hiding the inputs would therefore not stop the write, it would
-  // only stop the admin seeing what gets written; and sending null instead
-  // changes what the CSV export emits, breaking parity with files already on
-  // disk. That is why they stay visible and labelled rather than hidden.
-  const [startOffset, setStartOffset] = useState(initialData?.startOffsetHours ?? 1)
-  const [endOffset, setEndOffset] = useState(initialData?.endOffsetHours ?? 2)
+  // DEBT-59: OPTIONAL and BLANK by default. Nothing reads these back — no
+  // availability gate exists — so a template that never chose a window must not
+  // carry one. `?? null`, never `?? 1`/`?? 2`: the old defaults were invented on
+  // create AND RE-INVENTED every time a NULL row was opened for an unrelated
+  // edit, so genuine blanks decayed into 1/2 one save at a time.
+  // The columns were nullable from the init migration and every write path
+  // (POST, PATCH's spread, import) already persisted null faithfully, so this
+  // form was the only thing manufacturing a value.
+  // DEBT-29's visible-and-labelled decision STANDS: hiding the inputs would not
+  // stop the write, only stop the admin seeing it. Its other stated reason for
+  // keeping the defaults — that emitting null would break CSV parity with files
+  // already on disk — was wrong, and is measured wrong in
+  // docs/prompts/DEBT-59_AUDIT.md §2.5: the export already writes "" for null
+  // and the import already reads "" back as null, unchanged by this row.
+  const [startOffset, setStartOffset] = useState<number | null>(initialData?.startOffsetHours ?? null)
+  const [endOffset, setEndOffset] = useState<number | null>(initialData?.endOffsetHours ?? null)
   const [appliesTo, setAppliesTo] = useState(
     initialData?.storeAssignments?.length ? "selected" : "all"
   )
@@ -664,6 +680,27 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const [editAttachmentFile, setEditAttachmentFile] = useState<File | null>(null)
   const [editAttachmentError, setEditAttachmentError] = useState("")
   const [editExistingAttachment, setEditExistingAttachment] = useState<TaskAttachment | null | undefined>(undefined)
+
+  // TPL-1a: the org's template types, for the Type select. Fetched rather than
+  // passed as a prop so /templates/new and /templates/[id]/edit stay unchanged
+  // — the house "client component fetching data" pattern (CLAUDE.md § Common
+  // Patterns). A template whose typeId is null (a CSV import, or a legacy
+  // string the backfill could not match) opens with an empty select and cannot
+  // be saved until a type is chosen; that is the intended prompt, not a bug.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/template-types")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (cancelled) return
+        setTemplateTypes(Array.isArray(data) ? data : [])
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setTypesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
 
   // dnd-kit sensors — distance:8 prevents accidental drags on button clicks
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -787,7 +824,10 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     setSaveError(null)
     try {
       const payload = {
-        name, description, type, frequency,
+        // TPL-1a: typeId, not type. The API writes the legacy string column
+        // from the resolved row's name; the form does not send it at all, so
+        // there is no path by which the two can drift apart.
+        name, description, typeId, frequency,
         availabilityType: availType,
         operationalPhase: availType === "StoreHours" ? phase : null,
         startOffsetHours: availType === "StoreHours" ? startOffset : null,
@@ -869,6 +909,11 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 : `${blankSectionCount} tasks need a section name.`}
             </p>
           )}
+          {/* TPL-1a: the disabled Save gets a reason, same shape as the blank
+              section message beside it. */}
+          {!typeId && !typesLoading && templateTypes.length > 0 && (
+            <p className="text-sm text-[var(--color-destructive)]">This template needs a type.</p>
+          )}
           {isEdit && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -896,7 +941,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button onClick={handleSave} disabled={saving || blankSectionCount > 0}>
+          <Button onClick={handleSave} disabled={saving || blankSectionCount > 0 || !typeId}>
             <Save className="h-4 w-4" />
             {saving ? "Saving..." : "Save Template"}
           </Button>
@@ -916,6 +961,35 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
               <div className="space-y-1.5">
                 <Label>Description</Label>
                 <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description of this checklist" rows={3} />
+              </div>
+              {/* TPL-1a: the control this form shipped without. The state and
+                  the payload key were always here; only the input was missing,
+                  which is why every template made through this page became a
+                  "Mid-Shift" (docs/prompts/TYPE-1_AUDIT.md §6). Required, and
+                  Save is disabled until it is answered — no fallback value is
+                  invented anywhere. */}
+              <div className="space-y-1.5">
+                <Label>Type *</Label>
+                <Select value={typeId} onValueChange={setTypeId} disabled={typesLoading || templateTypes.length === 0}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder={typesLoading ? "Loading types..." : "Select a type"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templateTypes.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${badgePreset(t.colorKey).dot}`} />
+                          {t.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!typesLoading && templateTypes.length === 0 && (
+                  <p className="text-xs text-[var(--color-destructive)]">
+                    No template types exist for this organization yet. One must be created before a template can be saved.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>When should this checklist be generated? *</Label>
@@ -956,21 +1030,30 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                     </Select>
                     <p className="text-xs text-[var(--color-muted-foreground)]">Orders this checklist in the day and sets which shift hands off to it.</p>
                   </div>
+                  {/* DEBT-59: no ` *` — these are optional, and nothing has ever
+                      enforced them (handleSave's only guard is blankSectionCount).
+                      `?? ""` renders blank, and the empty string maps back to null
+                      rather than through Number(""), which is 0 — before this row
+                      there was no way to express "blank" through this form at all. */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label>{phase === "Before Opening" ? "Starts (hours before opening)" : phase === "During the Day" ? "Starts (hours after opening)" : "Starts (hours before closing)"} *</Label>
-                      <Input type="number" value={startOffset} onChange={(e) => setStartOffset(Number(e.target.value))} min={0} max={24} />
+                      <Label>{phase === "Before Opening" ? "Starts (hours before opening)" : phase === "During the Day" ? "Starts (hours after opening)" : "Starts (hours before closing)"}</Label>
+                      <Input type="number" placeholder="Optional" value={startOffset ?? ""} onChange={(e) => setStartOffset(e.target.value === "" ? null : Number(e.target.value))} min={0} max={24} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>{phase === "Before Opening" ? "Ends (hours after opening)" : phase === "During the Day" ? "Ends (hours before closing)" : "Ends (hours after closing)"} *</Label>
-                      <Input type="number" value={endOffset} onChange={(e) => setEndOffset(Number(e.target.value))} min={0} max={24} />
+                      <Label>{phase === "Before Opening" ? "Ends (hours after opening)" : phase === "During the Day" ? "Ends (hours before closing)" : "Ends (hours after closing)"}</Label>
+                      <Input type="number" placeholder="Optional" value={endOffset ?? ""} onChange={(e) => setEndOffset(e.target.value === "" ? null : Number(e.target.value))} min={0} max={24} />
                     </div>
                   </div>
                   {/* DEBT-29: the Preview card that stood here computed concrete clock
                       times ("Store opens 8:00 AM → Available 07:00 AM - 10:00 AM") for a
                       window nothing enforces. No helper text makes a computed clock time
                       honest, so it was removed rather than reworded. */}
-                  <p className="text-xs text-[var(--color-muted-foreground)]">Recorded for reference. Not yet used to show or hide checklists.</p>
+                  {/* DEBT-59: blank must not be described as "always available".
+                      Nothing reads these fields, so promising a behaviour for the
+                      empty case would re-introduce exactly the claim DEBT-29
+                      stripped out of this box. */}
+                  <p className="text-xs text-[var(--color-muted-foreground)]">Optional. Recorded for reference — not yet used to show or hide checklists. Leave blank if no window has been decided.</p>
                 </div>
               )}
 

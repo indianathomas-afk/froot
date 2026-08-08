@@ -4,6 +4,7 @@ import { WebhookEvent } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { slugify } from "@/lib/utils"
 import { getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
+import { ensureStarterTemplateTypes } from "@/lib/template-types"
 
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
 
   if (type === "organization.created") {
     const org = data as { id: string; name: string; slug?: string }
-    await prisma.organization.upsert({
+    const row = await prisma.organization.upsert({
       where: { clerkOrgId: org.id },
       update: { name: org.name },
       create: {
@@ -49,6 +50,10 @@ export async function POST(req: Request) {
         slug: org.slug ?? slugify(org.name),
       },
     })
+    // TPL-1b (Gary, Q5): without a starter taxonomy the required Type select on
+    // the template form has nothing to pick and a new org cannot create a
+    // template at all. Idempotent — see src/lib/template-types.ts.
+    await ensureStarterTemplateTypes(row.id)
   }
 
   if (type === "organization.updated") {
@@ -77,6 +82,12 @@ export async function POST(req: Request) {
         slug: membership.organization.slug ?? slugify(membership.organization.name),
       },
     })
+
+    // TPL-1b: seeded here TOO, for the same reason this upsert exists — Clerk
+    // does not guarantee delivery order, so an org can be born on this event
+    // rather than organization.created. The helper is idempotent, so the
+    // duplicate call on the normal ordering costs one count query.
+    await ensureStarterTemplateTypes(org.id)
 
     // "org:manager" IS UNREACHABLE ON THE PRODUCTION CLERK INSTANCE and is a
     // forward-compatible fallback, not the manager path. Verified 2026-08-03:
