@@ -53,21 +53,44 @@ export type PhaseStatus =
  * SEPARATE entry prepended above them in the same array. Both directions wrong
  * on the same file. Prose cannot carry this count.
  *
- * `isResolvedBlocker` in roadmap-client.tsx is the single definition of which
- * entries are resolved — read it rather than restating the test here (DEBT-26).
+ * A NARROWED entry carries `{ narrowed: true, text }`. DEBT-41, 2026-08-08 —
+ * the third state, added after two exemplars sat half-closed for a week with
+ * nowhere to say so. It means the entry STILL BLOCKS but on strictly LESS than
+ * it originally asserted: part of what it claimed is now answered, and a named
+ * remainder is still live. BUILD-1's sole entry (step 1 closed, step 2
+ * deliberately deferred) and IG-1's `blockers[2]` ("SHRUNK TO ITS SURVIVING
+ * HALF... STILL LIVE") are the two instances, and they are why the name is
+ * `narrowed` rather than `half`: neither is half of anything, each is an entry
+ * that shrank. Same preserve-and-mark discipline as `resolved` — the flag is
+ * additive and the prose does not change.
  *
- * NEVER ADD `resolved: false`. Relocated here from DEBT-41 2026-08-02 by
- * DEBT-TRIAGE-2, because this is where the person about to add it is standing.
- * It carries exactly the value the ABSENCE of the flag already carries, and
- * introducing it invites marking entries false wholesale — which destroys the
- * "a missing flag means live" default that makes the whole scheme safe. There
- * is a real gap in this type (no value for a half-closed entry, of which
- * BUILD-1's is the live instance) and `resolved: false` is not it: a third
- * state needs its own name and its own render treatment. DEBT-41 is AWAITING
- * GARY'S RULING and its standing instruction is to watch for one NEW example
- * before designing anything.
+ * IT CARRIES NO SECOND FIELD naming the surviving remainder, deliberately. Both
+ * exemplars already state it in their own text, and a required `remains:` would
+ * force that prose to be paraphrased into a place that then drifts from it
+ * (DEBT-26's shape). The flag records the STATE; the text stays the record.
+ *
+ * THE THREE STATES ARE THREE UNION MEMBERS, not one object with two optional
+ * flags. That is what makes `resolved: false` and `narrowed: false`
+ * unwritable rather than merely discouraged — see the prohibition below.
+ *
+ * `isResolvedBlocker` and `isNarrowedBlocker` in roadmap-client.tsx are the
+ * single definitions of which entries are in which state — read them rather
+ * than restating the tests here (DEBT-26).
+ *
+ * NEVER ADD `resolved: false` — AND NEVER ADD `narrowed: false`. Relocated here
+ * from DEBT-41 2026-08-02 by DEBT-TRIAGE-2, because this is where the person
+ * about to add it is standing; extended to the new flag when DEBT-41 closed
+ * 2026-08-08. Either one carries exactly the value the ABSENCE of the flag
+ * already carries, and introducing it invites marking entries false wholesale —
+ * which destroys the "a missing flag means live" default that makes the whole
+ * scheme safe. THE ARRIVAL OF A THIRD STATE IS NOT A LICENCE FOR A FOURTH: the
+ * gap this type had was a real state with no name, and the fix was a name and a
+ * render treatment, never a negated flag.
  */
-export type BlockerEntry = string | { resolved: true; text: string }
+export type BlockerEntry =
+  | string
+  | { resolved: true; text: string }
+  | { narrowed: true; text: string }
 
 export interface Phase {
   id: string
@@ -80,7 +103,8 @@ export interface Phase {
   commits?: string[]
   notes?: string
   /**
-   * Mixed by design: bare strings are live, `{ resolved: true, text }` entries
+   * Mixed by design: bare strings are live, `{ narrowed: true, text }` entries
+   * still block on a shrunken remainder, and `{ resolved: true, text }` entries
    * are closed and kept in place for the record. See BlockerEntry above.
    */
   blockers?: BlockerEntry[]

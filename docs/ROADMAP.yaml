@@ -18,17 +18,29 @@
 #
 # blockers — problems in a phase regardless of status (unset env vars,
 #            prod-promotion gates, unverified pixel work).
-#   AN ENTRY IS EITHER A BARE STRING (LIVE) OR `{resolved: true, text: >}`
-#   (CLOSED, kept for the record). "Anything here blocks" was true when written
+#   AN ENTRY IS ONE OF THREE THINGS: a BARE STRING (LIVE), or
+#   `{narrowed: true, text: >}` (STILL BLOCKS, but on strictly less than it
+#   originally asserted), or `{resolved: true, text: >}` (CLOSED, kept for the
+#   record). "Anything here blocks" was true when written
 #   and stopped being true as soon as the preserve-and-mark convention started
 #   keeping closed gates in the array: by 2026-08-01, 8 of 19 entries were
 #   closed and /internal/roadmap counted every one of them as live. Corrected
 #   by P-4 the same day, which added the flag.
+#   NARROWED is DEBT-41's third state, added 2026-08-08 after two entries sat
+#   half-closed with nowhere to say so. It is COUNTED SEPARATELY and it STILL
+#   BLOCKS: the panel reads "16 live · 2 narrowed", the phase stays in the
+#   blocked list and in the "Phases blocked" tile. Use it when part of what an
+#   entry asserted is answered and a NAMED REMAINDER is still live — say what
+#   remains in the entry's own text, since the flag carries no second field.
 #   A MISSING FLAG MEANS LIVE — DEBT-14's "a missing status means OPEN" one
 #   level down, and the safe direction: an unclassified entry keeps blocking.
-#   NEVER edit an entry's text to mark it resolved. The prose is the record and
-#   on several rows the ORDER of the entries is the lesson; the flag is
-#   additive and sits over text that does not change.
+#   NEVER WRITE `resolved: false` OR `narrowed: false`. Each is exactly the
+#   value the flag's ABSENCE already carries, and either one destroys the
+#   missing-flag-means-live default. The type makes them unwritable (three
+#   union members, not one object with optional flags) — keep it that way.
+#   NEVER edit an entry's text to mark it resolved or narrowed. The prose is the
+#   record and on several rows the ORDER of the entries is the lesson; the flag
+#   is additive and sits over text that does not change.
 #   DO NOT infer the state from the leading words. Live entries open "VERIFIED
 #   STILL TRUE" (F-5) and "CONFIRMED LIVE" (F-4), and PERM-6's two closed
 #   entries carry no marker at all — they are closed by the entry prepended
@@ -178,24 +190,25 @@ phases:
         Meta App Review (Advanced Access for instagram_business_basic) not yet
         granted — until then only Instagram accounts with a role on the Meta
         app can connect. Start App Review early.
-      - >
-        SHRUNK TO ITS SURVIVING HALF 2026-08-06 — STILL LIVE, but half of what
-        it asserted is now answered. Updated in place rather than closed and
-        re-filed: the entry is genuinely still live, and this is how F-4's and
-        F-5's live entries carry their dated re-checks.
-        THE ENV-VAR HALF IS SETTLED: INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET
-        are set in Vercel, Sensitive, on Preview AND Production (2026-08-06
-        audit; read off the Vercel env list, not from a deploy). Being Sensitive
-        they pull as empty, so their VALUES have not been checked against the
-        Meta app — only their presence.
-        WHAT REMAINS, and it is the whole of this entry now: THE CALLBACK IS NOT
-        CONFIRMED REGISTERED in the Meta app. Note this is the same failure
-        shape as F-4's, where the env var and the subscription are two separate
-        things and setting one without the other yields exactly the silence of
-        doing neither.
-        ORIGINAL ENTRY, PRESERVED: "INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET
-        (optional INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the
-        callback registered in the Meta app — not confirmed done for every env."
+      - narrowed: true
+        text: >
+          SHRUNK TO ITS SURVIVING HALF 2026-08-06 — STILL LIVE, but half of what
+          it asserted is now answered. Updated in place rather than closed and
+          re-filed: the entry is genuinely still live, and this is how F-4's and
+          F-5's live entries carry their dated re-checks.
+          THE ENV-VAR HALF IS SETTLED: INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET
+          are set in Vercel, Sensitive, on Preview AND Production (2026-08-06
+          audit; read off the Vercel env list, not from a deploy). Being Sensitive
+          they pull as empty, so their VALUES have not been checked against the
+          Meta app — only their presence.
+          WHAT REMAINS, and it is the whole of this entry now: THE CALLBACK IS NOT
+          CONFIRMED REGISTERED in the Meta app. Note this is the same failure
+          shape as F-4's, where the env var and the subscription are two separate
+          things and setting one without the other yields exactly the silence of
+          doing neither.
+          ORIGINAL ENTRY, PRESERVED: "INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET
+          (optional INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the
+          callback registered in the Meta app — not confirmed done for every env."
     deferred:
       - Posting / comments / insights / Stories
       - Vercel-cron feed-refresh backup
@@ -3722,32 +3735,34 @@ phases:
       pair of build logs), SEC-2 and HR-14 (both schema-touching, both gated on
       this landing first — that gate is now lifted).
     blockers:
-      - "CHANGED SHAPE 2026-07-27 — HALF CLOSED, HALF DEFERRED. This blocker is
-         NOT the same problem it was this morning; read the new state before
-         acting on it.
-         CLOSED — step 1 of the two-step fix is DONE. Gary edited the Jun 26
-         `DATABASE_URL` row in the Vercel console from **Production and
-         Preview** to **Production only**. Preview deploys from non-staging
-         branches therefore no longer resolve to the production database, and
-         the original danger — a PR preview build running `migrate deploy`
-         against production through pgbouncer, which was also the BUG-3 P1002
-         condition — is gone. The edit was proven non-destructive: production
-         redeployed successfully afterward with the Datasource still resolving
-         to ep-green-smoke, so scoping the row did not disturb its value.
-         STILL OPEN — step 2 is deliberately deferred. No generic
-         Preview-scoped `DATABASE_URL` or `DATABASE_URL_UNPOOLED` exists, so a
-         preview build from any branch other than `staging` now has NO database
-         and FAILS AT BUILD TIME. That is the intended fail-closed posture and
-         is strictly better than the previous fail-open one — a loud build
-         failure beats a silent write to production. It costs nothing today
-         because Gary pushes only `staging` and `main`.
-         WHAT IT BLOCKS: the deferred second-developer plan. PR previews are
-         preview deploys, so the first collaborator's first PR gets a failed
-         build. FIX WHEN COLLABORATION WORK STARTS: create a throwaway Neon
-         branch, then add BOTH vars Preview-scoped with NO branch restriction.
-         UNTOUCHED: the staging branch-scoped override still exists and still
-         wins for `staging`, which is why the 13:14 staging build resolved to
-         ep-odd-rain rather than failing."
+      - narrowed: true
+        text: >
+          CHANGED SHAPE 2026-07-27 — HALF CLOSED, HALF DEFERRED. This blocker is
+          NOT the same problem it was this morning; read the new state before
+          acting on it.
+          CLOSED — step 1 of the two-step fix is DONE. Gary edited the Jun 26
+          `DATABASE_URL` row in the Vercel console from **Production and
+          Preview** to **Production only**. Preview deploys from non-staging
+          branches therefore no longer resolve to the production database, and
+          the original danger — a PR preview build running `migrate deploy`
+          against production through pgbouncer, which was also the BUG-3 P1002
+          condition — is gone. The edit was proven non-destructive: production
+          redeployed successfully afterward with the Datasource still resolving
+          to ep-green-smoke, so scoping the row did not disturb its value.
+          STILL OPEN — step 2 is deliberately deferred. No generic
+          Preview-scoped `DATABASE_URL` or `DATABASE_URL_UNPOOLED` exists, so a
+          preview build from any branch other than `staging` now has NO database
+          and FAILS AT BUILD TIME. That is the intended fail-closed posture and
+          is strictly better than the previous fail-open one — a loud build
+          failure beats a silent write to production. It costs nothing today
+          because Gary pushes only `staging` and `main`.
+          WHAT IT BLOCKS: the deferred second-developer plan. PR previews are
+          preview deploys, so the first collaborator's first PR gets a failed
+          build. FIX WHEN COLLABORATION WORK STARTS: create a throwaway Neon
+          branch, then add BOTH vars Preview-scoped with NO branch restriction.
+          UNTOUCHED: the staging branch-scoped override still exists and still
+          wins for `staging`, which is why the 13:14 staging build resolved to
+          ep-odd-rain rather than failing.
 
   - id: BUILD-2
     track: build
