@@ -17,7 +17,16 @@ export async function GET() {
 
   const templates = await prisma.template.findMany({
     where: { organizationId: org.id },
-    include: { tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } } },
+    include: {
+      tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } },
+      // TPL-1b: the badge reads its colour from the joined row rather than from
+      // a hardcoded map. Joined per-template rather than resolved client-side
+      // against /api/template-types, so it is authoritative for the row, does
+      // not depend on fetch ordering, and survives a type being made inactive
+      // (which that endpoint filters out). A null here — a CSV import from the
+      // TPL-1a window — falls back to the legacy string in neutral grey.
+      templateType: { select: { id: true, name: true, colorKey: true } },
+    },
     orderBy: { createdAt: "asc" },
   })
 

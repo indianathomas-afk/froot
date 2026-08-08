@@ -14,6 +14,7 @@ type ImportResult = {
   templatesCreated: number
   tasksCreated: number
   created: { name: string; tasks: number }[]
+  typesCreated: string[]
   errors: { row: number; error: string }[]
 }
 
@@ -147,6 +148,17 @@ export function TemplateImportButton({ onImported }: { onImported: () => void })
                   Created {result.templatesCreated} template{result.templatesCreated !== 1 ? "s" : ""} and {result.tasksCreated} task
                   {result.tasksCreated !== 1 ? "s" : ""}.
                 </p>
+                {/* TPL-1b (Gary, Q4): a type the file named that this org did
+                    not have is created rather than rejected — imports are the
+                    only path where an operator-chosen type has ever reached the
+                    column, so erroring would break files already on disk. It is
+                    reported because a silent create is how taxonomies rot. */}
+                {result.typesCreated.length > 0 && (
+                  <p className="mt-1 text-[var(--color-muted-foreground)]">
+                    Created {result.typesCreated.length} new type{result.typesCreated.length !== 1 ? "s" : ""}:{" "}
+                    {result.typesCreated.join(", ")}. They are grey until you recolour them in Manage Types.
+                  </p>
+                )}
                 {result.errors.length > 0 && (
                   <div className="mt-2">
                     <p className="text-[var(--color-destructive)]">{result.errors.length} problem(s):</p>

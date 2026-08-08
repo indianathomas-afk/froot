@@ -106,6 +106,42 @@ export async function POST(req: Request) {
     groups.get(key)!.push(r)
   }
 
+  // TPL-1b (Gary, Q4, 2026-08-08): resolve every type name the file mentions
+  // BEFORE the per-template loop, creating the ones this org does not have.
+  //
+  // UP FRONT, NOT INSIDE THE TRANSACTIONS, and that ordering is the point: each
+  // template is created in its own transaction, so a type created inside one
+  // would be rolled back by an unrelated failure in that template — taking it
+  // away from every later template that also needed it.
+  //
+  // Matching is case-insensitive against the org's existing types, so a file
+  // saying "opener" links to "Opener" instead of creating a near-duplicate.
+  // A blank cell resolves under the name "Mid-Shift", which is the behaviour
+  // this route has always had, now expressed as a real row.
+  const existingTypes = await prisma.templateType.findMany({
+    where: { organizationId: org.id },
+    select: { id: true, name: true },
+  })
+  const typesByLower = new Map(existingTypes.map((t) => [t.name.toLowerCase(), t]))
+  const typesCreated: string[] = []
+
+  const wantedNames = new Set<string>()
+  for (const r of validRows) {
+    wantedNames.add(r.template_type?.trim() || "Mid-Shift")
+  }
+  for (const wanted of wantedNames) {
+    if (typesByLower.has(wanted.toLowerCase())) continue
+    // Neutral grey: the file said what the type is CALLED, not what colour it
+    // should be, and inventing one would be a decision nobody made. The
+    // operator recolours it in Manage Types.
+    const row = await prisma.templateType.create({
+      data: { organizationId: org.id, name: wanted, colorKey: "gray", sortOrder: existingTypes.length + typesCreated.length },
+      select: { id: true, name: true },
+    })
+    typesByLower.set(row.name.toLowerCase(), row)
+    typesCreated.push(row.name)
+  }
+
   let templatesCreated = 0
   let tasksCreated = 0
   const created: { name: string; tasks: number }[] = []
@@ -116,6 +152,9 @@ export async function POST(req: Request) {
 
     // A row counts as a real task only if it has a description.
     const taskRows = groupRows.filter((r) => (r.task_description ?? "").trim().length > 0)
+
+    // Resolved in the pre-pass above, so this is a map lookup and cannot fail.
+    const resolvedType = typesByLower.get((head.template_type?.trim() || "Mid-Shift").toLowerCase())!
 
     try {
       await prisma.$transaction(async (tx) => {
@@ -132,20 +171,12 @@ export async function POST(req: Request) {
             organizationId: org.id,
             name,
             description: head.template_description?.trim() || null,
-            // TPL-1a, 2026-08-08: this import is UNCHANGED by that row and is
-            // now the last write path that still invents a type. POST dropped
-            // its `|| "Mid-Shift"` when the form gained its Type select; the
-            // literal survives here and in scripts/import-keva-templates.ts,
-            // with no shared constant between them.
-            // TEMPLATES CREATED HERE GET typeId = NULL, which is deliberate
-            // and safe: the legacy string column is still what every read site
-            // renders, so an imported template displays correctly — it just
-            // cannot be duplicated until it is opened and given a type. TPL-1b
-            // owns the fix (match the name to the org's types, auto-create
-            // unknown ones with the grey preset and report them in the import
-            // summary — Gary, Q4). This is the only honest write path in the
-            // product and must not be broken on the way there.
-            type: head.template_type?.trim() || "Mid-Shift",
+            // TPL-1b closed the TPL-1a window: imports now carry a real typeId
+            // and are duplicable like any other template. Both columns are
+            // written from the SAME resolved row, so the legacy string and the
+            // FK cannot disagree — the rule every other write path follows.
+            typeId: resolvedType.id,
+            type: resolvedType.name,
             frequency: head.template_frequency?.trim() || "Daily",
             availabilityType: head.template_availability_type?.trim() || "StoreHours",
             operationalPhase: normalizePhase(head.template_operational_phase),
@@ -180,5 +211,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ templatesCreated, tasksCreated, created, errors })
+  return NextResponse.json({ templatesCreated, tasksCreated, created, typesCreated, errors })
 }
