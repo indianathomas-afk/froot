@@ -537,10 +537,22 @@ phases:
   - id: TPL-1
     track: platform
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-08-07
     commits: ["8461a48", "182ca1c"]
     title: "Template types become a first-class managed entity — create, colour, choose, filter"
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207" — the first promotion
+      made under WORKFLOW.md §2's --no-ff rule, so it is also the first with a
+      real merge commit to revert. Migration
+      20260808103000_tpl1a_template_type_entity replayed on production through
+      the build's `prisma migrate deploy`.
+      PRODUCTION EVIDENCE, branch named per CLAUDE.md § Database Evidence:
+      br-sparkling-block-a620qvg4 — unlinked 0, total 8 (2026-08-07). Every
+      production template now carries a real typeId; none fell back to the
+      legacy string. That result is also the precondition Gary's Q6 ruling set
+      for filing TPL-2, which is now filed.
+      ── STAGING VERIFICATION BELOW, AS RECORDED BEFORE THE PROMOTION ──
       VERIFIED 2026-08-07 by Gary on staging — BROWSER WALKTHROUGH PASSED IN
       FULL: the Type select on the template form (pre-selected on edit, colour
       dots on the options), the Manage Types dialog (create, rename with the
@@ -669,6 +681,59 @@ phases:
       so unlike the inherited Organization/Store rows they will NOT match across
       dev/staging/production. Never paste one across — the inverse of the trap in
       CLAUDE.md § Database Evidence.
+
+  - id: TPL-2
+    track: platform
+    size: S
+    status: planned
+    title: "Retire the legacy Template.type string column"
+    notes: >
+      FILEABLE AS OF 2026-08-07, and the precondition is why this row did not
+      exist sooner. Gary ruled on 2026-08-08 (Q6) that TPL-2 could not be filed
+      until the TPL-1a backfill was proven on all three branches. It now is,
+      every result carrying its branch per CLAUDE.md § Database Evidence:
+      dev br-broad-wave-a6vpjdw0 — unlinked 0, total 8;
+      preview/staging br-square-feather-a63z92vz — unlinked 0, total 16;
+      production br-sparkling-block-a620qvg4 — unlinked 0, total 8.
+      All 2026-08-07, after merge "fad9207" reached production.
+      WHAT THE COLUMN IS. Template.type is String NOT NULL with no default
+      (prisma/schema.prisma). TPL-1 added TemplateType and the Template.typeId
+      FK and made typeId the truth, but kept writing the string on every path
+      so nothing had to move at once. Every write path now sets both columns
+      from the SAME resolved row, so they cannot disagree — that invariant is
+      what makes this row safe to do and must not be broken before it starts.
+      SCOPE, IN THREE STEPS, AND THE THIRD IS NOT IN THIS ROW.
+      (1) STOP WRITING THE STRING on every path: POST and PATCH
+      /api/templates, POST /api/templates/import, the rename cascade in PATCH
+      /api/template-types/[id], and POST /api/template-types/[id]/reassign.
+      (2) MIGRATE THE SIX READ SITES to templateType.name, keeping the string
+      as a fallback ONLY during the transition. They are listed with line
+      numbers in docs/prompts/TYPE-1_AUDIT.md §3.1 — note that two of them
+      (print/checklist, store-view/checklist-execution-client) reach it through
+      `checklist.template.type`, so a grep scoped to the templates directory
+      misses them. Two further sites emit the string over the wire and render
+      nothing: api/checklists/route.ts (`templateType`, consumed nowhere) and
+      api/stores/[id]/templates/route.ts (`type`, declared on TemplateOption,
+      never rendered). Both are answered for here.
+      (3) DEPRECATION OF THE COLUMN IS A SEPARATE, LATER STEP, gated on its own
+      soak after (1) and (2) have run in production — and it is ADDITIVE ONLY
+      in this row. A DROP is a destructive migration against production and
+      REQUIRES ITS OWN RULING; it is explicitly not authorised by filing this
+      row. The precedent to follow is the one both recent DEPLOY_LOG entries
+      take on rollback: an unread additive column is harmless, dropping it is
+      risk for no benefit.
+      KNOWN TRANSITION ARTIFACT, not a blocker: templates imported during the
+      TPL-1a window (between "8461a48" and "182ca1c") carry typeId NULL. Gary
+      ruled 2026-08-07 (Q3) to leave them — no backfill — because they render
+      correctly from the legacy string and heal the moment the template is
+      opened and saved. THIS ROW MUST COUNT THEM BEFORE STEP 2: a read site
+      that drops the string fallback while any typeId NULL row survives renders
+      a blank type. The three-branch evidence above says unlinked is 0
+      everywhere TODAY, but it was measured before this row starts and an
+      import can create one at any time. Re-measure, do not cite.
+      RELATED: TPL-1 (the entity, both phases), and
+      docs/prompts/TYPE-1_AUDIT.md, which is the map of every read and write
+      site and is the reason this row can be scoped without re-auditing.
 
   - id: X-1
     track: platform
@@ -7049,10 +7114,35 @@ debt:
       count. Related: DEBT-18, DEBT-23, DEBT-26.
 
   - id: DEBT-38
-    status: staging
+    status: shipped
     commits: ["7d984be"]
     title: "CLOSED — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207" — AND ITS FIRST
+      EXERCISE FOUND A GAP IN ITSELF, NOW FIXED. The same promotion that
+      carried this fix was the first run under it, and it worked: "fad9207" is
+      a real merge commit with two parents, where the two promotions before it
+      had to record "FAST-FORWARD, not a merge — git revert -m 1 does not
+      apply" over hand-assembled 32- and 28-commit revert lists.
+      BUT the one-line rollback §2 promised does not run. Tested rather than
+      assumed on the day: `git revert -m 1 fad9207` conflicts on
+      docs/DEPLOY_LOG.md — 37 of 38 files revert cleanly — and it will do so on
+      every future promotion, because §2 has the log entry committed on main
+      AFTER the merge while the promotion set also touches that file. The
+      corrected three-line recipe, plus the rule that the log is KEPT rather
+      than reverted, is now in WORKFLOW.md §2 under "Rolling a promotion back";
+      the measurement lives in the "fad9207" DEPLOY_LOG entry.
+      A SECOND GAP, same section, same day: §2's command block read checkout /
+      pull / merge / push / checkout, with the DEPLOY_LOG add+commit only in
+      the prose beside it — so copying the block literally pushed without
+      committing the entry, which is this row's own failure mode. The commands
+      are now in the block.
+      THE ROW CLOSES WITH BOTH GAPS FIXED, NOT HIDDEN. It is filed as shipped
+      because the fix is in production and works; the corrections above are
+      recorded here rather than in a new row because they are defects in this
+      row's own remedy, found by using it, and a reader asking "did DEBT-38
+      actually work" needs both halves in one place.
+      ── ORIGINAL CLOSURE NOTES BELOW, UNEDITED ──
       CLOSED 2026-08-07 — RULED, AND BOTH FIX DIRECTIONS WERE TAKEN. The row
       offered (a) a DEPLOY_LOG step inside WORKFLOW.md §2 and (b) `--no-ff` on
       promotions, and its own last word was that they are not exclusive. Gary
@@ -8109,12 +8199,25 @@ debt:
       sharp one; this is an ordinary leftover.
 
   - id: DEBT-45
-    status: staging
+    status: shipped
     commits: ["7d984be"]
     title: >
       CLOSED — Audit-only sessions leave no artifact: the DEBT-TRIAGE
       audit's 22 per-row assessments exist nowhere in the repo
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207" — the CLAUDE.md rule
+      travelled in the same merge as DEBT-38's WORKFLOW.md fix, both from
+      "7d984be".
+      IT HAD ALREADY FIRED ONCE BEFORE PROMOTING, which is the useful thing to
+      record: the TYPE-1 investigation session reported findings and wrote no
+      artifact, with this rule already in the tree. The next session paid the
+      debt — docs/prompts/TYPE-1_AUDIT.md, written at 2d5b93d and re-verified
+      by reading the code rather than transcribing the transcript, which is how
+      three of TYPE-1's claims turned out to be wrong. So the BACKSTOP half
+      works and the AUTOMATIC half — the standing line in Gary's prompt
+      template, which lives outside this repo — is still what this row said it
+      was: the harder and more important one, and not enforceable from here.
+      ── ORIGINAL CLOSURE NOTES BELOW, UNEDITED ──
       CLOSED 2026-08-07 — RULED YES. Audit-only sessions MUST write their
       findings to docs/prompts/<NAME>_AUDIT.md BEFORE reporting, and the report
       SUMMARISES that file rather than replacing it. The rule is in CLAUDE.md
@@ -9203,13 +9306,23 @@ debt:
       Related: PERM-7 (the device accounts this is for).
 
   - id: DEBT-59
-    status: staging
+    status: shipped
     commits: ["2ccca7d"]
     title: >
       CLOSED — Template availability offsets default to 1 and 2 and are written
       on every save — every existing template carries an invented window nobody
       chose
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207". The form stopped
+      manufacturing a 1/2 window nobody chose, on production, before any
+      availability gate exists to turn those unchosen values into real
+      behaviour — which was this row's entire argument for doing it now rather
+      than parking it inside a feature phase.
+      NO SCHEMA CHANGE TRAVELLED WITH IT, as the audit established: both
+      columns were already nullable with no @default since the init migration,
+      so there is nothing on the production database to verify and no rollback
+      consideration beyond the code itself.
+      ── STAGING VERIFICATION BELOW, AS RECORDED BEFORE THE PROMOTION ──
       VERIFIED 2026-08-07 by Gary on staging: all nine manual checks passed,
       including clear-to-blank (not 0), unrelated-edit preservation, and
       export/import blank round-trip.
