@@ -541,6 +541,22 @@ phases:
     commits: ["8461a48", "182ca1c"]
     title: "Template types become a first-class managed entity — create, colour, choose, filter"
     notes: >
+      VERIFIED 2026-08-07 by Gary on staging — BROWSER WALKTHROUGH PASSED IN
+      FULL: the Type select on the template form (pre-selected on edit, colour
+      dots on the options), the Manage Types dialog (create, rename with the
+      count warning, delete blocked while in use with reassign offered, delete
+      of an unused type), the filter chips composing with the Active/Archived
+      tabs, and badges rendering from stored colours.
+      BACKFILL EVIDENCE, both branches named per CLAUDE.md § Database Evidence:
+      preview/staging br-square-feather-a63z92vz — unlinked 0, total 16
+      (2026-08-07). dev br-broad-wave-a6vpjdw0 — unlinked 0, total 8. Production
+      is NOT yet measured; its evidence lands with the promotion and is the
+      precondition for filing TPL-2.
+      DATE NOTE, so the sequence is not read as two separate days: the blocks
+      below are dated 2026-08-08, taken from the header on Gary's Q1-Q7 ruling
+      message. The verification, the promotion and this rider are 2026-08-07.
+      The build and the ruling did not span a day; only the labels disagree, and
+      they are left as written rather than rewritten.
       TPL-1b SHIPPED TO staging IN "182ca1c" (2026-08-08) — BOTH PHASES ARE NOW
       IN. Management UI, CRUD routes, delete-blocked-with-reassign, filter chips
       and sort, badges from stored colours, CSV type resolution, and the starter
