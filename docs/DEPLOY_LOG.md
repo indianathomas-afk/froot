@@ -20,14 +20,37 @@ Deploy verification: 2026-07-02T22:00:05Z
   correct here for the same reason the `999cbdc` entry gives: the base is itself
   the previous promotion SHA and is already on production. Oldest promoted
   `cc6e9af`, newest `b36521f`.
-- **ROLLBACK — one line:**
+- **ROLLBACK — three lines, not one. TESTED, NOT ASSUMED (2026-08-07):**
   ```
-  git checkout main && git revert -m 1 fad9207 && git push origin main
+  git checkout main
+  git revert -m 1 --no-commit fad9207
+  git checkout HEAD -- docs/DEPLOY_LOG.md   # keep the log — see below
+  git commit -m "Revert the 2026-08-07 promotion" && git push origin main
   ```
   `-m 1` keeps parent 1 (`999cbdc`, production as it stood) and reverts
-  everything that came in from `staging`. Faster posture if the site is
-  actively broken: Vercel → promote the `999cbdc` deployment back to current,
-  then do the revert at leisure.
+  everything that came in from `staging`.
+  **`git revert -m 1 fad9207` ALONE CONFLICTS — and it will conflict on every
+  future promotion too.** Measured here by running it: all 37 other files
+  revert cleanly and `docs/DEPLOY_LOG.md` is the single conflicted path. The
+  cause is structural rather than specific to this promotion — WORKFLOW.md §2
+  requires the log entry to be committed on `main` after the merge, while
+  `DEPLOY_LOG.md` is also touched by commits *inside* the promotion set
+  (`cc6e9af` and `72bcf30` here, the previous promotion's own entry among
+  them). So the revert always tries to undo edits to a file the post-merge
+  commit has since rewritten.
+  **Keeping the log is the correct resolution, not a workaround.** A deploy log
+  is the record that the deploy happened; reverting it would erase the entry
+  describing the very thing being rolled back, at the moment that entry is most
+  needed. Resolve by keeping the current file, always.
+  Faster posture if the site is actively broken: Vercel → promote the `999cbdc`
+  deployment back to current, then do the revert at leisure.
+  **This is a gap in DEBT-38's fix, found on its first exercise.** §2 still
+  promises "a one-line `git revert -m 1 <merge-sha>`". That promise is what
+  `--no-ff` bought, and it is very nearly true — the correction is one extra
+  line — but somebody reading §2 mid-incident will hit an unexpected conflict.
+  WORKFLOW.md is NOT edited by this session: process-doc changes flow
+  staging → main like everything else, and a promotion is the wrong moment to
+  edit the runbook being exercised. Filed for the next staging session.
   **The migration is additive and stays either way — do NOT drop the table.**
   Reverting the code leaves `TemplateType` and `Template.typeId` unread, which
   is harmless; dropping them is a destructive migration against production for
