@@ -7366,10 +7366,75 @@ debt:
       same reopening condition), PERM-7 Task 7.
 
   - id: DEBT-41
+    status: staging
+    commits: ["13e96fb"]
     title: >
-      RULED — A blocker entry can only be LIVE or RESOLVED — there is
+      CLOSED — A blocker entry can only be LIVE or RESOLVED — there is
       no value for the half-closed state two entries are actually in
     notes: >
+      CLOSED 2026-08-08, commit "13e96fb". The third state exists and both
+      exemplars carry it. BlockerEntry is now
+      `string | {resolved: true, text} | {narrowed: true, text}` — a bare string
+      still means LIVE, and the new state is a SEPARATE UNION MEMBER precisely
+      so that `resolved: false` has nowhere to be written. The panel reads
+      16 live · 2 narrowed across 11 blocked phases · 12 resolved, where it read
+      18 live before; the "Phases blocked" tile is unchanged at 11, because a
+      narrowed entry STILL BLOCKS and both numbers come from one predicate.
+      BUILD-1 `blockers[0]` and IG-1 `blockers[2]` were flagged, not rewritten —
+      their text is byte-identical, verified by re-running P-4's whole-tree
+      identity check across all 30 blocker entries, which permitted exactly two
+      diffs (both `live -> narrowed`) and zero text diffs. The panel was read in
+      a browser at those counts before the commit, not inferred from the data.
+      STATUS IS `staging` AND THAT IS ONE STEP AHEAD OF THE TRUTH AT WRITING:
+      "13e96fb" is committed on the local `staging` branch and NOT PUSHED, so
+      the value becomes true on Gary's push and nothing else in this row depends
+      on it. Stated rather than implied — DEBT-14 closed the same way, and the
+      legend's `staging` ("merged to `staging`, on Vercel preview") is the
+      nearest true value once the push lands. Claude never pushes (CLAUDE.md
+      § Git Rules).
+      THE NAME IS `narrowed`, NOT `half` OR `partial`, and the reason is in the
+      two exemplars: neither is half of anything. Each is an entry that still
+      blocks on strictly LESS than it originally asserted — BUILD-1's step 1
+      closed with step 2 deferred, IG-1's env-var half settled with the callback
+      registration outstanding. `narrowed` names the direction of travel and
+      stays honest when the surviving remainder is a tenth rather than a half.
+      IT CARRIES NO SECOND FIELD naming what remains. Both entries already state
+      it in their own prose, and a required `remains:` would force that prose to
+      be paraphrased into a place that then drifts from it — DEBT-26's shape.
+      COUNTED SEPARATELY, NEVER EXCLUDED, AND STILL BLOCKING — the three
+      answers this row's history argued for. Folding narrowed into live would
+      have kept the count safe and kept it dishonest, which is the state this
+      row spent a week recording; excluding it would have been the one direction
+      the scheme exists to prevent. So `liveBlockers` and `blockingBlockers` are
+      now two functions rather than one widened one. THAT SPLIT FOUND TWO REAL
+      UNDER-REPORTS THAT WERE NOT IN THE DESIGN: the Staging → Production panel
+      would have printed "No recorded gate — ready to promote" over a narrowed
+      gate, and PhaseCard's badges would have dropped a narrowed entry from the
+      collapsed card entirely. Both are fixed in the same commit. Neither is
+      reachable today — there are zero staging phases, and both narrowed entries
+      sit on `shipped` rows — which is exactly why renaming the function rather
+      than widening it was worth the churn: the name is what surfaced them.
+      WHAT THIS DOES NOT UNDO: exemplar (a) is still relocated. PERM-6's 11.9k
+      coverage record is still behind a collapsed disclosure and this change
+      does not bring it back — the state arrived after the workaround, not
+      before it. The row closes because the vocabulary gap is closed, not
+      because that price was refunded.
+      THE STANDING PROHIBITION SURVIVES THIS CLOSURE and now lives in three
+      places (the type, the YAML header, this row): never write `resolved:
+      false`, and never write `narrowed: false`. The absence of a flag carries
+      LIVE, and that default is what makes the whole scheme safe. A third state
+      is not a licence for a fourth — the gap this type had was a real state
+      with no name, and the fix was a name and a render treatment.
+      NOT DONE HERE, DELIBERATELY: DEBT-42's `deferred` and `open` are still
+      bare `string[]`. Widening them is still gated on its own trigger (the
+      first surface that COUNTS either field), and doing it as a rider on this
+      commit is precisely the sweep-creep that left exemplar (a) relocated
+      instead of fixed. DEBT-14's adjacent question — a ruled-LATENT debt row
+      rendering identically to an untriaged one — is a different type on a
+      different panel and would mean touching PhaseStatus, which is shared with
+      the phase board; out of scope by the same argument Gary used on DEBT-14
+      itself.
+      ── RULING AND HISTORY BELOW, UNEDITED ──
       RULED 2026-08-07 — THE STANDING TRIGGER FIRED, SO THIS ROW STOPS BEING A
       DECISION AND BECOMES WORK. Its own instruction was WATCH FOR MORE EXAMPLES
       BEFORE ACTING, and after exemplar (a) was relocated away rather than
