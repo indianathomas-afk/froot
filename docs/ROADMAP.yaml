@@ -698,9 +698,100 @@ phases:
   - id: TPL-2
     track: platform
     size: S
-    status: planned
-    title: "Retire the legacy Template.type string column"
+    status: staging
+    commits: ["198d040"]
+    title: >
+      Retire the legacy Template.type string column — STEPS (1) AND (2)
+      CLOSED, the column is no longer read; STEP (3), the drop, REMAINS
+      OPEN AND UNAUTHORISED
     notes: >
+      STEPS (1) AND (2) CLOSED 2026-08-08, commit "198d040". Nothing reads
+      Template.type while typeId is set. The three UPDATE paths stopped writing
+      it — PATCH /api/templates/[id], the rename cascade in PATCH
+      /api/template-types/[id] (deleted outright), and POST
+      /api/template-types/[id]/reassign — and all nine read surfaces now resolve
+      the name through the templateType relation, keeping the string only as a
+      fallback for a row whose typeId is null. NO MIGRATION AND NO SCHEMA
+      CHANGE: nothing in this commit is destructive.
+      STEP (3) IS EXPLICITLY STILL OPEN AND STILL UNAUTHORISED, and this row
+      does not close it. Deprecating or dropping the column is a DESTRUCTIVE
+      migration against production, gated on its own soak after (1) and (2) have
+      run there, and REQUIRES ITS OWN RULING. The session that did (1) and (2)
+      was scoped to exclude it. What step (3) inherits is written out in full at
+      docs/prompts/TPL-2_PLAN.md §9 rather than left to be re-derived.
+      STATUS IS `staging` AND IS ONE STEP AHEAD OF THE TRUTH AT WRITING —
+      DEBT-41's precedent, stated rather than implied. "198d040" is committed on
+      the local `staging` branch and NOT PUSHED; the value becomes true on
+      Gary's push. Claude never pushes (CLAUDE.md § Git Rules).
+      TWO CLAIMS ON THIS ROW WERE WRONG AND THE ROW CORRECTS ITSELF HERE. The
+      prose below is left exactly as it stood, per the convention DEBT-59 and
+      DEBT-36 follow — corrections are prepended, never edited in.
+      (a) "MIGRATE THE SIX READ SITES" — there were FIVE. templates-client.tsx
+      had already migrated in TPL-1b ("182ca1c"), which the row could not see
+      because it was scoped from docs/prompts/TYPE-1_AUDIT.md, audited at
+      "2d5b93d" BEFORE TPL-1b landed. Every line number in that audit had moved
+      too. The audit was right when written; the row inherited its age.
+      (b) "STOP WRITING THE STRING on every path" naming five — there is a
+      SIXTH. scripts/import-keva-templates.ts writes `type` with no `typeId`
+      and is the ONLY writer left in the tree that manufactures an unlinked row.
+      Comment only, no behaviour change (Gary, Q4): it is a one-off seed against
+      a hardcoded org id, already run, and no operator can reach it. The comment
+      says what to do if anyone re-runs it.
+      THE CONSTRAINT WAS RESOLVED ADDITIVELY (Gary, Q1). Template.type is String
+      NOT NULL with no default, so the two CREATE paths — POST /api/templates
+      and POST /api/templates/import — CANNOT stop writing it: a create that
+      omits it fails. They keep writing it from the resolved type's name as a
+      MIRROR NO READER DEPENDS ON. It is correct at insert and never maintained
+      afterwards, so on a row later renamed or reassigned the column holds a
+      STALE NAME BY DESIGN. That is recorded on the column itself in
+      prisma/schema.prisma, which previously said "never write one without the
+      other" — the contract that note described is the one this row ended.
+      The alternative was `@default("")` so creates could omit the column, and
+      it was rejected: it spends a migration to make the column hold junk, and
+      step (3) is easier to reason about against real names than placeholders.
+      THE CSV EXPORT MIGRATED IN THE SAME COMMIT, AND THE COUPLING IS THE POINT
+      rather than a tidiness choice. Stopping the rename cascade turns
+      Template.type into a snapshot at insert; an export still emitting it raw
+      would put STALE TYPE NAMES into a file operators carry between
+      environments — the one surface where the divergence escapes the
+      application. EXISTING EXPORTED FILES STAY IMPORT-VALID and the import path
+      was NOT edited: it resolves template_type BY NAME, case-insensitively,
+      creating any type the org lacks (TPL-1b's Q4 behaviour), and never reads
+      Template.type from the database or keys on an id. So a CSV exported before
+      this change imports exactly as it did, and one exported after carries the
+      live name.
+      RE-MEASURED BEFORE EXECUTION, NOT CITED — this row's own standing
+      instruction, and the reason it is worth having: the filed evidence below
+      was taken 2026-08-07, before the session ran. Gary re-ran it 2026-08-08,
+      every result naming its branch per CLAUDE.md § Database Evidence:
+      dev br-broad-wave-a6vpjdw0 — unlinked 0, total 8;
+      preview/staging br-square-feather-a63z92vz — unlinked 0, total 16;
+      production br-sparkling-block-a620qvg4 — unlinked 0, total 8.
+      Unchanged from the filed figures, so no row can reach the string fallback
+      today and it is transition scaffolding rather than a live path. THE
+      BLANK-STRING CHECK WAS NOT RUN, and the distinction is deliberate: with
+      unlinked 0 everywhere nothing reaches the fallback, so a blank string
+      cannot render. That is REASONING, NOT MEASUREMENT, and it is labelled as
+      such so a later reader does not cite it as a count that was taken.
+      THE TWO WIRE-ONLY CARRIES ARE ANSWERED FOR, MIGRATED NOT DELETED (Gary,
+      Q3). api/checklists/route.ts `templateType` (consumed nowhere) and
+      api/stores/[id]/templates/route.ts `type` (declared on TemplateOption,
+      never rendered) keep their key names; only their SOURCE moved to the
+      joined row. Deleting either is a response-shape change no caller asked
+      for, and the second would mean editing store-view-client.tsx too. They are
+      correct now instead of going stale on the next rename. Deleting them is a
+      fair question for step (3), which revisits this surface anyway.
+      TemplateType.active STILL HAS NO WRITER. The TPL-1 row named TPL-2 as the
+      moment to revisit it; it was NOT revisited, because dropping or changing
+      it is a schema change and this row deliberately carries no migration. It
+      belongs with step (3)'s migration.
+      template-form.tsx WAS NOT TOUCHED, so no DEBT-59 spot-check was owed. It
+      still carries a `type: string` on TemplateFormProps and a dead
+      initialData.type, both orphaned by TPL-1a; removing them is a two-line
+      cleanup that would have dragged the DEBT-59 offset spot-check into an
+      S-sized row for no behavioural gain.
+      ── FILED PROSE BELOW, UNEDITED. Its "six read sites" and "five write
+      paths" are corrected at (a) and (b) above. ──
       FILEABLE AS OF 2026-08-07, and the precondition is why this row did not
       exist sooner. Gary ruled on 2026-08-08 (Q6) that TPL-2 could not be filed
       until the TPL-1a backfill was proven on all three branches. It now is,
