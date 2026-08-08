@@ -4,6 +4,100 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-08-07 — PRODUCTION promotion (TPL-1 template types + DEBT-59 offsets + six debt rulings)
+
+- **Merge SHA:** `fad9207` — full: `fad92078176969b681ea80770dfbf6e2366edafa`.
+  Parents: `999cbdc` (previous production tip) and `b36521f` (staging tip).
+  Written on `main` after the merge and **before** the push, per WORKFLOW.md §2.
+- **A REAL MERGE COMMIT, AND THAT IS THE POINT.** This is the FIRST promotion
+  under the `--no-ff` rule added in `7d984be` (DEBT-38's fix). The two previous
+  entries below both record *"FAST-FORWARD, not a merge — `git revert -m 1` does
+  not apply"*, each followed by a hand-assembled reverse-order revert list of 32
+  and 28 commits. That is what `--no-ff` exists to stop, and here it worked:
+  `fad9207` has two parents, so **rollback is one line** (below) instead of a
+  28-line list assembled under pressure.
+- **TWENTY-SIX commits**, `999cbdc..b36521f`. The exclusive range notation is
+  correct here for the same reason the `999cbdc` entry gives: the base is itself
+  the previous promotion SHA and is already on production. Oldest promoted
+  `cc6e9af`, newest `b36521f`.
+- **ROLLBACK — one line:**
+  ```
+  git checkout main && git revert -m 1 fad9207 && git push origin main
+  ```
+  `-m 1` keeps parent 1 (`999cbdc`, production as it stood) and reverts
+  everything that came in from `staging`. Faster posture if the site is
+  actively broken: Vercel → promote the `999cbdc` deployment back to current,
+  then do the revert at leisure.
+  **The migration is additive and stays either way — do NOT drop the table.**
+  Reverting the code leaves `TemplateType` and `Template.typeId` unread, which
+  is harmless; dropping them is a destructive migration against production for
+  no benefit. This is the same posture the `999cbdc` entry took on
+  `User.deniedCapabilities`.
+- **What shipped**, by theme:
+  - **TPL-1 — template types become a first-class managed entity**
+    (`8461a48`, `a286b30`, `182ca1c`, `6667bfe`, `b36521f`). `Template.type` was
+    a required, unconstrained, free-text column the template form could not set:
+    the form carried the state and the payload key but no control was ever
+    rendered, so `type: templateData.type || "Mid-Shift"` stamped **"Mid-Shift"
+    on every template made through Create**. TPL-1a added the `TemplateType`
+    entity, the migration, the required Type select and org-verified `typeId`
+    resolution on POST and PATCH; TPL-1b added the Manage Types dialog
+    (create / rename / recolour / reorder, delete blocked while in use with a
+    reassign path), filter chips and sort on `/templates`, badges reading stored
+    colours, CSV type resolution, and the starter-type seed at org creation.
+    Full audit: `docs/prompts/TYPE-1_AUDIT.md`.
+  - **DEBT-59 — availability offsets optional and blank by default**
+    (`2ccca7d`, `2d5b93d`). The form no longer manufactures a 1/2 window nobody
+    chose. Verified on staging by Gary across nine manual checks.
+  - **Six debt rulings** (`ac59d64`, `7d984be`) — DEBT-38 and DEBT-45 closed,
+    DEBT-41 converted to work, DEBT-42 relabelled, DEBT-36 and DEBT-48 parked
+    for a feature phase, R6 resolved. **`7d984be` is the commit that added the
+    `--no-ff` rule and the DEPLOY_LOG step this entry is the first to follow**,
+    and the audit-artifact rule in CLAUDE.md.
+  - **Board and docs** (`90d8293`, `411ccd2`, `2ab22f1`, `27a32cf`, `3c73a7f`,
+    `f10599a`, `b261f40`, `878f47e`, `92c5c0c`, `d1de703`, `9f317d4`,
+    `1218be3`, `cf3e93f`, `72bcf30`, `cc6e9af`) — R1–R5 recorded, the rulings
+    log rendered onto the board, L-2 re-scoped, PERM-5 flipped to shipped.
+  - **iPad standalone mode** (`28bbd8a`, `c473b72`) — manifest and
+    apple-touch-icon, so store iPads launch without Safari chrome. Note DEBT-58:
+    this shipped without hardware verification and is still unverified on a
+    real device.
+- **MIGRATION — one, replaying on this promotion:**
+  `20260808103000_tpl1a_template_type_entity`. Three parts in one transaction:
+  creates `TemplateType` (+ the `@@unique([organizationId, name])` index and the
+  org FK), adds the nullable `Template.typeId` with an `ON DELETE RESTRICT` FK
+  and its index, then **seeds and backfills** — one type per distinct
+  `(organizationId, type)` already in use with colours carried from the old
+  hardcoded map, a four-type starter set for any org that would otherwise end at
+  zero, and `typeId` backfilled by exact string match. Idempotent
+  (`ON CONFLICT DO NOTHING`, and the backfill only touches `typeId IS NULL`).
+  **Applied by the pipeline's `prisma migrate deploy` during the production
+  build. Never run by hand against production.**
+- **PRE-PROMOTION EVIDENCE, branches named per CLAUDE.md § Database Evidence:**
+  `preview/staging` `br-square-feather-a63z92vz` — unlinked 0, total 16
+  (2026-08-07). `dev` `br-broad-wave-a6vpjdw0` — unlinked 0, total 8.
+  **Production is NOT yet measured** — that is the post-push step below, and it
+  is the precondition for filing TPL-2.
+- **POST-PUSH VERIFICATION — not yet performed at the time of writing.**
+  1. Confirm the production build log shows the migration applying.
+  2. Run on the production branch (`br-sparkling-block-a620qvg4`,
+     `ep-green-smoke`), expecting `unlinked` = 0:
+     ```sql
+     SELECT current_setting('neon.branch_id', true) AS branch,
+            COUNT(*) FILTER (WHERE "typeId" IS NULL) AS unlinked,
+            COUNT(*) AS total
+     FROM "Template";
+     ```
+  3. Browser spot-check on www.usefroot.com: the Type select is present on the
+     template form, one template's badge renders in its stored colour, and
+     Manage Types opens.
+  **`TemplateType` ids are generated per branch and will NOT match dev or
+  staging** — the inverse of the row-id trap in CLAUDE.md § Database Evidence.
+  Never carry one across.
+- **STILL OPEN AFTER THIS PROMOTION:** TPL-2 (retire the legacy
+  `Template.type` string column) is deliberately unfiled. Per Gary's Q6 it
+  becomes fileable only once the production evidence above shows unlinked 0.
+
 ## 2026-08-04 — PRODUCTION promotion (DEBT-53/54 security + PERM-5 Sessions B+C + DEBT-50 docs package + DEBT-55 site 1 + DEBT-9/13/29/43/46 closures)
 
 - **Promotion SHA:** `999cbdc` — full: `999cbdc78ffe1f3c7e66d2653aab2497745619b3`.
