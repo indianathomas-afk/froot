@@ -56,6 +56,12 @@ export async function GET(req: Request) {
   const result = checklists.map((c) => ({
     id: c.id,
     templateName: c.template.name,
+    // TPL-1a, 2026-08-08: `templateType` is emitted here and consumed NOWHERE
+    // — a repo-wide grep for the key returns this line only. Left in place
+    // rather than removed, since a response field is cheap and something may
+    // yet want it; recorded so the next reader does not spend the search
+    // working that out. It carries the LEGACY string column, which TPL-2 will
+    // retire — this is one of the sites that has to be answered for then.
     templateType: c.template.type,
     status: c.status,
     date: c.date,

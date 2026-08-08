@@ -151,7 +151,15 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   "messages.use": ALL,
   "messages.moderate": MANAGE, // delete additionally allows the author (PL-7)
   "corporate.updates.manage": ADMIN_ONLY,
-  "templates.manage": ADMIN_ONLY, // §3 #2: templates layout admits MANAGER — needs ruling at migration
+  // TPL-1a, 2026-08-08: the trailing "needs ruling at migration" note that
+  // stood here described a state that no longer exists. PERM-2 §3 #2 settled
+  // it — templates are corporate-controlled, ADMIN only, and the layout's own
+  // comment records that it "previously admitted MANAGER". The comment was
+  // documentation that lied, the same species as the square.manage value R4
+  // corrected on 2026-08-06, and it was still being cited as an open question
+  // when TPL-1a asked which tier a template-type manager should sit at.
+  // NO BEHAVIOUR CHANGE — the value was already ADMIN_ONLY and is unchanged.
+  "templates.manage": ADMIN_ONLY,
   "stores.view": MANAGE,
   "stores.manage": ADMIN_ONLY,
   "users.manage": ADMIN_ONLY,

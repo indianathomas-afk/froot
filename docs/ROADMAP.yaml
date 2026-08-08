@@ -534,6 +534,72 @@ phases:
       items are verification, not build, so they gate nothing here. Piece (a)
       ships alone with no schema and no refactor.
 
+  - id: TPL-1
+    track: platform
+    size: M
+    status: in_progress
+    commits: ["8461a48"]
+    title: "Template types become a first-class managed entity — create, colour, choose, filter"
+    notes: >
+      RULED 2026-08-07 by Gary as option (a), extended, on the TYPE-1
+      investigation: operators CREATE types (name + badge colours), pick one on
+      the template form, and filter the templates list by type. Q1-Q7 ruled
+      2026-08-08. Full audit, re-verified at 2d5b93d:
+      docs/prompts/TYPE-1_AUDIT.md.
+      THE DEFECT, so nobody re-derives it. Template.type is String NOT NULL with
+      no default (prisma/schema.prisma:306) and the template form was shipped
+      with the field wired end to end and the CONTROL OMITTED — state at
+      template-form.tsx:624, payload key at :798, API handling it, colour map
+      rendering it, and no input anywhere in 1239 lines. So
+      `type: templateData.type || "Mid-Shift"` (api/templates/route.ts:89) was
+      the fallback catching a value that was never collected, and every template
+      made through Create became a "Mid-Shift". THE CONTROL IS THE FIX; THE
+      DEFAULT WAS THE SYMPTOM. Removing the default without adding the control
+      turns creation into a NOT NULL violation, which is why they ship together.
+      The eight live values came from scripts/import-keva-templates.ts, a one-off
+      seed no operator can reach; the colours were a hardcoded map at
+      templates-client.tsx:12-22 written to match that script.
+      TPL-1a — SHIPPED TO staging IN "8461a48" (2026-08-08). TemplateType (per-org,
+      the third instance of the IngredientCategory/LossReason pattern), nullable
+      Template.typeId FK ON DELETE RESTRICT, migration
+      20260808103000_tpl1a_template_type_entity seeding + backfilling, the
+      required Type select on the form, and typeId resolved org-scoped on both
+      POST and PATCH with a 400 for missing/unknown. ADDITIVE ONLY — Template.type
+      keeps being written from the chosen type's name, so all six read sites and
+      the CSV export are untouched.
+      TPL-1b — NOT STARTED. Settings management UI (create/rename/recolor,
+      delete blocked while in use with a Reassign action), type filter chips on
+      /templates, the list badge reading stored colours, and CSV import matching
+      names to the org's types. Gary ruled the split 2026-08-07 (Q7) rather than
+      compress: do not start it inside TPL-1a's session.
+      COLOURS ARE KEYS, NOT CLASS STRINGS, and this is a build constraint rather
+      than a preference. Tailwind 4 runs CSS-first here (globals.css:1, no
+      tailwind.config.*, no safelist) and generates utilities by scanning source
+      text, so a class string read out of the database is never generated and the
+      badge renders unstyled. src/lib/badge-presets.ts holds the literals; the
+      column stores the key. Audit §7.
+      THE STARTER SET IS NOT THE DEBT-59 FAILURE MODE, and the distinction is on
+      the record deliberately (Gary, Q5, 2026-08-08). The migration seeds Opener
+      / Mid-Shift / Closer / Cleaning for any org that would otherwise end at
+      zero types, and org creation will do the same. Without it a fresh org has
+      an empty required select and CANNOT CREATE A TEMPLATE AT ALL. DEBT-59's
+      offsets were a value stamped silently onto a record nobody chose; these are
+      renameable, deletable defaults offered to an operator who can see them.
+      That is the line — visible and editable, versus silent and persisted.
+      "Audit" IS NOT SEEDED (Gary, Q1). It is a ninth style in the old colour map
+      that no write path has ever produced. If the backfill query finds a row
+      carrying it, it rides the normal seed like any other value and the ruling
+      is moot.
+      TPL-2 — RETIRE Template.type — IS DELIBERATELY NOT FILED YET (Gary, Q6). It
+      gets filed only once this backfill is proven on all three branches. Two
+      sites will have to be answered for then: api/checklists/route.ts:59 emits
+      `templateType` that nothing consumes, and api/stores/[id]/templates/route.ts:60
+      emits `type` declared on TemplateOption but never rendered.
+      NOTE FOR WHOEVER RUNS THE SQL: TemplateType ids are generated PER BRANCH,
+      so unlike the inherited Organization/Store rows they will NOT match across
+      dev/staging/production. Never paste one across — the inverse of the trap in
+      CLAUDE.md § Database Evidence.
+
   - id: X-1
     track: platform
     size: S
@@ -9074,6 +9140,9 @@ debt:
       on every save — every existing template carries an invented window nobody
       chose
     notes: >
+      VERIFIED 2026-08-07 by Gary on staging: all nine manual checks passed,
+      including clear-to-blank (not 0), unrelated-edit preservation, and
+      export/import blank round-trip.
       CLOSED 2026-08-07 IN "2ccca7d" — THE WRITE IS STOPPED. The form no longer
       manufactures a value: state initialises from `initialData ?? null`, the
       inputs render blank and map "" back to null, both labels lost the ` *`

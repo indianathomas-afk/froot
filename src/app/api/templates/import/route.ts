@@ -132,6 +132,19 @@ export async function POST(req: Request) {
             organizationId: org.id,
             name,
             description: head.template_description?.trim() || null,
+            // TPL-1a, 2026-08-08: this import is UNCHANGED by that row and is
+            // now the last write path that still invents a type. POST dropped
+            // its `|| "Mid-Shift"` when the form gained its Type select; the
+            // literal survives here and in scripts/import-keva-templates.ts,
+            // with no shared constant between them.
+            // TEMPLATES CREATED HERE GET typeId = NULL, which is deliberate
+            // and safe: the legacy string column is still what every read site
+            // renders, so an imported template displays correctly — it just
+            // cannot be duplicated until it is opened and given a type. TPL-1b
+            // owns the fix (match the name to the org's types, auto-create
+            // unknown ones with the grey preset and report them in the import
+            // summary — Gary, Q4). This is the only honest write path in the
+            // product and must not be broken on the way there.
             type: head.template_type?.trim() || "Mid-Shift",
             frequency: head.template_frequency?.trim() || "Daily",
             availabilityType: head.template_availability_type?.trim() || "StoreHours",
