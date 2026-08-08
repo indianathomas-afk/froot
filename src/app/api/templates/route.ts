@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessTemplatesManage } from "./access"
+import { resolveTemplateType } from "./template-type"
 import { NextResponse } from "next/server"
 import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
 
@@ -81,12 +82,23 @@ export async function POST(req: Request) {
     )
   }
 
+  // TPL-1a: was `type: templateData.type || "Mid-Shift"`. The default is GONE —
+  // it is what stamped "Mid-Shift" on every template the Create form made, and
+  // removing it without the form's Type select would have turned creation into
+  // a NOT NULL violation, which is why the two ship together.
+  const resolved = await resolveTemplateType(org.id, templateData.typeId)
+  if (!resolved.ok) return resolved.response
+
   const template = await prisma.template.create({
     data: {
       organizationId: org.id,
       name: templateData.name,
       description: templateData.description || null,
-      type: templateData.type || "Mid-Shift",
+      // Both columns, always — the legacy string is what the six read sites and
+      // the CSV export still read. Written from the resolved row's name, never
+      // from the client's `type`, so the two cannot disagree.
+      typeId: resolved.type.id,
+      type: resolved.type.name,
       frequency: templateData.frequency || "Daily",
       availabilityType: templateData.availabilityType || "StoreHours",
       operationalPhase,

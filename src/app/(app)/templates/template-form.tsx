@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2 } from "lucide-react"
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { badgePreset } from "@/lib/badge-presets"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -51,6 +52,7 @@ interface TemplateFormProps {
     name: string
     description: string | null
     type: string
+    typeId: string | null
     frequency: string
     availabilityType: string
     operationalPhase: string | null
@@ -621,7 +623,13 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
 
   const [name, setName] = useState(initialData?.name ?? "")
   const [description, setDescription] = useState(initialData?.description ?? "")
-  const [type, setType] = useState(initialData?.type ?? "")
+  // TPL-1a: was `useState(initialData?.type ?? "")` — a pass-through with no
+  // control, whose "" on create is what POST turned into "Mid-Shift". The form
+  // now holds the CHOSEN TYPE'S ID and the API writes the name from it, so the
+  // string column can never disagree with the row it came from.
+  const [typeId, setTypeId] = useState(initialData?.typeId ?? "")
+  const [templateTypes, setTemplateTypes] = useState<{ id: string; name: string; colorKey: string }[]>([])
+  const [typesLoading, setTypesLoading] = useState(true)
   const [frequency, setFrequency] = useState(initialData?.frequency ?? "Daily")
   const [availType, setAvailType] = useState(initialData?.availabilityType ?? "StoreHours")
   // DEBT-1b: normalised on the way in, so a row written before the backfill
@@ -672,6 +680,27 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const [editAttachmentFile, setEditAttachmentFile] = useState<File | null>(null)
   const [editAttachmentError, setEditAttachmentError] = useState("")
   const [editExistingAttachment, setEditExistingAttachment] = useState<TaskAttachment | null | undefined>(undefined)
+
+  // TPL-1a: the org's template types, for the Type select. Fetched rather than
+  // passed as a prop so /templates/new and /templates/[id]/edit stay unchanged
+  // — the house "client component fetching data" pattern (CLAUDE.md § Common
+  // Patterns). A template whose typeId is null (a CSV import, or a legacy
+  // string the backfill could not match) opens with an empty select and cannot
+  // be saved until a type is chosen; that is the intended prompt, not a bug.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/template-types")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (cancelled) return
+        setTemplateTypes(Array.isArray(data) ? data : [])
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setTypesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
 
   // dnd-kit sensors — distance:8 prevents accidental drags on button clicks
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -795,7 +824,10 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     setSaveError(null)
     try {
       const payload = {
-        name, description, type, frequency,
+        // TPL-1a: typeId, not type. The API writes the legacy string column
+        // from the resolved row's name; the form does not send it at all, so
+        // there is no path by which the two can drift apart.
+        name, description, typeId, frequency,
         availabilityType: availType,
         operationalPhase: availType === "StoreHours" ? phase : null,
         startOffsetHours: availType === "StoreHours" ? startOffset : null,
@@ -877,6 +909,11 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 : `${blankSectionCount} tasks need a section name.`}
             </p>
           )}
+          {/* TPL-1a: the disabled Save gets a reason, same shape as the blank
+              section message beside it. */}
+          {!typeId && !typesLoading && templateTypes.length > 0 && (
+            <p className="text-sm text-[var(--color-destructive)]">This template needs a type.</p>
+          )}
           {isEdit && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -904,7 +941,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button onClick={handleSave} disabled={saving || blankSectionCount > 0}>
+          <Button onClick={handleSave} disabled={saving || blankSectionCount > 0 || !typeId}>
             <Save className="h-4 w-4" />
             {saving ? "Saving..." : "Save Template"}
           </Button>
@@ -924,6 +961,35 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
               <div className="space-y-1.5">
                 <Label>Description</Label>
                 <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description of this checklist" rows={3} />
+              </div>
+              {/* TPL-1a: the control this form shipped without. The state and
+                  the payload key were always here; only the input was missing,
+                  which is why every template made through this page became a
+                  "Mid-Shift" (docs/prompts/TYPE-1_AUDIT.md §6). Required, and
+                  Save is disabled until it is answered — no fallback value is
+                  invented anywhere. */}
+              <div className="space-y-1.5">
+                <Label>Type *</Label>
+                <Select value={typeId} onValueChange={setTypeId} disabled={typesLoading || templateTypes.length === 0}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder={typesLoading ? "Loading types..." : "Select a type"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templateTypes.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${badgePreset(t.colorKey).dot}`} />
+                          {t.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!typesLoading && templateTypes.length === 0 && (
+                  <p className="text-xs text-[var(--color-destructive)]">
+                    No template types exist for this organization yet. One must be created before a template can be saved.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>When should this checklist be generated? *</Label>

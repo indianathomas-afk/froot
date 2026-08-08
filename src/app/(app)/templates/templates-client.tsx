@@ -47,6 +47,7 @@ type Template = {
   id: string
   name: string
   type: string
+  typeId: string | null
   frequency: string
   availabilityType: string
   operationalPhase: string | null
@@ -64,6 +65,8 @@ export default function TemplatesClient() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [view, setView] = useState<"active" | "archived">("active")
   const [bulkLoading, setBulkLoading] = useState(false)
+  // TPL-1a: id of a template whose Duplicate was refused for want of a type.
+  const [duplicateError, setDuplicateError] = useState<string | null>(null)
 
   // loading starts true and only reloads keep showing current data — no
   // synchronous setState here so the mount effect stays lint-clean.
@@ -122,13 +125,25 @@ export default function TemplatesClient() {
     }
   }
 
+  // TPL-1a: sends typeId, not type — POST resolves it and writes both columns.
+  // This path was ALREADY carrying a real type through (it is the only way an
+  // operator could make a non-"Mid-Shift" template before the form got its
+  // select — docs/prompts/TYPE-1_AUDIT.md §4), so the behaviour is unchanged;
+  // what changes is which field carries it. A template whose typeId is null
+  // cannot be duplicated until it is opened and given a type, which is the same
+  // rule the form enforces rather than a new one.
   async function duplicate(template: Template) {
+    if (!template.typeId) {
+      setDuplicateError(template.id)
+      return
+    }
+    setDuplicateError(null)
     await fetch("/api/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: `${template.name} (Copy)`,
-        type: template.type,
+        typeId: template.typeId,
         frequency: template.frequency,
         availabilityType: template.availabilityType,
         operationalPhase: normalizePhase(template.operationalPhase),
@@ -292,6 +307,11 @@ export default function TemplatesClient() {
                     <Copy className="h-3 w-3" /> Duplicate
                   </button>
                 </div>
+                {duplicateError === template.id && (
+                  <p className="mt-2 text-xs text-[var(--color-destructive)]">
+                    Open this template and choose a type before duplicating it.
+                  </p>
+                )}
               </div>
             ))}
           </div>

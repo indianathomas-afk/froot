@@ -40,6 +40,7 @@ model Organization {
   pendingInvites                PendingInvite[]
   staff                         StaffMember[]
   templates                     Template[]
+  templateTypes                 TemplateType[]
   checklists                    Checklist[]
   storageAreas                  StorageArea[]
   inventoryCounts               InventoryCount[]
@@ -303,7 +304,13 @@ model Template {
   organizationId   String
   name             String
   description      String?
+  // TPL-1a: `type` is the LEGACY free-text column and is still written on every
+  // path, set from the chosen TemplateType's name. It stays until TPL-2 retires
+  // it, because all six read sites and the CSV export read it (see
+  // docs/prompts/TYPE-1_AUDIT.md §3.1, §2.4). typeId is the new truth; type is
+  // the compatibility surface. Never write one without the other.
   type             String
+  typeId           String?
   frequency        String   @default("Daily")
   availabilityType String   @default("StoreHours")
   operationalPhase String?
@@ -315,10 +322,41 @@ model Template {
   createdAt        DateTime @default(now())
 
   organization     Organization              @relation(fields: [organizationId], references: [id])
+  templateType     TemplateType?             @relation(fields: [typeId], references: [id])
   storeAssignments TemplateStoreAssignment[]
   tasks            Task[]
   checklists       Checklist[]
   handoffMessages  TeamMessage[]             @relation("HandoffTarget")
+
+  @@index([typeId])
+}
+
+// TPL-1a. Per-org template taxonomy — the third instance of the house pattern
+// set by IngredientCategory and LossReason: @@unique([organizationId, name]),
+// sortOrder, org-scoped. Operators create and colour these; nothing here is a
+// global list.
+//
+// colorKey IS A KEY, NOT A CLASS STRING. Tailwind 4 runs CSS-first in this repo
+// (globals.css:1, no tailwind.config.*, no safelist) and generates utilities by
+// scanning source text, so a class string stored in this column would never be
+// generated and the badge would render unstyled. The key maps to a literal
+// class string in src/lib/badge-presets.ts. See docs/prompts/TYPE-1_AUDIT.md §7
+// — this is a build-system constraint, not a style preference.
+model TemplateType {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  colorKey       String   @default("gray")
+  sortOrder      Int      @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  templates    Template[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 model TemplateStoreAssignment {
