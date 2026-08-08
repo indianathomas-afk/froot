@@ -103,10 +103,16 @@ export async function POST(req: Request) {
       organizationId: org.id,
       name: templateData.name,
       description: templateData.description || null,
-      // Both columns, always — the legacy string is what the six read sites and
-      // the CSV export still read. Written from the resolved row's name, never
-      // from the client's `type`, so the two cannot disagree.
       typeId: resolved.type.id,
+      // TPL-2 step (1): `type` IS A MIRROR NOW, AND NO READER DEPENDS ON IT.
+      // Every read site resolves the name through templateType and falls back
+      // to this string only when typeId is null. It is still written here for
+      // one reason: the column is String NOT NULL with no default, so a create
+      // that omits it fails. Correct at insert and NEVER MAINTAINED AFTERWARDS
+      // — PATCH, the rename cascade and reassign all stopped writing it, so on
+      // a row whose type was later renamed this holds the old name. Do not
+      // read it, and do not "fix" a divergence you find in the data.
+      // Retiring the column is TPL-2 step (3) and is separately authorised.
       type: resolved.type.name,
       frequency: templateData.frequency || "Daily",
       availabilityType: templateData.availabilityType || "StoreHours",

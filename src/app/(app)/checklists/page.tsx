@@ -61,7 +61,13 @@ async function getChecklists(requestedStoreId: string | undefined) {
 
   const checklists = await prisma.checklist.findMany({
     where,
-    include: { store: true, template: true },
+    include: {
+      store: true,
+      // TPL-2 step (2): the type pill reads the joined row. Reached through
+      // `checklist.template`, which is why a grep scoped to the templates
+      // directory misses this site (docs/prompts/TYPE-1_AUDIT.md §3.1).
+      template: { include: { templateType: { select: { name: true } } } },
+    },
     orderBy: { date: "desc" },
   })
 
@@ -126,7 +132,7 @@ export default async function ChecklistsPage({
                     {checklist.store.brand ?? "Keva Juice"}
                   </span>
                   <span className="inline-flex items-center rounded-full bg-[var(--color-muted)] text-[var(--color-foreground)] text-xs px-2 py-0.5">
-                    {checklist.template.type}
+                    {checklist.template.templateType?.name ?? checklist.template.type}
                   </span>
                 </div>
 

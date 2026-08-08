@@ -46,7 +46,7 @@ export async function GET(req: Request) {
   const checklists = await prisma.checklist.findMany({
     where,
     include: {
-      template: { include: { tasks: true } },
+      template: { include: { tasks: true, templateType: { select: { name: true } } } },
       store: true,
       taskLogs: true,
     },
@@ -60,9 +60,15 @@ export async function GET(req: Request) {
     // — a repo-wide grep for the key returns this line only. Left in place
     // rather than removed, since a response field is cheap and something may
     // yet want it; recorded so the next reader does not spend the search
-    // working that out. It carries the LEGACY string column, which TPL-2 will
-    // retire — this is one of the sites that has to be answered for then.
-    templateType: c.template.type,
+    // working that out.
+    //
+    // TPL-2 step (2), 2026-08-08 — THIS IS THE SITE BEING ANSWERED FOR. The
+    // key name is unchanged; only its SOURCE moved, from the legacy string to
+    // the joined row. MIGRATED RATHER THAN DELETED (Gary, Q3): deleting it is
+    // a response-shape change no caller asked for, and this way the field is
+    // correct instead of going stale the moment a type is renamed. Deleting it
+    // is a fair question for TPL-2 step (3), which revisits this surface.
+    templateType: c.template.templateType?.name ?? c.template.type,
     status: c.status,
     date: c.date,
     storeName: c.store.name,

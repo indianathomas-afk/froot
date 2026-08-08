@@ -42,13 +42,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!from) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (!to) return NextResponse.json({ error: "Unknown template type" }, { status: 400 })
 
-  // Both columns move together. Leaving Template.type pointing at the old
-  // type's name would put all six read sites out of step with the row the
-  // template now belongs to — which is the entire reason the legacy string is
-  // still written (docs/prompts/TYPE-1_AUDIT.md §3.1).
+  // TPL-2 step (1): `type: to.name` STOOD ALONGSIDE typeId HERE AND IS GONE.
+  // It was written because the read sites rendered the legacy string, so
+  // leaving it on the old type's name would have put them out of step with the
+  // type the template now belongs to. They read `templateType.name` now, so
+  // moving the FK moves what every site renders, and the string these rows
+  // carry is left at whatever it was — unread while typeId is set.
   const result = await prisma.template.updateMany({
     where: { typeId: id, organizationId: org.id },
-    data: { typeId: to.id, type: to.name },
+    data: { typeId: to.id },
   })
 
   return NextResponse.json({ reassigned: result.count, toTypeId: to.id, toTypeName: to.name })

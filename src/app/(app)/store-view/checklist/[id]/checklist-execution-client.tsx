@@ -43,7 +43,15 @@ interface Props {
     id: string
     status: string
     storeId: string
-    template: { name: string; type: string; operationalPhase: string | null; tasks: Task[] }
+    // TPL-2 step (2): `type` is the LEGACY string and is kept here only as the
+    // fallback for a template with no TemplateType. `templateType` is the truth.
+    template: {
+      name: string
+      type: string
+      templateType: { name: string } | null
+      operationalPhase: string | null
+      tasks: Task[]
+    }
     store: { name: string }
     taskLogs: TaskLog[]
   }
@@ -144,7 +152,7 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
             </Link>
             <div>
               <h1 className="font-bold text-[var(--color-foreground)] text-lg leading-tight">Daily Checklist</h1>
-              <p className="text-sm text-[var(--color-muted-foreground)]">{checklist.store.name} • {checklist.template.type}</p>
+              <p className="text-sm text-[var(--color-muted-foreground)]">{checklist.store.name} • {checklist.template.templateType?.name ?? checklist.template.type}</p>
               {totalMinutes > 0 && (
                 <p className="text-xs text-[var(--color-muted-foreground)]">
                   Estimated: {Math.floor(totalMinutes / 60) > 0 ? Math.floor(totalMinutes / 60) + "h " : ""}{totalMinutes % 60}min

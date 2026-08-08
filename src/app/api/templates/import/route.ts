@@ -172,10 +172,12 @@ export async function POST(req: Request) {
             name,
             description: head.template_description?.trim() || null,
             // TPL-1b closed the TPL-1a window: imports now carry a real typeId
-            // and are duplicable like any other template. Both columns are
-            // written from the SAME resolved row, so the legacy string and the
-            // FK cannot disagree — the rule every other write path follows.
+            // and are duplicable like any other template.
             typeId: resolvedType.id,
+            // TPL-2 step (1): a MIRROR, like POST /api/templates. Written only
+            // because the column is String NOT NULL with no default; correct at
+            // insert and never maintained. No read site depends on it while
+            // typeId is set. See api/templates/route.ts for the full note.
             type: resolvedType.name,
             frequency: head.template_frequency?.trim() || "Daily",
             availabilityType: head.template_availability_type?.trim() || "StoreHours",

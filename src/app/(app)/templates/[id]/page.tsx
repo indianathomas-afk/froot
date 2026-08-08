@@ -15,7 +15,15 @@ export default async function TemplateViewPage({ params }: { params: Promise<{ i
 
   const template = await prisma.template.findFirst({
     where: { id, organizationId: org.id },
-    include: { tasks: { orderBy: { orderIndex: "asc" } } },
+    include: {
+      tasks: { orderBy: { orderIndex: "asc" } },
+      // TPL-2 step (2): the type is read from the joined row, not the legacy
+      // `type` string. Null here is a template with no TemplateType — only a
+      // TPL-1a-window import or the seed script produces one — and it falls
+      // back to the string. Re-measured 2026-08-08: unlinked 0 on all three
+      // branches, so the fallback is transition scaffolding, not live path.
+      templateType: { select: { name: true } },
+    },
   })
   if (!template) return notFound()
 
@@ -57,7 +65,7 @@ export default async function TemplateViewPage({ params }: { params: Promise<{ i
             <p className="text-sm text-gray-500 mt-1">{template.description}</p>
           )}
           <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-            <span>Type: <strong>{template.type}</strong></span>
+            <span>Type: <strong>{template.templateType?.name ?? template.type}</strong></span>
             <span>Frequency: <strong>{template.frequency}</strong></span>
             {totalMinutes > 0 && (
               <span>Est. Time: <strong>{hours > 0 ? `${hours}h ` : ""}{mins > 0 ? `${mins}m` : ""}</strong></span>

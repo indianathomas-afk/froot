@@ -304,11 +304,26 @@ model Template {
   organizationId   String
   name             String
   description      String?
-  // TPL-1a: `type` is the LEGACY free-text column and is still written on every
-  // path, set from the chosen TemplateType's name. It stays until TPL-2 retires
-  // it, because all six read sites and the CSV export read it (see
-  // docs/prompts/TYPE-1_AUDIT.md §3.1, §2.4). typeId is the new truth; type is
-  // the compatibility surface. Never write one without the other.
+  // TPL-2 steps (1) and (2), 2026-08-08 — THE CONTRACT ON THIS COLUMN CHANGED.
+  // It was previously written on every path and read by every site; the note
+  // that stood here said "never write one without the other". That is no
+  // longer the rule.
+  //
+  // `type` is the LEGACY free-text column and NOTHING READS IT while typeId is
+  // set. Every read site resolves the name through the templateType relation
+  // and falls back to this string only for a row whose typeId is null.
+  //
+  // It is still written by the TWO CREATE PATHS ONLY — POST /api/templates and
+  // POST /api/templates/import — for one reason: String NOT NULL with no
+  // default, so a create that omits it fails. PATCH /api/templates/[id], the
+  // rename cascade in PATCH /api/template-types/[id] and
+  // POST /api/template-types/[id]/reassign all STOPPED writing it. So on a row
+  // whose type was later renamed or reassigned, this column holds a STALE NAME
+  // BY DESIGN. Do not read it, and do not repair a divergence you find.
+  //
+  // Retiring the column is TPL-2 step (3): a DESTRUCTIVE migration against
+  // production, gated on its own soak, EXPLICITLY NOT AUTHORISED by the row
+  // that made this change. Plan: docs/prompts/TPL-2_PLAN.md.
   type             String
   typeId           String?
   frequency        String   @default("Daily")

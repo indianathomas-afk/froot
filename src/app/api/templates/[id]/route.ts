@@ -42,6 +42,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // put an empty string in a NOT NULL column, and after this row an unresolved
   // typeId would have been a cross-tenant write. See
   // docs/prompts/TYPE-1_AUDIT.md §2.2 and api/templates/template-type.ts.
+  //
+  // TPL-2 step (1) MADE THIS DESTRUCTURE MORE LOAD-BEARING, NOT LESS. It is now
+  // the only thing standing between a client-supplied `type` and the column,
+  // because the explicit write below it is gone — so removing `type:
+  // _clientType` would not merely restore the old behaviour, it would hand the
+  // legacy string to whatever the caller sent.
   const { tasks, storeIds, appliesTo, type: _clientType, typeId, ...templateData } = body
   void _clientType
   const incomingTasks: IncomingTask[] = Array.isArray(tasks) ? tasks : []
@@ -123,8 +129,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         data: {
           ...templateData,
           // After the spread, so a stray key in templateData cannot win.
+          //
+          // TPL-2 step (1): `type: resolved.type.name` STOOD HERE AND IS GONE.
+          // Changing a template's type now moves typeId alone, so this row's
+          // legacy string keeps whatever name it had at insert. Nothing reads
+          // it — every site resolves through templateType and falls back to the
+          // string only when typeId is null, which cannot be the case on a row
+          // this handler just resolved a type for.
           typeId: resolved.type.id,
-          type: resolved.type.name,
           appliesTo: appliesTo ?? "all",
           tasks: toCreate.length ? { create: toCreate.map(taskData) } : undefined,
           storeAssignments: storeIds?.length

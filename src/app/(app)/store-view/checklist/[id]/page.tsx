@@ -19,6 +19,11 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
       template: {
         include: {
           tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } },
+          // TPL-2 step (2): joined row is the truth for the execution header.
+          // The second of the two sites reached through `checklist.template`,
+          // and the only one where the render lives in a client component — so
+          // ChecklistExecutionClient's Props declares it too.
+          templateType: { select: { name: true } },
         },
       },
       taskLogs: true,

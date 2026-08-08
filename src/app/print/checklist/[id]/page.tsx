@@ -28,6 +28,9 @@ export default async function ChecklistPrintPage({
       template: {
         include: {
           tasks: { orderBy: { orderIndex: "asc" } },
+          // TPL-2 step (2): joined row is the truth for the subtitle below.
+          // One of the two sites reached through `checklist.template.type`.
+          templateType: { select: { name: true } },
         },
       },
       taskLogs: true,
@@ -124,7 +127,7 @@ export default async function ChecklistPrintPage({
         {/* Header */}
         <div className="header">
           <h1>{checklist.template.name}</h1>
-          <p className="desc">{checklist.store.name} &bull; {checklist.template.type}</p>
+          <p className="desc">{checklist.store.name} &bull; {checklist.template.templateType?.name ?? checklist.template.type}</p>
           <div className="meta">
             <span>Date: <strong>{dateStr}</strong></span>
             {timeStr && <span>Est. Time: <strong>{timeStr}</strong></span>}

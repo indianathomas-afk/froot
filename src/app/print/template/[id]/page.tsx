@@ -14,7 +14,12 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
 
   const template = await prisma.template.findFirst({
     where: { id, organizationId: org.id },
-    include: { tasks: { orderBy: { orderIndex: "asc" } } },
+    include: {
+      tasks: { orderBy: { orderIndex: "asc" } },
+      // TPL-2 step (2): joined row is the truth; the legacy `type` string is
+      // the fallback for a template with no TemplateType.
+      templateType: { select: { name: true } },
+    },
   })
   if (!template) return notFound()
 
@@ -79,7 +84,7 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
           <h1>{template.name}</h1>
           {template.description && <p className="desc">{template.description}</p>}
           <div className="meta">
-            <span>Type: <strong>{template.type}</strong></span>
+            <span>Type: <strong>{template.templateType?.name ?? template.type}</strong></span>
             <span>Frequency: <strong>{template.frequency}</strong></span>
             {timeStr && <span>Est. Time: <strong>{timeStr}</strong></span>}
             <span>Tasks: <strong>{template.tasks.length}</strong></span>

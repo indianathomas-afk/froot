@@ -61,7 +61,17 @@ export async function GET(req: Request) {
 
   const templates = await prisma.template.findMany({
     where: { organizationId: org.id, ...(includeArchived ? {} : { isArchived: false }) },
-    include: { tasks: { orderBy: { orderIndex: "asc" } } },
+    include: {
+      tasks: { orderBy: { orderIndex: "asc" } },
+      // TPL-2 step (2). THIS JOIN IS NOT COSMETIC AND IT IS NOT OPTIONAL.
+      // Step (1) stopped the rename cascade and the reassign write, so
+      // Template.type is now a snapshot at insert — an export still emitting it
+      // raw would put STALE TYPE NAMES in a file operators carry between
+      // environments, which is the one place the divergence escapes the
+      // application. Migrated in the same commit as the write paths for exactly
+      // that reason (docs/prompts/TPL-2_PLAN.md §4).
+      templateType: { select: { name: true } },
+    },
     orderBy: { createdAt: "asc" },
   })
 
@@ -85,7 +95,13 @@ export async function GET(req: Request) {
     const templateCells = [
       t.name,
       t.description,
-      t.type,
+      // EXISTING EXPORTED FILES STAY IMPORT-VALID. /api/templates/import
+      // resolves template_type BY NAME, case-insensitively, creating any type
+      // the org lacks (TPL-1b's Q4 behaviour) — it never reads Template.type
+      // from the database and never keys on an id. So a CSV exported before
+      // this change imports exactly as it did; one exported after it carries
+      // the live name, which matches even more reliably.
+      t.templateType?.name ?? t.type,
       t.frequency,
       t.availabilityType,
       t.operationalPhase,
