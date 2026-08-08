@@ -57,6 +57,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  // TPL-1b, 2026-08-08 — OBSERVATION, NOT A FIX. `parse` throws on a malformed
+  // body, so bad input from a client surfaces as a 500 rather than a 400, and a
+  // duplicate name trips @@unique([organizationId, name]) as an unhandled P2002
+  // — also a 500. Left alone because changing the status codes on a live route
+  // is not this row's business; recorded because api/template-types/ was
+  // modelled on this file and deliberately did NOT copy either behaviour
+  // (safeParse, and a 409 on P2002). Whoever uses this as precedent next should
+  // copy the newer pair.
   const body = await req.json()
   const data = CategorySchema.parse(body)
 

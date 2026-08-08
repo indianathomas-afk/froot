@@ -348,6 +348,14 @@ model TemplateType {
   name           String
   colorKey       String   @default("gray")
   sortOrder      Int      @default(0)
+  // TPL-1b, 2026-08-08: `active` HAS NO WRITER. It shipped in TPL-1a and the
+  // manage dialog deliberately does not expose a deactivate control (Gary, Q2)
+  // — the ruled model is delete-or-keep, with reassignment in front of delete,
+  // and a third state nobody asked for would just be a second way to hide a
+  // type. GET /api/template-types still filters on it, so it is a working
+  // read-side filter waiting for a writer, not dead code. Left rather than
+  // dropped: removing it is a schema change and the retirement of the legacy
+  // Template.type column (TPL-2) is the right moment to revisit it.
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

@@ -537,10 +537,64 @@ phases:
   - id: TPL-1
     track: platform
     size: M
-    status: in_progress
-    commits: ["8461a48"]
+    status: staging
+    commits: ["8461a48", "182ca1c"]
     title: "Template types become a first-class managed entity — create, colour, choose, filter"
     notes: >
+      TPL-1b SHIPPED TO staging IN "182ca1c" (2026-08-08) — BOTH PHASES ARE NOW
+      IN. Management UI, CRUD routes, delete-blocked-with-reassign, filter chips
+      and sort, badges from stored colours, CSV type resolution, and the starter
+      seed at org creation. TPL-1a ("8461a48") was verified on dev the same day
+      — unlinked=0 on br-broad-wave — and pushed to staging 2026-08-07.
+      ENTRY POINT RULED 2026-08-07 BY GARY, AND IT SUPERSEDES THE PHASE A PLAN:
+      type management lives WITH templates, not in Settings. No Settings tab was
+      created. A "Manage Types" button in the /templates header opens a dialog,
+      following the precedent of
+      src/app/(app)/inventory/ingredients/category-manager-dialog.tsx — the same
+      shape one level down, where ingredient categories are managed from the
+      list they belong to rather than from global Settings. Dialog over
+      subroute because the surface is a short list with inline edits, and a
+      subroute would need its own layout and its own capability guard while
+      navigating away from the list you are about to filter.
+      NO CAPABILITY WAS ADDED AND permissions.ts WAS NOT TOUCHED (Q3).
+      templates/layout.tsx already gates the whole /templates surface on
+      templates.manage, which is ADMIN_ONLY, so the button inherits ADMIN and a
+      second check on it could only ever disagree with the layout.
+      THE PRECEDENT WAS COPIED BUT NOT WHOLESALE, recorded because the next
+      person to use api/inventory/ingredient-categories as a model should know:
+      it calls `Schema.parse(body)` bare (a malformed body is a 500) and has no
+      P2002 handling (a duplicate name is a 500). api/template-types uses
+      safeParse and returns 409. A comment now sits on the older file pointing
+      at the newer pair; its status codes were NOT changed, which is a live
+      route and not this row's business.
+      RENAME REWRITES HISTORY, KNOWINGLY — DEBT-36's class, not a new trade.
+      Checklist holds no snapshot of the type (TYPE-1_AUDIT §3.4), so renaming
+      re-renders every historical completed checklist and print copy under the
+      new name. DEBT-36 accepted exactly this for section names on 2026-08-07.
+      What TPL-1b adds is that the rename is never silent: an AlertDialog shows
+      the affected count first (Gary, Q4). If the cost stops being acceptable,
+      it is a snapshot column on Checklist and it belongs with DEBT-36's entity
+      phase, not here.
+      TWO COUNTS, DELIBERATELY DIFFERENT, so nobody "fixes" one into the other.
+      The manage dialog's count is org-wide and ARCHIVED-INCLUSIVE because it
+      governs deletion — an archived template still holds the FK and still trips
+      ON DELETE RESTRICT, so a client-derived count would read 0, enable delete
+      and then eat a 409 (Gary, Q1). The filter chips' counts are per-view, so a
+      chip's number always matches what clicking it shows.
+      TemplateType.active HAS NO WRITER and that is intended (Gary, Q2): the
+      ruled model is delete-or-keep with reassignment in front of delete, and no
+      deactivate control was built. The field is commented in schema.prisma and
+      revisited at TPL-2, not dropped — dropping it would be a schema change.
+      ROWS IMPORTED DURING THE TPL-1a WINDOW KEEP typeId = NULL (Gary, Q3 — no
+      backfill). They render correctly from the legacy string in neutral grey
+      and simply cannot be duplicated until opened. Imports after "182ca1c"
+      carry a real typeId.
+      ── PHASE A NOTES BELOW, UNEDITED ── They say "TPL-1b — NOT STARTED" and
+      place the management UI in Settings. Both were true when written on
+      2026-08-08 and are superseded by the two blocks above; the text is left
+      exactly as it stood, per the convention DEBT-59 and DEBT-36 follow — the
+      prose is the record of what was believed, and corrections are prepended,
+      never edited in.
       RULED 2026-08-07 by Gary as option (a), extended, on the TYPE-1
       investigation: operators CREATE types (name + badge colours), pick one on
       the template form, and filter the templates list by type. Q1-Q7 ruled
