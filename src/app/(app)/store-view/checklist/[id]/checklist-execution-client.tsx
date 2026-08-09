@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, AlertTriangle, Camera, Play, Printer, User } from "lucide-react"
 import Link from "next/link"
+import { groupTasksBySection } from "@/lib/sections"
 import { HandoffBanner, HandoffComposer, type HandoffTarget } from "./handoff-notes"
 
 interface TaskAttachment {
@@ -15,7 +16,12 @@ interface TaskAttachment {
 
 interface Task {
   id: string
+  // CHK-1: `sectionName` is the LEGACY MIRROR and `section` is the entity.
+  // Both are declared because both cross the server/client boundary; which one
+  // is read is src/lib/sections.ts's decision, not this file's.
   sectionName: string
+  sectionId: string | null
+  section: { name: string; sortOrder: number } | null
   description: string
   estimatedTimeMinutes: number | null
   requiresPhoto: boolean
@@ -43,6 +49,10 @@ interface Props {
     id: string
     status: string
     storeId: string
+    // CHK-1: the frozen as-executed section names, or null for a checklist
+    // started before this phase deployed. Prisma `Json?`, so `unknown` —
+    // src/lib/sections.ts parses it and falls back to the live join.
+    sectionsSnapshot: unknown
     // TPL-2 step (2): `type` is the LEGACY string and is kept here only as the
     // fallback for a template with no TemplateType. `templateType` is the truth.
     template: {
@@ -81,12 +91,15 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
   // DEBT-2b: fall back to "General" for a blank section, matching the template
   // detail page, both print pages and the CSV import's default. This is DISPLAY
   // ONLY — the grouping key is derived here and never written back.
-  const sections = tasks.reduce<Map<string, Task[]>>((acc, task) => {
-    const key = task.sectionName || "General"
-    if (!acc.has(key)) acc.set(key, [])
-    acc.get(key)!.push(task)
-    return acc
-  }, new Map())
+  //
+  // CHK-1: the four-line reduce this replaces was one of six independent
+  // derivations of the same thing; the "General" fallback it describes now
+  // lives in src/lib/sections.ts and is shared with the other five, which is
+  // the point of the helper. The snapshot is passed because THIS PAGE RENDERS A
+  // RECORD as well as a live surface — reopening a completed checklist here
+  // shows the headings it was executed under, agreeing with its print copy
+  // instead of contradicting it.
+  const sections = groupTasksBySection(tasks, checklist.sectionsSnapshot)
 
   const totalTasks = tasks.length
   const completedCount = completed.size
@@ -190,12 +203,13 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
           targets={handoffTargets}
           sourcePhase={checklist.template.operationalPhase}
         />
-        {Array.from(sections.entries()).map(([sectionName, sectionTasks]) => {
+        {sections.map((section) => {
+          const sectionTasks = section.tasks
           const sectionCompleted = sectionTasks.filter((t) => completed.has(t.id)).length
           return (
-            <div key={sectionName} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+            <div key={section.key} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
               <div className="px-4 pt-4 pb-2">
-                <h2 className="font-semibold text-[var(--color-foreground)]">{sectionName}</h2>
+                <h2 className="font-semibold text-[var(--color-foreground)]">{section.name}</h2>
                 <p className="text-sm text-[var(--color-muted-foreground)]">{sectionCompleted} of {sectionTasks.length} completed</p>
               </div>
 

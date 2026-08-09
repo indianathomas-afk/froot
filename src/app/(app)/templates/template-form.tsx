@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2 } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { OPERATIONAL_PHASES, normalizePhase } from "@/lib/phases"
 import { Input } from "@/components/ui/input"
@@ -60,8 +60,62 @@ interface TemplateFormProps {
     endOffsetHours: number | null
     appliesTo?: string
     tasks: Task[]
+    // CHK-1: the template's Section rows. Optional so /templates/new can omit
+    // it — a template being created has none yet, and POST creates them from
+    // the names. What this list carries that the task strings cannot is the
+    // IDS, which is what turns an edit into a rename rather than a new section
+    // (src/app/api/templates/sections.ts).
+    sections?: { id: string; name: string; sortOrder: number }[]
     storeAssignments?: { storeId: string }[]
   }
+}
+
+// ─── Sections (CHK-1) ─────────────────────────────────────────────────────────
+// THE TASK ARRAY IS THE ONE SOURCE OF SECTION ORDER, and every section's tasks
+// are kept CONTIGUOUS in it. That single invariant is what replaces the
+// adjacency inference this form used to render headings from:
+//
+//   • one heading per section, always — a template whose stored tasks are
+//     non-contiguous is regrouped on load, which is DEBT-36's second defect and
+//     the one visible change of this phase;
+//   • `sortOrder` is the section's position in that array, which is exactly
+//     MIN(orderIndex) — the same rule the CHK-1 migration recovered order with,
+//     so the form, the API and the backfill cannot disagree;
+//   • reordering a section moves its tasks with it, because moving a section IS
+//     moving its block of tasks.
+//
+// Membership stays a per-task free-text string, deliberately: DEBT-2b ruled
+// sections free text and CHK-1 does not overturn that (plan §6.3). Identity —
+// name → Section id — is carried alongside in `sectionIds`, so a rename keeps
+// the row it renames.
+
+interface SectionGroup {
+  name: string
+  tasks: Task[]
+}
+
+/** Group tasks by section in FIRST-APPEARANCE order. Lossless: a blank section
+ *  (transient — Save is gated on it) becomes its own group rather than vanishing. */
+function sectionGroupsOf(tasks: Task[]): SectionGroup[] {
+  const groups: SectionGroup[] = []
+  const byName = new Map<string, SectionGroup>()
+  for (const t of tasks) {
+    const name = t.sectionName.trim()
+    let g = byName.get(name)
+    if (!g) {
+      g = { name, tasks: [] }
+      byName.set(name, g)
+      groups.push(g)
+    }
+    g.tasks.push(t)
+  }
+  return groups
+}
+
+/** Flatten groups back to one array. Applied on load, after every drag and
+ *  after a section move, so the contiguity invariant above always holds. */
+function regroupTasks(tasks: Task[]): Task[] {
+  return sectionGroupsOf(tasks).flatMap((g) => g.tasks)
 }
 
 // DEBT-1b: one shared list — the dropdown and every write path agree by
@@ -345,6 +399,106 @@ function SortableTaskRow({
   )
 }
 
+// ─── Section manager (CHK-1) ─────────────────────────────────────────────────
+// The section-level surface this form never had. Before CHK-1 a section could
+// only be "renamed" by editing the same string on every task in it, which is
+// not a rename at all — it is a new section that the old one's history does not
+// follow. Here the edit happens ONCE, on the section, and every task follows.
+//
+// The per-task section input is untouched and still does what it did: typing a
+// name that exists moves the task into that section, typing a new one creates
+// it. That is membership. This panel is identity and order.
+
+interface SectionManagerProps {
+  groups: SectionGroup[]
+  renameSection: (from: string, to: string) => string | null
+  moveSection: (name: string, direction: -1 | 1) => void
+}
+
+function SectionManager({ groups, renameSection, moveSection }: SectionManagerProps) {
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  // A blank-section group is not a section — it is the unfinished state the
+  // Save button already refuses. It gets no row here.
+  const named = groups.filter((g) => g.name)
+  if (named.length === 0) return null
+
+  function commit(from: string) {
+    const to = draft.trim()
+    setEditing(null)
+    if (!to || to === from) return
+    const err = renameSection(from, to)
+    setError(err)
+  }
+
+  return (
+    <div className="mb-4 border border-[var(--color-border)] rounded-md bg-[var(--color-muted)]/20 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-medium text-[var(--color-muted-foreground)]">Sections ({named.length})</p>
+        {error && <p className="text-xs text-[var(--color-destructive)]">{error}</p>}
+      </div>
+      <div className="space-y-1">
+        {named.map((g, i) => (
+          <div key={g.name} className="flex items-center gap-2">
+            <div className="flex flex-col shrink-0">
+              <button
+                type="button"
+                aria-label={`Move section ${g.name} up`}
+                disabled={i === 0}
+                onClick={() => { setError(null); moveSection(g.name, -1) }}
+                className="p-0.5 rounded text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] disabled:opacity-30"
+              >
+                <ChevronUp className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Move section ${g.name} down`}
+                disabled={i === named.length - 1}
+                onClick={() => { setError(null); moveSection(g.name, 1) }}
+                className="p-0.5 rounded text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] disabled:opacity-30"
+              >
+                <ChevronDown className="h-3 w-3" />
+              </button>
+            </div>
+            {editing === g.name ? (
+              <Input
+                autoFocus
+                className="h-7 text-sm max-w-xs"
+                aria-label={`Rename section ${g.name}`}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => commit(g.name)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commit(g.name) }
+                  if (e.key === "Escape") { e.preventDefault(); setEditing(null) }
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setError(null); setDraft(g.name); setEditing(g.name) }}
+                className="flex items-center gap-1.5 text-sm text-left rounded px-1.5 py-0.5 hover:bg-[var(--color-accent)]"
+              >
+                <span className="font-medium text-[var(--color-foreground)]">§ {g.name}</span>
+                <Pencil className="h-3 w-3 text-[var(--color-muted-foreground)]" />
+              </button>
+            )}
+            <span className="text-xs text-[var(--color-muted-foreground)]">
+              {g.tasks.length} task{g.tasks.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-[var(--color-muted-foreground)] mt-2">
+        Renaming a section here renames it everywhere on this template. Checklists already
+        completed keep the section names they were completed under.
+      </p>
+    </div>
+  )
+}
+
 // ─── Table view ───────────────────────────────────────────────────────────────
 
 type BulkField = "estimatedTimeMinutes" | "isCritical" | "requiresPhoto" | "requiresTemp" | "sectionName"
@@ -352,7 +506,7 @@ type BulkField = "estimatedTimeMinutes" | "isCritical" | "requiresPhoto" | "requ
 interface TaskTableViewProps {
   tasks: Task[]
   stores: Store[]
-  updateTask: (id: string, patch: Partial<Task>) => void
+  updateTask: (id: string, patch: Partial<Task>, opts?: { regroup?: boolean }) => void
   toggleTaskExclusion: (taskId: string, storeId: string) => void
 }
 
@@ -401,7 +555,11 @@ function TaskTableView({ tasks, stores, updateTask, toggleTaskExclusion }: TaskT
     } else {
       patch = { [bulkField]: bulkBool === "on" }
     }
-    selectedIds.forEach((id) => updateTask(id, patch))
+    // CHK-1: a bulk section set is a commit, so it regroups — otherwise moving
+    // three scattered tasks into one section would leave that section
+    // non-contiguous and render its heading more than once.
+    const regroup = bulkField === "sectionName"
+    selectedIds.forEach((id) => updateTask(id, patch, { regroup }))
   }
 
   // Enter / arrow keys move focus down or up the Est. min column, spreadsheet-style
@@ -479,6 +637,11 @@ function TaskTableView({ tasks, stores, updateTask, toggleTaskExclusion }: TaskT
           </thead>
           <tbody>
             {tasks.map((task, idx) => {
+              // CHK-1: this adjacency test is UNCHANGED and is now merely a
+              // consequence. It used to be the SOURCE of section order and of
+              // DEBT-36's double heading; the task array is kept grouped by
+              // section (see `regroupTasks`), so "previous row has a different
+              // section" now happens exactly once per section.
               const showSectionRow = idx === 0 || tasks[idx - 1].sectionName !== task.sectionName
               const sectionIds = tasks.filter((t) => t.sectionName === task.sectionName)
               const sectionAllSelected = sectionIds.every((t) => selectedIds.has(t.id))
@@ -520,7 +683,9 @@ function TaskTableView({ tasks, stores, updateTask, toggleTaskExclusion }: TaskT
                         onChange={(e) => updateTask(task.id, { sectionName: e.target.value })}
                         // DEBT-2b: trim on blur, not on change — trimming per keystroke
                         // makes a multi-word section name impossible to type.
-                        onBlur={(e) => updateTask(task.id, { sectionName: e.target.value.trim() })}
+                        // CHK-1: blur is also where the section change COMMITS, so
+                        // this is where the task joins its new section's block.
+                        onBlur={(e) => updateTask(task.id, { sectionName: e.target.value.trim() }, { regroup: true })}
                       />
                     </td>
                     <td className="px-2 py-1">
@@ -658,8 +823,22 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const [selectedStoreIds, setSelectedStoreIds] = useState<Set<string>>(
     new Set(initialData?.storeAssignments?.map((a) => a.storeId) ?? [])
   )
-  const [tasks, setTasks] = useState<Task[]>(
-    (initialData?.tasks ?? []).map((t) => ({ ...t, excludedStoreIds: t.excludedStoreIds ?? [], videoUrl: t.videoUrl ?? "" }))
+  // CHK-1: REGROUPED ON LOAD. A template whose stored tasks interleave two
+  // sections opens with each section's tasks gathered under one heading instead
+  // of the section appearing twice — the defect, fixed where the operator can
+  // see it happening rather than silently at save time.
+  const [tasks, setTasks] = useState<Task[]>(() =>
+    regroupTasks(
+      (initialData?.tasks ?? []).map((t) => ({ ...t, excludedStoreIds: t.excludedStoreIds ?? [], videoUrl: t.videoUrl ?? "" }))
+    )
+  )
+  // CHK-1: section NAME → Section id, the identity half. Order is not kept here
+  // — it comes from the task array (see the block above `sectionGroupsOf`).
+  // A name with no entry is a section this edit invented; POST/PATCH create it.
+  // An entry whose name is no longer used by any task is simply not sent, and
+  // survives here so that retyping the old name re-resolves to the same row.
+  const [sectionIds, setSectionIds] = useState<Record<string, string>>(() =>
+    Object.fromEntries((initialData?.sections ?? []).map((s) => [s.name, s.id]))
   )
   const [showAddTask, setShowAddTask] = useState(false)
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards")
@@ -711,9 +890,51 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       setTasks((items) => {
         const oldIndex = items.findIndex((t) => t.id === active.id)
         const newIndex = items.findIndex((t) => t.id === over.id)
-        return arrayMove(items, oldIndex, newIndex)
+        // CHK-1: regrouped after the move, so a drag can reorder a task WITHIN
+        // its section but cannot leave a section's tasks scattered. Dropping a
+        // task across a section boundary returns it to its own block; changing
+        // its section is what the section input is for. Without this the array
+        // stops being a valid source of section order and the one-heading
+        // invariant only holds until the first drag.
+        return regroupTasks(arrayMove(items, oldIndex, newIndex))
       })
     }
+  }
+
+  // CHK-1: the two section-level operations. Both are expressed as moves on the
+  // task array, because that array is the order (see `sectionGroupsOf`).
+  //
+  // Returns an error string for the caller to show, or null. A rename onto a
+  // name another section already holds is REFUSED rather than merged: merging
+  // two sections is a destructive thing to do by typo, and the API refuses it
+  // for the same reason (api/templates/sections.ts).
+  function renameSection(from: string, to: string): string | null {
+    if (tasks.some((t) => t.sectionName.trim() === to)) {
+      return `A section named "${to}" already exists on this template.`
+    }
+    setSectionIds((prev) => {
+      const id = prev[from]
+      if (!id) return prev
+      const next = { ...prev }
+      delete next[from]
+      next[to] = id
+      return next
+    })
+    setTasks((prev) => prev.map((t) => (t.sectionName.trim() === from ? { ...t, sectionName: to } : t)))
+    return null
+  }
+
+  function moveSection(name: string, direction: -1 | 1) {
+    setTasks((prev) => {
+      const groups = sectionGroupsOf(prev)
+      const i = groups.findIndex((g) => g.name === name)
+      const j = i + direction
+      if (i < 0 || j < 0 || j >= groups.length) return prev
+      const reordered = [...groups]
+      reordered[i] = groups[j]
+      reordered[j] = groups[i]
+      return reordered.flatMap((g) => g.tasks)
+    })
   }
 
   function validateFile(file: File): string {
@@ -749,16 +970,18 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       const res = await fetch("/api/upload/task-attachment", { method: "POST", body: form })
       if (res.ok) {
         const att = await res.json() as TaskAttachment
-        setTasks((prev) => prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: att }))
+        setTasks((prev) => regroupTasks(prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: att })))
       } else {
         setEditAttachmentError("Upload failed. Please try again.")
         return
       }
     } else if (editExistingAttachment === null) {
       await fetch(`/api/upload/task-attachment/${taskId}`, { method: "DELETE" })
-      setTasks((prev) => prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: null }))
+      setTasks((prev) => regroupTasks(prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: null })))
     } else {
-      setTasks((prev) => prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null }))
+      // CHK-1: the edit drawer can change a task's section, so its save is a
+      // commit like the row input's blur — regrouped for the same reason.
+      setTasks((prev) => regroupTasks(prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null })))
     }
     setEditingTaskId(null)
   }
@@ -773,7 +996,10 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       estimatedTimeMinutes: newTask.estimatedTimeMinutes || null,
       orderIndex: tasks.length,
     }
-    setTasks((p) => [...p, task])
+    // CHK-1: regrouped, so adding a task to a section that already exists puts
+    // it at the end of THAT section rather than at the end of the list, where
+    // it would have split the section in two.
+    setTasks((p) => regroupTasks([...p, task]))
     if (newAttachmentFile) {
       setPendingAttachments((p) => ({ ...p, [localId]: { file: newAttachmentFile, label: newAttachmentLabel || newAttachmentFile.name } }))
     }
@@ -784,8 +1010,16 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     setShowAddTask(false)
   }
 
-  const updateTask = (id: string, patch: Partial<Task>) =>
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+  // CHK-1: `regroup` is passed by the callers that COMMIT a section change —
+  // the row input's onBlur, the bulk-set, Add Task and the edit drawer's Save.
+  // Not on every call: regrouping per keystroke would move the row out from
+  // under the cursor mid-word, which is the same reason DEBT-2b trims on blur
+  // rather than on change.
+  const updateTask = (id: string, patch: Partial<Task>, opts?: { regroup?: boolean }) =>
+    setTasks((prev) => {
+      const next = prev.map((t) => (t.id === id ? { ...t, ...patch } : t))
+      return opts?.regroup ? regroupTasks(next) : next
+    })
 
   function toggleTaskExclusion(taskId: string, storeId: string) {
     setTasks((prev) => prev.map((t) => {
@@ -837,6 +1071,14 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         // DEBT-2b: trim outbound so every form path — row input, bulk set, add
         // task, edit drawer — sends the same shape the API will store.
         tasks: tasks.map((t, i) => ({ ...t, sectionName: t.sectionName.trim(), orderIndex: i, estimatedTimeMinutes: t.estimatedTimeMinutes ?? null })),
+        // CHK-1: the section list, WITH IDS. This is the field that makes a
+        // rename a rename — without it the API can only resolve by name, and
+        // an edited name is indistinguishable from a brand-new section. Order
+        // is the task array's grouping, so `sortOrder` here and MIN(orderIndex)
+        // on the tasks above are the same number by construction.
+        sections: sectionGroupsOf(tasks)
+          .filter((g) => g.name)
+          .map((g, i) => ({ id: sectionIds[g.name] ?? null, name: g.name, sortOrder: i })),
       }
 
       const res = isEdit
@@ -1137,7 +1379,16 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 <p className="text-sm">No tasks added yet</p>
                 <p className="text-xs mt-1">Click &ldquo;Add Task&rdquo; to get started</p>
               </div>
-            ) : viewMode === "table" ? (
+            ) : (
+              <>
+                {/* CHK-1: section-level rename and reorder, above both views
+                    because it acts on the sections rather than on the rows. */}
+                <SectionManager
+                  groups={sectionGroupsOf(tasks)}
+                  renameSection={renameSection}
+                  moveSection={moveSection}
+                />
+                {viewMode === "table" ? (
               <TaskTableView
                 tasks={tasks}
                 stores={stores}
@@ -1179,6 +1430,8 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                   </div>
                 </SortableContext>
               </DndContext>
+                )}
+              </>
             )}
 
             {showAddTask && (

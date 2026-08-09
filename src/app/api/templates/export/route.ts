@@ -62,7 +62,9 @@ export async function GET(req: Request) {
   const templates = await prisma.template.findMany({
     where: { organizationId: org.id, ...(includeArchived ? {} : { isArchived: false }) },
     include: {
-      tasks: { orderBy: { orderIndex: "asc" } },
+      // CHK-1: the section join, for exactly TPL-2's reason one model down —
+      // see the `task_section` cell below.
+      tasks: { orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true } } } },
       // TPL-2 step (2). THIS JOIN IS NOT COSMETIC AND IT IS NOT OPTIONAL.
       // Step (1) stopped the rename cascade and the reassign write, so
       // Template.type is now a snapshot at insert — an export still emitting it
@@ -119,7 +121,18 @@ export async function GET(req: Request) {
       lines.push(
         [
           ...templateCells,
-          task.sectionName,
+          // CHK-1: the joined Section name, falling back to the legacy
+          // `sectionName` mirror for a task whose sectionId is null. Same
+          // argument as `template_type` above: a file operators carry between
+          // environments is the one place a stale mirror would escape the
+          // application, so the export reads the entity even though the two are
+          // written together on every path.
+          //
+          // THE COLUMN AND ITS CONTENTS ARE UNCHANGED — still `task_section`,
+          // still a NAME, no id column. That is what keeps CSVs already on disk
+          // import-valid in both directions; the import resolves the name to a
+          // Section within the template it is creating (import/route.ts).
+          task.section?.name ?? task.sectionName,
           task.description,
           task.estimatedTimeMinutes,
           task.requiresPhoto,

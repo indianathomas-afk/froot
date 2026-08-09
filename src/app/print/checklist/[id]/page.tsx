@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
+import { groupTasksBySection } from "@/lib/sections"
 import { ChecklistPrintControls } from "./checklist-print-controls"
 
 export default async function ChecklistPrintPage({
@@ -27,7 +28,10 @@ export default async function ChecklistPrintPage({
       store: true,
       template: {
         include: {
-          tasks: { orderBy: { orderIndex: "asc" } },
+          // CHK-1: the section join. The heading comes from the entity, not
+          // from the legacy `sectionName` string — but only when the frozen
+          // snapshot has nothing to say, which is src/lib/sections.ts's rule.
+          tasks: { orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true, sortOrder: true } } } },
           // TPL-2 step (2): joined row is the truth for the subtitle below.
           // One of the two sites reached through `checklist.template.type`.
           templateType: { select: { name: true } },
@@ -40,15 +44,14 @@ export default async function ChecklistPrintPage({
 
   const completedTaskIds = new Set(checklist.taskLogs.map((l) => l.taskId))
 
-  const sections = checklist.template.tasks.reduce<Record<string, typeof checklist.template.tasks>>(
-    (acc, task) => {
-      const key = task.sectionName || "General"
-      if (!acc[key]) acc[key] = []
-      acc[key].push(task)
-      return acc
-    },
-    {}
-  )
+  // CHK-1 — THE COMPLIANCE SURFACE, and the one this phase exists for. Headings
+  // come from `checklist.sectionsSnapshot` when the checklist has one: the
+  // names it was EXECUTED under, frozen at its first task log and never
+  // rewritten, so renaming a section on the template no longer rewrites this
+  // page. A checklist completed BEFORE the CHK-1 deploy has no snapshot and
+  // still renders live names — that is a recorded limitation, not a bug, and
+  // there is no honest way to recover what it was printed under.
+  const sections = groupTasksBySection(checklist.template.tasks, checklist.sectionsSnapshot)
 
   const totalMinutes = Math.round(
     checklist.template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)
@@ -139,10 +142,10 @@ export default async function ChecklistPrintPage({
         </div>
 
         {/* Sections */}
-        {Object.entries(sections).map(([section, tasks]) => (
-          <div key={section} className="section">
-            <div className="section-title">{section}</div>
-            {tasks.map((task) => {
+        {sections.map((section) => (
+          <div key={section.key} className="section">
+            <div className="section-title">{section.name}</div>
+            {section.tasks.map((task) => {
               const isDone = !isBlank && completedTaskIds.has(task.id)
               const checkboxClass = isDone
                 ? task.isCritical

@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessTemplatesManage } from "../access"
 import { resolveTemplateType } from "../template-type"
+import { SectionConflict, pruneEmptySections, sectionsFromTasks, syncTemplateSections, type IncomingSection } from "../sections"
 import { NextResponse } from "next/server"
 import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
 
@@ -48,9 +49,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // because the explicit write below it is gone — so removing `type:
   // _clientType` would not merely restore the old behaviour, it would hand the
   // legacy string to whatever the caller sent.
-  const { tasks, storeIds, appliesTo, type: _clientType, typeId, ...templateData } = body
+  const { tasks, sections, storeIds, appliesTo, type: _clientType, typeId, ...templateData } = body
   void _clientType
   const incomingTasks: IncomingTask[] = Array.isArray(tasks) ? tasks : []
+
+  // CHK-1. `sections` carries the SECTION IDS, and that is what makes a rename
+  // a rename rather than a create-plus-strand: an entry with an id updates that
+  // row's name, so every Task and every TaskLog pointing at it follows without
+  // moving. See api/templates/sections.ts.
+  //
+  // Absent — an older client, or any caller that only knows about task strings
+  // — the list is recovered from the tasks by MIN(orderIndex), the migration's
+  // rule. Renames are then indistinguishable from "a new section with this
+  // name", which is the pre-CHK-1 behaviour and is why the form sends the list.
+  const incomingSections: IncomingSection[] = Array.isArray(sections) && sections.length
+    ? (sections as IncomingSection[])
+    : sectionsFromTasks(incomingTasks)
 
   // DEBT-2b: sectionName is DELIBERATELY free text — no enum, no canonical
   // list (docs/DEBT-2_AUDIT.md §6). The column is NOT NULL, so blank is the
@@ -103,28 +117,40 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const toUpdate = incomingTasks.filter((t) => t.id && existingTaskIds.has(t.id))
     const toCreate = incomingTasks.filter((t) => !t.id || !existingTaskIds.has(t.id))
 
-    const taskData = (t: IncomingTask) => ({
-      sectionName: t.sectionName.trim(),
-      description: t.description,
-      estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
-      requiresPhoto: t.requiresPhoto ?? false,
-      requiresTemp: t.requiresTemp ?? false,
-      isCritical: t.isCritical ?? false,
-      orderIndex: t.orderIndex ?? 0,
-      excludedStoreIds: t.excludedStoreIds ?? [],
-      videoUrl: t.videoUrl || null,
-    })
+    // CHK-1: `sectionId` alongside `sectionName` on every task write. The
+    // string is the legacy mirror and stays written (TPL-1a's shape); the id is
+    // what the read sites join on.
+    const taskData = (t: IncomingTask, byName: Map<string, string>) => {
+      const sectionName = t.sectionName.trim()
+      return {
+        sectionName,
+        sectionId: byName.get(sectionName) ?? null,
+        description: t.description,
+        estimatedTimeMinutes: t.estimatedTimeMinutes ?? null,
+        requiresPhoto: t.requiresPhoto ?? false,
+        requiresTemp: t.requiresTemp ?? false,
+        isCritical: t.isCritical ?? false,
+        orderIndex: t.orderIndex ?? 0,
+        excludedStoreIds: t.excludedStoreIds ?? [],
+        videoUrl: t.videoUrl || null,
+      }
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
+      // Sections FIRST: renames must land before any task is stamped, or a
+      // renamed section resolves to nothing and every task in it goes null.
+      const synced = await syncTemplateSections(tx, id, incomingSections)
+      if (!synced.ok) throw new SectionConflict(synced.error)
+
       if (safeToDelete.length) {
         await tx.task.deleteMany({ where: { id: { in: safeToDelete } } })
       }
       for (const t of toUpdate) {
-        await tx.task.update({ where: { id: t.id! }, data: taskData(t) })
+        await tx.task.update({ where: { id: t.id! }, data: taskData(t, synced.byName) })
       }
       await tx.templateStoreAssignment.deleteMany({ where: { templateId: id } })
 
-      return tx.template.update({
+      await tx.template.update({
         where: { id },
         data: {
           ...templateData,
@@ -138,17 +164,35 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           // this handler just resolved a type for.
           typeId: resolved.type.id,
           appliesTo: appliesTo ?? "all",
-          tasks: toCreate.length ? { create: toCreate.map(taskData) } : undefined,
+          tasks: toCreate.length ? { create: toCreate.map((t) => taskData(t, synced.byName)) } : undefined,
           storeAssignments: storeIds?.length
             ? { create: (storeIds as string[]).map((sid: string) => ({ storeId: sid })) }
             : undefined,
         },
-        include: { tasks: { include: { attachment: true } }, storeAssignments: true },
+      })
+
+      // LAST, and after every task write: a section is only empty once the
+      // tasks have moved off it. See api/templates/sections.ts.
+      await pruneEmptySections(tx, id)
+
+      return tx.template.findUniqueOrThrow({
+        where: { id },
+        // CHK-1: `orderBy` is NEW. The form maps pending attachments onto
+        // `response.tasks[idx]` by position (template-form.tsx handleSave) and
+        // this include had no ordering at all, so that mapping held by luck.
+        include: {
+          tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } },
+          sections: { orderBy: { sortOrder: "asc" } },
+          storeAssignments: true,
+        },
       })
     })
 
     return NextResponse.json(updated)
   } catch (err) {
+    if (err instanceof SectionConflict) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
     console.error("Failed to update template", err)
     return NextResponse.json({ error: "Failed to save template" }, { status: 500 })
   }

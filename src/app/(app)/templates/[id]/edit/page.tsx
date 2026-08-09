@@ -14,7 +14,14 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
   const [template, stores] = await Promise.all([
     prisma.template.findFirst({
       where: { id, organizationId: org.id },
-      include: { tasks: { orderBy: { orderIndex: "asc" } }, storeAssignments: true },
+      // CHK-1: the form needs the SECTION ROWS, not just the strings on the
+      // tasks — it is the ids in this list that let a rename be a rename when
+      // the form posts back (api/templates/sections.ts).
+      include: {
+        tasks: { orderBy: { orderIndex: "asc" } },
+        sections: { select: { id: true, name: true, sortOrder: true }, orderBy: { sortOrder: "asc" } },
+        storeAssignments: true,
+      },
     }),
     prisma.store.findMany({
       where: { organizationId: org.id },

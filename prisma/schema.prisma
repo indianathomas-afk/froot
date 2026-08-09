@@ -340,6 +340,7 @@ model Template {
   templateType     TemplateType?             @relation(fields: [typeId], references: [id])
   storeAssignments TemplateStoreAssignment[]
   tasks            Task[]
+  sections         Section[]
   checklists       Checklist[]
   handoffMessages  TeamMessage[]             @relation("HandoffTarget")
 
@@ -393,6 +394,31 @@ model TemplateStoreAssignment {
   @@unique([templateId, storeId])
 }
 
+// CHK-1. Sections become first-class, PER TEMPLATE — the TemplateType precedent
+// where it fits and not where it does not. TemplateType is per-ORG with its own
+// management dialog because a type is a taxonomy shared across templates. A
+// section is a heading INSIDE one template: it has no meaning outside it, two
+// templates may both have "Restocking" and they are not the same thing, and it
+// is edited where it is used. So this model takes TPL-1's @@unique-on-name,
+// sortOrder and @@index conventions, and takes NO management surface.
+model Section {
+  id         String   @id @default(cuid())
+  templateId String
+  name       String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  template Template  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  tasks    Task[]
+  // A TaskLog points at the section its task belonged to, so the FK is RESTRICT
+  // in both directions: a section that any historical log references cannot be
+  // deleted, which is what keeps the as-executed record resolvable.
+  taskLogs TaskLog[]
+
+  @@unique([templateId, name])
+  @@index([templateId])
+}
+
 model Task {
   id                   String   @id @default(cuid())
   templateId           String
@@ -410,7 +436,19 @@ model Task {
   // called today. For an operational-compliance product that is the part that
   // matters. Whether to model Section as a first-class entity is AWAITING
   // GARY'S RULING on DEBT-36 — this comment records the fact, not the decision.
+  //
+  // CHK-1 (S1), 2026-08-09 — RULED AND BUILT. The block above records what was
+  // true before this row and is left unedited. What changed: `sectionId` below
+  // is the entity, and `sectionName` IS NOW A LEGACY MIRROR — kept, and kept
+  // written alongside `sectionId` on every write path, exactly TPL-1a's shape.
+  // Read the JOIN, not this string; it is the fallback for a row whose
+  // `sectionId` is null (nothing after the CHK-1 backfill should be, and the
+  // verification query in docs/prompts/CHK-1_PLAN.md §2.1 is what proves it).
+  // Retiring the column is a LATER ROW and is not CHK-1's business.
+  // The as-executed half of the defect above is answered by
+  // `Checklist.sectionsSnapshot`, not by this column.
   sectionName          String
+  sectionId            String?
   description          String
   estimatedTimeMinutes Float?
   requiresPhoto        Boolean  @default(false)
@@ -421,8 +459,11 @@ model Task {
   videoUrl             String?
 
   template   Template        @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  section    Section?        @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   taskLogs   TaskLog[]
   attachment TaskAttachment?
+
+  @@index([sectionId])
 }
 
 model TaskAttachment {
@@ -448,6 +489,22 @@ model Checklist {
   completedAt    DateTime?
   completionRate Float?    @default(0)
 
+  // CHK-1. The as-executed record DEBT-36 says does not exist. Frozen ONCE —
+  // on the first TaskLog write, or at day close for a checklist never started
+  // — and NEVER rewritten. Shape: [{ "sectionId": "...", "name": "...",
+  // "sortOrder": 0 }]. Print and history render headings from here when
+  // present and fall back to the live join when null (rows completed before
+  // this migration). Deliberately does NOT freeze task descriptions — see
+  // docs/prompts/CHK-1_PLAN.md §2.4.
+  //
+  // S1 SCOPE NOTE, appended 2026-08-09 rather than editing the block above:
+  // S1 ships ONLY the first-TaskLog freeze
+  // (api/checklists/[id]/task-log/route.ts). The "or at day close" half needs
+  // the day-close cron, which is CHK-3 — so a checklist nobody ever started
+  // has a null snapshot today, and renders live. src/lib/sections.ts is the
+  // single reader.
+  sectionsSnapshot Json?
+
   organization    Organization  @relation(fields: [organizationId], references: [id])
   template        Template      @relation(fields: [templateId], references: [id])
   store           Store         @relation(fields: [storeId], references: [id])
@@ -465,10 +522,25 @@ model Checklist {
 // work was done. Adding a column here is one candidate fix and is deliberately
 // NOT proposed as the answer; DEBT-36 is awaiting Gary's ruling on whether
 // Section becomes a first-class entity instead.
+//
+// CHK-1 (S1), 2026-08-09 — RULED, AND THE ABSENCE IS PARTLY FILLED. Gary took
+// the entity direction, so `sectionId` below now exists. READ WHAT IT IS AND
+// WHAT IT IS NOT: it is the id of the section the task belongs to, an
+// identifier — NOT a name, and NOT an as-executed record on its own. There is
+// deliberately no name column here (DEBT-26's discipline: one place per fact).
+// The as-executed NAME lives on `Checklist.sectionsSnapshot`, frozen once at
+// first task log.
+// Rows written BEFORE the CHK-1 migration had their `sectionId` backfilled
+// from the task's section AS IT STANDS TODAY, and NO NAME WAS FABRICATED for
+// them (Gary, 2026-08-09, plan §12.5). A historical log's heading is
+// unknowable; writing today's name into it would make a guess indistinguishable
+// from a record, which is the exact defect DEBT-36 is about. The as-executed
+// record starts at deploy.
 model TaskLog {
   id                 String   @id @default(cuid())
   checklistId        String
   taskId             String
+  sectionId          String?
   completedByUserId  String?
   completedByStaffId String?
   completedAt        DateTime @default(now())
@@ -478,8 +550,11 @@ model TaskLog {
 
   checklist        Checklist    @relation(fields: [checklistId], references: [id], onDelete: Cascade)
   task             Task         @relation(fields: [taskId], references: [id])
+  section          Section?     @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   completedByUser  User?        @relation(fields: [completedByUserId], references: [id])
   completedByStaff StaffMember? @relation(fields: [completedByStaffId], references: [id])
+
+  @@index([sectionId])
 }
 
 model AuditLog {
