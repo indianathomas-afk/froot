@@ -4,6 +4,144 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-08-10 — PRODUCTION promotion (the whole CHK phase engine: CHK-1 sections + CHK-2 day-close inputs + CHK-3 lifecycle + TPL-2 steps 1–2 + DEBT-41)
+
+- **Merge SHA:** `ddaa216` — full: `ddaa2164abccbdded6e2e948630fcf91265c4a5a`.
+  Parents: `7ab7106` (previous production tip) and `a0ed954` (staging tip).
+  Written on `main` after the merge and **before** the push, per WORKFLOW.md §2.
+- **TWENTY-ONE commits**, `7ab7106..a0ed954`. Oldest `216ea74`, newest
+  `a0ed954`. **The base is `7ab7106`, NOT `999cbdc`** — `999cbdc` was the
+  2026-08-04 promotion and the 2026-08-07 promotion (`fad9207`) sits between
+  them, so a `999cbdc..` range would re-count 25 commits that are already on
+  production. Written out because the range-notation trap this file documents on
+  the `de3ba40` entry is exactly the one available here, and the count (21) is
+  right for a base that is easy to get wrong.
+- **ROLLBACK — the three-line recipe, not one line** (WORKFLOW.md §2 as
+  corrected in `7ab7106`; `git revert -m 1` alone conflicts on
+  `docs/DEPLOY_LOG.md` every time, structurally):
+
+  ```bash
+  git checkout main
+  git revert -m 1 --no-commit ddaa216
+  git checkout HEAD -- docs/DEPLOY_LOG.md   # KEEP the log
+  git commit -m "Revert the 2026-08-10 promotion"
+  git push origin main
+  ```
+
+  Faster posture if the site is actively broken: Vercel → promote the `7ab7106`
+  production deployment back to current, then revert at leisure. **Both
+  migrations are additive and stay either way** — reverting the code leaves
+  unread columns, which is harmless; dropping them is a destructive migration
+  against production for no benefit.
+- **PROMOTED BY GIT PUSH, AND THAT IS NOW A RULE RATHER THAN A HABIT.**
+  DEBT-66 — three dashboard redeploys of `main` at `7ab7106` failed 2026-08-09
+  in `vercel-build` with no database env attached — was ruled 2026-08-10 not to
+  block a git-push promotion, because every measured failure was on the
+  dashboard-redeploy path and the git-pushed deploy of that same commit built
+  clean. The row stays OPEN, rescoped. The consequence to hold onto: **a
+  dashboard redeploy is not available as a recovery tool on this project**, which
+  bites hardest in exactly the situation where someone would reach for one. Use
+  the revert recipe above, or Vercel's promote-a-previous-deployment.
+- **What shipped**, by theme:
+  - **CHK-1 — sections become a first-class per-template entity** (`4fd9152`,
+    `7c99da3`, `7031155`). `Section` per template, `Task.sectionId`,
+    `TaskLog.sectionId`, and `Checklist.sectionsSnapshot` — the as-executed
+    record DEBT-36 said did not exist, frozen once on the first task log and
+    never rewritten. All six section render sites resolve through one helper
+    (`src/lib/sections.ts`). Staging-verified, including DEBT-36's latent trigger
+    fired deliberately: a rename left the historical checklist and its print copy
+    unchanged.
+  - **CHK-2 — day-close inputs** (`597e86d`, `5298d42`, `09a0898`). DEBT-32's
+    three phase lists folded into one derived list in `src/lib/phases.ts`, and
+    **the first writer `StoreHours` has ever had** (`/stores`, behind
+    `stores.manage`). The table has existed unwritten since
+    `20260627002005_init`.
+  - **CHK-3 — the lifecycle engine** (`d089a7c`, `3f062ab`, `411557a`,
+    `8752708`). `closedAt` / `completedLate` / `expectedStartAt` /
+    `expectedEndAt`; `src/lib/checklist-lifecycle.ts` holding the five
+    predicates once each; `GET /api/cron/checklist-day-close` hourly under
+    `CRON_SECRET`; and the S1 integrity fix — `task-log` now refuses a `taskId`
+    that does not belong to the checklist's template, and `submit` counts
+    distinct valid logs instead of raw rows. Overdue is derived on read and is
+    written nowhere; Missed is the only written closed fact.
+  - **TPL-2 steps (1) and (2)** (`198d040`, `332e6fb`) — the legacy
+    `Template.type` string is no longer read; every site resolves the name
+    through the joined row. Step (3), the destructive column drop, is NOT in
+    this promotion and is not authorised.
+  - **DEBT-41** (`13e96fb`, `cc837db`) — `narrowed`, the third `BlockerEntry`
+    state, with both exemplars migrated.
+  - **Rulings and bookkeeping** (`216ea74`, `552a5e7`, `746918c`, `3ec9bc8`,
+    `32237ee`, `a0ed954`) — the approved CHK plan and session skeletons, the CHK
+    track filed, the CRON-DIAG findings, and today's gate resolutions. `df96e9b`
+    (temporary cron instrumentation) is in the range and was reverted by
+    `32237ee` before this promotion; both are present and cancel out.
+- **MIGRATIONS — TWO, applied on this promotion by the pipeline's
+  `prisma migrate deploy` during the build. Never run by hand against
+  production.**
+  - `20260809160000_chk1_section_entity` — Migration A. Structural half plus a
+    **data backfill**: one `Section` per distinct `(templateId, sectionName)`,
+    with `sortOrder` recovered from `MIN(orderIndex)` rather than invented, then
+    `Task.sectionId` and `TaskLog.sectionId` filled by name match. Idempotent.
+    **This is the only part of this promotion that has never run against real
+    production rows** — the structural half was proven against `migrate diff`,
+    but a backfill is per-branch by construction. CHK-1 does not go `shipped`
+    until `unlinked_tasks = 0` comes back from `br-sparkling-block-a620qvg4`;
+    the query is on the CHK-1 row.
+  - `20260809194500_chk3_checklist_lifecycle` — Migration B. Four lifecycle
+    columns, two scan indexes, **and two unique indexes**:
+    `Checklist_storeId_templateId_date_key` and
+    `StoreHours_storeId_dayOfWeek_key`. **No backfill** — every pre-existing row
+    keeps NULLs, because no expected window existed before this phase and
+    inventing one would manufacture retroactive data.
+  - **THE PRECHECK WAS RE-RUN ON PRODUCTION 2026-08-10 AND IT IS WHAT MADE THOSE
+    TWO UNIQUE INDEXES SAFE TO SHIP.** Branch `br-sparkling-block-a620qvg4`:
+    `checklist_dupes 0`, `storehours_dupes 0`. A unique index is the one kind of
+    statement in either file that can fail on existing data, and a failure here
+    fails the production build. The August 9 zero was not reused — the table
+    grows daily and `StoreHours` had been taking writes from CHK-2's editor since
+    that morning.
+- **DAY-ONE BEHAVIOUR ON PRODUCTION — EXPECTED, AND IT WILL LOOK LIKE A
+  REGRESSION IF NOBODY WROTE IT DOWN.** The engine ships **ahead of its
+  surfaces**: CHK-4 (chips, banners, the Missed style, the print stamp) and
+  CHK-5 (the operations report) are not built. That split is the plan's design —
+  it is what made CHK-3 verifiable on its own — not an oversight.
+  - The first hourly sweep after deploy **materialises a Missed row for every
+    Daily template × every store × the two-day lookback**. On staging that was
+    88 materialised rows across 12 stores in one sweep. Production will be the
+    same shape.
+  - **Every production store falls to the midnight + 3h fallback**, because
+    `StoreHours` is empty there — CHK-2's editor is that table's only writer and
+    reaches production with this very promotion. Stores get real day-close
+    instants only once someone fills the hours in.
+  - **`/reports` will visibly move, in two directions at once.** Its four tiles
+    do not count `Missed`, so they under-report; its per-store table derives the
+    total from the row count, so materialised rows push totals up and completion
+    rates **down**. Same page, one number too low and another too high, from one
+    cause. That is DEBT-63, which anticipated it.
+  - The STAFF nav badge counts `Pending`/`In Progress` with no date scope, so
+    stale rows flipping to `Missed` can remove the Checklists item for a STAFF
+    user.
+  - **DEBT-65** — bulk generate creates checklists for archived templates that
+    no store surface shows, and day close now files those as Missed. An operator
+    may see a store "missing" work nobody was ever shown.
+  - None of this is visible to crews as a feature: `/checklists` and
+    `/store-view` are scoped to today's business day and the lookback never
+    includes today, so a materialised row appears on neither.
+- **CRON_SECRET WAS NOT ROTATED, BY RULING** (Gary, 2026-08-10). The deployed
+  value transited a chat transcript on 2026-08-09. Blast radius assessed low —
+  `/api/cron/checklist-day-close` is idempotent and Vercel fires it hourly
+  anyway, so an unauthorised caller only makes the same sweep happen sooner.
+  **Accepted, not fixed**: it is an open low-priority item on CHK-3, to be done
+  at the next secret-touching session by the CLAUDE.md § Environment Variables
+  ritual. Recorded here because a deferred rotation that appears nowhere is a
+  rotation nobody does.
+- **VERIFICATION OWED AFTER THE PUSH**, in order: both migrations visible as
+  applied in the production build log; CHK-1's `unlinked_tasks = 0` on
+  `br-sparkling-block-a620qvg4`; CHK-3's structure query on the same branch
+  (four columns, three `Checklist` indexes, one `StoreHours` index); then the
+  first scheduled sweep's response read from the Vercel function log. Until
+  those land, this entry records what was PROMOTED, not what was proven.
+
 ## 2026-08-07 — PRODUCTION promotion (TPL-1 template types + DEBT-59 offsets + six debt rulings)
 
 - **Merge SHA:** `fad9207` — full: `fad92078176969b681ea80770dfbf6e2366edafa`.
