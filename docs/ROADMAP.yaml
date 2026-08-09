@@ -1014,9 +1014,69 @@ phases:
   - id: CHK-2
     track: checklists
     size: S-M
-    status: planned
+    status: in_progress
+    commits: ["597e86d"]
     title: "Day-close inputs — fold the three phase lists into one, and give StoreHours a writer"
     notes: >
+      IN_PROGRESS, NOT staging, IN "597e86d" 2026-08-09. Both halves are built
+      and committed; nothing is pushed, so no deployment runs this yet and Gary
+      has verified nothing. The row moves to `staging` when the checklist below
+      passes against the staging deployment.
+      WHAT SHIPPED, AND WHAT PROVES IT. The DEBT-32 fold is done and its
+      zero-output-change claim was PROVEN, not asserted: the retired
+      implementations were pasted verbatim from 7031155 and run beside the
+      shipped ones over 2,715 comparisons — every phase either can receive
+      (canonical, the legacy "During Hours" string, null, empty,
+      whitespace-padded, case variants, junk) crossed with the full source x
+      target date rule across month, year, leap-day and both DST boundaries. No
+      differences, plus six named cases asserted absolutely rather than only as
+      old-vs-new equality. The ordering map now lives ONCE, in src/lib/phases.ts,
+      DERIVED from OPERATIONAL_PHASES rather than restated.
+      ONE DESIGN NOTE WORTH KEEPING: phaseOrder deliberately does NOT route
+      through normalizePhase. That function trims and the old maps did not, so
+      using it would reorder a whitespace-padded "  Before Opening  " from MID to
+      OPENING — a real behaviour change wearing a cleanup's clothes. The WRITE
+      paths already normalize, which is where trimming belongs.
+      STOREHOURS HAS A WRITER FOR THE FIRST TIME, and the finding that made this
+      row exist was confirmed by MEASUREMENT rather than by grep alone: dev
+      br-broad-wave-a6vpjdw0 held 0 StoreHours rows in the entire database
+      before this session. PUT/GET /api/stores/[id]/hours, PUT behind
+      stores.manage — no new capability, no permissions.ts edit — plus a
+      seven-day editor on /stores. Replace-in-one-transaction rather than upsert,
+      forced by the schema: StoreHours carries no @@unique([storeId, dayOfWeek]),
+      so upsert has no key to target. NO MIGRATION SHIPPED, as ruled.
+      BLANK IS A REAL ANSWER AND IT IS THE DEFAULT (DEBT-59). A day nobody has
+      decided about gets NO ROW — not a fabricated 9-to-5. Clearing a day deletes
+      its row; a one-sided day persists one NULL. Both existing readers already
+      treat "no row" and "row with unusable times" identically, so "hours not
+      set" stays a queryable state instead of becoming indistinguishable from a
+      real decision to open at nine.
+      VERIFIED END-TO-END ON DEV, br-broad-wave-a6vpjdw0, Store
+      cmqvygqx9000004kzadw4vecg ("Carson"), Organization
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd: seven decided days round-trip, a
+      one-sided day keeps its NULL, isClosed round-trips with both times NULL,
+      clearing a day removes its row and leaves the other six. LABOR'S
+      EXPLICIT-HOURS BRANCH EXECUTED FOR THE FIRST TIME IN ITS LIFE — open hours
+      moved from inference [13,13,13,13,14,13,10] to explicit
+      [12,12,12,12,14,13,0]. The fixture was removed; the branch is back to 0
+      rows.
+      TWO PRE-EXISTING /stores DEFECTS WENT LIVE WITH THE WRITER AND ARE FIXED
+      HERE, both harmless only because no store could have hours: the hours block
+      rendered ONLY when hours existed and its "Edit Hours" button had no
+      onClick — a dead affordance inside an unreachable branch — and
+      `${openingTime} - ${closingTime}` would have printed the literal "null" for
+      a half-filled day, while the Mon-Fri group rendered only when all five
+      weekdays were present AND identical, silently showing nothing for a store
+      open different hours on Wednesday.
+      THE FALLBACK COPY IS NOT HERE, DELIBERATELY. "Hours: not set" is stated
+      neutrally; what an unset store falls back to at day close is CHK-3's
+      sentence to write, on the session that makes it true (the DEBT-29 lesson).
+      THE DEBT-33 HAZARD BELOW HAS MOVED ONE LINE, as a direct result of this
+      commit: handoff-notes.tsx's baseline error now sits at :69:25, not :70:25,
+      because the fold's edit is one line shorter than what it replaced. The
+      exclusion worked as designed — run on its own the file reports exactly that
+      one error and no other, so this session introduced none and fixed none.
+      DEBT-33 carries the dated correction.
       S2 of five. Plan: docs/prompts/CHK-1_PLAN.md §§3.1, 8. Absorbs DEBT-32.
       SHIPS: DEBT-32 — delete the two hand-copied "During Hours" alias lines
       (messages.ts:41, handoff-notes.tsx:24) and move PHASE_ORDER into
@@ -7188,8 +7248,54 @@ debt:
       standalone. Related: DEBT-1, DEBT-3.
 
   - id: DEBT-32
-    title: "Retire the I-14b legacy phase alias and fold the three phase lists into one"
+    status: staging
+    commits: ["597e86d"]
+    title: "CLOSED — Retire the I-14b legacy phase alias and fold the three phase lists into one"
     notes: >
+      CLOSED 2026-08-09 IN "597e86d", AS CHK-2'S OPENING MOVE. Both
+      `"During Hours"` alias lines are deleted and the ordering map lives once,
+      in src/lib/phases.ts, DERIVED from OPERATIONAL_PHASES rather than restated
+      — so the fourth list this row worried about cannot drift from the
+      canonical one, because it IS the canonical one. Three lists became one.
+      `status: staging` IS ONE STEP AHEAD AND SAYS SO. The commit is on the local
+      staging branch and has NOT been pushed — Claude never pushes — so no
+      deployment is running this yet. It is recorded as `staging` because that is
+      the branch it is committed to and the next promotion carries it; it is not
+      a claim that anyone has observed it running. This is TPL-2's caveat rather
+      than S1's inverse of it, and it is written down rather than left for a
+      reader to assume the stronger meaning.
+      THE BEHAVIOURALLY-INERT CLAIM WAS THIS ROW'S OWN, AND IT HELD — but it was
+      PROVEN rather than trusted. The row said `phaseOrder` falls back to `?? 1`,
+      the same value the alias maps to, so deleting both lines changes no output.
+      HOW IT WAS PROVEN: the retired implementations were pasted verbatim from
+      7031155 — including handoff-notes.tsx's separate hand-copied twin, which
+      got its own comparison rather than being assumed identical to the
+      messages.ts one — and run beside the shipped code over every input either
+      can receive: the three canonical phases, the legacy string, null, empty,
+      whitespace-padded, case variants and junk, crossed with the full source x
+      target date rule across a month boundary, a year boundary, a leap day and
+      both DST boundaries. 2,715 comparisons, ZERO differences. Six named cases
+      were also asserted ABSOLUTELY, not merely as old-vs-new equality, since
+      equality alone would still pass if both sides were wrong together:
+      "During Hours" orders as mid and reports shift_phase mid; "Post to Closing"
+      from an opener lands today; "Post to Opening" from a closer lands tomorrow;
+      and the legacy string behaves identically in both the source and the target
+      position.
+      ONE THING THE ROW DID NOT ANTICIPATE, recorded because it is the near-miss:
+      the obvious tidy implementation — routing phaseOrder through
+      normalizePhase() — WOULD HAVE BROKEN THE INERTNESS. normalizePhase trims
+      and the old maps did not, so a whitespace-padded "  Before Opening  " would
+      have moved from MID to OPENING. It was rejected for that reason and the
+      lookup stays untrimmed. The write paths already normalize; trimming belongs
+      there, not in a read path that is claiming to change nothing.
+      THE HAZARD FIRED EXACTLY AS PREDICTED AND WAS HANDLED AS INSTRUCTED. CHK-2
+      scoped its eslint gate to exclude handoff-notes.tsx and said so in the
+      commit message. Run on its own the file reports exactly the one DEBT-33
+      baseline error and no other — so the session introduced none and, as
+      required, fixed none. THE CITATION MOVED: :70:25 to :69:25, because this
+      commit's edit is one line shorter than what it replaced. Corrected on
+      DEBT-33.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       ABSORBED 2026-08-09 AS CHK-2'S OPENING MOVE. Plan:
       docs/prompts/CHK-1_PLAN.md §8, committed in "746918c". This is not a
       re-file and the work is unchanged — it is the same two alias lines and the
@@ -7261,6 +7367,23 @@ debt:
   - id: DEBT-33
     title: "npm run lint exits 1 on a clean checkout — 10 errors, no commit gate can use it"
     notes: >
+      POINTER REPAIR 2026-08-09 (CHK-2, "597e86d") — ONE OF THE TEN MOVED, AND
+      NOTHING WAS FIXED. The impure-function error in
+      src/app/(app)/store-view/checklist/[id]/handoff-notes.tsx now sits at
+      **:69:25**, not :70:25. CHK-2's DEBT-32 fold deleted the hand-copied
+      PHASE_ORDER map from that file and replaced it with an import, and the
+      replacement is one line shorter — so the Date.now() call slid up by one.
+      THE COUNT IS UNCHANGED AT TEN. This is a line number moving, not an error
+      clearing: CHK-2 scoped its eslint gate to exclude that file precisely so it
+      would neither be blocked by this error nor appear to have fixed it, and run
+      on its own afterwards the file reports exactly this one error and no other.
+      Repaired here rather than in the dated measurement below, which stands as
+      written: `THE ELEVEN, at 48559fc` records what was true at that commit and
+      is not edited. This block is the current pointer; that block is the
+      history. Whoever finally clears these ten should search the file for
+      `Date.now`, not for a line number — this is the second time a citation in
+      this row has been invalidated by an unrelated edit to a file it names.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: No commit gate in this repo can use
       `npm run lint` — measured at HEAD, exit 1, 32 problems, 10 errors — so
       every commit runs scoped eslint instead and a regression in an untouched
