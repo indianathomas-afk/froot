@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
+import { phaseOrder } from "@/lib/phases"
 
 // ─── I-14 Team Messaging: shared constants & helpers ─────────────────────────
 
@@ -34,17 +35,12 @@ export const HANDOFF_MAX_AGE_DAYS = 7
 // Template.operationalPhase orders a store's checklists within the day. The
 // handoff date rule: posting to a LATER slot lands today; posting to an
 // earlier-or-equal slot lands tomorrow (closer → tomorrow's opener).
-
-const PHASE_ORDER: Record<string, number> = {
-  "Before Opening": 0,
-  "During the Day": 1, // canonical (what the template form writes)
-  "During Hours": 1, // legacy rows from the original template import
-  "After Closing": 2,
-}
-
-export function phaseOrder(operationalPhase: string | null): number {
-  return PHASE_ORDER[operationalPhase ?? ""] ?? 1
-}
+//
+// DEBT-32 (CHK-2): the map that stood here — and its hand-copied twin in
+// handoff-notes.tsx — now live in src/lib/phases.ts, derived from
+// OPERATIONAL_PHASES. phaseOrder is imported rather than defined, and is no
+// longer re-exported from this module: nothing outside imported it from here,
+// and one export site is the point of the fold.
 
 // Maps a source checklist's slot to the shift_phase recorded on the note.
 export function phaseToShiftPhase(operationalPhase: string | null): "opening" | "mid" | "closing" {

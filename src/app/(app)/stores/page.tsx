@@ -1,6 +1,7 @@
 import { MapPin, Clock, Mail, Phone, CheckCircle, Link2, Tablet, ShieldAlert, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { StoreActions } from "./store-actions"
+import { StoreHoursButton } from "./store-hours-button"
 import { AddStoreButton } from "./add-store-button"
 import { ImportSquareButton } from "./import-square-button"
 import { CreateDeviceLoginButton } from "./create-device-login-button"
@@ -10,29 +11,47 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@clerk/nextjs/server"
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-const DAY_LABELS: Record<string, string> = {
-  "Mon-Fri": "Mon-Fri",
-  Sat: "Sat",
-  Sun: "Sun",
+
+type HoursRow = { dayOfWeek: number; openingTime: string | null; closingTime: string | null; isClosed: boolean }
+
+// CHK-2: both halves of this function used to be unreachable, because nothing
+// had ever written a StoreHours row (plan finding 2). Now that S2 ships the
+// writer, two things it got away with have to be fixed:
+//
+//  (1) `${openingTime} - ${closingTime}` printed the literal string "null" for a
+//      half-filled day. Times are independently nullable in the schema and the
+//      editor lets a day carry one without the other, so a one-sided day now
+//      reads "Opens 07:00" rather than "07:00 - null".
+//  (2) The Mon-Fri group only rendered when all five weekdays were present AND
+//      identical — so a store open different hours on Wednesday showed NOTHING
+//      for Mon-Fri, silently. The collapse is kept for the common case and the
+//      days are listed individually otherwise, rather than dropped.
+function dayValue(h: HoursRow): string {
+  if (h.isClosed) return "Closed"
+  if (h.openingTime && h.closingTime) return `${h.openingTime} - ${h.closingTime}`
+  if (h.openingTime) return `Opens ${h.openingTime}`
+  if (h.closingTime) return `Closes ${h.closingTime}`
+  return "—"
 }
 
-function formatHours(hours: { dayOfWeek: number; openingTime: string | null; closingTime: string | null; isClosed: boolean }[]) {
+function formatHours(hours: HoursRow[]) {
   const sorted = [...hours].sort((a, b) => a.dayOfWeek - b.dayOfWeek)
   const groups: { label: string; value: string }[] = []
 
-  // Group Mon-Fri
+  // Group Mon-Fri when all five are set and agree; otherwise list each day set.
   const weekdays = sorted.filter((h) => h.dayOfWeek >= 1 && h.dayOfWeek <= 5)
   const allSameWeekday = weekdays.length === 5 && weekdays.every((h) => h.openingTime === weekdays[0].openingTime && h.closingTime === weekdays[0].closingTime && h.isClosed === weekdays[0].isClosed)
-  if (allSameWeekday && weekdays.length > 0) {
-    const h = weekdays[0]
-    groups.push({ label: "Mon-Fri", value: h.isClosed ? "Closed" : `${h.openingTime} - ${h.closingTime}` })
+  if (allSameWeekday) {
+    groups.push({ label: "Mon-Fri", value: dayValue(weekdays[0]) })
+  } else {
+    for (const h of weekdays) groups.push({ label: DAYS[h.dayOfWeek], value: dayValue(h) })
   }
 
   const sat = sorted.find((h) => h.dayOfWeek === 6)
-  if (sat) groups.push({ label: "Sat", value: sat.isClosed ? "Closed" : `${sat.openingTime} - ${sat.closingTime}` })
+  if (sat) groups.push({ label: "Sat", value: dayValue(sat) })
 
   const sun = sorted.find((h) => h.dayOfWeek === 0)
-  if (sun) groups.push({ label: "Sun", value: sun.isClosed ? "Closed" : `${sun.openingTime} - ${sun.closingTime}` })
+  if (sun) groups.push({ label: "Sun", value: dayValue(sun) })
 
   return groups
 }
@@ -265,11 +284,18 @@ export default async function StoresPage() {
                     </div>
                   )}
 
-                  {hoursGroups.length > 0 && (
-                    <div className="flex items-start gap-2 text-[var(--color-muted-foreground)]">
-                      <Clock className="h-4 w-4 mt-0.5 shrink-0" />
-                      <div>
-                        {hoursGroups.map(({ label, value }) => (
+                  {/* CHK-2: this block used to render ONLY when hours existed, and
+                      its "Edit Hours" button had no onClick — a dead affordance
+                      inside an unreachable branch, since no store could have hours.
+                      Now the editor has to be reachable for a store with none, which
+                      is every store on day one. "Not set" is stated plainly and
+                      neutrally: what an unset store falls back to for day close is
+                      CHK-3's to say, on the session that makes it true. */}
+                  <div className="flex items-start gap-2 text-[var(--color-muted-foreground)]">
+                    <Clock className="h-4 w-4 mt-0.5 shrink-0" />
+                    <div>
+                      {hoursGroups.length > 0 ? (
+                        hoursGroups.map(({ label, value }) => (
                           <div key={label} className="flex gap-2">
                             <span className={value === "Closed" ? "text-[var(--color-destructive)]" : ""}>
                               <strong>{label}:</strong>{" "}
@@ -278,13 +304,26 @@ export default async function StoresPage() {
                               </span>
                             </span>
                           </div>
-                        ))}
-                        <button className="flex items-center gap-1 text-[var(--color-primary)] text-xs mt-1 hover:opacity-80">
-                          📅 Edit Hours
-                        </button>
-                      </div>
+                        ))
+                      ) : (
+                        <span>Hours: not set</span>
+                      )}
+                      {isAdmin && (
+                        <StoreHoursButton
+                          store={{
+                            id: store.id,
+                            name: store.name,
+                            hours: store.hours.map((h) => ({
+                              dayOfWeek: h.dayOfWeek,
+                              openingTime: h.openingTime,
+                              closingTime: h.closingTime,
+                              isClosed: h.isClosed,
+                            })),
+                          }}
+                        />
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   <div className="flex items-center gap-2 text-[var(--color-muted-foreground)]">
                     <Clock className="h-4 w-4 shrink-0 opacity-0" />

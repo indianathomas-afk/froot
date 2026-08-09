@@ -9,6 +9,7 @@ import {
   timeAgo,
   type FeedMessage,
 } from "@/app/(app)/messages/messages-client"
+import { phaseOrder } from "@/lib/phases"
 
 // Checklist handoff notes (Phase I-14): the opener leaves a note for the
 // closer, the closer for tomorrow's opener. Rendering + composing live here;
@@ -16,15 +17,13 @@ import {
 
 export type HandoffTarget = { id: string; name: string; operationalPhase: string | null }
 
-// Mirrors PHASE_ORDER in src/lib/messages.ts (server-only module — imports the
-// Prisma runtime, so the map is duplicated here rather than imported).
-const PHASE_ORDER: Record<string, number> = {
-  "Before Opening": 0,
-  "During the Day": 1, // canonical (what the template form writes)
-  "During Hours": 1, // legacy rows from the original template import
-  "After Closing": 2,
-}
-const order = (phase: string | null) => PHASE_ORDER[phase ?? ""] ?? 1
+// DEBT-32 (CHK-2): the map that used to be hand-copied here is imported now.
+// src/lib/phases.ts is free of Prisma and React imports precisely so a client
+// component can reach it — src/lib/messages.ts, which held the server copy,
+// cannot be imported from here because it pulls in the Prisma runtime. The
+// labels below still mirror resolvePostedForDate's date rule; they now mirror
+// its ORDERING by sharing the function rather than by restating it.
+const order = phaseOrder
 
 // ─── "Notes from the last shift" banner ───────────────────────────────────────
 
