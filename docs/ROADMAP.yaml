@@ -1014,10 +1014,38 @@ phases:
   - id: CHK-2
     track: checklists
     size: S-M
-    status: in_progress
+    status: staging
     commits: ["597e86d"]
     title: "Day-close inputs — fold the three phase lists into one, and give StoreHours a writer"
     notes: >
+      VERIFIED 2026-08-09 BY GARY ON STAGING — org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa on the Clerk instance verified-snapper-7,
+      retrieved via `window.Clerk.organization.id` FIRST, BEFORE ANY
+      OBSERVATION. That ordering is the S1 lesson and it is now practice rather
+      than a reminder: § Browser Evidence's 2026-08-06 correction records an org
+      id read off a database row AFTERWARDS and written down as the wrong
+      environment, so the id is taken Clerk-side, up front, in the same
+      continuous session as the observations it labels.
+      ALL FIVE CHECKS PASSED. (1) Hours round-trip — blank stays blank, cleared
+      stays cleared, Closed round-trips. (2) Handoff notes identical to
+      pre-fold behaviour: opener→today, closer→tomorrow, ordering unchanged.
+      (3) Labor shows the explicit hours for the configured store and 0 for a
+      Closed day. (4) A store with no hours renders everywhere unchanged —
+      the negative check, and the one that proves NULL breaks nothing. (5)
+      Square resync left the hours intact, which the resync route's own comment
+      claimed and this is the first time anything has been able to test.
+      WHAT THAT MAKES TRUE THAT WAS NOT TRUE BEFORE: a store in a deployed
+      environment now has real hours, so labor's explicit branch is running on
+      staging rather than only under a local harness, and CHK-3's blocker
+      ("at least one store has hours set to verify against") is satisfied on the
+      branch S3 will verify against. That blocker is marked resolved on CHK-3
+      in this commit.
+      `status: staging` IS SIMPLY TRUE HERE. Both commits are on
+      origin/staging — Gary pushed them between sessions, which is what made the
+      pass possible — and the observations were taken against that deployment.
+      Not one step ahead; contrast DEBT-32's closure, which was written while
+      they were still unpushed and says so.
+      ── PRE-VERIFICATION BLOCK BELOW, UNEDITED ──
       IN_PROGRESS, NOT staging, IN "597e86d" 2026-08-09. Both halves are built
       and committed; nothing is pushed, so no deployment runs this yet and Gary
       has verified nothing. The row moves to `staging` when the checklist below
@@ -1109,6 +1137,36 @@ phases:
     status: planned
     title: "Lifecycle engine — expected windows, overdue on read, missed written at day close"
     notes: >
+      CARRIED IN FROM S2's TRIAGE 2026-08-09 — TWO ITEMS, AND THEY EXISTED ONLY
+      IN THAT SESSION'S REPORT UNTIL THIS COMMIT. S2's triage named both as
+      ROWs and then did not file them; the S2 report is not the board. That is
+      DEBT-37's rule firing on the session immediately after the one that
+      recorded it firing (see the block below, carried in from S1's triage for
+      exactly the same reason). Twice in two sessions is a pattern, not an
+      accident: NAMING a row in a triage is not FILING it.
+      (a) STOREHOURS NEEDS @@unique([storeId, dayOfWeek]) AND IT RIDES MIGRATION
+      B. The table has never had one — verified at HEAD, prisma/schema.prisma:181
+      — which is why CHK-2's writer had to replace the whole set in a
+      transaction rather than upsert: there is no key to target. The table can
+      therefore hold two rows for one weekday, and both readers resolve that
+      with `.find()`, taking whichever comes back first. Add it to Migration B
+      alongside Checklist_storeId_templateId_date_key. IT NEEDS THE SAME
+      PRECHECK DISCIPLINE as that index and for a stronger reason: CHK-2's
+      editor is now writing this table on staging, so a duplicate can be created
+      between now and the day S3 runs. Re-measure per branch before applying;
+      non-zero drops it rather than delaying the migration.
+      (b) LABOR AND DAY CLOSE WILL DISAGREE ABOUT OVERNIGHT STORES, and S3 must
+      know before it writes expectedWindow(). A store set 07:00-02:00 fails
+      labor's `e > s` check at labor-plan.ts:202 and silently gets sales
+      inference instead of its own hours; one-sided hours (open set, close
+      blank) fail the same way. Plan §3.5 rules the OPPOSITE for day close —
+      `closingTime <= openingTime` means the close instant is D+1, handled
+      explicitly. So the same store will be judged on its real window by day
+      close and on an inferred one by labor. THIS IS NOT S3's TO FIX — the fix
+      is in labor-plan.ts, which S3 must not touch — but S3 must not
+      accidentally "align" the two by copying labor's check either. The labor
+      half is DEBT-64.
+      ── CARRIED IN FROM S1's TRIAGE, UNEDITED ──
       CARRIED IN FROM S1's TRIAGE 2026-08-09 — AN INTEGRITY HOLE IN THE
       COMPLETION RECORD, PRE-EXISTING, AND THIS ROW IS THE RIGHT PLACE FOR IT
       because S3 is already rewriting the two routes involved.
@@ -1172,13 +1230,14 @@ phases:
       MUST NOT TOUCH: any rendering. A chip on a screen in this session means
       the split has failed.
     blockers:
-      - >
-        BEHIND CHK-2 — a real gate, not sequencing. Day close is driven by
-        StoreHours (Gary's R2) and StoreHours has no writer until CHK-2 ships
-        one, so on today's data every store would fall to the midnight+buffer
-        fallback and the ruled mechanism would never be exercised at all.
-        CLEARS WHEN: CHK-2 ships the StoreHours editor and at least one store
-        has hours set to verify against.
+      - resolved: true
+        text: >
+          BEHIND CHK-2 — a real gate, not sequencing. Day close is driven by
+          StoreHours (Gary's R2) and StoreHours has no writer until CHK-2 ships
+          one, so on today's data every store would fall to the midnight+buffer
+          fallback and the ruled mechanism would never be exercised at all.
+          CLEARS WHEN: CHK-2 ships the StoreHours editor and at least one store
+          has hours set to verify against.
 
   - id: CHK-4
     track: checklists
@@ -7252,6 +7311,26 @@ debt:
     commits: ["597e86d"]
     title: "CLOSED — Retire the I-14b legacy phase alias and fold the three phase lists into one"
     notes: >
+      CLOSURE CONFIRMED BY GARY'S STAGING PASS 2026-08-09 — org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, instance verified-snapper-7. Handoff
+      notes behaved identically to pre-fold on the deployed code: opener→today,
+      closer→tomorrow, ordering unchanged. The row was already closed in
+      "5298d42" on measured evidence; this is the browser half confirming the
+      harness, not a second closure.
+      TWO CORRECTIONS TO THE BLOCK BELOW, WHICH IS OTHERWISE LEFT AS WRITTEN.
+      (1) IT IS NO LONGER ONE STEP AHEAD. That block was written while both
+      commits were unpushed and correctly said so; Gary has since pushed them,
+      origin/staging is at "5298d42", and the pass above ran against that
+      deployment. `status: staging` is now plainly true.
+      (2) WHERE THE PROOF LIVES, since the block below states the method but not
+      its location: the durable record is "597e86d"'s own commit message, which
+      carries the full method and the 2,715-comparison count, plus the S2
+      session report. THE HARNESS ITSELF WAS NOT PRESERVED — it ran from the
+      session scratchpad and is gone. That is a real limit on this citation and
+      it is stated rather than papered over: the numbers are re-derivable from
+      the method as described, but the proof is not re-runnable as written. A
+      future session wanting to re-verify rebuilds it from the commit message.
+      ── CLOSURE AS WRITTEN 2026-08-09, UNEDITED ──
       CLOSED 2026-08-09 IN "597e86d", AS CHK-2'S OPENING MOVE. Both
       `"During Hours"` alias lines are deleted and the ordering map lives once,
       in src/lib/phases.ts, DERIVED from OPERATIONAL_PHASES rather than restated
@@ -10412,6 +10491,63 @@ debt:
       Disconfirmed by: /reports deriving its total from anything other than
       `completed + inProgress + pending`. Related: DEBT-37 (the same silent
       fallthrough class), CHK-4.
+
+  - id: DEBT-64
+    title: >
+      Labor silently ignores overnight and one-sided StoreHours and infers from
+      sales instead — and day close will read the same rows the other way
+    notes: >
+      COST OF DOING NOTHING: A store whose real hours cross midnight has those
+      hours entered, saved, and displayed on /stores — and labor plans its week
+      as if they had never been set, from trailing sales, with nothing on any
+      screen saying so. LIVE the moment such a store is configured; LATENT only
+      because no store had hours at all before 2026-08-09. It gets worse rather
+      than staying flat: CHK-3 makes day close read the SAME rows under the
+      OPPOSITE rule, so one store ends up judged on two different windows by two
+      subsystems that both look correct.
+      DERIVED AT HEAD "597e86d" by the CHK-2 session, from reading
+      labor-plan.ts:195-207 and from running the explicit-hours branch for the
+      first time in its life against dev br-broad-wave-a6vpjdw0.
+      FILED 2026-08-09. IT EXISTED ONLY IN S2's REPORT UNTIL THIS COMMIT —
+      named as a ROW in that session's triage and never written to the board.
+      DEBT-37's rule, firing on the session immediately after the one that
+      recorded it firing on S1. Filed here rather than absorbed into CHK-3
+      because the fix is in labor-plan.ts, which CHK-3 must not touch, and a
+      rider on a phase row dies when that phase closes.
+      THE FACT: labor-plan.ts:202 accepts an explicit window only when
+      `e > s` — `open = s != null && e != null && e > s ? {...} : inferredOpen[wd]`.
+      A 07:00-02:00 store gives s=7, e=2, so `e > s` is false and it falls
+      through to sales inference. One-sided hours fail identically: CHK-2's
+      editor deliberately allows a day with an opening time and no closing time
+      (times are independently nullable, and inventing the missing half is what
+      DEBT-59 forbids), and `e != null` then fails. MEASURED, not reasoned:
+      with Sat set to 08:00 and no close, labor returned 13 open hours for that
+      day — the inferred figure, unchanged from before hours existed — while
+      Mon-Thu correctly took their explicit 12.
+      THE FALLBACK IS NOT THE DEFECT; THE SILENCE IS. Falling back to inference
+      for an unusable window is defensible on its own. What is not defensible is
+      that an operator who typed real hours gets a plan built from something
+      else with no indication anywhere — the same shape as DEBT-59's lesson, one
+      subsystem over: a value nobody chose, presented as if chosen.
+      WHAT CHK-3 MUST NOT DO, and this is the half that makes this urgent rather
+      than merely wrong: plan §3.5 rules that for day close `closingTime <=
+      openingTime` means the close instant is D+1 plus buffer — overnight is
+      handled EXPLICITLY and correctly. So after CHK-3 ships, one store is
+      judged on its real window by day close and on an inferred one by labor.
+      S3 must not "resolve" that by copying labor's `e > s` check into
+      expectedWindow(); the plan's rule is the right one and this row is the
+      other side being wrong.
+      FIX SHAPE: treat `e <= s` as a window crossing midnight (end + 24) rather
+      than as invalid, matching the day-close rule so the two subsystems read
+      one meaning; and decide explicitly what a one-sided day means — infer the
+      missing half, or ignore the row — rather than having it fall out of a null
+      check. Either way, surface WHICH stores are running on inference, since
+      that is the part no screen says today. Prefer aligning to §3.5, so there
+      is one definition of a store's operating window rather than two.
+      Disconfirmed by: labor-plan.ts accepting a window where `e <= s`, or any
+      surface naming the stores whose hours were set and then ignored.
+      Related: CHK-2 (shipped the editor that makes this reachable), CHK-3
+      (§3.5, the opposing rule), DEBT-59 (values nobody chose).
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
