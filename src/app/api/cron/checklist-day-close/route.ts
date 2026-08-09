@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto" // TEMP CRON-DIAG-2 — REVERT
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { dbDate, localDateStr } from "@/lib/reports"
@@ -49,38 +48,6 @@ import {
 
 export const maxDuration = 300
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TEMP CRON-DIAG-2 — REVERT. Diagnostic instrumentation for the staging 401
-// (docs/prompts/CRON-DIAG_findings.md). Every macro cause is eliminated; this
-// answers the only remaining question — what does the server hold, and how does
-// it differ from what arrives? It logs SHAPES ONLY: lengths, whitespace
-// booleans, and the first 4 hex chars of a SHA-256. Four hex chars is 16 bits —
-// enough to compare two secrets for equality of content, far too little to
-// attack. NO SECRET VALUE IS EVER LOGGED, in whole or in part.
-// Revert with `git revert` in the same sitting as the fix. Do not let this
-// reach production.
-function tempCronDiag2(secret: string, header: string | null): void {
-  const h4 = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 4)
-  const shape = (label: string, s: string) =>
-    `${label}: len=${s.length} ws=${s.trim().length !== s.length} h4=${h4(s)} h4trim=${h4(s.trim())}`
-
-  if (header === null) {
-    console.warn(`[TEMP CRON-DIAG-2] no authorization header · ${shape("env", secret)}`)
-    return
-  }
-  // The scheme is the substring before the first space — "Bearer", "bearer",
-  // "Basic". Not secret, and a case or scheme mismatch fails the exact-equality
-  // check invisibly, so it is worth seeing.
-  const sp = header.indexOf(" ")
-  const scheme = sp === -1 ? "(none)" : header.slice(0, sp)
-  const token = sp === -1 ? "" : header.slice(sp + 1)
-  console.warn(
-    `[TEMP CRON-DIAG-2] scheme="${scheme}" headerLen=${header.length} · ` +
-      `${shape("env", secret)} · ${shape("token", token)}`,
-  )
-}
-// ─────────────────────────── end TEMP CRON-DIAG-2 ────────────────────────────
-
 /** How far back the stranded-open probe looks, BEFORE the lookback window. */
 const STRANDED_PROBE_DAYS = 7
 
@@ -122,7 +89,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "CRON_SECRET is not configured" }, { status: 500 })
   }
   if (req.headers.get("authorization") !== `Bearer ${secret}`) {
-    tempCronDiag2(secret, req.headers.get("authorization")) // TEMP CRON-DIAG-2 — REVERT
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
