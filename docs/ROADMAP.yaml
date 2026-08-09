@@ -10572,6 +10572,22 @@ debt:
       Disconfirmed by: /reports deriving its total from anything other than
       `completed + inProgress + pending`. Related: DEBT-37 (the same silent
       fallthrough class), CHK-4.
+      RIDER 2026-08-09 (CHK-3, "d089a7c") — ONE FACT THIS ROW DOES NOT HAVE, AND
+      IT MATTERS BECAUSE THE TWO HALVES OF THE PAGE MOVE IN OPPOSITE DIRECTIONS.
+      The per-store table at reports/page.tsx:36-41 does NOT use the hand-summed
+      denominator: `total` is `sc.length`, every row in scope whatever its
+      status, and `rate` is completed/total. So the moment Missed rows exist —
+      which is the moment CHK-3's cron first runs, BEFORE CHK-4 touches any
+      counting — the four tiles under-report by MORE while the store table's
+      rate drops by the same rows. Same page, one number too low, another too
+      high, from the same cause. Materialised misses add rows that never existed
+      before; stale Pending rows flipped to Missed leave the tiles but stay in
+      the table's denominator. The fix shape above (derive the total from the
+      row count) fixes the tiles and leaves the table already correct, which is
+      further reason to prefer it.
+      THE CHK-3 SESSION DID NOT TOUCH THIS — it must not touch any rendering —
+      and it is stated here rather than only in that session's report so it is
+      not rediscovered as a regression when the numbers move on staging.
 
   - id: DEBT-64
     title: >
@@ -10645,6 +10661,52 @@ debt:
       is exactly the "which stores are running on inference" signal this row
       says no screen carries. Labor needs its own equivalent, but the shape is
       already decided rather than open.
+
+  - id: DEBT-65
+    title: >
+      Bulk generate creates checklists for ARCHIVED templates that no store
+      surface will ever show — and day close now files them as Missed
+    notes: >
+      COST OF DOING NOTHING: An archived template still gets a checklist for
+      every store every time an admin presses Generate, and /store-view never
+      lists it, so nobody can complete it. LATENT SINCE FOREVER as an invisible
+      Pending row; LOUD THE DAY MIGRATION B DEPLOYS, because CHK-3's day-close
+      job closes every existing row for a past day — including these — as
+      MISSED. An operator who archived a template last month then sees it in the
+      operations report as a store's miss, for work nobody was ever shown.
+      DERIVED AT HEAD "09a0898" by the CHK-3 session, from reading the three
+      applicability filters side by side. Not measured against any database.
+      THE FACT: api/checklists/route.ts:150 selects bulk-generate templates with
+      `{ organizationId, isActive: true }` and NO isArchived filter.
+      api/stores/[id]/templates/route.ts:24 — the list staff actually see —
+      selects `{ isActive: true, isArchived: false }`, and CHK-3's
+      api/cron/checklist-day-close/route.ts copies that stricter filter
+      deliberately so it can never MATERIALISE a miss for a template a store was
+      never shown. The two filters have disagreed all along; the cron makes the
+      disagreement produce a row with a status on it.
+      AND THE TWO FLAGS ARE INDEPENDENT, which is what makes this reachable
+      rather than theoretical: archiving does NOT clear isActive. Both writers
+      set one flag only — api/templates/[id]/route.ts:31 (single) and the bulk
+      patch at api/templates/route.ts:47-52, driven by
+      templates-client.tsx:314's Archive button. So `isArchived && isActive` is
+      the NORMAL state of an archived template, not a corrupt one.
+      WHY CHK-3 DID NOT FIX IT, stated so the omission is not read as an
+      oversight: the one-line filter would change WHICH templates generation
+      covers, and that is a product decision on an admin button with no ruling
+      behind it. S3's business was the engine. It is filed rather than left in
+      that session's report because a triage that NAMES a row and does not FILE
+      it is how CHK-3's own row came to carry two items from S2 (DEBT-37).
+      FIX SHAPE: add `isArchived: false` to the bulk-generate filter so the
+      three applicability tests read one rule. Consider whether archiving should
+      also clear isActive, or whether isActive should stop being consulted
+      separately at all — two flags with one meaning is the shape of the
+      problem. Decide, too, what happens to checklists already generated for an
+      archived template: leaving them is defensible, and doing nothing is only
+      defensible once it is chosen.
+      Disconfirmed by: bulk generate filtering on isArchived, or any surface
+      rendering an archived template's checklist. Related: CHK-3 (the writer
+      that makes it visible), CHK-5 (the report it shows up on), DEBT-61 (the
+      other generation filter that is not there).
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
