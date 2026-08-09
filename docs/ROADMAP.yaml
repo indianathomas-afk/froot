@@ -705,6 +705,34 @@ phases:
       CLOSED, the column is no longer read; STEP (3), the drop, REMAINS
       OPEN AND UNAUTHORISED
     notes: >
+      VERIFIED 2026-08-08 BY GARY ON STAGING, after "198d040" and "332e6fb"
+      reached origin. THE TWO GENUINELY-CHANGED BEHAVIOURS WERE EXERCISED, which
+      is the point of this rider — a build gate proves the joins compile, not
+      that the right name reaches a screen:
+      (1) RENAME OF AN IN-USE TYPE propagated to the list badges and the
+      template view THROUGH THE JOIN, with the cascade gone. This is the one the
+      deleted block used to do by hand.
+      (2) TYPE CHANGE ON A TEMPLATE surfaced the new type everywhere and THE
+      STALE MIRROR STRING NEVER RENDERED — the row's `type` column now holds the
+      old name by design, and the check is that nothing shows it.
+      (3) CSV EXPORT emitted CURRENT type names, which is the surface where a
+      stale string would otherwise have escaped into a file.
+      ALL THREE PASSED. The regression checklist at docs/prompts/TPL-2_PLAN.md
+      §6 is otherwise unrun; these three are the cases where behaviour actually
+      changed, and the rest of that list re-exercises paths this commit did not
+      alter.
+      THIS OBSERVATION DOES NOT MEET CLAUDE.md § BROWSER EVIDENCE, AND SAYING SO
+      IS THE POINT OF RECORDING IT THIS WAY. That section requires the
+      ORGANIZATION ID and the Clerk INSTANCE named on the same line as the
+      observation — "a page reading without a named org id does not count" —
+      and NEITHER WAS CAPTURED at the time. The walkthrough is reported here as
+      Gary ran it; what is missing is the identifier that would let a later
+      reader confirm WHICH org's templates were renamed. Staging holds multiple
+      orgs answering to the same names (§ Database Evidence), so the gap is not
+      theoretical. Recorded rather than quietly omitted (Gary's ruling,
+      2026-08-08) so this rider carries its real weight: a first-hand pass whose
+      subject is under-specified, not a citable measurement. Anyone who needs
+      the org id must ask Gary; it is not recoverable from this file.
       STEPS (1) AND (2) CLOSED 2026-08-08, commit "198d040". Nothing reads
       Template.type while typeId is set. The three UPDATE paths stopped writing
       it — PATCH /api/templates/[id], the rename cascade in PATCH
@@ -723,6 +751,13 @@ phases:
       DEBT-41's precedent, stated rather than implied. "198d040" is committed on
       the local `staging` branch and NOT PUSHED; the value becomes true on
       Gary's push. Claude never pushes (CLAUDE.md § Git Rules).
+      CORRECTION APPENDED 2026-08-08 — THE CAVEAT ABOVE IS NOW FALSE AND THE
+      STATUS IS SIMPLY TRUE. Gary pushed; "198d040" and "332e6fb" are both on
+      origin/staging, confirmed by `git merge-base --is-ancestor` against
+      origin/staging after a fetch, not by assuming the push succeeded. The
+      original text is preserved rather than deleted because it records what was
+      true at writing and why the value was written ahead of it — the caveat
+      was correct, and it expired the way it was designed to.
       TWO CLAIMS ON THIS ROW WERE WRONG AND THE ROW CORRECTS ITSELF HERE. The
       prose below is left exactly as it stood, per the convention DEBT-59 and
       DEBT-36 follow — corrections are prepended, never edited in.
@@ -7463,6 +7498,29 @@ debt:
       CLOSED — A blocker entry can only be LIVE or RESOLVED — there is
       no value for the half-closed state two entries are actually in
     notes: >
+      VERIFIED 2026-08-08 BY GARY ON STAGING — CODE VERIFIED VIA THE TPL-2
+      WALKTHROUGH; PANEL RENDERING PER THE "13e96fb" SESSION'S BROWSER EVIDENCE.
+      Read the two halves separately, because they carry different weight. The
+      code is on staging and exercised: "13e96fb" and "cc837db" reached origin
+      with "198d040"/"332e6fb", and the TPL-2 pass ran against a build carrying
+      this row's BlockerEntry union, so the type change is live and does not
+      break the app. THE PANEL ITSELF WAS NOT RE-OPENED IN THIS PASS. The counts
+      below — 16 live · 2 narrowed across 11 blocked phases · 12 resolved, the
+      dashed border and the NARROWED marker — REST ENTIRELY ON THE "13e96fb"
+      SESSION'S OWN BROWSER READING, recorded further down this row, and are not
+      independently re-confirmed here.
+      WRITTEN THIS WAY DELIBERATELY (Gary, 2026-08-08). The first draft of this
+      rider asserted a staging panel reading with those exact counts. They are
+      identical to the ones already in this row, which is precisely the shape of
+      a figure transcribed from a document and re-reported as a fresh
+      observation — CLAUDE.md § Database Evidence's relocation lesson, one
+      surface over. Asked directly, Gary confirmed the panel was not opened. A
+      rider claiming a check that did not happen would have been worse than no
+      rider, because it would have looked like corroboration.
+      WHAT WOULD ACTUALLY CLOSE THIS: open /internal/roadmap on staging, name
+      the ORGANIZATION ID and the Clerk INSTANCE per CLAUDE.md § Browser
+      Evidence, and record the counts seen. Until then the panel evidence for
+      this row has exactly one source, taken pre-push on a local build.
       CLOSED 2026-08-08, commit "13e96fb". The third state exists and both
       exemplars carry it. BlockerEntry is now
       `string | {resolved: true, text} | {narrowed: true, text}` — a bare string
@@ -7483,6 +7541,12 @@ debt:
       legend's `staging` ("merged to `staging`, on Vercel preview") is the
       nearest true value once the push lands. Claude never pushes (CLAUDE.md
       § Git Rules).
+      CORRECTION APPENDED 2026-08-08 — THE CAVEAT ABOVE IS NOW FALSE AND THE
+      STATUS IS SIMPLY TRUE. Gary pushed; "13e96fb" and its row commit "cc837db"
+      are both on origin/staging, confirmed by `git merge-base --is-ancestor`
+      against origin/staging after a fetch rather than by assuming the push
+      succeeded. Preserved rather than deleted: the caveat was correct when
+      written and expired exactly as designed.
       THE NAME IS `narrowed`, NOT `half` OR `partial`, and the reason is in the
       two exemplars: neither is half of anything. Each is an entry that still
       blocks on strictly LESS than it originally asserted — BUILD-1's step 1
