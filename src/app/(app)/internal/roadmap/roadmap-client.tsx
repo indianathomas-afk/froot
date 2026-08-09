@@ -141,14 +141,88 @@ function formatDate(iso: string) {
  * THIS FUNCTION IS THE SINGLE DEFINITION of which entries count as resolved —
  * src/lib/roadmap.ts points here rather than restating the test, so the two
  * cannot drift apart (DEBT-26).
+ *
+ * RESOLVED IS NOT THE ONLY NON-LIVE STATE any more: see isNarrowedBlocker
+ * below, added by DEBT-41 2026-08-08. This test is unchanged by it — a narrowed
+ * entry carries no `resolved` key and answers false here — but "not resolved"
+ * therefore no longer means "live", which is why `liveBlockers` and
+ * `blockingBlockers` are now two different functions.
  */
 function isResolvedBlocker(entry: BlockerEntry) {
-  return typeof entry !== "string" && entry.resolved === true
+  return typeof entry !== "string" && "resolved" in entry && entry.resolved === true
 }
 
-/** The entry's prose, whichever of the two shapes it is in. */
+/**
+ * DEBT-41's third state, 2026-08-08. A NARROWED entry STILL BLOCKS — it is
+ * counted separately, never excluded, and its phase stays in the live list and
+ * in the "Phases blocked" tile. What it records is that the entry now asserts
+ * strictly LESS than it did: part of it is answered and a named remainder is
+ * live. BUILD-1's sole entry and IG-1's `blockers[2]` are the two instances.
+ *
+ * WHY ITS OWN NUMBER rather than folding into live: the row this closes spent a
+ * week recording that the panel read "11 live when the honest answer is 9 live
+ * and 2 half-closed". Folding it in keeps the count safe and keeps it dishonest.
+ * Excluding it would be the one thing this whole scheme exists to prevent.
+ *
+ * `"narrowed" in entry` is the discriminant, so a resolved entry can never
+ * answer true here and vice versa — they are separate union members, which is
+ * also why neither flag can ever be `false` (see src/lib/roadmap.ts).
+ *
+ * THIS FUNCTION IS THE SINGLE DEFINITION of which entries are narrowed, the
+ * sibling of isResolvedBlocker above; src/lib/roadmap.ts points here rather
+ * than restating the test (DEBT-26).
+ */
+function isNarrowedBlocker(entry: BlockerEntry) {
+  return typeof entry !== "string" && "narrowed" in entry && entry.narrowed === true
+}
+
+/** The entry's prose, whichever of the three shapes it is in. */
 function blockerText(entry: BlockerEntry) {
   return typeof entry === "string" ? entry : entry.text
+}
+
+/**
+ * The three states as one value, so the FOUR places that render a BlockerEntry
+ * cannot drift into disagreeing about what an entry is. Built on the two
+ * predicates above rather than re-testing the flags (DEBT-26).
+ */
+type BlockerState = "live" | "narrowed" | "resolved"
+
+function blockerStateOf(entry: BlockerEntry): BlockerState {
+  if (isResolvedBlocker(entry)) return "resolved"
+  if (isNarrowedBlocker(entry)) return "narrowed"
+  return "live"
+}
+
+/**
+ * MARKED, NOT MERELY TONED — P-4's rule, and it is why a narrowed entry gets a
+ * word and not just a dashed border. Two of the closed entries (PERM-6's last
+ * two) say "STAYS OPEN" in their own leading text, and both narrowed entries
+ * open with prose about being half-closed, so the prose can never be left to
+ * tell the reader which state this is. Live entries carry no marker: the
+ * absence is the default, exactly as it is in the data.
+ */
+function BlockerMarker({
+  state,
+  className,
+}: {
+  state: BlockerState
+  className?: string
+}) {
+  if (state === "live") return null
+  return (
+    <span
+      className={cn(
+        "mr-1.5 font-semibold uppercase tracking-wide",
+        state === "narrowed"
+          ? "text-[var(--color-warning-text)]"
+          : "text-[var(--color-muted-foreground)]",
+        className,
+      )}
+    >
+      {state}
+    </span>
+  )
 }
 
 /**
@@ -169,8 +243,30 @@ function isOpenRuling(item: Ruling) {
   return (item.status ?? "open") === "open"
 }
 
-function liveBlockers(phase: Phase) {
+/**
+ * EVERYTHING STILL BLOCKING — live entries AND narrowed ones. This is the set
+ * that answers "what is stopping promotion", and it is the body `liveBlockers`
+ * had before DEBT-41 split the two apart.
+ *
+ * The rename is the point. A narrowed entry still blocks, so this set had to
+ * keep including it; leaving it called `liveBlockers` would have handed the
+ * next reader a function whose NAME says one thing and whose contents say
+ * another, and the under-report would arrive the first time someone trusted
+ * the name.
+ */
+function blockingBlockers(phase: Phase) {
   return (phase.blockers ?? []).filter((entry) => !isResolvedBlocker(entry))
+}
+
+/** STRICTLY live — neither flag. Feeds the panel's "N live" number only. */
+function liveBlockers(phase: Phase) {
+  return (phase.blockers ?? []).filter(
+    (entry) => !isResolvedBlocker(entry) && !isNarrowedBlocker(entry),
+  )
+}
+
+function narrowedBlockers(phase: Phase) {
+  return (phase.blockers ?? []).filter(isNarrowedBlocker)
 }
 
 function resolvedBlockers(phase: Phase) {
@@ -178,12 +274,13 @@ function resolvedBlockers(phase: Phase) {
 }
 
 /**
- * LIVE blockers only. One predicate feeds both the "Phases blocked" tile and
- * the panel's phase list, so the two can never disagree about what counts —
- * the same single-source discipline isResolvedDebt has.
+ * STILL-BLOCKING blockers — live or narrowed. One predicate feeds both the
+ * "Phases blocked" tile and the panel's phase list, so the two can never
+ * disagree about what counts — the same single-source discipline isResolvedDebt
+ * has. A phase whose only entry is NARROWED is still a blocked phase.
  */
-function hasLiveBlockers(phase: Phase) {
-  return liveBlockers(phase).length > 0
+function hasOpenBlockers(phase: Phase) {
+  return blockingBlockers(phase).length > 0
 }
 
 interface RoadmapClientProps {
@@ -244,7 +341,7 @@ export function RoadmapClient({
     const planned = phases.filter(
       (p) => p.status === "planned" || p.status === "in_progress",
     ).length
-    const blocked = phases.filter(hasLiveBlockers).length
+    const blocked = phases.filter(hasOpenBlockers).length
     return { inProduction, inStaging, planned, blocked }
   }, [phases])
 
@@ -259,7 +356,7 @@ export function RoadmapClient({
       return 3
     }
     return phases
-      .filter(hasLiveBlockers)
+      .filter(hasOpenBlockers)
       .slice()
       .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id))
   }, [phases])
@@ -270,7 +367,7 @@ export function RoadmapClient({
   const resolvedOnlyPhases = useMemo(
     () =>
       phases
-        .filter((p) => !hasLiveBlockers(p) && resolvedBlockers(p).length > 0)
+        .filter((p) => !hasOpenBlockers(p) && resolvedBlockers(p).length > 0)
         .slice()
         .sort((a, b) => a.id.localeCompare(b.id)),
     [phases],
@@ -530,26 +627,27 @@ function BlockedPhaseCard({ phase }: { phase: Phase }) {
       </div>
       <ul className="space-y-1.5">
         {phase.blockers?.map((entry, i) => {
-          const resolved = isResolvedBlocker(entry)
+          const state = blockerStateOf(entry)
           return (
             <li
               key={i}
               className={cn(
                 "text-sm pl-3 border-l-2",
-                resolved
-                  ? "border-[var(--color-border)] text-[var(--color-muted-foreground)]/70"
-                  : "border-[var(--color-warning)] text-[var(--color-muted-foreground)]",
+                // Three treatments, distinguishable by BORDER alone and by WORD
+                // alone. Narrowed stays in the live family — same warning
+                // colour, full-strength text — because it still blocks; the
+                // DASH is the "this one shrank" signal. Resolved is the only
+                // one that goes muted and faded, because it is the only one
+                // that stopped mattering.
+                state === "resolved" &&
+                  "border-[var(--color-border)] text-[var(--color-muted-foreground)]/70",
+                state === "narrowed" &&
+                  "border-dashed border-[var(--color-warning)] text-[var(--color-muted-foreground)]",
+                state === "live" &&
+                  "border-[var(--color-warning)] text-[var(--color-muted-foreground)]",
               )}
             >
-              {/* Marked, not merely toned. Two of the closed entries (PERM-6's
-                  last two) say "STAYS OPEN" in their own leading text — they are
-                  closed by the entry ABOVE them — so the prose cannot be left to
-                  tell the reader which state this is. */}
-              {resolved && (
-                <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
-                  resolved
-                </span>
-              )}
+              <BlockerMarker state={state} className="text-[10px]" />
               {blockerText(entry)}
             </li>
           )
@@ -567,6 +665,10 @@ function BlockersPanel({
   resolvedOnlyPhases: Phase[]
 }) {
   const liveTotal = livePhases.reduce((sum, p) => sum + liveBlockers(p).length, 0)
+  const narrowedTotal = livePhases.reduce(
+    (sum, p) => sum + narrowedBlockers(p).length,
+    0,
+  )
   const resolvedTotal = [...livePhases, ...resolvedOnlyPhases].reduce(
     (sum, p) => sum + resolvedBlockers(p).length,
     0,
@@ -582,10 +684,18 @@ function BlockersPanel({
         <h2 className="text-sm font-semibold text-[var(--color-warning-text)]">
           Blockers &amp; gates — what&apos;s stopping promotion
         </h2>
-        {/* Both units named. This count is ENTRIES; the tile above is PHASES. */}
+        {/* Both units named. These counts are ENTRIES; the tile above is
+            PHASES — hence "blocked phases" rather than a second bare number.
+            DEBT-41: live and narrowed are reported SEPARATELY and both are
+            still blocking, so liveTotal + narrowedTotal is the honest "what is
+            stopping promotion" figure and neither half is hidden inside the
+            other. narrowedTotal sums livePhases alone because a narrowed entry
+            makes hasOpenBlockers true, so its phase can never be in
+            resolvedOnlyPhases. */}
         <span className="text-xs text-[var(--color-warning-text)]/80">
-          {liveTotal} live blocker{liveTotal === 1 ? "" : "s"} across{" "}
-          {livePhases.length} phase{livePhases.length === 1 ? "" : "s"}
+          {liveTotal} live
+          {narrowedTotal > 0 && ` · ${narrowedTotal} narrowed`} across{" "}
+          {livePhases.length} blocked phase{livePhases.length === 1 ? "" : "s"}
           {resolvedTotal > 0 && ` · ${resolvedTotal} resolved`}
         </span>
       </div>
@@ -808,7 +918,12 @@ function PipelinePanel({
               // nothing today — there are zero staging phases, so the defect was
               // dormant rather than absent. It re-arms the moment anything sits
               // in staging, which is exactly when this panel is read.
-              const live = liveBlockers(phase)
+              // blockingBlockers, NOT liveBlockers — DEBT-41. A phase whose
+              // only entry is NARROWED still has a gate, and this panel is read
+              // at promotion time: reading strictly-live here would print
+              // "ready to promote" over a live gate, which is the one direction
+              // the whole scheme forbids.
+              const blocking = blockingBlockers(phase)
               const resolvedCount = resolvedBlockers(phase).length
               return (
                 <li
@@ -819,16 +934,23 @@ function PipelinePanel({
                   <p className="text-sm font-medium text-[var(--color-foreground)]">
                     <span className="font-bold">{phase.id}</span> — {phase.title}
                   </p>
-                  {live.length > 0 ? (
+                  {blocking.length > 0 ? (
                     <ul className="mt-2 space-y-1">
-                      {live.map((entry, i) => (
-                        <li
-                          key={i}
-                          className="text-xs text-[var(--color-warning-text)] pl-2 border-l-2 border-[var(--color-warning)]"
-                        >
-                          {blockerText(entry)}
-                        </li>
-                      ))}
+                      {blocking.map((entry, i) => {
+                        const state = blockerStateOf(entry)
+                        return (
+                          <li
+                            key={i}
+                            className={cn(
+                              "text-xs text-[var(--color-warning-text)] pl-2 border-l-2 border-[var(--color-warning)]",
+                              state === "narrowed" && "border-dashed",
+                            )}
+                          >
+                            <BlockerMarker state={state} />
+                            {blockerText(entry)}
+                          </li>
+                        )
+                      })}
                     </ul>
                   ) : (
                     <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
@@ -870,6 +992,10 @@ function PhaseCard({
   onToggle: () => void
 }) {
   const liveCount = liveBlockers(phase).length
+  // Its own badge, not folded into liveCount and not dropped — DEBT-41. A
+  // narrowed entry counted nowhere would disappear from the collapsed card
+  // entirely, which is an under-report on the densest surface of the board.
+  const narrowedCount = narrowedBlockers(phase).length
   const resolvedCount = resolvedBlockers(phase).length
   // hasDetail counts ALL entries, not just live ones: a card whose blockers are
   // every one of them closed must still expand, or the record becomes
@@ -943,6 +1069,9 @@ function PhaseCard({
                 {liveCount} blocker{liveCount === 1 ? "" : "s"}
               </Badge>
             )}
+            {narrowedCount > 0 && (
+              <Badge variant="warning">{narrowedCount} narrowed</Badge>
+            )}
             {resolvedCount > 0 && (
               <Badge variant="outline">{resolvedCount} resolved</Badge>
             )}
@@ -1010,22 +1139,22 @@ function DetailList({
       </p>
       <ul className="space-y-1">
         {items.map((item, i) => {
-          const resolved = isResolvedBlocker(item)
+          const state = blockerStateOf(item)
           return (
             <li
               key={i}
               className={cn(
                 "text-xs pl-2 border-l-2",
-                tone === "warning" && !resolved
+                tone === "warning" && state !== "resolved"
                   ? "border-[var(--color-warning)] text-[var(--color-warning-text)]"
                   : "border-[var(--color-border)] text-[var(--color-muted-foreground)]",
+                // The third treatment, same as the panel's: a narrowed entry
+                // keeps the live colour because it still blocks, and the dash
+                // is what separates it at a glance.
+                state === "narrowed" && "border-dashed",
               )}
             >
-              {resolved && (
-                <span className="mr-1.5 font-semibold uppercase tracking-wide">
-                  resolved
-                </span>
-              )}
+              <BlockerMarker state={state} />
               {blockerText(item)}
             </li>
           )

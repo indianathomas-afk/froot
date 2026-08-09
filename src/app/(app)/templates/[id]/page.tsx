@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import Link from "next/link"
+import { groupTasksBySection } from "@/lib/sections"
 import { PrintButton } from "./print-button"
 
 export default async function TemplateViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,17 +16,23 @@ export default async function TemplateViewPage({ params }: { params: Promise<{ i
 
   const template = await prisma.template.findFirst({
     where: { id, organizationId: org.id },
-    include: { tasks: { orderBy: { orderIndex: "asc" } } },
+    include: {
+      // CHK-1: headings and their order come from the joined Section.
+      tasks: { orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true, sortOrder: true } } } },
+      // TPL-2 step (2): the type is read from the joined row, not the legacy
+      // `type` string. Null here is a template with no TemplateType — only a
+      // TPL-1a-window import or the seed script produces one — and it falls
+      // back to the string. Re-measured 2026-08-08: unlinked 0 on all three
+      // branches, so the fallback is transition scaffolding, not live path.
+      templateType: { select: { name: true } },
+    },
   })
   if (!template) return notFound()
 
-  // Group tasks by section
-  const sections = template.tasks.reduce<Record<string, typeof template.tasks>>((acc, task) => {
-    const key = task.sectionName || "General"
-    if (!acc[key]) acc[key] = []
-    acc[key].push(task)
-    return acc
-  }, {})
+  // Group tasks by section. CHK-1: no snapshot argument — this page renders a
+  // template, which is a DEFINITION and not a record, so the live entity is
+  // the correct source. src/lib/sections.ts owns the resolution order.
+  const sections = groupTasksBySection(template.tasks)
 
   const totalMinutes = Math.round(template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0))
   const hours = Math.floor(totalMinutes / 60)
@@ -57,7 +64,7 @@ export default async function TemplateViewPage({ params }: { params: Promise<{ i
             <p className="text-sm text-gray-500 mt-1">{template.description}</p>
           )}
           <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-            <span>Type: <strong>{template.type}</strong></span>
+            <span>Type: <strong>{template.templateType?.name ?? template.type}</strong></span>
             <span>Frequency: <strong>{template.frequency}</strong></span>
             {totalMinutes > 0 && (
               <span>Est. Time: <strong>{hours > 0 ? `${hours}h ` : ""}{mins > 0 ? `${mins}m` : ""}</strong></span>
@@ -67,13 +74,13 @@ export default async function TemplateViewPage({ params }: { params: Promise<{ i
         </div>
 
         {/* Sections */}
-        {Object.entries(sections).map(([section, tasks]) => (
-          <div key={section} className="mb-6">
+        {sections.map((section) => (
+          <div key={section.key} className="mb-6">
             <h2 className="font-semibold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b border-gray-100 pb-1">
-              {section}
+              {section.name}
             </h2>
             <div className="space-y-2">
-              {tasks.map((task) => (
+              {section.tasks.map((task) => (
                 <div
                   key={task.id}
                   className={`flex items-start gap-3 py-2 border-b border-gray-50 last:border-0 ${task.isCritical ? "bg-red-50 px-2 rounded" : ""}`}

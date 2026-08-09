@@ -61,7 +61,19 @@ export async function GET(req: Request) {
 
   const templates = await prisma.template.findMany({
     where: { organizationId: org.id, ...(includeArchived ? {} : { isArchived: false }) },
-    include: { tasks: { orderBy: { orderIndex: "asc" } } },
+    include: {
+      // CHK-1: the section join, for exactly TPL-2's reason one model down —
+      // see the `task_section` cell below.
+      tasks: { orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true } } } },
+      // TPL-2 step (2). THIS JOIN IS NOT COSMETIC AND IT IS NOT OPTIONAL.
+      // Step (1) stopped the rename cascade and the reassign write, so
+      // Template.type is now a snapshot at insert — an export still emitting it
+      // raw would put STALE TYPE NAMES in a file operators carry between
+      // environments, which is the one place the divergence escapes the
+      // application. Migrated in the same commit as the write paths for exactly
+      // that reason (docs/prompts/TPL-2_PLAN.md §4).
+      templateType: { select: { name: true } },
+    },
     orderBy: { createdAt: "asc" },
   })
 
@@ -85,7 +97,13 @@ export async function GET(req: Request) {
     const templateCells = [
       t.name,
       t.description,
-      t.type,
+      // EXISTING EXPORTED FILES STAY IMPORT-VALID. /api/templates/import
+      // resolves template_type BY NAME, case-insensitively, creating any type
+      // the org lacks (TPL-1b's Q4 behaviour) — it never reads Template.type
+      // from the database and never keys on an id. So a CSV exported before
+      // this change imports exactly as it did; one exported after it carries
+      // the live name, which matches even more reliably.
+      t.templateType?.name ?? t.type,
       t.frequency,
       t.availabilityType,
       t.operationalPhase,
@@ -103,7 +121,18 @@ export async function GET(req: Request) {
       lines.push(
         [
           ...templateCells,
-          task.sectionName,
+          // CHK-1: the joined Section name, falling back to the legacy
+          // `sectionName` mirror for a task whose sectionId is null. Same
+          // argument as `template_type` above: a file operators carry between
+          // environments is the one place a stale mirror would escape the
+          // application, so the export reads the entity even though the two are
+          // written together on every path.
+          //
+          // THE COLUMN AND ITS CONTENTS ARE UNCHANGED — still `task_section`,
+          // still a NAME, no id column. That is what keeps CSVs already on disk
+          // import-valid in both directions; the import resolves the name to a
+          // Section within the template it is creating (import/route.ts).
+          task.section?.name ?? task.sectionName,
           task.description,
           task.estimatedTimeMinutes,
           task.requiresPhoto,

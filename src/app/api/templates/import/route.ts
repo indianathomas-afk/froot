@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessTemplatesManage } from "../access"
+import { sectionsFromTasks, syncTemplateSections } from "../sections"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
@@ -172,10 +173,12 @@ export async function POST(req: Request) {
             name,
             description: head.template_description?.trim() || null,
             // TPL-1b closed the TPL-1a window: imports now carry a real typeId
-            // and are duplicable like any other template. Both columns are
-            // written from the SAME resolved row, so the legacy string and the
-            // FK cannot disagree — the rule every other write path follows.
+            // and are duplicable like any other template.
             typeId: resolvedType.id,
+            // TPL-2 step (1): a MIRROR, like POST /api/templates. Written only
+            // because the column is String NOT NULL with no default; correct at
+            // insert and never maintained. No read site depends on it while
+            // typeId is set. See api/templates/route.ts for the full note.
             type: resolvedType.name,
             frequency: head.template_frequency?.trim() || "Daily",
             availabilityType: head.template_availability_type?.trim() || "StoreHours",
@@ -184,26 +187,44 @@ export async function POST(req: Request) {
             endOffsetHours: head.template_end_offset_hours ?? null,
             appliesTo: "all",
             isActive: false, // imported templates arrive inactive; review before going live
-            tasks: {
-              create: taskRows.map((t, idx) => ({
-                sectionName: t.task_section?.trim() || "General",
-                description: t.task_description!.trim(),
-                estimatedTimeMinutes: t.task_estimated_minutes ?? null,
-                requiresPhoto: t.task_requires_photo ?? false,
-                requiresTemp: t.task_requires_temp ?? false,
-                isCritical: t.task_is_critical ?? false,
-                orderIndex: t.task_order_index ?? idx,
-                excludedStoreIds: [],
-                videoUrl: t.task_video_url?.trim() || null,
-              })),
-            },
           },
-          include: { tasks: true },
         })
 
+        // CHK-1: sections resolved BY NAME within the template being created,
+        // and created when absent — the same by-name resolution TPL-1b uses for
+        // types, and the reason the CSV needs no id column and no
+        // environment coupling. `task_section` is unchanged in both directions
+        // (api/templates/export/route.ts still emits a name), so files already
+        // on disk stay import-valid. A blank cell still resolves to "General",
+        // which is now a real Section row rather than a display-time default.
+        // Section order comes from first-appearance row order, which is what
+        // the file already encodes.
+        const taskInputs = taskRows.map((t, idx) => ({
+          sectionName: t.task_section?.trim() || "General",
+          description: t.task_description!.trim(),
+          estimatedTimeMinutes: t.task_estimated_minutes ?? null,
+          requiresPhoto: t.task_requires_photo ?? false,
+          requiresTemp: t.task_requires_temp ?? false,
+          isCritical: t.task_is_critical ?? false,
+          orderIndex: t.task_order_index ?? idx,
+          excludedStoreIds: [] as string[],
+          videoUrl: t.task_video_url?.trim() || null,
+        }))
+
+        const synced = await syncTemplateSections(tx, template.id, sectionsFromTasks(taskInputs))
+        // A fresh template has no sections to collide with, so the only way
+        // this fails is a bug — fail the template, not the whole import.
+        if (!synced.ok) throw new Error(synced.error)
+
+        for (const t of taskInputs) {
+          await tx.task.create({
+            data: { templateId: template.id, ...t, sectionId: synced.byName.get(t.sectionName) ?? null },
+          })
+        }
+
         templatesCreated++
-        tasksCreated += template.tasks.length
-        created.push({ name: template.name, tasks: template.tasks.length })
+        tasksCreated += taskInputs.length
+        created.push({ name: template.name, tasks: taskInputs.length })
       })
     } catch (err) {
       console.error("Failed to import template", name, err)

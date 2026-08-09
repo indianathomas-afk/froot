@@ -37,13 +37,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   try {
-    // A RENAME MUST CARRY Template.type (the legacy string) WITH IT. Five of the
-    // six read sites render that string and not the joined row
-    // (docs/prompts/TYPE-1_AUDIT.md §3.1), so a rename that touched only
-    // TemplateType would leave the detail page, both print sheets, the
-    // checklist pill and the execution header showing the old word. Both
-    // columns move together, in one transaction, exactly as POST and PATCH
-    // /api/templates already do.
+    // TPL-2 step (1): THE CASCADE THAT STOOD HERE IS GONE. It ran a
+    // `tx.template.updateMany({ where: { typeId: id }, data: { type: name } })`
+    // on every rename, for one reason — the read sites rendered the legacy
+    // string rather than the joined row, so a rename that touched only
+    // TemplateType left the detail page, both print sheets, the checklist pill
+    // and the execution header showing the old word.
+    //
+    // They read `templateType.name` now, so the rename propagates through the
+    // JOIN ALONE and there is nothing left for a cascade to keep in step. The
+    // legacy string on those rows stops tracking the type from here, which is
+    // the intended end state and not a bug to repair. The CSV export was
+    // migrated in the same commit — it was the one surface where a stale string
+    // would still have escaped into a file (docs/prompts/TPL-2_PLAN.md §4).
+    //
+    // The $transaction is kept around a single update deliberately: the
+    // isUniqueViolation catch and the returned shape are unchanged, and
+    // unwrapping it would be churn outside this row.
     //
     // THIS REWRITES HISTORY, KNOWINGLY. Checklist holds no snapshot of the type
     // (audit §3.4), so historical completed checklists and their print copies
@@ -60,13 +70,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         },
         select: { id: true, name: true, colorKey: true, sortOrder: true, _count: { select: { templates: true } } },
       })
-
-      if (data.name !== undefined && data.name !== existing.name) {
-        await tx.template.updateMany({
-          where: { typeId: id, organizationId: org.id },
-          data: { type: data.name },
-        })
-      }
 
       return row
     })

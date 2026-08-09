@@ -25,6 +25,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     include: {
       tasks: true,
       storeAssignments: true,
+      templateType: { select: { name: true } },
     },
     orderBy: { name: "asc" },
   })
@@ -57,7 +58,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     return {
       id: t.id,
       name: t.name,
-      type: t.type,
+      // TPL-2 step (2): `type` is declared on TemplateOption
+      // (store-view-client.tsx) and rendered nowhere, so nothing on screen
+      // changes here. Migrated rather than deleted (Gary, Q3) — the key name is
+      // unchanged and only its source moved to the joined row, which keeps it
+      // correct instead of stale after a rename. Deleting it would mean editing
+      // TemplateOption too, for no caller's benefit; that is step (3)'s call.
+      type: t.templateType?.name ?? t.type,
       taskCount: t.tasks.length,
       estimatedMinutes: Math.round(t.tasks.reduce((sum, task) => sum + (task.estimatedTimeMinutes ?? 0), 0)),
       existingChecklistId: existing?.id ?? null,

@@ -18,7 +18,19 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
       store: true,
       template: {
         include: {
-          tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } },
+          // CHK-1: the section join, so the client groups on the entity rather
+          // than on the free-text string. Passed through to
+          // ChecklistExecutionClient's Task shape alongside `sectionsSnapshot`
+          // below — src/lib/sections.ts decides which one wins.
+          tasks: {
+            include: { attachment: true, section: { select: { name: true, sortOrder: true } } },
+            orderBy: { orderIndex: "asc" },
+          },
+          // TPL-2 step (2): joined row is the truth for the execution header.
+          // The second of the two sites reached through `checklist.template`,
+          // and the only one where the render lives in a client component — so
+          // ChecklistExecutionClient's Props declares it too.
+          templateType: { select: { name: true } },
         },
       },
       taskLogs: true,

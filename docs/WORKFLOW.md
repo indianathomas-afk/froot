@@ -29,10 +29,23 @@ Test it at froot-git-staging-….vercel.app.
 git checkout main
 git pull origin main          # make sure local main is current
 git merge staging --no-ff --no-edit   # --no-ff = always make a merge commit; --no-edit = no editor popup
-                              # ── now write the docs/DEPLOY_LOG.md entry, BEFORE the push ──
+
+# ── write the docs/DEPLOY_LOG.md entry NOW, and commit it, BEFORE the push ──
+# (open the file, add the entry for this promotion, citing the merge SHA above)
+git add docs/DEPLOY_LOG.md
+git commit -m "DEPLOY_LOG: <date> production promotion (<what it carried>)"
+
 git push origin main          # → Vercel auto-deploys www.usefroot.com
 git checkout staging          # go back to staging for your next work
 ```
+
+**The `git add` + `git commit` lines are IN the block deliberately.** They used
+to live only in the prose below it, and the block read checkout / pull / merge /
+push / checkout — so anyone copying the block literally pushed without ever
+committing the entry, which is the exact DEBT-38 failure the entry exists to
+prevent. A step that only appears in prose beside a copyable command block is a
+step that does not happen. (Found 2026-08-07, on the first promotion run under
+this section.)
 
 **Write the `docs/DEPLOY_LOG.md` entry between the merge and the push — it is a
 step of the promotion, not a thing remembered afterwards.** The merge commit
@@ -45,10 +58,44 @@ after the push is an entry nobody is holding a reason to write.
 independently fast-forwards and creates no merge commit at all — so there is no
 artifact prompting anyone to write the log entry, `git log --merges` returns
 none of those promotions when you are reconstructing history after the fact, and
-rollback becomes a hand-assembled reverse-order revert range instead of a
-one-line `git revert -m 1 <merge-sha>`. That is exactly what you do not want to
-be assembling under pressure. (DEBT-38: five of seven pushes to main went
-unlogged this way, one of them for three days.)
+rollback becomes a hand-assembled reverse-order revert range instead of the
+short recipe below. That is exactly what you do not want to be assembling under
+pressure. (DEBT-38: five of seven pushes to main went unlogged this way, one of
+them for three days.)
+
+### Rolling a promotion back
+
+```bash
+git checkout main
+git revert -m 1 --no-commit <merge-sha>
+git checkout HEAD -- docs/DEPLOY_LOG.md   # keep the log — see below
+git commit -m "Revert the <date> promotion"
+git push origin main
+```
+
+`-m 1` keeps parent 1 — production as it stood before the merge — and reverts
+everything that came in from `staging`.
+
+**`git revert -m 1 <merge-sha>` on its own CONFLICTS, every time.** Measured on
+merge `fad9207`, 2026-08-07: 37 of 38 files reverted cleanly and
+`docs/DEPLOY_LOG.md` was the single conflicted path. The cause is structural, not
+particular to that promotion — this section has you commit the log entry on
+`main` *after* the merge, while the promotion set itself also contains commits
+that touched `DEPLOY_LOG.md` (the previous promotion's own entry, among others).
+So the revert always tries to undo edits to a file the post-merge commit has
+since rewritten. The evidence is in the `fad9207` entry in `docs/DEPLOY_LOG.md`;
+it is not re-derived here.
+
+**Keep the log. That is the correct resolution, not a workaround.** A deploy log
+is the record that the deploy happened — reverting it would erase the entry
+describing the very thing being rolled back, at the moment that entry is most
+needed.
+
+Faster posture if the site is actively broken: Vercel → Deployments → promote
+the previous production deployment back to current, then do the revert at
+leisure. **An additive migration stays either way** — reverting the code leaves
+unread columns, which is harmless; dropping them is a destructive migration
+against production for no benefit.
 
 That's the whole release. Watch the deploy at vercel.com → Deployments →
 wait for "Ready" on the Production row.

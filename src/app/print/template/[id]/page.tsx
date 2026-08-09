@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
+import { groupTasksBySection } from "@/lib/sections"
 import { PrintControls } from "./print-controls"
 
 export default async function TemplatePrintPage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,16 +15,22 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
 
   const template = await prisma.template.findFirst({
     where: { id, organizationId: org.id },
-    include: { tasks: { orderBy: { orderIndex: "asc" } } },
+    include: {
+      // CHK-1: headings and their order come from the joined Section.
+      tasks: { orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true, sortOrder: true } } } },
+      // TPL-2 step (2): joined row is the truth; the legacy `type` string is
+      // the fallback for a template with no TemplateType.
+      templateType: { select: { name: true } },
+    },
   })
   if (!template) return notFound()
 
-  const sections = template.tasks.reduce<Record<string, typeof template.tasks>>((acc, task) => {
-    const key = task.sectionName || "General"
-    if (!acc[key]) acc[key] = []
-    acc[key].push(task)
-    return acc
-  }, {})
+  // CHK-1: no snapshot argument. This is a TEMPLATE print — a definition, not
+  // a record of a shift — so the live entity is the right source, and only the
+  // ordering source changes (sortOrder rather than first-appearance adjacency).
+  // A CHECKLIST print is the one that reads the frozen snapshot; see
+  // src/app/print/checklist/[id]/page.tsx.
+  const sections = groupTasksBySection(template.tasks)
 
   const totalMinutes = Math.round(template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0))
   const hours = Math.floor(totalMinutes / 60)
@@ -79,7 +86,7 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
           <h1>{template.name}</h1>
           {template.description && <p className="desc">{template.description}</p>}
           <div className="meta">
-            <span>Type: <strong>{template.type}</strong></span>
+            <span>Type: <strong>{template.templateType?.name ?? template.type}</strong></span>
             <span>Frequency: <strong>{template.frequency}</strong></span>
             {timeStr && <span>Est. Time: <strong>{timeStr}</strong></span>}
             <span>Tasks: <strong>{template.tasks.length}</strong></span>
@@ -87,10 +94,10 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
         </div>
 
         {/* Sections */}
-        {Object.entries(sections).map(([section, tasks]) => (
-          <div key={section} className="section">
-            <div className="section-title">{section}</div>
-            {tasks.map((task) => (
+        {sections.map((section) => (
+          <div key={section.key} className="section">
+            <div className="section-title">{section.name}</div>
+            {section.tasks.map((task) => (
               <div key={task.id} className={`task${task.isCritical ? " task-critical" : ""}`}>
                 <div className={`checkbox${task.isCritical ? " checkbox-critical" : ""}`} />
                 <div className="task-body">

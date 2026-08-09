@@ -639,6 +639,26 @@ and does pull, which is exactly why the carve-out was tempting and exactly why
 it is not allowed: a rule with an exception is one `--environment` flag away
 from the thing it forbids.
 
+### Provisioning a secret that will ever be presented by hand
+
+**A Vercel variable marked Sensitive can NEVER be revealed after it is saved —
+not in the dashboard, not by the CLI, not by the API. So any secret that will
+ever be typed, curled or pasted by a human — `CRON_SECRET` and every manual API
+auth value — must be recorded in Gary's password manager AT CREATION, in the
+same minute it is saved.** There is no recovery step later; the only remedy for
+a value nobody kept is to overwrite it, which means redeploying everything that
+holds it. And the ritual for rotating one has an order that matters: **save the
+value in the dashboard → redeploy the TARGET branch, reading the branch column
+before you click → verify the new deployment's created time POSTDATES the save →
+only then fire the request.** A deployment carries the env values that existed
+when it was BUILT, so a redeploy that predates the save serves the old secret and
+returns a 401 that looks exactly like a wrong value — which is the measured
+failure this paragraph comes from: `docs/prompts/CRON-DIAG_findings.md`, where a
+staging deployment built 1 h 33 m before the Preview edit spent an afternoon
+being diagnosed as a scoping problem. Three of that day's four redeploys also
+went to the wrong branch, which is why "read the branch column" is written down
+rather than assumed.
+
 Required in `.env`:
 ```
 DATABASE_URL=                  # Neon connection string (pooled) — runtime client

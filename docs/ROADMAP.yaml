@@ -18,17 +18,29 @@
 #
 # blockers — problems in a phase regardless of status (unset env vars,
 #            prod-promotion gates, unverified pixel work).
-#   AN ENTRY IS EITHER A BARE STRING (LIVE) OR `{resolved: true, text: >}`
-#   (CLOSED, kept for the record). "Anything here blocks" was true when written
+#   AN ENTRY IS ONE OF THREE THINGS: a BARE STRING (LIVE), or
+#   `{narrowed: true, text: >}` (STILL BLOCKS, but on strictly less than it
+#   originally asserted), or `{resolved: true, text: >}` (CLOSED, kept for the
+#   record). "Anything here blocks" was true when written
 #   and stopped being true as soon as the preserve-and-mark convention started
 #   keeping closed gates in the array: by 2026-08-01, 8 of 19 entries were
 #   closed and /internal/roadmap counted every one of them as live. Corrected
 #   by P-4 the same day, which added the flag.
+#   NARROWED is DEBT-41's third state, added 2026-08-08 after two entries sat
+#   half-closed with nowhere to say so. It is COUNTED SEPARATELY and it STILL
+#   BLOCKS: the panel reads "16 live · 2 narrowed", the phase stays in the
+#   blocked list and in the "Phases blocked" tile. Use it when part of what an
+#   entry asserted is answered and a NAMED REMAINDER is still live — say what
+#   remains in the entry's own text, since the flag carries no second field.
 #   A MISSING FLAG MEANS LIVE — DEBT-14's "a missing status means OPEN" one
 #   level down, and the safe direction: an unclassified entry keeps blocking.
-#   NEVER edit an entry's text to mark it resolved. The prose is the record and
-#   on several rows the ORDER of the entries is the lesson; the flag is
-#   additive and sits over text that does not change.
+#   NEVER WRITE `resolved: false` OR `narrowed: false`. Each is exactly the
+#   value the flag's ABSENCE already carries, and either one destroys the
+#   missing-flag-means-live default. The type makes them unwritable (three
+#   union members, not one object with optional flags) — keep it that way.
+#   NEVER edit an entry's text to mark it resolved or narrowed. The prose is the
+#   record and on several rows the ORDER of the entries is the lesson; the flag
+#   is additive and sits over text that does not change.
 #   DO NOT infer the state from the leading words. Live entries open "VERIFIED
 #   STILL TRUE" (F-5) and "CONFIRMED LIVE" (F-4), and PERM-6's two closed
 #   entries carry no marker at all — they are closed by the entry prepended
@@ -178,24 +190,25 @@ phases:
         Meta App Review (Advanced Access for instagram_business_basic) not yet
         granted — until then only Instagram accounts with a role on the Meta
         app can connect. Start App Review early.
-      - >
-        SHRUNK TO ITS SURVIVING HALF 2026-08-06 — STILL LIVE, but half of what
-        it asserted is now answered. Updated in place rather than closed and
-        re-filed: the entry is genuinely still live, and this is how F-4's and
-        F-5's live entries carry their dated re-checks.
-        THE ENV-VAR HALF IS SETTLED: INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET
-        are set in Vercel, Sensitive, on Preview AND Production (2026-08-06
-        audit; read off the Vercel env list, not from a deploy). Being Sensitive
-        they pull as empty, so their VALUES have not been checked against the
-        Meta app — only their presence.
-        WHAT REMAINS, and it is the whole of this entry now: THE CALLBACK IS NOT
-        CONFIRMED REGISTERED in the Meta app. Note this is the same failure
-        shape as F-4's, where the env var and the subscription are two separate
-        things and setting one without the other yields exactly the silence of
-        doing neither.
-        ORIGINAL ENTRY, PRESERVED: "INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET
-        (optional INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the
-        callback registered in the Meta app — not confirmed done for every env."
+      - narrowed: true
+        text: >
+          SHRUNK TO ITS SURVIVING HALF 2026-08-06 — STILL LIVE, but half of what
+          it asserted is now answered. Updated in place rather than closed and
+          re-filed: the entry is genuinely still live, and this is how F-4's and
+          F-5's live entries carry their dated re-checks.
+          THE ENV-VAR HALF IS SETTLED: INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET
+          are set in Vercel, Sensitive, on Preview AND Production (2026-08-06
+          audit; read off the Vercel env list, not from a deploy). Being Sensitive
+          they pull as empty, so their VALUES have not been checked against the
+          Meta app — only their presence.
+          WHAT REMAINS, and it is the whole of this entry now: THE CALLBACK IS NOT
+          CONFIRMED REGISTERED in the Meta app. Note this is the same failure
+          shape as F-4's, where the env var and the subscription are two separate
+          things and setting one without the other yields exactly the silence of
+          doing neither.
+          ORIGINAL ENTRY, PRESERVED: "INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET
+          (optional INSTAGRAM_REDIRECT_URI) must be set in Vercel per env and the
+          callback registered in the Meta app — not confirmed done for every env."
     deferred:
       - Posting / comments / insights / Stories
       - Vercel-cron feed-refresh backup
@@ -537,10 +550,22 @@ phases:
   - id: TPL-1
     track: platform
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-08-07
     commits: ["8461a48", "182ca1c"]
     title: "Template types become a first-class managed entity — create, colour, choose, filter"
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207" — the first promotion
+      made under WORKFLOW.md §2's --no-ff rule, so it is also the first with a
+      real merge commit to revert. Migration
+      20260808103000_tpl1a_template_type_entity replayed on production through
+      the build's `prisma migrate deploy`.
+      PRODUCTION EVIDENCE, branch named per CLAUDE.md § Database Evidence:
+      br-sparkling-block-a620qvg4 — unlinked 0, total 8 (2026-08-07). Every
+      production template now carries a real typeId; none fell back to the
+      legacy string. That result is also the precondition Gary's Q6 ruling set
+      for filing TPL-2, which is now filed.
+      ── STAGING VERIFICATION BELOW, AS RECORDED BEFORE THE PROMOTION ──
       VERIFIED 2026-08-07 by Gary on staging — BROWSER WALKTHROUGH PASSED IN
       FULL: the Type select on the template form (pre-selected on edit, colour
       dots on the options), the Manage Types dialog (create, rename with the
@@ -670,6 +695,185 @@ phases:
       dev/staging/production. Never paste one across — the inverse of the trap in
       CLAUDE.md § Database Evidence.
 
+  - id: TPL-2
+    track: platform
+    size: S
+    status: staging
+    commits: ["198d040"]
+    title: >
+      Retire the legacy Template.type string column — STEPS (1) AND (2)
+      CLOSED, the column is no longer read; STEP (3), the drop, REMAINS
+      OPEN AND UNAUTHORISED
+    notes: >
+      VERIFIED 2026-08-08 BY GARY ON STAGING, after "198d040" and "332e6fb"
+      reached origin. THE TWO GENUINELY-CHANGED BEHAVIOURS WERE EXERCISED, which
+      is the point of this rider — a build gate proves the joins compile, not
+      that the right name reaches a screen:
+      (1) RENAME OF AN IN-USE TYPE propagated to the list badges and the
+      template view THROUGH THE JOIN, with the cascade gone. This is the one the
+      deleted block used to do by hand.
+      (2) TYPE CHANGE ON A TEMPLATE surfaced the new type everywhere and THE
+      STALE MIRROR STRING NEVER RENDERED — the row's `type` column now holds the
+      old name by design, and the check is that nothing shows it.
+      (3) CSV EXPORT emitted CURRENT type names, which is the surface where a
+      stale string would otherwise have escaped into a file.
+      ALL THREE PASSED. The regression checklist at docs/prompts/TPL-2_PLAN.md
+      §6 is otherwise unrun; these three are the cases where behaviour actually
+      changed, and the rest of that list re-exercises paths this commit did not
+      alter.
+      THIS OBSERVATION DOES NOT MEET CLAUDE.md § BROWSER EVIDENCE, AND SAYING SO
+      IS THE POINT OF RECORDING IT THIS WAY. That section requires the
+      ORGANIZATION ID and the Clerk INSTANCE named on the same line as the
+      observation — "a page reading without a named org id does not count" —
+      and NEITHER WAS CAPTURED at the time. The walkthrough is reported here as
+      Gary ran it; what is missing is the identifier that would let a later
+      reader confirm WHICH org's templates were renamed. Staging holds multiple
+      orgs answering to the same names (§ Database Evidence), so the gap is not
+      theoretical. Recorded rather than quietly omitted (Gary's ruling,
+      2026-08-08) so this rider carries its real weight: a first-hand pass whose
+      subject is under-specified, not a citable measurement. Anyone who needs
+      the org id must ask Gary; it is not recoverable from this file.
+      STEPS (1) AND (2) CLOSED 2026-08-08, commit "198d040". Nothing reads
+      Template.type while typeId is set. The three UPDATE paths stopped writing
+      it — PATCH /api/templates/[id], the rename cascade in PATCH
+      /api/template-types/[id] (deleted outright), and POST
+      /api/template-types/[id]/reassign — and all nine read surfaces now resolve
+      the name through the templateType relation, keeping the string only as a
+      fallback for a row whose typeId is null. NO MIGRATION AND NO SCHEMA
+      CHANGE: nothing in this commit is destructive.
+      STEP (3) IS EXPLICITLY STILL OPEN AND STILL UNAUTHORISED, and this row
+      does not close it. Deprecating or dropping the column is a DESTRUCTIVE
+      migration against production, gated on its own soak after (1) and (2) have
+      run there, and REQUIRES ITS OWN RULING. The session that did (1) and (2)
+      was scoped to exclude it. What step (3) inherits is written out in full at
+      docs/prompts/TPL-2_PLAN.md §9 rather than left to be re-derived.
+      STATUS IS `staging` AND IS ONE STEP AHEAD OF THE TRUTH AT WRITING —
+      DEBT-41's precedent, stated rather than implied. "198d040" is committed on
+      the local `staging` branch and NOT PUSHED; the value becomes true on
+      Gary's push. Claude never pushes (CLAUDE.md § Git Rules).
+      CORRECTION APPENDED 2026-08-08 — THE CAVEAT ABOVE IS NOW FALSE AND THE
+      STATUS IS SIMPLY TRUE. Gary pushed; "198d040" and "332e6fb" are both on
+      origin/staging, confirmed by `git merge-base --is-ancestor` against
+      origin/staging after a fetch, not by assuming the push succeeded. The
+      original text is preserved rather than deleted because it records what was
+      true at writing and why the value was written ahead of it — the caveat
+      was correct, and it expired the way it was designed to.
+      TWO CLAIMS ON THIS ROW WERE WRONG AND THE ROW CORRECTS ITSELF HERE. The
+      prose below is left exactly as it stood, per the convention DEBT-59 and
+      DEBT-36 follow — corrections are prepended, never edited in.
+      (a) "MIGRATE THE SIX READ SITES" — there were FIVE. templates-client.tsx
+      had already migrated in TPL-1b ("182ca1c"), which the row could not see
+      because it was scoped from docs/prompts/TYPE-1_AUDIT.md, audited at
+      "2d5b93d" BEFORE TPL-1b landed. Every line number in that audit had moved
+      too. The audit was right when written; the row inherited its age.
+      (b) "STOP WRITING THE STRING on every path" naming five — there is a
+      SIXTH. scripts/import-keva-templates.ts writes `type` with no `typeId`
+      and is the ONLY writer left in the tree that manufactures an unlinked row.
+      Comment only, no behaviour change (Gary, Q4): it is a one-off seed against
+      a hardcoded org id, already run, and no operator can reach it. The comment
+      says what to do if anyone re-runs it.
+      THE CONSTRAINT WAS RESOLVED ADDITIVELY (Gary, Q1). Template.type is String
+      NOT NULL with no default, so the two CREATE paths — POST /api/templates
+      and POST /api/templates/import — CANNOT stop writing it: a create that
+      omits it fails. They keep writing it from the resolved type's name as a
+      MIRROR NO READER DEPENDS ON. It is correct at insert and never maintained
+      afterwards, so on a row later renamed or reassigned the column holds a
+      STALE NAME BY DESIGN. That is recorded on the column itself in
+      prisma/schema.prisma, which previously said "never write one without the
+      other" — the contract that note described is the one this row ended.
+      The alternative was `@default("")` so creates could omit the column, and
+      it was rejected: it spends a migration to make the column hold junk, and
+      step (3) is easier to reason about against real names than placeholders.
+      THE CSV EXPORT MIGRATED IN THE SAME COMMIT, AND THE COUPLING IS THE POINT
+      rather than a tidiness choice. Stopping the rename cascade turns
+      Template.type into a snapshot at insert; an export still emitting it raw
+      would put STALE TYPE NAMES into a file operators carry between
+      environments — the one surface where the divergence escapes the
+      application. EXISTING EXPORTED FILES STAY IMPORT-VALID and the import path
+      was NOT edited: it resolves template_type BY NAME, case-insensitively,
+      creating any type the org lacks (TPL-1b's Q4 behaviour), and never reads
+      Template.type from the database or keys on an id. So a CSV exported before
+      this change imports exactly as it did, and one exported after carries the
+      live name.
+      RE-MEASURED BEFORE EXECUTION, NOT CITED — this row's own standing
+      instruction, and the reason it is worth having: the filed evidence below
+      was taken 2026-08-07, before the session ran. Gary re-ran it 2026-08-08,
+      every result naming its branch per CLAUDE.md § Database Evidence:
+      dev br-broad-wave-a6vpjdw0 — unlinked 0, total 8;
+      preview/staging br-square-feather-a63z92vz — unlinked 0, total 16;
+      production br-sparkling-block-a620qvg4 — unlinked 0, total 8.
+      Unchanged from the filed figures, so no row can reach the string fallback
+      today and it is transition scaffolding rather than a live path. THE
+      BLANK-STRING CHECK WAS NOT RUN, and the distinction is deliberate: with
+      unlinked 0 everywhere nothing reaches the fallback, so a blank string
+      cannot render. That is REASONING, NOT MEASUREMENT, and it is labelled as
+      such so a later reader does not cite it as a count that was taken.
+      THE TWO WIRE-ONLY CARRIES ARE ANSWERED FOR, MIGRATED NOT DELETED (Gary,
+      Q3). api/checklists/route.ts `templateType` (consumed nowhere) and
+      api/stores/[id]/templates/route.ts `type` (declared on TemplateOption,
+      never rendered) keep their key names; only their SOURCE moved to the
+      joined row. Deleting either is a response-shape change no caller asked
+      for, and the second would mean editing store-view-client.tsx too. They are
+      correct now instead of going stale on the next rename. Deleting them is a
+      fair question for step (3), which revisits this surface anyway.
+      TemplateType.active STILL HAS NO WRITER. The TPL-1 row named TPL-2 as the
+      moment to revisit it; it was NOT revisited, because dropping or changing
+      it is a schema change and this row deliberately carries no migration. It
+      belongs with step (3)'s migration.
+      template-form.tsx WAS NOT TOUCHED, so no DEBT-59 spot-check was owed. It
+      still carries a `type: string` on TemplateFormProps and a dead
+      initialData.type, both orphaned by TPL-1a; removing them is a two-line
+      cleanup that would have dragged the DEBT-59 offset spot-check into an
+      S-sized row for no behavioural gain.
+      ── FILED PROSE BELOW, UNEDITED. Its "six read sites" and "five write
+      paths" are corrected at (a) and (b) above. ──
+      FILEABLE AS OF 2026-08-07, and the precondition is why this row did not
+      exist sooner. Gary ruled on 2026-08-08 (Q6) that TPL-2 could not be filed
+      until the TPL-1a backfill was proven on all three branches. It now is,
+      every result carrying its branch per CLAUDE.md § Database Evidence:
+      dev br-broad-wave-a6vpjdw0 — unlinked 0, total 8;
+      preview/staging br-square-feather-a63z92vz — unlinked 0, total 16;
+      production br-sparkling-block-a620qvg4 — unlinked 0, total 8.
+      All 2026-08-07, after merge "fad9207" reached production.
+      WHAT THE COLUMN IS. Template.type is String NOT NULL with no default
+      (prisma/schema.prisma). TPL-1 added TemplateType and the Template.typeId
+      FK and made typeId the truth, but kept writing the string on every path
+      so nothing had to move at once. Every write path now sets both columns
+      from the SAME resolved row, so they cannot disagree — that invariant is
+      what makes this row safe to do and must not be broken before it starts.
+      SCOPE, IN THREE STEPS, AND THE THIRD IS NOT IN THIS ROW.
+      (1) STOP WRITING THE STRING on every path: POST and PATCH
+      /api/templates, POST /api/templates/import, the rename cascade in PATCH
+      /api/template-types/[id], and POST /api/template-types/[id]/reassign.
+      (2) MIGRATE THE SIX READ SITES to templateType.name, keeping the string
+      as a fallback ONLY during the transition. They are listed with line
+      numbers in docs/prompts/TYPE-1_AUDIT.md §3.1 — note that two of them
+      (print/checklist, store-view/checklist-execution-client) reach it through
+      `checklist.template.type`, so a grep scoped to the templates directory
+      misses them. Two further sites emit the string over the wire and render
+      nothing: api/checklists/route.ts (`templateType`, consumed nowhere) and
+      api/stores/[id]/templates/route.ts (`type`, declared on TemplateOption,
+      never rendered). Both are answered for here.
+      (3) DEPRECATION OF THE COLUMN IS A SEPARATE, LATER STEP, gated on its own
+      soak after (1) and (2) have run in production — and it is ADDITIVE ONLY
+      in this row. A DROP is a destructive migration against production and
+      REQUIRES ITS OWN RULING; it is explicitly not authorised by filing this
+      row. The precedent to follow is the one both recent DEPLOY_LOG entries
+      take on rollback: an unread additive column is harmless, dropping it is
+      risk for no benefit.
+      KNOWN TRANSITION ARTIFACT, not a blocker: templates imported during the
+      TPL-1a window (between "8461a48" and "182ca1c") carry typeId NULL. Gary
+      ruled 2026-08-07 (Q3) to leave them — no backfill — because they render
+      correctly from the legacy string and heal the moment the template is
+      opened and saved. THIS ROW MUST COUNT THEM BEFORE STEP 2: a read site
+      that drops the string fallback while any typeId NULL row survives renders
+      a blank type. The three-branch evidence above says unlinked is 0
+      everywhere TODAY, but it was measured before this row starts and an
+      import can create one at any time. Re-measure, do not cite.
+      RELATED: TPL-1 (the entity, both phases), and
+      docs/prompts/TYPE-1_AUDIT.md, which is the map of every read and write
+      site and is the reason this row can be scoped without re-auditing.
+
   - id: X-1
     track: platform
     size: S
@@ -691,6 +895,653 @@ phases:
         That scoping is itself the next action and is a DECISION, not build
         work; it is out of scope for bookkeeping (noted by the 2026-08-06 sweep,
         which is why this entry describes the hole rather than filling it).
+
+  # ---- Checklists (CHK) ----
+  # The checklist LIFECYCLE phase, scoped 2026-08-09 from DEBT-36 (sections are
+  # implied, not modelled) and DEBT-48 (the availability window). Gary ruled the
+  # product design 2026-08-08 (R1-R5) and approved the implementation plan
+  # 2026-08-09.
+  #
+  # THE ARTIFACT IS THE SOURCE; THESE ROWS ARE THE SUMMARY AND THE POINTER.
+  # docs/prompts/CHK-1_PLAN.md is the audit, the SQL, the state-derivation
+  # contract and the ruling record; docs/prompts/CHK-1_SESSION_SKELETONS.md is
+  # the per-session spine. Both committed in "746918c". Do not re-state the plan
+  # into these rows and do not edit either file — they are claims wholesale
+  # (CLAUDE.md § Where documents live).
+  #
+  # ONE SESSION PER ROW, IN ORDER, each independently verifiable on staging
+  # before the next begins. Schema and migration land first.
+
+  - id: CHK-1
+    track: checklists
+    size: L
+    status: staging
+    commits: ["4fd9152"]
+    title: "Sections become a first-class per-template entity, with an as-executed record"
+    notes: >
+      VERIFIED 2026-08-09 BY GARY ON STAGING. The full S1 checklist passed: the
+      sections panel; create / rename / reorder round-trips; a rename collision
+      REFUSED rather than merged; a non-contiguous section rendering ONE
+      heading; duplicate carrying its sections and their order; the CSV
+      export→import round-trip; and the DEBT-59 nine-check re-run, owed because
+      template-form.tsx was touched.
+      THE DEBT-36 TRIGGER WAS FIRED DELIBERATELY AND THE DEFECT IS DEAD. A
+      checklist completed AFTER the deploy, its template's section then renamed:
+      the print copy rendered the OLD name out of `sectionsSnapshot` while the
+      template showed the new one. That is the first time this trigger has ever
+      been pulled, and it is the whole point of the phase — the row it closes
+      spent months recording it as latent.
+      Org/instance: org_3G02wO4QlVVSWppi8aqlnSZnsDa on the Clerk instance
+      verified-snapper-7 (CLAUDE.md § Browser Evidence). THE IDENTIFIER'S
+      PROVENANCE IS PART OF THE EVIDENCE and is recorded because TPL-2's rider
+      could not: the id was read from `window.Clerk.organization.id` on the
+      staging site IN THE SAME CONTINUOUS BROWSER SESSION AS THE TESTS,
+      2026-08-09 — not reconstructed afterwards from a database row, which is
+      the mistake § Browser Evidence's own 2026-08-06 correction records. A
+      Clerk org id identifies an INSTANCE, and this one was taken Clerk-side.
+      BACKFILL EVIDENCE, each result naming its branch (§ Database Evidence),
+      both measured 2026-08-09:
+      dev `br-broad-wave-a6vpjdw0` — unlinked_tasks 0, total_tasks 210,
+      sections 32, unlinked_logs 0.
+      preview/staging `br-square-feather-a63z92vz` — unlinked_tasks 0,
+      total_tasks 420, sections 64, unlinked_logs 0.
+      production `br-sparkling-block-a620qvg4` — PENDING PROMOTION, and the row
+      does not claim it. `preview/main` `br-purple-rain-a6m62xww` is an
+      archived fossil, was not queried, and is owed nothing (plan §0a).
+      STATUS IS `staging` AND IS SIMPLY TRUE, not one step ahead — the inverse
+      of TPL-2's caveat and worth saying for that reason. "4fd9152" and
+      "7c99da3" are both on origin/staging, the migration has been applied
+      there, and the pass above was run against that deployment.
+      WHAT REMAINS BEFORE THIS ROW IS `shipped`: the production promotion, and
+      the same verification query on `br-sparkling-block-a620qvg4` returning
+      unlinked_tasks 0 with its branch named.
+      NOTE 2026-08-10 — THAT DEBT COMES DUE THE MOMENT THE PROMOTION LANDS, and
+      it is the SHIPPED GATE for this row, not a formality after it. The
+      2026-08-10 promotion carries Migration A to production for the first time,
+      where its BACKFILL runs against real `Task` rows — the half that has never
+      been exercised there and the only half a clean staging pass cannot vouch
+      for (the structural half was proven against `migrate diff`; the data half
+      is per-branch by construction). Run this on `br-sparkling-block-a620qvg4`
+      AFTER the production build reports the migration applied, and do not flip
+      this row to `shipped` until it returns unlinked_tasks 0:
+      `SELECT current_setting('neon.branch_id', true) AS branch,
+      (SELECT count(*) FROM "Task" WHERE "sectionId" IS NULL AND
+      btrim("sectionName") <> '') AS unlinked_tasks, (SELECT count(*) FROM
+      "Task") AS total_tasks, (SELECT count(*) FROM "Section") AS sections,
+      (SELECT count(*) FROM "TaskLog" WHERE "sectionId" IS NULL) AS
+      unlinked_logs;` — plan §2.1. A non-zero unlinked_tasks means a task
+      carries a blank sectionName past both API choke points and needs looking
+      at; it is NOT a reason to loosen the backfill. A row left at `staging`
+      because nobody ran the query afterwards is indistinguishable from one
+      whose query failed, which is why the gate is written here rather than
+      carried in someone's head through the promotion.
+      ── PRE-VERIFICATION NOTE OF 2026-08-09 BELOW, UNEDITED ──
+      BUILT 2026-08-09 IN "4fd9152", NOT YET APPLIED AND NOT YET VERIFIED —
+      which is why this is in_progress rather than staging. Prompt:
+      docs/prompts/CHK-1_S1_sections_entity.md. Migration A is HAND-AUTHORED
+      AND UNRUN (prisma/migrations/20260809160000_chk1_section_entity): Gary
+      runs it on dev first, then pushes so staging and production take it
+      through `migrate deploy` in the Vercel build. Nothing in this row is
+      proven until `unlinked_tasks = 0` comes back from the three live
+      branches, each result naming its branch. The commit is CODE LANDING, not
+      evidence.
+      WHAT SHIPPED BEYOND THE PLAN'S LETTER, so the diff is not read as
+      narrower than it is: (a) TWO shared helpers rather than six migrated
+      call sites — src/lib/sections.ts owns the READ resolution order
+      (snapshot -> joined Section -> legacy string -> "General") and
+      src/app/api/templates/sections.ts owns the WRITE, shared by POST, PATCH
+      and import. Six independent joins would have been the same defect the
+      six independent string derivations were (DEBT-26). (b) THE FORM'S TASK
+      ARRAY NOW KEEPS EACH SECTION'S TASKS CONTIGUOUS, and that invariant —
+      not the adjacency test, which is unchanged and merely follows from it —
+      is what ends the double heading and what makes sortOrder agree with
+      MIN(orderIndex) by construction. A non-contiguous template is regrouped
+      ON LOAD, visibly, rather than silently at save. Consequence worth naming
+      in the browser pass: DRAG NOW REORDERS WITHIN A SECTION and a task
+      dropped across a section boundary returns to its own block; the section
+      input is still what moves a task between sections. (c) The execution
+      page reads the snapshot too, not only print, so reopening a completed
+      checklist agrees with its print copy instead of contradicting it.
+      Every structural statement in the migration was checked against
+      `prisma migrate diff --from-empty --to-schema` output and matches it, so
+      the schema and the migration cannot have drifted. That check needs no
+      database; the BACKFILL half is unproven until Gary runs it.
+      S1 of five. Plan: docs/prompts/CHK-1_PLAN.md §§1.2, 2.1, 2.4, 6.3, 6.4.
+      Closes DEBT-36's ruled direction.
+      SHIPS: Migration A (additive) — `Section` per-template with
+      @@unique([templateId, name]) and sortOrder, nullable `Task.sectionId`,
+      `TaskLog.sectionId`, `Checklist.sectionsSnapshot`; the backfill recovers
+      section ORDER from MIN(orderIndex) rather than inventing it. All six
+      section render sites resolve through the join, with `Task.sectionName`
+      KEPT AND KEPT WRITTEN as the legacy mirror (the TPL-1a shape exactly —
+      retiring it is a later row). Section management in template-form.tsx.
+      CSV `task_section` resolved by name within the template. `sectionsSnapshot`
+      frozen ONCE, on the first TaskLog write, and never rewritten.
+      PROVES IT WORKED: `unlinked_tasks = 0` on the three LIVE branches, each
+      result naming its branch; a section rename on a template with completed
+      history leaves the historical checklist AND its print copy unchanged —
+      DEBT-36's latent trigger, fired deliberately for the first time; a
+      non-contiguous section renders ONE heading, not two; duplicate carries
+      sections; CSV round-trip; the DEBT-59 nine checks
+      (docs/prompts/DEBT-59_AUDIT.md §7), owed because template-form.tsx is
+      touched.
+      MUST NOT TOUCH: Checklist.status, generation, StoreHours, the offsets, the
+      offsets-box copy, any lifecycle behaviour. No cron.
+      SNAPSHOT SCOPE IS NAMES ONLY (Gary, 2026-08-09). Task descriptions and
+      task additions still resolve live at print time; that hole is real, wider
+      than DEBT-36 describes, and is DEBT-60 rather than cargo here.
+
+  - id: CHK-2
+    track: checklists
+    size: S-M
+    status: staging
+    commits: ["597e86d"]
+    title: "Day-close inputs — fold the three phase lists into one, and give StoreHours a writer"
+    notes: >
+      VERIFIED 2026-08-09 BY GARY ON STAGING — org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa on the Clerk instance verified-snapper-7,
+      retrieved via `window.Clerk.organization.id` FIRST, BEFORE ANY
+      OBSERVATION. That ordering is the S1 lesson and it is now practice rather
+      than a reminder: § Browser Evidence's 2026-08-06 correction records an org
+      id read off a database row AFTERWARDS and written down as the wrong
+      environment, so the id is taken Clerk-side, up front, in the same
+      continuous session as the observations it labels.
+      ALL FIVE CHECKS PASSED. (1) Hours round-trip — blank stays blank, cleared
+      stays cleared, Closed round-trips. (2) Handoff notes identical to
+      pre-fold behaviour: opener→today, closer→tomorrow, ordering unchanged.
+      (3) Labor shows the explicit hours for the configured store and 0 for a
+      Closed day. (4) A store with no hours renders everywhere unchanged —
+      the negative check, and the one that proves NULL breaks nothing. (5)
+      Square resync left the hours intact, which the resync route's own comment
+      claimed and this is the first time anything has been able to test.
+      WHAT THAT MAKES TRUE THAT WAS NOT TRUE BEFORE: a store in a deployed
+      environment now has real hours, so labor's explicit branch is running on
+      staging rather than only under a local harness, and CHK-3's blocker
+      ("at least one store has hours set to verify against") is satisfied on the
+      branch S3 will verify against. That blocker is marked resolved on CHK-3
+      in this commit.
+      `status: staging` IS SIMPLY TRUE HERE. Both commits are on
+      origin/staging — Gary pushed them between sessions, which is what made the
+      pass possible — and the observations were taken against that deployment.
+      Not one step ahead; contrast DEBT-32's closure, which was written while
+      they were still unpushed and says so.
+      ── PRE-VERIFICATION BLOCK BELOW, UNEDITED ──
+      IN_PROGRESS, NOT staging, IN "597e86d" 2026-08-09. Both halves are built
+      and committed; nothing is pushed, so no deployment runs this yet and Gary
+      has verified nothing. The row moves to `staging` when the checklist below
+      passes against the staging deployment.
+      WHAT SHIPPED, AND WHAT PROVES IT. The DEBT-32 fold is done and its
+      zero-output-change claim was PROVEN, not asserted: the retired
+      implementations were pasted verbatim from 7031155 and run beside the
+      shipped ones over 2,715 comparisons — every phase either can receive
+      (canonical, the legacy "During Hours" string, null, empty,
+      whitespace-padded, case variants, junk) crossed with the full source x
+      target date rule across month, year, leap-day and both DST boundaries. No
+      differences, plus six named cases asserted absolutely rather than only as
+      old-vs-new equality. The ordering map now lives ONCE, in src/lib/phases.ts,
+      DERIVED from OPERATIONAL_PHASES rather than restated.
+      ONE DESIGN NOTE WORTH KEEPING: phaseOrder deliberately does NOT route
+      through normalizePhase. That function trims and the old maps did not, so
+      using it would reorder a whitespace-padded "  Before Opening  " from MID to
+      OPENING — a real behaviour change wearing a cleanup's clothes. The WRITE
+      paths already normalize, which is where trimming belongs.
+      STOREHOURS HAS A WRITER FOR THE FIRST TIME, and the finding that made this
+      row exist was confirmed by MEASUREMENT rather than by grep alone: dev
+      br-broad-wave-a6vpjdw0 held 0 StoreHours rows in the entire database
+      before this session. PUT/GET /api/stores/[id]/hours, PUT behind
+      stores.manage — no new capability, no permissions.ts edit — plus a
+      seven-day editor on /stores. Replace-in-one-transaction rather than upsert,
+      forced by the schema: StoreHours carries no @@unique([storeId, dayOfWeek]),
+      so upsert has no key to target. NO MIGRATION SHIPPED, as ruled.
+      BLANK IS A REAL ANSWER AND IT IS THE DEFAULT (DEBT-59). A day nobody has
+      decided about gets NO ROW — not a fabricated 9-to-5. Clearing a day deletes
+      its row; a one-sided day persists one NULL. Both existing readers already
+      treat "no row" and "row with unusable times" identically, so "hours not
+      set" stays a queryable state instead of becoming indistinguishable from a
+      real decision to open at nine.
+      VERIFIED END-TO-END ON DEV, br-broad-wave-a6vpjdw0, Store
+      cmqvygqx9000004kzadw4vecg ("Carson"), Organization
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd: seven decided days round-trip, a
+      one-sided day keeps its NULL, isClosed round-trips with both times NULL,
+      clearing a day removes its row and leaves the other six. LABOR'S
+      EXPLICIT-HOURS BRANCH EXECUTED FOR THE FIRST TIME IN ITS LIFE — open hours
+      moved from inference [13,13,13,13,14,13,10] to explicit
+      [12,12,12,12,14,13,0]. The fixture was removed; the branch is back to 0
+      rows.
+      TWO PRE-EXISTING /stores DEFECTS WENT LIVE WITH THE WRITER AND ARE FIXED
+      HERE, both harmless only because no store could have hours: the hours block
+      rendered ONLY when hours existed and its "Edit Hours" button had no
+      onClick — a dead affordance inside an unreachable branch — and
+      `${openingTime} - ${closingTime}` would have printed the literal "null" for
+      a half-filled day, while the Mon-Fri group rendered only when all five
+      weekdays were present AND identical, silently showing nothing for a store
+      open different hours on Wednesday.
+      THE FALLBACK COPY IS NOT HERE, DELIBERATELY. "Hours: not set" is stated
+      neutrally; what an unset store falls back to at day close is CHK-3's
+      sentence to write, on the session that makes it true (the DEBT-29 lesson).
+      THE DEBT-33 HAZARD BELOW HAS MOVED ONE LINE, as a direct result of this
+      commit: handoff-notes.tsx's baseline error now sits at :69:25, not :70:25,
+      because the fold's edit is one line shorter than what it replaced. The
+      exclusion worked as designed — run on its own the file reports exactly that
+      one error and no other, so this session introduced none and fixed none.
+      DEBT-33 carries the dated correction.
+      S2 of five. Plan: docs/prompts/CHK-1_PLAN.md §§3.1, 8. Absorbs DEBT-32.
+      SHIPS: DEBT-32 — delete the two hand-copied "During Hours" alias lines
+      (messages.ts:41, handoff-notes.tsx:24) and move PHASE_ORDER into
+      src/lib/phases.ts so both sides of the client boundary import one list.
+      Plus a StoreHours editor on /stores behind `stores.manage`.
+      THE STOREHOURS HALF IS NOT A NICE-TO-HAVE, and it is the finding that
+      makes this row exist: `StoreHours` HAS NO WRITER ANYWHERE IN THE CODEBASE.
+      The table ships in the init migration, `prisma.storeHours` appears in
+      exactly one file as a read (labor-plan.ts:170), and that file says so
+      outright at :172-174 — "StoreHours is currently never populated, so
+      inference is the normal path". Gary's R2 makes day close StoreHours-driven,
+      so without this the ruled mechanism has no input on any branch.
+      READY NOW — NOT GATED ON CHK-1. Sequenced after it by the ruled order, not
+      by a dependency; nothing in this row touches sections or the schema.
+      PROVES IT WORKED: handoff-note date resolution unchanged across all three
+      phases AND the legacy string (a template carrying "During Hours" still
+      orders as mid); hours save, reload and render; Square resync does not
+      overwrite them; labor's weekly plan takes the explicit-hours branch
+      (labor-plan.ts:195-205) for a store that now has hours — the first row
+      ever to reach it.
+      MUST NOT TOUCH: checklist surfaces, the offsets, any schema.
+      HAZARD, NAMED IN ADVANCE (carried from DEBT-32): handoff-notes.tsx carries
+      one of DEBT-33's ten baseline lint errors at :70:25. Scope the eslint gate
+      to exclude that file and SAY SO in the commit message — do not appear to
+      have fixed a DEBT-33 error this row did not fix.
+
+  - id: CHK-3
+    track: checklists
+    size: M-L
+    status: staging
+    commits: ["d089a7c"]
+    title: "Lifecycle engine — expected windows, overdue on read, missed written at day close"
+    notes: >
+      VERIFIED ON STAGING 2026-08-09 BY GARY, AND THE RECORD IS THE CRON'S OWN
+      RESPONSE BODIES. No browser observation and no SQL was taken in this pass.
+      This row said what would prove it — "SQL and the cron's own response body,
+      NO UI" — and half of that arrived; what the SQL half would still add is
+      listed as OPEN CHECKS at the end of this block rather than folded in with
+      the passes.
+      THE ORG ID DOES NOT LABEL THIS EVIDENCE, AND SAYING SO IS PART OF
+      LABELLING IT. GET /api/cron/checklist-day-close authenticates itself,
+      renders nothing, and walks EVERY active Store on the branch across every
+      organization (route.ts:100-109) — so § Browser Evidence's org id has
+      nothing to name here, and quoting one would imply a scope the job does not
+      have. What names this evidence is the DEPLOYMENT: the staging alias,
+      Preview scope, branch `staging`, Clerk instance verified-snapper-7.
+      Twelve stores answered, which is that branch's whole active estate rather
+      than one org's.
+      FIRST SWEEP, 22:43 UTC 2026-08-09 — 12 stores, 24 store-days closed,
+      markedMissed 2 (Las Brisas 08-08, Carson 08-07), materialized 88, errors 0,
+      raced 0. Every store reported dayCloseSource `no-hours`: only Carson has
+      hours, so the fallback is what almost the whole estate took, and it was
+      VISIBLE IN THE BODY rather than inferred — the four-value dayCloseSource
+      (note (b) below) earning its keep on its first real run. Per-store close
+      instants landed at the right absolute time for each timezone, Denver 09:00Z
+      and LA 10:00Z, which is the thing a single daily UTC cron could not have
+      done and the reason this one is hourly. strandedOpen reported 4 rows across
+      Meadowood and Las Brisas, REPORTED AND NOT TOUCHED — the probe stayed a
+      probe.
+      SECOND SWEEP, 22:45 UTC, TWO MINUTES LATER — markedMissed 0, materialized
+      0, alreadyClosed 3-4 per store per day, stranded counts identical. THE
+      ENGINE ACTED ON FIRST CONTACT AND CHANGED NOTHING ON SECOND. R1's
+      missed-is-a-written-fact and the idempotency requirement are both proven by
+      the machine's own receipts, and proven the only way that separates a
+      working writer from a busy one: the same request twice, the second one
+      inert. The `closedAt: null` guard at route.ts:214 and the
+      have-template/unique-index pair are what produced the zeros.
+      MIGRATION B IS APPLIED ON THE STAGING DATABASE, by consequence rather than
+      by assertion — 88 creates wrote closedAt, expectedStartAt and expectedEndAt
+      (route.ts:250-262) and 2 updates wrote closedAt, none of which a table
+      without those columns can accept. `migrate deploy` ran it in the staging
+      build, as designed; it has NOT run against production (see the blocker).
+      AUTH VERIFIED END-TO-END on the same deployment: 401 with no header, 401
+      with a wrong token, 401 with an empty token, 200 with the provisioned
+      secret. That closes CRON-DIAG from the other end — its finding was that the
+      deployment held a STALE Preview CRON_SECRET because it was built 1h33m
+      before the value was edited, and a redeploy past the edit is the whole fix.
+      Read docs/prompts/CRON-DIAG_findings.md for the measurement.
+      THE TEMP INSTRUMENTATION NEVER FIRED. "df96e9b" logged shapes on the 401
+      path only, and no rejection happened once the client-side variable was
+      loaded correctly, so the interpretation table written in advance
+      (docs/prompts/CRON-DIAG-2_runbook.md) was never consulted. It is REVERTED
+      in "32237ee", in this sitting, per that runbook's own not-optional revert
+      step. PROOF, and note which grep: `git grep -n "CRON-DIAG-2" -- src`
+      returns nothing, and `git diff 411557a HEAD -- src/` is empty, so the
+      source tree is byte-identical to the commit before the instrumentation
+      landed. The runbook's own form of the check (`-- ':!docs/prompts'`) was
+      clean when the revert was made and now matches THIS PARAGRAPH — a doc
+      naming the marker is not the marker surviving, and a proof that goes red
+      when someone writes down that it passed is the wrong proof to leave
+      behind.
+      OPEN CHECKS — NAMED, NOT CLAIMED. Each is substantially evidenced by the
+      bodies and none is independently confirmed, so none of them is a pass.
+      (1) WEEKLY NOT MATERIALISED: the `frequencySkipped` field is present in
+      every day result (route.ts:164, 238) and the containment is in the code,
+      but no value from it was quoted and nothing confirms a Weekly template
+      exists on this branch to be skipped. Confirm with a body showing
+      frequencySkipped > 0, or by counting materialised rows against their
+      template's frequency for one closed day. (2) AN isClosed WEEKDAY
+      MATERIALISES NOTHING (route.ts:223): eleven of twelve stores have no hours
+      at all, so the closed-day branch may not have been exercised on either
+      sweep. (3) THE TWO 409s on task-log and submit against a closed checklist:
+      the cron's body says nothing about them either way — they are route
+      behaviour and want two requests against one of the checklists this pass
+      closed. (4) PRE-DEPLOY ROWS UNTOUCHED: the 4 stranded rows were reported
+      and unchanged across both sweeps, which is the behaviour; what is missing is
+      a count of open pre-lookback rows taken before and after. THE STANDING
+      RESIDUAL BEHIND ALL FOUR: a response body is the WRITER'S OWN REPORT OF
+      WHAT IT WROTE, not an independent read of the table. It is strong evidence
+      and it is not the same evidence, which is why this block does not quietly
+      upgrade it.
+      ── PRE-VERIFICATION BLOCK BELOW, UNEDITED ──
+      BUILT 2026-08-09 IN "d089a7c", NOT YET APPLIED AND NOT YET VERIFIED —
+      which is why this is in_progress rather than staging. Prompt:
+      docs/prompts/CHK-3_S3_lifecycle_engine.md. Migration B is HAND-AUTHORED
+      AND UNRUN (prisma/migrations/20260809194500_chk3_checklist_lifecycle):
+      Gary runs it on dev first, then pushes so staging and production take it
+      through `migrate deploy` in the Vercel build. Nothing in this row is
+      proven until the cron has closed a real day on staging and the SQL says
+      so, each result naming its branch. The commit is CODE LANDING, not
+      evidence.
+      THE PRECHECK IS OWED BEFORE THE MIGRATION RUNS, PER BRANCH, AND IT
+      GATES TWO STATEMENTS RATHER THAN ONE — Checklist_storeId_templateId_date_key
+      and StoreHours_storeId_dayOfWeek_key. It was re-presented, NOT cited: the
+      2026-08-09 zero in plan §0a measured a table that grows daily, and
+      StoreHours has been taking writes from CHK-2's editor since that morning.
+      A non-zero result on either DROPS THAT INDEX — from the migration AND from
+      prisma/schema.prisma, or the two drift — and does not delay the migration.
+      Neither index is load-bearing: the cron creates read-then-write with a
+      P2002 catch, and CHK-2's writer replaces a week in a transaction.
+      ITEM (a) IS RESOLVED HERE — StoreHours_storeId_dayOfWeek_key rides
+      Migration B in "d089a7c", precheck-gated as above.
+      ITEM (b) IS NOT RESOLVED AND WAS NEVER THIS SESSION'S TO RESOLVE. What S3
+      owed it was to know before writing expectedWindow(), and to not "align"
+      the two by copying labor's `e > s` check — both discharged. The
+      disagreement is now WRITTEN DOWN AT THE SINGLE DEFINITION SITE, in the
+      hours block of src/lib/checklist-lifecycle.ts, so it is a recorded fact
+      rather than a discovery. The labor half stays DEBT-64.
+      THE S1 INTEGRITY FINDING IS RESOLVED HERE IN "d089a7c", both ends of it:
+      api/checklists/[id]/task-log/route.ts refuses a taskId that does not
+      belong to this checklist's template (400), and submit counts DISTINCT logs
+      whose task belongs to the template instead of raw log rows. Either half
+      alone leaves the hole open. The day-close job recomputes completionRate
+      the same way.
+      WHAT SHIPPED BEYOND THE PLAN'S LETTER, so the diff is not read as narrower
+      than it is: (a) EXPECTATIONS ARE FROZEN AT CREATE, in BOTH creation paths
+      in api/checklists/route.ts, not only at day-close materialisation. Without
+      it `completedLate` could never be true for a checklist anyone actually
+      started, so plan §9's "a checklist completed after its window end has
+      completedLate = true" was unreachable. Freezing at completion instead
+      would have reopened the hole those two columns exist to close, one step
+      later. The shared plumbing is src/app/api/checklists/expectations.ts; the
+      window itself is still defined once, in the lib. (b) THE DAY-CLOSE SOURCE
+      IS A FOUR-VALUE FACT, not a boolean — hours / closed-day / no-hours /
+      no-close-time — because "the operator marked Sunday closed" and "nobody
+      has ever set this store's hours" are different facts, and a report that
+      merges them tells an operator to fix something they already did. CHK-4/5
+      render it; the engine exposes it. (c) expectedWindow() reads
+      operationalPhase through normalizePhase(), so a legacy "During Hours" row
+      resolves to a window instead of silently getting none. (d) The
+      stranded-open probe (a cron outage longer than the lookback) is BOUNDED to
+      a stated 7-day window and the bound is in the response body — unbounded it
+      would count every unfinished checklist ever created, a number that only
+      grows and therefore signals nothing.
+      A MATERIALISED MISSED ROW CARRIES NO sectionsSnapshot, AND THAT IS A
+      RULING, NOT AN OMISSION. The S1 note on that column said the freeze also
+      happens "at day close for a checklist never started"; S3's prompt says a
+      materialised row has no task logs and no snapshot, and the prompt is
+      right for this column's own reason — it is the AS-EXECUTED record, and a
+      checklist nobody touched has no as-executed headings. Freezing today's
+      names onto it would make a guess indistinguishable from a record, which is
+      plan §12.5's ruling one row-type further on. Recorded as an appended S3
+      correction on Checklist.sectionsSnapshot in prisma/schema.prisma; a
+      materialised row renders live through src/lib/sections.ts.
+      ── PRE-BUILD NOTES OF 2026-08-09 BELOW, UNEDITED ──
+      CARRIED IN FROM S2's TRIAGE 2026-08-09 — TWO ITEMS, AND THEY EXISTED ONLY
+      IN THAT SESSION'S REPORT UNTIL THIS COMMIT. S2's triage named both as
+      ROWs and then did not file them; the S2 report is not the board. That is
+      DEBT-37's rule firing on the session immediately after the one that
+      recorded it firing (see the block below, carried in from S1's triage for
+      exactly the same reason). Twice in two sessions is a pattern, not an
+      accident: NAMING a row in a triage is not FILING it.
+      (a) STOREHOURS NEEDS @@unique([storeId, dayOfWeek]) AND IT RIDES MIGRATION
+      B. The table has never had one — verified at HEAD, prisma/schema.prisma:181
+      — which is why CHK-2's writer had to replace the whole set in a
+      transaction rather than upsert: there is no key to target. The table can
+      therefore hold two rows for one weekday, and both readers resolve that
+      with `.find()`, taking whichever comes back first. Add it to Migration B
+      alongside Checklist_storeId_templateId_date_key. IT NEEDS THE SAME
+      PRECHECK DISCIPLINE as that index and for a stronger reason: CHK-2's
+      editor is now writing this table on staging, so a duplicate can be created
+      between now and the day S3 runs. Re-measure per branch before applying;
+      non-zero drops it rather than delaying the migration.
+      (b) LABOR AND DAY CLOSE WILL DISAGREE ABOUT OVERNIGHT STORES, and S3 must
+      know before it writes expectedWindow(). A store set 07:00-02:00 fails
+      labor's `e > s` check at labor-plan.ts:202 and silently gets sales
+      inference instead of its own hours; one-sided hours (open set, close
+      blank) fail the same way. Plan §3.5 rules the OPPOSITE for day close —
+      `closingTime <= openingTime` means the close instant is D+1, handled
+      explicitly. So the same store will be judged on its real window by day
+      close and on an inferred one by labor. THIS IS NOT S3's TO FIX — the fix
+      is in labor-plan.ts, which S3 must not touch — but S3 must not
+      accidentally "align" the two by copying labor's check either. The labor
+      half is DEBT-64.
+      ── CARRIED IN FROM S1's TRIAGE, UNEDITED ──
+      CARRIED IN FROM S1's TRIAGE 2026-08-09 — AN INTEGRITY HOLE IN THE
+      COMPLETION RECORD, PRE-EXISTING, AND THIS ROW IS THE RIGHT PLACE FOR IT
+      because S3 is already rewriting the two routes involved.
+      `POST /api/checklists/[id]/task-log` NEVER CHECKS THAT `taskId` BELONGS
+      TO THE CHECKLIST'S TEMPLATE — it takes the id from the body, and the only
+      constraint is the FK to Task. `POST /api/checklists/[id]/submit` then
+      computes `completedTasks = checklist.taskLogs.length` against
+      `template.tasks.length`, counting RAW LOG ROWS rather than logs matching
+      the template. So logging task ids from another template inflates
+      `completionRate` and can flip a checklist to `Completed` without its own
+      tasks being done. No cross-tenant read and not reachable through the UI —
+      it needs a hand-crafted request — but it is an integrity hole in the
+      exact record CHK-1 exists to protect, and the two ends of it are 30 lines
+      apart in files S3 already opens for `completedLate` and the 409.
+      NOT FIXED IN S1 DELIBERATELY: CHK-1's MUST NOT TOUCH covers
+      Checklist.status and any lifecycle behaviour, and the fix lands in
+      `submit`. Scope it here rather than re-deriving it.
+      RECORDED HERE BECAUSE IT WAS NOWHERE ELSE. It was raised at S1's triage
+      and existed only in that session's transcript — DEBT-37's rule ("an
+      observation that lives only in a transcript does not exist") firing on
+      the session that was citing DEBT-37. Written down 2026-08-09 on the next
+      session that looked for it, which is later than it should have been.
+      S3 of five. Plan: docs/prompts/CHK-1_PLAN.md §§2.2, 2.3, 3, 4, 5.4.
+      Closes DEBT-48's implement direction.
+      THE MECHANISM IS A HYBRID, and the split follows R1's own language.
+      OVERDUE IS EVALUATED ON READ — "a live nagging state", so no write, no
+      scheduler, and correct the instant an offset changes. MISSED AND
+      COMPLETED-LATE ARE WRITTEN — "a closed fact", and a fact needs a writer.
+      That answers R2's parenthetical directly: the write is day close, and only
+      day close.
+      DAY CLOSE MUST MATERIALIZE, NOT MARK. The finding neither parked row could
+      see: /store-view lists TEMPLATES, not checklists, and a Checklist row is
+      created on "Start Checklist" (api/checklists/route.ts:130) or by the admin
+      bulk button (:166). So a checklist nobody touched HAS NO ROW to write
+      MISSED onto, and the job creates one.
+      SHIPS: Migration B (additive) — closedAt, completedLate, expectedStartAt,
+      expectedEndAt, two indexes, NO BACKFILL (the lifecycle starts at deploy;
+      inventing expectations for historical rows would manufacture exactly the
+      retroactive data DEBT-59 spent a session preventing). Plus
+      src/lib/checklist-lifecycle.ts (five predicates, one definition each —
+      DEBT-26's discipline), GET /api/cron/checklist-day-close registered hourly
+      with a two-day lookback, completedLate written by submit, and 409 on
+      task-log/submit for a closed checklist.
+      THE UNIQUENESS INDEX IS IN, ON MEASURED EVIDENCE, AND CARRIES A STANDING
+      RE-MEASURE: Checklist_storeId_templateId_date_key. Gary's precheck
+      returned duplicate_groups 0 on all three live branches 2026-08-09 (plan
+      §0a). RE-RUN IT BEFORE APPLYING — the table grows every day a checklist is
+      started, by the very findFirst-then-create path the index forbids
+      duplicates from, so a clean result in August is not a clean result on the
+      day this ships. A non-zero re-measure DROPS the index; it does not delay
+      the migration.
+      WEEKLY AND MONTHLY TEMPLATES ARE NOT MATERIALIZED, and the exclusion is
+      labelled on the report. Template.frequency is display-only — no generation
+      path reads it (DEBT-61) — so materialising every active template would
+      file a Weekly checklist as missed six days a week.
+      PROVES IT WORKED: SQL and the cron's own response body, NO UI — which is
+      what makes this session verifiable on its own. Missed marking, missed
+      materialisation, idempotency on a second run, the weekly exclusion, an
+      isClosed weekday materialising nothing, the 409 refusal, and pre-deploy
+      rows untouched.
+      MUST NOT TOUCH: any rendering. A chip on a screen in this session means
+      the split has failed.
+    blockers:
+      - resolved: true
+        text: >
+          ALL THREE PROMOTION GATES RESOLVED BY GARY 2026-08-10, and the entry
+          below is kept verbatim rather than rewritten — it records what was
+          true on 2026-08-09, which is the only thing that makes the rulings
+          legible. Each gate and how it fell:
+          (1) CRON_SECRET ROTATION — **DEFERRED BY RULING, NOT DONE, AND NOT
+          FORGOTTEN.** Gary assessed the blast radius as low: the endpoint is
+          idempotent, it runs hourly on Vercel's schedule regardless of who else
+          knows the value, and the worst an unauthorised caller achieves is
+          making the same sweep happen sooner. Accepted risk. It is NOT a
+          promotion gate any more; it moves to this row's `open` list as a
+          low-priority item, to be done at the next secret-touching session by
+          the CLAUDE.md § Environment Variables ritual. Recording it as accepted
+          rather than closed is the point — a deferred rotation that reads as
+          "handled" is how it stops being done at all.
+          (2) DEBT-66 / `main` RED — **DOES NOT BLOCK A GIT-PUSH PROMOTION.**
+          The measured mechanism is dashboard redeploys not attaching env vars;
+          the git-pushed deploy of the SAME commit built clean, which is in that
+          row's own evidence. So the failure is scoped to a path this promotion
+          does not use. DEBT-66 STAYS OPEN, rescoped to the dashboard-redeploy
+          path. PROMOTIONS HAPPEN BY GIT PUSH ONLY — that is now the rule, not
+          the preference.
+          (3) THE PRECHECK — RUN ON PRODUCTION 2026-08-10, and this is
+          measurement, not the August 9 citation: branch
+          `br-sparkling-block-a620qvg4`, `checklist_dupes 0`,
+          `storehours_dupes 0`. BOTH UNIQUE INDEXES SHIP AS COMMITTED —
+          `Checklist_storeId_templateId_date_key` and
+          `StoreHours_storeId_dayOfWeek_key`, unchanged in
+          prisma/migrations/20260809194500_chk3_checklist_lifecycle and in
+          prisma/schema.prisma. The standing re-measure instruction is
+          DISCHARGED for this promotion and only for it.
+          ── THE 2026-08-09 GATE TEXT IS THE NEXT ENTRY, UNEDITED ──
+      - resolved: true
+        text: >
+          RESOLVED 2026-08-10 BY THE RULINGS IN THE ENTRY ABOVE. Kept verbatim
+          as written on 2026-08-09, per the preserve-and-mark convention: it is
+          the claim the rulings answer, and editing it would leave the answers
+          without their question.
+          PRODUCTION PROMOTION IS GATED ON TWO THINGS AND NEITHER OF THEM IS CODE.
+          (1) ROTATE CRON_SECRET FIRST. The value now deployed transited a chat
+          transcript during today's diagnosis, so it is no longer secret in the
+          sense the equality check at route.ts:91 depends on. Rotate it BEFORE this
+          work reaches production, by the ritual in CLAUDE.md § Environment
+          Variables — save the dashboard value, redeploy the TARGET branch reading
+          the branch column, verify the new deployment's created time postdates the
+          save, then fire — and put the new value in Gary's password manager AT
+          CREATION, because a Vercel Sensitive var can never be read back
+          afterwards. Production and Preview are separate rows; rotating one does
+          not touch the other. (2) `main` IS RED AT "7ab7106" — DEBT-66. Three
+          dashboard redeploys failed 2026-08-09, all `npm run vercel-build` exit 1
+          before a single migration ran. Production still SERVES an earlier Ready
+          deployment so nothing is down, and the code in this row is unaffected;
+          the PROMOTION is what is blocked, and it stays blocked until that build
+          is understood.
+      - resolved: true
+        text: >
+          BEHIND CHK-2 — a real gate, not sequencing. Day close is driven by
+          StoreHours (Gary's R2) and StoreHours has no writer until CHK-2 ships
+          one, so on today's data every store would fall to the midnight+buffer
+          fallback and the ruled mechanism would never be exercised at all.
+          CLEARS WHEN: CHK-2 ships the StoreHours editor and at least one store
+          has hours set to verify against.
+    open:
+      - >
+        CRON_SECRET ROTATION DEFERRED BY RULING 2026-08-10 — low priority, do it
+        at the next secret-touching session, by the CLAUDE.md § Environment
+        Variables ritual (save → redeploy the TARGET branch, reading the branch
+        column → verify the deployment's created time postdates the save → fire),
+        and record the new value in Gary's password manager AT CREATION because a
+        Sensitive Vercel var can never be read back. Production and Preview are
+        separate rows; rotating one does not touch the other. WHY IT IS HERE
+        RATHER THAN CLOSED: the deployed value transited a chat transcript on
+        2026-08-09, so it is no longer secret in the sense the endpoint's
+        equality check depends on. Gary accepted that risk — the endpoint is
+        idempotent and Vercel fires it hourly anyway, so an unauthorised caller
+        only makes the same sweep happen sooner — but ACCEPTED IS NOT FIXED, and
+        an entry that disappears because it was downgraded is an entry nobody
+        does.
+
+  - id: CHK-4
+    track: checklists
+    size: M-L
+    status: planned
+    title: "Lifecycle surfaces — overdue flagged and never hidden, missed closed, offsets gain their meaning"
+    notes: >
+      S4 of five. Plan: docs/prompts/CHK-1_PLAN.md §§5, 6.1, 6.2.
+      SHIPS: store-view Overdue and Upcoming chips; execution-page overdue
+      banner and read-only missed state; `Missed` added to /checklists
+      STATUS_STYLES; Missed added to the /reports counts; print renders
+      as-executed headings from sectionsSnapshot plus a MISSED stamp; the (i)
+      explainer beside the offset fields; and DEBT-59's "not yet used" copy
+      retired.
+      THE COPY CHANGE IS EARNED HERE AND NOWHERE EARLIER. DEBT-59 left the
+      offsets box honest — "Recorded for reference — not yet used to show or
+      hide checklists" — and that sentence is retired only by the session that
+      makes it false, which is this one. Prepend to the DEBT-29 comment blocks
+      at template-form.tsx:1007-1009 and :1048-1055; never edit them.
+      PROVES IT WORKED: the NEGATIVE is the load-bearing check — NOTHING IS EVER
+      HIDDEN BY A WINDOW (R3, and DEBT-48's whole overdue-not-hidden argument).
+      Plus: blank offsets never go overdue; AllDay never goes overdue; the
+      Missed style is its own, not Pending's "Not Started" fallthrough; /reports
+      totals include Missed; the STAFF nav badge does not count Missed; and the
+      DEBT-59 nine checks a SECOND time, owed because template-form.tsx is
+      touched again.
+      MUST NOT TOUCH: the cron, the predicates, the schema.
+    blockers:
+      - >
+        BEHIND CHK-3 AND CHK-1 — two real gates. CHK-3 writes the state this row
+        renders (there is no overdue and no missed to show before it), and CHK-1
+        writes the sectionsSnapshot the as-executed print headings read.
+        CLEARS WHEN: both ship.
+
+  - id: CHK-5
+    track: checklists
+    size: M
+    status: planned
+    title: "Operations report — missed and completed-late, by store, by day, by template"
+    notes: >
+      S5 of five, and the phase's closing session. Plan:
+      docs/prompts/CHK-1_PLAN.md §7. Satisfies R4.
+      SHIPS: /reports/operations behind the EXISTING `reports.view` capability
+      (MANAGE — ADMIN + MANAGER, permissions.ts:171), store-scoped for MANAGER
+      through getUserStoreScope the way /checklists already does. NO NEW
+      CAPABILITY — TPL-1's Q3 reasoning verbatim: a second check on a surface
+      whose existing gate already says the right thing can only ever disagree
+      with it, and PERM-5 can already dial reports.view per user.
+      THREE VIEWS over one query — by store, by day, by template — carrying
+      missed count, completed-late count and completion rate across a date
+      range. Completed-late sits BESIDE missed rather than buried (R4).
+      THREE DISCLOSURES ON THE REPORT'S OWN FACE, each a place a clean-looking
+      number would otherwise mislead: the lifecycle starts at deploy and
+      pre-migration rows are excluded rather than counted on-time; Weekly and
+      Monthly templates are not tracked, so "no misses" means "not tracked";
+      and which stores are running on the midnight fallback because their hours
+      are unset.
+      PROVES IT WORKED: the role gate at all four roles; counts reconcile
+      against direct SQL on the same branch, branch named.
+      MUST NOT TOUCH: anything upstream. Pure read surface.
+      CLOSES THE PHASE: file nothing new here — DEBT-60 through DEBT-63 are
+      already filed — but write the closure riders on DEBT-36, DEBT-48 and
+      DEBT-32, and flip DEBT-59's rider to say the copy retired.
+    blockers:
+      - >
+        BEHIND CHK-3 — a real gate. This row reports on closedAt, completedLate
+        and the missed rows the day-close job writes; before CHK-3 there is no
+        data and the three views would render empty tables that look like a
+        clean operation.
+        CLEARS WHEN: CHK-3 ships and the cron has closed at least one day.
 
   # ---- Inventory ----
 
@@ -836,6 +1687,27 @@ phases:
       with no headroom. Vercel documents no plan-tier difference in
       CRON_SECRET handling, so F-1 is a secrets/verification problem rather
       than a plan-tier one.
+      RULING RECORDED 2026-08-09 (Gary) — THE HOBBY CLAIM ABOVE IS STALE, AND
+      THE SENTENCES CARRYING IT ARE LEFT STANDING ON PURPOSE. The account is on
+      PRO: `GET /v2/teams/team_263mbnLkV4Te2Ca9ssqrV0gl` returns
+      `billing.plan: "pro"`, measured 2026-08-09 during CRON-DIAG
+      (docs/prompts/CRON-DIAG_findings.md §6). So crons are NOT capped at once
+      per day, a sub-daily expression does NOT fail deployment, and CHK-3's
+      hourly `/api/cron/checklist-day-close` (`0 * * * *`) is legal — by plan and
+      empirically, since the staging deployment carrying that vercel.json built
+      clean and the job has since closed real days. SQ-1's reading was CORRECT
+      WHEN TAKEN on 2026-07-26 and the plan changed under it, which is why this
+      is a dated correction rather than a retraction: the "one invocation each"
+      observation above still stands, only its explanation was wrong.
+      maxDuration = 300 is unaffected — Pro's ceiling is not lower than Hobby's.
+      ONE LINE, PER THE RULING, ABOUT THE REST: Hobby-derived caution appears
+      elsewhere — SQ-3 scopes its cron backstop as "viable on Hobby, where
+      once-per-day is the cap", and docs/prompts/SQ-1_square_token_refresh_audit.md
+      and docs/prompts/verification-smoke-pass.md reason from the same cap. Each
+      DESERVES RE-READING against Pro limits when it is next picked up. They are
+      deliberately not hunted down and edited here, and the docs/prompts/ ones
+      never will be — a saved prompt is a claim wholesale (CLAUDE.md § Where
+      documents live).
 
   - id: F-2
     track: forecasting
@@ -3657,32 +4529,34 @@ phases:
       pair of build logs), SEC-2 and HR-14 (both schema-touching, both gated on
       this landing first — that gate is now lifted).
     blockers:
-      - "CHANGED SHAPE 2026-07-27 — HALF CLOSED, HALF DEFERRED. This blocker is
-         NOT the same problem it was this morning; read the new state before
-         acting on it.
-         CLOSED — step 1 of the two-step fix is DONE. Gary edited the Jun 26
-         `DATABASE_URL` row in the Vercel console from **Production and
-         Preview** to **Production only**. Preview deploys from non-staging
-         branches therefore no longer resolve to the production database, and
-         the original danger — a PR preview build running `migrate deploy`
-         against production through pgbouncer, which was also the BUG-3 P1002
-         condition — is gone. The edit was proven non-destructive: production
-         redeployed successfully afterward with the Datasource still resolving
-         to ep-green-smoke, so scoping the row did not disturb its value.
-         STILL OPEN — step 2 is deliberately deferred. No generic
-         Preview-scoped `DATABASE_URL` or `DATABASE_URL_UNPOOLED` exists, so a
-         preview build from any branch other than `staging` now has NO database
-         and FAILS AT BUILD TIME. That is the intended fail-closed posture and
-         is strictly better than the previous fail-open one — a loud build
-         failure beats a silent write to production. It costs nothing today
-         because Gary pushes only `staging` and `main`.
-         WHAT IT BLOCKS: the deferred second-developer plan. PR previews are
-         preview deploys, so the first collaborator's first PR gets a failed
-         build. FIX WHEN COLLABORATION WORK STARTS: create a throwaway Neon
-         branch, then add BOTH vars Preview-scoped with NO branch restriction.
-         UNTOUCHED: the staging branch-scoped override still exists and still
-         wins for `staging`, which is why the 13:14 staging build resolved to
-         ep-odd-rain rather than failing."
+      - narrowed: true
+        text: >
+          CHANGED SHAPE 2026-07-27 — HALF CLOSED, HALF DEFERRED. This blocker is
+          NOT the same problem it was this morning; read the new state before
+          acting on it.
+          CLOSED — step 1 of the two-step fix is DONE. Gary edited the Jun 26
+          `DATABASE_URL` row in the Vercel console from **Production and
+          Preview** to **Production only**. Preview deploys from non-staging
+          branches therefore no longer resolve to the production database, and
+          the original danger — a PR preview build running `migrate deploy`
+          against production through pgbouncer, which was also the BUG-3 P1002
+          condition — is gone. The edit was proven non-destructive: production
+          redeployed successfully afterward with the Datasource still resolving
+          to ep-green-smoke, so scoping the row did not disturb its value.
+          STILL OPEN — step 2 is deliberately deferred. No generic
+          Preview-scoped `DATABASE_URL` or `DATABASE_URL_UNPOOLED` exists, so a
+          preview build from any branch other than `staging` now has NO database
+          and FAILS AT BUILD TIME. That is the intended fail-closed posture and
+          is strictly better than the previous fail-open one — a loud build
+          failure beats a silent write to production. It costs nothing today
+          because Gary pushes only `staging` and `main`.
+          WHAT IT BLOCKS: the deferred second-developer plan. PR previews are
+          preview deploys, so the first collaborator's first PR gets a failed
+          build. FIX WHEN COLLABORATION WORK STARTS: create a throwaway Neon
+          branch, then add BOTH vars Preview-scoped with NO branch restriction.
+          UNTOUCHED: the staging branch-scoped override still exists and still
+          wins for `staging`, which is why the 13:14 staging build resolved to
+          ep-odd-rain rather than failing.
 
   - id: BUILD-2
     track: build
@@ -6688,8 +7562,96 @@ debt:
       standalone. Related: DEBT-1, DEBT-3.
 
   - id: DEBT-32
-    title: "Retire the I-14b legacy phase alias and fold the three phase lists into one"
+    status: staging
+    commits: ["597e86d"]
+    title: "CLOSED — Retire the I-14b legacy phase alias and fold the three phase lists into one"
     notes: >
+      CLOSURE CONFIRMED BY GARY'S STAGING PASS 2026-08-09 — org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, instance verified-snapper-7. Handoff
+      notes behaved identically to pre-fold on the deployed code: opener→today,
+      closer→tomorrow, ordering unchanged. The row was already closed in
+      "5298d42" on measured evidence; this is the browser half confirming the
+      harness, not a second closure.
+      TWO CORRECTIONS TO THE BLOCK BELOW, WHICH IS OTHERWISE LEFT AS WRITTEN.
+      (1) IT IS NO LONGER ONE STEP AHEAD. That block was written while both
+      commits were unpushed and correctly said so; Gary has since pushed them,
+      origin/staging is at "5298d42", and the pass above ran against that
+      deployment. `status: staging` is now plainly true.
+      (2) WHERE THE PROOF LIVES, since the block below states the method but not
+      its location: the durable record is "597e86d"'s own commit message, which
+      carries the full method and the 2,715-comparison count, plus the S2
+      session report. THE HARNESS ITSELF WAS NOT PRESERVED — it ran from the
+      session scratchpad and is gone. That is a real limit on this citation and
+      it is stated rather than papered over: the numbers are re-derivable from
+      the method as described, but the proof is not re-runnable as written. A
+      future session wanting to re-verify rebuilds it from the commit message.
+      ── CLOSURE AS WRITTEN 2026-08-09, UNEDITED ──
+      CLOSED 2026-08-09 IN "597e86d", AS CHK-2'S OPENING MOVE. Both
+      `"During Hours"` alias lines are deleted and the ordering map lives once,
+      in src/lib/phases.ts, DERIVED from OPERATIONAL_PHASES rather than restated
+      — so the fourth list this row worried about cannot drift from the
+      canonical one, because it IS the canonical one. Three lists became one.
+      `status: staging` IS ONE STEP AHEAD AND SAYS SO. The commit is on the local
+      staging branch and has NOT been pushed — Claude never pushes — so no
+      deployment is running this yet. It is recorded as `staging` because that is
+      the branch it is committed to and the next promotion carries it; it is not
+      a claim that anyone has observed it running. This is TPL-2's caveat rather
+      than S1's inverse of it, and it is written down rather than left for a
+      reader to assume the stronger meaning.
+      THE BEHAVIOURALLY-INERT CLAIM WAS THIS ROW'S OWN, AND IT HELD — but it was
+      PROVEN rather than trusted. The row said `phaseOrder` falls back to `?? 1`,
+      the same value the alias maps to, so deleting both lines changes no output.
+      HOW IT WAS PROVEN: the retired implementations were pasted verbatim from
+      7031155 — including handoff-notes.tsx's separate hand-copied twin, which
+      got its own comparison rather than being assumed identical to the
+      messages.ts one — and run beside the shipped code over every input either
+      can receive: the three canonical phases, the legacy string, null, empty,
+      whitespace-padded, case variants and junk, crossed with the full source x
+      target date rule across a month boundary, a year boundary, a leap day and
+      both DST boundaries. 2,715 comparisons, ZERO differences. Six named cases
+      were also asserted ABSOLUTELY, not merely as old-vs-new equality, since
+      equality alone would still pass if both sides were wrong together:
+      "During Hours" orders as mid and reports shift_phase mid; "Post to Closing"
+      from an opener lands today; "Post to Opening" from a closer lands tomorrow;
+      and the legacy string behaves identically in both the source and the target
+      position.
+      ONE THING THE ROW DID NOT ANTICIPATE, recorded because it is the near-miss:
+      the obvious tidy implementation — routing phaseOrder through
+      normalizePhase() — WOULD HAVE BROKEN THE INERTNESS. normalizePhase trims
+      and the old maps did not, so a whitespace-padded "  Before Opening  " would
+      have moved from MID to OPENING. It was rejected for that reason and the
+      lookup stays untrimmed. The write paths already normalize; trimming belongs
+      there, not in a read path that is claiming to change nothing.
+      THE HAZARD FIRED EXACTLY AS PREDICTED AND WAS HANDLED AS INSTRUCTED. CHK-2
+      scoped its eslint gate to exclude handoff-notes.tsx and said so in the
+      commit message. Run on its own the file reports exactly the one DEBT-33
+      baseline error and no other — so the session introduced none and, as
+      required, fixed none. THE CITATION MOVED: :70:25 to :69:25, because this
+      commit's edit is one line shorter than what it replaced. Corrected on
+      DEBT-33.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
+      ABSORBED 2026-08-09 AS CHK-2'S OPENING MOVE. Plan:
+      docs/prompts/CHK-1_PLAN.md §8, committed in "746918c". This is not a
+      re-file and the work is unchanged — it is the same two alias lines and the
+      same consolidation into src/lib/phases.ts, done at the front of a session
+      that was going to open those files anyway.
+      THE REASON IT MOVED IS THAT THE LIST COUNT WENT UP. DEBT-48 said the fold
+      is "the natural thing to do first if this is built, since a gate should
+      read one list rather than three". CHK-3's expectedWindow() reads
+      operationalPhase to choose its anchor (Before Opening / During the Day /
+      After Closing), which makes a FOURTH reader. Folding after that would be
+      consolidating four lists instead of three, so it goes first — before the
+      new consumer exists, not after.
+      THE ROW STAYS OPEN AND CARRIES NO STATUS until CHK-2 ships, on the same
+      reasoning as DEBT-36's and DEBT-48's 2026-08-09 riders: nothing has
+      shipped, and no `status` value means "absorbed into a phase that has not
+      built yet".
+      THE HAZARD BELOW IS CARRIED FORWARD VERBATIM INTO CHK-2's ROW, not merely
+      cross-referenced — handoff-notes.tsx holds one of DEBT-33's ten baseline
+      lint errors at :70:25, so CHK-2 scopes its eslint gate to exclude that
+      file AND says so in the commit message, rather than appearing to have
+      fixed a DEBT-33 error it did not fix.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: `phaseOrder` falls back to `?? 1`, the same value
       the alias maps to, so deleting both lines changes no output whatsoever —
       verified at HEAD, both lines still present at messages.ts:41 and
@@ -6739,6 +7701,23 @@ debt:
   - id: DEBT-33
     title: "npm run lint exits 1 on a clean checkout — 10 errors, no commit gate can use it"
     notes: >
+      POINTER REPAIR 2026-08-09 (CHK-2, "597e86d") — ONE OF THE TEN MOVED, AND
+      NOTHING WAS FIXED. The impure-function error in
+      src/app/(app)/store-view/checklist/[id]/handoff-notes.tsx now sits at
+      **:69:25**, not :70:25. CHK-2's DEBT-32 fold deleted the hand-copied
+      PHASE_ORDER map from that file and replaced it with an import, and the
+      replacement is one line shorter — so the Date.now() call slid up by one.
+      THE COUNT IS UNCHANGED AT TEN. This is a line number moving, not an error
+      clearing: CHK-2 scoped its eslint gate to exclude that file precisely so it
+      would neither be blocked by this error nor appear to have fixed it, and run
+      on its own afterwards the file reports exactly this one error and no other.
+      Repaired here rather than in the dated measurement below, which stands as
+      written: `THE ELEVEN, at 48559fc` records what was true at that commit and
+      is not edited. This block is the current pointer; that block is the
+      history. Whoever finally clears these ten should search the file for
+      `Date.now`, not for a line number — this is the second time a citation in
+      this row has been invalidated by an unrelated edit to a file it names.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: No commit gate in this repo can use
       `npm run lint` — measured at HEAD, exit 1, 32 problems, 10 errors — so
       every commit runs scoped eslint instead and a regression in an untouched
@@ -6930,8 +7909,99 @@ debt:
       staging, estimatedTimeMinutes included. Related: DEBT-3, MIGRATIONS.md §2.
 
   - id: DEBT-36
-    title: "RULED — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
+    status: staging
+    commits: ["4fd9152"]
+    title: "CLOSED — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
+      CLOSED 2026-08-09 IN "4fd9152", VERIFIED ON STAGING THE SAME DAY. The
+      rider in "3ec9bc8" said the acceptance-for-now ends when S1 ships. It
+      shipped, and the trigger-test passed — so this row closes on the terms it
+      set itself rather than on a judgement call. `status: staging` is what
+      isResolvedDebt reads (roadmap-client.tsx:71); it becomes `shipped` with
+      the production promotion, like every other debt row. Debt rows carry no
+      `shipped:` field.
+      ALL THREE HALVES OF THE DEFECT ARE ANSWERED. (1) NO ENTITY → `Section`,
+      per-template, stable ids, @@unique([templateId, name]). (2) NO ORDERING →
+      explicit `sortOrder`, RECOVERED from MIN(orderIndex) rather than
+      invented, so the entity reproduces the old render order by construction;
+      the double heading a non-contiguous section used to produce in the
+      template form is gone. (3) NO AS-EXECUTED RECORD →
+      `Checklist.sectionsSnapshot`, frozen ONCE at the first task log and never
+      rewritten. Evidence and the browser pass are on CHK-1.
+      THE LATENT TRIGGER WAS FIRED DELIBERATELY, WHICH IS WHY THIS CLOSES
+      RATHER THAN LAPSES. The block below says the acceptance "does not survive
+      the trigger" and treats the first rename as the thing to fear. CHK-1's
+      pass pulled it on purpose: a checklist completed post-deploy, its section
+      renamed, and the print copy held the OLD name while the template showed
+      the new. The trigger is now the test, exactly as the 2026-08-09 scoping
+      note said it would become.
+      TWO LIMITS ON THIS CLOSURE, RESTATED HERE SO IT IS NOT READ WIDER THAN IT
+      IS — both were true when the row was scoped and neither changed:
+      (a) SCOPE IS NAMES ONLY (Gary, 2026-08-09). Task descriptions, task
+      additions and task flags STILL resolve live at print time, so a printed
+      checklist from last month still re-prints with a task added yesterday.
+      That is the same mechanism one layer out, it is wider than this row ever
+      described, and it is DEBT-60 — not something this closure covers.
+      (b) A CHECKLIST COMPLETED BEFORE THE CHK-1 DEPLOY HAS NO SNAPSHOT and
+      therefore still renders LIVE section names; a rename still rewrites ITS
+      headings. UNRECOVERABLE RATHER THAN UNFIXED: what those checklists were
+      printed under is not written down anywhere, and fabricating it would make
+      a guess indistinguishable from a record — the exact defect this row is
+      about (plan §12.5). The as-executed record starts at deploy. Also stated
+      at docs/prompts/CHK-1_PLAN.md §2.4, prisma/schema.prisma
+      (Checklist.sectionsSnapshot) and src/app/print/checklist/[id]/page.tsx.
+      `Task.sectionName` SURVIVES this row as a legacy mirror, kept written on
+      every write path — TPL-1a's shape. Retiring the column is a later row and
+      was never DEBT-36's business.
+      ── EVERYTHING BELOW IS PRESERVED UNEDITED, INCLUDING THE TWO BLOCKS THAT
+      SAY THIS ROW DOES NOT CLOSE. They were true when written; this block is
+      where that expires. ──
+      IN FLIGHT 2026-08-09 — CHK-1's S1 IS BUILT AND COMMITTED ("4fd9152"),
+      AND THIS ROW STILL DOES NOT CLOSE. The Section entity, `Task.sectionId`,
+      `TaskLog.sectionId` and `Checklist.sectionsSnapshot` all exist in code;
+      the migration that creates them is HAND-AUTHORED AND UNRUN on every
+      branch, so on the day this line is written the defect below is still
+      live everywhere and the acceptance is still being paid. It closes when
+      the backfill is proven on the three live branches and the rename trigger
+      has been fired on staging — CHK-5 carries the instruction, per the block
+      below, and nothing about that changes here.
+      ONE THING TO CARRY INTO THE VERIFICATION, because it is this row's own
+      latent trigger stated as a limitation: A CHECKLIST COMPLETED BEFORE THE
+      CHK-1 DEPLOY HAS NO SNAPSHOT and therefore still renders LIVE section
+      names — a rename still rewrites ITS headings. That is unrecoverable
+      rather than unfixed: what those checklists were printed under is not
+      written down anywhere, and fabricating it is the defect this row is
+      about (plan §12.5). The as-executed record starts at deploy.
+      ── SCOPING NOTE OF 2026-08-09 BELOW, UNEDITED ──
+      SCOPED 2026-08-09 — THE ENTITY WORK IS NOW CHK-1, AND THIS ROW STAYS OPEN
+      UNTIL IT SHIPS. The feature phase this row was parked for was scoped and
+      approved: docs/prompts/CHK-1_PLAN.md, committed in "746918c". The Section
+      entity — per-template, stable ids, explicit sortOrder — is CHK-1 (S1), and
+      the as-executed record this row says does not exist anywhere in the system
+      arrives with it as Checklist.sectionsSnapshot.
+      THE ROW IS NOT CLOSED AND THE STATUS IS NOT SET, DELIBERATELY. `status`
+      on a debt row means staging/shipped/verified/withdrawn (roadmap.ts
+      DebtItem; isResolvedDebt in roadmap-client.tsx:71 is the single
+      definition). Nothing has shipped, nothing is retracted, and there is no
+      value meaning "scoped into a phase that has not built yet" — the same gap
+      the header NOTE records for audit-only phases ("no status fits… a future
+      'closed'/'documented' would"). Setting any existing value would move this
+      row into the RESOLVED list while the defect is still live on every branch.
+      It closes when CHK-1 ships, and CHK-5 carries the instruction to do it.
+      WHAT THE ACCEPTANCE COSTS IS STILL BEING PAID UNTIL THEN. The 2026-08-07
+      ruling below accepted renames-rewrite-history FOR NOW; "now" has a defined
+      end but has not arrived. The latent trigger also stands, with one change
+      worth naming: CHK-1's regression plan FIRES IT DELIBERATELY on staging —
+      rename a section on a template with completed history and prove the
+      historical checklist and its print copy do not move. The first rename is
+      no longer something to fear; it is the test.
+      TWO THINGS THIS ROW ASKED FOR THAT CHK-1 DOES NOT DO, so the closure is
+      not read as wider than it is. (1) The snapshot scope is NAMES ONLY (Gary,
+      2026-08-09). Task descriptions and task additions still resolve live at
+      print time, which is the same mechanism one layer out and is DEBT-60.
+      (2) Task.sectionName is KEPT AND KEPT WRITTEN as a legacy mirror, the
+      TPL-1a shape — retiring the column is a later row, not CHK-1's business.
+      ── RULING OF 2026-08-07 BELOW, UNEDITED ──
       RULED 2026-08-07 — RENAMES-REWRITE-HISTORY IS ACCEPTED FOR NOW, AND THE
       SECTION ENTITY IS INTENDED WORK RATHER THAN A DECLINED OPTION. Gary took
       the second of the two directions this row put to him, but not immediately:
@@ -7049,10 +8119,35 @@ debt:
       count. Related: DEBT-18, DEBT-23, DEBT-26.
 
   - id: DEBT-38
-    status: staging
+    status: shipped
     commits: ["7d984be"]
     title: "CLOSED — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207" — AND ITS FIRST
+      EXERCISE FOUND A GAP IN ITSELF, NOW FIXED. The same promotion that
+      carried this fix was the first run under it, and it worked: "fad9207" is
+      a real merge commit with two parents, where the two promotions before it
+      had to record "FAST-FORWARD, not a merge — git revert -m 1 does not
+      apply" over hand-assembled 32- and 28-commit revert lists.
+      BUT the one-line rollback §2 promised does not run. Tested rather than
+      assumed on the day: `git revert -m 1 fad9207` conflicts on
+      docs/DEPLOY_LOG.md — 37 of 38 files revert cleanly — and it will do so on
+      every future promotion, because §2 has the log entry committed on main
+      AFTER the merge while the promotion set also touches that file. The
+      corrected three-line recipe, plus the rule that the log is KEPT rather
+      than reverted, is now in WORKFLOW.md §2 under "Rolling a promotion back";
+      the measurement lives in the "fad9207" DEPLOY_LOG entry.
+      A SECOND GAP, same section, same day: §2's command block read checkout /
+      pull / merge / push / checkout, with the DEPLOY_LOG add+commit only in
+      the prose beside it — so copying the block literally pushed without
+      committing the entry, which is this row's own failure mode. The commands
+      are now in the block.
+      THE ROW CLOSES WITH BOTH GAPS FIXED, NOT HIDDEN. It is filed as shipped
+      because the fix is in production and works; the corrections above are
+      recorded here rather than in a new row because they are defects in this
+      row's own remedy, found by using it, and a reader asking "did DEBT-38
+      actually work" needs both halves in one place.
+      ── ORIGINAL CLOSURE NOTES BELOW, UNEDITED ──
       CLOSED 2026-08-07 — RULED, AND BOTH FIX DIRECTIONS WERE TAKEN. The row
       offered (a) a DEPLOY_LOG step inside WORKFLOW.md §2 and (b) `--no-ff` on
       promotions, and its own last word was that they are not exclusive. Gary
@@ -7261,10 +8356,104 @@ debt:
       same reopening condition), PERM-7 Task 7.
 
   - id: DEBT-41
+    status: staging
+    commits: ["13e96fb"]
     title: >
-      RULED — A blocker entry can only be LIVE or RESOLVED — there is
+      CLOSED — A blocker entry can only be LIVE or RESOLVED — there is
       no value for the half-closed state two entries are actually in
     notes: >
+      VERIFIED 2026-08-08 BY GARY ON STAGING — CODE VERIFIED VIA THE TPL-2
+      WALKTHROUGH; PANEL RENDERING PER THE "13e96fb" SESSION'S BROWSER EVIDENCE.
+      Read the two halves separately, because they carry different weight. The
+      code is on staging and exercised: "13e96fb" and "cc837db" reached origin
+      with "198d040"/"332e6fb", and the TPL-2 pass ran against a build carrying
+      this row's BlockerEntry union, so the type change is live and does not
+      break the app. THE PANEL ITSELF WAS NOT RE-OPENED IN THIS PASS. The counts
+      below — 16 live · 2 narrowed across 11 blocked phases · 12 resolved, the
+      dashed border and the NARROWED marker — REST ENTIRELY ON THE "13e96fb"
+      SESSION'S OWN BROWSER READING, recorded further down this row, and are not
+      independently re-confirmed here.
+      WRITTEN THIS WAY DELIBERATELY (Gary, 2026-08-08). The first draft of this
+      rider asserted a staging panel reading with those exact counts. They are
+      identical to the ones already in this row, which is precisely the shape of
+      a figure transcribed from a document and re-reported as a fresh
+      observation — CLAUDE.md § Database Evidence's relocation lesson, one
+      surface over. Asked directly, Gary confirmed the panel was not opened. A
+      rider claiming a check that did not happen would have been worse than no
+      rider, because it would have looked like corroboration.
+      WHAT WOULD ACTUALLY CLOSE THIS: open /internal/roadmap on staging, name
+      the ORGANIZATION ID and the Clerk INSTANCE per CLAUDE.md § Browser
+      Evidence, and record the counts seen. Until then the panel evidence for
+      this row has exactly one source, taken pre-push on a local build.
+      CLOSED 2026-08-08, commit "13e96fb". The third state exists and both
+      exemplars carry it. BlockerEntry is now
+      `string | {resolved: true, text} | {narrowed: true, text}` — a bare string
+      still means LIVE, and the new state is a SEPARATE UNION MEMBER precisely
+      so that `resolved: false` has nowhere to be written. The panel reads
+      16 live · 2 narrowed across 11 blocked phases · 12 resolved, where it read
+      18 live before; the "Phases blocked" tile is unchanged at 11, because a
+      narrowed entry STILL BLOCKS and both numbers come from one predicate.
+      BUILD-1 `blockers[0]` and IG-1 `blockers[2]` were flagged, not rewritten —
+      their text is byte-identical, verified by re-running P-4's whole-tree
+      identity check across all 30 blocker entries, which permitted exactly two
+      diffs (both `live -> narrowed`) and zero text diffs. The panel was read in
+      a browser at those counts before the commit, not inferred from the data.
+      STATUS IS `staging` AND THAT IS ONE STEP AHEAD OF THE TRUTH AT WRITING:
+      "13e96fb" is committed on the local `staging` branch and NOT PUSHED, so
+      the value becomes true on Gary's push and nothing else in this row depends
+      on it. Stated rather than implied — DEBT-14 closed the same way, and the
+      legend's `staging` ("merged to `staging`, on Vercel preview") is the
+      nearest true value once the push lands. Claude never pushes (CLAUDE.md
+      § Git Rules).
+      CORRECTION APPENDED 2026-08-08 — THE CAVEAT ABOVE IS NOW FALSE AND THE
+      STATUS IS SIMPLY TRUE. Gary pushed; "13e96fb" and its row commit "cc837db"
+      are both on origin/staging, confirmed by `git merge-base --is-ancestor`
+      against origin/staging after a fetch rather than by assuming the push
+      succeeded. Preserved rather than deleted: the caveat was correct when
+      written and expired exactly as designed.
+      THE NAME IS `narrowed`, NOT `half` OR `partial`, and the reason is in the
+      two exemplars: neither is half of anything. Each is an entry that still
+      blocks on strictly LESS than it originally asserted — BUILD-1's step 1
+      closed with step 2 deferred, IG-1's env-var half settled with the callback
+      registration outstanding. `narrowed` names the direction of travel and
+      stays honest when the surviving remainder is a tenth rather than a half.
+      IT CARRIES NO SECOND FIELD naming what remains. Both entries already state
+      it in their own prose, and a required `remains:` would force that prose to
+      be paraphrased into a place that then drifts from it — DEBT-26's shape.
+      COUNTED SEPARATELY, NEVER EXCLUDED, AND STILL BLOCKING — the three
+      answers this row's history argued for. Folding narrowed into live would
+      have kept the count safe and kept it dishonest, which is the state this
+      row spent a week recording; excluding it would have been the one direction
+      the scheme exists to prevent. So `liveBlockers` and `blockingBlockers` are
+      now two functions rather than one widened one. THAT SPLIT FOUND TWO REAL
+      UNDER-REPORTS THAT WERE NOT IN THE DESIGN: the Staging → Production panel
+      would have printed "No recorded gate — ready to promote" over a narrowed
+      gate, and PhaseCard's badges would have dropped a narrowed entry from the
+      collapsed card entirely. Both are fixed in the same commit. Neither is
+      reachable today — there are zero staging phases, and both narrowed entries
+      sit on `shipped` rows — which is exactly why renaming the function rather
+      than widening it was worth the churn: the name is what surfaced them.
+      WHAT THIS DOES NOT UNDO: exemplar (a) is still relocated. PERM-6's 11.9k
+      coverage record is still behind a collapsed disclosure and this change
+      does not bring it back — the state arrived after the workaround, not
+      before it. The row closes because the vocabulary gap is closed, not
+      because that price was refunded.
+      THE STANDING PROHIBITION SURVIVES THIS CLOSURE and now lives in three
+      places (the type, the YAML header, this row): never write `resolved:
+      false`, and never write `narrowed: false`. The absence of a flag carries
+      LIVE, and that default is what makes the whole scheme safe. A third state
+      is not a licence for a fourth — the gap this type had was a real state
+      with no name, and the fix was a name and a render treatment.
+      NOT DONE HERE, DELIBERATELY: DEBT-42's `deferred` and `open` are still
+      bare `string[]`. Widening them is still gated on its own trigger (the
+      first surface that COUNTS either field), and doing it as a rider on this
+      commit is precisely the sweep-creep that left exemplar (a) relocated
+      instead of fixed. DEBT-14's adjacent question — a ruled-LATENT debt row
+      rendering identically to an untriaged one — is a different type on a
+      different panel and would mean touching PhaseStatus, which is shared with
+      the phase board; out of scope by the same argument Gary used on DEBT-14
+      itself.
+      ── RULING AND HISTORY BELOW, UNEDITED ──
       RULED 2026-08-07 — THE STANDING TRIGGER FIRED, SO THIS ROW STOPS BEING A
       DECISION AND BECOMES WORK. Its own instruction was WATCH FOR MORE EXAMPLES
       BEFORE ACTING, and after exemplar (a) was relocated away rather than
@@ -8109,12 +9298,25 @@ debt:
       sharp one; this is an ordinary leftover.
 
   - id: DEBT-45
-    status: staging
+    status: shipped
     commits: ["7d984be"]
     title: >
       CLOSED — Audit-only sessions leave no artifact: the DEBT-TRIAGE
       audit's 22 per-row assessments exist nowhere in the repo
     notes: >
+      SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207" — the CLAUDE.md rule
+      travelled in the same merge as DEBT-38's WORKFLOW.md fix, both from
+      "7d984be".
+      IT HAD ALREADY FIRED ONCE BEFORE PROMOTING, which is the useful thing to
+      record: the TYPE-1 investigation session reported findings and wrote no
+      artifact, with this rule already in the tree. The next session paid the
+      debt — docs/prompts/TYPE-1_AUDIT.md, written at 2d5b93d and re-verified
+      by reading the code rather than transcribing the transcript, which is how
+      three of TYPE-1's claims turned out to be wrong. So the BACKSTOP half
+      works and the AUTOMATIC half — the standing line in Gary's prompt
+      template, which lives outside this repo — is still what this row said it
+      was: the harder and more important one, and not enforceable from here.
+      ── ORIGINAL CLOSURE NOTES BELOW, UNEDITED ──
       CLOSED 2026-08-07 — RULED YES. Audit-only sessions MUST write their
       findings to docs/prompts/<NAME>_AUDIT.md BEFORE reporting, and the report
       SUMMARISES that file rather than replacing it. The rule is in CLAUDE.md
@@ -8462,6 +9664,45 @@ debt:
       RULED — Implement the checklist availability window, or remove
       the fields — the half of DEBT-29 that a relabel could not settle
     notes: >
+      SCOPED 2026-08-09 — THIS ROW'S JOB IS DONE, AND IT SAID SO ITSELF. The
+      scope note below reads "THIS ROW'S JOB IS TO HOLD THE THINKING UNTIL GARY
+      SCOPES IT AS ONE." He scoped it: docs/prompts/CHK-1_PLAN.md, approved
+      2026-08-09, committed in "746918c". The window is CHK-3 (the engine) and
+      CHK-4 (the surfaces).
+      BOTH RECORDED OPEN QUESTIONS ARE ANSWERED, and by which ruling is worth
+      stating rather than leaving to be matched up. (a) "What does OVERDUE do
+      across day boundaries?" → R1: overdue is a live state within the
+      operational day ONLY; at day close an unfinished checklist becomes MISSED
+      — closed, not actionable, permanently recorded — and a finished one may
+      record completed-late. The row's own guess was right: "there is probably a
+      point where an unfinished checklist stops being actionable and becomes a
+      compliance record." (b) "What do the OFFSETS mean once the window is
+      soft?" → R3: they are EXPECTATIONS, never gates, and nothing is ever
+      hidden by a window. The row's warning — "State it, or someone will
+      implement them as enforcement later" — is discharged by the (i) explainer
+      CHK-4 ships beside the fields.
+      THE OVERDUE-NOT-HIDDEN THINKING WAS PROMOTED FROM THINKING TO SPEC, which
+      is precisely what the 2026-08-07 block below forbade doing without Gary
+      scoping the phase first. He did. The two operating scenarios it argues
+      from are now regression checks: the late opener's tasks stay completable
+      (CHK-4 verifies nothing is ever hidden), and the 11am employee sees
+      "Opening — Overdue" rather than an untouched list.
+      ONE THING THE THINKING DID NOT ANTICIPATE, and it is the finding that
+      shaped CHK-3: a checklist nobody starts HAS NO ROW. /store-view lists
+      templates, not checklists, so MISSED had nothing to be written onto and
+      day close must MATERIALIZE the miss. Neither this row nor DEBT-36 could
+      see it from where they sat.
+      THE ROW STAYS OPEN AND CARRIES NO STATUS, for the reason set out on
+      DEBT-36's 2026-08-09 rider: no `status` value means "scoped into a phase
+      that has not built yet", and any existing one would move a live defect
+      into the RESOLVED list. It closes when CHK-4 ships; CHK-5 carries the
+      instruction.
+      SEQUENCING AGAINST DEBT-32 WAS HONOURED, and tightened. The note below
+      says the fold is "the natural thing to do first if this is built, since a
+      gate should read one list rather than three". CHK-3's expectedWindow()
+      reads operationalPhase to pick its anchor, making a FOURTH reader — so the
+      fold is CHK-2's opening move, before the new consumer is written.
+      ── RULING OF 2026-08-07 BELOW, UNEDITED ──
       RULED 2026-08-07 — PARKED AS THE FEATURE PHASE THIS ROW'S OWN SCOPE NOTE
       DEMANDED. Neither direction the row put up (build the window, or remove
       the two offset columns) was taken as a debt-sized job, because the row is
@@ -9203,13 +10444,49 @@ debt:
       Related: PERM-7 (the device accounts this is for).
 
   - id: DEBT-59
-    status: staging
+    status: shipped
     commits: ["2ccca7d"]
     title: >
       CLOSED — Template availability offsets default to 1 and 2 and are written
       on every save — every existing template carries an invented window nobody
       chose
     notes: >
+      UPDATE 2026-08-09 — THE COPY THIS ROW SHIPPED RETIRES IN CHK-4, AND THE
+      ROW STAYS CLOSED. This is a pointer, not a re-opening: DEBT-59 is
+      `shipped` and stays `shipped`. Plan: docs/prompts/CHK-1_PLAN.md §6.2,
+      committed in "746918c".
+      WHAT RETIRES AND WHEN. The helper text this row wrote — "Optional.
+      Recorded for reference — not yet used to show or hide checklists. Leave
+      blank if no window has been decided." (template-form.tsx:1056) — becomes
+      FALSE the moment CHK-4 ships, because that is the session where the
+      offsets gain their ruled meaning as an EXPECTED WINDOW (Gary's R3). It is
+      replaced there, by that session, and by no earlier one. A copy change is
+      earned by the phase that makes it true — which is this row's own argument,
+      applied to this row's own sentence.
+      WHAT DOES NOT CHANGE. The ` *` stays off both labels; blank stays blank;
+      the columns stay nullable; the CSV round-trip is untouched. And DEBT-29's
+      visible-and-labelled decision still stands — CHK-4 ADDS an (i) explainer
+      beside the fields rather than hiding them, which is the same reasoning one
+      step further on.
+      THIS ROW'S HANDOVER WAS HONOURED. It said the feature phase "has to decide
+      what an offset means before it can decide what those rows are worth", and
+      that every pre-gate value should be treated as unreliable regardless of
+      what it says. CHK-3 does exactly that: the expected window is computed
+      from whatever offsets a template carries, with NO backfill and no
+      value-matched repair of the 1/2 rows this row froze the set of. An
+      operator who never chose a window still has blanks, and blanks can never
+      go overdue (R3).
+      ── SHIPPING RECORD OF 2026-08-07 BELOW, UNEDITED ──
+      SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207". The form stopped
+      manufacturing a 1/2 window nobody chose, on production, before any
+      availability gate exists to turn those unchosen values into real
+      behaviour — which was this row's entire argument for doing it now rather
+      than parking it inside a feature phase.
+      NO SCHEMA CHANGE TRAVELLED WITH IT, as the audit established: both
+      columns were already nullable with no @default since the init migration,
+      so there is nothing on the production database to verify and no rollback
+      consideration beyond the code itself.
+      ── STAGING VERIFICATION BELOW, AS RECORDED BEFORE THE PROMOTION ──
       VERIFIED 2026-08-07 by Gary on staging: all nine manual checks passed,
       including clear-to-blank (not 0), unrelated-edit preservation, and
       export/import blank round-trip.
@@ -9304,6 +10581,403 @@ debt:
       against another phase — which is what a row is for.
       Related: DEBT-48 (the parked feature phase this was cargo on), DEBT-29
       (the relabel that surfaced it as a third option), DEBT-32.
+
+  - id: DEBT-60
+    title: >
+      Printed and historical checklists render LIVE task text — the as-executed
+      hole one layer out from DEBT-36, which CHK-1's snapshot deliberately does
+      not cover
+    notes: >
+      COST OF DOING NOTHING: The same defect DEBT-36 describes for section
+      headings, on the task text itself — a printed closing checklist from last
+      month re-prints today with a task added yesterday, and with any
+      description edited since, and nothing indicates it changed — LATENT
+      (trigger: the first task edit or task addition on a template that already
+      has completed historical checklists. Unlike DEBT-36's trigger this one is
+      ROUTINE — editing a task is ordinary template maintenance, not a rare
+      administrative act — so it is materially more likely to fire than the
+      rename ever was). DERIVED AT HEAD "746918c" by the CHK-1 planning session.
+      FILED 2026-08-09 ON GARY'S RULING, out of CHK-1's scope decision. Found
+      while auditing DEBT-36's compliance argument; recorded here rather than
+      absorbed because absorbing it roughly doubles CHK-1's schema and its print
+      rewrite, and the two ship independently.
+      THE FACT, so nobody re-derives it: print/checklist/[id]/page.tsx:30 loads
+      `template.tasks` fresh on every render and groups them at :43-51. Nothing
+      about the task list is frozen. A task DELETED from a template is the one
+      case that is safe, and only by accident — api/templates/[id]/route.ts:96-101
+      refuses to delete a task carrying TaskLog history because of the RESTRICT
+      FK. Additions and text edits have no such guard.
+      WHAT CHK-1 DOES AND DOES NOT COVER. It ships Checklist.sectionsSnapshot,
+      frozen once on the first TaskLog write, holding [{sectionId, name,
+      sortOrder}] — SECTION NAMES ONLY (Gary, 2026-08-09). Task descriptions,
+      task additions and task flags are explicitly out.
+      FIX SHAPE when picked up: a second Json column on Checklist
+      (`tasksSnapshot`), written by the SAME single writer at the same instant
+      as sectionsSnapshot, so there is one freeze point and not two that can
+      disagree. Print reads it when present and falls back to the live join when
+      null. Additive; no migration risk beyond the column.
+      Disconfirmed by: a tasksSnapshot column appearing on Checklist, or print
+      resolving task text through anything other than the live template join.
+      Related: DEBT-36 (the same mechanism, one layer in), CHK-1.
+
+  - id: DEBT-61
+    title: >
+      Template.frequency is collected, exported and rendered but read by no
+      generation path — every template is a daily template
+    notes: >
+      COST OF DOING NOTHING: Bulk generate creates a checklist for every active
+      template every day regardless of frequency, and on-demand creation asks no
+      question at all, so a Weekly template behaves exactly like a Daily one —
+      LATENT TODAY, LOUD THE DAY CHK-3 SHIPS (trigger: day-close materialisation.
+      An unfiltered job would file a Weekly checklist as MISSED six days a week
+      and a Monthly one as missed ~29, turning the operations report into noise
+      on its first day). DERIVED AT HEAD "746918c" by the CHK-1 planning session.
+      FILED 2026-08-09 ON GARY'S RULING. The trigger is already handled — CHK-3
+      materialises misses only for `frequency = "Daily"`, and CHK-5's report
+      states the exclusion on its face so "no weekly misses" is never read as
+      "weekly checklists were all done". THAT IS A CONTAINMENT, NOT A FIX, which
+      is why this row exists rather than a comment.
+      THE FACT: `frequency` is String @default("Daily") on Template. Every
+      reference is collection or display — template-form.tsx, the CSV export and
+      import, templates-client.tsx:184 (duplicate), templates/[id]/page.tsx:69
+      and print/template/[id]/page.tsx:88 (both render it as a label), and
+      api/templates/route.ts:117 (`|| "Daily"` on create). NEITHER creation path
+      in api/checklists/route.ts reads it: the single create at :130 and the bulk
+      loop at :155-170 filter on isActive and appliesTo only.
+      NOTE THE SHAPE OF THE DEFECT — it is a promise on a form, not a bug in a
+      path. The operator picks Weekly, the value persists, the value prints back
+      at them on the template page, and nothing anywhere honours it. That is the
+      TPL-1 pattern exactly (a field wired end to end with the behaviour
+      omitted), and it is worth saying so: TPL-1's lesson was that the CONTROL
+      is the fix and the default was the symptom. Here the control exists and
+      the CONSUMER is missing.
+      FIX SHAPE when picked up: frequency-aware generation — a Weekly template
+      needs a day-of-week, a Monthly one a day-of-month, neither of which is
+      collected today, so this is a schema addition plus a form control plus the
+      generation filter, not a one-line predicate. Sequence it AFTER CHK-3, which
+      is the first thing that will care.
+      Disconfirmed by: any code path in api/checklists or the day-close cron
+      branching on Template.frequency. Related: CHK-3, CHK-5, TPL-1.
+      RIDER 2026-08-09, PREPENDED-STYLE (nothing above is edited) — THE
+      CONTAINMENT IS NOW CODE, IN "d089a7c", AND THE DISCONFIRMATION CLAUSE HAS
+      FIRED WITHOUT THIS ROW CLOSING. The day-close job branches on
+      Template.frequency: `materializesMisses()` in
+      src/lib/checklist-lifecycle.ts, called at the materialisation site in
+      api/cron/checklist-day-close/route.ts, which carries a comment pointing
+      here rather than re-deriving the reasoning. So the clause above is
+      satisfied by a filter that PREVENTS THE NOISE and still reads nothing
+      about WHEN a Weekly template is due — which is the whole row. The trigger
+      it was written against is defused; the defect is untouched. Read the
+      clause as disconfirming "no code anywhere looks at frequency", which was
+      the honest test on the day it was written, not as this row's exit
+      condition. The exit condition is unchanged: frequency-aware generation, a
+      day-of-week and a day-of-month that nobody collects yet.
+      Also note what the containment does NOT cover: a non-Daily checklist that
+      somebody DID start still closes normally at day close, Completed or
+      Missed. Only the create-a-row-for-one-nobody-started step is skipped.
+
+  - id: DEBT-62
+    title: >
+      The archived preview/main Neon branch still answers queries with
+      month-stale data — a fossil that returns clean, plausible, wrong results
+    notes: >
+      COST OF DOING NOTHING: Nothing in the product reads it and no deploy
+      targets it, so no code misbehaves — the cost is entirely to EVIDENCE, and
+      it has already been paid once — LATENT-BUT-FIRED-ONCE (trigger: any query
+      run across "all branches". It fired on 2026-08-09, during the CHK-1
+      planning session's own duplicate precheck).
+      FILED 2026-08-09 ON GARY'S INSTRUCTION, from the CHK-1 planning session.
+      Size: S — it is a console deletion, not code.
+      THE MEASUREMENT, per CLAUDE.md § Database Evidence: preview/main
+      `br-purple-rain-a6m62xww` — `_prisma_migrations` tail ends at
+      `20260708100000_f1_goal_plans` (2026-07-08), TPL-1a ABSENT, a month stale.
+      Taken by Gary 2026-08-09. The branch stopped receiving deploys when
+      DATABASE_URL was scoped Production-only (BUILD-1) and has been ARCHIVED
+      SINCE 2026-08-04. The three live branches are unchanged: dev
+      `br-broad-wave-a6vpjdw0`, preview/staging `br-square-feather-a63z92vz`,
+      production `br-sparkling-block-a620qvg4`.
+      HOW IT FIRED, recorded because the failure is instructive and the fix is
+      not. The CHK-1 precheck was run on four branches and all four returned
+      duplicate_groups 0. The fourth result was read as evidence that the plan's
+      inherited "three branches" phrasing (copied from TPL-1 and TPL-2) was
+      stale, and two verification instructions were rewritten to say FOUR — plus
+      a paragraph asserting, labelled as inference, that the branch receives
+      `prisma migrate deploy`. All of that was wrong, and every observation
+      behind it was real. Corrected in docs/prompts/CHK-1_PLAN.md §0a, which
+      keeps the whole arc rather than the answer.
+      THE LESSON GENERALISES PAST THIS BRANCH AND IS THE REASON THIS ROW IS
+      WORTH FILING: a branch ANSWERING a query proves it EXISTS, not that it is
+      LIVE. That is § Database Evidence's "A ROW ID DOES NOT IDENTIFY A BRANCH"
+      one turn further on, and the guard that caught it was a STRUCTURAL fact
+      about the branch — the `_prisma_migrations` tail — not a fact about the
+      row, which is § Browser Evidence's "verify by a structural fact, not by
+      its name" applied to a database branch.
+      FIX SHAPE: delete the branch in the Neon console. GARY'S, NOT CLAUDE'S —
+      it is a destructive action against a hosted environment and Claude does not
+      touch deployed infrastructure. Sequence it at CHK phase close, so the
+      branch is not deleted out from under a session that might still be citing
+      it.
+      Disconfirmed by: the branch no longer appearing in the Neon project.
+      Related: BUILD-1 (the scoping that stranded it), DEBT-4.
+
+  - id: DEBT-63
+    title: >
+      /reports omits Non-Compliant from its own totals — three status buckets
+      summed as if they were all of them
+    notes: >
+      COST OF DOING NOTHING: A checklist submitted with critical tasks
+      incomplete is counted in NO bucket on /reports and is silently absent from
+      the "of N total checklists" denominator, so the page under-reports its own
+      total and overstates completion rate against it — LIVE, not latent,
+      whenever any Non-Compliant row exists (trigger already met in principle:
+      the status has a writer and a render site; whether any row currently
+      carries it was NOT measured — this session queried no database).
+      DERIVED AT HEAD "746918c" by the CHK-1 planning session, from reading, not
+      from a query.
+      FILED 2026-08-09. INDEPENDENT OF THE CHK PHASE — found while mapping the
+      checklist surfaces, and filed separately BECAUSE it is not CHK's to fix:
+      it is wrong today, at HEAD, with no new feature involved.
+      THE FACT: api/checklists/[id]/submit/route.ts:34-38 writes one of three
+      statuses — Completed, Non-Compliant, In Progress. reports/page.tsx:31-33
+      counts Completed, In Progress and Pending, and :95 renders the total as
+      `completed + inProgress + pending`. Non-Compliant matches none of the
+      three. /checklists DOES render it (checklists/page.tsx:14), so the two
+      pages disagree about what exists.
+      WHAT CHK MUST NOT DO, and this is why the row is filed rather than left as
+      a note: CHK-4 adds `Missed` to those same counts. Adding one status to a
+      sum that already drops another WIDENS the defect while looking like
+      maintenance — the reviewer sees a status being added and reads the
+      omission as intentional. CHK-4's regression plan says to add Missed; this
+      row says the sum was already wrong before it got there.
+      A SECOND, SMALLER THING IN THE SAME AREA, recorded so it is not
+      rediscovered: checklists/page.tsx:117 falls back to `STATUS_STYLES.Pending`
+      for any unmapped status, so an unmapped value renders as "Not Started" —
+      the most wrong of the available answers, silently. Exactly DEBT-37's
+      class. Not currently reachable there (all four written statuses are
+      mapped) and it becomes reachable the moment Missed ships unmapped, which
+      is why CHK-4 maps it.
+      FIX SHAPE: count Non-Compliant explicitly on /reports, or derive the total
+      from the row count rather than from a sum of named buckets — prefer the
+      latter, since it makes the omission impossible to reintroduce. The defect
+      is the hand-summed denominator, not the missing bucket.
+      Disconfirmed by: /reports deriving its total from anything other than
+      `completed + inProgress + pending`. Related: DEBT-37 (the same silent
+      fallthrough class), CHK-4.
+      RIDER 2026-08-09 (CHK-3, "d089a7c") — ONE FACT THIS ROW DOES NOT HAVE, AND
+      IT MATTERS BECAUSE THE TWO HALVES OF THE PAGE MOVE IN OPPOSITE DIRECTIONS.
+      The per-store table at reports/page.tsx:36-41 does NOT use the hand-summed
+      denominator: `total` is `sc.length`, every row in scope whatever its
+      status, and `rate` is completed/total. So the moment Missed rows exist —
+      which is the moment CHK-3's cron first runs, BEFORE CHK-4 touches any
+      counting — the four tiles under-report by MORE while the store table's
+      rate drops by the same rows. Same page, one number too low, another too
+      high, from the same cause. Materialised misses add rows that never existed
+      before; stale Pending rows flipped to Missed leave the tiles but stay in
+      the table's denominator. The fix shape above (derive the total from the
+      row count) fixes the tiles and leaves the table already correct, which is
+      further reason to prefer it.
+      THE CHK-3 SESSION DID NOT TOUCH THIS — it must not touch any rendering —
+      and it is stated here rather than only in that session's report so it is
+      not rediscovered as a regression when the numbers move on staging.
+
+  - id: DEBT-64
+    title: >
+      Labor silently ignores overnight and one-sided StoreHours and infers from
+      sales instead — and day close will read the same rows the other way
+    notes: >
+      COST OF DOING NOTHING: A store whose real hours cross midnight has those
+      hours entered, saved, and displayed on /stores — and labor plans its week
+      as if they had never been set, from trailing sales, with nothing on any
+      screen saying so. LIVE the moment such a store is configured; LATENT only
+      because no store had hours at all before 2026-08-09. It gets worse rather
+      than staying flat: CHK-3 makes day close read the SAME rows under the
+      OPPOSITE rule, so one store ends up judged on two different windows by two
+      subsystems that both look correct.
+      DERIVED AT HEAD "597e86d" by the CHK-2 session, from reading
+      labor-plan.ts:195-207 and from running the explicit-hours branch for the
+      first time in its life against dev br-broad-wave-a6vpjdw0.
+      FILED 2026-08-09. IT EXISTED ONLY IN S2's REPORT UNTIL THIS COMMIT —
+      named as a ROW in that session's triage and never written to the board.
+      DEBT-37's rule, firing on the session immediately after the one that
+      recorded it firing on S1. Filed here rather than absorbed into CHK-3
+      because the fix is in labor-plan.ts, which CHK-3 must not touch, and a
+      rider on a phase row dies when that phase closes.
+      THE FACT: labor-plan.ts:202 accepts an explicit window only when
+      `e > s` — `open = s != null && e != null && e > s ? {...} : inferredOpen[wd]`.
+      A 07:00-02:00 store gives s=7, e=2, so `e > s` is false and it falls
+      through to sales inference. One-sided hours fail identically: CHK-2's
+      editor deliberately allows a day with an opening time and no closing time
+      (times are independently nullable, and inventing the missing half is what
+      DEBT-59 forbids), and `e != null` then fails. MEASURED, not reasoned:
+      with Sat set to 08:00 and no close, labor returned 13 open hours for that
+      day — the inferred figure, unchanged from before hours existed — while
+      Mon-Thu correctly took their explicit 12.
+      THE FALLBACK IS NOT THE DEFECT; THE SILENCE IS. Falling back to inference
+      for an unusable window is defensible on its own. What is not defensible is
+      that an operator who typed real hours gets a plan built from something
+      else with no indication anywhere — the same shape as DEBT-59's lesson, one
+      subsystem over: a value nobody chose, presented as if chosen.
+      WHAT CHK-3 MUST NOT DO, and this is the half that makes this urgent rather
+      than merely wrong: plan §3.5 rules that for day close `closingTime <=
+      openingTime` means the close instant is D+1 plus buffer — overnight is
+      handled EXPLICITLY and correctly. So after CHK-3 ships, one store is
+      judged on its real window by day close and on an inferred one by labor.
+      S3 must not "resolve" that by copying labor's `e > s` check into
+      expectedWindow(); the plan's rule is the right one and this row is the
+      other side being wrong.
+      FIX SHAPE: treat `e <= s` as a window crossing midnight (end + 24) rather
+      than as invalid, matching the day-close rule so the two subsystems read
+      one meaning; and decide explicitly what a one-sided day means — infer the
+      missing half, or ignore the row — rather than having it fall out of a null
+      check. Either way, surface WHICH stores are running on inference, since
+      that is the part no screen says today. Prefer aligning to §3.5, so there
+      is one definition of a store's operating window rather than two.
+      Disconfirmed by: labor-plan.ts accepting a window where `e <= s`, or any
+      surface naming the stores whose hours were set and then ignored.
+      Related: CHK-2 (shipped the editor that makes this reachable), CHK-3
+      (§3.5, the opposing rule), DEBT-59 (values nobody chose).
+      RIDER 2026-08-09 — THE OPPOSING RULE IS NOW BUILT, IN "d089a7c", AND THE
+      TWO ANSWERS ARE LIVE THE MOMENT MIGRATION B DEPLOYS. Nothing above needs
+      correcting; this records only that the "gets worse rather than staying
+      flat" clause has come due. src/lib/checklist-lifecycle.ts reads
+      `closingTime <= openingTime` as a D+1 close and a one-sided row as a
+      partial window, and it says so at the single definition site with a
+      pointer to this row — so the disagreement is written down in the code
+      rather than waiting to be discovered by whoever notices two numbers. S3
+      did NOT copy labor's `e > s` check, which is what this row asked of it.
+      The fix shape and the exit condition are unchanged and both are still in
+      labor-plan.ts.
+      One thing the day-close side supplies for free when this is picked up: the
+      four-value dayCloseSource (hours / closed-day / no-hours / no-close-time)
+      is exactly the "which stores are running on inference" signal this row
+      says no screen carries. Labor needs its own equivalent, but the shape is
+      already decided rather than open.
+
+  - id: DEBT-65
+    title: >
+      Bulk generate creates checklists for ARCHIVED templates that no store
+      surface will ever show — and day close now files them as Missed
+    notes: >
+      COST OF DOING NOTHING: An archived template still gets a checklist for
+      every store every time an admin presses Generate, and /store-view never
+      lists it, so nobody can complete it. LATENT SINCE FOREVER as an invisible
+      Pending row; LOUD THE DAY MIGRATION B DEPLOYS, because CHK-3's day-close
+      job closes every existing row for a past day — including these — as
+      MISSED. An operator who archived a template last month then sees it in the
+      operations report as a store's miss, for work nobody was ever shown.
+      DERIVED AT HEAD "09a0898" by the CHK-3 session, from reading the three
+      applicability filters side by side. Not measured against any database.
+      THE FACT: api/checklists/route.ts:150 selects bulk-generate templates with
+      `{ organizationId, isActive: true }` and NO isArchived filter.
+      api/stores/[id]/templates/route.ts:24 — the list staff actually see —
+      selects `{ isActive: true, isArchived: false }`, and CHK-3's
+      api/cron/checklist-day-close/route.ts copies that stricter filter
+      deliberately so it can never MATERIALISE a miss for a template a store was
+      never shown. The two filters have disagreed all along; the cron makes the
+      disagreement produce a row with a status on it.
+      AND THE TWO FLAGS ARE INDEPENDENT, which is what makes this reachable
+      rather than theoretical: archiving does NOT clear isActive. Both writers
+      set one flag only — api/templates/[id]/route.ts:31 (single) and the bulk
+      patch at api/templates/route.ts:47-52, driven by
+      templates-client.tsx:314's Archive button. So `isArchived && isActive` is
+      the NORMAL state of an archived template, not a corrupt one.
+      WHY CHK-3 DID NOT FIX IT, stated so the omission is not read as an
+      oversight: the one-line filter would change WHICH templates generation
+      covers, and that is a product decision on an admin button with no ruling
+      behind it. S3's business was the engine. It is filed rather than left in
+      that session's report because a triage that NAMES a row and does not FILE
+      it is how CHK-3's own row came to carry two items from S2 (DEBT-37).
+      FIX SHAPE: add `isArchived: false` to the bulk-generate filter so the
+      three applicability tests read one rule. Consider whether archiving should
+      also clear isActive, or whether isActive should stop being consulted
+      separately at all — two flags with one meaning is the shape of the
+      problem. Decide, too, what happens to checklists already generated for an
+      archived template: leaving them is defensible, and doing nothing is only
+      defensible once it is chosen.
+      Disconfirmed by: bulk generate filtering on isArchived, or any surface
+      rendering an archived template's checklist. Related: CHK-3 (the writer
+      that makes it visible), CHK-5 (the report it shows up on), DEBT-61 (the
+      other generation filter that is not there).
+
+  - id: DEBT-66
+    title: >
+      `main` is red at "7ab7106" — dashboard redeploys fail in `vercel-build`
+      with NO database env attached, and the next production promotion is
+      blocked until that is understood
+    notes: >
+      COST OF DOING NOTHING: Nothing is down. Production SERVES normally from an
+      earlier Ready deployment, so no merchant or operator is affected today —
+      LATENT (trigger: THE NEXT PROMOTION TO PRODUCTION. CHK-3 carries this as
+      half of its promotion blocker, and every CHK row behind it inherits the
+      same gate. The trigger is not hypothetical — it is the next thing this
+      track does).
+      THE FACTS, MEASURED 2026-08-09 rather than relayed. Three dashboard-
+      initiated redeploys of branch `main` at commit "7ab7106" failed the same
+      way (13:34:50, 13:44:51, 15:13:14 PDT — timeline in
+      docs/prompts/CRON-DIAG_findings.md §5), all `errorCode
+      BUILD_UTILS_SPAWN_1`, `Command "npm run vercel-build" exited with 1`, all
+      in `buildStep`. The build log of the third
+      (froot-4608w2c0v-indianathomas-2483s-projects.vercel.app, 22:13:15Z) reads,
+      consecutively — `[prisma.config] DATABASE_URL_UNPOOLED is not set —
+      falling back to DATABASE_URL (pooled)`, then `Error: The datasource.url
+      property is required in your Prisma config file when using prisma migrate
+      deploy.`, then exit 1.
+      WHAT THAT PAIR OF LINES PROVES, AND IT IS MORE THAN EITHER ALONE.
+      prisma.config.ts:24 sets `url: DATABASE_URL_UNPOOLED ?? DATABASE_URL`, so
+      `datasource.url` can only be undefined when BOTH are absent. The warn
+      names the first; the error proves the second. THE BUILD HAD NO DATABASE
+      ENVIRONMENT AT ALL — this is not a wrong URL, not a pooler problem, and
+      not a migration that failed: `prisma migrate deploy` never opened a
+      connection, so nothing ran against any database and the failure is before
+      the first statement. In particular it is NOT the intermittent Neon
+      advisory-lock P1002 (BUG-3) that a `vercel-build` failure would otherwise
+      suggest, and the CRON-DIAG note recommending that be ruled out first is
+      answered here.
+      AND THE VARS THEMSELVES ARE FINE. Production runtime reads `DATABASE_URL`
+      through the Neon adapter and production is serving, so the Production row
+      exists and holds a working value. What differs is ATTACHMENT to this
+      deployment, not the variable — which is the BUILD-1 scoping class: a
+      dashboard redeploy of `main` appears not to receive env the way a
+      git-push deploy does, and the original git-pushed production deploy of
+      this same commit built clean.
+      FIRST MOVES WHEN PICKED UP, cheapest first: compare the env set of a
+      failing dashboard redeploy against the last successful git-push production
+      deployment; check what the redeploy was created FROM and whether the
+      "existing build cache" path carries an empty env snapshot; confirm with
+      `vercel env ls` (METADATA ONLY — `vercel env pull` is banned in this repo,
+      CLAUDE.md § Environment Variables) that `DATABASE_URL` is present in the
+      Production scope and not branch-scoped to something `main` does not match.
+      Then re-promote by GIT PUSH, which is the path known to work, rather than
+      by dashboard redeploy.
+      Disconfirmed by: a dashboard redeploy of `main` reaching `X migrations
+      found` in its build log, or any `main` build whose `Datasource "db"` host
+      line appears at all. Related: BUILD-1 (the split that put `migrate deploy`
+      inside the Vercel build), BUG-3 (prisma.config.ts, and the failure class
+      this one is NOT), DEBT-4 (env scoping), CHK-3 (the promotion it blocks).
+      ── RULING 2026-08-10, PRESERVE-AND-MARK: NOTHING ABOVE IS EDITED ──
+      GARY RULED THIS DOES NOT BLOCK A GIT-PUSH PROMOTION, AND THE ROW STAYS
+      OPEN, RESCOPED TO THE DASHBOARD-REDEPLOY PATH. The reasoning is already in
+      the evidence above and only needed reading as a scope rather than as a
+      severity: every measured failure was a DASHBOARD redeploy, and the
+      git-pushed production deploy of the same commit "7ab7106" built clean. So
+      the defect is in how a redeploy is CONSTRUCTED, not in `main`, not in the
+      code, and not in the env rows — which the last sentence of "AND THE VARS
+      THEMSELVES ARE FINE" already said. One line of the title is now wrong in
+      consequence and is deliberately left standing: "the next production
+      promotion is blocked until that is understood" was the honest call on
+      2026-08-09 and is superseded, not mistaken.
+      WHAT THE RULING ADDS TO THE PRODUCT, and it is the durable half:
+      PROMOTIONS HAPPEN BY GIT PUSH ONLY. That was already this row's own
+      recommended first move ("re-promote by GIT PUSH, which is the path known
+      to work"); it is now the rule. A dashboard redeploy of `main` is the thing
+      not to reach for, and if anyone does reach for it, this row is why it
+      fails.
+      WHAT THE RULING DOES NOT DO: it does not diagnose the redeploy path, so
+      the exit condition and the disconfirmation clause above are untouched.
+      Anyone picking this up still starts at the env-set comparison. The cost of
+      leaving it is now bounded to "a dashboard redeploy is not available as a
+      recovery tool" — which matters most in exactly the situation where someone
+      would reach for it, so the bound is not as comfortable as it sounds.
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #

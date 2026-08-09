@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { businessDayWindow } from "@/lib/reports"
+import { freezeWindow, hoursByStore } from "./expectations"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
   const checklists = await prisma.checklist.findMany({
     where,
     include: {
-      template: { include: { tasks: true } },
+      template: { include: { tasks: true, templateType: { select: { name: true } } } },
       store: true,
       taskLogs: true,
     },
@@ -60,9 +61,15 @@ export async function GET(req: Request) {
     // — a repo-wide grep for the key returns this line only. Left in place
     // rather than removed, since a response field is cheap and something may
     // yet want it; recorded so the next reader does not spend the search
-    // working that out. It carries the LEGACY string column, which TPL-2 will
-    // retire — this is one of the sites that has to be answered for then.
-    templateType: c.template.type,
+    // working that out.
+    //
+    // TPL-2 step (2), 2026-08-08 — THIS IS THE SITE BEING ANSWERED FOR. The
+    // key name is unchanged; only its SOURCE moved, from the legacy string to
+    // the joined row. MIGRATED RATHER THAN DELETED (Gary, Q3): deleting it is
+    // a response-shape change no caller asked for, and this way the field is
+    // correct instead of going stale the moment a type is renamed. Deleting it
+    // is a fair question for TPL-2 step (3), which revisits this surface.
+    templateType: c.template.templateType?.name ?? c.template.type,
     status: c.status,
     date: c.date,
     storeName: c.store.name,
@@ -109,9 +116,19 @@ export async function POST(req: Request) {
     // belonging to ANOTHER tenant creates a checklist here whose template
     // relation points across the org boundary, and GET then renders that org's
     // name and task list. Tenant isolation, not a role check.
+    //
+    // CHK-3: the four window fields are selected because the expected window is
+    // FROZEN ONTO THE ROW at create — see api/checklists/expectations.ts for why
+    // here and not at completion.
     const template = await prisma.template.findFirst({
       where: { id: body.templateId, organizationId: org.id },
-      select: { id: true },
+      select: {
+        id: true,
+        availabilityType: true,
+        operationalPhase: true,
+        startOffsetHours: true,
+        endOffsetHours: true,
+      },
     })
     if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 })
 
@@ -121,6 +138,7 @@ export async function POST(req: Request) {
     })
     if (existing) return NextResponse.json({ id: existing.id }, { status: 200 })
 
+    const hours = (await hoursByStore([body.storeId])).get(body.storeId) ?? []
     const checklist = await prisma.checklist.create({
       data: {
         organizationId: org.id,
@@ -128,6 +146,7 @@ export async function POST(req: Request) {
         templateId: body.templateId,
         date: w.gte,
         status: "Pending",
+        ...freezeWindow(template, hours, w.day, store.timezone),
       },
     })
     return NextResponse.json({ id: checklist.id }, { status: 201 })
@@ -144,9 +163,14 @@ export async function POST(req: Request) {
     prisma.template.findMany({ where: { organizationId: org.id, isActive: true }, include: { storeAssignments: true } }),
   ])
 
+  // CHK-3: one query for every store's hours, so freezing the expected window
+  // on each created row costs no extra round trip inside the loop.
+  const hoursByStoreId = await hoursByStore(stores.map((s) => s.id))
+
   const created: string[] = []
   for (const store of stores) {
     const w = businessDayWindow(now, store.timezone)
+    const hours = hoursByStoreId.get(store.id) ?? []
     for (const template of templates) {
       const applicable =
         template.appliesTo === "selected"
@@ -159,7 +183,14 @@ export async function POST(req: Request) {
       })
       if (!existing) {
         const checklist = await prisma.checklist.create({
-          data: { organizationId: org.id, storeId: store.id, templateId: template.id, date: w.gte, status: "Pending" },
+          data: {
+            organizationId: org.id,
+            storeId: store.id,
+            templateId: template.id,
+            date: w.gte,
+            status: "Pending",
+            ...freezeWindow(template, hours, w.day, store.timezone),
+          },
         })
         created.push(checklist.id)
       }

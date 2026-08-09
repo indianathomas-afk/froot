@@ -351,6 +351,19 @@ async function importTemplates() {
         organizationId: TARGET_ORG_ID,
         name: tmpl.name,
         description: tmpl.description,
+        // TPL-2, 2026-08-08: THIS IS THE ONLY WRITER LEFT IN THE TREE THAT
+        // MANUFACTURES A `typeId IS NULL` ROW. It writes the legacy string and
+        // no FK, so anything it creates today renders through the transition
+        // fallback rather than from a real TemplateType — it cannot be
+        // duplicated until opened and saved, and it will render blank the day
+        // that fallback is removed (TPL-2 step 3).
+        //
+        // Left as-is deliberately: it is a one-off seed against a hardcoded
+        // TARGET_ORG_ID, no operator can reach it, and it has already been run
+        // — the eight live type values came from here
+        // (docs/prompts/TYPE-1_AUDIT.md §2.5). IF YOU RE-RUN IT, resolve a
+        // TemplateType per template and write `typeId` too; see
+        // src/app/api/templates/import/route.ts for the resolve-by-name pass.
         type: tmpl.type,
         frequency: 'Daily',
         availabilityType: tmpl.availabilityType,
