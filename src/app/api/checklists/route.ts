@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { businessDayWindow } from "@/lib/reports"
+import { freezeWindow, hoursByStore } from "./expectations"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
@@ -115,9 +116,19 @@ export async function POST(req: Request) {
     // belonging to ANOTHER tenant creates a checklist here whose template
     // relation points across the org boundary, and GET then renders that org's
     // name and task list. Tenant isolation, not a role check.
+    //
+    // CHK-3: the four window fields are selected because the expected window is
+    // FROZEN ONTO THE ROW at create — see api/checklists/expectations.ts for why
+    // here and not at completion.
     const template = await prisma.template.findFirst({
       where: { id: body.templateId, organizationId: org.id },
-      select: { id: true },
+      select: {
+        id: true,
+        availabilityType: true,
+        operationalPhase: true,
+        startOffsetHours: true,
+        endOffsetHours: true,
+      },
     })
     if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 })
 
@@ -127,6 +138,7 @@ export async function POST(req: Request) {
     })
     if (existing) return NextResponse.json({ id: existing.id }, { status: 200 })
 
+    const hours = (await hoursByStore([body.storeId])).get(body.storeId) ?? []
     const checklist = await prisma.checklist.create({
       data: {
         organizationId: org.id,
@@ -134,6 +146,7 @@ export async function POST(req: Request) {
         templateId: body.templateId,
         date: w.gte,
         status: "Pending",
+        ...freezeWindow(template, hours, w.day, store.timezone),
       },
     })
     return NextResponse.json({ id: checklist.id }, { status: 201 })
@@ -150,9 +163,14 @@ export async function POST(req: Request) {
     prisma.template.findMany({ where: { organizationId: org.id, isActive: true }, include: { storeAssignments: true } }),
   ])
 
+  // CHK-3: one query for every store's hours, so freezing the expected window
+  // on each created row costs no extra round trip inside the loop.
+  const hoursByStoreId = await hoursByStore(stores.map((s) => s.id))
+
   const created: string[] = []
   for (const store of stores) {
     const w = businessDayWindow(now, store.timezone)
+    const hours = hoursByStoreId.get(store.id) ?? []
     for (const template of templates) {
       const applicable =
         template.appliesTo === "selected"
@@ -165,7 +183,14 @@ export async function POST(req: Request) {
       })
       if (!existing) {
         const checklist = await prisma.checklist.create({
-          data: { organizationId: org.id, storeId: store.id, templateId: template.id, date: w.gte, status: "Pending" },
+          data: {
+            organizationId: org.id,
+            storeId: store.id,
+            templateId: template.id,
+            date: w.gte,
+            status: "Pending",
+            ...freezeWindow(template, hours, w.day, store.timezone),
+          },
         })
         created.push(checklist.id)
       }

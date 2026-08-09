@@ -11,7 +11,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 404 })
 
-  const checklist = await prisma.checklist.findFirst({ where: { id, organizationId: org.id } })
+  const checklist = await prisma.checklist.findFirst({
+    where: { id, organizationId: org.id },
+    // CHK-3: the template's task ids, for the ownership check below.
+    include: { template: { select: { tasks: { select: { id: true } } } } },
+  })
   if (!checklist) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   // Store-level users must still be able to execute their own checklists —
@@ -21,7 +25,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  // CHK-3. 409 ON A CLOSED CHECKLIST — day close makes Missed a CLOSED FACT
+  // (Gary's R1: "closed, not actionable"), and this is the first date-sensitive
+  // gate this route has ever had; before it, a checklist of any age accepted
+  // task logs. `closedAt` is only ever set on a row the cron did not find
+  // Completed, so a completed checklist is never refused here.
+  if (checklist.closedAt != null && checklist.status !== "Completed") {
+    return NextResponse.json(
+      { error: "This checklist's day has closed and it was recorded as missed. It can no longer be edited." },
+      { status: 409 }
+    )
+  }
+
   const { taskId, photoUrl, temperatureValue, notes, completedByStaffId } = await req.json()
+
+  // CHK-3 — THE OWNERSHIP CHECK (the S1 integrity finding, parked on the CHK-3
+  // row). This route took `taskId` straight from the body and the only
+  // constraint was the FK to Task, so a hand-crafted request could log a task
+  // belonging to a DIFFERENT template against this checklist; submit then
+  // counted the raw rows and could flip it to Completed with none of its own
+  // tasks done. The S1 comment below records that this was known and left; this
+  // is the refusal. The other end is the distinct-and-valid count in
+  // api/checklists/[id]/submit/route.ts — either half alone leaves the hole open.
+  if (!checklist.template.tasks.some((t) => t.id === taskId)) {
+    return NextResponse.json({ error: "That task does not belong to this checklist" }, { status: 400 })
+  }
 
   // Update checklist to In Progress if Pending
   if (checklist.status === "Pending") {
@@ -80,6 +108,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // TaskLog comment in prisma/schema.prisma). Deliberately a lookup and NOT a
   // validation: this route has never checked that `taskId` belongs to this
   // checklist's template, and adding that refusal is not CHK-1's business.
+  //
+  // CHK-3, 2026-08-09 — appended, not edited: the refusal IS CHK-3's business
+  // and it is now at the top of this handler, so by the time this line runs the
+  // task is known to belong to this checklist's template. This stays a lookup
+  // because what it needs is the task's `sectionId`, not its existence.
   const loggedTask = await prisma.task.findUnique({ where: { id: taskId }, select: { sectionId: true } })
 
   await prisma.taskLog.create({

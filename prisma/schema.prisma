@@ -178,6 +178,20 @@ model Store {
   weeklyDayHours            WeeklyDayHours[]
 }
 
+// CHK-2 (S2) gave this table its first writer; CHK-3 (S3) gives it the key that
+// writer had to work around. THERE WAS NO @@unique([storeId, dayOfWeek]) from
+// 20260627002005_init until 2026-08-09, so the table could hold two rows for one
+// weekday and BOTH readers resolved that with `.find()` — whichever row came
+// back first won, silently. That is why api/stores/[id]/hours/route.ts replaces
+// the whole week inside a transaction rather than upserting: there was no key to
+// target. The replace stays correct with the constraint in place; the
+// constraint additionally makes the duplicate unrepresentable.
+//
+// ONE-SIDED AND OVERNIGHT ROWS ARE LEGAL HERE AND ALWAYS WERE — both times are
+// independently nullable and no ordering check exists, deliberately (a store
+// that closes at 02:00 is a real store). What the two readers DO with such a row
+// is where they disagree; see the hours block in src/lib/checklist-lifecycle.ts,
+// which is the single site that documents it, and DEBT-64.
 model StoreHours {
   id          String  @id @default(cuid())
   storeId     String
@@ -187,6 +201,8 @@ model StoreHours {
   isClosed    Boolean @default(false)
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, dayOfWeek])
 }
 
 model StoreUserAssignment {
@@ -503,13 +519,56 @@ model Checklist {
   // the day-close cron, which is CHK-3 — so a checklist nobody ever started
   // has a null snapshot today, and renders live. src/lib/sections.ts is the
   // single reader.
+  //
+  // S3 CORRECTION, appended 2026-08-09 — THE "OR AT DAY CLOSE" HALF IS NOT
+  // BUILT, AND IT IS NOT DEFERRED EITHER; IT IS RULED OUT. CHK-3's day-close job
+  // materialises a Missed row for a checklist nobody started and leaves
+  // `sectionsSnapshot` NULL on it, per its own session prompt ("a materialized
+  // row has no task logs and no snapshot"). The reason is this column's own
+  // reason: it is the AS-EXECUTED record, and a checklist nobody touched has no
+  // as-executed headings. Freezing today's names onto it would make a guess
+  // indistinguishable from a record — plan §12.5's ruling on historical TaskLog
+  // rows, one row-type further on. A materialised row therefore renders live
+  // through src/lib/sections.ts, exactly like a pre-CHK-1 row.
   sectionsSnapshot Json?
+
+  // ─── CHK-3 (S3) lifecycle ──────────────────────────────────────────────────
+  // Four columns, and the division between them is the point.
+  //
+  // OVERDUE IS NOT HERE. It is derived on read from the expected window and
+  // "now" (src/lib/checklist-lifecycle.ts) — a live nagging state, correct the
+  // instant an offset changes, with nothing to keep in sync. MISSED IS a stored
+  // status, because Gary's R1 makes it a closed fact and a fact needs a writer.
+  // The writer is GET /api/cron/checklist-day-close, and it is the only one.
+  //
+  // NO BACKFILL. Every row that existed before Migration B keeps closedAt NULL,
+  // completedLate false and both expectations NULL, and that is correct rather
+  // than lazy: no expected window existed before this phase, so no historical
+  // row can be said to have met or missed one. The lifecycle starts at deploy
+  // and the operations report says so on its face (plan §7).
+  closedAt        DateTime? // day-close instant; written once, by the cron
+  completedLate   Boolean   @default(false) // written by submit, when completedAt > expectedEndAt
+  // The window this row was judged against, FROZEN AT MATERIALISATION — at
+  // create for a checklist somebody started, at day close for one the cron
+  // materialised — so a later offset edit cannot retroactively make a past miss
+  // look on-time. NULL means no expectation was ever recorded (blank offsets,
+  // AllDay, no store hours, or a row predating Migration B); it never means
+  // "on time".
+  expectedStartAt DateTime?
+  expectedEndAt   DateTime?
 
   organization    Organization  @relation(fields: [organizationId], references: [id])
   template        Template      @relation(fields: [templateId], references: [id])
   store           Store         @relation(fields: [storeId], references: [id])
   taskLogs        TaskLog[]
   handoffMessages TeamMessage[] @relation("HandoffSource")
+
+  // The day-close job scans by (storeId, date); the operations report asks
+  // "missed, by day, across the org". Without these the hourly cron is a seq
+  // scan of the whole table, forever.
+  @@unique([storeId, templateId, date])
+  @@index([storeId, date])
+  @@index([organizationId, date, status])
 }
 
 // NOTE THE ABSENCE: there is no section column here, and that is the other half
