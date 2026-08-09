@@ -896,6 +896,210 @@ phases:
         work; it is out of scope for bookkeeping (noted by the 2026-08-06 sweep,
         which is why this entry describes the hole rather than filling it).
 
+  # ---- Checklists (CHK) ----
+  # The checklist LIFECYCLE phase, scoped 2026-08-09 from DEBT-36 (sections are
+  # implied, not modelled) and DEBT-48 (the availability window). Gary ruled the
+  # product design 2026-08-08 (R1-R5) and approved the implementation plan
+  # 2026-08-09.
+  #
+  # THE ARTIFACT IS THE SOURCE; THESE ROWS ARE THE SUMMARY AND THE POINTER.
+  # docs/prompts/CHK-1_PLAN.md is the audit, the SQL, the state-derivation
+  # contract and the ruling record; docs/prompts/CHK-1_SESSION_SKELETONS.md is
+  # the per-session spine. Both committed in "746918c". Do not re-state the plan
+  # into these rows and do not edit either file — they are claims wholesale
+  # (CLAUDE.md § Where documents live).
+  #
+  # ONE SESSION PER ROW, IN ORDER, each independently verifiable on staging
+  # before the next begins. Schema and migration land first.
+
+  - id: CHK-1
+    track: checklists
+    size: L
+    status: planned
+    title: "Sections become a first-class per-template entity, with an as-executed record"
+    notes: >
+      S1 of five. Plan: docs/prompts/CHK-1_PLAN.md §§1.2, 2.1, 2.4, 6.3, 6.4.
+      Closes DEBT-36's ruled direction.
+      SHIPS: Migration A (additive) — `Section` per-template with
+      @@unique([templateId, name]) and sortOrder, nullable `Task.sectionId`,
+      `TaskLog.sectionId`, `Checklist.sectionsSnapshot`; the backfill recovers
+      section ORDER from MIN(orderIndex) rather than inventing it. All six
+      section render sites resolve through the join, with `Task.sectionName`
+      KEPT AND KEPT WRITTEN as the legacy mirror (the TPL-1a shape exactly —
+      retiring it is a later row). Section management in template-form.tsx.
+      CSV `task_section` resolved by name within the template. `sectionsSnapshot`
+      frozen ONCE, on the first TaskLog write, and never rewritten.
+      PROVES IT WORKED: `unlinked_tasks = 0` on the three LIVE branches, each
+      result naming its branch; a section rename on a template with completed
+      history leaves the historical checklist AND its print copy unchanged —
+      DEBT-36's latent trigger, fired deliberately for the first time; a
+      non-contiguous section renders ONE heading, not two; duplicate carries
+      sections; CSV round-trip; the DEBT-59 nine checks
+      (docs/prompts/DEBT-59_AUDIT.md §7), owed because template-form.tsx is
+      touched.
+      MUST NOT TOUCH: Checklist.status, generation, StoreHours, the offsets, the
+      offsets-box copy, any lifecycle behaviour. No cron.
+      SNAPSHOT SCOPE IS NAMES ONLY (Gary, 2026-08-09). Task descriptions and
+      task additions still resolve live at print time; that hole is real, wider
+      than DEBT-36 describes, and is DEBT-60 rather than cargo here.
+
+  - id: CHK-2
+    track: checklists
+    size: S-M
+    status: planned
+    title: "Day-close inputs — fold the three phase lists into one, and give StoreHours a writer"
+    notes: >
+      S2 of five. Plan: docs/prompts/CHK-1_PLAN.md §§3.1, 8. Absorbs DEBT-32.
+      SHIPS: DEBT-32 — delete the two hand-copied "During Hours" alias lines
+      (messages.ts:41, handoff-notes.tsx:24) and move PHASE_ORDER into
+      src/lib/phases.ts so both sides of the client boundary import one list.
+      Plus a StoreHours editor on /stores behind `stores.manage`.
+      THE STOREHOURS HALF IS NOT A NICE-TO-HAVE, and it is the finding that
+      makes this row exist: `StoreHours` HAS NO WRITER ANYWHERE IN THE CODEBASE.
+      The table ships in the init migration, `prisma.storeHours` appears in
+      exactly one file as a read (labor-plan.ts:170), and that file says so
+      outright at :172-174 — "StoreHours is currently never populated, so
+      inference is the normal path". Gary's R2 makes day close StoreHours-driven,
+      so without this the ruled mechanism has no input on any branch.
+      READY NOW — NOT GATED ON CHK-1. Sequenced after it by the ruled order, not
+      by a dependency; nothing in this row touches sections or the schema.
+      PROVES IT WORKED: handoff-note date resolution unchanged across all three
+      phases AND the legacy string (a template carrying "During Hours" still
+      orders as mid); hours save, reload and render; Square resync does not
+      overwrite them; labor's weekly plan takes the explicit-hours branch
+      (labor-plan.ts:195-205) for a store that now has hours — the first row
+      ever to reach it.
+      MUST NOT TOUCH: checklist surfaces, the offsets, any schema.
+      HAZARD, NAMED IN ADVANCE (carried from DEBT-32): handoff-notes.tsx carries
+      one of DEBT-33's ten baseline lint errors at :70:25. Scope the eslint gate
+      to exclude that file and SAY SO in the commit message — do not appear to
+      have fixed a DEBT-33 error this row did not fix.
+
+  - id: CHK-3
+    track: checklists
+    size: M-L
+    status: planned
+    title: "Lifecycle engine — expected windows, overdue on read, missed written at day close"
+    notes: >
+      S3 of five. Plan: docs/prompts/CHK-1_PLAN.md §§2.2, 2.3, 3, 4, 5.4.
+      Closes DEBT-48's implement direction.
+      THE MECHANISM IS A HYBRID, and the split follows R1's own language.
+      OVERDUE IS EVALUATED ON READ — "a live nagging state", so no write, no
+      scheduler, and correct the instant an offset changes. MISSED AND
+      COMPLETED-LATE ARE WRITTEN — "a closed fact", and a fact needs a writer.
+      That answers R2's parenthetical directly: the write is day close, and only
+      day close.
+      DAY CLOSE MUST MATERIALIZE, NOT MARK. The finding neither parked row could
+      see: /store-view lists TEMPLATES, not checklists, and a Checklist row is
+      created on "Start Checklist" (api/checklists/route.ts:130) or by the admin
+      bulk button (:166). So a checklist nobody touched HAS NO ROW to write
+      MISSED onto, and the job creates one.
+      SHIPS: Migration B (additive) — closedAt, completedLate, expectedStartAt,
+      expectedEndAt, two indexes, NO BACKFILL (the lifecycle starts at deploy;
+      inventing expectations for historical rows would manufacture exactly the
+      retroactive data DEBT-59 spent a session preventing). Plus
+      src/lib/checklist-lifecycle.ts (five predicates, one definition each —
+      DEBT-26's discipline), GET /api/cron/checklist-day-close registered hourly
+      with a two-day lookback, completedLate written by submit, and 409 on
+      task-log/submit for a closed checklist.
+      THE UNIQUENESS INDEX IS IN, ON MEASURED EVIDENCE, AND CARRIES A STANDING
+      RE-MEASURE: Checklist_storeId_templateId_date_key. Gary's precheck
+      returned duplicate_groups 0 on all three live branches 2026-08-09 (plan
+      §0a). RE-RUN IT BEFORE APPLYING — the table grows every day a checklist is
+      started, by the very findFirst-then-create path the index forbids
+      duplicates from, so a clean result in August is not a clean result on the
+      day this ships. A non-zero re-measure DROPS the index; it does not delay
+      the migration.
+      WEEKLY AND MONTHLY TEMPLATES ARE NOT MATERIALIZED, and the exclusion is
+      labelled on the report. Template.frequency is display-only — no generation
+      path reads it (DEBT-61) — so materialising every active template would
+      file a Weekly checklist as missed six days a week.
+      PROVES IT WORKED: SQL and the cron's own response body, NO UI — which is
+      what makes this session verifiable on its own. Missed marking, missed
+      materialisation, idempotency on a second run, the weekly exclusion, an
+      isClosed weekday materialising nothing, the 409 refusal, and pre-deploy
+      rows untouched.
+      MUST NOT TOUCH: any rendering. A chip on a screen in this session means
+      the split has failed.
+    blockers:
+      - >
+        BEHIND CHK-2 — a real gate, not sequencing. Day close is driven by
+        StoreHours (Gary's R2) and StoreHours has no writer until CHK-2 ships
+        one, so on today's data every store would fall to the midnight+buffer
+        fallback and the ruled mechanism would never be exercised at all.
+        CLEARS WHEN: CHK-2 ships the StoreHours editor and at least one store
+        has hours set to verify against.
+
+  - id: CHK-4
+    track: checklists
+    size: M-L
+    status: planned
+    title: "Lifecycle surfaces — overdue flagged and never hidden, missed closed, offsets gain their meaning"
+    notes: >
+      S4 of five. Plan: docs/prompts/CHK-1_PLAN.md §§5, 6.1, 6.2.
+      SHIPS: store-view Overdue and Upcoming chips; execution-page overdue
+      banner and read-only missed state; `Missed` added to /checklists
+      STATUS_STYLES; Missed added to the /reports counts; print renders
+      as-executed headings from sectionsSnapshot plus a MISSED stamp; the (i)
+      explainer beside the offset fields; and DEBT-59's "not yet used" copy
+      retired.
+      THE COPY CHANGE IS EARNED HERE AND NOWHERE EARLIER. DEBT-59 left the
+      offsets box honest — "Recorded for reference — not yet used to show or
+      hide checklists" — and that sentence is retired only by the session that
+      makes it false, which is this one. Prepend to the DEBT-29 comment blocks
+      at template-form.tsx:1007-1009 and :1048-1055; never edit them.
+      PROVES IT WORKED: the NEGATIVE is the load-bearing check — NOTHING IS EVER
+      HIDDEN BY A WINDOW (R3, and DEBT-48's whole overdue-not-hidden argument).
+      Plus: blank offsets never go overdue; AllDay never goes overdue; the
+      Missed style is its own, not Pending's "Not Started" fallthrough; /reports
+      totals include Missed; the STAFF nav badge does not count Missed; and the
+      DEBT-59 nine checks a SECOND time, owed because template-form.tsx is
+      touched again.
+      MUST NOT TOUCH: the cron, the predicates, the schema.
+    blockers:
+      - >
+        BEHIND CHK-3 AND CHK-1 — two real gates. CHK-3 writes the state this row
+        renders (there is no overdue and no missed to show before it), and CHK-1
+        writes the sectionsSnapshot the as-executed print headings read.
+        CLEARS WHEN: both ship.
+
+  - id: CHK-5
+    track: checklists
+    size: M
+    status: planned
+    title: "Operations report — missed and completed-late, by store, by day, by template"
+    notes: >
+      S5 of five, and the phase's closing session. Plan:
+      docs/prompts/CHK-1_PLAN.md §7. Satisfies R4.
+      SHIPS: /reports/operations behind the EXISTING `reports.view` capability
+      (MANAGE — ADMIN + MANAGER, permissions.ts:171), store-scoped for MANAGER
+      through getUserStoreScope the way /checklists already does. NO NEW
+      CAPABILITY — TPL-1's Q3 reasoning verbatim: a second check on a surface
+      whose existing gate already says the right thing can only ever disagree
+      with it, and PERM-5 can already dial reports.view per user.
+      THREE VIEWS over one query — by store, by day, by template — carrying
+      missed count, completed-late count and completion rate across a date
+      range. Completed-late sits BESIDE missed rather than buried (R4).
+      THREE DISCLOSURES ON THE REPORT'S OWN FACE, each a place a clean-looking
+      number would otherwise mislead: the lifecycle starts at deploy and
+      pre-migration rows are excluded rather than counted on-time; Weekly and
+      Monthly templates are not tracked, so "no misses" means "not tracked";
+      and which stores are running on the midnight fallback because their hours
+      are unset.
+      PROVES IT WORKED: the role gate at all four roles; counts reconcile
+      against direct SQL on the same branch, branch named.
+      MUST NOT TOUCH: anything upstream. Pure read surface.
+      CLOSES THE PHASE: file nothing new here — DEBT-60 through DEBT-63 are
+      already filed — but write the closure riders on DEBT-36, DEBT-48 and
+      DEBT-32, and flip DEBT-59's rider to say the copy retired.
+    blockers:
+      - >
+        BEHIND CHK-3 — a real gate. This row reports on closedAt, completedLate
+        and the missed rows the day-close job writes; before CHK-3 there is no
+        data and the three views would render empty tables that look like a
+        clean operation.
+        CLEARS WHEN: CHK-3 ships and the cron has closed at least one day.
+
   # ---- Inventory ----
 
   - id: I-1
@@ -6896,6 +7100,28 @@ debt:
   - id: DEBT-32
     title: "Retire the I-14b legacy phase alias and fold the three phase lists into one"
     notes: >
+      ABSORBED 2026-08-09 AS CHK-2'S OPENING MOVE. Plan:
+      docs/prompts/CHK-1_PLAN.md §8, committed in "746918c". This is not a
+      re-file and the work is unchanged — it is the same two alias lines and the
+      same consolidation into src/lib/phases.ts, done at the front of a session
+      that was going to open those files anyway.
+      THE REASON IT MOVED IS THAT THE LIST COUNT WENT UP. DEBT-48 said the fold
+      is "the natural thing to do first if this is built, since a gate should
+      read one list rather than three". CHK-3's expectedWindow() reads
+      operationalPhase to choose its anchor (Before Opening / During the Day /
+      After Closing), which makes a FOURTH reader. Folding after that would be
+      consolidating four lists instead of three, so it goes first — before the
+      new consumer exists, not after.
+      THE ROW STAYS OPEN AND CARRIES NO STATUS until CHK-2 ships, on the same
+      reasoning as DEBT-36's and DEBT-48's 2026-08-09 riders: nothing has
+      shipped, and no `status` value means "absorbed into a phase that has not
+      built yet".
+      THE HAZARD BELOW IS CARRIED FORWARD VERBATIM INTO CHK-2's ROW, not merely
+      cross-referenced — handoff-notes.tsx holds one of DEBT-33's ten baseline
+      lint errors at :70:25, so CHK-2 scopes its eslint gate to exclude that
+      file AND says so in the commit message, rather than appearing to have
+      fixed a DEBT-33 error it did not fix.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: `phaseOrder` falls back to `?? 1`, the same value
       the alias maps to, so deleting both lines changes no output whatsoever —
       verified at HEAD, both lines still present at messages.ts:41 and
@@ -7138,6 +7364,35 @@ debt:
   - id: DEBT-36
     title: "RULED — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
+      SCOPED 2026-08-09 — THE ENTITY WORK IS NOW CHK-1, AND THIS ROW STAYS OPEN
+      UNTIL IT SHIPS. The feature phase this row was parked for was scoped and
+      approved: docs/prompts/CHK-1_PLAN.md, committed in "746918c". The Section
+      entity — per-template, stable ids, explicit sortOrder — is CHK-1 (S1), and
+      the as-executed record this row says does not exist anywhere in the system
+      arrives with it as Checklist.sectionsSnapshot.
+      THE ROW IS NOT CLOSED AND THE STATUS IS NOT SET, DELIBERATELY. `status`
+      on a debt row means staging/shipped/verified/withdrawn (roadmap.ts
+      DebtItem; isResolvedDebt in roadmap-client.tsx:71 is the single
+      definition). Nothing has shipped, nothing is retracted, and there is no
+      value meaning "scoped into a phase that has not built yet" — the same gap
+      the header NOTE records for audit-only phases ("no status fits… a future
+      'closed'/'documented' would"). Setting any existing value would move this
+      row into the RESOLVED list while the defect is still live on every branch.
+      It closes when CHK-1 ships, and CHK-5 carries the instruction to do it.
+      WHAT THE ACCEPTANCE COSTS IS STILL BEING PAID UNTIL THEN. The 2026-08-07
+      ruling below accepted renames-rewrite-history FOR NOW; "now" has a defined
+      end but has not arrived. The latent trigger also stands, with one change
+      worth naming: CHK-1's regression plan FIRES IT DELIBERATELY on staging —
+      rename a section on a template with completed history and prove the
+      historical checklist and its print copy do not move. The first rename is
+      no longer something to fear; it is the test.
+      TWO THINGS THIS ROW ASKED FOR THAT CHK-1 DOES NOT DO, so the closure is
+      not read as wider than it is. (1) The snapshot scope is NAMES ONLY (Gary,
+      2026-08-09). Task descriptions and task additions still resolve live at
+      print time, which is the same mechanism one layer out and is DEBT-60.
+      (2) Task.sectionName is KEPT AND KEPT WRITTEN as a legacy mirror, the
+      TPL-1a shape — retiring the column is a later row, not CHK-1's business.
+      ── RULING OF 2026-08-07 BELOW, UNEDITED ──
       RULED 2026-08-07 — RENAMES-REWRITE-HISTORY IS ACCEPTED FOR NOW, AND THE
       SECTION ENTITY IS INTENDED WORK RATHER THAN A DECLINED OPTION. Gary took
       the second of the two directions this row put to him, but not immediately:
@@ -8800,6 +9055,45 @@ debt:
       RULED — Implement the checklist availability window, or remove
       the fields — the half of DEBT-29 that a relabel could not settle
     notes: >
+      SCOPED 2026-08-09 — THIS ROW'S JOB IS DONE, AND IT SAID SO ITSELF. The
+      scope note below reads "THIS ROW'S JOB IS TO HOLD THE THINKING UNTIL GARY
+      SCOPES IT AS ONE." He scoped it: docs/prompts/CHK-1_PLAN.md, approved
+      2026-08-09, committed in "746918c". The window is CHK-3 (the engine) and
+      CHK-4 (the surfaces).
+      BOTH RECORDED OPEN QUESTIONS ARE ANSWERED, and by which ruling is worth
+      stating rather than leaving to be matched up. (a) "What does OVERDUE do
+      across day boundaries?" → R1: overdue is a live state within the
+      operational day ONLY; at day close an unfinished checklist becomes MISSED
+      — closed, not actionable, permanently recorded — and a finished one may
+      record completed-late. The row's own guess was right: "there is probably a
+      point where an unfinished checklist stops being actionable and becomes a
+      compliance record." (b) "What do the OFFSETS mean once the window is
+      soft?" → R3: they are EXPECTATIONS, never gates, and nothing is ever
+      hidden by a window. The row's warning — "State it, or someone will
+      implement them as enforcement later" — is discharged by the (i) explainer
+      CHK-4 ships beside the fields.
+      THE OVERDUE-NOT-HIDDEN THINKING WAS PROMOTED FROM THINKING TO SPEC, which
+      is precisely what the 2026-08-07 block below forbade doing without Gary
+      scoping the phase first. He did. The two operating scenarios it argues
+      from are now regression checks: the late opener's tasks stay completable
+      (CHK-4 verifies nothing is ever hidden), and the 11am employee sees
+      "Opening — Overdue" rather than an untouched list.
+      ONE THING THE THINKING DID NOT ANTICIPATE, and it is the finding that
+      shaped CHK-3: a checklist nobody starts HAS NO ROW. /store-view lists
+      templates, not checklists, so MISSED had nothing to be written onto and
+      day close must MATERIALIZE the miss. Neither this row nor DEBT-36 could
+      see it from where they sat.
+      THE ROW STAYS OPEN AND CARRIES NO STATUS, for the reason set out on
+      DEBT-36's 2026-08-09 rider: no `status` value means "scoped into a phase
+      that has not built yet", and any existing one would move a live defect
+      into the RESOLVED list. It closes when CHK-4 ships; CHK-5 carries the
+      instruction.
+      SEQUENCING AGAINST DEBT-32 WAS HONOURED, and tightened. The note below
+      says the fold is "the natural thing to do first if this is built, since a
+      gate should read one list rather than three". CHK-3's expectedWindow()
+      reads operationalPhase to pick its anchor, making a FOURTH reader — so the
+      fold is CHK-2's opening move, before the new consumer is written.
+      ── RULING OF 2026-08-07 BELOW, UNEDITED ──
       RULED 2026-08-07 — PARKED AS THE FEATURE PHASE THIS ROW'S OWN SCOPE NOTE
       DEMANDED. Neither direction the row put up (build the window, or remove
       the two offset columns) was taken as a debt-sized job, because the row is
@@ -9548,6 +9842,32 @@ debt:
       on every save — every existing template carries an invented window nobody
       chose
     notes: >
+      UPDATE 2026-08-09 — THE COPY THIS ROW SHIPPED RETIRES IN CHK-4, AND THE
+      ROW STAYS CLOSED. This is a pointer, not a re-opening: DEBT-59 is
+      `shipped` and stays `shipped`. Plan: docs/prompts/CHK-1_PLAN.md §6.2,
+      committed in "746918c".
+      WHAT RETIRES AND WHEN. The helper text this row wrote — "Optional.
+      Recorded for reference — not yet used to show or hide checklists. Leave
+      blank if no window has been decided." (template-form.tsx:1056) — becomes
+      FALSE the moment CHK-4 ships, because that is the session where the
+      offsets gain their ruled meaning as an EXPECTED WINDOW (Gary's R3). It is
+      replaced there, by that session, and by no earlier one. A copy change is
+      earned by the phase that makes it true — which is this row's own argument,
+      applied to this row's own sentence.
+      WHAT DOES NOT CHANGE. The ` *` stays off both labels; blank stays blank;
+      the columns stay nullable; the CSV round-trip is untouched. And DEBT-29's
+      visible-and-labelled decision still stands — CHK-4 ADDS an (i) explainer
+      beside the fields rather than hiding them, which is the same reasoning one
+      step further on.
+      THIS ROW'S HANDOVER WAS HONOURED. It said the feature phase "has to decide
+      what an offset means before it can decide what those rows are worth", and
+      that every pre-gate value should be treated as unreliable regardless of
+      what it says. CHK-3 does exactly that: the expected window is computed
+      from whatever offsets a template carries, with NO backfill and no
+      value-matched repair of the 1/2 rows this row froze the set of. An
+      operator who never chose a window still has blanks, and blanks can never
+      go overdue (R3).
+      ── SHIPPING RECORD OF 2026-08-07 BELOW, UNEDITED ──
       SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207". The form stopped
       manufacturing a 1/2 window nobody chose, on production, before any
       availability gate exists to turn those unchosen values into real
@@ -9652,6 +9972,171 @@ debt:
       against another phase — which is what a row is for.
       Related: DEBT-48 (the parked feature phase this was cargo on), DEBT-29
       (the relabel that surfaced it as a third option), DEBT-32.
+
+  - id: DEBT-60
+    title: >
+      Printed and historical checklists render LIVE task text — the as-executed
+      hole one layer out from DEBT-36, which CHK-1's snapshot deliberately does
+      not cover
+    notes: >
+      COST OF DOING NOTHING: The same defect DEBT-36 describes for section
+      headings, on the task text itself — a printed closing checklist from last
+      month re-prints today with a task added yesterday, and with any
+      description edited since, and nothing indicates it changed — LATENT
+      (trigger: the first task edit or task addition on a template that already
+      has completed historical checklists. Unlike DEBT-36's trigger this one is
+      ROUTINE — editing a task is ordinary template maintenance, not a rare
+      administrative act — so it is materially more likely to fire than the
+      rename ever was). DERIVED AT HEAD "746918c" by the CHK-1 planning session.
+      FILED 2026-08-09 ON GARY'S RULING, out of CHK-1's scope decision. Found
+      while auditing DEBT-36's compliance argument; recorded here rather than
+      absorbed because absorbing it roughly doubles CHK-1's schema and its print
+      rewrite, and the two ship independently.
+      THE FACT, so nobody re-derives it: print/checklist/[id]/page.tsx:30 loads
+      `template.tasks` fresh on every render and groups them at :43-51. Nothing
+      about the task list is frozen. A task DELETED from a template is the one
+      case that is safe, and only by accident — api/templates/[id]/route.ts:96-101
+      refuses to delete a task carrying TaskLog history because of the RESTRICT
+      FK. Additions and text edits have no such guard.
+      WHAT CHK-1 DOES AND DOES NOT COVER. It ships Checklist.sectionsSnapshot,
+      frozen once on the first TaskLog write, holding [{sectionId, name,
+      sortOrder}] — SECTION NAMES ONLY (Gary, 2026-08-09). Task descriptions,
+      task additions and task flags are explicitly out.
+      FIX SHAPE when picked up: a second Json column on Checklist
+      (`tasksSnapshot`), written by the SAME single writer at the same instant
+      as sectionsSnapshot, so there is one freeze point and not two that can
+      disagree. Print reads it when present and falls back to the live join when
+      null. Additive; no migration risk beyond the column.
+      Disconfirmed by: a tasksSnapshot column appearing on Checklist, or print
+      resolving task text through anything other than the live template join.
+      Related: DEBT-36 (the same mechanism, one layer in), CHK-1.
+
+  - id: DEBT-61
+    title: >
+      Template.frequency is collected, exported and rendered but read by no
+      generation path — every template is a daily template
+    notes: >
+      COST OF DOING NOTHING: Bulk generate creates a checklist for every active
+      template every day regardless of frequency, and on-demand creation asks no
+      question at all, so a Weekly template behaves exactly like a Daily one —
+      LATENT TODAY, LOUD THE DAY CHK-3 SHIPS (trigger: day-close materialisation.
+      An unfiltered job would file a Weekly checklist as MISSED six days a week
+      and a Monthly one as missed ~29, turning the operations report into noise
+      on its first day). DERIVED AT HEAD "746918c" by the CHK-1 planning session.
+      FILED 2026-08-09 ON GARY'S RULING. The trigger is already handled — CHK-3
+      materialises misses only for `frequency = "Daily"`, and CHK-5's report
+      states the exclusion on its face so "no weekly misses" is never read as
+      "weekly checklists were all done". THAT IS A CONTAINMENT, NOT A FIX, which
+      is why this row exists rather than a comment.
+      THE FACT: `frequency` is String @default("Daily") on Template. Every
+      reference is collection or display — template-form.tsx, the CSV export and
+      import, templates-client.tsx:184 (duplicate), templates/[id]/page.tsx:69
+      and print/template/[id]/page.tsx:88 (both render it as a label), and
+      api/templates/route.ts:117 (`|| "Daily"` on create). NEITHER creation path
+      in api/checklists/route.ts reads it: the single create at :130 and the bulk
+      loop at :155-170 filter on isActive and appliesTo only.
+      NOTE THE SHAPE OF THE DEFECT — it is a promise on a form, not a bug in a
+      path. The operator picks Weekly, the value persists, the value prints back
+      at them on the template page, and nothing anywhere honours it. That is the
+      TPL-1 pattern exactly (a field wired end to end with the behaviour
+      omitted), and it is worth saying so: TPL-1's lesson was that the CONTROL
+      is the fix and the default was the symptom. Here the control exists and
+      the CONSUMER is missing.
+      FIX SHAPE when picked up: frequency-aware generation — a Weekly template
+      needs a day-of-week, a Monthly one a day-of-month, neither of which is
+      collected today, so this is a schema addition plus a form control plus the
+      generation filter, not a one-line predicate. Sequence it AFTER CHK-3, which
+      is the first thing that will care.
+      Disconfirmed by: any code path in api/checklists or the day-close cron
+      branching on Template.frequency. Related: CHK-3, CHK-5, TPL-1.
+
+  - id: DEBT-62
+    title: >
+      The archived preview/main Neon branch still answers queries with
+      month-stale data — a fossil that returns clean, plausible, wrong results
+    notes: >
+      COST OF DOING NOTHING: Nothing in the product reads it and no deploy
+      targets it, so no code misbehaves — the cost is entirely to EVIDENCE, and
+      it has already been paid once — LATENT-BUT-FIRED-ONCE (trigger: any query
+      run across "all branches". It fired on 2026-08-09, during the CHK-1
+      planning session's own duplicate precheck).
+      FILED 2026-08-09 ON GARY'S INSTRUCTION, from the CHK-1 planning session.
+      Size: S — it is a console deletion, not code.
+      THE MEASUREMENT, per CLAUDE.md § Database Evidence: preview/main
+      `br-purple-rain-a6m62xww` — `_prisma_migrations` tail ends at
+      `20260708100000_f1_goal_plans` (2026-07-08), TPL-1a ABSENT, a month stale.
+      Taken by Gary 2026-08-09. The branch stopped receiving deploys when
+      DATABASE_URL was scoped Production-only (BUILD-1) and has been ARCHIVED
+      SINCE 2026-08-04. The three live branches are unchanged: dev
+      `br-broad-wave-a6vpjdw0`, preview/staging `br-square-feather-a63z92vz`,
+      production `br-sparkling-block-a620qvg4`.
+      HOW IT FIRED, recorded because the failure is instructive and the fix is
+      not. The CHK-1 precheck was run on four branches and all four returned
+      duplicate_groups 0. The fourth result was read as evidence that the plan's
+      inherited "three branches" phrasing (copied from TPL-1 and TPL-2) was
+      stale, and two verification instructions were rewritten to say FOUR — plus
+      a paragraph asserting, labelled as inference, that the branch receives
+      `prisma migrate deploy`. All of that was wrong, and every observation
+      behind it was real. Corrected in docs/prompts/CHK-1_PLAN.md §0a, which
+      keeps the whole arc rather than the answer.
+      THE LESSON GENERALISES PAST THIS BRANCH AND IS THE REASON THIS ROW IS
+      WORTH FILING: a branch ANSWERING a query proves it EXISTS, not that it is
+      LIVE. That is § Database Evidence's "A ROW ID DOES NOT IDENTIFY A BRANCH"
+      one turn further on, and the guard that caught it was a STRUCTURAL fact
+      about the branch — the `_prisma_migrations` tail — not a fact about the
+      row, which is § Browser Evidence's "verify by a structural fact, not by
+      its name" applied to a database branch.
+      FIX SHAPE: delete the branch in the Neon console. GARY'S, NOT CLAUDE'S —
+      it is a destructive action against a hosted environment and Claude does not
+      touch deployed infrastructure. Sequence it at CHK phase close, so the
+      branch is not deleted out from under a session that might still be citing
+      it.
+      Disconfirmed by: the branch no longer appearing in the Neon project.
+      Related: BUILD-1 (the scoping that stranded it), DEBT-4.
+
+  - id: DEBT-63
+    title: >
+      /reports omits Non-Compliant from its own totals — three status buckets
+      summed as if they were all of them
+    notes: >
+      COST OF DOING NOTHING: A checklist submitted with critical tasks
+      incomplete is counted in NO bucket on /reports and is silently absent from
+      the "of N total checklists" denominator, so the page under-reports its own
+      total and overstates completion rate against it — LIVE, not latent,
+      whenever any Non-Compliant row exists (trigger already met in principle:
+      the status has a writer and a render site; whether any row currently
+      carries it was NOT measured — this session queried no database).
+      DERIVED AT HEAD "746918c" by the CHK-1 planning session, from reading, not
+      from a query.
+      FILED 2026-08-09. INDEPENDENT OF THE CHK PHASE — found while mapping the
+      checklist surfaces, and filed separately BECAUSE it is not CHK's to fix:
+      it is wrong today, at HEAD, with no new feature involved.
+      THE FACT: api/checklists/[id]/submit/route.ts:34-38 writes one of three
+      statuses — Completed, Non-Compliant, In Progress. reports/page.tsx:31-33
+      counts Completed, In Progress and Pending, and :95 renders the total as
+      `completed + inProgress + pending`. Non-Compliant matches none of the
+      three. /checklists DOES render it (checklists/page.tsx:14), so the two
+      pages disagree about what exists.
+      WHAT CHK MUST NOT DO, and this is why the row is filed rather than left as
+      a note: CHK-4 adds `Missed` to those same counts. Adding one status to a
+      sum that already drops another WIDENS the defect while looking like
+      maintenance — the reviewer sees a status being added and reads the
+      omission as intentional. CHK-4's regression plan says to add Missed; this
+      row says the sum was already wrong before it got there.
+      A SECOND, SMALLER THING IN THE SAME AREA, recorded so it is not
+      rediscovered: checklists/page.tsx:117 falls back to `STATUS_STYLES.Pending`
+      for any unmapped status, so an unmapped value renders as "Not Started" —
+      the most wrong of the available answers, silently. Exactly DEBT-37's
+      class. Not currently reachable there (all four written statuses are
+      mapped) and it becomes reachable the moment Missed ships unmapped, which
+      is why CHK-4 maps it.
+      FIX SHAPE: count Non-Compliant explicitly on /reports, or derive the total
+      from the row count rather than from a sum of named buckets — prefer the
+      latter, since it makes the omission impossible to reintroduce. The defect
+      is the hand-summed denominator, not the missing bucket.
+      Disconfirmed by: /reports deriving its total from anything other than
+      `completed + inProgress + pending`. Related: DEBT-37 (the same silent
+      fallthrough class), CHK-4.
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
