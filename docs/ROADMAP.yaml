@@ -915,10 +915,47 @@ phases:
   - id: CHK-1
     track: checklists
     size: L
-    status: in_progress
-    commits: [4fd9152]
+    status: staging
+    commits: ["4fd9152"]
     title: "Sections become a first-class per-template entity, with an as-executed record"
     notes: >
+      VERIFIED 2026-08-09 BY GARY ON STAGING. The full S1 checklist passed: the
+      sections panel; create / rename / reorder round-trips; a rename collision
+      REFUSED rather than merged; a non-contiguous section rendering ONE
+      heading; duplicate carrying its sections and their order; the CSV
+      export→import round-trip; and the DEBT-59 nine-check re-run, owed because
+      template-form.tsx was touched.
+      THE DEBT-36 TRIGGER WAS FIRED DELIBERATELY AND THE DEFECT IS DEAD. A
+      checklist completed AFTER the deploy, its template's section then renamed:
+      the print copy rendered the OLD name out of `sectionsSnapshot` while the
+      template showed the new one. That is the first time this trigger has ever
+      been pulled, and it is the whole point of the phase — the row it closes
+      spent months recording it as latent.
+      Org/instance: org_3G02wO4QlVVSWppi8aqlnSZnsDa on the Clerk instance
+      verified-snapper-7 (CLAUDE.md § Browser Evidence). THE IDENTIFIER'S
+      PROVENANCE IS PART OF THE EVIDENCE and is recorded because TPL-2's rider
+      could not: the id was read from `window.Clerk.organization.id` on the
+      staging site IN THE SAME CONTINUOUS BROWSER SESSION AS THE TESTS,
+      2026-08-09 — not reconstructed afterwards from a database row, which is
+      the mistake § Browser Evidence's own 2026-08-06 correction records. A
+      Clerk org id identifies an INSTANCE, and this one was taken Clerk-side.
+      BACKFILL EVIDENCE, each result naming its branch (§ Database Evidence),
+      both measured 2026-08-09:
+      dev `br-broad-wave-a6vpjdw0` — unlinked_tasks 0, total_tasks 210,
+      sections 32, unlinked_logs 0.
+      preview/staging `br-square-feather-a63z92vz` — unlinked_tasks 0,
+      total_tasks 420, sections 64, unlinked_logs 0.
+      production `br-sparkling-block-a620qvg4` — PENDING PROMOTION, and the row
+      does not claim it. `preview/main` `br-purple-rain-a6m62xww` is an
+      archived fossil, was not queried, and is owed nothing (plan §0a).
+      STATUS IS `staging` AND IS SIMPLY TRUE, not one step ahead — the inverse
+      of TPL-2's caveat and worth saying for that reason. "4fd9152" and
+      "7c99da3" are both on origin/staging, the migration has been applied
+      there, and the pass above was run against that deployment.
+      WHAT REMAINS BEFORE THIS ROW IS `shipped`: the production promotion, and
+      the same verification query on `br-sparkling-block-a620qvg4` returning
+      unlinked_tasks 0 with its branch named.
+      ── PRE-VERIFICATION NOTE OF 2026-08-09 BELOW, UNEDITED ──
       BUILT 2026-08-09 IN "4fd9152", NOT YET APPLIED AND NOT YET VERIFIED —
       which is why this is in_progress rather than staging. Prompt:
       docs/prompts/CHK-1_S1_sections_entity.md. Migration A is HAND-AUTHORED
@@ -1012,6 +1049,28 @@ phases:
     status: planned
     title: "Lifecycle engine — expected windows, overdue on read, missed written at day close"
     notes: >
+      CARRIED IN FROM S1's TRIAGE 2026-08-09 — AN INTEGRITY HOLE IN THE
+      COMPLETION RECORD, PRE-EXISTING, AND THIS ROW IS THE RIGHT PLACE FOR IT
+      because S3 is already rewriting the two routes involved.
+      `POST /api/checklists/[id]/task-log` NEVER CHECKS THAT `taskId` BELONGS
+      TO THE CHECKLIST'S TEMPLATE — it takes the id from the body, and the only
+      constraint is the FK to Task. `POST /api/checklists/[id]/submit` then
+      computes `completedTasks = checklist.taskLogs.length` against
+      `template.tasks.length`, counting RAW LOG ROWS rather than logs matching
+      the template. So logging task ids from another template inflates
+      `completionRate` and can flip a checklist to `Completed` without its own
+      tasks being done. No cross-tenant read and not reachable through the UI —
+      it needs a hand-crafted request — but it is an integrity hole in the
+      exact record CHK-1 exists to protect, and the two ends of it are 30 lines
+      apart in files S3 already opens for `completedLate` and the 409.
+      NOT FIXED IN S1 DELIBERATELY: CHK-1's MUST NOT TOUCH covers
+      Checklist.status and any lifecycle behaviour, and the fix lands in
+      `submit`. Scope it here rather than re-deriving it.
+      RECORDED HERE BECAUSE IT WAS NOWHERE ELSE. It was raised at S1's triage
+      and existed only in that session's transcript — DEBT-37's rule ("an
+      observation that lives only in a transcript does not exist") firing on
+      the session that was citing DEBT-37. Written down 2026-08-09 on the next
+      session that looked for it, which is later than it should have been.
       S3 of five. Plan: docs/prompts/CHK-1_PLAN.md §§2.2, 2.3, 3, 4, 5.4.
       Closes DEBT-48's implement direction.
       THE MECHANISM IS A HYBRID, and the split follows R1's own language.
@@ -7393,8 +7452,53 @@ debt:
       staging, estimatedTimeMinutes included. Related: DEBT-3, MIGRATIONS.md §2.
 
   - id: DEBT-36
-    title: "RULED — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
+    status: staging
+    commits: ["4fd9152"]
+    title: "CLOSED — Sections are implied, not modelled — no entity, no ordering, no as-executed record"
     notes: >
+      CLOSED 2026-08-09 IN "4fd9152", VERIFIED ON STAGING THE SAME DAY. The
+      rider in "3ec9bc8" said the acceptance-for-now ends when S1 ships. It
+      shipped, and the trigger-test passed — so this row closes on the terms it
+      set itself rather than on a judgement call. `status: staging` is what
+      isResolvedDebt reads (roadmap-client.tsx:71); it becomes `shipped` with
+      the production promotion, like every other debt row. Debt rows carry no
+      `shipped:` field.
+      ALL THREE HALVES OF THE DEFECT ARE ANSWERED. (1) NO ENTITY → `Section`,
+      per-template, stable ids, @@unique([templateId, name]). (2) NO ORDERING →
+      explicit `sortOrder`, RECOVERED from MIN(orderIndex) rather than
+      invented, so the entity reproduces the old render order by construction;
+      the double heading a non-contiguous section used to produce in the
+      template form is gone. (3) NO AS-EXECUTED RECORD →
+      `Checklist.sectionsSnapshot`, frozen ONCE at the first task log and never
+      rewritten. Evidence and the browser pass are on CHK-1.
+      THE LATENT TRIGGER WAS FIRED DELIBERATELY, WHICH IS WHY THIS CLOSES
+      RATHER THAN LAPSES. The block below says the acceptance "does not survive
+      the trigger" and treats the first rename as the thing to fear. CHK-1's
+      pass pulled it on purpose: a checklist completed post-deploy, its section
+      renamed, and the print copy held the OLD name while the template showed
+      the new. The trigger is now the test, exactly as the 2026-08-09 scoping
+      note said it would become.
+      TWO LIMITS ON THIS CLOSURE, RESTATED HERE SO IT IS NOT READ WIDER THAN IT
+      IS — both were true when the row was scoped and neither changed:
+      (a) SCOPE IS NAMES ONLY (Gary, 2026-08-09). Task descriptions, task
+      additions and task flags STILL resolve live at print time, so a printed
+      checklist from last month still re-prints with a task added yesterday.
+      That is the same mechanism one layer out, it is wider than this row ever
+      described, and it is DEBT-60 — not something this closure covers.
+      (b) A CHECKLIST COMPLETED BEFORE THE CHK-1 DEPLOY HAS NO SNAPSHOT and
+      therefore still renders LIVE section names; a rename still rewrites ITS
+      headings. UNRECOVERABLE RATHER THAN UNFIXED: what those checklists were
+      printed under is not written down anywhere, and fabricating it would make
+      a guess indistinguishable from a record — the exact defect this row is
+      about (plan §12.5). The as-executed record starts at deploy. Also stated
+      at docs/prompts/CHK-1_PLAN.md §2.4, prisma/schema.prisma
+      (Checklist.sectionsSnapshot) and src/app/print/checklist/[id]/page.tsx.
+      `Task.sectionName` SURVIVES this row as a legacy mirror, kept written on
+      every write path — TPL-1a's shape. Retiring the column is a later row and
+      was never DEBT-36's business.
+      ── EVERYTHING BELOW IS PRESERVED UNEDITED, INCLUDING THE TWO BLOCKS THAT
+      SAY THIS ROW DOES NOT CLOSE. They were true when written; this block is
+      where that expires. ──
       IN FLIGHT 2026-08-09 — CHK-1's S1 IS BUILT AND COMMITTED ("4fd9152"),
       AND THIS ROW STILL DOES NOT CLOSE. The Section entity, `Task.sectionId`,
       `TaskLog.sectionId` and `Checklist.sectionsSnapshot` all exist in code;
