@@ -955,6 +955,26 @@ phases:
       WHAT REMAINS BEFORE THIS ROW IS `shipped`: the production promotion, and
       the same verification query on `br-sparkling-block-a620qvg4` returning
       unlinked_tasks 0 with its branch named.
+      NOTE 2026-08-10 — THAT DEBT COMES DUE THE MOMENT THE PROMOTION LANDS, and
+      it is the SHIPPED GATE for this row, not a formality after it. The
+      2026-08-10 promotion carries Migration A to production for the first time,
+      where its BACKFILL runs against real `Task` rows — the half that has never
+      been exercised there and the only half a clean staging pass cannot vouch
+      for (the structural half was proven against `migrate diff`; the data half
+      is per-branch by construction). Run this on `br-sparkling-block-a620qvg4`
+      AFTER the production build reports the migration applied, and do not flip
+      this row to `shipped` until it returns unlinked_tasks 0:
+      `SELECT current_setting('neon.branch_id', true) AS branch,
+      (SELECT count(*) FROM "Task" WHERE "sectionId" IS NULL AND
+      btrim("sectionName") <> '') AS unlinked_tasks, (SELECT count(*) FROM
+      "Task") AS total_tasks, (SELECT count(*) FROM "Section") AS sections,
+      (SELECT count(*) FROM "TaskLog" WHERE "sectionId" IS NULL) AS
+      unlinked_logs;` — plan §2.1. A non-zero unlinked_tasks means a task
+      carries a blank sectionName past both API choke points and needs looking
+      at; it is NOT a reason to loosen the backfill. A row left at `staging`
+      because nobody ran the query afterwards is indistinguishable from one
+      whose query failed, which is why the gate is written here rather than
+      carried in someone's head through the promotion.
       ── PRE-VERIFICATION NOTE OF 2026-08-09 BELOW, UNEDITED ──
       BUILT 2026-08-09 IN "4fd9152", NOT YET APPLIED AND NOT YET VERIFIED —
       which is why this is in_progress rather than staging. Prompt:
@@ -1373,23 +1393,61 @@ phases:
       MUST NOT TOUCH: any rendering. A chip on a screen in this session means
       the split has failed.
     blockers:
-      - >
-        PRODUCTION PROMOTION IS GATED ON TWO THINGS AND NEITHER OF THEM IS CODE.
-        (1) ROTATE CRON_SECRET FIRST. The value now deployed transited a chat
-        transcript during today's diagnosis, so it is no longer secret in the
-        sense the equality check at route.ts:91 depends on. Rotate it BEFORE this
-        work reaches production, by the ritual in CLAUDE.md § Environment
-        Variables — save the dashboard value, redeploy the TARGET branch reading
-        the branch column, verify the new deployment's created time postdates the
-        save, then fire — and put the new value in Gary's password manager AT
-        CREATION, because a Vercel Sensitive var can never be read back
-        afterwards. Production and Preview are separate rows; rotating one does
-        not touch the other. (2) `main` IS RED AT "7ab7106" — DEBT-66. Three
-        dashboard redeploys failed 2026-08-09, all `npm run vercel-build` exit 1
-        before a single migration ran. Production still SERVES an earlier Ready
-        deployment so nothing is down, and the code in this row is unaffected;
-        the PROMOTION is what is blocked, and it stays blocked until that build
-        is understood.
+      - resolved: true
+        text: >
+          ALL THREE PROMOTION GATES RESOLVED BY GARY 2026-08-10, and the entry
+          below is kept verbatim rather than rewritten — it records what was
+          true on 2026-08-09, which is the only thing that makes the rulings
+          legible. Each gate and how it fell:
+          (1) CRON_SECRET ROTATION — **DEFERRED BY RULING, NOT DONE, AND NOT
+          FORGOTTEN.** Gary assessed the blast radius as low: the endpoint is
+          idempotent, it runs hourly on Vercel's schedule regardless of who else
+          knows the value, and the worst an unauthorised caller achieves is
+          making the same sweep happen sooner. Accepted risk. It is NOT a
+          promotion gate any more; it moves to this row's `open` list as a
+          low-priority item, to be done at the next secret-touching session by
+          the CLAUDE.md § Environment Variables ritual. Recording it as accepted
+          rather than closed is the point — a deferred rotation that reads as
+          "handled" is how it stops being done at all.
+          (2) DEBT-66 / `main` RED — **DOES NOT BLOCK A GIT-PUSH PROMOTION.**
+          The measured mechanism is dashboard redeploys not attaching env vars;
+          the git-pushed deploy of the SAME commit built clean, which is in that
+          row's own evidence. So the failure is scoped to a path this promotion
+          does not use. DEBT-66 STAYS OPEN, rescoped to the dashboard-redeploy
+          path. PROMOTIONS HAPPEN BY GIT PUSH ONLY — that is now the rule, not
+          the preference.
+          (3) THE PRECHECK — RUN ON PRODUCTION 2026-08-10, and this is
+          measurement, not the August 9 citation: branch
+          `br-sparkling-block-a620qvg4`, `checklist_dupes 0`,
+          `storehours_dupes 0`. BOTH UNIQUE INDEXES SHIP AS COMMITTED —
+          `Checklist_storeId_templateId_date_key` and
+          `StoreHours_storeId_dayOfWeek_key`, unchanged in
+          prisma/migrations/20260809194500_chk3_checklist_lifecycle and in
+          prisma/schema.prisma. The standing re-measure instruction is
+          DISCHARGED for this promotion and only for it.
+          ── THE 2026-08-09 GATE TEXT IS THE NEXT ENTRY, UNEDITED ──
+      - resolved: true
+        text: >
+          RESOLVED 2026-08-10 BY THE RULINGS IN THE ENTRY ABOVE. Kept verbatim
+          as written on 2026-08-09, per the preserve-and-mark convention: it is
+          the claim the rulings answer, and editing it would leave the answers
+          without their question.
+          PRODUCTION PROMOTION IS GATED ON TWO THINGS AND NEITHER OF THEM IS CODE.
+          (1) ROTATE CRON_SECRET FIRST. The value now deployed transited a chat
+          transcript during today's diagnosis, so it is no longer secret in the
+          sense the equality check at route.ts:91 depends on. Rotate it BEFORE this
+          work reaches production, by the ritual in CLAUDE.md § Environment
+          Variables — save the dashboard value, redeploy the TARGET branch reading
+          the branch column, verify the new deployment's created time postdates the
+          save, then fire — and put the new value in Gary's password manager AT
+          CREATION, because a Vercel Sensitive var can never be read back
+          afterwards. Production and Preview are separate rows; rotating one does
+          not touch the other. (2) `main` IS RED AT "7ab7106" — DEBT-66. Three
+          dashboard redeploys failed 2026-08-09, all `npm run vercel-build` exit 1
+          before a single migration ran. Production still SERVES an earlier Ready
+          deployment so nothing is down, and the code in this row is unaffected;
+          the PROMOTION is what is blocked, and it stays blocked until that build
+          is understood.
       - resolved: true
         text: >
           BEHIND CHK-2 — a real gate, not sequencing. Day close is driven by
@@ -1398,6 +1456,22 @@ phases:
           fallback and the ruled mechanism would never be exercised at all.
           CLEARS WHEN: CHK-2 ships the StoreHours editor and at least one store
           has hours set to verify against.
+    open:
+      - >
+        CRON_SECRET ROTATION DEFERRED BY RULING 2026-08-10 — low priority, do it
+        at the next secret-touching session, by the CLAUDE.md § Environment
+        Variables ritual (save → redeploy the TARGET branch, reading the branch
+        column → verify the deployment's created time postdates the save → fire),
+        and record the new value in Gary's password manager AT CREATION because a
+        Sensitive Vercel var can never be read back. Production and Preview are
+        separate rows; rotating one does not touch the other. WHY IT IS HERE
+        RATHER THAN CLOSED: the deployed value transited a chat transcript on
+        2026-08-09, so it is no longer secret in the sense the endpoint's
+        equality check depends on. Gary accepted that risk — the endpoint is
+        idempotent and Vercel fires it hourly anyway, so an unauthorised caller
+        only makes the same sweep happen sooner — but ACCEPTED IS NOT FIXED, and
+        an entry that disappears because it was downgraded is an entry nobody
+        does.
 
   - id: CHK-4
     track: checklists
@@ -10880,6 +10954,30 @@ debt:
       line appears at all. Related: BUILD-1 (the split that put `migrate deploy`
       inside the Vercel build), BUG-3 (prisma.config.ts, and the failure class
       this one is NOT), DEBT-4 (env scoping), CHK-3 (the promotion it blocks).
+      ── RULING 2026-08-10, PRESERVE-AND-MARK: NOTHING ABOVE IS EDITED ──
+      GARY RULED THIS DOES NOT BLOCK A GIT-PUSH PROMOTION, AND THE ROW STAYS
+      OPEN, RESCOPED TO THE DASHBOARD-REDEPLOY PATH. The reasoning is already in
+      the evidence above and only needed reading as a scope rather than as a
+      severity: every measured failure was a DASHBOARD redeploy, and the
+      git-pushed production deploy of the same commit "7ab7106" built clean. So
+      the defect is in how a redeploy is CONSTRUCTED, not in `main`, not in the
+      code, and not in the env rows — which the last sentence of "AND THE VARS
+      THEMSELVES ARE FINE" already said. One line of the title is now wrong in
+      consequence and is deliberately left standing: "the next production
+      promotion is blocked until that is understood" was the honest call on
+      2026-08-09 and is superseded, not mistaken.
+      WHAT THE RULING ADDS TO THE PRODUCT, and it is the durable half:
+      PROMOTIONS HAPPEN BY GIT PUSH ONLY. That was already this row's own
+      recommended first move ("re-promote by GIT PUSH, which is the path known
+      to work"); it is now the rule. A dashboard redeploy of `main` is the thing
+      not to reach for, and if anyone does reach for it, this row is why it
+      fails.
+      WHAT THE RULING DOES NOT DO: it does not diagnose the redeploy path, so
+      the exit condition and the disconfirmation clause above are untouched.
+      Anyone picking this up still starts at the env-set comparison. The cost of
+      leaving it is now bounded to "a dashboard redeploy is not available as a
+      recovery tool" — which matters most in exactly the situation where someone
+      would reach for it, so the bound is not as comfortable as it sounds.
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
