@@ -1134,9 +1134,73 @@ phases:
   - id: CHK-3
     track: checklists
     size: M-L
-    status: planned
+    status: in_progress
+    commits: ["d089a7c"]
     title: "Lifecycle engine — expected windows, overdue on read, missed written at day close"
     notes: >
+      BUILT 2026-08-09 IN "d089a7c", NOT YET APPLIED AND NOT YET VERIFIED —
+      which is why this is in_progress rather than staging. Prompt:
+      docs/prompts/CHK-3_S3_lifecycle_engine.md. Migration B is HAND-AUTHORED
+      AND UNRUN (prisma/migrations/20260809194500_chk3_checklist_lifecycle):
+      Gary runs it on dev first, then pushes so staging and production take it
+      through `migrate deploy` in the Vercel build. Nothing in this row is
+      proven until the cron has closed a real day on staging and the SQL says
+      so, each result naming its branch. The commit is CODE LANDING, not
+      evidence.
+      THE PRECHECK IS OWED BEFORE THE MIGRATION RUNS, PER BRANCH, AND IT
+      GATES TWO STATEMENTS RATHER THAN ONE — Checklist_storeId_templateId_date_key
+      and StoreHours_storeId_dayOfWeek_key. It was re-presented, NOT cited: the
+      2026-08-09 zero in plan §0a measured a table that grows daily, and
+      StoreHours has been taking writes from CHK-2's editor since that morning.
+      A non-zero result on either DROPS THAT INDEX — from the migration AND from
+      prisma/schema.prisma, or the two drift — and does not delay the migration.
+      Neither index is load-bearing: the cron creates read-then-write with a
+      P2002 catch, and CHK-2's writer replaces a week in a transaction.
+      ITEM (a) IS RESOLVED HERE — StoreHours_storeId_dayOfWeek_key rides
+      Migration B in "d089a7c", precheck-gated as above.
+      ITEM (b) IS NOT RESOLVED AND WAS NEVER THIS SESSION'S TO RESOLVE. What S3
+      owed it was to know before writing expectedWindow(), and to not "align"
+      the two by copying labor's `e > s` check — both discharged. The
+      disagreement is now WRITTEN DOWN AT THE SINGLE DEFINITION SITE, in the
+      hours block of src/lib/checklist-lifecycle.ts, so it is a recorded fact
+      rather than a discovery. The labor half stays DEBT-64.
+      THE S1 INTEGRITY FINDING IS RESOLVED HERE IN "d089a7c", both ends of it:
+      api/checklists/[id]/task-log/route.ts refuses a taskId that does not
+      belong to this checklist's template (400), and submit counts DISTINCT logs
+      whose task belongs to the template instead of raw log rows. Either half
+      alone leaves the hole open. The day-close job recomputes completionRate
+      the same way.
+      WHAT SHIPPED BEYOND THE PLAN'S LETTER, so the diff is not read as narrower
+      than it is: (a) EXPECTATIONS ARE FROZEN AT CREATE, in BOTH creation paths
+      in api/checklists/route.ts, not only at day-close materialisation. Without
+      it `completedLate` could never be true for a checklist anyone actually
+      started, so plan §9's "a checklist completed after its window end has
+      completedLate = true" was unreachable. Freezing at completion instead
+      would have reopened the hole those two columns exist to close, one step
+      later. The shared plumbing is src/app/api/checklists/expectations.ts; the
+      window itself is still defined once, in the lib. (b) THE DAY-CLOSE SOURCE
+      IS A FOUR-VALUE FACT, not a boolean — hours / closed-day / no-hours /
+      no-close-time — because "the operator marked Sunday closed" and "nobody
+      has ever set this store's hours" are different facts, and a report that
+      merges them tells an operator to fix something they already did. CHK-4/5
+      render it; the engine exposes it. (c) expectedWindow() reads
+      operationalPhase through normalizePhase(), so a legacy "During Hours" row
+      resolves to a window instead of silently getting none. (d) The
+      stranded-open probe (a cron outage longer than the lookback) is BOUNDED to
+      a stated 7-day window and the bound is in the response body — unbounded it
+      would count every unfinished checklist ever created, a number that only
+      grows and therefore signals nothing.
+      A MATERIALISED MISSED ROW CARRIES NO sectionsSnapshot, AND THAT IS A
+      RULING, NOT AN OMISSION. The S1 note on that column said the freeze also
+      happens "at day close for a checklist never started"; S3's prompt says a
+      materialised row has no task logs and no snapshot, and the prompt is
+      right for this column's own reason — it is the AS-EXECUTED record, and a
+      checklist nobody touched has no as-executed headings. Freezing today's
+      names onto it would make a guess indistinguishable from a record, which is
+      plan §12.5's ruling one row-type further on. Recorded as an appended S3
+      correction on Checklist.sectionsSnapshot in prisma/schema.prisma; a
+      materialised row renders live through src/lib/sections.ts.
+      ── PRE-BUILD NOTES OF 2026-08-09 BELOW, UNEDITED ──
       CARRIED IN FROM S2's TRIAGE 2026-08-09 — TWO ITEMS, AND THEY EXISTED ONLY
       IN THAT SESSION'S REPORT UNTIL THIS COMMIT. S2's triage named both as
       ROWs and then did not file them; the S2 report is not the board. That is
@@ -10403,6 +10467,23 @@ debt:
       is the first thing that will care.
       Disconfirmed by: any code path in api/checklists or the day-close cron
       branching on Template.frequency. Related: CHK-3, CHK-5, TPL-1.
+      RIDER 2026-08-09, PREPENDED-STYLE (nothing above is edited) — THE
+      CONTAINMENT IS NOW CODE, IN "d089a7c", AND THE DISCONFIRMATION CLAUSE HAS
+      FIRED WITHOUT THIS ROW CLOSING. The day-close job branches on
+      Template.frequency: `materializesMisses()` in
+      src/lib/checklist-lifecycle.ts, called at the materialisation site in
+      api/cron/checklist-day-close/route.ts, which carries a comment pointing
+      here rather than re-deriving the reasoning. So the clause above is
+      satisfied by a filter that PREVENTS THE NOISE and still reads nothing
+      about WHEN a Weekly template is due — which is the whole row. The trigger
+      it was written against is defused; the defect is untouched. Read the
+      clause as disconfirming "no code anywhere looks at frequency", which was
+      the honest test on the day it was written, not as this row's exit
+      condition. The exit condition is unchanged: frequency-aware generation, a
+      day-of-week and a day-of-month that nobody collects yet.
+      Also note what the containment does NOT cover: a non-Daily checklist that
+      somebody DID start still closes normally at day close, Completed or
+      Missed. Only the create-a-row-for-one-nobody-started step is skipped.
 
   - id: DEBT-62
     title: >
@@ -10548,6 +10629,22 @@ debt:
       surface naming the stores whose hours were set and then ignored.
       Related: CHK-2 (shipped the editor that makes this reachable), CHK-3
       (§3.5, the opposing rule), DEBT-59 (values nobody chose).
+      RIDER 2026-08-09 — THE OPPOSING RULE IS NOW BUILT, IN "d089a7c", AND THE
+      TWO ANSWERS ARE LIVE THE MOMENT MIGRATION B DEPLOYS. Nothing above needs
+      correcting; this records only that the "gets worse rather than staying
+      flat" clause has come due. src/lib/checklist-lifecycle.ts reads
+      `closingTime <= openingTime` as a D+1 close and a one-sided row as a
+      partial window, and it says so at the single definition site with a
+      pointer to this row — so the disagreement is written down in the code
+      rather than waiting to be discovered by whoever notices two numbers. S3
+      did NOT copy labor's `e > s` check, which is what this row asked of it.
+      The fix shape and the exit condition are unchanged and both are still in
+      labor-plan.ts.
+      One thing the day-close side supplies for free when this is picked up: the
+      four-value dayCloseSource (hours / closed-day / no-hours / no-close-time)
+      is exactly the "which stores are running on inference" signal this row
+      says no screen carries. Labor needs its own equivalent, but the shape is
+      already decided rather than open.
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
