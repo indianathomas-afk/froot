@@ -1134,10 +1134,89 @@ phases:
   - id: CHK-3
     track: checklists
     size: M-L
-    status: in_progress
+    status: staging
     commits: ["d089a7c"]
     title: "Lifecycle engine — expected windows, overdue on read, missed written at day close"
     notes: >
+      VERIFIED ON STAGING 2026-08-09 BY GARY, AND THE RECORD IS THE CRON'S OWN
+      RESPONSE BODIES. No browser observation and no SQL was taken in this pass.
+      This row said what would prove it — "SQL and the cron's own response body,
+      NO UI" — and half of that arrived; what the SQL half would still add is
+      listed as OPEN CHECKS at the end of this block rather than folded in with
+      the passes.
+      THE ORG ID DOES NOT LABEL THIS EVIDENCE, AND SAYING SO IS PART OF
+      LABELLING IT. GET /api/cron/checklist-day-close authenticates itself,
+      renders nothing, and walks EVERY active Store on the branch across every
+      organization (route.ts:100-109) — so § Browser Evidence's org id has
+      nothing to name here, and quoting one would imply a scope the job does not
+      have. What names this evidence is the DEPLOYMENT: the staging alias,
+      Preview scope, branch `staging`, Clerk instance verified-snapper-7.
+      Twelve stores answered, which is that branch's whole active estate rather
+      than one org's.
+      FIRST SWEEP, 22:43 UTC 2026-08-09 — 12 stores, 24 store-days closed,
+      markedMissed 2 (Las Brisas 08-08, Carson 08-07), materialized 88, errors 0,
+      raced 0. Every store reported dayCloseSource `no-hours`: only Carson has
+      hours, so the fallback is what almost the whole estate took, and it was
+      VISIBLE IN THE BODY rather than inferred — the four-value dayCloseSource
+      (note (b) below) earning its keep on its first real run. Per-store close
+      instants landed at the right absolute time for each timezone, Denver 09:00Z
+      and LA 10:00Z, which is the thing a single daily UTC cron could not have
+      done and the reason this one is hourly. strandedOpen reported 4 rows across
+      Meadowood and Las Brisas, REPORTED AND NOT TOUCHED — the probe stayed a
+      probe.
+      SECOND SWEEP, 22:45 UTC, TWO MINUTES LATER — markedMissed 0, materialized
+      0, alreadyClosed 3-4 per store per day, stranded counts identical. THE
+      ENGINE ACTED ON FIRST CONTACT AND CHANGED NOTHING ON SECOND. R1's
+      missed-is-a-written-fact and the idempotency requirement are both proven by
+      the machine's own receipts, and proven the only way that separates a
+      working writer from a busy one: the same request twice, the second one
+      inert. The `closedAt: null` guard at route.ts:214 and the
+      have-template/unique-index pair are what produced the zeros.
+      MIGRATION B IS APPLIED ON THE STAGING DATABASE, by consequence rather than
+      by assertion — 88 creates wrote closedAt, expectedStartAt and expectedEndAt
+      (route.ts:250-262) and 2 updates wrote closedAt, none of which a table
+      without those columns can accept. `migrate deploy` ran it in the staging
+      build, as designed; it has NOT run against production (see the blocker).
+      AUTH VERIFIED END-TO-END on the same deployment: 401 with no header, 401
+      with a wrong token, 401 with an empty token, 200 with the provisioned
+      secret. That closes CRON-DIAG from the other end — its finding was that the
+      deployment held a STALE Preview CRON_SECRET because it was built 1h33m
+      before the value was edited, and a redeploy past the edit is the whole fix.
+      Read docs/prompts/CRON-DIAG_findings.md for the measurement.
+      THE TEMP INSTRUMENTATION NEVER FIRED. "df96e9b" logged shapes on the 401
+      path only, and no rejection happened once the client-side variable was
+      loaded correctly, so the interpretation table written in advance
+      (docs/prompts/CRON-DIAG-2_runbook.md) was never consulted. It is REVERTED
+      in "32237ee", in this sitting, per that runbook's own not-optional revert
+      step. PROOF, and note which grep: `git grep -n "CRON-DIAG-2" -- src`
+      returns nothing, and `git diff 411557a HEAD -- src/` is empty, so the
+      source tree is byte-identical to the commit before the instrumentation
+      landed. The runbook's own form of the check (`-- ':!docs/prompts'`) was
+      clean when the revert was made and now matches THIS PARAGRAPH — a doc
+      naming the marker is not the marker surviving, and a proof that goes red
+      when someone writes down that it passed is the wrong proof to leave
+      behind.
+      OPEN CHECKS — NAMED, NOT CLAIMED. Each is substantially evidenced by the
+      bodies and none is independently confirmed, so none of them is a pass.
+      (1) WEEKLY NOT MATERIALISED: the `frequencySkipped` field is present in
+      every day result (route.ts:164, 238) and the containment is in the code,
+      but no value from it was quoted and nothing confirms a Weekly template
+      exists on this branch to be skipped. Confirm with a body showing
+      frequencySkipped > 0, or by counting materialised rows against their
+      template's frequency for one closed day. (2) AN isClosed WEEKDAY
+      MATERIALISES NOTHING (route.ts:223): eleven of twelve stores have no hours
+      at all, so the closed-day branch may not have been exercised on either
+      sweep. (3) THE TWO 409s on task-log and submit against a closed checklist:
+      the cron's body says nothing about them either way — they are route
+      behaviour and want two requests against one of the checklists this pass
+      closed. (4) PRE-DEPLOY ROWS UNTOUCHED: the 4 stranded rows were reported
+      and unchanged across both sweeps, which is the behaviour; what is missing is
+      a count of open pre-lookback rows taken before and after. THE STANDING
+      RESIDUAL BEHIND ALL FOUR: a response body is the WRITER'S OWN REPORT OF
+      WHAT IT WROTE, not an independent read of the table. It is strong evidence
+      and it is not the same evidence, which is why this block does not quietly
+      upgrade it.
+      ── PRE-VERIFICATION BLOCK BELOW, UNEDITED ──
       BUILT 2026-08-09 IN "d089a7c", NOT YET APPLIED AND NOT YET VERIFIED —
       which is why this is in_progress rather than staging. Prompt:
       docs/prompts/CHK-3_S3_lifecycle_engine.md. Migration B is HAND-AUTHORED
@@ -1294,6 +1373,23 @@ phases:
       MUST NOT TOUCH: any rendering. A chip on a screen in this session means
       the split has failed.
     blockers:
+      - >
+        PRODUCTION PROMOTION IS GATED ON TWO THINGS AND NEITHER OF THEM IS CODE.
+        (1) ROTATE CRON_SECRET FIRST. The value now deployed transited a chat
+        transcript during today's diagnosis, so it is no longer secret in the
+        sense the equality check at route.ts:91 depends on. Rotate it BEFORE this
+        work reaches production, by the ritual in CLAUDE.md § Environment
+        Variables — save the dashboard value, redeploy the TARGET branch reading
+        the branch column, verify the new deployment's created time postdates the
+        save, then fire — and put the new value in Gary's password manager AT
+        CREATION, because a Vercel Sensitive var can never be read back
+        afterwards. Production and Preview are separate rows; rotating one does
+        not touch the other. (2) `main` IS RED AT "7ab7106" — DEBT-66. Three
+        dashboard redeploys failed 2026-08-09, all `npm run vercel-build` exit 1
+        before a single migration ran. Production still SERVES an earlier Ready
+        deployment so nothing is down, and the code in this row is unaffected;
+        the PROMOTION is what is blocked, and it stays blocked until that build
+        is understood.
       - resolved: true
         text: >
           BEHIND CHK-2 — a real gate, not sequencing. Day close is driven by
@@ -1517,6 +1613,27 @@ phases:
       with no headroom. Vercel documents no plan-tier difference in
       CRON_SECRET handling, so F-1 is a secrets/verification problem rather
       than a plan-tier one.
+      RULING RECORDED 2026-08-09 (Gary) — THE HOBBY CLAIM ABOVE IS STALE, AND
+      THE SENTENCES CARRYING IT ARE LEFT STANDING ON PURPOSE. The account is on
+      PRO: `GET /v2/teams/team_263mbnLkV4Te2Ca9ssqrV0gl` returns
+      `billing.plan: "pro"`, measured 2026-08-09 during CRON-DIAG
+      (docs/prompts/CRON-DIAG_findings.md §6). So crons are NOT capped at once
+      per day, a sub-daily expression does NOT fail deployment, and CHK-3's
+      hourly `/api/cron/checklist-day-close` (`0 * * * *`) is legal — by plan and
+      empirically, since the staging deployment carrying that vercel.json built
+      clean and the job has since closed real days. SQ-1's reading was CORRECT
+      WHEN TAKEN on 2026-07-26 and the plan changed under it, which is why this
+      is a dated correction rather than a retraction: the "one invocation each"
+      observation above still stands, only its explanation was wrong.
+      maxDuration = 300 is unaffected — Pro's ceiling is not lower than Hobby's.
+      ONE LINE, PER THE RULING, ABOUT THE REST: Hobby-derived caution appears
+      elsewhere — SQ-3 scopes its cron backstop as "viable on Hobby, where
+      once-per-day is the cap", and docs/prompts/SQ-1_square_token_refresh_audit.md
+      and docs/prompts/verification-smoke-pass.md reason from the same cap. Each
+      DESERVES RE-READING against Pro limits when it is next picked up. They are
+      deliberately not hunted down and edited here, and the docs/prompts/ ones
+      never will be — a saved prompt is a claim wholesale (CLAUDE.md § Where
+      documents live).
 
   - id: F-2
     track: forecasting
@@ -10707,6 +10824,62 @@ debt:
       rendering an archived template's checklist. Related: CHK-3 (the writer
       that makes it visible), CHK-5 (the report it shows up on), DEBT-61 (the
       other generation filter that is not there).
+
+  - id: DEBT-66
+    title: >
+      `main` is red at "7ab7106" — dashboard redeploys fail in `vercel-build`
+      with NO database env attached, and the next production promotion is
+      blocked until that is understood
+    notes: >
+      COST OF DOING NOTHING: Nothing is down. Production SERVES normally from an
+      earlier Ready deployment, so no merchant or operator is affected today —
+      LATENT (trigger: THE NEXT PROMOTION TO PRODUCTION. CHK-3 carries this as
+      half of its promotion blocker, and every CHK row behind it inherits the
+      same gate. The trigger is not hypothetical — it is the next thing this
+      track does).
+      THE FACTS, MEASURED 2026-08-09 rather than relayed. Three dashboard-
+      initiated redeploys of branch `main` at commit "7ab7106" failed the same
+      way (13:34:50, 13:44:51, 15:13:14 PDT — timeline in
+      docs/prompts/CRON-DIAG_findings.md §5), all `errorCode
+      BUILD_UTILS_SPAWN_1`, `Command "npm run vercel-build" exited with 1`, all
+      in `buildStep`. The build log of the third
+      (froot-4608w2c0v-indianathomas-2483s-projects.vercel.app, 22:13:15Z) reads,
+      consecutively — `[prisma.config] DATABASE_URL_UNPOOLED is not set —
+      falling back to DATABASE_URL (pooled)`, then `Error: The datasource.url
+      property is required in your Prisma config file when using prisma migrate
+      deploy.`, then exit 1.
+      WHAT THAT PAIR OF LINES PROVES, AND IT IS MORE THAN EITHER ALONE.
+      prisma.config.ts:24 sets `url: DATABASE_URL_UNPOOLED ?? DATABASE_URL`, so
+      `datasource.url` can only be undefined when BOTH are absent. The warn
+      names the first; the error proves the second. THE BUILD HAD NO DATABASE
+      ENVIRONMENT AT ALL — this is not a wrong URL, not a pooler problem, and
+      not a migration that failed: `prisma migrate deploy` never opened a
+      connection, so nothing ran against any database and the failure is before
+      the first statement. In particular it is NOT the intermittent Neon
+      advisory-lock P1002 (BUG-3) that a `vercel-build` failure would otherwise
+      suggest, and the CRON-DIAG note recommending that be ruled out first is
+      answered here.
+      AND THE VARS THEMSELVES ARE FINE. Production runtime reads `DATABASE_URL`
+      through the Neon adapter and production is serving, so the Production row
+      exists and holds a working value. What differs is ATTACHMENT to this
+      deployment, not the variable — which is the BUILD-1 scoping class: a
+      dashboard redeploy of `main` appears not to receive env the way a
+      git-push deploy does, and the original git-pushed production deploy of
+      this same commit built clean.
+      FIRST MOVES WHEN PICKED UP, cheapest first: compare the env set of a
+      failing dashboard redeploy against the last successful git-push production
+      deployment; check what the redeploy was created FROM and whether the
+      "existing build cache" path carries an empty env snapshot; confirm with
+      `vercel env ls` (METADATA ONLY — `vercel env pull` is banned in this repo,
+      CLAUDE.md § Environment Variables) that `DATABASE_URL` is present in the
+      Production scope and not branch-scoped to something `main` does not match.
+      Then re-promote by GIT PUSH, which is the path known to work, rather than
+      by dashboard redeploy.
+      Disconfirmed by: a dashboard redeploy of `main` reaching `X migrations
+      found` in its build log, or any `main` build whose `Datasource "db"` host
+      line appears at all. Related: BUILD-1 (the split that put `migrate deploy`
+      inside the Vercel build), BUG-3 (prisma.config.ts, and the failure class
+      this one is NOT), DEBT-4 (env scoping), CHK-3 (the promotion it blocks).
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
