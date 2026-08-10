@@ -1761,6 +1761,32 @@ phases:
     commits: ["c05365a", "bbb5734"]
     title: "Lifecycle surfaces — overdue flagged and never hidden, missed closed, offsets gain their meaning"
     notes: >
+      ── CALL RESOLVED 2026-08-10 (AFTERNOON): CHECK 5 MEASURED ON STAGING.
+      PREPENDED; NOTHING BELOW IS EDITED. ──
+      TWO RECORDS DISAGREED, AND THE DISAGREEMENT IS SETTLED BY MEASUREMENT
+      RATHER THAN BY CHOOSING A SENTENCE. The BOOKKEEP-3 prompt instructed
+      carrying check 5 forward as "FIXED AND NOT YET SEEN in a browser"; the
+      rider below, written in "3c8c25d", says it was seen for the first time
+      during the production spot-check. Neither was ruled stale. Gary re-ran the
+      check on staging on 2026-08-10 (afternoon), and this rider records what
+      that run showed.
+      THE MEASUREMENT: staging, Clerk instance verified-snapper-7, org
+      `org_3G02wO4QlVVSWppi8aqlnSZnsDa` — read from
+      `window.Clerk.organization.id` BEFORE testing rather than assumed from the
+      org switcher, which is the step that makes the pairing citable. Carson
+      hours 07:00-17:00, day close 20:00. A Before Opening template with
+      Ends = 14 RENDERED THE CLAMP WARNING, naming Carson and the 8:00 PM day
+      close — the exact store-dependent case that failed on 2026-08-09, and the
+      first time this fix has been SEEN on a rendered page on a branch and SHA
+      this row can name.
+      BOUNDARY CASE NOT YET RUN: Ends = 13 lands exactly on the day close, where
+      a strictly-after clamp should stay silent. It was not run, and it is now
+      this row's one open verification — the difference between "the warning
+      fires when it should" (shown) and "the clamp is strictly after, not
+      at-or-after" (not shown).
+      THE SENTENCE BELOW STANDS UNEDITED. This rider does not correct the
+      production spot-check claim; it supplies the staging measurement beside
+      it, on a pairing that can be cited.
       ── SHIPPED 2026-08-10 IN MERGE "d19cca6". PREPENDED; NOTHING BELOW IS
       EDITED. ──
       THE FLIP THE PROMOTION RIDER BELOW SAID WAS OWED. That rider set this row
@@ -2041,6 +2067,60 @@ phases:
     commits: ["5190fd9", "230f019"]
     title: "Operations report — missed and completed-late, by store, by day, by template"
     notes: >
+      ── CALLS RESOLVED 2026-08-10 (AFTERNOON): DEBT-63 MEASURED ON PRODUCTION,
+      DEBT-68 RULED, THE DOCS-ONLY MERGE NOTED. PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      RATIFIED BY GARY 2026-08-10, ON THE TWO QUERIES THE RIDER BELOW
+      RECLASSIFIED: (a) the report reconciling against direct SQL IS softened to
+      an optional confirmation — the report absorbed a live day close under
+      observation, which is stronger evidence than a static reconcile, because
+      it shows the surface moving with the facts rather than agreeing with them
+      once; and (b) DEBT-63's partition check IS KEPT, and it has now RUN.
+      THE MEASUREMENT, BRANCH NAMED PER CLAUDE.md § DATABASE EVIDENCE, ALL
+      RESULTS SUPPLIED BY GARY FROM THE NEON CONSOLE. Production,
+      `br-sparkling-block-a620qvg4` — status census: Completed 1, In Progress
+      11, Missed 84, Non-Compliant 1, Pending 15 (112 total). Page window
+      (/reports "Past Week" = 2026-08-07..2026-08-10): tiles Total 86,
+      Completed 0, In Progress 0, Pending 1, Non-Compliant 1, Missed 84. Per-day
+      SQL over the same window sums identically: 28+28+28+2 = 86, missed 84,
+      pending 1, non-compliant 1. THE FIVE BUCKETS PARTITION THE TOTAL AND THE
+      PAGE MATCHES THE TABLE — DEBT-63's fix measured true on production, not
+      merely true by construction.
+      SHAPE NOTE FOR LATER READERS, so nobody re-derives it from the numbers:
+      84 = 28/day x 3 days (Aug 7-9), the first sweeps materialising against a
+      branch where only Carson has hours and no store works checklists yet. The
+      18 rows outside the window — including production's only Completed row and
+      4 In Progress — are pre-lifecycle stragglers, untouched by day close as
+      designed.
+      DEBT-68 RULED 2026-08-10 (GARY), ANSWERING THE SENTENCE BELOW THAT RECORDS
+      THE FLIP INSTRUCTION NAMING "DEBT-68": THE ROW NEVER EXISTED, THE
+      REFERENCE WAS A TYPO, AND NOTHING WAS NAMED-AND-UNFILED. The ruling's own
+      reasoning is what makes absence conclusive here: "cleared" is not a
+      possible state for a debt id — under preserve-and-mark a closed row still
+      stands on the board with its status flipped — so an id that appears
+      nowhere was never filed, rather than filed and removed.
+      THE DOCS-ONLY MERGE, RECORDED HERE BECAUSE IT IS NOT A PROMOTION AND GETS
+      NO DEPLOY_LOG ENTRY OF ITS OWN (the 17dc723/18220bb precedent). The
+      "3c8c25d" board flips reached `main` on 2026-08-10 (afternoon) in
+      docs-only --no-ff merge "65abb74", parents "5c9dbb3" and "3c8c25d",
+      touching `docs/ROADMAP.yaml` alone (+116/-2, which is exactly "3c8c25d"'s
+      own diff). Build green on that merge, run by Gary this session. TWO PARTS
+      OF THIS ARE STILL OWED AND ARE MARKED PENDING RATHER THAN WRITTEN AS DONE:
+      the merge was UNPUSHED at the time of writing (`origin/main` still
+      "5c9dbb3", local `main` two ahead), and the /internal/roadmap render was
+      not observed. THE NEXT REAL PROMOTION'S DEPLOY_LOG ENTRY MUST NAME
+      "65abb74" so `main`'s push history reconciles — that obligation is the
+      point of recording this at all, and it holds whether or not the two
+      pending parts are ever written down.
+      A CORRECTION TO THE INSTRUCTION THAT ASKED FOR THIS NOTE, kept because it
+      will mislead the next reader otherwise: the /internal/roadmap "last
+      updated" label does NOT read the merge date. `scripts/generate-roadmap.mjs`
+      resolves it from the git commit date OF `docs/ROADMAP.yaml`, so the
+      afternoon build printed "2026-08-10T09:05:46" — "3c8c25d"'s timestamp —
+      and not "65abb74"'s 14:25:15. A docs-only merge that changes no file
+      beyond what its parent already changed can never move that label. Checking
+      the label against a merge SHA would therefore fail forever, for a reason
+      that has nothing to do with whether the merge landed.
       ── SHIPPED 2026-08-10 IN MERGE "d19cca6", AND WITH IT THE WHOLE CHK PHASE.
       PREPENDED; NOTHING BELOW IS EDITED. ──
       THE PHASE IS COMPLETE: FIVE SESSIONS BUILT, VERIFIED AND SHIPPED. CHK-1
@@ -2329,6 +2409,9 @@ phases:
     status: planned
     title: "Yesterday's misses are reported but not browsable — date navigation on /checklists, or a drill-through from the operations report"
     notes: >
+      ── 2026-08-10: "LIVE THE DAY CHK-4/CHK-5 REACH PRODUCTION" BELOW — THAT
+      DAY WAS 2026-08-10, IN MERGE "d19cca6". This row's cost is current, not
+      future. Prepended; nothing below is edited. ──
       COST OF DOING NOTHING: a manager who reads "Carson missed four" on the
       operations report cannot open one of those four and look at it. LIVE THE
       DAY CHK-4/CHK-5 REACH PRODUCTION — not latent, because the report that
