@@ -331,6 +331,31 @@ export function expectedWindow(
   dateStr: string,
   timeZone: string
 ): ExpectedWindow | null {
+  const raw = rawWindow(template, hoursRow, dateStr, timeZone)
+  if (!raw) return null
+  const dayClose = dayCloseInstant(hoursRow, dateStr, timeZone).at.getTime()
+  const clamp = (d: Date | null) => (d && d.getTime() > dayClose ? new Date(dayClose) : d)
+  return { start: clamp(raw.start), end: clamp(raw.end) }
+}
+
+/**
+ * The window BEFORE the clamp. Split out of `expectedWindow` by CHK-4's
+ * close-out so that `endClampsAtDayClose` can ask "would this have been cut?"
+ * without a second copy of the anchor rules — the clamp is the only thing that
+ * erases the evidence of itself, so the question is unanswerable from the
+ * clamped result alone. Behaviour of `expectedWindow` is unchanged: it is the
+ * same body with the last three lines lifted out.
+ *
+ * NOT EXPORTED. A raw window is not a fact about the product — the engine and
+ * every surface read the clamped one, and a second exported window function is
+ * exactly how two definitions of "expected" start to drift.
+ */
+function rawWindow(
+  template: WindowTemplate,
+  hoursRow: HoursRow | null,
+  dateStr: string,
+  timeZone: string
+): ExpectedWindow | null {
   if (template.availabilityType === "AllDay") return null
   const phase = windowPhase(template.operationalPhase)
   if (phase === null) return null
@@ -366,10 +391,36 @@ export function expectedWindow(
   }
 
   if (!start && !end) return null
+  return { start, end }
+}
 
-  const dayClose = dayCloseInstant(hoursRow, dateStr, timeZone).at.getTime()
-  const clamp = (d: Date | null) => (d && d.getTime() > dayClose ? new Date(dayClose) : d)
-  return { start: clamp(start), end: clamp(end) }
+/**
+ * Would this template's END be cut short by day close, for this store on this
+ * weekday? CHK-4 close-out, 2026-08-10 — the predicate behind the template
+ * form's clamp warning (plan §12, S4 item 7).
+ *
+ * IT LIVES HERE BECAUSE THE CLAMP LIVES HERE. The form's first attempt at this
+ * warning answered it with arithmetic of its own — endOffset > the grace buffer
+ * — which is true only for `After Closing` and therefore silent for the case
+ * that was measured on staging (`Before Opening`, Ends = 20, a store open 07:00
+ * to 17:00). Any form-side re-derivation has that shape: it is DEBT-26's second
+ * definition site, and the second site is the one that is wrong.
+ *
+ * FALSE, not true, when there is nothing to compare — no hours row, a closed
+ * weekday, no end offset, an `AllDay` template. `rawWindow` already returns null
+ * for each of those, and a warning about a store the operator has not described
+ * yet would be noise. The form's explainer states the clamp unconditionally,
+ * which is what covers the undescribed store.
+ */
+export function endClampsAtDayClose(
+  template: WindowTemplate,
+  hoursRow: HoursRow | null,
+  dateStr: string,
+  timeZone: string
+): boolean {
+  const raw = rawWindow(template, hoursRow, dateStr, timeZone)
+  if (!raw?.end) return false
+  return raw.end.getTime() > dayCloseInstant(hoursRow, dateStr, timeZone).at.getTime()
 }
 
 // ─── The five predicates, stated once ────────────────────────────────────────

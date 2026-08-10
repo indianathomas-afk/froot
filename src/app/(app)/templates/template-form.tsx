@@ -10,7 +10,7 @@ import { OPERATIONAL_PHASES, normalizePhase } from "@/lib/phases"
 // warning below. IMPORTED, never restated — src/lib/checklist-lifecycle.ts is
 // the single definition site (DEBT-26), and a hard-coded "3 hours" in this file
 // would be a second one that goes stale the day the constant moves.
-import { DAY_CLOSE_GRACE_HOURS } from "@/lib/checklist-lifecycle"
+import { DAY_CLOSE_GRACE_HOURS, endClampsAtDayClose, hoursForDate, type HoursRow } from "@/lib/checklist-lifecycle"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -48,6 +48,13 @@ interface Store {
   id: string
   name: string
   storeNumber: string | null
+  // CHK-4 close-out, 2026-08-10 — the hours the clamp warning needs. OPTIONAL
+  // on the interface and defaulted at every read: a store list assembled by
+  // some future caller that does not join hours must render a form without the
+  // warning, not a form that throws. Both real callers (templates/new,
+  // templates/[id]/edit) select them.
+  timezone?: string
+  hours?: HoursRow[]
 }
 
 interface TemplateFormProps {
@@ -93,6 +100,50 @@ interface TemplateFormProps {
 // sections free text and CHK-1 does not overturn that (plan §6.3). Identity —
 // name → Section id — is carried alongside in `sectionIds`, so a rename keeps
 // the row it renames.
+
+// ─── The clamp warning's inputs (CHK-4 close-out, 2026-08-10) ────────────────
+
+/** Seven consecutive dates whose weekdays are Sun…Sat. 2026-01-04 IS a Sunday.
+ *
+ *  FIXED, not derived from today, for two reasons. This component is rendered
+ *  on the server as well as in the browser, so a `new Date()` here is a
+ *  hydration mismatch waiting for midnight; and the question the warning asks
+ *  — "does this offset outrun this store's day?" — is about the store's
+ *  WEEKDAY hours, which do not depend on which week it is. A winter week also
+ *  keeps every arithmetic comparison inside one DST regime, so a store is not
+ *  reported as clamping purely because a reference date fell on a changeover.
+ */
+const CLAMP_REFERENCE_WEEK = [
+  "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07",
+  "2026-01-08", "2026-01-09", "2026-01-10",
+] as const
+
+/** The applicable stores whose day close would cut this window short — on ANY
+ *  weekday, since a template applies to the whole week and one clamped Sunday
+ *  is still a clamp the operator should hear about.
+ *
+ *  A store with no hours, or one this list carries without them, is skipped
+ *  rather than assumed: there is nothing to compare, and `endClampsAtDayClose`
+ *  says the same for a weekday the store is closed. */
+function clampingStores(
+  stores: Store[],
+  template: { availabilityType: string; operationalPhase: string | null; startOffsetHours: number | null; endOffsetHours: number | null }
+): Store[] {
+  return stores.filter((s) => {
+    const hours = s.hours ?? []
+    const tz = s.timezone
+    if (hours.length === 0 || !tz) return false
+    return CLAMP_REFERENCE_WEEK.some((d) => endClampsAtDayClose(template, hoursForDate(hours, d), d, tz))
+  })
+}
+
+/** "Carson", "Carson and Midtown", "Carson, Midtown and 2 others". */
+function storeListLabel(list: Store[]): string {
+  const names = list.map((s) => s.name)
+  if (names.length <= 2) return names.join(" and ")
+  const rest = names.length - 2
+  return `${names[0]}, ${names[1]} and ${rest} other${rest === 1 ? "" : "s"}`
+}
 
 interface SectionGroup {
   name: string
@@ -828,6 +879,19 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const [selectedStoreIds, setSelectedStoreIds] = useState<Set<string>>(
     new Set(initialData?.storeAssignments?.map((a) => a.storeId) ?? [])
   )
+  // CHK-4 close-out, 2026-08-10 — the clamp warning's subject. Derived on every
+  // render rather than memoised: it is at most one store list × seven weekdays
+  // of pure arithmetic, and this file holds no other useMemo to be consistent
+  // with. APPLICABLE stores only, and it tracks the Applies-to radio live —
+  // narrowing a template to one store that does not clamp should retract the
+  // warning, which is only true if the same list drives both.
+  const applicableStores = appliesTo === "selected" ? stores.filter((s) => selectedStoreIds.has(s.id)) : stores
+  const clampedStores = clampingStores(applicableStores, {
+    availabilityType: availType,
+    operationalPhase: phase,
+    startOffsetHours: startOffset,
+    endOffsetHours: endOffset,
+  })
   // CHK-1: REGROUPED ON LOAD. A template whose stored tasks interleave two
   // sections opens with each section's tasks gathered under one heading instead
   // of the section appearing twice — the defect, fixed where the operator can
@@ -1372,6 +1436,43 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                     </div>
                   </div>
 
+                  {/* CHK-4 CLOSE-OUT, 2026-08-10 — PREPENDED, NOTHING BELOW IS
+                      EDITED. The block that follows is the claim this note
+                      answers, and its arithmetic is still exactly right; what
+                      changed is the premise underneath it.
+                      MEASURED ON STAGING (2026-08-09, org
+                      org_3G02wO4QlVVSWppi8aqlnSZnsDa / verified-snapper-7):
+                      Carson open 07:00-17:00, so its day closed at 20:00 — and
+                      a Before Opening template with Ends = 20 saved with NO
+                      warning anywhere. Not a bug in the condition below: the
+                      condition below cannot see it. `Before Opening` is one of
+                      the two phases its own comment names as out of reach.
+                      WHAT RETIRED IS THE PREMISE "This is a CLIENT component
+                      with no store hours in it". That was true when it was
+                      written and is now false — templates/new/page.tsx and
+                      templates/[id]/edit/page.tsx join `timezone` and `hours`
+                      onto the store list this form already received. Once the
+                      hours are here the store-independent shortcut is no longer
+                      the only thing available, and the per-store question is
+                      the one the operator actually has.
+                      SO THE GATE IS NOW `clampingStores`, which asks
+                      src/lib/checklist-lifecycle.ts — the engine that does the
+                      clamping — whether it would clamp, for each applicable
+                      store, on any weekday. That subsumes the After Closing
+                      case rather than dropping it: an end offset past the grace
+                      buffer clamps at every store with hours, so the condition
+                      below fires as part of the general one wherever there is a
+                      store to fire about.
+                      THE ONE DELIBERATE NARROWING: a template whose applicable
+                      stores have NO hours now warns nothing, where the After
+                      Closing shortcut warned unconditionally. Ruled that way in
+                      this session's prompt and it is the honest reading — a
+                      store with no hours has no expected window at all
+                      (`expectedWindow` returns null), so there is no window to
+                      cut short. The (i) explainer states the clamp
+                      unconditionally and that is what covers it.
+                      STILL NON-BLOCKING, unchanged and load-bearing: the value
+                      saves exactly as typed. */}
                   {/* CHK-4 — THE WINDOW-CLAMP WARNING (plan §3.5, §12.10). The
                       clamp itself shipped with S3's engine; this is the sentence
                       that tells the operator it will fire.
@@ -1394,13 +1495,13 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                       would be worse than saying nothing. The explainer above
                       states the clamp unconditionally, which is what covers that
                       case. */}
-                  {phase === "After Closing" && endOffset != null && endOffset > DAY_CLOSE_GRACE_HOURS && (
+                  {clampedStores.length > 0 && (
                     <p className="flex items-start gap-1.5 text-xs text-[var(--color-warning-text)]">
                       <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                       <span>
-                        The day closes {DAY_CLOSE_GRACE_HOURS} hours after the store does, so an end time
-                        of {endOffset} hours after closing lands past it. This window will be treated as ending
-                        at day close. Saving is fine — this is a heads-up, not an error.
+                        This end time lands after the day closes at {storeListLabel(clampedStores)} — a store&rsquo;s
+                        day ends {DAY_CLOSE_GRACE_HOURS} hours after it closes. There the window is treated as
+                        ending at day close. Saving is fine — this is a heads-up, not an error.
                       </span>
                     </p>
                   )}
