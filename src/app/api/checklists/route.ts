@@ -120,8 +120,38 @@ export async function POST(req: Request) {
     // CHK-3: the four window fields are selected because the expected window is
     // FROZEN ONTO THE ROW at create — see api/checklists/expectations.ts for why
     // here and not at completion.
+    //
+    // DEBT-65, RULED BY GARY 2026-08-10: "archiving stops generation entirely;
+    // archived templates generate nothing, materialize nothing, and appear in no
+    // report going forward". Both flags are therefore part of the SCOPE of this
+    // lookup, not a policy check bolted on after it — a retired template is Not
+    // Found to every generation path, and the 404 below is the whole refusal.
+    //
+    // THIS SITE WAS WIDER THAN THE ONE THE ROW NAMED. DEBT-65 was filed against
+    // the bulk-generate filter below (`isActive: true`, no isArchived). This one
+    // filtered on ORG ALONE — neither flag — so it would instantiate an archived
+    // template, and an inactive one, for anybody holding the id. It is not
+    // reachable from the UI, which lists through
+    // api/stores/[id]/templates/route.ts (`isActive: true, isArchived: false`),
+    // but "the UI does not offer it" is not a gate.
+    //
+    // ── WHY isActive IS HERE, AND WHY IT IS THE HALF THAT ACTUALLY FIRES ──
+    // SECOND RULING, GARY 2026-08-10, AFTER A STAGING CENSUS CONTRADICTED THE
+    // FIRST FIX'S PREMISE. The two flags have SEPARATE controls: the Archive
+    // button writes isArchived alone (templates-client.tsx:314) and Deactivate
+    // writes isActive alone (:308). Measured on staging br-square-feather and
+    // dev br-broad-wave-a6vpjdw0, 2026-08-10: FIVE templates are
+    // isActive=false and ZERO are isArchived=true. So at Keva "archiving" is
+    // performed with DEACTIVATE, and an isArchived-only gate here would have
+    // been aimed at the one control nobody uses — correct, and inert.
+    //
+    // Bulk generate has honoured isActive all along, which is why the census
+    // shows zero checklist rows under inactive templates. This path had no such
+    // check, so it was the only place the operator's real archive action did
+    // not stop generation. Both flags now, and the three applicability filters
+    // — here, bulk generate below, and the crew list — read one identical rule.
     const template = await prisma.template.findFirst({
-      where: { id: body.templateId, organizationId: org.id },
+      where: { id: body.templateId, organizationId: org.id, isActive: true, isArchived: false },
       select: {
         id: true,
         availabilityType: true,
@@ -158,9 +188,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  // DEBT-65's NAMED SITE, closed per Gary's ruling 2026-08-10 (full text on the
+  // row). THE THREE APPLICABILITY FILTERS NOW READ ONE RULE — this one, the crew
+  // list at api/stores/[id]/templates/route.ts:24, and CHK-3's day-close job,
+  // all `isActive: true, isArchived: false`. They had disagreed since forever:
+  // archiving does NOT clear isActive (both writers set one flag only), so
+  // `isArchived && isActive` is the NORMAL state of an archived template, and
+  // this loop generated a checklist for one at every store while /store-view
+  // showed it to nobody.
+  //
+  // LATENT UNTIL CHK-3, LOUD AFTERWARDS: those rows sat invisible as Pending
+  // until the day-close job started closing every unfinished past-day row as
+  // Missed. An operator who archived a template last month would have read it on
+  // the operations report — the page shipped in this same session — as a store's
+  // miss, for work nobody was ever shown. Stopping generation is what keeps that
+  // off the report going forward; the rows ALREADY on disk are cleanup SQL,
+  // presented to Gary in the CHK-5 report and never executed from here.
   const [stores, templates] = await Promise.all([
     prisma.store.findMany({ where: { organizationId: org.id, isActive: true } }),
-    prisma.template.findMany({ where: { organizationId: org.id, isActive: true }, include: { storeAssignments: true } }),
+    prisma.template.findMany({ where: { organizationId: org.id, isActive: true, isArchived: false }, include: { storeAssignments: true } }),
   ])
 
   // CHK-3: one query for every store's hours, so freezing the expected window

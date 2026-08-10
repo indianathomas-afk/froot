@@ -331,6 +331,31 @@ export function expectedWindow(
   dateStr: string,
   timeZone: string
 ): ExpectedWindow | null {
+  const raw = rawWindow(template, hoursRow, dateStr, timeZone)
+  if (!raw) return null
+  const dayClose = dayCloseInstant(hoursRow, dateStr, timeZone).at.getTime()
+  const clamp = (d: Date | null) => (d && d.getTime() > dayClose ? new Date(dayClose) : d)
+  return { start: clamp(raw.start), end: clamp(raw.end) }
+}
+
+/**
+ * The window BEFORE the clamp. Split out of `expectedWindow` by CHK-4's
+ * close-out so that `endClampsAtDayClose` can ask "would this have been cut?"
+ * without a second copy of the anchor rules — the clamp is the only thing that
+ * erases the evidence of itself, so the question is unanswerable from the
+ * clamped result alone. Behaviour of `expectedWindow` is unchanged: it is the
+ * same body with the last three lines lifted out.
+ *
+ * NOT EXPORTED. A raw window is not a fact about the product — the engine and
+ * every surface read the clamped one, and a second exported window function is
+ * exactly how two definitions of "expected" start to drift.
+ */
+function rawWindow(
+  template: WindowTemplate,
+  hoursRow: HoursRow | null,
+  dateStr: string,
+  timeZone: string
+): ExpectedWindow | null {
   if (template.availabilityType === "AllDay") return null
   const phase = windowPhase(template.operationalPhase)
   if (phase === null) return null
@@ -366,10 +391,36 @@ export function expectedWindow(
   }
 
   if (!start && !end) return null
+  return { start, end }
+}
 
-  const dayClose = dayCloseInstant(hoursRow, dateStr, timeZone).at.getTime()
-  const clamp = (d: Date | null) => (d && d.getTime() > dayClose ? new Date(dayClose) : d)
-  return { start: clamp(start), end: clamp(end) }
+/**
+ * Would this template's END be cut short by day close, for this store on this
+ * weekday? CHK-4 close-out, 2026-08-10 — the predicate behind the template
+ * form's clamp warning (plan §12, S4 item 7).
+ *
+ * IT LIVES HERE BECAUSE THE CLAMP LIVES HERE. The form's first attempt at this
+ * warning answered it with arithmetic of its own — endOffset > the grace buffer
+ * — which is true only for `After Closing` and therefore silent for the case
+ * that was measured on staging (`Before Opening`, Ends = 20, a store open 07:00
+ * to 17:00). Any form-side re-derivation has that shape: it is DEBT-26's second
+ * definition site, and the second site is the one that is wrong.
+ *
+ * FALSE, not true, when there is nothing to compare — no hours row, a closed
+ * weekday, no end offset, an `AllDay` template. `rawWindow` already returns null
+ * for each of those, and a warning about a store the operator has not described
+ * yet would be noise. The form's explainer states the clamp unconditionally,
+ * which is what covers the undescribed store.
+ */
+export function endClampsAtDayClose(
+  template: WindowTemplate,
+  hoursRow: HoursRow | null,
+  dateStr: string,
+  timeZone: string
+): boolean {
+  const raw = rawWindow(template, hoursRow, dateStr, timeZone)
+  if (!raw?.end) return false
+  return raw.end.getTime() > dayCloseInstant(hoursRow, dateStr, timeZone).at.getTime()
 }
 
 // ─── The five predicates, stated once ────────────────────────────────────────
@@ -437,6 +488,34 @@ export function checklistState(
 // ─── Day-close policy helpers ────────────────────────────────────────────────
 
 /**
+ * CHK-3 DEFECT FIX, 2026-08-10 — RENAMED FROM `materializesMisses`, AND THE
+ * RENAME IS THE POINT, NOT TIDYING. Gary ruled the Daily-only exclusion applies
+ * at BOTH day-close sites: the one that creates a Missed row for a template
+ * nobody started, and the one that closes a row that already exists. A
+ * predicate called `materializesMisses` asked at the CLOSING site reads as a
+ * question about creation and answers one about closing — which is the exact
+ * lesson this defect is recorded under: A NAME IS NOT EVIDENCE OF WHAT IT
+ * COUNTS. The response body carried `frequencySkipped` while fiction rows were
+ * being written, and the name was believed over the table.
+ *
+ * The block below is CHK-3's, preserved and marked per the house convention.
+ * Its statements are still true of the materialisation site; what changed is
+ * that it is no longer the only site, and the SECOND site has a consequence
+ * CHK-3's text does not cover and that must not be discovered later:
+ *
+ *   A NON-DAILY CHECKLIST THAT SOMEBODY STARTED IS NOW NEVER CLOSED. It keeps
+ *   `closedAt: null` and therefore reads `overdue` for as long as it exists,
+ *   because overdue is derived and missed is the only terminal state day close
+ *   writes. Under DEBT-61 that is the right trade — bulk generate creates a
+ *   Weekly row EVERY day, so the closing site was sweeping six untouched rows a
+ *   week into Missed, which is a far larger fiction than one abandoned row left
+ *   open. The refinement that would keep both — close a non-Daily row that was
+ *   genuinely STARTED, skip one that was only generated — is named in the
+ *   CHK-3 rider and is Gary's to rule on; it is deliberately not assumed here.
+ *   The cron reports these rows as `frequencyLeftOpen` so the trade is visible
+ *   in every response body rather than inferred from an absence.
+ *
+ * ── CHK-3's TEXT BELOW, UNEDITED ──
  * Whether day close MATERIALISES a Missed row for a template nobody started.
  *
  * DAILY ONLY, and the exclusion is engine-level (plan §5.4, §12.8).
@@ -452,8 +531,8 @@ export function checklistState(
  * A non-Daily template that WAS started still closes normally — only the
  * create-a-row-for-a-checklist-nobody-started step is skipped.
  */
-export function materializesMisses(frequency: string | null | undefined): boolean {
-  return (frequency ?? "Daily") === "Daily"
+export function dayCloseAppliesTo(frequency: string | null | undefined): boolean {
+  return (frequency ?? "Daily").trim() === "Daily"
 }
 
 /**

@@ -76,6 +76,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // when an open checklist exists for one of their assigned stores. There is
   // no per-person checklist assignment in the schema — this store-level signal
   // is the honest detection until one exists.
+  //
+  // CHK-4 — CONFIRMED CORRECT FOR MISSED AND DELIBERATELY UNCHANGED. Plan §5.5
+  // said to verify rather than assume, so: the filter is an explicit
+  // `in: ["Pending", "In Progress"]` allow-list, and `Missed` is a fifth status
+  // that matches neither. It drops out with no edit, which is exactly R1 —
+  // missed is a closed fact and must never inflate a badge that says "there is
+  // work here".
+  // THE VISIBLE CONSEQUENCE, NAMED SO IT IS NOT FILED AS A BUG: this count has
+  // no date scope, so before CHK-3 it counted every unfinished checklist ever
+  // created, and the nav item was effectively always on. Now that day close
+  // sweeps rows to `Missed` within two days, a STAFF user with nothing open
+  // will see the Checklists item DISAPPEAR. That is the badge becoming truthful,
+  // not breaking. Adding a date scope would be a separate behaviour change with
+  // no ruling behind it, and this session does not make it.
   let staffHasChecklists = false
   if (dbUser?.role === "STAFF") {
     const storeIds = dbUser.storeAssignments.map((a) => a.storeId)

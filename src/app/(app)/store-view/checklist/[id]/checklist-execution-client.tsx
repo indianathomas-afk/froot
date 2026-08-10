@@ -2,9 +2,11 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, AlertTriangle, Camera, Play, Printer, User } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Camera, Lock, Play, Printer, User } from "lucide-react"
 import Link from "next/link"
 import { groupTasksBySection } from "@/lib/sections"
+import { checklistState, isCompletedLate } from "@/lib/checklist-lifecycle"
+import { frozenWindow, formatWindowTime, COMPLETED_LATE_BADGE } from "@/lib/checklist-status-display"
 import { HandoffBanner, HandoffComposer, type HandoffTarget } from "./handoff-notes"
 
 interface TaskAttachment {
@@ -49,6 +51,16 @@ interface Props {
     id: string
     status: string
     storeId: string
+    // CHK-4: the lifecycle columns CHK-3 wrote, read here for the first time.
+    // `closedAt` is the closed fact (Missed); the two expectations are the
+    // window THIS ROW was judged against — never recomputed from today's hours,
+    // because this page renders past days too. The rule and its reasons are in
+    // src/lib/checklist-status-display.ts.
+    closedAt: Date | null
+    completedLate: boolean
+    expectedStartAt: Date | null
+    expectedEndAt: Date | null
+    date: Date
     // CHK-1: the frozen as-executed section names, or null for a checklist
     // started before this phase deployed. Prisma `Json?`, so `unknown` —
     // src/lib/sections.ts parses it and falls back to the live join.
@@ -62,7 +74,7 @@ interface Props {
       operationalPhase: string | null
       tasks: Task[]
     }
-    store: { name: string }
+    store: { name: string; timezone: string }
     taskLogs: TaskLog[]
   }
   staff: StaffMember[]
@@ -101,6 +113,35 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
   // instead of contradicting it.
   const sections = groupTasksBySection(tasks, checklist.sectionsSnapshot)
 
+  // CHK-4. THE LIFECYCLE STATE OF THIS ROW, through the lib's predicates and
+  // through nothing else. `now` is taken once per render rather than per
+  // banner, so the header and the body cannot disagree.
+  //
+  // READ-ONLY IS NOT A UI OPINION — it MIRRORS a server refusal that already
+  // exists. Both POST /api/checklists/[id]/task-log and .../submit return 409
+  // when `closedAt` is set and the row is not Completed (CHK-3). Disabling the
+  // checkboxes stops a crew member firing a request that was always going to be
+  // rejected; it is not the enforcement, and removing it would not open a hole.
+  const now = new Date()
+  const window = frozenWindow(checklist)
+  const state = checklistState(checklist, window, now)
+  const isClosedFact = state === "missed"
+  const expectedEndLabel = window?.end ? formatWindowTime(window.end, checklist.store.timezone) : null
+  const closedOnLabel = checklist.closedAt
+    ? new Intl.DateTimeFormat("en-US", {
+        timeZone: checklist.store.timezone,
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      }).format(checklist.closedAt)
+    : null
+  const dayLabel = new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", // Checklist.date is UTC-midnight of the store-local day (src/lib/reports.ts dbDate).
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(checklist.date)
+
   const totalTasks = tasks.length
   const completedCount = completed.size
   const progress = totalTasks > 0 ? (completedCount / totalTasks) * 100 : 0
@@ -115,6 +156,9 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
   }
 
   const handleTaskClick = useCallback((taskId: string) => {
+    // A closed day accepts nothing. The route would 409 anyway; refusing here
+    // keeps the checkbox from flickering to done and back.
+    if (isClosedFact) return
     if (completed.has(taskId)) {
       // Uncomplete: no staff picker needed
       setCompleted((prev) => { const n = new Set(prev); n.delete(taskId); return n })
@@ -129,7 +173,7 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
         logTask(taskId)
       }
     }
-  }, [completed, staff])
+  }, [completed, staff, isClosedFact])
 
   async function selectStaff(taskId: string, staffId: string) {
     setPickingStaffFor(null)
@@ -195,6 +239,44 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
 
       {/* Sections */}
       <div className="px-4 pt-4 space-y-4 max-w-2xl mx-auto">
+        {/* CHK-4 — THE LIFECYCLE BANNERS. Above the sections, above the handoff
+            notes, because "this day is closed" changes what every control below
+            it means. Three mutually exclusive states; `active` and `upcoming`
+            say nothing, which is the point of R3 — an expectation is not an
+            announcement. */}
+        {isClosedFact && (
+          <div className="border border-gray-300 bg-gray-100 rounded-lg p-4">
+            <p className="flex items-center gap-2 font-semibold text-[var(--color-destructive)]">
+              <Lock className="h-4 w-4 shrink-0" />
+              Missed{closedOnLabel ? ` — the day closed ${closedOnLabel}` : ""}
+            </p>
+            <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+              This checklist is a closed record for {dayLabel} and can no longer be
+              edited or submitted. It is kept so the day reads honestly.
+            </p>
+          </div>
+        )}
+        {state === "overdue" && (
+          <div className="border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] rounded-lg p-4">
+            <p className="flex items-center gap-2 font-semibold text-[var(--color-warning-text)]">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Overdue{expectedEndLabel ? ` — this checklist was expected by ${expectedEndLabel}` : ""}
+            </p>
+            {/* R3, verbatim in the copy: nothing is hidden and nothing is
+                blocked. Every control below this banner stays live. */}
+            <p className="text-sm text-[var(--color-warning-text)] mt-1">It can still be completed.</p>
+          </div>
+        )}
+        {state === "completed" && isCompletedLate(checklist) && (
+          <div className="border border-[var(--color-border)] bg-[var(--color-muted)]/40 rounded-lg px-4 py-2">
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              {COMPLETED_LATE_BADGE.label}
+              {expectedEndLabel ? ` — finished after the ${expectedEndLabel} expectation.` : "."}{" "}
+              Recorded as a fact, not a fault.
+            </p>
+          </div>
+        )}
+
         {/* Handoff notes (I-14): what the last shift left for this checklist,
             plus the top copy of the next-shift composer. */}
         <HandoffBanner checklistId={checklist.id} />
@@ -221,12 +303,15 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
 
                   return (
                     <div key={task.id} className={`px-4 py-3 transition-colors ${task.isCritical ? "bg-red-50/50" : ""}`}>
-                      {/* Task row */}
+                      {/* Task row. CHK-4: on a closed day the row stops being a
+                          control — no pointer, no button role, no tab stop —
+                          rather than staying clickable and silently doing
+                          nothing. */}
                       <div
-                        className={`flex items-start gap-3 cursor-pointer min-h-[44px] ${isDone ? "opacity-70" : ""}`}
+                        className={`flex items-start gap-3 min-h-[44px] ${isClosedFact ? "cursor-default" : "cursor-pointer"} ${isDone ? "opacity-70" : ""}`}
                         onClick={() => !isPicking && handleTaskClick(task.id)}
-                        role="button"
-                        tabIndex={0}
+                        role={isClosedFact ? undefined : "button"}
+                        tabIndex={isClosedFact ? undefined : 0}
                         onKeyDown={(e) => e.key === "Enter" && !isPicking && handleTaskClick(task.id)}
                       >
                         <div className={`mt-0.5 w-5 h-5 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${
@@ -348,7 +433,7 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
                         </div>
                       )}
 
-                      {task.requiresPhoto && !isDone && !isPicking && (
+                      {task.requiresPhoto && !isDone && !isPicking && !isClosedFact && (
                         <div className="mt-2 ml-8">
                           <button className="flex items-center gap-1.5 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-sm px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">
                             <Camera className="h-4 w-4" /> Take Photo
@@ -372,9 +457,16 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
         />
       </div>
 
-      {/* Sticky submit bar */}
+      {/* Sticky submit bar. CHK-4: on a closed day it states the refusal rather
+          than offering an action that would 409. */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3">
         <div className="max-w-2xl mx-auto">
+          {isClosedFact ? (
+            <p className="flex items-center justify-center gap-2 py-3 text-sm font-medium text-[var(--color-muted-foreground)]">
+              <Lock className="h-4 w-4" />
+              Closed — recorded as Missed
+            </p>
+          ) : (
           <button
             onClick={handleSubmit}
             disabled={submitting}
@@ -387,6 +479,7 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
             {completedCount < totalTasks && <AlertTriangle className="h-4 w-4" />}
             {submitting ? "Submitting..." : completedCount === totalTasks ? "Submit Checklist" : `Submit Partial (${completedCount}/${totalTasks} tasks)`}
           </button>
+          )}
         </div>
       </div>
     </div>

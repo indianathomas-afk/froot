@@ -23,9 +23,22 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
         storeAssignments: true,
       },
     }),
+    // CHK-4 close-out, 2026-08-10 — `timezone` and `hours` joined on so the
+    // form can compute the clamp warning per applicable store. See the note in
+    // templates/new/page.tsx; the two selects must stay identical, because a
+    // warning that fires on create and not on edit is worse than neither.
     prisma.store.findMany({
       where: { organizationId: org.id },
-      select: { id: true, name: true, storeNumber: true },
+      select: {
+        id: true,
+        name: true,
+        storeNumber: true,
+        timezone: true,
+        hours: {
+          select: { dayOfWeek: true, openingTime: true, closingTime: true, isClosed: true },
+          orderBy: { dayOfWeek: "asc" },
+        },
+      },
       orderBy: { name: "asc" },
     }),
   ])

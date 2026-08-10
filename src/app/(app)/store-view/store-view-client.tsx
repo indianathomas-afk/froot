@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Play, Store } from "lucide-react"
 import { useRouter } from "next/navigation"
+import type { ChecklistState } from "@/lib/checklist-lifecycle"
+import { STATE_BADGES, COMPLETED_LATE_BADGE, formatWindowTime } from "@/lib/checklist-status-display"
 
 interface StoreItem {
   id: string
@@ -20,6 +22,17 @@ interface TemplateOption {
   estimatedMinutes: number
   existingChecklistId: string | null
   existingStatus: string | null
+  // CHK-4: computed server-side in api/stores/[id]/templates/route.ts through
+  // the lib's predicates. THE CLIENT DERIVES NOTHING — it has no store hours,
+  // no template offsets and no business day, and a second derivation is the
+  // defect DEBT-26 closed on. `missed` never arrives: that route filters it out
+  // (R1 — a closed fact is not the crew's work), and it stays in the union
+  // because the state type is the lib's and narrowing it here would be a
+  // second, quieter definition.
+  lifecycleState: ChecklistState
+  expectedEndAt: string | null
+  completedLate: boolean
+  timeZone: string
 }
 
 export function StoreViewClient({ stores, autoStoreId }: { stores: StoreItem[]; autoStoreId?: string | null }) {
@@ -107,12 +120,39 @@ export function StoreViewClient({ stores, autoStoreId }: { stores: StoreItem[]; 
     )
   }
 
-  const statusLabel = (t: TemplateOption) => {
-    if (!t.existingStatus) return null
-    if (t.existingStatus === "Completed") return { text: "Completed", cls: "text-[var(--color-success-text)] bg-[var(--color-success-bg)]" }
-    if (t.existingStatus === "In Progress") return { text: "In Progress", cls: "text-[var(--color-info-text)] bg-[var(--color-info-bg)]" }
-    return null
+  // CHK-4. WAS: a three-branch reader of `existingStatus` that knew only
+  // Completed and In Progress and returned null for everything else. It now
+  // renders the DERIVED state — Upcoming, Overdue, Completed — from the shared
+  // vocabulary in src/lib/checklist-status-display.ts, so this card, the admin
+  // list, the execution page and the print sheet cannot disagree about what a
+  // state looks like.
+  //
+  // "In Progress" is kept as a STORED-status badge alongside, because it is not
+  // a lifecycle state: the lib folds a started-but-unfinished checklist into
+  // `active`, deliberately (a checklist inside its window is not remarkable),
+  // and losing the crew's "somebody has already started this" signal would be a
+  // regression this session has no reason to ship.
+  const badges = (t: TemplateOption) => {
+    const out: { text: string; cls: string }[] = []
+    const state = STATE_BADGES[t.lifecycleState]
+    if (state) out.push({ text: state.label, cls: state.classes })
+    if (t.lifecycleState === "completed" && t.completedLate) {
+      out.push({ text: COMPLETED_LATE_BADGE.label, cls: COMPLETED_LATE_BADGE.classes })
+    }
+    if (t.lifecycleState !== "completed" && t.existingStatus === "In Progress") {
+      out.push({
+        text: "In Progress",
+        cls: "bg-[var(--color-info-bg)] text-[var(--color-info-text)] border border-[var(--color-info-border)]",
+      })
+    }
+    return out
   }
+
+  // "Expected by 10:00 AM" under an overdue card. R3 IN ONE LINE OF COPY: the
+  // window is an expectation the card STATES, never a gate it enforces — the
+  // button below is untouched and still says Start / Continue.
+  const expectedBy = (t: TemplateOption) =>
+    t.expectedEndAt ? formatWindowTime(new Date(t.expectedEndAt), t.timeZone) : null
 
   return (
     <div>
@@ -158,19 +198,37 @@ export function StoreViewClient({ stores, autoStoreId }: { stores: StoreItem[]; 
       ) : (
         <div className="grid grid-cols-3 gap-4">
           {templates.map((template) => {
-            const badge = statusLabel(template)
+            const cardBadges = badges(template)
             const isStarting = starting === template.id
+            const by = expectedBy(template)
             return (
               <div key={template.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-5">
-                <div className="flex items-start justify-between mb-1">
+                <div className="flex items-start justify-between gap-2 mb-1">
                   <h3 className="font-semibold text-[var(--color-foreground)]">{template.name}</h3>
-                  {badge && (
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.cls}`}>{badge.text}</span>
-                  )}
+                  <div className="flex flex-wrap items-center justify-end gap-1 shrink-0">
+                    {cardBadges.map((b) => (
+                      <span key={b.text} className={`text-xs font-medium px-2 py-0.5 rounded-full ${b.cls}`}>{b.text}</span>
+                    ))}
+                  </div>
                 </div>
-                <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+                <p className="text-sm text-[var(--color-muted-foreground)] mb-1">
                   {template.taskCount} tasks{template.estimatedMinutes > 0 ? ` • ~${template.estimatedMinutes} min` : ""}
                 </p>
+                {/* The window, said in words, only when it is telling the crew
+                    something they can act on. */}
+                {by && template.lifecycleState === "overdue" && (
+                  <p className="text-sm text-[var(--color-warning-text)] mb-4">
+                    Expected by {by} — it can still be completed.
+                  </p>
+                )}
+                {by && template.lifecycleState === "upcoming" && (
+                  <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+                    Expected later today — you can start it now if you like.
+                  </p>
+                )}
+                {!(by && (template.lifecycleState === "overdue" || template.lifecycleState === "upcoming")) && (
+                  <div className="mb-4" />
+                )}
                 <button
                   onClick={() => startChecklist(template)}
                   disabled={isStarting}

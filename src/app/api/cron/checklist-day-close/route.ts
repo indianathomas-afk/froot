@@ -4,10 +4,10 @@ import { dbDate, localDateStr } from "@/lib/reports"
 import {
   DAY_CLOSE_GRACE_HOURS,
   DAY_CLOSE_LOOKBACK_DAYS,
+  dayCloseAppliesTo,
   dayCloseInstant,
   expectedWindow,
   hoursForDate,
-  materializesMisses,
   shiftDateStr,
   type DayCloseSource,
 } from "@/lib/checklist-lifecycle"
@@ -65,8 +65,32 @@ type DayResult = {
   materialized: number
   alreadyClosed: number
   completedLeft: number
-  /** Templates skipped by the Daily-only rule (DEBT-61's containment). */
-  frequencySkipped: number
+  // ── CHK-3 DEFECT FIX, 2026-08-10 — FOUR COUNTERS, AND THE NAMES ARE THE FIX ──
+  // `frequencySkipped` STOOD HERE AND IS GONE. It counted one thing (non-Daily
+  // templates with no row yet, at the materialisation site) and was read as
+  // another ("no weekly row was written"). Twenty-four fiction rows were on
+  // staging while bodies carried it. Renamed and split so that no field can be
+  // read as a claim about a site it never looked at. Every one of the four is
+  // now summed into the top-level totals AND the hourly log line, because a
+  // counter that only exists inside `results[].days[]` is a counter nobody
+  // reads.
+  /** Templates NOT materialised by the Daily-only rule (DEBT-61's containment). */
+  frequencyExcluded: number
+  /** EXISTING non-Daily checklists left OPEN rather than closed — Gary's
+   *  2026-08-10 ruling extending the exclusion to the closing site. These rows
+   *  keep `closedAt: null` and therefore read `overdue` indefinitely; the count
+   *  is surfaced so that trade is visible rather than inferred. */
+  frequencyLeftOpen: number
+  /** Templates NOT materialised because they did not exist yet on this day —
+   *  the `createdAt` floor. Before it, a template created today collected a
+   *  Missed row for every lookback day and every applicable store. */
+  beforeTemplateCreation: number
+  /** Templates that already had a row for this store-day, so neither the
+   *  frequency rule nor the floor was ever asked about them. Counted because
+   *  its ABSENCE is what made a body showing zeros look like proof: a template
+   *  with a row — including a fictional one — used to vanish from every
+   *  counter at once. */
+  preexisting: number
   /** Materialisations lost to a race with a concurrent create — the unique
    *  index doing its job, not an error. */
   raced: number
@@ -84,6 +108,34 @@ type StoreResult = {
 }
 
 export async function GET(req: Request) {
+  // ── CHK-4, 2026-08-10 — TWO HARDENING ITEMS CARRIED IN FROM S3's TRIAGE ────
+  // RECORDED HERE, NOT IMPLEMENTED HERE. CHK-4's MUST NOT TOUCH covers cron
+  // mechanics; its inherited-checks section says these two "land here if the
+  // cron file is touched, else as comments at the site". The file was not
+  // otherwise opened this session, so they are comments and the handler below
+  // is byte-identical in behaviour. Written down because an item that lives
+  // only in a session report does not exist (DEBT-37) — and because the first
+  // of the two is the exact gap that cost an afternoon
+  // (docs/prompts/CRON-DIAG_findings.md).
+  //
+  // (1) LOG REJECTED REQUESTS. Both refusals below return and log nothing, so a
+  //     401 is invisible in the Vercel Runtime Logs and indistinguishable from
+  //     the cron never having fired. CRON-DIAG spent an afternoon on a stale
+  //     Preview secret with no server-side trace to read. Shape: a
+  //     `console.warn` naming WHICH branch was taken — no header present vs
+  //     present-and-wrong — and never any part of the value, neither the
+  //     expected one nor the supplied one.
+  // (2) `.trim()` AND A CONSTANT-TIME COMPARISON. `process.env.CRON_SECRET`
+  //     can carry a trailing newline from a paste into the Vercel dashboard,
+  //     which fails the `!==` below and reads exactly like a wrong value.
+  //     Trim both sides. Separately, `!==` on strings short-circuits at the
+  //     first differing byte and is therefore timing-variable; `crypto`'s
+  //     `timingSafeEqual` over equal-length buffers is the standard fix. The
+  //     timing half is low-severity for this endpoint by the same reasoning
+  //     that deferred the rotation (CHK-3's `open` list) — it is idempotent and
+  //     Vercel fires it hourly regardless — but the trim is a real, cheap
+  //     failure mode and the two belong in one edit.
+  // ──────────────────────────────────────────────────────────────────────────
   const secret = process.env.CRON_SECRET
   if (!secret) {
     return NextResponse.json({ error: "CRON_SECRET is not configured" }, { status: 500 })
@@ -119,6 +171,10 @@ export async function GET(req: Request) {
       id: true,
       organizationId: true,
       frequency: true,
+      // CHK-3 defect fix, 2026-08-10 — the floor's input. Its absence from this
+      // select is the whole of the second defect: the job enumerated
+      // store × day × template and never asked when the template began.
+      createdAt: true,
       availabilityType: true,
       operationalPhase: true,
       startOffsetHours: true,
@@ -161,7 +217,10 @@ export async function GET(req: Request) {
           materialized: 0,
           alreadyClosed: 0,
           completedLeft: 0,
-          frequencySkipped: 0,
+          frequencyExcluded: 0,
+          frequencyLeftOpen: 0,
+          beforeTemplateCreation: 0,
+          preexisting: 0,
           raced: 0,
         }
         result.days.push(dayResult)
@@ -176,7 +235,11 @@ export async function GET(req: Request) {
             status: true,
             closedAt: true,
             taskLogs: { select: { taskId: true } },
-            template: { select: { tasks: { select: { id: true } } } },
+            // CHK-3 defect fix, 2026-08-10 — `frequency` joined on so the
+            // closing site can ask the same question the materialisation site
+            // asks. Under DEBT-61 bulk generate creates a Weekly row every day,
+            // so this is where most non-Daily fiction was actually written.
+            template: { select: { frequency: true, tasks: { select: { id: true } } } },
           },
         })
 
@@ -188,6 +251,27 @@ export async function GET(req: Request) {
           }
           if (c.closedAt) {
             dayResult.alreadyClosed++
+            continue
+          }
+
+          // ── DAILY ONLY AT THE CLOSING SITE TOO (Gary, 2026-08-10) ──────────
+          // THE LARGER HALF OF THE DEFECT, not belt-and-braces on the smaller
+          // one. The materialisation gate only ever protected templates with NO
+          // row; under DEBT-61 bulk generate creates a Weekly template's
+          // checklist EVERY day, so those rows exist, and this loop swept them
+          // to Missed six days a week. The exclusion is worth nothing if it
+          // only holds where nothing was generated.
+          //
+          // THE COST, STATED HERE AND COUNTED IN THE BODY: a non-Daily
+          // checklist somebody genuinely started and abandoned is now never
+          // closed. It keeps `closedAt: null` and reads `overdue` indefinitely,
+          // because overdue is derived and this job writes the only terminal
+          // state there is. The refinement that would keep both — close a
+          // non-Daily row with task logs or a startedAt, skip one that was only
+          // generated — is a RULING, not a default, and it is named in the
+          // CHK-3 rider rather than assumed here.
+          if (!dayCloseAppliesTo(c.template.frequency)) {
+            dayResult.frequencyLeftOpen++
             continue
           }
 
@@ -224,7 +308,16 @@ export async function GET(req: Request) {
 
         const haveTemplate = new Set(existing.map((c) => c.templateId))
         for (const t of orgTemplates) {
-          if (haveTemplate.has(t.id)) continue
+          // COUNTED, NOT SILENT (CHK-3 defect fix, 2026-08-10). This guard runs
+          // BEFORE every rule below it, so a template with a row for this
+          // store-day was never asked about frequency and never asked about its
+          // creation date. That is correct behaviour and it was invisible
+          // behaviour: a body reading `frequencySkipped: 0, materialized: 0` is
+          // exactly what a day with fiction already on disk looks like.
+          if (haveTemplate.has(t.id)) {
+            dayResult.preexisting++
+            continue
+          }
           if (t.appliesTo === "selected" && !t.storeAssignments.some((a) => a.storeId === store.id)) continue
 
           // DAILY ONLY — the engine-level exclusion, ruled in plan §5.4/§12.8.
@@ -232,10 +325,12 @@ export async function GET(req: Request) {
           // bulk generate already creates a checklist for a Weekly template
           // every day, so an unfiltered job here would file it Missed six days a
           // week. The predicate and the full reasoning live in
-          // src/lib/checklist-lifecycle.ts — materializesMisses(). This is a
-          // CONTAINMENT, not a fix; the fix is DEBT-61's.
-          if (!materializesMisses(t.frequency)) {
-            dayResult.frequencySkipped++
+          // src/lib/checklist-lifecycle.ts — dayCloseAppliesTo() (a POINTER
+          // repaired 2026-08-10 when the predicate was renamed; the sentence
+          // itself is CHK-3's and unedited). This is a CONTAINMENT, not a fix;
+          // the fix is DEBT-61's.
+          if (!dayCloseAppliesTo(t.frequency)) {
+            dayResult.frequencyExcluded++
             continue
           }
 
@@ -246,6 +341,36 @@ export async function GET(req: Request) {
           // as-executed record — plan §12.5's ruling, one row-type further on.
           // See the S3 note on Checklist.sectionsSnapshot in prisma/schema.prisma.
           const w = expectedWindow(t, hoursRow, day, store.timezone)
+
+          // ── THE createdAt FLOOR (Gary, 2026-08-10) ─────────────────────────
+          // NO MISSED ROW FOR A DAY THE TEMPLATE DID NOT EXIST FOR. Measured on
+          // staging 2026-08-10: a template created 2026-08-09 ~20:00 carried 24
+          // Missed rows dated 08-07 and 08-08 — 12 stores × the full lookback,
+          // both days preceding its creation. The job enumerated
+          // store × day × template and nothing in it had ever asked when the
+          // template began. This is INDEPENDENT of the frequency defect and
+          // fires for a plain Daily template too: create one today and, before
+          // this floor, the next sweep filed two days of misses against it.
+          //
+          // THE COMPARISON IS AGAINST THE WINDOW'S END, NOT THE DAY'S START.
+          // A template created at 06:00 for an 08:00 Opener window was there to
+          // be done and a miss is real; one created at 14:00 for that same
+          // window never could have been. Falling back to day close when there
+          // is no window (`w?.end ?? dc.at`) keeps the AllDay and blank-offset
+          // cases on the same rule rather than exempting them.
+          //
+          // WHAT IT CANNOT COVER, said out loud: the floor keys on the
+          // TEMPLATE's age. `TemplateStoreAssignment` has no `createdAt`, and
+          // PATCH /api/templates/[id] deletes and recreates every assignment on
+          // each edit, so "this store was added yesterday" is not merely
+          // unknown, it is unknowable from the schema. A store newly assigned
+          // to an OLD template can still collect up to `DAY_CLOSE_LOOKBACK_DAYS`
+          // of misses for days it was not on the template.
+          if (t.createdAt >= (w?.end ?? dc.at)) {
+            dayResult.beforeTemplateCreation++
+            continue
+          }
+
           try {
             await prisma.checklist.create({
               data: {
@@ -302,13 +427,29 @@ export async function GET(req: Request) {
     }
   }
 
-  const markedMissed = results.reduce((n, r) => n + r.days.reduce((m, d) => m + d.markedMissed, 0), 0)
-  const materialized = results.reduce((n, r) => n + r.days.reduce((m, d) => m + d.materialized, 0), 0)
+  // CHK-3 defect fix, 2026-08-10 — one summer over every per-day counter, so
+  // adding a counter can never again mean adding one nobody totals.
+  const total = (pick: (d: DayResult) => number) =>
+    results.reduce((n, r) => n + r.days.reduce((m, d) => m + pick(d), 0), 0)
+
+  const markedMissed = total((d) => d.markedMissed)
+  const materialized = total((d) => d.materialized)
+  const frequencyExcluded = total((d) => d.frequencyExcluded)
+  const frequencyLeftOpen = total((d) => d.frequencyLeftOpen)
+  const beforeTemplateCreation = total((d) => d.beforeTemplateCreation)
+  const preexisting = total((d) => d.preexisting)
+  const raced = total((d) => d.raced)
   const daysClosed = results.reduce((n, r) => n + r.days.filter((d) => d.outcome === "closed").length, 0)
   const errors = results.filter((r) => r.error).length
 
+  // THE LOG LINE CARRIES THE EXCLUSIONS NOW. The old line reported only what
+  // was written, so a sweep that wrote nothing and a sweep that excluded
+  // everything read identically in the Runtime Logs — and the Runtime Logs are
+  // often the only surface anyone looks at.
   console.log(
-    `[cron:checklist-day-close] ${stores.length} stores, ${daysClosed} store-days closed, ${markedMissed} marked missed, ${materialized} materialized, ${errors} errors (grace ${DAY_CLOSE_GRACE_HOURS}h, lookback ${DAY_CLOSE_LOOKBACK_DAYS}d)`
+    `[cron:checklist-day-close] ${stores.length} stores, ${daysClosed} store-days closed, ${markedMissed} marked missed, ${materialized} materialized, ${errors} errors ` +
+      `(excluded: ${frequencyExcluded} non-daily new, ${frequencyLeftOpen} non-daily left open, ${beforeTemplateCreation} pre-creation, ${preexisting} already had a row, ${raced} raced; ` +
+      `grace ${DAY_CLOSE_GRACE_HOURS}h, lookback ${DAY_CLOSE_LOOKBACK_DAYS}d)`
   )
 
   // THIS BODY IS A PROOF SURFACE. CHK-3 ships no UI, so it and SQL are the only
@@ -324,6 +465,11 @@ export async function GET(req: Request) {
     daysClosed,
     markedMissed,
     materialized,
+    frequencyExcluded,
+    frequencyLeftOpen,
+    beforeTemplateCreation,
+    preexisting,
+    raced,
     errors,
     results,
   })

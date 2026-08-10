@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import { groupTasksBySection } from "@/lib/sections"
+import { checklistState, isCompletedLate } from "@/lib/checklist-lifecycle"
+import { frozenWindow } from "@/lib/checklist-status-display"
 import { ChecklistPrintControls } from "./checklist-print-controls"
 
 export default async function ChecklistPrintPage({
@@ -71,6 +73,20 @@ export default async function ChecklistPrintPage({
   const completedCount = completedTaskIds.size
   const totalCount = checklist.template.tasks.length
 
+  // CHK-4 — THE MISSED STAMP. This is the compliance surface, so the closed
+  // fact has to survive being printed: a sheet showing "0 / 14 completed" with
+  // no other mark reads as a blank form somebody forgot to fill in, which is
+  // the opposite of what the record says. Derived through the lib's predicate
+  // against the window frozen on THIS row — never recomputed from today's store
+  // hours, because a print copy is almost always of a past day.
+  //
+  // `isBlank` is the deliberate exception: ?blank=true prints an EMPTY working
+  // copy for a crew to carry, and stamping MISSED across a sheet somebody is
+  // about to fill in by hand would be false on its face.
+  const state = checklistState(checklist, frozenWindow(checklist), new Date())
+  const showMissed = !isBlank && state === "missed"
+  const showLate = !isBlank && state === "completed" && isCompletedLate(checklist)
+
   return (
     <>
       <style>{`
@@ -82,6 +98,20 @@ export default async function ChecklistPrintPage({
         .header .desc { color: #555; font-size: 10pt; margin-top: 4px; }
         .header .meta { display: flex; gap: 24px; margin-top: 10px; font-size: 9.5pt; color: #555; flex-wrap: wrap; }
         .header .meta strong { color: #111; }
+        /* CHK-4: printer-safe by construction — a solid dark border and heavy
+           weight rather than a background wash, because a light-grey fill is the
+           first thing an office laser drops and a stamp that vanishes on paper
+           is worse than no stamp. */
+        .stamp {
+          display: inline-block; border: 2px solid #b91c1c; color: #b91c1c;
+          font-size: 11pt; font-weight: 800; letter-spacing: 0.12em;
+          padding: 2px 10px; border-radius: 3px; margin-top: 8px;
+        }
+        .stamp-note { font-size: 9pt; color: #555; margin-top: 4px; }
+        .stamp-late {
+          display: inline-block; border: 1px solid #666; color: #444;
+          font-size: 9.5pt; font-weight: 600; padding: 1px 8px; border-radius: 3px; margin-top: 8px;
+        }
         .section { margin-bottom: 18px; }
         .section-title {
           font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
@@ -139,6 +169,15 @@ export default async function ChecklistPrintPage({
               <span>Completed: <strong>{completedCount} / {totalCount}</strong></span>
             )}
           </div>
+          {showMissed && (
+            <div>
+              <div className="stamp">MISSED</div>
+              <div className="stamp-note">
+                The day closed with this checklist unfinished. Recorded as missed; it can no longer be completed.
+              </div>
+            </div>
+          )}
+          {showLate && <div className="stamp-late">COMPLETED LATE</div>}
         </div>
 
         {/* Sections */}
