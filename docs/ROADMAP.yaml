@@ -1695,6 +1695,49 @@ phases:
     commits: ["c05365a"]
     title: "Lifecycle surfaces — overdue flagged and never hidden, missed closed, offsets gain their meaning"
     notes: >
+      ── RIDER 2026-08-10 (CHK-5/S5). THIS ROW STAYS in_progress. PREPENDED;
+      NOTHING BELOW IS EDITED. ──
+      TWO CORRECTIONS AND ONE UNRESOLVED CHECK.
+      (1) "NOT PUSHED" BELOW IS NOW STALE. It was true when written. Measured at
+      the start of S5: `git log --oneline @{u}..` is empty on staging and
+      origin/staging is level at "dc90ff6", which contains "c05365a", "8ff4cce",
+      "bbb5734" and CHK-3's "1c907d2"/"dc90ff6". Gary pushed between sessions.
+      The sentence is left standing per preserve-and-mark and corrected here.
+      (2) THE DEPLOYED-SHA PRECONDITION IS SATISFIED, AND THAT HALF IS DONE FOR
+      WHOEVER RUNS THE CHECKS. Measured 2026-08-10 with the CLAUDE.md-corrected
+      method, not the dead `inspect --json | grep`: `vercel inspect
+      froot-git-staging-indianathomas-2483s-projects.vercel.app` resolves the
+      alias to deployment `froot-gbr8setuc-…` (Ready), and `vercel ls --meta
+      githubCommitSha=dc90ff61cf3d4e16cd42ece98c4ac26668b43b92` returns that
+      same deployment. Staging is serving exactly this code. Anyone running the
+      three checks in the next session can skip straight to the browser, PROVIDED
+      no further push has landed — re-run both halves if one has.
+      (3) THE THREE OPEN CHECKS WERE NOT RUN, AND THE REASON IS A CAPABILITY
+      LIMIT, NOT AN OVERSIGHT. Gary's S5 input was "not yet run — run them in
+      this session". They could not be: every one of them requires an
+      AUTHENTICATED browser session on staging, staging sits behind Clerk (the
+      sign-in wall renders "Development mode", the shared dev instance), no
+      Chrome with an existing session was connected to this environment, and
+      signing in is not something this session may do. The checks are therefore
+      still owed, verbatim from the CHK-4 close-out prompt: (a) the crew list
+      (store view) does NOT show yesterday's misses while admin does; (b) admin
+      shows Missed; (c) open one Missed row → read-only → task interaction
+      refused (the 409).
+      CONSEQUENCE, STATED SO IT IS NOT LOST: this row does NOT flip to
+      staging-verified in the S5 docs commit, because the S5 prompt made those
+      three checks the condition for flipping it and they did not happen. The
+      defect-trilogy resolution already on this row is unaffected.
+      (4) THE "/reports IS UNTOUCHED" DEVIATION BELOW IS NOW SPENT — its
+      consequence clause is the stale claim, not the deviation itself. The
+      deviation was correct and remains a true record of what S4 did. What is no
+      longer true is the sentence that follows it: "/reports's four tiles keep
+      under-reporting and its per-store table keeps over-counting, in opposite
+      directions". S5 closed DEBT-63 in "5190fd9" — the total is now the row
+      count, the five buckets partition it, Missed is in both the tiles and the
+      table, and the two halves of the page agree. The deviation's own reasoning
+      was vindicated: parking it for S5 is what let the fix be the denominator
+      rather than a sixth bucket added to a sum that was already wrong.
+      ── THE 2026-08-10 BUILD RECORD IS NEXT, UNEDITED ──
       BUILT 2026-08-10 IN "c05365a", NOT PUSHED AND NOT YET VERIFIED IN A
       BROWSER — which is why this is in_progress rather than staging. Prompt:
       docs/prompts/CHK-4_S4_lifecycle_visible.md. The commit is CODE LANDING,
@@ -1799,9 +1842,107 @@ phases:
   - id: CHK-5
     track: checklists
     size: M
-    status: planned
+    status: in_progress
+    commits: ["5190fd9"]
     title: "Operations report — missed and completed-late, by store, by day, by template"
     notes: >
+      BUILT 2026-08-10 IN "5190fd9", NOT PUSHED AND NOT YET VERIFIED IN A
+      BROWSER — in_progress rather than staging, for exactly the reason CHK-4
+      carries the same status: Claude never pushes, so staging does not have
+      this code, and CLAUDE.md § Staging Verification makes a matching deployed
+      SHA a precondition rather than a checklist item. The session prompt asked
+      for `staging` "on completion"; the deployed-SHA precondition is what
+      completion means here, and it is not met. The commit is CODE LANDING, not
+      evidence.
+      WHAT SHIPPED: /reports/operations — missed and completed-late by
+      store × day × template over a date range, three views over one query,
+      gated by INHERITANCE from reports/layout.tsx (reports.view = MANAGE) with
+      NO new capability and no permissions.ts edit, store-scoped through
+      getUserStoreScope() with the ?store= param validated against what the user
+      may actually see. Plus DEBT-63's fix and DEBT-65's ruling — both rows
+      closed on this commit, riders there.
+      IT DERIVES NOTHING, AND THAT IS THE LOAD-BEARING PROPERTY. Every state on
+      the page comes from src/lib/checklist-lifecycle.ts — checklistState() for
+      missed, isCompletedLate() for late, dayCloseAppliesTo() for what is
+      tracked at all, frozenWindow() for the window a row was JUDGED against
+      (never one recomputed from today's hours), dayCloseInstant().source for
+      the fallback column. There is no `status === "Missed"` on the page. CHK-3's
+      defect is why this is asserted rather than assumed: a second definition
+      site does not disagree loudly, it disagrees quietly under a plausible name.
+      THE NO-HOURS FALLBACK COLUMN completes the second visible signal CHK-3
+      handed over. There is no `dayCloseSource` COLUMN on Checklist and none was
+      added — the engine exposes the fact queryably, and the report asks it per
+      store per date. The three fallback reasons stay apart ("you marked Sunday
+      closed" vs "nobody has set this store's hours"), because a report that
+      merges them tells an operator to fix something they already did.
+      THE THREE DISCLOSURES ARE ON THE PAGE'S FACE IN PLAIN WORDS, WITH NO ROW
+      IDS ON SCREEN: daily-only tracking, carrying the count of rows the
+      exclusion dropped from the range in view; tracking-starts-at-deploy, with
+      windowless rows in their own "No expected window" column and never
+      reported as on-time; and which named stores are being judged against
+      midnight instead of a real closing time.
+      EVIDENCE SO FAR, AND WHAT IT DOES NOT COVER. dev
+      `br-broad-wave-a6vpjdw0`, org `cf888f2d-f234-48c7-8097-fd5b44b5b3dd`,
+      range 2026-06-28..2026-07-23: the page's own aggregation and direct SQL on
+      the same branch RECONCILE exactly — total 26, missed 0, late 0,
+      completed 1. All 26 dev rows predate Migration B, so all 26 land in the
+      "No expected window" column rather than being counted on-time, and all
+      six stores measured read "Midnight fallback — hours not set". BOTH
+      HEADLINE COLUMNS ARE THEREFORE EXERCISED BY SHAPE AND NOT BY VALUE: dev
+      has never run the cron, so missed and completed-late are structurally 0
+      there, and a non-zero reconciliation is owed from staging. The staging and
+      production numbers come from the Neon console per CLAUDE.md
+      § Environment Variables — no deployed credential was pulled.
+      NOTE ON THE clerkOrgId FOR THAT DEV ROW: it is
+      `org_3FhYUR4l0ue7egug1I0Ig8wxOVn`, which is a PRODUCTION Clerk org id
+      sitting in a dev-forked row — dev was branched from production and
+      inherited it. Named here the way CLAUDE.md § Browser Evidence's own
+      correction demands, so the id is not read back as a dev org later.
+      STILL OWED BEFORE THIS ROW MOVES TO staging: a push; the deployed-SHA
+      match; then the walkthrough — the report renders the recent misses by
+      store, a completed-late row if one exists, the Weekly exclusion line
+      carrying a non-zero count, the no-hours column, and /reports's totals
+      reconciling against the row count.
+      ── THE CHK PHASE, ALL FIVE SESSIONS ACCOUNTED FOR (S5's closing duty) ──
+      CHK-1 shipped, in production via merge "ddaa216", Migration A's backfill
+      confirmed on `br-sparkling-block-a620qvg4` (unlinked_tasks 0, sections
+      32). CHK-2 shipped. CHK-3 shipped, in production via the same merge, with
+      its defect fix in "1c907d2" and the day-close cron observed closing real
+      days (24 store-days on production, Runtime Logs 2026-08-10). CHK-4 built
+      in "c05365a" + "bbb5734", in_progress — its three browser checks are
+      still open and its rider says why. CHK-5 built in "5190fd9",
+      in_progress, this row.
+      SO THE PHASE IS THREE-FIFTHS IN PRODUCTION AND TWO-FIFTHS IN COMMITS
+      NOBODY HAS DEPLOYED. That asymmetry is the phase's actual state and it
+      should not be smoothed over: the ENGINE is live and writing Missed rows on
+      production right now, while both surfaces that would let a human READ them
+      are unpushed. Production is currently accumulating closed facts that no
+      production user can see.
+      WHAT REMAINS BEFORE THE PHASE IS shipped — ONE PROMOTION AND THEN
+      PRODUCTION EVIDENCE, in that order:
+      (1) ONE PROMOTION. Push staging, verify CHK-4's three open checks and
+      CHK-5's walkthrough there, then merge staging → main and promote. Both
+      rows move on that one deploy; there is no second code drop in this phase.
+      DEBT-66 is the standing hazard on that promotion — `main` was red at
+      "7ab7106" with no database env attached to the build — and it must be
+      understood before the merge, not during it.
+      (2) PRODUCTION EVIDENCE QUERIES, run in the Neon console on
+      `br-sparkling-block-a620qvg4` and each naming its branch, no credential
+      pulled to disk. Three, and the third is the one nobody has asked yet:
+      (a) THE REPORT RECONCILES — the operations report's headline numbers for a
+      chosen range against direct SQL over `Checklist` joined to `Template`,
+      counting missed as `closedAt is not null and status <> 'Completed'` and
+      tracked as `frequency = 'Daily'`. The same query S5 ran on dev, where it
+      reconciled exactly at total 26 / missed 0 / late 0 / completed 1.
+      (b) DEBT-63's TOTAL IS HONEST — `count(*)` over the /reports window equals
+      the sum of the five tiles, which is now true by construction and is worth
+      one query precisely because it used to be false silently.
+      (c) DEBT-65's CLEANUP EXPOSURE — how many production checklist rows belong
+      to an archived template, split by never-started versus human-touched.
+      That count decides whether the (a)/(b) SQL in the S5 report is run at all.
+      Dev's answer was 0 archived templates and 0 such rows; staging and
+      production are unmeasured.
+      ── THE 2026-08-09 PRE-BUILD BLOCK IS NEXT, UNEDITED ──
       S5 of five, and the phase's closing session. Plan:
       docs/prompts/CHK-1_PLAN.md §7. Satisfies R4.
       SHIPS: /reports/operations behind the EXISTING `reports.view` capability
@@ -9993,10 +10134,34 @@ debt:
       (unmirrored writers), HR-14 (the rename issue on handler (3)).
 
   - id: DEBT-48
+    status: shipped
+    commits: ["746918c", "d089a7c", "c05365a"]
     title: >
-      RULED — Implement the checklist availability window, or remove
+      CLOSED — Implement the checklist availability window, or remove
       the fields — the half of DEBT-29 that a relabel could not settle
     notes: >
+      ── CLOSURE RIDER 2026-08-10 (CHK-5/S5), THE ONE THE S5 SKELETON OWES THIS
+      ROW PER PLAN §10. PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE ROW CARRIED NO `status` FIELD AT ALL UNTIL NOW, WHICH IS THE ONLY
+      THING ACTUALLY BEING FIXED HERE. Its own text has said "THIS ROW'S JOB IS
+      DONE" since 2026-08-09 and its two open questions were answered there — so
+      it read as closed to a human and as untriaged to anything that filters on
+      status. That is the DEBT-54 bookkeeping class the CHK-4 rider corrected on
+      DEBT-32, one row over.
+      DISCHARGED IN THREE PLACES, hence three commits: "746918c" scoped it (the
+      approved CHK-1 plan, which is what the row was holding its thinking FOR),
+      "d089a7c" built the engine that made the offsets mean something (CHK-3,
+      in production via merge "ddaa216"), and "c05365a" put the (i) explainer
+      beside the fields (CHK-4), which is what discharges this row's own warning
+      — "State it, or someone will implement them as enforcement later".
+      THE ANSWER TO THE ROW'S TITLE QUESTION, PLAINLY: implement, not remove.
+      The fields are EXPECTATIONS and never gates (R3), and nothing in the
+      product is ever hidden by a window.
+      ONE THING THE CLOSURE DOES NOT CLAIM: CHK-4 is in_progress, not
+      staging-verified, so the explainer has landed in code and has not been
+      read on a screen by anyone. That is CHK-4's gate to clear, not this row's
+      — this row closes on the thinking being scoped and built, which it is.
+      ── THE 2026-08-09 SCOPE NOTE IS NEXT, UNEDITED ──
       SCOPED 2026-08-09 — THIS ROW'S JOB IS DONE, AND IT SAID SO ITSELF. The
       scope note below reads "THIS ROW'S JOB IS TO HOLD THE THINKING UNTIL GARY
       SCOPES IT AS ONE." He scoped it: docs/prompts/CHK-1_PLAN.md, approved
@@ -11001,6 +11166,40 @@ debt:
       Template.frequency is collected, exported and rendered but read by no
       generation path — every template is a daily template
     notes: >
+      ── RIDER 2026-08-10 (CHK-5/S5, "5190fd9"). THIS ROW STAYS OPEN. PREPENDED;
+      NOTHING BELOW IS EDITED. ──
+      THE EXCLUSION NOW HOLDS AT THREE GATES AND IS VISIBLE AT THE THIRD.
+      Materialisation (CHK-3, "d089a7c"), closing (CHK-3's defect fix,
+      "1c907d2"), and now the operations report, which filters every row through
+      `dayCloseAppliesTo(template.frequency)` before it counts anything. All
+      three ask the same predicate; none of them re-derives it.
+      WHAT REMAINS ON THIS ROW, RESTATED NOW THAT THE CONTAINMENT IS COMPLETE —
+      because the containment is thorough enough to be mistaken for the fix, and
+      the disconfirmation clause below has now fired three times without this
+      row closing. Two things, and neither is a filter:
+      (1) GENERATION-TIME FREQUENCY AWARENESS. Bulk generate still creates a
+      Weekly template's checklist EVERY day. Nothing consumes those rows now —
+      day close leaves them open and the report drops them — so what was noise
+      is now litter: a Weekly template silently accrues one Pending row per
+      store per day, forever, and every one of them is a row a human could open.
+      The three gates stop the fiction being COUNTED; they do not stop it being
+      CREATED.
+      (2) HONEST WEEKLY LIFECYCLE SEMANTICS. A non-Daily checklist somebody
+      genuinely started is now NEVER closed — it keeps `closedAt: null` and
+      reads `overdue` for as long as it exists, because overdue is derived and
+      missed is the only terminal state day close writes (CHK-3's rider states
+      this and counts it as `frequencyLeftOpen`). That is the right trade today
+      and it is not a resting place.
+      THE REPORT SAYS SO IN PLAIN WORDS AND DOES NOT CITE THIS ROW ON SCREEN:
+      "Only daily checklists are tracked … For those templates, 'no misses'
+      means 'not tracked yet' — not 'all done'", carrying the count of rows the
+      exclusion dropped from the range being viewed. An operator should not have
+      to know what DEBT-61 is; a number they can see is what keeps the exclusion
+      from reading as a clean bill of health.
+      FIX SHAPE IS UNCHANGED and is still a schema addition plus a form control
+      plus the generation filter — a Weekly template needs a day-of-week, a
+      Monthly one a day-of-month, neither collected today.
+      ── THE 2026-08-09 FILING IS NEXT, UNEDITED ──
       COST OF DOING NOTHING: Bulk generate creates a checklist for every active
       template every day regardless of frequency, and on-demand creation asks no
       question at all, so a Weekly template behaves exactly like a Daily one —
@@ -11097,10 +11296,56 @@ debt:
       Related: BUILD-1 (the scoping that stranded it), DEBT-4.
 
   - id: DEBT-63
+    status: shipped
+    commits: ["5190fd9"]
     title: >
-      /reports omits Non-Compliant from its own totals — three status buckets
-      summed as if they were all of them
+      CLOSED — /reports omits Non-Compliant from its own totals — three status
+      buckets summed as if they were all of them
     notes: >
+      ── CLOSED 2026-08-10 IN "5190fd9" (CHK-5/S5). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      FIXED THE WAY THIS ROW ITSELF PREFERRED: the total is now the ROW COUNT
+      (`checklists.length`), not a sum of named buckets, so the omission cannot
+      be reintroduced by whoever adds a sixth status. The five buckets are also
+      a PARTITION by construction — `isMissed()` is asked first and the stored
+      status is consulted only for what it leaves — so the tiles sum to the
+      total exactly and now agree with the per-store table, which counted
+      `sc.length` all along and was already right (this row's own CHK-3 rider).
+      Missed joins both the tiles and the table; the Missed number comes from
+      the predicate in src/lib/checklist-lifecycle.ts and never from
+      `status === "Missed"` (DEBT-26).
+      ONE CORRECTION TO THIS ROW, AND IT IS A CORRECTION TO A CLAIM, NOT A
+      SCOPE CHANGE. The row states that a Non-Compliant checklist "is counted in
+      NO bucket on /reports" and that "Non-Compliant matches none of the three".
+      THAT HALF IS NOT TRUE AND NEVER WAS: `const nonCompliant = ...` and its
+      own KPI tile have been in reports/page.tsx since the original platform
+      build "1cfdf76" — established by `git log -L` on that line at "dc90ff6",
+      not by re-reading. What was live was the DENOMINATOR half: the `sub` line
+      rendered `of ${completed + inProgress + pending} total checklists`, which
+      dropped Non-Compliant from the total while the tile beside it displayed
+      the count. So the page under-reported its total and overstated completion
+      rate against it — the row's headline consequence — for a reason one clause
+      narrower than the row gives.
+      WHY THE MISREADING IS WORTH RECORDING RATHER THAN QUIETLY DROPPING: the
+      row was DERIVED FROM READING, and it says so honestly ("from reading, not
+      from a query"). The reading stopped at the three `filter` lines it cited
+      (:31-33) and inferred the absence of a fourth from their symmetry. The
+      fourth was on the next line. This is the DEBT-37 class the row itself
+      names, one level up — an inference presented in the register of a
+      measurement — and it cost nothing here only because the fix shape it
+      proposed was right for the real defect anyway.
+      THE SECOND, SMALLER FINDING BELOW STANDS AND IS ALREADY CLOSED ELSEWHERE:
+      checklists/page.tsx:117's `?? STATUS_STYLES.Pending` fallthrough became
+      reachable when Missed shipped, and CHK-4 mapped Missed in "c05365a" while
+      deliberately keeping the fallback as the net for the next status.
+      R1 RECONCILIATION, STATED ON THE PAGE'S FACE IN THE TILE SUBTITLES:
+      Non-Compliant is a LIVE-DAY verdict written by submit; day close rewrites
+      it to Missed along with everything else unfinished, because once the day
+      is shut a partial submission is a miss like any other. So Non-Compliant
+      trends toward today's rows and Missed accumulates behind it. The one
+      exception is a non-Daily row, which day close leaves open by design, so
+      its Non-Compliant verdict persists — DEBT-61.
+      ── THE 2026-08-09 FILING IS NEXT, UNEDITED ──
       COST OF DOING NOTHING: A checklist submitted with critical tasks
       incomplete is counted in NO bucket on /reports and is silently absent from
       the "of N total checklists" denominator, so the page under-reports its own
@@ -11230,10 +11475,50 @@ debt:
       already decided rather than open.
 
   - id: DEBT-65
+    status: shipped
+    commits: ["5190fd9"]
     title: >
-      Bulk generate creates checklists for ARCHIVED templates that no store
-      surface will ever show — and day close now files them as Missed
+      CLOSED — Bulk generate creates checklists for ARCHIVED templates that no
+      store surface will ever show — and day close now files them as Missed
     notes: >
+      ── CLOSED 2026-08-10 IN "5190fd9" (CHK-5/S5). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      GARY'S RULING, 2026-08-10, VERBATIM AND RECORDED AS THE ROW'S ANSWER —
+      it was the S5 entry gate and the session stopped on it until it arrived:
+      "archiving stops generation entirely; archived templates generate nothing,
+      materialize nothing, and appear in no report going forward; existing rows
+      from archived templates are (a) deleted as fiction where never-started, or
+      (b) kept as history where human-touched".
+      WHAT SHIPPED: `isArchived: false` on BOTH generation paths in
+      api/checklists/route.ts, so the three applicability filters — bulk
+      generate, the crew list at api/stores/[id]/templates/route.ts:24, and
+      CHK-3's day-close job — now read one rule. Materialisation and the report
+      were already covered: the cron has filtered `isActive: true, isArchived:
+      false` since "d089a7c", and CHK-5's /reports/operations reads only rows
+      that exist, so stopping generation is the whole of "appears in no report
+      going forward".
+      THE SINGLE-CREATE PATH WAS WIDER THAN THIS ROW KNEW, AND THAT IS THE ONE
+      CORRECTION TO THE ANALYSIS BELOW. The row names the bulk filter
+      (`isActive: true`, no isArchived). The SINGLE create at
+      api/checklists/route.ts filtered on ORGANIZATION ALONE — neither flag —
+      so it would instantiate an archived template, and an inactive one, for any
+      caller holding a template id. Not reachable from the UI, which lists
+      through the crew-list filter; "the UI does not offer it" is not a gate.
+      Both paths now carry `isArchived: false`.
+      WHAT WAS DELIBERATELY NOT DONE: the single-create path still does not
+      check `isActive`. The ruling was about archiving, and fixing an unruled
+      second flag inside it would be exactly the "two flags with one meaning"
+      confusion this row identified, resolved by guesswork. Filed as its own
+      triage item in the CHK-5 report.
+      EXISTING ROWS ARE GARY'S TO EXECUTE, NOT THIS COMMIT'S. The (a)/(b) split
+      is presented as surgical org-scoped SQL in the CHK-5 session report — a
+      SELECT that counts first, then a DELETE with RETURNING, per CLAUDE.md
+      § Database Evidence's rule that a statement composed against one branch
+      executes cleanly against its sibling. NOTHING WAS RUN FROM THE SESSION.
+      Measured dev `br-broad-wave-a6vpjdw0` 2026-08-10: 0 templates archived and
+      0 checklist rows from archived templates, so dev has no cleanup to do; the
+      staging and production counts are owed from the Neon console.
+      ── THE 2026-08-09 FILING IS NEXT, UNEDITED ──
       COST OF DOING NOTHING: An archived template still gets a checklist for
       every store every time an admin presses Generate, and /store-view never
       lists it, so nobody can complete it. LATENT SINCE FOREVER as an invisible
