@@ -488,6 +488,34 @@ export function checklistState(
 // ─── Day-close policy helpers ────────────────────────────────────────────────
 
 /**
+ * CHK-3 DEFECT FIX, 2026-08-10 — RENAMED FROM `materializesMisses`, AND THE
+ * RENAME IS THE POINT, NOT TIDYING. Gary ruled the Daily-only exclusion applies
+ * at BOTH day-close sites: the one that creates a Missed row for a template
+ * nobody started, and the one that closes a row that already exists. A
+ * predicate called `materializesMisses` asked at the CLOSING site reads as a
+ * question about creation and answers one about closing — which is the exact
+ * lesson this defect is recorded under: A NAME IS NOT EVIDENCE OF WHAT IT
+ * COUNTS. The response body carried `frequencySkipped` while fiction rows were
+ * being written, and the name was believed over the table.
+ *
+ * The block below is CHK-3's, preserved and marked per the house convention.
+ * Its statements are still true of the materialisation site; what changed is
+ * that it is no longer the only site, and the SECOND site has a consequence
+ * CHK-3's text does not cover and that must not be discovered later:
+ *
+ *   A NON-DAILY CHECKLIST THAT SOMEBODY STARTED IS NOW NEVER CLOSED. It keeps
+ *   `closedAt: null` and therefore reads `overdue` for as long as it exists,
+ *   because overdue is derived and missed is the only terminal state day close
+ *   writes. Under DEBT-61 that is the right trade — bulk generate creates a
+ *   Weekly row EVERY day, so the closing site was sweeping six untouched rows a
+ *   week into Missed, which is a far larger fiction than one abandoned row left
+ *   open. The refinement that would keep both — close a non-Daily row that was
+ *   genuinely STARTED, skip one that was only generated — is named in the
+ *   CHK-3 rider and is Gary's to rule on; it is deliberately not assumed here.
+ *   The cron reports these rows as `frequencyLeftOpen` so the trade is visible
+ *   in every response body rather than inferred from an absence.
+ *
+ * ── CHK-3's TEXT BELOW, UNEDITED ──
  * Whether day close MATERIALISES a Missed row for a template nobody started.
  *
  * DAILY ONLY, and the exclusion is engine-level (plan §5.4, §12.8).
@@ -503,8 +531,8 @@ export function checklistState(
  * A non-Daily template that WAS started still closes normally — only the
  * create-a-row-for-a-checklist-nobody-started step is skipped.
  */
-export function materializesMisses(frequency: string | null | undefined): boolean {
-  return (frequency ?? "Daily") === "Daily"
+export function dayCloseAppliesTo(frequency: string | null | undefined): boolean {
+  return (frequency ?? "Daily").trim() === "Daily"
 }
 
 /**
