@@ -1212,6 +1212,24 @@ phases:
     commits: ["d089a7c", "1c907d2"]
     title: "Lifecycle engine — expected windows, overdue on read, missed written at day close"
     notes: >
+      ── POST-PROMOTION RIDER 2026-08-10, MERGE "d19cca6". PREPENDED; NOTHING
+      BELOW IS EDITED. ──
+      "1c907d2" IS IN PRODUCTION. The defect trilogy — the frequency exclusion
+      holding at the closing site, the `createdAt` floor, the five split
+      counters — reached `main` in merge "d19cca6" and the production build went
+      Ready with no migration, which is what the entry predicted and checked
+      for. This row's `status: shipped` now describes both of its commits rather
+      than only "d089a7c".
+      AND THE NO-HEARTBEAT RIDER BELOW HAS ITS ANSWER, FROM THE ONE BRANCH THAT
+      COULD GIVE IT. Production, `br-sparkling-block-a620qvg4`, 2026-08-10
+      (Gary): 28 rows closed for dates >= 2026-08-09, last close at
+      2026-08-10 10:00:28, from the SCHEDULED sweep with nobody triggering it.
+      That is the first proof since the engine shipped that the production
+      heartbeat runs unattended, and it settles the distinction the rider drew
+      — "the job does the right thing when invoked" was all staging could ever
+      show, because Vercel fires schedules on Production alone. Both halves of
+      the claim are now evidenced on the branches that own them: correctness on
+      staging by hand, operation on production by clock.
       ── PROMOTION RIDER 2026-08-10 (CHK phase promotion). PREPENDED; NOTHING
       BELOW IS EDITED. ──
       STAGING HAS NO HEARTBEAT, AND THIS IS PLATFORM BEHAVIOUR RATHER THAN A
@@ -1672,6 +1690,23 @@ phases:
           has hours set to verify against.
     open:
       - >
+        CLOSED 2026-08-10 — THE CRON_SECRET ROTATION IS DONE, AND THIS ENTRY IS
+        PREPENDED RATHER THAN EDITED INTO THE ONE BELOW, per SQ-3's precedent
+        for a bare-string `open` list: the deferral is the record of what was
+        accepted and why, and it stays legible only if the answer sits beside
+        it rather than on top of it. The value was MINTED 2026-08-10, recorded
+        in Gary's password manager AT CREATION (the only moment a Vercel
+        Sensitive var can ever be read), and set in BOTH environments —
+        Production and Preview are separate rows and both were done, which is
+        the half the ritual most often loses. VERIFIED LIVE by the morning's
+        manual staging sweep: the endpoint answered 200 to the new value, so
+        the deployment in front of it was built after the save, which is the
+        CLAUDE.md § Environment Variables ordering check passing rather than
+        being recited. The transcript-exposed value from 2026-08-09 is dead.
+        NOTE WHAT THIS DOES TO THE ACCEPTED RISK BELOW: it removes it. The
+        deferral was sound — an idempotent endpoint that Vercel fires hourly
+        anyway — and it is now moot rather than vindicated.
+      - >
         THE STAGING CLEANUP IS NOT RUN. 24 fiction rows on `br-square-feather`
         (template "test", dated 2026-08-07 and 2026-08-08, 12 stores each).
         The DELETE was drafted and approved 2026-08-10 and presented for Gary to
@@ -1721,10 +1756,31 @@ phases:
   - id: CHK-4
     track: checklists
     size: M-L
-    status: staging
+    status: shipped
+    shipped: 2026-08-10
     commits: ["c05365a", "bbb5734"]
     title: "Lifecycle surfaces — overdue flagged and never hidden, missed closed, offsets gain their meaning"
     notes: >
+      ── SHIPPED 2026-08-10 IN MERGE "d19cca6". PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      THE FLIP THE PROMOTION RIDER BELOW SAID WAS OWED. That rider set this row
+      to `staging` and named `shipped` as a debt to the session after Gary's
+      push, for the reason PhaseStatus forced: there is no "staging-verified"
+      value, so the verification lived in prose while the status lagged one step
+      behind it. The push happened, the production build went Ready, and the
+      spot-check passed — so the status is now simply true and the prose no
+      longer has to carry the difference. DEBT-54's convention: flip on the
+      promotion, cite the merge, date it, edit nothing.
+      WHAT REACHED PRODUCTION HERE: the overdue chips and banner that flag
+      without ever hiding (R3, DEBT-48), Missed given its own style and a
+      read-only execution page, the as-executed print stamp, the (i) explainer,
+      DEBT-59's retired copy, and "bbb5734"'s clamp warning rebuilt onto the
+      engine's own `endClampsAtDayClose`. CHECK 5 REMAINS THE WEAKEST OF THE
+      SEVEN AND STAYS RECORDED AS SUCH — the clamp warning was verified eleven
+      cases deep at the predicate level and seen on a rendered page for the
+      first time during the production spot-check, not before it.
+      ── THE PROMOTION RIDER IS NEXT, UNEDITED. ITS STATUS CLAIM IS ANSWERED
+      ABOVE. ──
       ── PROMOTION RIDER 2026-08-10 (CHK phase promotion). THIS ROW MOVES TO
       `staging` AND IS VERIFIED THERE. PREPENDED; NOTHING BELOW IS EDITED. ──
       THE STATUS IS `staging`, NOT "staging-verified", AND THE PROMPT THAT ASKED
@@ -1980,10 +2036,68 @@ phases:
   - id: CHK-5
     track: checklists
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-08-10
     commits: ["5190fd9", "230f019"]
     title: "Operations report — missed and completed-late, by store, by day, by template"
     notes: >
+      ── SHIPPED 2026-08-10 IN MERGE "d19cca6", AND WITH IT THE WHOLE CHK PHASE.
+      PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE PHASE IS COMPLETE: FIVE SESSIONS BUILT, VERIFIED AND SHIPPED. CHK-1
+      sections entity, CHK-2 day-close inputs and CHK-3 lifecycle engine reached
+      production in merge "ddaa216" on the morning of 2026-08-10; CHK-4
+      lifecycle surfaces and CHK-5 this report reached it in merge "d19cca6"
+      that evening, carrying CHK-3's defect fix "1c907d2" with them. Two
+      promotions, one day, no migration in the second. The asymmetry this row
+      recorded a few hours earlier — three-fifths in production, two-fifths in
+      commits nobody had deployed, an engine writing closed facts no production
+      user could read — is closed. THE FACTS AND THE SURFACE THAT SHOWS THEM ARE
+      NOW ON THE SAME SIDE OF THE PROMOTION.
+      PRODUCTION EVIDENCE, GARY 2026-08-10, BRANCH `br-sparkling-block-a620qvg4`
+      — TWO QUERIES, AND THE SECOND IS THE ONE THIS PHASE HAS BEEN WAITING FOR.
+      (a) TEMPLATE CENSUS: 8 templates, ALL `isActive=true` /
+      `isArchived=false`. So the archived-and-inactive generation gate ships as
+      PURE PROTECTION — zero behaviour change on day one, nothing stopped
+      generating, no cleanup owed. Read that as the gate being INERT AND
+      CORRECT, not as the gate being unnecessary: DEBT-65's whole lesson was
+      that the first fix guarded a state no operator had ever created, and the
+      answer to "which flag do operators actually use" is measured per branch
+      rather than assumed. Staging's five deactivated templates did not
+      reproduce here, which is exactly why the DEPLOY_LOG entry refused to carry
+      that number across.
+      (b) THE HEARTBEAT IS REAL AND UNATTENDED: 28 rows closed for dates >=
+      2026-08-09, last close 2026-08-10 10:00:28 — the SCHEDULED sweep, with
+      nobody triggering it. FIRST PROOF THAT THE PRODUCTION HEARTBEAT OPERATES
+      WITHOUT A MANUAL TRIGGER SINCE THE ENGINE SHIPPED, and the answer to
+      CHK-3's no-heartbeat rider, which recorded that every staging sweep ever
+      run was manual and that staging therefore could never demonstrate this.
+      The distinction that rider drew — "the job does the right thing when
+      invoked" versus "the job runs" — is now settled on the only branch where
+      it could be: production days close themselves.
+      WHAT REMAINS OF THIS PHASE IS ITS CHILDREN, NOT ITS WORK. Filed follow-ons,
+      as pointers rather than restated scope: CHK-6 (past-day checklists are not
+      browsable — date navigation or a drill-through from this report, and the
+      reason CHK-4's check 7 closed engine-proven rather than walked); SQ-4
+      (import store hours from Square, which is the cheapest cure for the
+      midnight-fallback disclosure this report has to print); DEBT-60 (printed
+      and historical checklists render LIVE task text — DEBT-36's hole one layer
+      out); DEBT-61 (`Template.frequency` read by no generation path — the
+      exclusion now holds at three gates and is visible at the third, so what is
+      left is generation-time frequency awareness); DEBT-67 (the templates
+      "Active" tab counts the wrong flag, which is DEBT-65's two-flags problem
+      surfacing in front of operators); and DEBT-64 (labor and day close read
+      overnight StoreHours in opposite directions). Each is its own row with its
+      own evidence; nothing above needs re-deriving to pick one up.
+      NOTE ON A POINTER THAT DOES NOT RESOLVE: the flip instruction for this
+      session also named "DEBT-68". NO SUCH ROW EXISTS — DEBT-67 is the highest
+      filed id, and this session did not invent one to make the list come out
+      even. If something was meant by it, it is unfiled and this sentence is the
+      only trace of it.
+      ── THE PROMOTION RIDER IS NEXT, UNEDITED. ITS STATUS CLAIM AND ITS
+      "FOUR QUERIES OWED" ARE BOTH ANSWERED ABOVE — TWO WERE RUN, AND THE OTHER
+      TWO (THE REPORT RECONCILING AGAINST DIRECT SQL, DEBT-63'S TOTAL AGAINST
+      ITS TILES) REMAIN OPTIONAL CONFIRMATIONS OF A SURFACE NOW IN USE RATHER
+      THAN GATES ON A STATUS. ──
       ── PROMOTION RIDER 2026-08-10 (CHK phase promotion). THIS ROW MOVES TO
       `staging` AND IS VERIFIED THERE. PREPENDED; NOTHING BELOW IS EDITED. ──
       THE STATUS READS `staging` FOR THE REASON GIVEN AT LENGTH ON CHK-4'S
