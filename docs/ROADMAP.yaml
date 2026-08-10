@@ -1209,9 +1209,80 @@ phases:
     track: checklists
     size: M-L
     status: shipped
-    commits: ["d089a7c"]
+    commits: ["d089a7c", "1c907d2"]
     title: "Lifecycle engine — expected windows, overdue on read, missed written at day close"
     notes: >
+      ── DEFECT RIDER, 2026-08-10. PREPENDED; NOTHING BELOW IS EDITED EXCEPT
+      OPEN-CHECK PLACEHOLDER (1), WHICH IS WHAT A PLACEHOLDER IS FOR. ──
+      THE LESSON FIRST, BECAUSE IT IS THE PART THAT GENERALISES: A FIELD'S NAME
+      IS NOT EVIDENCE OF WHAT IT COUNTS. This row's open-check (1) asked for "a
+      body showing frequencySkipped > 0". Response bodies carried that field
+      while twenty-four fiction rows sat on staging, and the field was not
+      lying — it counted non-Daily templates WITH NO ROW YET, at the
+      materialisation site, which is a true and nearly useless fact. The check
+      as WRITTEN could have passed on a branch full of fiction. The § Database
+      Evidence failure mode, one layer further in: not an under-specified
+      identifier that still resolves, but an under-specified METRIC that still
+      reports.
+      WHAT WAS MEASURED (Gary, 2026-08-10). Staging `br-square-feather`:
+      weekly_monthly_missed 24 — template "test", frequency Weekly at time of
+      reading, created ~20:00 on 2026-08-09, 12 rows dated 2026-08-07 and 12
+      dated 2026-08-08, BOTH PRECEDING ITS CREATION. Production
+      `br-sparkling-block-a620qvg4`: non_daily_templates 0, fiction_rows 0 — the
+      holes were live there and unexercised, and no production cleanup is owed.
+      THE FREQUENCY EXCLUSION WAS NEVER BREACHED AT THE SITE THE CHECK WATCHED.
+      Read at "bbb5734": right field, right casing, `Template.frequency` is NOT
+      NULL with default "Daily" so the `?? "Daily"` branch cannot fire from a
+      row, one enumeration path, and the gate has been in the cron since its
+      first commit. WHAT IT NEVER COVERED IS THE CLOSING SITE — and under
+      DEBT-61 bulk generate creates a Weekly template's checklist EVERY day, so
+      those rows EXIST and were being swept to Missed six days a week without
+      frequency ever being consulted. The gate protected only the case that
+      barely arises. RULED 2026-08-10 (Gary): Daily-only at BOTH sites.
+      THE 24 ROWS THEMSELVES ARE THE OTHER DEFECT, WHICH IS INDEPENDENT OF
+      FREQUENCY. Materialisation enumerated store × lookback-day × template and
+      never asked when the template began; `createdAt` was not in the SELECT. A
+      plain DAILY template created today collected a Missed row for both prior
+      days at the next sweep, per applicable store, with an expected window
+      frozen onto days it did not exist for. A `createdAt` floor now compares
+      against the window's END (`w?.end ?? dc.at`), so a template created 06:00
+      for an 08:00 Opener window still misses and one created 14:00 does not.
+      No migration; the column already existed.
+      WHETHER "test" READ Daily OR Weekly AT SWEEP TIME IS UNRESOLVED AND IS
+      RECORDED AS UNRESOLVED. `Template` has `createdAt` but no `updatedAt`, so
+      a frequency edit leaves no trace; the walkthrough also recorded TWO
+      templates named "test", which is the § Database Evidence ambiguity in
+      miniature. It does not gate anything — the floor suppresses those 24 rows
+      whatever the frequency said — and the fix closes both paths regardless.
+      THE COST OF THE CLOSING-SITE GATE, NAMED BECAUSE IT IS A REAL TRADE AND
+      NOT A FREE WIN: a non-Daily checklist somebody genuinely STARTED and
+      abandoned is now never closed. It keeps `closedAt` null and therefore
+      reads `overdue` indefinitely, because overdue is derived and this job
+      writes the only terminal state there is. Against six fictional misses a
+      week that is the right trade, and it is not the end state — see the open
+      item below. The cron reports those rows as `frequencyLeftOpen` so the
+      trade is visible in every response body rather than inferred from an
+      absence.
+      THE COUNTERS WERE RENAMED AND SPLIT, and `preexisting` is the one that
+      matters most: the haveTemplate guard runs BEFORE every rule, so a template
+      with a row — including a fictional one — used to vanish from every counter
+      at once. `frequencySkipped: 0, materialized: 0` is exactly what a day with
+      fiction already on disk looks like. Now: `frequencyExcluded`,
+      `frequencyLeftOpen`, `beforeTemplateCreation`, `preexisting`, `raced` —
+      all five summed into the TOP-LEVEL totals and into the hourly log line,
+      which previously reported only what was written, so a sweep that wrote
+      nothing and a sweep that excluded everything read identically in the
+      Runtime Logs.
+      `materializesMisses` → `dayCloseAppliesTo` for the same reason the
+      counters moved: asked at the closing site, the old name poses a question
+      about creation and answers one about closing. Its CHK-3 doc block is
+      preserved and marked; the call-site pointer was repaired.
+      THE FIX IS "1c907d2" — COMMITTED, NOT PUSHED, NOT DEPLOYED ANYWHERE. It is
+      in this row's `commits` so it is findable, and this sentence is what keeps
+      `status: shipped` honest: that status describes "d089a7c", which reached
+      production in "ddaa216". The staging cleanup SQL was presented for Gary to
+      run and Claude ran no query — CLAUDE.md § Environment Variables.
+      ── THE PRE-DEFECT RECORD IS BELOW, UNEDITED ──
       SHIPPED TO PRODUCTION 2026-08-10 IN MERGE "ddaa216". Status corrected from
       `staging` by the CHK-4 bookkeeping rider, per the DEBT-54 convention;
       "d089a7c" is an ancestor of origin/main, confirmed by
@@ -1317,7 +1388,13 @@ phases:
       thing to record is that the gap did not close rather than that it was
       looked at again. Each item below keeps a result placeholder; whoever runs
       the query fills it in HERE, not in a session report.
-      (1) WEEKLY NOT MATERIALISED — result: __________
+      (1) WEEKLY NOT MATERIALISED — result: FAILED ON STAGING 2026-08-10, AND
+      THE CHECK AS WRITTEN WOULD HAVE PASSED. 24 non-Daily Missed rows on
+      `br-square-feather`; production clean (0/0). The materialisation gate held
+      and the closing site had none, so the field this check named was reporting
+      truthfully about the site where nothing was going wrong. Fixed in
+      "1c907d2"; cause, ruling and the surviving unknown are in the defect rider
+      at the top of this row.
       (2) isClosed WEEKDAY MATERIALISES NOTHING — result: __________
       (3) THE TWO 409s (task-log, submit) — result: __________
       (4) PRE-DEPLOY ROWS UNTOUCHED (NULL expectations stay NULL) —
@@ -1564,6 +1641,37 @@ phases:
           CLEARS WHEN: CHK-2 ships the StoreHours editor and at least one store
           has hours set to verify against.
     open:
+      - >
+        THE STAGING CLEANUP IS NOT RUN. 24 fiction rows on `br-square-feather`
+        (template "test", dated 2026-08-07 and 2026-08-08, 12 stores each).
+        The DELETE was drafted and approved 2026-08-10 and presented for Gary to
+        run in the Neon console; Claude pulls no deployed credentials. It is
+        signature-guarded — status Missed, closedAt set, startedAt and
+        completedAt null, completionRate 0, sectionsSnapshot null, NO TaskLog
+        rows, and `date < date_trunc('day', "createdAt")` — so it cannot reach a
+        row anybody touched, and it RETURNs what it deleted so the count can be
+        asserted against the measurement. CLOSES WHEN: the delete has run and
+        returned 24. Production needs nothing (measured 0/0).
+      - >
+        RULING OWED — SHOULD A STARTED NON-DAILY CHECKLIST STILL CLOSE? The
+        2026-08-10 gate is Daily-only at both sites, so a Weekly or Monthly
+        checklist somebody genuinely started and abandoned now stays open
+        forever and reads `overdue` indefinitely. The refinement that keeps both
+        halves is to close a non-Daily row that has task logs or a `startedAt`
+        and skip one that was merely generated — a judgement about what a
+        started row means, which is why it was not assumed. Watch
+        `frequencyLeftOpen` in the sweep bodies: while it stays 0 this is
+        theoretical, and DEBT-61 (frequency-aware generation) removes most of
+        the pressure behind it by not creating the rows in the first place.
+      - >
+        THE createdAt FLOOR CANNOT COVER A NEWLY ASSIGNED STORE, and this is a
+        schema fact rather than an omission. `TemplateStoreAssignment` has no
+        `createdAt`, and PATCH /api/templates/[id] deletes and recreates every
+        assignment on each template edit, so "this store was added yesterday" is
+        not merely unknown but unknowable. A store newly assigned to an OLD
+        template can still take up to DAY_CLOSE_LOOKBACK_DAYS of misses for days
+        it was not on the template. Fixing it means a timestamped assignment row
+        that survives an edit, which is a migration and its own row.
       - >
         CRON_SECRET ROTATION DEFERRED BY RULING 2026-08-10 — low priority, do it
         at the next secret-touching session, by the CLAUDE.md § Environment
