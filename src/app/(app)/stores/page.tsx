@@ -9,10 +9,52 @@ import { getUserStoreScope } from "@/lib/auth"
 import { isDeviceLogin, isAboveStore } from "@/lib/device-login"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@clerk/nextjs/server"
+import { localDateStr } from "@/lib/reports"
+import {
+  DAY_CLOSE_GRACE_HOURS,
+  dayCloseInstant,
+  hoursForDate,
+  jsDayOfWeek,
+  shiftDateStr,
+} from "@/lib/checklist-lifecycle"
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 type HoursRow = { dayOfWeek: number; openingTime: string | null; closingTime: string | null; isClosed: boolean }
+
+// CHK-4 — THE FIRST OF THE TWO VISIBLE SIGNALS THE FALLBACK WAS RULED TO CARRY
+// (plan §3.1, option (ii): "an inline note on /stores for any store with no
+// hours"). The other is a column on CHK-5's operations report.
+//
+// This closes the handoff CHK-2 left in this file three blocks down — "what an
+// unset store falls back to for day close is CHK-3's to say, on the session that
+// makes it true". CHK-3 made it true; this session says it.
+//
+// WHY IT IS COMPUTED AND NOT JUST `hours.length === 0`. A store can hold hours
+// for four weekdays and nothing for the other three, and it falls back on those
+// three — a note keyed on "has no hours at all" would call that store fine. So
+// each of the next seven store-local days is asked the same question the cron
+// asks, through the same function, and the answer is grouped by weekday.
+//
+// A CLOSED DAY IS EXCLUDED, DELIBERATELY. `dayCloseInstant` returns four
+// sources and three of them are the midnight fallback; `closed-day` is one of
+// them and it is CORRECT — the operator said the store is shut, a shut store
+// cannot miss a checklist, and nothing is materialised for it
+// (api/cron/checklist-day-close/route.ts). Warning about it would, in that
+// lib's own words, "tell an operator to go fix something they already did".
+// That four-value split existing at all is why this note can be honest.
+function fallbackWeekdays(hours: HoursRow[], timeZone: string, now: Date): string[] {
+  const today = localDateStr(now, timeZone)
+  const days: string[] = []
+  for (let i = 0; i < 7; i++) {
+    const dateStr = shiftDateStr(today, i)
+    const { source } = dayCloseInstant(hoursForDate(hours, dateStr), dateStr, timeZone)
+    if (source === "no-hours" || source === "no-close-time") days.push(DAYS[jsDayOfWeek(dateStr)])
+  }
+  // Back into Sun-first order, so the list reads like the hours block above it
+  // rather than starting on whatever day the page happened to be loaded.
+  return DAYS.filter((d) => days.includes(d))
+}
 
 // CHK-2: both halves of this function used to be unreachable, because nothing
 // had ever written a StoreHours row (plan finding 2). Now that S2 ships the
@@ -110,6 +152,9 @@ async function getStores() {
 
 export default async function StoresPage() {
   const { stores, isAdmin, orgStoreCount, takenEmails } = await getStores()
+  // One instant for the whole page, so two store cards cannot be evaluated
+  // against different "today"s.
+  const now = new Date()
 
   return (
     <div>
@@ -138,6 +183,7 @@ export default async function StoresPage() {
         <div className="space-y-4">
           {stores.map((store) => {
             const hoursGroups = formatHours(store.hours)
+            const fallbackDays = fallbackWeekdays(store.hours, store.timezone, now)
 
             // PERM-7 Task 6. Replaces `hasAccount = store.userAssignments.length > 0`
             // — a count that lit up identically for a device login and for a
@@ -307,6 +353,24 @@ export default async function StoresPage() {
                         ))
                       ) : (
                         <span>Hours: not set</span>
+                      )}
+                      {/* CHK-4: the fallback, stated where the hours are, so it
+                          is never a default nobody chose running silently for
+                          months — DEBT-59's lesson at store scale (plan §3.1).
+                          The "Set hours" affordance is the existing
+                          StoreHoursButton immediately below; the note points at
+                          it rather than duplicating it, and a non-admin sees the
+                          fact without a control they cannot use. */}
+                      {fallbackDays.length > 0 && (
+                        <p className="mt-1 flex items-start gap-1.5 text-xs text-[var(--color-warning-text)]">
+                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span>
+                            {fallbackDays.length === 7
+                              ? `No hours set — checklists for this store close at midnight + ${DAY_CLOSE_GRACE_HOURS}h, and no checklist here can have an expected window.`
+                              : `No closing time on ${fallbackDays.join(", ")} — checklists on those days close at midnight + ${DAY_CLOSE_GRACE_HOURS}h and have no expected window.`}
+                            {isAdmin ? " Set hours below to change that." : ""}
+                          </span>
+                        </p>
                       )}
                       {isAdmin && (
                         <StoreHoursButton

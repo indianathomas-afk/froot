@@ -84,6 +84,34 @@ type StoreResult = {
 }
 
 export async function GET(req: Request) {
+  // ── CHK-4, 2026-08-10 — TWO HARDENING ITEMS CARRIED IN FROM S3's TRIAGE ────
+  // RECORDED HERE, NOT IMPLEMENTED HERE. CHK-4's MUST NOT TOUCH covers cron
+  // mechanics; its inherited-checks section says these two "land here if the
+  // cron file is touched, else as comments at the site". The file was not
+  // otherwise opened this session, so they are comments and the handler below
+  // is byte-identical in behaviour. Written down because an item that lives
+  // only in a session report does not exist (DEBT-37) — and because the first
+  // of the two is the exact gap that cost an afternoon
+  // (docs/prompts/CRON-DIAG_findings.md).
+  //
+  // (1) LOG REJECTED REQUESTS. Both refusals below return and log nothing, so a
+  //     401 is invisible in the Vercel Runtime Logs and indistinguishable from
+  //     the cron never having fired. CRON-DIAG spent an afternoon on a stale
+  //     Preview secret with no server-side trace to read. Shape: a
+  //     `console.warn` naming WHICH branch was taken — no header present vs
+  //     present-and-wrong — and never any part of the value, neither the
+  //     expected one nor the supplied one.
+  // (2) `.trim()` AND A CONSTANT-TIME COMPARISON. `process.env.CRON_SECRET`
+  //     can carry a trailing newline from a paste into the Vercel dashboard,
+  //     which fails the `!==` below and reads exactly like a wrong value.
+  //     Trim both sides. Separately, `!==` on strings short-circuits at the
+  //     first differing byte and is therefore timing-variable; `crypto`'s
+  //     `timingSafeEqual` over equal-length buffers is the standard fix. The
+  //     timing half is low-severity for this endpoint by the same reasoning
+  //     that deferred the rotation (CHK-3's `open` list) — it is idempotent and
+  //     Vercel fires it hourly regardless — but the trim is a real, cheap
+  //     failure mode and the two belong in one edit.
+  // ──────────────────────────────────────────────────────────────────────────
   const secret = process.env.CRON_SECRET
   if (!secret) {
     return NextResponse.json({ error: "CRON_SECRET is not configured" }, { status: 500 })

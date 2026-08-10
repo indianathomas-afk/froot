@@ -2,23 +2,48 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { businessDayWindow } from "@/lib/reports"
+import { isOverdue, isCompletedLate } from "@/lib/checklist-lifecycle"
+import { frozenWindow, STATE_BADGES, COMPLETED_LATE_BADGE } from "@/lib/checklist-status-display"
 import { CheckSquare } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { StoreFilter } from "./store-filter"
 
+// CHK-4: `Missed` JOINS THE MAP, AND THE `?? STATUS_STYLES.Pending` FALLBACK AT
+// THE RENDER SITE BELOW STAYS. Those are two separate decisions and both are
+// deliberate. DEBT-63 named the fallback as DEBT-37's class — an unmapped status
+// renders as "Not Started", the most wrong of the available answers, silently —
+// and it became reachable the moment CHK-3 started writing `Missed`. Mapping the
+// status is the fix; keeping the fallback is the safety net for the NEXT status
+// somebody adds. The regression test is that no status this app writes reaches
+// it: `Pending`, `In Progress`, `Completed`, `Non-Compliant`
+// (api/checklists/[id]/submit/route.ts) and `Missed`
+// (api/cron/checklist-day-close/route.ts) are now all five mapped.
+//
+// MISSED IS NOT RED-ALARM AND NOT GREY-NEUTRAL. It is a CLOSED FACT (Gary's R1)
+// — past tense, nothing to act on — where `Non-Compliant` above is a verdict on
+// work someone actually did. The shared vocabulary is in
+// src/lib/checklist-status-display.ts so this pill matches the store view, the
+// execution page and the print sheet; it is spelled out here rather than
+// imported wholesale because the other four entries are STORED statuses, which
+// that module deliberately does not own.
 const STATUS_STYLES: Record<string, { label: string; classes: string }> = {
   Pending: { label: "Not Started", classes: "bg-gray-100 text-gray-600 border border-gray-200" },
   "In Progress": { label: "In Progress", classes: "bg-[var(--color-info-bg)] text-[var(--color-info-text)] border border-[var(--color-info-border)]" },
   Completed: { label: "Completed", classes: "bg-[var(--color-success-bg)] text-[var(--color-success-text)] border border-[var(--color-success-border)]" },
   "Non-Compliant": { label: "Non-Compliant", classes: "bg-red-50 text-[var(--color-destructive)] border border-red-200" },
+  Missed: { label: STATE_BADGES.missed!.label, classes: STATE_BADGES.missed!.classes },
 }
 
 async function getChecklists(requestedStoreId: string | undefined) {
+  // CHK-4: taken before the early returns so every branch hands back the same
+  // shape — the render destructures `now` and an empty branch that omitted it
+  // would be a type error rather than a missing badge.
+  const now = new Date()
   const { orgId } = await auth()
-  if (!orgId) return { checklists: [], stores: [], lockedStoreId: null }
+  if (!orgId) return { checklists: [], stores: [], lockedStoreId: null, selectedStoreId: "all", now }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { checklists: [], stores: [], lockedStoreId: null }
+  if (!org) return { checklists: [], stores: [], lockedStoreId: null, selectedStoreId: "all", now }
 
   const { isAdmin, storeIds } = await getUserStoreScope()
 
@@ -46,7 +71,6 @@ async function getChecklists(requestedStoreId: string | undefined) {
 
   // "Today" is each store's local business day (Store.timezone), not the
   // server (UTC) day — stores in different timezones get different windows.
-  const now = new Date()
   const scopedStores = effectiveStoreId ? stores.filter((s) => s.id === effectiveStoreId) : stores
   const byTz = new Map<string, string[]>()
   for (const s of scopedStores) byTz.set(s.timezone, [...(byTz.get(s.timezone) ?? []), s.id])
@@ -76,6 +100,10 @@ async function getChecklists(requestedStoreId: string | undefined) {
     stores,
     lockedStoreId: !isAdmin && storeIds.length === 1 ? storeIds[0] : null,
     selectedStoreId: effectiveStoreId ?? "all",
+    // CHK-4: ONE INSTANT FOR THE WHOLE RENDER. The overdue predicate is
+    // evaluated per card; taking `new Date()` inside the loop would let two
+    // cards on the same page be judged against different "now"s.
+    now,
   }
 }
 
@@ -85,7 +113,7 @@ export default async function ChecklistsPage({
   searchParams: Promise<{ store?: string }>
 }) {
   const { store } = await searchParams
-  const { checklists, stores, lockedStoreId, selectedStoreId } = await getChecklists(store)
+  const { checklists, stores, lockedStoreId, selectedStoreId, now } = await getChecklists(store)
 
   return (
     <div>
@@ -115,6 +143,17 @@ export default async function ChecklistsPage({
         <div className="grid grid-cols-3 gap-4">
           {checklists.map((checklist) => {
             const statusInfo = STATUS_STYLES[checklist.status] ?? STATUS_STYLES.Pending
+            // CHK-4. THE STORED STATUS AND THE DERIVED STATE ARE TWO DIFFERENT
+            // CLAIMS AND THE CARD MAKES BOTH. The pill above says what the
+            // RECORD holds; these say what is TRUE RIGHT NOW. Overdue has no
+            // column by design (src/lib/checklist-lifecycle.ts) — no surface
+            // may re-derive it, so this reads the lib's predicate against the
+            // window frozen on the row. They cannot contradict each other:
+            // `isOverdue` is false the moment `closedAt` is set, so a Missed
+            // row never also reads Overdue.
+            const window = frozenWindow(checklist)
+            const overdue = isOverdue(checklist, window, now)
+            const late = checklist.status === "Completed" && isCompletedLate(checklist)
             return (
               <div key={checklist.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-5">
                 <div className="flex items-start justify-between mb-2">
@@ -122,9 +161,21 @@ export default async function ChecklistsPage({
                     <CheckSquare className="h-4 w-4 text-[var(--color-primary)]" />
                     <span className="font-semibold text-sm text-[var(--color-foreground)]">{checklist.store.name}</span>
                   </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusInfo.classes}`}>
-                    {statusInfo.label}
-                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    {overdue && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATE_BADGES.overdue!.classes}`}>
+                        {STATE_BADGES.overdue!.label}
+                      </span>
+                    )}
+                    {late && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${COMPLETED_LATE_BADGE.classes}`}>
+                        {COMPLETED_LATE_BADGE.label}
+                      </span>
+                    )}
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusInfo.classes}`}>
+                      {statusInfo.label}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1 mb-3">

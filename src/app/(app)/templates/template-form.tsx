@@ -3,9 +3,14 @@
 import { Fragment, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2, ChevronUp, ChevronDown } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2, ChevronUp, ChevronDown, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { OPERATIONAL_PHASES, normalizePhase } from "@/lib/phases"
+// CHK-4: the grace buffer is quoted in the explainer copy and drives the clamp
+// warning below. IMPORTED, never restated — src/lib/checklist-lifecycle.ts is
+// the single definition site (DEBT-26), and a hard-coded "3 hours" in this file
+// would be a second one that goes stale the day the constant moves.
+import { DAY_CLOSE_GRACE_HOURS } from "@/lib/checklist-lifecycle"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -1246,6 +1251,22 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 <p className="text-xs text-[var(--color-muted-foreground)]">Select how often this checklist should be automatically created</p>
               </div>
               <div className="space-y-1.5">
+                {/* CHK-4, 2026-08-10 — PREPENDED, NOTHING BELOW IS EDITED. One
+                    clause in the DEBT-29 note that follows is now FALSE and it
+                    is left standing because it is the claim this note answers:
+                    "no code path joins these values to StoreHours". One does, as
+                    of CHK-3 — expectedWindow() in
+                    src/lib/checklist-lifecycle.ts anchors the offsets to the
+                    store's StoreHours row, and the day-close job and the store
+                    view both read it.
+                    WHAT DEBT-29 STILL HAS EXACTLY RIGHT, and it is the load-
+                    bearing half: THE BOX STILL DOES NOT GATE VISIBILITY. The
+                    join exists and it produces an EXPECTATION, never a filter —
+                    Gary's R3, and DEBT-48's whole overdue-not-hidden argument.
+                    So the sentence that must never appear here is unchanged; it
+                    is only the reason it must not appear that moved, from "there
+                    is no such code path" to "there is one and it deliberately
+                    does not do that". */}
                 {/* DEBT-29: this box describes when a checklist is MEANT to be run.
                     It does not gate visibility — no code path joins these values to
                     StoreHours, so the copy must not promise one. */}
@@ -1272,11 +1293,74 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                     </Select>
                     <p className="text-xs text-[var(--color-muted-foreground)]">Orders this checklist in the day and sets which shift hands off to it.</p>
                   </div>
+                  {/* CHK-4, 2026-08-10 — PREPENDED, NOTHING BELOW IS EDITED.
+                      The DEBT-59 block that follows is preserved per the
+                      convention DEBT-59 and DEBT-36 follow. Its statements are
+                      still TRUE: no ` *`, still optional, still nothing enforced
+                      at save, "" still maps to null. What CHANGED is the reason
+                      the fields exist — CHK-3 shipped the engine that reads them
+                      and CHK-4 gives them a face, so they are now an EXPECTED
+                      WINDOW (Gary's R3) rather than a value recorded for
+                      reference. The (i) button beside this label is where that
+                      is explained in plain words; the helper sentence at the
+                      bottom of this box is the copy that retired. */}
                   {/* DEBT-59: no ` *` — these are optional, and nothing has ever
                       enforced them (handleSave's only guard is blankSectionCount).
                       `?? ""` renders blank, and the empty string maps back to null
                       rather than through Number(""), which is 0 — before this row
                       there was no way to express "blank" through this form at all. */}
+                  <div className="flex items-center gap-1.5">
+                    <Label>Expected window</Label>
+                    {/* CHK-4 — THE (i) EXPLAINER (R3, plan §6.1). A Popover,
+                        matching the store-exclusions affordance already in this
+                        file, so this is the house pattern rather than a new
+                        one. DEBT-29's visible-and-labelled decision is EXTENDED
+                        here, not overturned: the fields stay on screen and gain
+                        an explanation beside them. */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="What does the expected window do?"
+                          className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]"
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-4 space-y-2" align="start">
+                        <p className="text-sm font-semibold text-[var(--color-foreground)]">Expected window</p>
+                        <p className="text-xs text-[var(--color-muted-foreground)]">
+                          These hours describe when this checklist is <em>meant</em> to be done. They
+                          never hide it — staff can always open and complete it.
+                        </p>
+                        <ul className="text-xs text-[var(--color-muted-foreground)] space-y-1 list-disc pl-4">
+                          <li><strong>Before the start time</strong> it shows as <em>Upcoming</em>.</li>
+                          <li><strong>After the end time</strong> it shows as <em>Overdue</em> — flagged, but still completable.</li>
+                          <li>
+                            <strong>At the end of the day</strong> (store close plus {DAY_CLOSE_GRACE_HOURS} hours)
+                            an overdue checklist is recorded as <em>Missed</em>, and a completed one is recorded
+                            as <em>completed late</em>.
+                          </li>
+                        </ul>
+                        <p className="text-xs text-[var(--color-muted-foreground)]">
+                          Leave the end time blank and this checklist can never be overdue — it is only ever
+                          completed, or missed at day close. Leave both blank for no expected window at all.
+                        </p>
+                        {/* Plan §3.5 / §12.10: the clamp is engine behaviour and
+                            the explainer states it, so a window that quietly
+                            shortens is never a surprise. */}
+                        <p className="text-xs text-[var(--color-muted-foreground)]">
+                          A window can never end after the day does. If the end time lands past day close, it is
+                          treated as ending at day close — otherwise a checklist could be recorded as missed while
+                          still inside its own window.
+                        </p>
+                        <p className="text-xs text-[var(--color-muted-foreground)]">
+                          A store with no hours set closes its day at midnight plus {DAY_CLOSE_GRACE_HOURS} hours,
+                          and has no expected window at all until its hours are filled in.
+                        </p>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>{phase === "Before Opening" ? "Starts (hours before opening)" : phase === "During the Day" ? "Starts (hours after opening)" : "Starts (hours before closing)"}</Label>
@@ -1287,15 +1371,68 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                       <Input type="number" placeholder="Optional" value={endOffset ?? ""} onChange={(e) => setEndOffset(e.target.value === "" ? null : Number(e.target.value))} min={0} max={24} />
                     </div>
                   </div>
+
+                  {/* CHK-4 — THE WINDOW-CLAMP WARNING (plan §3.5, §12.10). The
+                      clamp itself shipped with S3's engine; this is the sentence
+                      that tells the operator it will fire.
+                      NON-BLOCKING BY RULING — a warning, never an error. The
+                      value saves exactly as typed and the engine clamps on read;
+                      refusing the save would make an offset unexpressible, which
+                      is the DEBT-59 mistake in a new place.
+                      WHY ONLY "After Closing", stated so the gap is not read as
+                      an oversight. This is a CLIENT component with no store
+                      hours in it, so it can only warn where the arithmetic is
+                      store-independent. After Closing ends at close + endOffset
+                      and the day ends at close + GRACE, so the clamp fires for
+                      every store the moment endOffset exceeds the buffer — no
+                      store data needed. During the Day ends at close − endOffset
+                      and can never reach day close. Before Opening ends at
+                      open + endOffset, which only passes day close if endOffset
+                      exceeds the store's whole open span plus the buffer — a
+                      per-store fact this form cannot know, and inventing one
+                      store's answer for a template that applies to all of them
+                      would be worse than saying nothing. The explainer above
+                      states the clamp unconditionally, which is what covers that
+                      case. */}
+                  {phase === "After Closing" && endOffset != null && endOffset > DAY_CLOSE_GRACE_HOURS && (
+                    <p className="flex items-start gap-1.5 text-xs text-[var(--color-warning-text)]">
+                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>
+                        The day closes {DAY_CLOSE_GRACE_HOURS} hours after the store does, so an end time
+                        of {endOffset} hours after closing lands past it. This window will be treated as ending
+                        at day close. Saving is fine — this is a heads-up, not an error.
+                      </span>
+                    </p>
+                  )}
                   {/* DEBT-29: the Preview card that stood here computed concrete clock
                       times ("Store opens 8:00 AM → Available 07:00 AM - 10:00 AM") for a
                       window nothing enforces. No helper text makes a computed clock time
                       honest, so it was removed rather than reworded. */}
+                  {/* CHK-4, 2026-08-10 — DEBT-59's COPY IS RETIRED HERE, AND ITS
+                      PRESERVATION CLAUSE EXPIRED THE MOMENT THE SENTENCE BECAME
+                      FALSE. Prepended, never edited: the DEBT-59 block below is
+                      the claim this note answers, and rewriting it would leave
+                      the answer without its question.
+                      WHAT RETIRED: "Optional. Recorded for reference — not yet
+                      used to show or hide checklists. Leave blank if no window
+                      has been decided." That was earned honesty when nothing read
+                      these columns. CHK-3 shipped the reader
+                      (src/lib/checklist-lifecycle.ts) and this session shipped
+                      the surfaces, so the sentence is now simply untrue — and a
+                      copy change is earned by the phase that makes it true, which
+                      is DEBT-59's own argument applied to DEBT-59's own sentence.
+                      WHAT THE DEBT-59 BLOCK BELOW STILL GETS RIGHT, and why the
+                      new sentence keeps its shape: blank is still not described
+                      as "always available". Blank means NO EXPECTED WINDOW — the
+                      checklist can never be overdue and is only ever completed,
+                      or missed at day close. That is a statement about what the
+                      engine does with a null, not a promise about visibility, and
+                      R3 is explicit that a window never hides anything. */}
                   {/* DEBT-59: blank must not be described as "always available".
                       Nothing reads these fields, so promising a behaviour for the
                       empty case would re-introduce exactly the claim DEBT-29
                       stripped out of this box. */}
-                  <p className="text-xs text-[var(--color-muted-foreground)]">Optional. Recorded for reference — not yet used to show or hide checklists. Leave blank if no window has been decided.</p>
+                  <p className="text-xs text-[var(--color-muted-foreground)]">Optional. Sets when this checklist is expected — it never hides it. Leave blank for no expected window.</p>
                 </div>
               )}
 
