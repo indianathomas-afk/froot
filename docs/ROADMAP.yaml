@@ -11481,6 +11481,45 @@ debt:
       CLOSED — Bulk generate creates checklists for ARCHIVED templates that no
       store surface will ever show — and day close now files them as Missed
     notes: >
+      ── CORRECTION RIDER 2026-08-10, AFTER A STAGING CENSUS. PREPENDED;
+      NOTHING BELOW IT IS EDITED, INCLUDING THE CLOSURE RIDER THAT IS NOW
+      PARTLY WRONG. ──
+      THE FIRST FIX WAS AIMED AT THE CONTROL NOBODY USES, AND THE MEASUREMENT
+      THAT FOUND THIS WAS GARY'S, NOT THE SESSION'S. Measured on staging
+      `br-square-feather` 2026-08-10 and reproduced on dev
+      `br-broad-wave-a6vpjdw0` the same day: ZERO templates have
+      isArchived=true; FIVE are isActive=false; all 107 staging checklist rows
+      sit under an isArchived=false/isActive=true template. The cleanup DELETE
+      below therefore matched nothing — correctly, and THAT IS THE FINDING, not
+      a failure of the query.
+      WHAT IT PROVES ABOUT THE UI, WHICH IS THE PART THAT GENERALISES. Both
+      flags have real controls and they are SEPARATE: Archive writes isArchived
+      alone (templates-client.tsx:314), Deactivate writes isActive alone (:308).
+      AT KEVA, "ARCHIVING" IS PERFORMED WITH DEACTIVATE — five to zero. So an
+      isArchived-only gate is correct and INERT: it guards a state no operator
+      has ever created. Gary's ruling was operator-shaped ("archiving stops
+      generation"), and satisfying it required reading what the operator's
+      archive ACTION writes. The first fix read the WORD instead.
+      SECOND RULING, GARY 2026-08-10: gate the single-create path on BOTH flags.
+      Shipped — api/checklists/route.ts scopes that lookup with
+      `isActive: true, isArchived: false`, matching bulk generate (which has
+      honoured isActive all along, which is exactly why the census shows zero
+      rows under inactive templates) and the crew list. Three filters, one rule.
+      TWO SENTENCES IN THE CLOSURE RIDER BELOW ARE OVERSTATED, CORRECTED HERE
+      RATHER THAN EDITED OUT: it says the bulk loop "generated a checklist for
+      [an archived template] at every store", present tense, as though such rows
+      existed. NONE EVER DID on any measured branch. That gate is insurance
+      against a reachable state, not a fix to a live condition — the live
+      condition was the single-create path's missing isActive check, which the
+      rider filed as an unruled tidy-up and which was in fact the operative half
+      of the ruling.
+      AND ONE FACT THE ORIGINAL FILING GOT WRONG: "Both writers set one flag
+      only" is incomplete. api/templates/import/route.ts:166 sets BOTH —
+      `{ isArchived: true, isActive: false }` — on the import replace path. So
+      the flags are independent at two writers and coupled at a third, which is
+      a sharper version of this row's own "two flags with one meaning"
+      diagnosis. Related: DEBT-67, filed for the tab labels that put the
+      disagreement in front of operators.
       ── CLOSED 2026-08-10 IN "5190fd9" (CHK-5/S5). PREPENDED; NOTHING BELOW IS
       EDITED. ──
       GARY'S RULING, 2026-08-10, VERBATIM AND RECORDED AS THE ROW'S ANSWER —
@@ -11559,6 +11598,52 @@ debt:
       rendering an archived template's checklist. Related: CHK-3 (the writer
       that makes it visible), CHK-5 (the report it shows up on), DEBT-61 (the
       other generation filter that is not there).
+
+  - id: DEBT-67
+    title: >
+      The templates "Active" tab counts !isArchived, not isActive — five
+      deactivated templates sit under Active wearing an Inactive pill, while
+      Archived reads 0
+    notes: >
+      COST OF DOING NOTHING: An operator who retires a template cannot tell from
+      the page whether they retired it. LIVE, MEASURED, NOT LATENT — staging
+      `br-square-feather` 2026-08-10 (Gary): five templates isActive=false, zero
+      isArchived=true. All five render in the ACTIVE tab, each showing an
+      "Inactive" pill, while the ARCHIVED tab reads "Archived (0)". Reproduced
+      on dev `br-broad-wave-a6vpjdw0` the same day (8 templates, all four cells
+      of the 2x2 measured).
+      THE FACT: templates-client.tsx:244 renders `Active
+      ({templates.filter(t => !t.isArchived).length})` and :250 renders
+      `Archived ({...t.isArchived...})`; the view filter at :108 and :121
+      switches on isArchived alone. So the tab named for one flag is counted by
+      the other. The per-card pill at :374-375 reads isActive, which is why the
+      two disagree ON THE SAME ROW, in the same viewport.
+      THE FOUR WRITERS, since the row above and DEBT-65 each had this partly
+      wrong: Archive → isArchived only (:314); Unarchive → isArchived (:320);
+      Deactivate → isActive only (:308); Activate → isActive (:311); and
+      api/templates/import/route.ts:166 sets BOTH on the replace path. Two
+      independent flags, four controls, three tab/pill readers, no agreement.
+      WHY THIS IS NOT DEBT-65 AGAIN. DEBT-65 was about GENERATION reading the
+      wrong flag, and it is closed — all three applicability filters now read
+      `isActive: true, isArchived: false`. This row is about the page LYING to
+      the operator about which state they put a template in. The engine is now
+      right and the label is still wrong, which is the more durable half: the
+      generation bug produced no rows on any branch, and this one is on screen
+      at Keva today.
+      FIX SHAPE: decide whether the tabs mean "not archived" or "active" and
+      make the label say it — either rename to "Current / Archived" (cheapest,
+      no behaviour change), or split the list three ways so Active, Inactive and
+      Archived are each their own count. Prefer settling whether the two flags
+      should remain independent AT THE WRITER first; two flags with one meaning
+      is DEBT-65's diagnosis and it survives that row's closure.
+      DELIBERATELY NOT FIXED IN CHK-5 (Gary's ruling 2026-08-10, "file a row,
+      don't fix now"): S5's prompt forbids touching template-form.tsx and this
+      is its sibling, template-form.tsx's file has been touched twice this phase
+      already, and a label change here would owe the DEBT-59 nine checks a third
+      time. Sequence it with a session that is opening that file anyway.
+      Disconfirmed by: the Active tab counting isActive, or the tabs being
+      renamed to match what they filter. Related: DEBT-65 (the same two flags,
+      at the generation end), DEBT-59 (the nine checks this file owes).
 
   - id: DEBT-66
     title: >
