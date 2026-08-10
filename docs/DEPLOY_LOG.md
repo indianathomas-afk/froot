@@ -4,6 +4,166 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 2026-08-10 (evening) — PRODUCTION promotion (the CHK phase's two surfaces: CHK-4 lifecycle visible + CHK-5 operations report + CHK-3's defect trilogy + DEBT-63/65 closed)
+
+- **Merge SHA:** `d19cca6` — full: `d19cca6b5a13f7730498a08023c643f2c75a5e6f`.
+  Parents: `bca5df1` (the previous production tip, this morning's promotion's
+  own DEPLOY_LOG commit) and `150e4f1` (staging tip). Written on `main` after
+  the merge and **before** the push, per WORKFLOW.md §2.
+- **NINE commits**, `bca5df1..150e4f1`. Oldest `c05365a`, newest `150e4f1`.
+  **The exclusive range is safe here and that is checked, not assumed:** the
+  base `bca5df1` is itself the previous promotion's commit and is already on
+  production, which is exactly the condition the `de3ba40` entry names for when
+  `A..B` notation may be quoted. A second promotion on the same calendar day is
+  the shape most likely to get this wrong — the morning's base was `7ab7106`,
+  not `999cbdc`, for the same reason one layer back.
+- **ROLLBACK — the three-line recipe, not one line** (WORKFLOW.md §2 as
+  corrected in `7ab7106`; `git revert -m 1` alone conflicts on
+  `docs/DEPLOY_LOG.md` every time, structurally):
+
+  ```bash
+  git checkout main
+  git revert -m 1 --no-commit d19cca6
+  git checkout HEAD -- docs/DEPLOY_LOG.md   # KEEP the log
+  git commit -m "Revert the 2026-08-10 evening promotion"
+  git push origin main
+  ```
+
+  Faster posture if the site is actively broken: Vercel → promote the `bca5df1`
+  production deployment back to current, then revert at leisure. **Reverting
+  this promotion leaves the engine running and takes the surfaces away** — the
+  lifecycle columns, the cron and its writes are all from the MORNING's
+  promotion and are untouched by this revert. Production would go back to
+  accumulating Missed rows that nobody can read, which is the state described
+  in the entry below.
+- **NO MIGRATIONS IN THIS RANGE. VERIFIED, NOT ASSUMED:**
+  `git diff --stat bca5df1..150e4f1 -- prisma/` returns **empty** — S4 and S5
+  shipped no schema change, and `prisma/` is byte-identical across the whole
+  promotion set. `prisma migrate deploy` still runs in the production build and
+  should report no pending migration. **If the build log shows a migration
+  applying, this claim is wrong and the deploy wants stopping and reading** —
+  that is the check, and it is cheap because the expected answer is "nothing".
+- **PROMOTED BY GIT PUSH.** DEBT-66's 2026-08-10 ruling stands: a dashboard
+  redeploy of `main` is not available on this project, as a promotion path or
+  as a recovery tool. Use the revert recipe above, or Vercel's
+  promote-a-previous-deployment.
+- **What shipped**, by theme:
+  - **CHK-4 — the lifecycle becomes visible** (`c05365a`, `8ff4cce`,
+    `bbb5734`). Overdue chips on `/store-view` and the overdue banner on the
+    execution page, both **flagging without ever hiding** (R3, DEBT-48);
+    `Missed` given its own style on `/checklists` and a read-only execution
+    page; the as-executed print sheet with its MISSED stamp; the (i) explainer
+    beside the offset fields; DEBT-59's "not yet used" copy retired by the
+    session that made it false. `src/lib/checklist-status-display.ts` holds
+    words and colours only — no predicate was re-derived, so
+    `checklist-lifecycle.ts` is still the single definition site (DEBT-26).
+    `bbb5734` is the clamp-warning fix: the form stopped doing its own
+    arithmetic and now asks the engine's `endClampsAtDayClose`, which is why
+    a Before Opening template finally warns.
+  - **CHK-5 — the operations report** (`5190fd9`, `2980936`).
+    `/reports/operations`: missed and completed-late by store × day × template
+    over a date range, gated by INHERITANCE from `reports/layout.tsx`
+    (`reports.view` = MANAGE) with **no new capability and no permissions.ts
+    edit**, store-scoped through `getUserStoreScope()`. It derives nothing —
+    every state comes from the lifecycle predicates. **DEBT-63 closed**: the
+    total is now the row count and the five buckets partition it, so the tiles
+    and the per-store table stop disagreeing in opposite directions.
+  - **CHK-3's defect trilogy** (`1c907d2`, `dc90ff6`) — the frequency exclusion
+    now holds at the CLOSING site as well as at materialisation (six fictional
+    Weekly misses a week, gone); a `createdAt` floor so no Missed row predates
+    its template (24 such rows had accumulated on staging; production measured
+    0/0 and is owed no cleanup); and five split counters summed into the
+    totals, so a sweep that excluded everything and a sweep that wrote nothing
+    stop reading identically in the logs.
+  - **DEBT-65 closed, twice** (`230f019` on top of `5190fd9`) — see the gate
+    note below, which is the part with a production consequence.
+  - **The phase's closing record** (`150e4f1`) — CHK-4's seven checks written
+    out in full for the first time, CHK-4 and CHK-5 both verified on staging,
+    the no-heartbeat finding on CHK-3, and two rows filed: **CHK-6** (past-day
+    checklists are not browsable) and **SQ-4** (import store hours from
+    Square).
+- **DAY-ONE BEHAVIOUR ON PRODUCTION — THE REPORT OPENS ONTO A POPULATED TABLE,
+  AND THE NUMBERS WILL BE REAL IMMEDIATELY.** This is the inverse of the
+  morning entry's day-one note and wants reading with it. The engine has been
+  closing production days **unattended** since that promotion — the hourly
+  schedule fires on Production, which is the one environment where it does —
+  so `/reports/operations` does not start empty and fill up over a week. It
+  starts full.
+  - **Expect the numbers to be ugly, and expect that to be correct.** Every
+    production store falls to the midnight + 3h fallback unless somebody has
+    set its hours since this morning, and every Daily template × store × day
+    since the first sweep has a closed row behind it. Nothing here is a
+    regression introduced by this promotion; it is the first time anyone can
+    SEE what the engine has been recording.
+  - **The three disclosures on the report's own face are what keep that
+    honest** — daily-only tracking with the excluded count, tracking-starts-at
+    -deploy with windowless rows in their own column rather than counted
+    on-time, and the named stores running on the midnight fallback. A manager
+    reading a bad number should be able to tell from the page itself which part
+    of it is "we missed work" and which part is "we have not set this up yet".
+  - **`/reports` moves again, and this time toward the truth.** The morning's
+    entry warned its tiles under-report while its table over-counts. DEBT-63's
+    fix ends that: one denominator, five buckets, Missed present in both
+    halves.
+- **THE ARCHIVED-AND-INACTIVE GATE NOW GUARDS BOTH FLAGS, ON BOTH GENERATION
+  PATHS. MEASURE PRODUCTION — DO NOT ASSUME IT.** All three applicability
+  filters now read `isActive: true, isArchived: false`: bulk generate, the
+  single create at `api/checklists/route.ts` (which previously scoped on
+  organization ALONE), and the crew list. The cron has read both flags since
+  `d089a7c`. **The consequence is that a retired template stops generating on
+  the day this deploys.** On staging that meant FIVE templates — `isActive
+  = false`, `isArchived = true` on zero of them, because at Keva "archiving" is
+  performed with the Deactivate button. **Production's count is UNMEASURED.**
+  Five is a staging number and must not be carried across; run this in the Neon
+  console on `production` (`br-sparkling-block-a620qvg4`), no credential pulled
+  to disk:
+
+  ```sql
+  select current_setting('neon.branch_id', true) as branch,
+         t."isActive",
+         t."isArchived",
+         count(distinct t.id) as templates,
+         count(c.id)          as checklist_rows
+  from   "Template" t
+  left   join "Checklist" c on c."templateId" = t.id
+  where  t."organizationId" = 'cf888f2d-f234-48c7-8097-fd5b44b5b3dd'
+  group  by 2, 3
+  order  by 2, 3;
+  ```
+
+  Read it this way: every row where `isActive` is false OR `isArchived` is true
+  is a template that **stops generating** as of this deploy, and its
+  `checklist_rows` are rows that already exist and are **not touched** — this
+  promotion deletes nothing. A large count under a retired template is a
+  conversation about cleanup (DEBT-65's (a)/(b) split), not a defect. Note the
+  `organizationId` filter names the production Keva org by ID; widen it if a
+  second org matters.
+- **PRODUCTION EVIDENCE QUERIES OWED — the phase is not `shipped` until they
+  come back.** Four, enumerated on the CHK-5 row: the report's headline numbers
+  reconciling against direct SQL; DEBT-63's total equalling the sum of its
+  tiles; DEBT-65's cleanup exposure; and the archived/inactive census above.
+  All on `br-sparkling-block-a620qvg4`, each naming its branch.
+- **GARY'S POST-PUSH CHECKLIST, in order:**
+  1. `git push origin main` then `git push origin staging`. Both are needed —
+     `staging` carries the docs commit `150e4f1` and would otherwise sit behind
+     `main`.
+  2. Watch the Production build to **Ready**. **No migration is expected** —
+     flag it if the log shows one applying (see the migrations note above).
+  3. **Production spot-check, ~3 minutes**, org ID first: `/reports/operations`
+     renders with real numbers; one store's day-close source line reads either
+     "Store hours" or "Midnight fallback"; the "What this report does not
+     cover" panel is present with all three disclosures; and a template form
+     shows the (i) explainer AND the clamp warning at a large Ends value
+     against a store with hours. **That last one is the first time the clamp
+     warning will have been seen on a rendered page anywhere** — it was fixed
+     in `bbb5734` and verified eleven cases deep at the predicate level only.
+  4. The archived/inactive census query above, branch named in the result.
+  5. `git checkout staging`.
+  6. **Optional, and the satisfying one:** query production for yesterday's
+     closed rows. They closed themselves — no manual sweep was involved, which
+     is the one thing staging has never been able to demonstrate (CHK-3's
+     no-heartbeat rider).
+
 ## 2026-08-10 — PRODUCTION promotion (the whole CHK phase engine: CHK-1 sections + CHK-2 day-close inputs + CHK-3 lifecycle + TPL-2 steps 1–2 + DEBT-41)
 
 - **Merge SHA:** `ddaa216` — full: `ddaa2164abccbdded6e2e948630fcf91265c4a5a`.
