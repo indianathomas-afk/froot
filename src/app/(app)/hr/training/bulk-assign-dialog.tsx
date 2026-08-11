@@ -173,7 +173,16 @@ export function BulkAssignDialog({
 
   return (
     <Dialog open={!!module} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
+      {/* Bounded to the viewport and split into three bands — pinned header,
+          scrolling body, pinned footer. Twelve stores and a full roster used to
+          push Cancel/Assign below the fold with no way to reach them: the two
+          recipient lists scroll internally, but their max-heights stack, and
+          nothing above them was bounded. Same fix and same shape as UX-1
+          (users/user-actions.tsx:288) — DialogContent defaults to `grid`, so
+          flex-col is what lets the body take the remaining space. The error
+          line stays pinned with the header rather than scrolling away with the
+          body that produced it. Scoped to this modal, not dialog.tsx. */}
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Bulk assign training</DialogTitle>
         </DialogHeader>
@@ -195,156 +204,165 @@ export function BulkAssignDialog({
           <p className="text-sm text-[var(--color-destructive)]">{error}</p>
         )}
 
-        {result ? (
-          /* The named counts, not a bare success toast — the response reports
-             its own blast radius and these are its numbers verbatim. */
-          <div className="space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+          {result ? (
+            /* The named counts, not a bare success toast — the response reports
+               its own blast radius and these are its numbers verbatim. */
+            <div className="space-y-3">
+              <p className="text-sm text-[var(--color-foreground)]">
+                {result.requested} {result.requested === 1 ? "person" : "people"} in this request:
+              </p>
+              <ul className="text-sm space-y-1">
+                {OUTCOME_LABELS.filter(({ key }) => result[key] > 0).map(({ key, label }) => (
+                  <li key={key} className="text-[var(--color-muted-foreground)]">
+                    <span className="font-medium text-[var(--color-foreground)]">{result[key]}</span> {label}
+                  </li>
+                ))}
+              </ul>
+              {result.concurrentlyAssigned > 0 && (
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  {result.concurrentlyAssigned} of those were assigned by someone else while this
+                  request was running.
+                </p>
+              )}
+            </div>
+          ) : loading ? (
+            <div className="space-y-2">
+              <div className="h-9 bg-[var(--color-muted)] rounded animate-pulse" />
+              <div className="h-32 bg-[var(--color-muted)] rounded animate-pulse" />
+            </div>
+          ) : data ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Recipients</Label>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={mode === "selection" ? "default" : "outline"}
+                    onClick={() => setMode("selection")}
+                  >
+                    Choose stores or people
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={mode === "all-in-scope" ? "default" : "outline"}
+                    onClick={() => setMode("all-in-scope")}
+                  >
+                    Everyone in my scope
+                  </Button>
+                </div>
+              </div>
+
+              {mode === "selection" && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label>Stores</Label>
+                    <div className="max-h-32 overflow-y-auto border border-[var(--color-border)] rounded-md divide-y divide-[var(--color-border)]">
+                      {data.stores.map((s) => (
+                        <label key={s.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={stores.has(s.id)}
+                            onChange={() => toggle(stores, s.id, setStores)}
+                          />
+                          <span className="flex-1">{s.name}</span>
+                          <span className="text-xs text-[var(--color-muted-foreground)]">
+                            reaches {s.expandsTo}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-[var(--color-muted-foreground)]">
+                      Selecting a store reaches its active, store-based team. Corporate staff are
+                      assigned to every store, so they are never swept in this way — pick them
+                      individually below.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Individuals</Label>
+                    <div className="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-md divide-y divide-[var(--color-border)]">
+                      {data.staff.map((m) => (
+                        <label
+                          key={m.id}
+                          className={`flex items-center gap-2 px-3 py-2 text-sm ${m.eligibility === "eligible" ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={m.eligibility !== "eligible"}
+                            checked={staff.has(m.id)}
+                            onChange={() => toggle(staff, m.id, setStaff)}
+                          />
+                          <span className="flex-1">{m.displayName}</span>
+                          {m.isCorporate && (
+                            <span className="text-xs text-[var(--color-muted-foreground)]">Corporate</span>
+                          )}
+                          {m.eligibility === "already-assigned" && (
+                            <span className="text-xs text-[var(--color-muted-foreground)]">already assigned</span>
+                          )}
+                          {m.eligibility === "not-applicable" && (
+                            <span className="text-xs text-[var(--color-muted-foreground)]">not at this module&rsquo;s stores</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-1.5">
+                <Label>Trainer (optional)</Label>
+                <Select value={trainerUserId} onValueChange={setTrainerUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a trainer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {data.trainers.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Due date (optional)</Label>
+                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* DISCLOSURE GUARDRAIL (ruling 6, wording ruled by Gary 2026-08-11 —
+            option B). Compliance counts an assignment from the instant it is
+            created; dueDate drives `overdue` but never gates membership in
+            the denominator (hr-compliance.ts:317-318). HR-13 owns changing
+            that; this line makes sure the dip is never a surprise if it
+            slips.
+
+            It sits in the pinned footer band rather than at the end of the
+            scrolling body: a disclosure the operator has to scroll to find is
+            one they can miss, and it belongs beside the button it is about.
+            `!result` replaces the enclosing `data ?` branch it used to sit in —
+            previewCount is still >0 after a submit, and the result panel
+            reports the server's own counts instead. */}
+        {!result && previewCount > 0 && (
+          <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2.5 space-y-1">
             <p className="text-sm text-[var(--color-foreground)]">
-              {result.requested} {result.requested === 1 ? "person" : "people"} in this request:
+              Assigning now adds {previewCount} required{" "}
+              {previewCount === 1 ? "item" : "items"} to compliance. Compliance percentages for
+              {previewCount === 1 ? " this person" : ` these ${previewCount} people`}, and their
+              store rollups, drop immediately — a due date does not hold that back.
             </p>
-            <ul className="text-sm space-y-1">
-              {OUTCOME_LABELS.filter(({ key }) => result[key] > 0).map(({ key, label }) => (
-                <li key={key} className="text-[var(--color-muted-foreground)]">
-                  <span className="font-medium text-[var(--color-foreground)]">{result[key]}</span> {label}
-                </li>
-              ))}
-            </ul>
-            {result.concurrentlyAssigned > 0 && (
-              <p className="text-xs text-[var(--color-muted-foreground)]">
-                {result.concurrentlyAssigned} of those were assigned by someone else while this
-                request was running.
+            {previewNoLogin > 0 && (
+              <p className="text-sm text-[var(--color-muted-foreground)]">
+                {previewNoLogin} of them {previewNoLogin === 1 ? "has" : "have"} no self-service
+                login — a manager records their completions.
               </p>
             )}
           </div>
-        ) : loading ? (
-          <div className="space-y-2">
-            <div className="h-9 bg-[var(--color-muted)] rounded animate-pulse" />
-            <div className="h-32 bg-[var(--color-muted)] rounded animate-pulse" />
-          </div>
-        ) : data ? (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Recipients</Label>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={mode === "selection" ? "default" : "outline"}
-                  onClick={() => setMode("selection")}
-                >
-                  Choose stores or people
-                </Button>
-                <Button
-                  size="sm"
-                  variant={mode === "all-in-scope" ? "default" : "outline"}
-                  onClick={() => setMode("all-in-scope")}
-                >
-                  Everyone in my scope
-                </Button>
-              </div>
-            </div>
-
-            {mode === "selection" && (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Stores</Label>
-                  <div className="max-h-32 overflow-y-auto border border-[var(--color-border)] rounded-md divide-y divide-[var(--color-border)]">
-                    {data.stores.map((s) => (
-                      <label key={s.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={stores.has(s.id)}
-                          onChange={() => toggle(stores, s.id, setStores)}
-                        />
-                        <span className="flex-1">{s.name}</span>
-                        <span className="text-xs text-[var(--color-muted-foreground)]">
-                          reaches {s.expandsTo}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-xs text-[var(--color-muted-foreground)]">
-                    Selecting a store reaches its active, store-based team. Corporate staff are
-                    assigned to every store, so they are never swept in this way — pick them
-                    individually below.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Individuals</Label>
-                  <div className="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-md divide-y divide-[var(--color-border)]">
-                    {data.staff.map((m) => (
-                      <label
-                        key={m.id}
-                        className={`flex items-center gap-2 px-3 py-2 text-sm ${m.eligibility === "eligible" ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
-                      >
-                        <input
-                          type="checkbox"
-                          disabled={m.eligibility !== "eligible"}
-                          checked={staff.has(m.id)}
-                          onChange={() => toggle(staff, m.id, setStaff)}
-                        />
-                        <span className="flex-1">{m.displayName}</span>
-                        {m.isCorporate && (
-                          <span className="text-xs text-[var(--color-muted-foreground)]">Corporate</span>
-                        )}
-                        {m.eligibility === "already-assigned" && (
-                          <span className="text-xs text-[var(--color-muted-foreground)]">already assigned</span>
-                        )}
-                        {m.eligibility === "not-applicable" && (
-                          <span className="text-xs text-[var(--color-muted-foreground)]">not at this module&rsquo;s stores</span>
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div className="space-y-1.5">
-              <Label>Trainer (optional)</Label>
-              <Select value={trainerUserId} onValueChange={setTrainerUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a trainer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {data.trainers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Due date (optional)</Label>
-              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            </div>
-
-            {/* DISCLOSURE GUARDRAIL (ruling 6, wording ruled by Gary 2026-08-11 —
-                option B). Compliance counts an assignment from the instant it is
-                created; dueDate drives `overdue` but never gates membership in
-                the denominator (hr-compliance.ts:317-318). HR-13 owns changing
-                that; this line makes sure the dip is never a surprise if it
-                slips. */}
-            {previewCount > 0 && (
-              <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2.5 space-y-1">
-                <p className="text-sm text-[var(--color-foreground)]">
-                  Assigning now adds {previewCount} required{" "}
-                  {previewCount === 1 ? "item" : "items"} to compliance. Compliance percentages for
-                  {previewCount === 1 ? " this person" : ` these ${previewCount} people`}, and their
-                  store rollups, drop immediately — a due date does not hold that back.
-                </p>
-                {previewNoLogin > 0 && (
-                  <p className="text-sm text-[var(--color-muted-foreground)]">
-                    {previewNoLogin} of them {previewNoLogin === 1 ? "has" : "have"} no self-service
-                    login — a manager records their completions.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        ) : null}
+        )}
 
         <DialogFooter>
           {result ? (
