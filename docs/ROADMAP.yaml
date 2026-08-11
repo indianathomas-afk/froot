@@ -2985,6 +2985,21 @@ phases:
     size: S
     status: planned
     title: "Compliance drill-down + exclude-until-due training semantics"
+    notes: >
+      SCHEDULING NOTE, ADDED 2026-08-10 (training filing session; ratified by
+      Gary the same day). This row was title-only before this — nothing is
+      edited; this is the row's first notes text. HR-13 is scheduled ADJACENT
+      to HR-22 — immediately after it, its own row, its own audit-first
+      session and ruling cycle. REASON ON THE RECORD: an org-wide bulk assign
+      with a future due date drops every live compliance number the instant
+      the button is pressed; a number that falls off a cliff the day an
+      operator did the right thing is the wrong-answer-that-argues-back
+      failure mode. HR-13 STAYS OUT OF HR-22'S SESSION — it changes the
+      meaning of a live compliance surface, and the row is currently
+      title-only: exclude-until-due needs real spec work (does a future-due
+      assignment join requiredTotal; does it get its own scheduled state;
+      what do store rollups show). Interim behaviour is covered by HR-22's
+      disclosure guardrail.
 
   - id: HR-14
     track: hr
@@ -3170,6 +3185,139 @@ phases:
       was wrong, square.manage is now ADMIN_ONLY. The Square ROUTES remain
       unmigrated, but that is PERM-5's square entry and a separate sweep — and
       per R4 it is now a zero-baseline-change one.
+
+  - id: HR-20
+    track: hr
+    size: M
+    status: planned
+    title: "TrainingCategory entity + additive migration"
+    notes: >
+      FILED 2026-08-10 by the training filing session, from the audit at
+      docs/prompts/2026-08-10_TRAINING_AUDIT.md (committed 35a25c6) and the
+      rulings ratified the same day. First of three rows — the HR- sequence
+      continues; NO TRN- series (ruled R-a). The full R-a..R-f transcription
+      and its provenance line are on this row, below; HR-21 and HR-22 cite
+      the rulings by id.
+      FOURTH INSTANCE of the per-org category pattern — IngredientCategory /
+      LossReason / TemplateType.
+      SCOPE: TrainingCategory entity; nullable FK on TrainingModule;
+      migration seeding categories from distinct `subject` values — the
+      backfill is sized by Gary's §8.1 Neon results, which the HR-20 session
+      opens with; starter seed for zero-category orgs, DEBT-59 style —
+      visible, renameable, never silently stamped — and NOTE: category is
+      OPTIONAL per R-a, so the starter seed is convenience, not load-bearing,
+      and the empty state must render sanely; module form select; CSV by-name
+      resolution; `subject` kept as mirror per the TPL-1a additive shape —
+      retirement is its own later step, not this row.
+      CONDITIONAL ELEMENT: the unique constraint on TrainingAssignment
+      (module x staff) lands in this row's migration ONLY if §8.2 returns
+      zero duplicate pairs on all three branches (dev br-broad-wave, staging
+      br-square-feather, production br-sparkling-block); any nonzero result
+      returns to Gary with the rows before the constraint ships (ruled R-b).
+      RIDER (shared with HR-21): close the storeIds org-validation gap in
+      module POST/PATCH (PERM-7's class, found unreached by PERM-7 — audit
+      §9). No separate debt row; the rider is named here so it cannot
+      silently drop.
+      ── RULINGS OF RECORD — R-a THROUGH R-f AND THE HR-13 CALL ──
+      LOCATION NOTE, so the placement is a decision and not an accident:
+      phase-scoping rulings are ROW-EMBEDDED per TPL-1's precedent (its Q1-Q7
+      live in its row notes; the rulings: panel is for decisions filed while
+      OPEN, per its own header). Three rows share this set, so it anchors
+      here on the phase's first row.
+      PROVENANCE: all rulings below were made in the Claude.ai planning
+      session of 2026-08-10 following the training audit
+      (docs/prompts/2026-08-10_TRAINING_AUDIT.md). R-a, R-b, R-d, R-e, R-f:
+      ruled by Gary on the audit's evidence packets. R-c page access and the
+      HR-13 scheduling call: recommended with reasoning by the audit session,
+      explicitly ratified by Gary 2026-08-10 ("ratified"). The distinction
+      between ruled-directly and ratified is deliberate.
+      R-a: HR-20/21/22, HR- sequence, no TRN- series. Category OPTIONAL on
+      modules; starter seed demoted to convenience.
+      R-b: duplicates skip-and-report. Unique constraint conditionally
+      approved — §8.2 zero on all three branches, else back to Gary with the
+      rows. Future re-assignment, if ever built, uses a cycle column (the
+      HR-15b shape) — this ruling is what makes the constraint safe.
+      R-c: STORE: no. /hr/training stays ADMIN-only; reversible-by-row on
+      demonstrated need. (Session-recommended, ratified by Gary 2026-08-10.)
+      R-d: ACTIVE-only always; corporate excluded from store expansion,
+      individually reachable, in ADMIN's everyone; module-active and
+      applicability server-side; every exclusion a named count; response
+      sums to its input.
+      R-e: inline permission pattern; shared guards in
+      api/hr/training/access.ts; zero registry edits.
+      R-f: localStorage, key `froot.hr.training.view`, UX-2 caveat on
+      HR-21's row with the 2026-08-10 personal-device confirmation.
+      HR-13 call: scheduled adjacent to HR-22 with the two guardrails (own
+      session; HR-22 discloses regardless). (Session-recommended, ratified
+      by Gary 2026-08-10.)
+
+  - id: HR-21
+    track: hr
+    size: M
+    status: planned
+    title: "Training category management UI + badges + filter chips + card/list toggle on /hr/training"
+    notes: >
+      FILED 2026-08-10 by the training filing session; second of three rows
+      scoped from docs/prompts/2026-08-10_TRAINING_AUDIT.md. Rulings R-a..R-f
+      are transcribed on HR-20's row; this row cites them by id.
+      SCOPE: Manage Categories dialog living WITH the list it categorises
+      (the Manage Types precedent); colour badges via badge-preset KEYS only
+      (src/lib/badge-presets.ts — never class strings from the DB, the
+      Tailwind 4 constraint); filter chips; card view / list view toggle on
+      /hr/training.
+      ONE DATA SOURCE FEEDS BOTH VIEWS — the list view never fetches its own
+      data; a module must not differ in category, status, or action set
+      between views; everything this phase adds appears in BOTH views.
+      TOGGLE PERSISTENCE: localStorage, single key `froot.hr.training.view`
+      (ruled R-f) — UX-2's shared-device caveat stated on this row, with the
+      mitigating fact recorded beside it: Gary confirmed 2026-08-10 that
+      MANAGER logins at Keva are personal machines and shared iPads run
+      STORE, which cannot reach this page.
+      PAGE ACCESS: /hr/training stays ADMIN-only (ruled R-c, ratified) —
+      HR-6 shipped it that way deliberately, training content is
+      confidential, and the org-wide-push persona is ADMIN. Reversible later
+      as its own small named row on demonstrated manager need; HR-21 ships
+      no role-conditional UI.
+      RIDER: carries the storeIds org-validation rider jointly with HR-20
+      (whichever session touches the write path closes it; the other
+      verifies).
+
+  - id: HR-22
+    track: hr
+    size: M
+    status: planned
+    title: "Bulk training assignment + due date carry-through"
+    notes: >
+      FILED 2026-08-10 by the training filing session; third of three rows
+      scoped from docs/prompts/2026-08-10_TRAINING_AUDIT.md. Rulings R-a..R-f
+      are transcribed on HR-20's row; this row cites them by id.
+      SCOPE: Bulk Assign entry point on /hr/training modules (both views);
+      recipient picker — individuals, entire store, or everything in the
+      assigner's scope; optional due date applied to every created
+      assignment, NO invented default (DEBT-59).
+      SERVER-SIDE ENFORCEMENT on the bulk route (ruled R-d): every submitted
+      staff/store id validated against org ownership AND caller scope
+      (getUserStoreScope — PERM-6's lesson, on day one); ACTIVE staff only,
+      always; corporate staff excluded from entire-store expansion
+      (individually selectable; included in ADMIN's everything-in-scope),
+      because Square sync expands isCorporate staff to every store;
+      module-active and applicability-vs-store enforced server-side, not
+      UI-only.
+      DUPLICATES: skip-and-report (ruled R-b). The response reports its own
+      blast radius — assigned / already-assigned / each exclusion as a named
+      count — and sums exactly to its input (CHK-3's counter lesson).
+      PERMISSIONS (ruled R-e): STORE 403'd; ADMIN + store-scoped MANAGER at
+      the API per the existing shared guards in api/hr/training/access.ts —
+      inline pattern, zero registry edits, PERM-5C's boundary comment
+      untouched; HR-19 migrates this seam later. (Page gating per R-c means
+      the button is ADMIN-reachable in practice; the API guard is the
+      enforcement layer.)
+      DISCLOSURE GUARDRAIL (ratified with the HR-13 call): HR-22's confirm
+      dialog states the immediate compliance effect plainly — "this adds N
+      required items to compliance now" — so the pre-HR-13 dip is never a
+      surprise, even if HR-13 slips.
+      OUT OF SCOPE, on the row: notification emails (the gate is HR-16's —
+      notify.ts is console-only); any HR-13 semantics change.
 
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.

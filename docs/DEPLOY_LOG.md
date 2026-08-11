@@ -4,6 +4,30 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## STANDING NOTE — docs-only commits the next real promotion's entry must name
+
+- **Added 2026-08-10 (training filing session).** The next real PRODUCTION
+  promotion's DEPLOY_LOG entry must NAME these docs-only commits so `main`'s
+  push history reconciles: `65abb74` (docs-only --no-ff merge, board flips +
+  BOOKKEEP-4 riders, 2026-08-10) and `f318d2e` (docs-only merge carrying
+  BOOKKEEP-4's `0608f10`), plus the staging docs commits the promotion will
+  carry without entries of their own: `35a25c6` (training audit + session
+  prompt) and the 2026-08-10 training-filing docs commit — the commit that
+  introduces this section. A commit cannot carry its own SHA; the promotion
+  entry resolves it as the commit that added this note
+  (`git log --oneline -- docs/DEPLOY_LOG.md`).
+- **Provenance of this note:** the `65abb74` half of the obligation was first
+  recorded 2026-08-10 inside docs/ROADMAP.yaml (the CHK row's docs-only-merge
+  rider: "THE NEXT REAL PROMOTION'S DEPLOY_LOG ENTRY MUST NAME 65abb74");
+  that text stands untouched. This section puts the standing list on the file
+  where the promotion entry gets written, per the 2026-08-10 filing session's
+  instruction that the obligation list live on the file, not in chat memory.
+  `f318d2e` carried no recorded obligation anywhere at HEAD `35a25c6` and is
+  named here for the first time.
+- **Preserve-and-mark:** extend this list by dated line; when a promotion
+  discharges an item, mark it discharged with the promotion SHA — never
+  delete.
+
 ## 2026-08-10 (evening) — PRODUCTION promotion (the CHK phase's two surfaces: CHK-4 lifecycle visible + CHK-5 operations report + CHK-3's defect trilogy + DEBT-63/65 closed)
 
 - **Merge SHA:** `d19cca6` — full: `d19cca6b5a13f7730498a08023c643f2c75a5e6f`.
