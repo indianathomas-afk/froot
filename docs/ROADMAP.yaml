@@ -3189,9 +3189,67 @@ phases:
   - id: HR-20
     track: hr
     size: M
-    status: planned
+    status: in_progress
     title: "TrainingCategory entity + additive migration"
     notes: >
+      ── AMENDMENT 2026-08-10 (HR-20 build session; work commit "0a745c3";
+      preserve-and-mark — the filed text below stands) ── BUILT this date.
+      Migration 20260810194426_hr20_training_category_entity applied to DEV
+      ONLY (ep-late-water-a6k53nv2 / br-broad-wave-a6vpjdw0, host echoed
+      before execution); staging and production receive it via migrate deploy
+      on their own promotions — status stays in_progress until the push
+      reaches Vercel (the CHK-4 "in_progress at SHA" convention; `staging`
+      would claim a preview that does not exist yet).
+      THREE CHANGES FROM THE FILED SCOPE, each ruled by Gary 2026-08-10 on his
+      own Neon-console evidence (branch ids in-output per CLAUDE.md):
+      (1) BACKFILL REMOVED. §8.1 — production br-sparkling-block: Keva org
+      cf888f2d-... has 12 modules with 12 DISTINCT subject values, one module
+      each; subjects are SUBTITLES ("MODULE 3: CLEANING & SANITATION BASICS",
+      "How to assemble a Crathco Bubbler from beginning to end."), not
+      categories; second org 1 module, null subject. Staging
+      br-square-feather: "Empathy" x4 + one other (test fixtures). Dev
+      br-broad-wave: near-empty. Seed source dry — the migration mints ZERO
+      categories from subject and never reads the column.
+      (2) SUBJECT IS NOT A MIRROR. The filed "subject kept as mirror per the
+      TPL-1a additive shape" is SUPERSEDED by the same ruling: subject is
+      LEFT COMPLETELY ALONE — not written by category code, not mirrored, not
+      resolved against, still on the form doing its subtitle job. Its future
+      is its own later row. All existing modules start uncategorized, a legal
+      resting state (category OPTIONAL, R-a).
+      (3) CONSTRAINT CONDITION MET AND SHIPPED. §8.2 returned ZERO duplicate
+      (trainingModuleId, staffMemberId) pairs on ALL THREE branches — dev
+      br-broad-wave, staging br-square-feather, production br-sparkling-block
+      (Gary, Neon console, 2026-08-10) — so the R-b unique constraint shipped
+      in this row's migration. Consequence noted on HR-22's row: the
+      untouched single-assign race now surfaces as P2002 rather than a
+      silent duplicate.
+      BUILD-SESSION RULINGS (Gary, 2026-08-10, at the session's stops): seed
+      mechanics = TemplateType's BOTH — the three prior pattern instances
+      disagree (IngredientCategory: no seed; LossReason: lazy on first read;
+      TemplateType: migration + webhook), ruled to follow TemplateType:
+      migration seed for zero-category orgs + ensureStarterTrainingCategories
+      at both Clerk org-upsert webhook sites (src/lib/training-categories.ts,
+      MUST MATCH the migration's six rows — same names, colours, sortOrder).
+      CSV category misses = CREATE-AND-REPORT: resolve module_category
+      case-insensitively org-scoped; a missing name is created in gray and
+      named in the response's categoriesCreated — the templates-import
+      convention; Gary EXPLICITLY OVERRULED the session prompt's never-invent
+      default ("it was aimed at the backfill failure mode, not a deliberate
+      column"). /my/training's wire-only subject select LEFT IN PLACE (ruled:
+      don't cut the dead wire in the session that ruled subject untouched;
+      HR-21 cuts it when it reworks that page). Starter colours as proposed:
+      green/purple/blue/amber/pink/orange, leaving gray (neutral fallback)
+      and red (destructive-coded) unused.
+      RIDER CLOSED (HR-20 side): module POST/PATCH now validate storeIds
+      against the org (400 on any foreign id) — PERM-7's class, audit §9
+      item 1. HR-21 VERIFIES per the shared-rider text below.
+      DRIFT FOUND AND FIXED IN PASSING: Template.templateType carried no
+      onDelete while TPL-1a's hand-authored FK is ON DELETE RESTRICT on every
+      branch, so every migrate diff tried to relax the live constraint to
+      SetNull; annotated onDelete: Restrict in schema.prisma — schema-only,
+      no DB change. The class is DEBT-68's; the mechanics note is in
+      docs/MIGRATIONS.md.
+      ── END AMENDMENT; filed text of record follows ──
       FILED 2026-08-10 by the training filing session, from the audit at
       docs/prompts/2026-08-10_TRAINING_AUDIT.md (committed 35a25c6) and the
       rulings ratified the same day. First of three rows — the HR- sequence
@@ -3306,6 +3364,18 @@ phases:
       DUPLICATES: skip-and-report (ruled R-b). The response reports its own
       blast radius — assigned / already-assigned / each exclusion as a named
       count — and sums exactly to its input (CHK-3's counter lesson).
+      INHERITED FROM HR-20 (noted 2026-08-10, work commit "0a745c3", by
+      Gary's instruction — in writing, not by memory): the R-b unique
+      constraint on (trainingModuleId, staffMemberId) now EXISTS, and HR-20
+      deliberately did not touch the single-assign POST (assignment write
+      paths are THIS row's). Consequence: two concurrent assigns of the same
+      pair, which previously both passed the read-then-skip and silently
+      double-inserted (deflating the member's compliance %), now surface as
+      Prisma P2002 → 500 on the loser. Strictly better than the corrupt row,
+      but HR-22's build must make the constraint read as ordinary
+      skip-and-report: createMany with skipDuplicates: true on the bulk
+      route, and retrofit the same flag onto the single-assign path while in
+      the file.
       PERMISSIONS (ruled R-e): STORE 403'd; ADMIN + store-scoped MANAGER at
       the API per the existing shared guards in api/hr/training/access.ts —
       inline pattern, zero registry edits, PERM-5C's boundary comment
@@ -12245,6 +12315,52 @@ debt:
       rendering an archived template's checklist. Related: CHK-3 (the writer
       that makes it visible), CHK-5 (the report it shows up on), DEBT-61 (the
       other generation filter that is not there).
+
+  - id: DEBT-68
+    title: >
+      Hand-authored FK constraints may disagree with schema.prisma's implied
+      onDelete — one instance found and fixed (Template.typeId), the sweep
+      across every other hand-authored FK is unowned
+    notes: >
+      COST OF DOING NOTHING: every `prisma migrate diff` run against a table
+      whose FK drifted emits a DROP CONSTRAINT + re-ADD pair that RELAXES the
+      live constraint, and the next session that pastes a generated diff into
+      a migration without reading it ships a semantic change nobody ruled —
+      in the found instance, TPL-1a's delete-blocked-while-in-use (the manage
+      dialog's 409 depends on ON DELETE RESTRICT) would have silently become
+      SET NULL, i.e. deleting a TemplateType would quietly uncategorise its
+      templates instead of refusing.
+      THE CLASS: migrations here are hand-authored (migrate dev is broken —
+      docs/MIGRATIONS.md §3), and hand-written SQL states onDelete
+      explicitly, while schema.prisma relations often omit the annotation and
+      fall back to Prisma's DEFAULTS — SetNull for optional relations,
+      Restrict for required ones. Wherever an author wrote something other
+      than the default and did not annotate the schema, the schema
+      misdescribes every live database, and migrate diff's job is precisely
+      to "correct" that. This is MIGRATIONS.md's "the schema misinforms a
+      reader" hazard with a generator attached.
+      THE INSTANCE, FOUND 2026-08-10 by HR-20's own diff at HEAD "683d33a":
+      schema.prisma's Template.templateType relation had no onDelete →
+      implied SetNull; TPL-1a's migration
+      (20260808103000_tpl1a_template_type_entity) created
+      Template_typeId_fkey ON DELETE RESTRICT, applied on all three branches.
+      HR-20's first generated diff opened with the DROP/re-ADD pair. FIXED
+      schema-side in "0a745c3": onDelete: Restrict annotated with a comment
+      naming the drift; no database was touched — the annotation makes the
+      schema describe what every branch already is.
+      FIX SHAPE (the sweep, deliberately NOT run by HR-20 — Gary, 2026-08-10,
+      "don't run the sweep now, just file it"): for each hand-authored
+      migration's ADD CONSTRAINT ... FOREIGN KEY, compare its ON DELETE / ON
+      UPDATE against what schema.prisma implies for that relation; annotate
+      the schema wherever they differ. A clean full-schema
+      `migrate diff --from-config-datasource --to-schema` on dev emitting NO
+      constraint churn is the done criterion — and note migrate diff is blind
+      to partial indexes (MIGRATIONS.md), so this sweep proves FKs only, not
+      indexes.
+      Disconfirmed by: a full-schema diff on dev that emits no DROP
+      CONSTRAINT for untouched tables. Related: DEBT-35 (the ledger's own
+      drift class, closed into MIGRATIONS.md), the MIGRATIONS.md
+      "hand-authored FK onDelete" section HR-20's docs commit adds.
 
   - id: DEBT-67
     title: >

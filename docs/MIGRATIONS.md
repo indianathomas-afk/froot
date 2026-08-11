@@ -229,6 +229,32 @@ Disconfirming evidence, if it ever appears: a `DROP INDEX` for either name in
 generated output. Two diffs in both directions on a branch that provably had the
 index produced none.
 
+## Hand-authored FK `ON DELETE` vs the schema's implied default
+
+**When a hand-authored migration states an `ON DELETE` behaviour and
+`schema.prisma`'s relation omits the `onDelete` annotation, the schema
+misdescribes every live database — and unlike the partial-index blindness
+above, `migrate diff` SEES this drift and generates SQL to "fix" it, i.e. to
+relax the live constraint.** Prisma's defaults are `SetNull` for optional
+relations and `Restrict` for required ones; hand-written SQL that chose
+anything else must be mirrored by an explicit annotation or the next generated
+diff opens with a `DROP CONSTRAINT` + re-`ADD` pair for a table nobody
+touched.
+
+Found 2026-08-10 by HR-20's own diff: `Template.templateType` carried no
+`onDelete` (implied `SetNull`) while TPL-1a's migration created
+`Template_typeId_fkey` `ON DELETE RESTRICT` on every branch — the ruled
+behaviour; the Manage Types dialog's delete-blocked-while-in-use 409 depends
+on it. The generated diff would have silently converted "deleting a type in
+use refuses" into "deleting a type in use uncategorises its templates".
+Annotated `onDelete: Restrict` in the schema the same day (`0a745c3`) —
+schema-only, no database changed.
+
+**The tell: a generated diff containing constraint churn for a table your
+schema edit did not touch. Never paste that through; resolve the drift first.**
+One instance is fixed; the sweep across every other hand-authored FK is
+DEBT-68 (unowned).
+
 ## Which branch am I actually reading?
 
 | Branch | Endpoint | Branch id | Seeded from | Use |

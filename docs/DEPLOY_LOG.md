@@ -24,6 +24,18 @@ Deploy verification: 2026-07-02T22:00:05Z
   instruction that the obligation list live on the file, not in chat memory.
   `f318d2e` carried no recorded obligation anywhere at HEAD `35a25c6` and is
   named here for the first time.
+- **Added 2026-08-10 (HR-20 build session).** The next real PRODUCTION
+  promotion's entry must also name this session's two staging commits:
+  `0a745c3` (HR-20 work — TrainingCategory entity, code, and the migration
+  `20260810194426_hr20_training_category_entity`, applied to DEV only by the
+  session; the staging and production Vercel builds replay it via
+  `migrate deploy` on their own promotions — the promotion entry should
+  confirm it in the build log) and the HR-20 docs commit, which cannot carry
+  its own SHA and resolves as the commit that added this line
+  (`git log --oneline -- docs/DEPLOY_LOG.md`). The work commit is not
+  docs-only; it is listed so the reconciliation list stays the one complete
+  place the promotion entry reads (per the 2026-08-10 HR-20 session prompt's
+  instruction).
 - **Preserve-and-mark:** extend this list by dated line; when a promotion
   discharges an item, mark it discharged with the promotion SHA — never
   delete.
