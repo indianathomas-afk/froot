@@ -36,6 +36,16 @@ Deploy verification: 2026-07-02T22:00:05Z
   docs-only; it is listed so the reconciliation list stays the one complete
   place the promotion entry reads (per the 2026-08-10 HR-20 session prompt's
   instruction).
+- **Added 2026-08-11 (HR-21 build session).** The next real PRODUCTION
+  promotion's entry must also name this session's two staging commits:
+  `a56c905` (HR-21 work — category CRUD routes under api/hr/training/
+  categories, Manage Categories dialog, category badges + filter chips +
+  card/list toggle, three-tab Active/Inactive/Archived partition on
+  /hr/training; no migration — HR-20's entity, UI and routes only. Not
+  docs-only; listed so this list stays the one complete place the
+  promotion entry reads) and the HR-21 docs commit, which cannot carry
+  its own SHA and resolves as the commit that added this line
+  (`git log --oneline -- docs/DEPLOY_LOG.md`).
 - **Preserve-and-mark:** extend this list by dated line; when a promotion
   discharges an item, mark it discharged with the promotion SHA — never
   delete.

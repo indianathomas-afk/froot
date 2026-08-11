@@ -3312,9 +3312,67 @@ phases:
   - id: HR-21
     track: hr
     size: M
-    status: planned
+    status: in_progress
     title: "Training category management UI + badges + filter chips + card/list toggle on /hr/training"
     notes: >
+      ── AMENDMENT 2026-08-11 (HR-21 build session; work commit "a56c905";
+      preserve-and-mark — the filed text below stands) ── BUILT this date.
+      Status in_progress until the push reaches Vercel (the CHK-4 "in_progress
+      at SHA" convention, as on HR-20's row). No schema change, no database
+      queries — UI + CRUD routes over HR-20's entity only, as commissioned.
+      SHIPPED: category CRUD routes under api/hr/training/categories
+      (collection GET/POST, [id] PATCH/DELETE, [id]/reassign POST), all behind
+      requireHrTrainingAccess (R-e, zero registry edits, PERM-5C comment
+      untouched), every lookup org-scoped so a foreign id reads as nonexistent.
+      Delete blocked while in use with the org-wide archived-inclusive count
+      (409; the FK's ON DELETE RESTRICT is the backstop); reassign is its own
+      route (the TPL-1b shape) reporting {reassigned: count} — the "how many
+      modules moved" number lives on the act that moves them. Manage
+      Categories dialog (category-manager-dialog.tsx) — third instance of the
+      manager-dialog pattern, copied from the NEWER templates instance
+      (safeParse + case-insensitive 409 + P2002 catch); rename-with-count and
+      delete-blocked-with-reassign both carried per ruling 4. Colours are
+      badge-preset KEYS end to end. Badges render the JOINED category (added
+      to moduleInclude — the TPL-2 join-read shape, renames propagate through
+      the join alone); filter chips with per-view counts (TPL-1's two-counts
+      rule); card/list toggle on localStorage key froot.hr.training.view, read
+      once on mount, card fallback on absent/invalid/unavailable (R-f).
+      ONE DATA SOURCE HELD, structurally: single fetch GET /api/hr/training →
+      single `modules` state → tab filter → chip filter → `visible`; both
+      layouts render `visible` and nothing else; shared StatusBadge /
+      CategoryBadge / ModuleActions components make field-and-action parity
+      by construction; HR-22's Bulk Assign entry point is a marked slot
+      inside the SHARED action cluster (appears in both views at once when
+      built). Uncategorized modules render with no badge (cards) / an empty
+      cell (list) — no placeholder, no layout shift.
+      BUILD-SESSION RULINGS (Gary, 2026-08-11, at HARD STOP #1):
+      TAB SEMANTICS (audit §9 item 6, deferred to this session, resolved):
+      three-tab PARTITION — Active (isActive && !isArchived) / Inactive
+      (!isActive && !isArchived) / Archived (isArchived) — replaces the
+      DEBT-67-pattern strip whose "Active" counted !isArchived. Counts moving
+      is the correction, not a side effect (Gary's words). Rider honoured:
+      Archived keeps its exact prior meaning; nothing visible under Archived
+      moved. Bulk bar verbs follow the tab: Deactivate·Archive /
+      Activate·Archive / Unarchive. Consequence recorded so nobody files it
+      as a regression: Duplicate's copies (created isActive:false) now land
+      under the Inactive tab, where the old strip showed them under Active.
+      UNCATEGORIZED CHIP ruled IN: neutral gray, per-view count, filters
+      categoryId=null — the working queue for hand-categorizing the backlog,
+      the state 12 of 12 production modules are in (HR-20 §8.1 evidence).
+      LIST-WIDTH RIDER honoured: the title column absorbs remaining width and
+      truncates (w-full max-w-0); every other cell is nowrap — no horizontal
+      overflow at laptop width, no responsive project.
+      RIDER VERIFIED (HR-20 storeIds, the shared rider's second half, CLOSED):
+      module POST (api/hr/training/route.ts:112-119) and PATCH
+      ([id]/route.ts:89-98) both validate submitted store ids against the org
+      — owned count compared to the deduplicated submitted Set, 400 "Invalid
+      store ids", before any write (PATCH: before the wipe-and-recreate).
+      Verified by reading at HEAD bf42bae; correct as shipped, no re-fix.
+      HR-20 also org-validates categoryId on both paths, noted in passing.
+      /my/training's dead subject select LEFT ALONE per the session prompt's
+      own note — HR-21 reworked /hr/training, not /my/training; the wire-only
+      carry stays until a session actually touches that page.
+      ── END AMENDMENT; filed text of record follows ──
       FILED 2026-08-10 by the training filing session; second of three rows
       scoped from docs/prompts/2026-08-10_TRAINING_AUDIT.md. Rulings R-a..R-f
       are transcribed on HR-20's row; this row cites them by id.
