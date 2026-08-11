@@ -33,7 +33,7 @@ export default async function EditTrainingModulePage({ params }: { params: Promi
     }),
     prisma.trainingCategory.findMany({
       where: { organizationId: org.id },
-      select: { id: true, name: true },
+      select: { id: true, name: true, colorKey: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
   ])

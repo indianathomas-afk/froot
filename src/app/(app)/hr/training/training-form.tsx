@@ -15,6 +15,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent, closest
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { uploadHrFileFromBrowser } from "@/lib/hr-upload-client"
+import { badgePreset } from "@/lib/badge-presets"
 
 export type QuizQuestion = {
   id: string
@@ -56,6 +57,10 @@ interface Store {
 interface TrainingCategoryOption {
   id: string
   name: string
+  // HR-21: the badge-preset KEY, so the picker shows the same coloured badge
+  // the module wears on /hr/training. A key, never a class string — Tailwind 4
+  // runs CSS-first with no safelist (src/lib/badge-presets.ts).
+  colorKey: string
 }
 
 interface TrainingFormProps {
@@ -797,8 +802,17 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No category</SelectItem>
+                    {/* HR-21: each option renders as the badge the module will
+                        wear on /hr/training, so the picker and the list agree
+                        on what a category looks like. SelectValue renders the
+                        chosen item's children, so the closed trigger shows the
+                        same badge. */}
                     {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${badgePreset(c.colorKey).badge}`}>
+                          {c.name}
+                        </span>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

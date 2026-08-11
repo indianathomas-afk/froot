@@ -21,7 +21,7 @@ export default async function NewTrainingModulePage() {
     }),
     prisma.trainingCategory.findMany({
       where: { organizationId: org.id },
-      select: { id: true, name: true },
+      select: { id: true, name: true, colorKey: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
   ])
