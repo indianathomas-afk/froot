@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Archive, CheckCircle, Copy, GraduationCap, LayoutGrid, List, ListChecks, Pencil, Plus, Tags } from "lucide-react"
+import { Archive, CheckCircle, Copy, GraduationCap, LayoutGrid, List, ListChecks, Pencil, Plus, Tags, UsersRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { badgePreset } from "@/lib/badge-presets"
 import { TrainingImportButton } from "./training-import-button"
 import { TrainingExportButton } from "./training-export-button"
 import { CategoryManagerDialog, type TrainingCategory } from "./category-manager-dialog"
+import { BulkAssignDialog } from "./bulk-assign-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,7 +121,19 @@ function CategoryBadge({ category }: { category: { name: string; colorKey: strin
 // The ONE action cluster, rendered by both views — the parity rule ("a module
 // must not differ in available actions between views") holds by construction
 // because neither view composes its own.
-function ModuleActions({ module, onDuplicate }: { module: TrainingModule; onDuplicate: (m: TrainingModule) => void }) {
+function ModuleActions({
+  module,
+  onDuplicate,
+  onBulkAssign,
+}: {
+  module: TrainingModule
+  onDuplicate: (m: TrainingModule) => void
+  onBulkAssign: (m: TrainingModule) => void
+}) {
+  // HR-22. The bulk route REFUSES an inactive or archived module (409) rather
+  // than dropping the id silently, so the button says the same thing the API
+  // would: disabled, with the reason on hover.
+  const assignable = module.isActive && !module.isArchived
   return (
     <div className="flex items-center gap-1">
       <Link href={`/hr/training/${module.id}/edit`}>
@@ -131,8 +144,16 @@ function ModuleActions({ module, onDuplicate }: { module: TrainingModule; onDupl
       <button onClick={() => onDuplicate(module)} className="flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 hover:bg-[var(--color-accent)] transition-colors">
         <Copy className="h-3 w-3" /> Duplicate
       </button>
-      {/* HR-22: the Bulk Assign entry point lands here — inside this shared
-          cluster, so it appears in card and list views at once. */}
+      {/* HR-22: the Bulk Assign entry point — inside this shared cluster, so it
+          appears in card and list views at once. */}
+      <button
+        onClick={() => onBulkAssign(module)}
+        disabled={!assignable}
+        title={assignable ? undefined : module.isArchived ? "Archived modules can no longer be assigned" : "Activate this module before assigning it"}
+        className="flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 hover:bg-[var(--color-accent)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+      >
+        <UsersRound className="h-3 w-3" /> Assign
+      </button>
     </div>
   )
 }
@@ -147,6 +168,7 @@ export default function TrainingClient() {
   const [layout, setLayout] = useState<Layout>("card")
   const [managerOpen, setManagerOpen] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkAssignFor, setBulkAssignFor] = useState<TrainingModule | null>(null)
 
   async function load() {
     try {
@@ -537,7 +559,7 @@ export default function TrainingClient() {
                     {contentSummary(m)}
                   </p>
 
-                  <ModuleActions module={m} onDuplicate={duplicate} />
+                  <ModuleActions module={m} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
                 </div>
               ))}
             </div>
@@ -586,7 +608,7 @@ export default function TrainingClient() {
                         <StatusBadge isActive={m.isActive} />
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <ModuleActions module={m} onDuplicate={duplicate} />
+                        <ModuleActions module={m} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
                       </td>
                     </tr>
                   ))}
@@ -596,6 +618,16 @@ export default function TrainingClient() {
           )}
         </>
       )}
+
+      {/* HR-22. Rendered ONCE for the page, driven by the shared action
+          cluster — so card and list open the identical dialog, not two
+          copies that can drift. */}
+      <BulkAssignDialog
+        key={bulkAssignFor?.id ?? "none"}
+        module={bulkAssignFor}
+        onClose={() => setBulkAssignFor(null)}
+        onAssigned={load}
+      />
 
       <CategoryManagerDialog
         open={managerOpen}

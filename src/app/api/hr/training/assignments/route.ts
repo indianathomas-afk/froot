@@ -60,6 +60,16 @@ export async function POST(req: Request) {
       trainerUserId: trainerUserId ?? null,
       dueDate: dueDate ? new Date(dueDate) : null,
     })),
+    // HR-22. HR-20 shipped @@unique([trainingModuleId, staffMemberId]) and
+    // deliberately left this path alone, so the race the read-then-skip above
+    // cannot close was surfacing as Prisma P2002 → 500 on the loser. This flag
+    // is what makes the constraint read as the ordinary skip-and-report R-b
+    // rules. Acceptance behaviour is otherwise UNCHANGED here: the module
+    // filter's silent drop and the missing isActive/applicability checks
+    // (audit findings #2/#3/#4) are HR-23's, ruled 2026-08-11 — tightening
+    // acceptance without also fixing this route's response shape would trade
+    // loud over-acceptance for silent dropping.
+    skipDuplicates: true,
   })
 
   return NextResponse.json({ created: toCreate.length, skipped: alreadyAssigned.size }, { status: 201 })
