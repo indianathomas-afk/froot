@@ -15,6 +15,7 @@ import type { QuizQuestion } from "./schemas"
 export const TRAINING_CSV_COLUMNS = [
   "module_title",
   "module_subject",
+  "module_category", // HR-20: category NAME, resolved org-scoped on import
   "module_description",
   "quiz_pass_threshold",
   "row_type",
@@ -39,6 +40,7 @@ export function csvCell(value: unknown): string {
 interface ExportModule {
   title: string
   subject: string | null
+  category: { name: string } | null
   description: string | null
   lessons: { title: string; info: string | null; videoUrl: string | null; orderIndex: number }[]
   quizzes: { passThreshold: number; questions: unknown }[]
@@ -49,7 +51,7 @@ export function buildTrainingCsv(modules: ExportModule[]): string {
 
   for (const m of modules) {
     const quiz = m.quizzes[0]
-    const moduleCells = [m.title, m.subject, m.description, quiz?.passThreshold ?? ""]
+    const moduleCells = [m.title, m.subject, m.category?.name ?? "", m.description, quiz?.passThreshold ?? ""]
     const blankLesson = ["", "", "", ""]
     const blankQuestion = ["", "", "", "", ""]
 
@@ -103,6 +105,7 @@ const numish = z.preprocess((v) => {
 export const TrainingRowSchema = z.object({
   module_title: z.string().min(1, "module_title is required"),
   module_subject: z.string().optional().nullable(),
+  module_category: z.string().optional().nullable(),
   module_description: z.string().optional().nullable(),
   quiz_pass_threshold: numish,
   row_type: z.string().optional().nullable(),
@@ -122,6 +125,9 @@ export type TrainingRow = z.infer<typeof TrainingRowSchema>
 export interface GroupedModule {
   title: string
   subject: string | null
+  // Raw category NAME from the file; the import route resolves it against the
+  // org's categories (case-insensitive) and creates missing ones (HR-20).
+  categoryName: string | null
   description: string | null
   passThreshold: number
   lessons: { title: string; info: string | null; videoUrl: string | null; orderIndex: number }[]
@@ -192,6 +198,7 @@ export function groupTrainingRows(rows: TrainingRow[]): {
     modules.push({
       title,
       subject: head.module_subject?.trim() || null,
+      categoryName: head.module_category?.trim() || null,
       description: head.module_description?.trim() || null,
       passThreshold,
       lessons,

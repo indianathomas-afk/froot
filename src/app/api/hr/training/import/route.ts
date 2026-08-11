@@ -37,6 +37,40 @@ export async function POST(req: Request) {
   const grouped = groupTrainingRows(validRows)
   errors.push(...grouped.errors)
 
+  // HR-20 (ruled 2026-08-10): module_category resolves by name,
+  // case-insensitively, within this org; a name with no match is CREATED in
+  // neutral gray and reported in categoriesCreated — the templates-import
+  // convention (api/templates/import), which Gary ruled this route follows,
+  // overruling the miss-and-report default. The file said what the category
+  // is CALLED, not what colour it should be; the operator recolours it in
+  // HR-21's Manage Categories. Unlike template types there is NO fallback
+  // name: category is optional (R-a), so a blank cell imports uncategorized.
+  const existingCategories = await prisma.trainingCategory.findMany({
+    where: { organizationId: org.id },
+    select: { id: true, name: true },
+  })
+  const categoriesByLower = new Map(existingCategories.map((c) => [c.name.toLowerCase(), c]))
+  const categoriesCreated: string[] = []
+
+  const wantedNames = new Set<string>()
+  for (const m of grouped.modules) {
+    if (m.categoryName) wantedNames.add(m.categoryName)
+  }
+  for (const wanted of wantedNames) {
+    if (categoriesByLower.has(wanted.toLowerCase())) continue
+    const row = await prisma.trainingCategory.create({
+      data: {
+        organizationId: org.id,
+        name: wanted,
+        colorKey: "gray",
+        sortOrder: existingCategories.length + categoriesCreated.length,
+      },
+      select: { id: true, name: true },
+    })
+    categoriesByLower.set(row.name.toLowerCase(), row)
+    categoriesCreated.push(row.name)
+  }
+
   let modulesCreated = 0
   let lessonsCreated = 0
   let questionsCreated = 0
@@ -57,6 +91,10 @@ export async function POST(req: Request) {
             organizationId: org.id,
             title: m.title,
             subject: m.subject,
+            // Resolved in the pre-pass above, so a non-null name always hits.
+            categoryId: m.categoryName
+              ? (categoriesByLower.get(m.categoryName.toLowerCase())?.id ?? null)
+              : null,
             description: m.description,
             appliesTo: "all",
             isActive: false, // imported modules arrive inactive; review before going live
@@ -78,5 +116,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ modulesCreated, lessonsCreated, questionsCreated, created, errors })
+  return NextResponse.json({ modulesCreated, lessonsCreated, questionsCreated, categoriesCreated, created, errors })
 }

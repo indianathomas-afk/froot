@@ -31,6 +31,7 @@ const lessonSchema = z.object({
 const createSchema = z.object({
   title: z.string().trim().min(1),
   subject: z.string().nullish(),
+  categoryId: z.string().nullish(),
   description: z.string().nullish(),
   appliesTo: z.enum(["all", "selected"]).default("all"),
   storeIds: z.array(z.string()).default([]),
@@ -105,11 +106,33 @@ export async function POST(req: Request) {
 
   const storeIds = body.appliesTo === "selected" ? body.storeIds : []
 
+  // HR-20 rider (PERM-7's class, audit §9 item 1): every submitted store id
+  // must belong to this org — a foreign or nonexistent id would silently
+  // shrink the module's reach via TrainingModuleStoreAssignment.
+  if (storeIds.length) {
+    const owned = await prisma.store.count({
+      where: { id: { in: storeIds }, organizationId: org.id },
+    })
+    if (owned !== new Set(storeIds).size) {
+      return NextResponse.json({ error: "Invalid store ids" }, { status: 400 })
+    }
+  }
+
+  // HR-20: a category, when given, must be one of this org's.
+  if (body.categoryId) {
+    const category = await prisma.trainingCategory.findFirst({
+      where: { id: body.categoryId, organizationId: org.id },
+      select: { id: true },
+    })
+    if (!category) return NextResponse.json({ error: "Invalid category" }, { status: 400 })
+  }
+
   const created = await prisma.trainingModule.create({
     data: {
       organizationId: org.id,
       title: body.title,
       subject: body.subject || null,
+      categoryId: body.categoryId || null,
       description: body.description || null,
       appliesTo: storeIds.length ? "selected" : "all",
       isActive: body.isActive,

@@ -73,6 +73,7 @@ model Organization {
   hrDocuments                   HrDocument[]
   managerNotes                  ManagerNote[]
   trainingModules               TrainingModule[]
+  trainingCategories            TrainingCategory[]
   staffDocuments                StaffDocument[]
   laborPositions                LaborPosition[]
   laborSettings                 LaborSettings[]
@@ -353,7 +354,13 @@ model Template {
   createdAt        DateTime @default(now())
 
   organization     Organization              @relation(fields: [organizationId], references: [id])
-  templateType     TemplateType?             @relation(fields: [typeId], references: [id])
+  // onDelete: Restrict is EXPLICIT because Prisma's default for an optional
+  // relation is SetNull, while TPL-1a's hand-authored migration created this FK
+  // ON DELETE RESTRICT on every branch (delete-blocked-while-in-use is the
+  // ruled behavior — the manage dialog's 409 depends on it). Without the
+  // annotation every `migrate diff` tries to relax the live constraint.
+  // Annotated 2026-08-10 by HR-20, which caught the drift in its own diff.
+  templateType     TemplateType?             @relation(fields: [typeId], references: [id], onDelete: Restrict)
   storeAssignments TemplateStoreAssignment[]
   tasks            Task[]
   sections         Section[]
@@ -1866,11 +1873,37 @@ model StaffDocument {
   @@index([organizationId])
 }
 
+// HR-20 — the org's training taxonomy, fourth instance of the per-org category
+// pattern (IngredientCategory / LossReason / TemplateType). colorKey is a
+// badge-preset KEY (src/lib/badge-presets.ts), never a class string — the
+// Tailwind 4 constraint. No `active` column: TPL-1b recorded TemplateType's as
+// a no-writer open question, not a pattern to copy.
+model TrainingCategory {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  colorKey       String   @default("gray")
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  modules      TrainingModule[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
 model TrainingModule {
   id             String   @id @default(cuid())
   organizationId String
   title          String
+  // Subtitle, NOT a category (Gary's 2026-08-10 ruling on the §8.1 evidence:
+  // production subjects are lines like "MODULE 3: CLEANING & SANITATION
+  // BASICS"). Categorization lives on categoryId; this field keeps its
+  // subtitle job and is not a mirror of anything.
   subject        String?
+  categoryId     String?
   description    String?
   appliesTo      String   @default("all") // all | selected (store assignments below)
   isActive       Boolean  @default(true)
@@ -1879,12 +1912,14 @@ model TrainingModule {
   updatedAt      DateTime @updatedAt
 
   organization     Organization                    @relation(fields: [organizationId], references: [id])
+  category         TrainingCategory?               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   lessons          TrainingLesson[]
   quizzes          TrainingQuiz[]
   assignments      TrainingAssignment[]
   storeAssignments TrainingModuleStoreAssignment[]
 
   @@index([organizationId])
+  @@index([categoryId])
 }
 
 model TrainingModuleStoreAssignment {
@@ -1961,6 +1996,12 @@ model TrainingAssignment {
   lessonProgress TrainingLessonProgress[]
   quizAttempts   TrainingQuizAttempt[]
 
+  // HR-20 (R-b, condition met 2026-08-10: zero duplicate pairs on all three
+  // branches). One row per module × staff pair; a future re-assignment, if
+  // ever built, adds a cycle column (HR-15b shape) rather than a bare second
+  // row. The plain trainingModuleId index below is redundant with this but
+  // stays — dropping it would be non-additive.
+  @@unique([trainingModuleId, staffMemberId])
   @@index([staffMemberId])
   @@index([trainingModuleId])
 }

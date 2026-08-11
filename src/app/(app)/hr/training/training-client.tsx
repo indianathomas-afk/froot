@@ -46,6 +46,9 @@ type TrainingModule = {
   id: string
   title: string
   subject: string | null
+  // HR-20: carried so Duplicate's client-composed POST body keeps the
+  // category. Rendering category badges on this page is HR-21's.
+  categoryId: string | null
   description: string | null
   appliesTo: string
   isActive: boolean
@@ -130,6 +133,7 @@ export default function TrainingClient() {
       body: JSON.stringify({
         title: `${m.title} (Copy)`,
         subject: m.subject,
+        categoryId: m.categoryId,
         description: m.description,
         appliesTo: m.appliesTo,
         storeIds: m.storeAssignments.map((a) => a.storeId),

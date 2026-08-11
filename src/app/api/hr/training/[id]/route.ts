@@ -15,6 +15,7 @@ const lessonSchema = z.object({
 const updateSchema = z.object({
   title: z.string().trim().min(1),
   subject: z.string().nullish(),
+  categoryId: z.string().nullish(),
   description: z.string().nullish(),
   appliesTo: z.enum(["all", "selected"]).default("all"),
   storeIds: z.array(z.string()).default([]),
@@ -85,6 +86,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const storeIds = data.appliesTo === "selected" ? data.storeIds : []
 
+  // HR-20 rider (PERM-7's class, audit §9 item 1): every submitted store id
+  // must belong to this org before the wipe-and-recreate below writes it.
+  if (storeIds.length) {
+    const owned = await prisma.store.count({
+      where: { id: { in: storeIds }, organizationId: access.org.id },
+    })
+    if (owned !== new Set(storeIds).size) {
+      return NextResponse.json({ error: "Invalid store ids" }, { status: 400 })
+    }
+  }
+
+  // HR-20: a category, when given, must be one of this org's.
+  if (data.categoryId) {
+    const category = await prisma.trainingCategory.findFirst({
+      where: { id: data.categoryId, organizationId: access.org.id },
+      select: { id: true },
+    })
+    if (!category) return NextResponse.json({ error: "Invalid category" }, { status: 400 })
+  }
+
   try {
     const existingLessonIds = new Set(
       (
@@ -148,6 +169,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         data: {
           title: data.title,
           subject: data.subject || null,
+          categoryId: data.categoryId || null,
           description: data.description || null,
           appliesTo: storeIds.length ? "selected" : "all",
           ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),

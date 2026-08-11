@@ -14,7 +14,7 @@ export default async function EditTrainingModulePage({ params }: { params: Promi
   if (!org.activeModules.includes("hr")) redirect("/hr")
   if (dbUser?.role !== "ADMIN") redirect("/hr")
 
-  const [trainingModule, stores] = await Promise.all([
+  const [trainingModule, stores, categories] = await Promise.all([
     prisma.trainingModule.findFirst({
       where: { id, organizationId: org.id },
       include: {
@@ -31,6 +31,11 @@ export default async function EditTrainingModulePage({ params }: { params: Promi
       select: { id: true, name: true, storeNumber: true },
       orderBy: { name: "asc" },
     }),
+    prisma.trainingCategory.findMany({
+      where: { organizationId: org.id },
+      select: { id: true, name: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
   ])
   if (!trainingModule) return notFound()
 
@@ -38,10 +43,12 @@ export default async function EditTrainingModulePage({ params }: { params: Promi
   return (
     <TrainingForm
       stores={stores}
+      categories={categories}
       initialData={{
         id: trainingModule.id,
         title: trainingModule.title,
         subject: trainingModule.subject,
+        categoryId: trainingModule.categoryId,
         description: trainingModule.description,
         appliesTo: trainingModule.appliesTo,
         isActive: trainingModule.isActive,

@@ -13,11 +13,18 @@ export default async function NewTrainingModulePage() {
   if (!org.activeModules.includes("hr")) redirect("/hr")
   if (dbUser?.role !== "ADMIN") redirect("/hr")
 
-  const stores = await prisma.store.findMany({
-    where: { organizationId: org.id },
-    select: { id: true, name: true, storeNumber: true },
-    orderBy: { name: "asc" },
-  })
+  const [stores, categories] = await Promise.all([
+    prisma.store.findMany({
+      where: { organizationId: org.id },
+      select: { id: true, name: true, storeNumber: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.trainingCategory.findMany({
+      where: { organizationId: org.id },
+      select: { id: true, name: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ])
 
-  return <TrainingForm stores={stores} />
+  return <TrainingForm stores={stores} categories={categories} />
 }

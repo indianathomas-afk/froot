@@ -14,6 +14,8 @@ type ImportResult = {
   modulesCreated: number
   lessonsCreated: number
   questionsCreated: number
+  // HR-20: categories minted by name during this import (create-and-report).
+  categoriesCreated: string[]
   created: { title: string; lessons: number; questions: number }[]
   errors: { row: number; error: string }[]
 }
@@ -21,15 +23,15 @@ type ImportResult = {
 // Downloadable example showing the row_type contract: module columns repeat
 // on every row; lesson rows fill lesson_*, question rows fill question_*.
 const EXAMPLE_CSV = [
-  "module_title,module_subject,module_description,quiz_pass_threshold,row_type,lesson_title,lesson_info,lesson_video_url,lesson_order_index,question_type,question_prompt,question_options,question_correct,question_order_index",
-  `Food Safety Basics,Food Safety,New-hire food safety training,71,lesson,Handwashing & Hygiene,"Wash hands for 20 seconds before every shift, after breaks, and after handling raw product.",https://youtu.be/your-video-id,0,,,,,`,
-  `Food Safety Basics,Food Safety,New-hire food safety training,71,lesson,Cold Holding,Keep all cold product at or below 41F. Check temperatures every 2 hours and log them.,,1,,,,,`,
-  `Food Safety Basics,Food Safety,New-hire food safety training,71,question,,,,,boolean,Cut fruit can sit out for 4 hours.,,false,0`,
-  `Food Safety Basics,Food Safety,New-hire food safety training,71,question,,,,,single,What is the maximum cold-holding temperature?,41F|45F|50F,41F,1`,
-  `Food Safety Basics,Food Safety,New-hire food safety training,71,question,,,,,multi,When must you wash your hands?,Before your shift|After breaks|Only when visibly dirty,Before your shift|After breaks,2`,
-  `Food Safety Basics,Food Safety,New-hire food safety training,71,question,,,,,written,Describe the three-sink dishwashing process.,,,3`,
-  `Register Basics,Operations,How to open and close a register,80,lesson,Opening the Register,Count the drawer and verify the starting float before the first sale.,,0,,,,,`,
-  `Register Basics,Operations,How to open and close a register,80,question,,,,,boolean,The drawer must be counted before the first sale.,,true,0`,
+  "module_title,module_subject,module_category,module_description,quiz_pass_threshold,row_type,lesson_title,lesson_info,lesson_video_url,lesson_order_index,question_type,question_prompt,question_options,question_correct,question_order_index",
+  `Food Safety Basics,Food Safety,New Hire Training,New-hire food safety training,71,lesson,Handwashing & Hygiene,"Wash hands for 20 seconds before every shift, after breaks, and after handling raw product.",https://youtu.be/your-video-id,0,,,,,`,
+  `Food Safety Basics,Food Safety,New Hire Training,New-hire food safety training,71,lesson,Cold Holding,Keep all cold product at or below 41F. Check temperatures every 2 hours and log them.,,1,,,,,`,
+  `Food Safety Basics,Food Safety,New Hire Training,New-hire food safety training,71,question,,,,,boolean,Cut fruit can sit out for 4 hours.,,false,0`,
+  `Food Safety Basics,Food Safety,New Hire Training,New-hire food safety training,71,question,,,,,single,What is the maximum cold-holding temperature?,41F|45F|50F,41F,1`,
+  `Food Safety Basics,Food Safety,New Hire Training,New-hire food safety training,71,question,,,,,multi,When must you wash your hands?,Before your shift|After breaks|Only when visibly dirty,Before your shift|After breaks,2`,
+  `Food Safety Basics,Food Safety,New Hire Training,New-hire food safety training,71,question,,,,,written,Describe the three-sink dishwashing process.,,,3`,
+  `Register Basics,Operations,Operations Training,How to open and close a register,80,lesson,Opening the Register,Count the drawer and verify the starting float before the first sale.,,0,,,,,`,
+  `Register Basics,Operations,Operations Training,How to open and close a register,80,question,,,,,boolean,The drawer must be counted before the first sale.,,true,0`,
 ].join("\r\n")
 
 function downloadExample() {
@@ -191,6 +193,12 @@ export function TrainingImportButton({ onImported }: { onImported: () => void })
                   {result.lessonsCreated} lesson{result.lessonsCreated !== 1 ? "s" : ""} and {result.questionsCreated}{" "}
                   question{result.questionsCreated !== 1 ? "s" : ""}.
                 </p>
+                {(result.categoriesCreated ?? []).length > 0 && (
+                  <p className="mt-1 text-[var(--color-muted-foreground)]">
+                    New categor{result.categoriesCreated.length !== 1 ? "ies" : "y"} created from the file:{" "}
+                    {result.categoriesCreated.join(", ")}
+                  </p>
+                )}
                 {result.errors.length > 0 && (
                   <div className="mt-2">
                     <p className="text-[var(--color-destructive)]">{result.errors.length} problem(s):</p>

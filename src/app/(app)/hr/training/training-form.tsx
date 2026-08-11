@@ -50,12 +50,22 @@ interface Store {
   storeNumber: string | null
 }
 
+// HR-20: the org's categories, server-fetched by the page and passed as a prop
+// (the same pattern as `stores` — no client fetch). Category CRUD is HR-21's;
+// this form only reads and picks.
+interface TrainingCategoryOption {
+  id: string
+  name: string
+}
+
 interface TrainingFormProps {
   stores?: Store[]
+  categories?: TrainingCategoryOption[]
   initialData?: {
     id: string
     title: string
     subject: string | null
+    categoryId: string | null
     description: string | null
     appliesTo: string
     isActive: boolean
@@ -397,7 +407,7 @@ function QuestionCard({ question: q, idx, update, remove }: QuestionCardProps) {
 
 // ─── Main form ────────────────────────────────────────────────────────────────
 
-export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
+export function TrainingForm({ initialData, stores = [], categories = [] }: TrainingFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
   const [saving, setSaving] = useState(false)
@@ -406,6 +416,7 @@ export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
 
   const [title, setTitle] = useState(initialData?.title ?? "")
   const [subject, setSubject] = useState(initialData?.subject ?? "")
+  const [categoryId, setCategoryId] = useState(initialData?.categoryId ?? "")
   const [description, setDescription] = useState(initialData?.description ?? "")
   const [appliesTo, setAppliesTo] = useState(initialData?.storeAssignments?.length ? "selected" : "all")
   const [selectedStoreIds, setSelectedStoreIds] = useState<Set<string>>(
@@ -607,6 +618,7 @@ export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
       const payload = {
         title,
         subject: subject || null,
+        categoryId: categoryId || null,
         description: description || null,
         appliesTo,
         storeIds: appliesTo === "selected" ? Array.from(selectedStoreIds) : [],
@@ -773,6 +785,23 @@ export function TrainingForm({ initialData, stores = [] }: TrainingFormProps) {
               <div className="space-y-1.5">
                 <Label>Module Title *</Label>
                 <Input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., Food Safety Basics" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                {/* HR-20: optional and clearable — "No category" is a legal
+                    resting state (R-a), not a validation gap. Radix SelectItem
+                    rejects an empty value, hence the "none" sentinel. */}
+                <Select value={categoryId || "none"} onValueChange={(v) => setCategoryId(v === "none" ? "" : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No category</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Subject</Label>

@@ -30,6 +30,9 @@ export async function GET(req: Request) {
       },
       quizzes: true,
       storeAssignments: true,
+      // HR-20: the CSV carries the category NAME (ids are branch-specific and
+      // never travel — the import resolves by name within the target org).
+      category: { select: { name: true } },
     },
     orderBy: { createdAt: "asc" },
   })

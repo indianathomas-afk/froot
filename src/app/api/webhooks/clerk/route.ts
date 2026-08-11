@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { slugify } from "@/lib/utils"
 import { getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
 import { ensureStarterTemplateTypes } from "@/lib/template-types"
+import { ensureStarterTrainingCategories } from "@/lib/training-categories"
 
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
@@ -54,6 +55,10 @@ export async function POST(req: Request) {
     // the template form has nothing to pick and a new org cannot create a
     // template at all. Idempotent — see src/lib/template-types.ts.
     await ensureStarterTemplateTypes(row.id)
+    // HR-20: same shape for training categories — a convenience rather than
+    // load-bearing (category is optional), seeded here so new orgs start with
+    // the offered defaults. Idempotent — see src/lib/training-categories.ts.
+    await ensureStarterTrainingCategories(row.id)
   }
 
   if (type === "organization.updated") {
@@ -88,6 +93,8 @@ export async function POST(req: Request) {
     // rather than organization.created. The helper is idempotent, so the
     // duplicate call on the normal ordering costs one count query.
     await ensureStarterTemplateTypes(org.id)
+    // HR-20: training categories, same reasoning as above.
+    await ensureStarterTrainingCategories(org.id)
 
     // "org:manager" IS UNREACHABLE ON THE PRODUCTION CLERK INSTANCE and is a
     // forward-compatible fallback, not the manager path. Verified 2026-08-03:
