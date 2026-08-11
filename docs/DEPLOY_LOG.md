@@ -46,6 +46,18 @@ Deploy verification: 2026-07-02T22:00:05Z
   promotion entry reads) and the HR-21 docs commit, which cannot carry
   its own SHA and resolves as the commit that added this line
   (`git log --oneline -- docs/DEPLOY_LOG.md`).
+- **Added 2026-08-11 (HR-22 build session).** The next real PRODUCTION
+  promotion's entry must also name this session's two staging commits:
+  `bd63da7` (HR-22 work — bulk assign route + recipients endpoint under
+  `api/hr/training/assignments/bulk`, the Bulk Assign dialog in HR-21's shared
+  ModuleActions slot, and `skipDuplicates: true` retrofitted onto the
+  single-assign POST; **no migration** — `dueDate` and HR-20's (module × staff)
+  unique constraint both already existed. Not docs-only; listed so this list
+  stays the one complete place the promotion entry reads) and the HR-22 docs
+  commit, which cannot carry its own SHA and resolves as the commit that added
+  this line (`git log --oneline -- docs/DEPLOY_LOG.md`). With this, the
+  training trilogy HR-20/21/22 (`0a745c3`, `a56c905`, `bd63da7`) is complete on
+  staging and awaits one promotion.
 - **Preserve-and-mark:** extend this list by dated line; when a promotion
   discharges an item, mark it discharged with the promotion SHA — never
   delete.

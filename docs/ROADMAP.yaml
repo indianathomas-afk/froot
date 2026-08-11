@@ -3401,9 +3401,105 @@ phases:
   - id: HR-22
     track: hr
     size: M
-    status: planned
+    status: in_progress
     title: "Bulk training assignment + due date carry-through"
     notes: >
+      ── AMENDMENT 2026-08-11 (HR-22 build session; work commit "bd63da7";
+      preserve-and-mark — the filed text below stands) ── BUILT this date.
+      Status in_progress until the push reaches Vercel (the CHK-4 "in_progress
+      at SHA" convention, as on HR-20's and HR-21's rows). No schema change and
+      no database queries: dueDate and HR-20's (module x staff) unique
+      constraint both already existed, and R-d rules the recipient population by
+      predicate, not by count.
+      SHIPPED: POST /api/hr/training/assignments/bulk (with shared.ts) and GET
+      .../bulk/recipients, both behind requireHrTrainingManageAccess (R-e —
+      ADMIN + store-scoped MANAGER, STORE 403s at the shared guard; zero
+      registry edits, PERM-5C's boundary comment untouched, /hr/training's
+      ADMIN-only page gate untouched per R-c). `bulk` as a static sibling of
+      `[id]` follows inventory/ingredients/bulk and inventory/sales-items/bulk.
+      RESPONSE SHAPE AS SHIPPED — five MUTUALLY EXCLUSIVE buckets over
+      `requested`, the deduplicated roster the request NAMES after expansion:
+      { moduleId, moduleTitle, dueDate, requested, assigned, alreadyAssigned,
+      terminated, notApplicable, corporateExcluded, concurrentlyAssigned,
+      recipients[] }. Invariant: assigned + alreadyAssigned + terminated +
+      notApplicable + corporateExcluded === requested === recipients.length.
+      `concurrentlyAssigned` sits OUTSIDE the sum by design — a diagnostic
+      annotating alreadyAssigned (nonzero means HR-20's constraint did its job),
+      not a sixth bucket. recipients[] is UNCAPPED: a silent truncation would
+      read as "everyone is accounted for" while hiding who was not.
+      WORKED EXAMPLE, counts summing to input (ADMIN; module appliesTo
+      "selected" -> Downtown + Airport; request = storeIds [Downtown] + three
+      individuals): Downtown expands to 14 (11 store-homed + 3 corporate, whom
+      Square expands to every store); of the 11, one is TERMINATED and four of
+      the ten ACTIVE already hold the module; the three individuals are one
+      corporate member (already inside the 14 — the explicit pick de-dupes and
+      WINS), one Riverside-only member, one ACTIVE Airport member. requested 16
+      = assigned 8 + alreadyAssigned 4 + terminated 1 + notApplicable 1 +
+      corporateExcluded 2.
+      RECIPIENT RULES AS ENFORCED (R-d, every one server-side, never UI-only):
+      ACTIVE-only always; corporate EXCLUDED from store expansion and from a
+      MANAGER's all-in-scope (a manager's scope IS a store expansion — the two
+      rules are stated together so they cannot contradict), INCLUDED in ADMIN's
+      all-in-scope, and always reachable by explicit pick; module isActive +
+      isArchived + applicability; every submitted staff id and store id
+      validated against org ownership AND caller scope (PERM-6's lesson;
+      staff/route.ts:63-84 is the precedent), applied set-wise in one query
+      rather than n+1 findManageableStaffMember calls.
+      RULED AT HARD STOP #1 (Gary, 2026-08-11), recorded so they read as
+      deliberate:
+      (1) EXPLICIT PICK BEATS CORPORATE EXCLUSION — which is how R-d's two
+      halves both hold: out of store expansion, individually selectable.
+      (2) THE STORE PICKER LISTS INACTIVE STORES — deactivating a store does not
+      un-employ the people assigned to it, and hiding it would strand them
+      behind a picker that cannot reach them. The reason is in the code comment,
+      per the same ruling.
+      (3) IDENTITY ERRORS REFUSE, ELIGIBILITY RULES SKIP-AND-REPORT. `requested`
+      is the RESOLVED roster, so an unknown/foreign/out-of-scope id cannot be in
+      it: it fails the whole request before anything is written. Org-foreign and
+      out-of-scope collapse into ONE message so neither leaks which ids exist.
+      That split is what makes the sum trustworthy — nothing that was written
+      down can drop out of the arithmetic.
+      (4) RIDER — THE SUM FAILS LOUDLY. Buckets that do not add up to
+      `requested`, or an `assigned` count disagreeing with what the database
+      says it inserted, return 500 naming the mismatch (requested, sum,
+      classified, rowsInserted, every bucket) and state plainly that the rows
+      were written but the response cannot be trusted to describe them. A number
+      is never quietly reconciled to make the response look right.
+      DISCLOSURE LINE, FINAL WORDING (ruling 6; Gary chose option B at the
+      stop): "Assigning now adds N required items to compliance. Compliance
+      percentages for these N people, and their store rollups, drop immediately
+      — a due date does not hold that back." Plus the conditional second line
+      whenever any recipient has no login: "N of them have no self-service login
+      — a manager records their completions." N is previewed from the recipients
+      endpoint and is ADVISORY; the result panel renders the POST's own named
+      counts rather than a bare success toast. HR-13's semantics are NOT built
+      here — disclosed, not changed.
+      DUE DATE: optional, no invented default (DEBT-59), applied to every
+      created assignment, noon-normalized client-side exactly as
+      staff-training.tsx:156 does it, so a date means the same thing on both
+      assign paths.
+      BOTH VIEWS BY CONSTRUCTION: the entry point is a button inside HR-21's
+      SHARED ModuleActions cluster, so card and list gained it in one edit; the
+      dialog is mounted ONCE for the page and keyed by module id. The button is
+      disabled with its reason on hover for inactive/archived modules — it says
+      what the API would say (409) instead of offering a click that refuses.
+      SINGLE-ASSIGN RETROFIT — OUTCOME, both halves:
+      skipDuplicates: true LANDED on POST /api/hr/training/assignments'
+      createMany, closing the P2002 -> 500 HR-20 knowingly left. Acceptance
+      behaviour on that route is otherwise UNCHANGED.
+      FINDINGS #2/#3 (it accepts INACTIVE modules the UI never offers; it
+      ignores module applicability) RULED TO THEIR OWN ROW — HR-23, filed
+      below, NOT absorbed here (Gary, 2026-08-11). The reason is the
+      interesting half and is recorded rather than assumed: adopting #2/#3
+      alone converts today's loud over-acceptance into a SILENT DROP, and that
+      route's { created, skipped } cannot explain a drop — which is finding #4,
+      and precisely the CHK-3 failure this phase exists to avoid. HR-22 settles
+      the RULE; HR-23 applies rule and response shape together.
+      TRILOGY CLOSED: HR-20 (0a745c3), HR-21 (a56c905), HR-22 (bd63da7) — all
+      three built. The training phase scoped from
+      docs/prompts/2026-08-10_TRAINING_AUDIT.md is complete as scoped; HR-23 is
+      a NEW row, not an unfinished part of it.
+      ── END AMENDMENT; filed text of record follows ──
       FILED 2026-08-10 by the training filing session; third of three rows
       scoped from docs/prompts/2026-08-10_TRAINING_AUDIT.md. Rulings R-a..R-f
       are transcribed on HR-20's row; this row cites them by id.
@@ -3446,6 +3542,42 @@ phases:
       surprise, even if HR-13 slips.
       OUT OF SCOPE, on the row: notification emails (the gate is HR-16's —
       notify.ts is console-only); any HR-13 semantics change.
+
+  - id: HR-23
+    track: hr
+    size: S
+    status: planned
+    title: "Single-assign path adopts the bulk route's module rules + a response that sums to its input"
+    notes: >
+      FILED 2026-08-11 by the HR-22 build session, at Gary's ruling at that
+      session's HARD STOP #1. Carries audit findings #2, #3 and #4 from
+      docs/prompts/2026-08-10_TRAINING_AUDIT.md (§4.2, §4.3, §9) — filed as ONE
+      row because they cannot safely ship apart, which is the whole reason this
+      is a row and not a two-line rider on HR-22.
+      SCOPE: POST /api/hr/training/assignments — the /staff/[id] Training tab's
+      assign path — and staff-training.tsx, which must render the reasons the
+      new response gives.
+      #2: the route accepts INACTIVE modules the UI never offers; its module
+      filter is isArchived-only (route.ts:35-38) while the page's assignable
+      list requires isActive (staff page.tsx:394).
+      #3: the route ignores module applicability (appliesTo / store
+      assignments); the offer list intersects them with the member's stores
+      (staff page.tsx:396-399).
+      #4, and the reason the other two waited for this row: the response is
+      { created, skipped }, so ids dropped by the route's own filter vanish from
+      its arithmetic — created + skipped != requested, and nothing says why.
+      TIGHTENING #2/#3 WITHOUT #4 TRADES LOUD OVER-ACCEPTANCE FOR SILENT
+      DROPPING (Gary, 2026-08-11): today an odd id is wrongly accepted and
+      visible; tightened without a response that can explain a drop, it would be
+      wrongly refused and INVISIBLE. That is the CHK-3 failure mode exactly.
+      THE RULE IS ALREADY SETTLED — do not re-open it. HR-22's bulk route
+      (src/app/api/hr/training/assignments/bulk) enforces isActive + isArchived
+      + applicability and REFUSES (409) rather than dropping; its five-bucket
+      response and its loud sum invariant are the pattern to copy. This row is
+      the retrofit, not a fresh decision.
+      NOT A LIVE RISK MEANWHILE: neither gap is exploitable beyond ADMIN/MANAGER
+      doing odd things inside their own org, and the UI offers neither (audit
+      §4.2) — which is why HR-22 shipped without waiting for it.
 
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
