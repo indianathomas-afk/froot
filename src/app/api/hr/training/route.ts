@@ -41,6 +41,9 @@ const createSchema = z.object({
 })
 
 const moduleInclude = {
+  // HR-21: the joined category is what both page views render (name + colour
+  // via preset key) — a rename or recolor propagates through this join alone.
+  category: { select: { id: true, name: true, colorKey: true } },
   lessons: {
     orderBy: { orderIndex: "asc" as const },
     include: { resources: { orderBy: { orderIndex: "asc" as const } } },
