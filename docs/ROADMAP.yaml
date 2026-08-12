@@ -4071,7 +4071,7 @@ phases:
     track: hr
     size: S
     status: in_progress
-    commits: ["142e858", "340f99b"]
+    commits: ["142e858", "340f99b", "e9a717c"]
     title: "Training module descriptions are rich text — Tiptap editor, one sanitizer allowlist, three write paths"
     notes: >
       BUILT 2026-08-12 (work commit "142e858"). Status in_progress until the
@@ -4194,19 +4194,50 @@ phases:
       BUILD WAS NEVER GOING TO CATCH IT. Every /api/hr/training request failed
       with "Failed to load external module jsdom". isomorphic-dompurify loads
       jsdom, whose dynamic requires the bundler cannot trace, so the traced
-      function shipped without it. Fixed by adding isomorphic-dompurify to
+      function shipped without it. 340f99b added isomorphic-dompurify to
       serverExternalPackages in next.config.ts — the same treatment unpdf
-      already carries there for the same class of failure (HR-11b, DOMMatrix).
-      THE SHAPE OF THIS FAILURE IS THE POINT: it builds green locally, in CI
-      and on Vercel, and only appears on the first request that reaches the
-      code path. A build gate cannot see it. The HR-28 audit named this exact
-      fallback in advance (§8) precisely because the hazard was visible from
-      the dependency and not from any test — which is the argument for writing
-      down a predicted failure even when it does not occur during the session
-      that predicts it. Whoever next adds a server dependency with a native or
-      dynamically-required backend should assume the same and reach for
-      serverExternalPackages before staging finds it.
-      Audit: docs/prompts/2026-08-12_HR-28_AUDIT.md.
+      already carries there (HR-11b, DOMMatrix).
+      CORRECTION, WRITTEN 2026-08-12 ALONGSIDE "e9a717c" — THE PARAGRAPH ABOVE
+      CLAIMED 340f99b FIXED THIS. IT DID NOT. That claim was committed
+      ("985507f") before any request had reached the new deployment, on the
+      strength of a green build; the runtime logs for
+      dpl_AGvSm4Gner36w4MLoxfFKaAsA9of then showed /api/hr/training still
+      500ing. It is corrected here rather than rewritten above, because what
+      the wrong version recorded — a fix asserted from a build — is the thing
+      worth keeping visible.
+      340f99b DID change the error, and that is how the real cause was found:
+      "Failed to load external module isomorphic-dompurify: ERR_REQUIRE_ESM:
+      require() of ES Module @exodus/bytes/encoding-lite.js from
+      html-encoding-sniffer/lib/html-encoding-sniffer.js". The break is inside
+      JSDOM'S OWN TREE — jsdom@30 depends on html-encoding-sniffer@6
+      (CommonJS), which require()s @exodus/bytes@1 ("type": "module"). No Next
+      config fixes a CJS/ESM boundary inside a dependency, and
+      serverExternalPackages made it WORSE rather than better: being externally
+      required is precisely what forces the runtime require() that throws.
+      FIXED IN "e9a717c" BY REMOVING THE DOM, NOT BY CONFIGURING AROUND IT.
+      isomorphic-dompurify is gone and so is jsdom; sanitize-html parses with
+      htmlparser2 and needs no DOM at all. The serverExternalPackages entry was
+      removed with the package — and sanitize-html must NEVER be added there,
+      since bundled, the ESM in its tree resolves at build time and never
+      reaches a runtime require(). Byte-equivalence was PROVEN BEFORE the swap,
+      not asserted after: both implementations run side by side over the
+      audit's cases plus real Tiptap output, 19/19 identical, with one
+      difference found and normalized (sanitize-html emits "<br />" where
+      DOMPurify and Tiptap emit "<br>"; do not reach for `selfClosing: []`
+      instead, which emits "<br></br>" and parses as TWO breaks).
+      THE LESSON IS ABOUT THE GATE, NOT THE LIBRARY, AND IT COST TWO COMMITS TO
+      LEARN. This class of failure builds green locally, in CI and on Vercel,
+      and appears only on the first request that reaches the code path. The
+      audit predicted the hazard (§8) but prescribed the wrong remedy, and the
+      wrong remedy was then reported as a fix on the strength of a build. For a
+      server dependency with a native, dynamically-required or ESM-only
+      backend: prefer a dependency that does not need the shim at all, verify
+      by reading the emitted bundle (is the code INLINED, or is there an
+      external-module reference?), and treat "green build" as saying nothing
+      whatsoever about runtime module loading.
+      Audit: docs/prompts/2026-08-12_HR-28_AUDIT.md — §8's fallback is the part
+      this correction supersedes; the file itself is a claim wholesale and
+      stays unedited.
 
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
