@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { sanitizeRichText } from "@/lib/sanitize-html"
 import { requireHrTrainingAccess } from "../access"
 import { groupTrainingRows, TrainingRowSchema, type TrainingRow } from "../csv"
 
@@ -95,7 +96,14 @@ export async function POST(req: Request) {
             categoryId: m.categoryName
               ? (categoriesByLower.get(m.categoryName.toLowerCase())?.id ?? null)
               : null,
-            description: m.description,
+            // HR-28: the THIRD write path, and the one that never touches the
+            // editor — a CSV cell reaches the column directly. Without this,
+            // "the database never stores unsanitized HTML" would be false for
+            // any imported module. A plain-text cell passes through verbatim
+            // (sanitizeRichText only sanitizes what is tag-shaped), so ordinary
+            // imports are byte-for-byte unchanged; a cell carrying markup is
+            // held to the same allowlist as the builder.
+            description: sanitizeRichText(m.description),
             appliesTo: "all",
             isActive: false, // imported modules arrive inactive; review before going live
             lessons: { create: m.lessons },

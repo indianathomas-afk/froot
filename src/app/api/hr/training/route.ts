@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { sanitizeRichText } from "@/lib/sanitize-html"
 import {
   isOrgTrainingBlobUrl,
   requireHrTrainingAccess,
@@ -136,7 +137,11 @@ export async function POST(req: Request) {
       title: body.title,
       subject: body.subject || null,
       categoryId: body.categoryId || null,
-      description: body.description || null,
+      // HR-28: the description is rich text now, so it is sanitized HERE, on
+      // the way into the column — a payload is just JSON and the client's
+      // cleanliness proves nothing. Also covers duplicate, which re-POSTs the
+      // source module's description through this same route.
+      description: sanitizeRichText(body.description),
       appliesTo: storeIds.length ? "selected" : "all",
       isActive: body.isActive,
       lessons: {

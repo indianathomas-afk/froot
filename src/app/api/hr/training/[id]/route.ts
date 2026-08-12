@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { sanitizeRichText } from "@/lib/sanitize-html"
 import { requireHrTrainingAccess } from "../access"
 import { quizSchema } from "../schemas"
 
@@ -170,7 +171,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           title: data.title,
           subject: data.subject || null,
           categoryId: data.categoryId || null,
-          description: data.description || null,
+          // HR-28: sanitized on the way into the column, same rule and same
+          // allowlist as the create path.
+          description: sanitizeRichText(data.description),
           appliesTo: storeIds.length ? "selected" : "all",
           ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
           lessons: toCreate.length ? { create: toCreate.map(lessonData) } : undefined,

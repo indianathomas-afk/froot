@@ -7,6 +7,7 @@ import { ArrowLeft, Eye, FileText, GripVertical, HelpCircle, Pencil, Play, Plus,
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { RichTextEditor } from "@/components/ui/rich-text-editor"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -823,7 +824,16 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
               </div>
               <div className="space-y-1.5">
                 <Label>Description</Label>
-                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this module covers and who it's for" rows={3} />
+                {/* HR-28: stores sanitized HTML, not plain text. The payload
+                    shape is unchanged (string | null) — the column is the same
+                    text column it always was, it just holds markup now. A
+                    description written before this change loads as plain text
+                    and keeps its line breaks (see RichTextEditor). */}
+                <RichTextEditor
+                  value={description}
+                  onChange={setDescription}
+                  placeholder="What this module covers and who it's for"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Applies to *</Label>

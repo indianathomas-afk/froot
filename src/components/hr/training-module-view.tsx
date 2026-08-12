@@ -2,6 +2,8 @@ import { format } from "date-fns"
 import { Award, CheckCircle2, FileDown, PlayCircle } from "lucide-react"
 import { z } from "zod"
 import { canonicalYouTubeUrl, youTubeVideoId } from "@/lib/messages"
+import { looksLikeHtml } from "@/lib/rich-text"
+import { sanitizeRichText } from "@/lib/sanitize-html"
 import { quizQuestionSchema } from "@/app/api/hr/training/schemas"
 import { Badge } from "@/components/ui/badge"
 import { LessonCompleteButton } from "./training-lesson-complete-button"
@@ -89,6 +91,15 @@ export function TrainingModuleView({
   const done = lessons.filter((l) => progressByLesson.has(l.id)).length
   const pct = lessons.length > 0 ? Math.round((done / lessons.length) * 100) : 0
 
+  // HR-28: the description holds sanitized HTML from the builder's rich-text
+  // editor. Sanitized AGAIN here, with the same allowlist, and that is not
+  // belt-and-braces theatre: rows written before HR-28 were never sanitized at
+  // all, and this renderer serves a shared store iPad (HR-24) as well as the
+  // trainee. The write gate protects what arrives; this protects what is
+  // already there.
+  const descriptionHtml =
+    description && looksLikeHtml(description) ? sanitizeRichText(description) : null
+
   const quizPassed = mode.kind === "execute" && mode.quizAttempts.some((a) => a.status === "Passed")
   const pendingReview =
     mode.kind === "execute" && mode.quizAttempts.some((a) => a.status === "PendingReview")
@@ -97,9 +108,27 @@ export function TrainingModuleView({
   return (
     <>
       <h1 className="text-xl font-bold text-[var(--color-foreground)]">{title}</h1>
-      {description && (
-        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">{description}</p>
-      )}
+      {descriptionHtml ? (
+        // Tailwind's preflight strips list markers and margins, so a <ul> would
+        // render as unindented run-on lines — the jumbling this row exists to
+        // fix, just with markup behind it. The classes below are the styling
+        // the sanitizer's tag set needs, and nothing more — and they are the
+        // same list the editor applies to its own content, so the builder is a
+        // true preview of this. [&_li_p]:mb-0 matters because Tiptap wraps list
+        // item content in a <p>, which would otherwise take the paragraph
+        // spacing and blow the bullets apart.
+        <div
+          className="text-sm text-[var(--color-muted-foreground)] mt-1 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_li]:mb-0.5 [&_li_p]:mb-0"
+          dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+        />
+      ) : description ? (
+        // Legacy plain text, written before HR-28. whitespace-pre-wrap so it at
+        // least keeps the line breaks its author typed; it gains real
+        // formatting the first time someone opens and saves the module.
+        <p className="text-sm text-[var(--color-muted-foreground)] mt-1 whitespace-pre-wrap">
+          {description}
+        </p>
+      ) : null}
       {/* Progress is a property of an ASSIGNMENT. Read mode has none, so the
           bar would sit at 0/N forever and read as "you haven't started". */}
       {mode.kind === "read" ? (
