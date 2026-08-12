@@ -77,6 +77,29 @@ Deploy verification: 2026-07-02T22:00:05Z
   promotion entry: HR-25 is an **access-control change on a confidential-content
   surface** — completed training stops being served its attached files — so the
   entry should say so rather than list it as a training tweak.
+- **Added 2026-08-11 (HR-24 build session).** The next real PRODUCTION
+  promotion's entry must also name this session's two staging commits:
+  `0b1cf51` (HR-24 work — STORE read access to the training library: a new
+  `requireHrTrainingReadAccess` guard and a new trimmed `GET
+  /api/hr/training/library` route, `canReadTrainingModule` +
+  `STORE_LIBRARY_WHERE` in `lib/training.ts`, a third `{kind:"read"}` mode in
+  `TrainingModuleView`, STORE admitted to the `/hr` Training card, the
+  `/hr/training` page and the HR-17 preview page, UI suppression of every
+  authoring affordance behind a `canManage` prop, and the ROW #1 rider (the
+  `/hr` Staff Directory card is now ADMIN||MANAGER). **No migration** — no
+  schema change and no database queries in that session; its two measurements
+  were run by Gary in the Neon console. **All 27 existing training guard call
+  sites untouched.** Not docs-only; listed so this list stays the one complete
+  place the promotion entry reads) and the HR-24 docs commit, which cannot
+  carry its own SHA and resolves as the commit that added this line
+  (`git log --oneline -- docs/DEPLOY_LOG.md`).
+  **PROMOTION ORDER, AND THIS IS THE ONE THING THAT MUST NOT BE MISSED:
+  HR-24 (`0b1cf51`) MUST NOT REACH PRODUCTION AHEAD OF HR-25 (`f5d2883`).**
+  HR-25 closes what a completed employee is served; HR-24 widens who can read
+  module content. Both are on staging and neither is on production, so a single
+  promotion carrying both — or HR-25 first — are the only correct orders.
+  Like HR-25, HR-24 is an **access-control change on a confidential-content
+  surface** and the entry should say so rather than list it as a training tweak.
 - **Preserve-and-mark:** extend this list by dated line; when a promotion
   discharges an item, mark it discharged with the promotion SHA — never
   delete.
