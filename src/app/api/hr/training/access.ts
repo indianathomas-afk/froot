@@ -47,10 +47,20 @@ export async function requireHrTrainingAccess() {
 // read-only needed to move to open a read path — the guards were already split
 // along the line the feature needed.
 //
-// MANAGER IS ABSENT ON PURPOSE and this is not an oversight: MANAGER page access
-// to the training library is its own future row (HR-24 settled item 6). Folding
-// it in here would decide it silently. MANAGER's existing reach — the HR-17
-// preview for modules applying to their stores — is untouched.
+// HR-26 (Gary, 2026-08-12) ADMITTED MANAGER — the row HR-24's comment here said
+// this would take. MANAGER had LESS training access than STORE, which is
+// backwards: a manager reads the library and assigns from it. The tier that
+// existed was extended rather than a third one built.
+//
+// MANAGER'S SCOPE IS NARROWER THAN STORE'S AND THAT IS NOT AN INCONSISTENCY —
+// see the R-h note in lib/training.ts. `storeIds` is returned for that reason,
+// and callers must pass it to canReadTrainingModule; ADMIN and STORE ignore it.
+//
+// STILL NOT A WRITE TIER. This guard backs one route (GET .../library) and the
+// two read PAGES. Everything a manager may WRITE goes through
+// requireHrTrainingManageAccess, which already admitted store-scoped MANAGER
+// before this session and is untouched by it; all sixteen authoring routes stay
+// on requireHrTrainingAccess above, also untouched.
 //
 // STAFF is absent because staff read training through /my/training, scoped to
 // their own assignments by a stricter policy. This tier is the library, not an
@@ -77,11 +87,17 @@ export async function requireHrTrainingReadAccess() {
   }
 
   const role = viewer.dbUser?.role
-  if (role !== "ADMIN" && role !== "STORE") {
-    return fail("Admin or Store access required", 403)
+  if (role !== "ADMIN" && role !== "MANAGER" && role !== "STORE") {
+    return fail("Admin, Manager or Store access required", 403)
   }
 
-  return { ok: true as const, org: viewer.org, dbUser: viewer.dbUser!, role }
+  return {
+    ok: true as const,
+    org: viewer.org,
+    dbUser: viewer.dbUser!,
+    role,
+    storeIds: viewer.dbUser!.storeAssignments.map((a) => a.storeId),
+  }
 }
 
 // HR-7 execution tier: assignment CRUD and attested completion are

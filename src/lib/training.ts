@@ -54,22 +54,80 @@ export function selfFilesServed(assignment: { status: string; certifiedAt: Date 
 // on its own row, with evidence.
 //
 // WHAT IS LEFT, THEN, IS LIFECYCLE, and it is the whole rule: ADMIN owns the
-// builder and must reach drafts and archives; STORE reads the library and has no
-// business with either. TWO EXPRESSIONS OF ONE RULE KEPT ADJACENT, the HR-25
-// pattern directly above — the fragment narrows the list query, the function is
-// asked per module (the list re-filters through it, and the read surface asks it
-// before rendering). MANAGER and STAFF are absent on purpose: MANAGER page
-// access is its own future row (settled item 6) and STAFF reads through
-// /my/training with its own assignment-scoped policy.
+// builder and must reach drafts and archives; a reader reads the live library
+// and has no business with either. TWO EXPRESSIONS OF ONE RULE KEPT ADJACENT,
+// the HR-25 pattern directly above — the fragment narrows the list query, the
+// function is asked per module (the list re-filters through it, and the read
+// surface asks it before rendering).
+//
+// ── HR-26: MANAGER JOINS THE READ TIER, STORE-SCOPED ─────────────────────────
+// Gary, 2026-08-12. MANAGER reads the same library and additionally assigns from
+// it. The rule gains ONE input — the manager's stores — and it is added HERE
+// rather than as a role test in the pages, which is the whole reason this
+// function exists.
+//
+// MANAGER IS NARROWER THAN STORE, DELIBERATELY, AND R-h(i) IS NOT BEING
+// REVERSED. R-h's org-wide ruling rests on appliesTo never having been a
+// visibility filter — true for STORE, and false for MANAGER, which HR-17 has
+// narrowed by exactly this OR clause since 2026-07-25 (preview/page.tsx) as has
+// the manage tier of the resource download route. Giving MANAGER an org-wide
+// library would WIDEN manager read reach beyond what HR-17 settled; store
+// scoping preserves it. It also buys the chain LIST ⊆ PREVIEW ⊆ DOWNLOAD: no
+// row can appear whose Read 404s, and no file link can appear that the download
+// route refuses — which is what lets HR-26 answer resourcesAvailable true for
+// MANAGER without touching a guard.
+//
+// STAFF is still absent on purpose: staff read through /my/training under their
+// own assignment-scoped policy. This tier is the library, not an assignment.
 export const STORE_LIBRARY_WHERE = { isActive: true, isArchived: false }
 
+// The query-shaped twin of the MANAGER branch below, the same way
+// STORE_LIBRARY_WHERE is the twin of the STORE branch. Lifecycle AND
+// applicability — a manager reads the live library for their own stores.
+export function managerLibraryWhere(storeIds: string[]) {
+  return {
+    ...STORE_LIBRARY_WHERE,
+    OR: [
+      { appliesTo: "all" },
+      { storeAssignments: { some: { storeId: { in: storeIds } } } },
+    ],
+  }
+}
+
+// storeAssignments and appliesTo are REQUIRED on the input rather than optional:
+// a caller that cannot supply them cannot ask this question about a MANAGER, and
+// an optional field would silently answer "not applicable" for a module whose
+// assignments simply were not selected.
+export type ReadableTrainingModule = {
+  organizationId: string
+  isActive: boolean
+  isArchived: boolean
+  appliesTo: string
+  storeAssignments: { storeId: string }[]
+}
+
+export type TrainingModuleReader = {
+  orgDbId: string
+  role: string | null
+  storeIds: string[]
+}
+
 export function canReadTrainingModule(
-  trainingModule: { organizationId: string; isActive: boolean; isArchived: boolean },
-  viewer: { orgDbId: string; role: string | null }
+  trainingModule: ReadableTrainingModule,
+  viewer: TrainingModuleReader
 ): boolean {
   if (trainingModule.organizationId !== viewer.orgDbId) return false
+  // The builder owns drafts and archives; every other reader gets the live
+  // library and nothing else.
   if (viewer.role === "ADMIN") return true
-  if (viewer.role === "STORE") return trainingModule.isActive && !trainingModule.isArchived
+  if (!trainingModule.isActive || trainingModule.isArchived) return false
+  if (viewer.role === "STORE") return true
+  if (viewer.role === "MANAGER") {
+    return (
+      trainingModule.appliesTo === "all" ||
+      trainingModule.storeAssignments.some((a) => viewer.storeIds.includes(a.storeId))
+    )
+  }
   return false
 }
 

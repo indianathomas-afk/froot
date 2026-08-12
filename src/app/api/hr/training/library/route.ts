@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { STORE_LIBRARY_WHERE, canReadTrainingModule } from "@/lib/training"
+import { STORE_LIBRARY_WHERE, canReadTrainingModule, managerLibraryWhere } from "@/lib/training"
 import { requireHrTrainingReadAccess } from "../access"
 
 // GET /api/hr/training/library — HR-24. The READ-ONLY module list, for the
 // training surface a STORE login reaches from /hr. ADMIN may call it too (the
 // guard admits both), but the builder page keeps using GET /api/hr/training,
 // which returns the full authoring payload Duplicate needs.
+//
+// HR-26 added MANAGER, who reads this route for the same reason STORE does —
+// the trimmed payload, not the gate — and then assigns from what it returns.
 //
 // A NEW ROUTE RATHER THAN A WIDENED GUARD ON GET /api/hr/training, AND THE
 // REASON IS THE PAYLOAD, NOT THE GATE. That route includes `quizzes: true` and
@@ -24,15 +27,20 @@ import { requireHrTrainingReadAccess } from "../access"
 export async function GET() {
   const access = await requireHrTrainingReadAccess()
   if (!access.ok) return access.response
-  const { org, role } = access
+  const { org, role, storeIds } = access
 
-  // R-h (i), ORG-WIDE: no store-applicability filter. The only narrowing is
-  // lifecycle, and it is the policy function's rule expressed as a query —
-  // ADMIN sees drafts and archives, STORE sees the live library.
+  // The policy function's rule expressed as a query, per role. ADMIN sees drafts
+  // and archives; STORE gets R-h (i) — the live library, ORG-WIDE, no
+  // store-applicability filter; MANAGER gets the live library narrowed by
+  // applicability (HR-26, and the reasoning is on managerLibraryWhere).
   const modules = await prisma.trainingModule.findMany({
     where: {
       organizationId: org.id,
-      ...(role === "ADMIN" ? {} : STORE_LIBRARY_WHERE),
+      ...(role === "ADMIN"
+        ? {}
+        : role === "MANAGER"
+          ? managerLibraryWhere(storeIds)
+          : STORE_LIBRARY_WHERE),
     },
     select: {
       id: true,
@@ -45,6 +53,10 @@ export async function GET() {
       organizationId: true,
       category: { select: { id: true, name: true, colorKey: true } },
       quizzes: { select: { passThreshold: true, questions: true } },
+      // HR-26: the ids the MANAGER branch of canReadTrainingModule needs. Store
+      // ids are org-internal and NOT part of the response below — the row still
+      // carries only storeCount, from _count.
+      storeAssignments: { select: { storeId: true } },
       _count: { select: { lessons: true, storeAssignments: true } },
     },
     orderBy: { createdAt: "asc" },
@@ -55,7 +67,7 @@ export async function GET() {
   // one rule, so the list is re-filtered through the function. If they ever
   // disagree, the function wins and the stricter answer is the one that ships.
   const readable = modules.filter((m) =>
-    canReadTrainingModule(m, { orgDbId: org.id, role })
+    canReadTrainingModule(m, { orgDbId: org.id, role, storeIds })
   )
 
   return NextResponse.json(

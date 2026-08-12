@@ -167,36 +167,56 @@ function CategoryBadge({ category }: { category: { name: string; colorKey: strin
 // must not differ in available actions between views") holds by construction
 // because neither view composes its own. HR-24 puts the STORE affordance in
 // the same cluster for the same reason: one place to add an action is one
-// place it can be missing from.
+// place it can be missing from. HR-26 adds MANAGER's Assign here and nowhere
+// else, which is what makes it appear in card and list views at once.
 function ModuleActions({
   module,
   canManage,
+  canAssign,
   onDuplicate,
   onBulkAssign,
 }: {
   module: ListModule
   canManage: boolean
+  canAssign: boolean
   onDuplicate: (m: ListModule) => void
   onBulkAssign: (m: ListModule) => void
 }) {
-  // HR-24: the read tier's only action. Every authoring affordance below is
-  // hidden, and hidden is all this is — the routes behind them refuse STORE
-  // on their own, unchanged by this session.
+  // HR-22. The bulk route REFUSES an inactive or archived module (409) rather
+  // than dropping the id silently, so the button says the same thing the API
+  // would: disabled, with the reason on hover. Only ADMIN can see a module in
+  // either state — the read tiers are served the live library — so for MANAGER
+  // this is always enabled, and it is kept role-blind rather than special-cased.
+  const assignable = module.isActive && !module.isArchived
+  const assignButton = canAssign ? (
+    <button
+      onClick={() => onBulkAssign(module)}
+      disabled={!assignable}
+      title={assignable ? undefined : module.isArchived ? "Archived modules can no longer be assigned" : "Activate this module before assigning it"}
+      className="flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 hover:bg-[var(--color-accent)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+    >
+      <UsersRound className="h-3 w-3" /> Assign
+    </button>
+  ) : null
+
+  // HR-24: the read tier's actions. Every authoring affordance below is hidden,
+  // and hidden is all this is — the routes behind them refuse a non-ADMIN on
+  // their own, unchanged by this session. HR-26: a MANAGER reader also assigns,
+  // so Read and Assign travel together for that tier.
   if (!canManage) {
     return (
-      <Link
-        href={`/hr/training/${module.id}/preview`}
-        className="inline-flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 hover:bg-[var(--color-accent)] transition-colors"
-      >
-        <BookOpen className="h-3 w-3" /> Read
-      </Link>
+      <div className="flex items-center gap-1">
+        <Link
+          href={`/hr/training/${module.id}/preview`}
+          className="inline-flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 hover:bg-[var(--color-accent)] transition-colors"
+        >
+          <BookOpen className="h-3 w-3" /> Read
+        </Link>
+        {assignButton}
+      </div>
     )
   }
 
-  // HR-22. The bulk route REFUSES an inactive or archived module (409) rather
-  // than dropping the id silently, so the button says the same thing the API
-  // would: disabled, with the reason on hover.
-  const assignable = module.isActive && !module.isArchived
   return (
     <div className="flex items-center gap-1">
       <Link href={`/hr/training/${module.id}/edit`}>
@@ -209,14 +229,7 @@ function ModuleActions({
       </button>
       {/* HR-22: the Bulk Assign entry point — inside this shared cluster, so it
           appears in card and list views at once. */}
-      <button
-        onClick={() => onBulkAssign(module)}
-        disabled={!assignable}
-        title={assignable ? undefined : module.isArchived ? "Archived modules can no longer be assigned" : "Activate this module before assigning it"}
-        className="flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 hover:bg-[var(--color-accent)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-      >
-        <UsersRound className="h-3 w-3" /> Assign
-      </button>
+      {assignButton}
     </div>
   )
 }
@@ -224,10 +237,21 @@ function ModuleActions({
 // HR-24 (Gary, 2026-08-11). canManage follows /hr/documents' `isAdmin` prop
 // exactly: it decides which affordances RENDER, and nothing else. The server
 // gates are unchanged and independent — sixteen authoring routes still refuse
-// STORE at requireHrTrainingAccess, eleven assignment routes at
-// requireHrTrainingManageAccess. If this prop were wrong in the permissive
+// non-ADMINs at requireHrTrainingAccess, eleven assignment routes refuse STORE
+// at requireHrTrainingManageAccess. If either prop were wrong in the permissive
 // direction, every button it revealed would still 403.
-export default function TrainingClient({ canManage }: { canManage: boolean }) {
+//
+// HR-26 (Gary, 2026-08-12) added canAssign as a SECOND flag rather than
+// widening the first, because three tiers with three action sets do not fit in
+// one boolean — the reasoning is on the page shell. Neither flag carries a role
+// name into this file: everything below asks what the viewer may DO.
+export default function TrainingClient({
+  canManage,
+  canAssign,
+}: {
+  canManage: boolean
+  canAssign: boolean
+}) {
   const [modules, setModules] = useState<ListModule[]>([])
   const [categories, setCategories] = useState<TrainingCategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -244,11 +268,13 @@ export default function TrainingClient({ canManage }: { canManage: boolean }) {
   const fullModules = useRef<Map<string, TrainingModule>>(new Map())
 
   // TWO ROUTES, ONE VIEW MODEL. ADMIN reads the builder payload (Duplicate
-  // needs it); STORE reads /api/hr/training/library, which never selects a
-  // quiz question or a resource fileUrl in the first place — the answer key
-  // and the private blob URLs cannot reach a store iPad because they are not
-  // in the response. Both are mapped to ListModule, so everything below this
-  // line is role-blind.
+  // needs it); every other tier reads /api/hr/training/library, which never
+  // selects a quiz question or a resource fileUrl in the first place — the
+  // answer key and the private blob URLs cannot reach a store iPad or a
+  // manager's browser because they are not in the response. Both are mapped to
+  // ListModule, so everything below this line is role-blind. The library route
+  // also applies each reader's own scope, so a MANAGER's list is their stores'
+  // live modules and nothing this file does can widen it.
   async function load() {
     try {
       const res = await fetch(canManage ? "/api/hr/training" : "/api/hr/training/library")
@@ -271,9 +297,10 @@ export default function TrainingClient({ canManage }: { canManage: boolean }) {
   // the mount effect. Same pattern as the types fetch in templates-client.tsx.
   //
   // ADMIN only — GET /api/hr/training/categories is one of the sixteen ADMIN
-  // routes and stays that way. STORE's chips are derived from the categories
+  // routes and stays that way. A reader's chips are derived from the categories
   // actually present in its own list (chipCategories below), the same shape
-  // /hr/documents uses for its filter row.
+  // /hr/documents uses for its filter row. HR-26: that holds for MANAGER too,
+  // which is why admitting managers to this page touches no category route.
   async function loadCategories() {
     if (!canManage) return
     await fetch("/api/hr/training/categories")
@@ -446,7 +473,9 @@ export default function TrainingClient({ canManage }: { canManage: boolean }) {
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
             {canManage
               ? "Build lesson-based training with videos, files, and a quiz"
-              : "Read the procedures, lessons, and videos for your store"}
+              : canAssign
+                ? "Read the training for your stores and assign it to your team"
+                : "Read the procedures, lessons, and videos for your store"}
           </p>
         </div>
         {/* HR-24: the whole authoring cluster. HR-21's note that there is "no
@@ -636,8 +665,13 @@ export default function TrainingClient({ canManage }: { canManage: boolean }) {
                here is a person, not a button. */
             <>
               <p className="font-medium text-[var(--color-foreground)] mb-1">No training modules yet</p>
+              {/* HR-26: a manager's library is scoped to their own stores, so
+                  the sentence has to be plural and has to say why the list can
+                  be empty when modules exist elsewhere in the org. */}
               <p className="text-sm text-[var(--color-muted-foreground)]">
-                Training published for your store will appear here.
+                {canAssign
+                  ? "Training published for your stores will appear here, ready to assign."
+                  : "Training published for your store will appear here."}
               </p>
             </>
           ) : (
@@ -706,7 +740,7 @@ export default function TrainingClient({ canManage }: { canManage: boolean }) {
                     {contentSummary(m)}
                   </p>
 
-                  <ModuleActions module={m} canManage={canManage} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
+                  <ModuleActions module={m} canManage={canManage} canAssign={canAssign} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
                 </div>
               ))}
             </div>
@@ -762,7 +796,7 @@ export default function TrainingClient({ canManage }: { canManage: boolean }) {
                         </td>
                       )}
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <ModuleActions module={m} canManage={canManage} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
+                        <ModuleActions module={m} canManage={canManage} canAssign={canAssign} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
                       </td>
                     </tr>
                   ))}
@@ -775,27 +809,38 @@ export default function TrainingClient({ canManage }: { canManage: boolean }) {
 
       {/* HR-22. Rendered ONCE for the page, driven by the shared action
           cluster — so card and list open the identical dialog, not two
-          copies that can drift. HR-24: both dialogs are authoring surfaces
-          and are not mounted at all for the read tier — nothing to open, and
-          nothing fetching from an ADMIN route in the background. */}
-      {canManage && (
-        <>
-          <BulkAssignDialog
-            key={bulkAssignFor?.id ?? "none"}
-            module={bulkAssignFor}
-            onClose={() => setBulkAssignFor(null)}
-            onAssigned={load}
-          />
+          copies that can drift. HR-24 mounted neither for the read tier.
+          HR-26 SPLITS THEM, which is the second flag earning its keep: bulk
+          assign follows canAssign, category management stays ADMIN's.
+          A MANAGER never mounts CategoryManagerDialog — it is an authoring
+          surface over GET/POST/PATCH/DELETE /api/hr/training/categories, all
+          five of which are requireHrTrainingAccess (ADMIN) and stay that way.
+          Category badges and filter chips are READ and both tiers keep them.
 
-          <CategoryManagerDialog
-            open={managerOpen}
-            categories={categories}
-            onClose={() => setManagerOpen(false)}
-            onChanged={async () => {
-              await Promise.all([load(), loadCategories()])
-            }}
-          />
-        </>
+          THE BULK DIALOG NEEDED NO CHANGES FOR MANAGER and that is by HR-22's
+          design, not luck: it computes no rule. Stores, staff and eligibility
+          all arrive pre-scoped from GET .../bulk/recipients under the same
+          guard the write uses, and caller.isAdmin is stated by the server so
+          even the preview count is the server's reading. What the picker
+          offers is what the write will accept. */}
+      {canAssign && (
+        <BulkAssignDialog
+          key={bulkAssignFor?.id ?? "none"}
+          module={bulkAssignFor}
+          onClose={() => setBulkAssignFor(null)}
+          onAssigned={load}
+        />
+      )}
+
+      {canManage && (
+        <CategoryManagerDialog
+          open={managerOpen}
+          categories={categories}
+          onClose={() => setManagerOpen(false)}
+          onChanged={async () => {
+            await Promise.all([load(), loadCategories()])
+          }}
+        />
       )}
     </div>
   )

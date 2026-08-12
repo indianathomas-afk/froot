@@ -114,12 +114,13 @@ export default async function HrPage() {
           </Link>
         )}
         {/* HR-24: STORE joins ADMIN here — the card is the first of the three
-            gates a STORE login must pass to reach the library (card, page,
-            data route). The copy branches because the surfaces genuinely
-            differ: ADMIN gets the builder, STORE gets a reading surface.
-            MANAGER is deliberately unchanged (settled item 6 — MANAGER page
-            access is its own future row). */}
-        {(dbUser?.role === "ADMIN" || dbUser?.role === "STORE") && (
+            gates a reader must pass to reach the library (card, page, data
+            route). The copy branches because the surfaces genuinely differ.
+            HR-26 added MANAGER, the row HR-24 deferred: a manager had LESS
+            training access than a store device, which is backwards. Three
+            tiers, three sentences — ADMIN builds, MANAGER reads and assigns,
+            STORE reads. */}
+        {(dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER" || dbUser?.role === "STORE") && (
           <Link
             href="/hr/training"
             className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
@@ -131,7 +132,9 @@ export default async function HrPage() {
             <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
               {dbUser?.role === "ADMIN"
                 ? "Build lesson-based training modules with videos, files, and quizzes"
-                : "Read the training modules for your store — procedures, lessons, and videos"}
+                : dbUser?.role === "MANAGER"
+                  ? "Read the training for your stores and assign it to your team"
+                  : "Read the training modules for your store — procedures, lessons, and videos"}
             </p>
           </Link>
         )}
