@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Archive, CheckCircle, Copy, GraduationCap, LayoutGrid, List, ListChecks, Pencil, Plus, Tags, UsersRound } from "lucide-react"
+import { Archive, BookOpen, CheckCircle, Copy, GraduationCap, LayoutGrid, List, ListChecks, Pencil, Plus, Tags, UsersRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { badgePreset } from "@/lib/badge-presets"
 import { TrainingImportButton } from "./training-import-button"
@@ -45,6 +45,9 @@ type TrainingQuiz = {
   questions: unknown[]
 }
 
+// The ADMIN builder payload from GET /api/hr/training — full lessons,
+// resources and quiz rows, because Duplicate clones them client-side. STORE
+// never receives this shape; see ListModule below.
 type TrainingModule = {
   id: string
   title: string
@@ -63,12 +66,54 @@ type TrainingModule = {
   storeAssignments: { storeId: string }[]
 }
 
+// HR-24. THE ONE THING BOTH VIEWS RENDER, for both roles — counts rather than
+// content, which is exactly what GET /api/hr/training/library returns and what
+// the ADMIN payload is mapped down to. Keeping one view model is what makes
+// HR-21's parity rule hold across roles as well as across card/list: there is
+// no field a STORE row could be missing, because neither layout can read one.
+type ListModule = {
+  id: string
+  title: string
+  subject: string | null
+  categoryId: string | null
+  category: { id: string; name: string; colorKey: string } | null
+  appliesTo: string
+  isActive: boolean
+  isArchived: boolean
+  lessonCount: number
+  storeCount: number
+  quizQuestionCount: number
+  quizPassThreshold: number | null
+}
+
+function toListModule(m: TrainingModule): ListModule {
+  const quiz = m.quizzes[0]
+  return {
+    id: m.id,
+    title: m.title,
+    subject: m.subject,
+    categoryId: m.categoryId,
+    category: m.category,
+    appliesTo: m.appliesTo,
+    isActive: m.isActive,
+    isArchived: m.isArchived,
+    lessonCount: m.lessons.length,
+    storeCount: m.storeAssignments.length,
+    quizQuestionCount: quiz ? (quiz.questions ?? []).length : 0,
+    quizPassThreshold: quiz ? quiz.passThreshold : null,
+  }
+}
+
 type Tab = "active" | "inactive" | "archived"
 type Layout = "card" | "list"
 
 // HR-21 (R-f): the card/list preference, per browser. localStorage outlives
-// logout (UX-2's caveat) — accepted on the row: the toggle is cosmetic, and
-// this page is unreachable from a shared-device STORE session.
+// logout (UX-2's caveat) — accepted on the row: the toggle is cosmetic.
+// HR-24 CORRECTED THE SECOND HALF OF THIS NOTE: it used to read "and this page
+// is unreachable from a shared-device STORE session", which stopped being true
+// the day STORE got read access. The acceptance still stands on the first
+// clause alone — a leftover card/list preference on a shared iPad leaks
+// nothing — but the reason it was safe has changed, so the sentence had to.
 const VIEW_STORAGE_KEY = "froot.hr.training.view"
 
 // Chip-filter sentinel for modules with no category. Category ids are cuids,
@@ -79,7 +124,7 @@ const UNCATEGORIZED = "uncategorized"
 // old "Active" tab counted !isArchived and silently held deactivated modules
 // (DEBT-67's pattern). Archived keeps its exact prior meaning (isArchived,
 // regardless of isActive), so nothing visible under Archived moved.
-function inTab(m: TrainingModule, tab: Tab): boolean {
+function inTab(m: ListModule, tab: Tab): boolean {
   if (tab === "archived") return m.isArchived
   if (tab === "inactive") return !m.isArchived && !m.isActive
   return !m.isArchived && m.isActive
@@ -120,16 +165,34 @@ function CategoryBadge({ category }: { category: { name: string; colorKey: strin
 
 // The ONE action cluster, rendered by both views — the parity rule ("a module
 // must not differ in available actions between views") holds by construction
-// because neither view composes its own.
+// because neither view composes its own. HR-24 puts the STORE affordance in
+// the same cluster for the same reason: one place to add an action is one
+// place it can be missing from.
 function ModuleActions({
   module,
+  canManage,
   onDuplicate,
   onBulkAssign,
 }: {
-  module: TrainingModule
-  onDuplicate: (m: TrainingModule) => void
-  onBulkAssign: (m: TrainingModule) => void
+  module: ListModule
+  canManage: boolean
+  onDuplicate: (m: ListModule) => void
+  onBulkAssign: (m: ListModule) => void
 }) {
+  // HR-24: the read tier's only action. Every authoring affordance below is
+  // hidden, and hidden is all this is — the routes behind them refuse STORE
+  // on their own, unchanged by this session.
+  if (!canManage) {
+    return (
+      <Link
+        href={`/hr/training/${module.id}/preview`}
+        className="inline-flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 hover:bg-[var(--color-accent)] transition-colors"
+      >
+        <BookOpen className="h-3 w-3" /> Read
+      </Link>
+    )
+  }
+
   // HR-22. The bulk route REFUSES an inactive or archived module (409) rather
   // than dropping the id silently, so the button says the same thing the API
   // would: disabled, with the reason on hover.
@@ -158,8 +221,14 @@ function ModuleActions({
   )
 }
 
-export default function TrainingClient() {
-  const [modules, setModules] = useState<TrainingModule[]>([])
+// HR-24 (Gary, 2026-08-11). canManage follows /hr/documents' `isAdmin` prop
+// exactly: it decides which affordances RENDER, and nothing else. The server
+// gates are unchanged and independent — sixteen authoring routes still refuse
+// STORE at requireHrTrainingAccess, eleven assignment routes at
+// requireHrTrainingManageAccess. If this prop were wrong in the permissive
+// direction, every button it revealed would still 403.
+export default function TrainingClient({ canManage }: { canManage: boolean }) {
+  const [modules, setModules] = useState<ListModule[]>([])
   const [categories, setCategories] = useState<TrainingCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -168,13 +237,30 @@ export default function TrainingClient() {
   const [layout, setLayout] = useState<Layout>("card")
   const [managerOpen, setManagerOpen] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
-  const [bulkAssignFor, setBulkAssignFor] = useState<TrainingModule | null>(null)
+  const [bulkAssignFor, setBulkAssignFor] = useState<ListModule | null>(null)
+  // Duplicate composes its POST body from lessons, resources and quiz rows, so
+  // it needs the full builder payload — which only ADMIN ever fetches. Held in
+  // a ref rather than state because nothing renders from it.
+  const fullModules = useRef<Map<string, TrainingModule>>(new Map())
 
+  // TWO ROUTES, ONE VIEW MODEL. ADMIN reads the builder payload (Duplicate
+  // needs it); STORE reads /api/hr/training/library, which never selects a
+  // quiz question or a resource fileUrl in the first place — the answer key
+  // and the private blob URLs cannot reach a store iPad because they are not
+  // in the response. Both are mapped to ListModule, so everything below this
+  // line is role-blind.
   async function load() {
     try {
-      const res = await fetch("/api/hr/training")
+      const res = await fetch(canManage ? "/api/hr/training" : "/api/hr/training/library")
       const data = await res.json()
-      setModules(Array.isArray(data) ? data : [])
+      const rows = Array.isArray(data) ? data : []
+      if (canManage) {
+        const full = rows as TrainingModule[]
+        fullModules.current = new Map(full.map((m) => [m.id, m]))
+        setModules(full.map(toListModule))
+      } else {
+        setModules(rows as ListModule[])
+      }
     } finally {
       setLoading(false)
     }
@@ -183,7 +269,13 @@ export default function TrainingClient() {
   // Promise-callback style rather than try/catch, and NOT a stylistic choice:
   // react-hooks/set-state-in-effect rejects a synchronous setState path inside
   // the mount effect. Same pattern as the types fetch in templates-client.tsx.
+  //
+  // ADMIN only — GET /api/hr/training/categories is one of the sixteen ADMIN
+  // routes and stays that way. STORE's chips are derived from the categories
+  // actually present in its own list (chipCategories below), the same shape
+  // /hr/documents uses for its filter row.
   async function loadCategories() {
+    if (!canManage) return
     await fetch("/api/hr/training/categories")
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setCategories(Array.isArray(data) ? data : []))
@@ -227,6 +319,23 @@ export default function TrainingClient() {
         ? m.categoryId === null
         : m.categoryId === categoryFilter
   )
+
+  // HR-24. ADMIN's chips come from the org's taxonomy — every category,
+  // including ones no module uses, because ADMIN manages them. STORE's are
+  // derived from the categories actually present in its own list, which is
+  // /hr/documents' presentCategories rule (documents-client.tsx:57): a filter
+  // for something that cannot be there is not a filter.
+  const presentCategories = Array.from(
+    modules
+      .reduce((acc, m) => {
+        if (m.category) acc.set(m.category.id, m.category)
+        return acc
+      }, new Map<string, { id: string; name: string; colorKey: string }>())
+      .values()
+  ).sort((a, b) => a.name.localeCompare(b.name))
+  const chipCategories: { id: string; name: string; colorKey: string }[] = canManage
+    ? categories
+    : presentCategories
 
   const tabCount = (tab: Tab) => modules.filter((m) => inTab(m, tab)).length
   // Chip counts come from the CURRENT TAB, so a chip's number always matches
@@ -272,7 +381,12 @@ export default function TrainingClient() {
   // Duplicate clones lessons + quiz + resource rows; the resource rows point
   // at the same private blobs (never deleted), so no files are re-uploaded.
   // Note: the copy arrives isActive: false, so it lands under the Inactive tab.
-  async function duplicate(m: TrainingModule) {
+  // HR-24: the row rendered is a ListModule (counts, no content), so the full
+  // builder payload is looked up here. Unreachable without canManage — the
+  // button is not rendered and the map is empty.
+  async function duplicate(row: ListModule) {
+    const m = fullModules.current.get(row.id)
+    if (!m) return
     const quiz = m.quizzes[0]
     await fetch("/api/hr/training", {
       method: "POST",
@@ -307,19 +421,20 @@ export default function TrainingClient() {
   const allVisibleSelected = visible.length > 0 && visible.every((m) => selected.has(m.id))
   const someSelected = selected.size > 0
 
-  function contentSummary(m: TrainingModule) {
-    const quiz = m.quizzes[0]
+  function contentSummary(m: ListModule) {
     return (
       <>
-        {m.lessons.length} lesson{m.lessons.length !== 1 ? "s" : ""}
-        {quiz ? ` · quiz (${(quiz.questions ?? []).length} questions, pass ${quiz.passThreshold}%)` : " · no quiz"}
+        {m.lessonCount} lesson{m.lessonCount !== 1 ? "s" : ""}
+        {m.quizPassThreshold !== null
+          ? ` · quiz (${m.quizQuestionCount} questions, pass ${m.quizPassThreshold}%)`
+          : " · no quiz"}
       </>
     )
   }
 
-  function appliesToText(m: TrainingModule) {
+  function appliesToText(m: ListModule) {
     return m.appliesTo === "selected"
-      ? `${m.storeAssignments.length} store${m.storeAssignments.length !== 1 ? "s" : ""}`
+      ? `${m.storeCount} store${m.storeCount !== 1 ? "s" : ""}`
       : "All stores"
   }
 
@@ -329,39 +444,50 @@ export default function TrainingClient() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Training Modules</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
-            Build lesson-based training with videos, files, and a quiz
+            {canManage
+              ? "Build lesson-based training with videos, files, and a quiz"
+              : "Read the procedures, lessons, and videos for your store"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* HR-21: category management lives here, with the list it
-              categorises — no role check on the button; the page's server
-              shell already gates this surface ADMIN-only. */}
-          <Button variant="outline" onClick={() => setManagerOpen(true)}>
-            <Tags className="h-4 w-4" />
-            Manage Categories
-          </Button>
-          <TrainingExportButton />
-          <TrainingImportButton onImported={() => { load(); loadCategories() }} />
-          <Link href="/hr/training/new">
-            <Button>
-              <Plus className="h-4 w-4" />
-              Create Module
+        {/* HR-24: the whole authoring cluster. HR-21's note that there is "no
+            role check on the button" because the page shell gates the surface
+            ADMIN-only stops being true once STORE can open the page — so the
+            check the shell used to provide is here now, in one place, around
+            all four. */}
+        {canManage && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setManagerOpen(true)}>
+              <Tags className="h-4 w-4" />
+              Manage Categories
             </Button>
-          </Link>
-        </div>
+            <TrainingExportButton />
+            <TrainingImportButton onImported={() => { load(); loadCategories() }} />
+            <Link href="/hr/training/new">
+              <Button>
+                <Plus className="h-4 w-4" />
+                Create Module
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
 
-      {/* Tabs + view toggle */}
+      {/* Tabs + view toggle. HR-24: the tabs are a LIFECYCLE control — Active /
+          Inactive / Archived is the builder's partition of its own drafts, and
+          the read tier is served only live modules, so for STORE all three
+          counts would describe one set. The card/list toggle stays for both:
+          it is how the same list is read on a phone versus a laptop. */}
       <div className="flex items-center gap-2 mb-4">
-        {(["active", "inactive", "archived"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => { setView(tab); setSelected(new Set()) }}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === tab ? "bg-[var(--color-primary)] text-white" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
-          >
-            {TAB_LABELS[tab]} ({tabCount(tab)})
-          </button>
-        ))}
+        {canManage &&
+          (["active", "inactive", "archived"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => { setView(tab); setSelected(new Set()) }}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${view === tab ? "bg-[var(--color-primary)] text-white" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
+            >
+              {TAB_LABELS[tab]} ({tabCount(tab)})
+            </button>
+          ))}
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={() => changeLayout("card")}
@@ -385,7 +511,7 @@ export default function TrainingClient() {
       {/* Category filter chips — composed with the tabs, client-side over the
           already-loaded array; no refetch. Rendered only once the org has
           categories: with none, All and Uncategorized would be the same chip. */}
-      {categories.length > 0 && (
+      {chipCategories.length > 0 && (
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           <button
             onClick={() => setCategoryFilter(null)}
@@ -397,7 +523,7 @@ export default function TrainingClient() {
           >
             All ({inView.length})
           </button>
-          {categories.map((c) => {
+          {chipCategories.map((c) => {
             const on = categoryFilter === c.id
             return (
               <button
@@ -431,7 +557,7 @@ export default function TrainingClient() {
       {/* Bulk action bar — verbs follow the tab (ruled 2026-08-10): Active
           offers Deactivate + Archive, Inactive offers Activate + Archive,
           Archived offers Unarchive. */}
-      {someSelected && (
+      {canManage && someSelected && (
         <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-[var(--color-muted)]/30 border border-[var(--color-border)]">
           <span className="text-sm font-medium text-[var(--color-foreground)]">{selected.size} modules selected</span>
           <button onClick={() => setSelected(new Set())} className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">
@@ -501,6 +627,19 @@ export default function TrainingClient() {
               <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Clear the filter to see the rest.</p>
               <Button size="sm" variant="outline" onClick={() => setCategoryFilter(null)}>Show all categories</Button>
             </>
+          ) : !canManage ? (
+            /* HR-24. An empty library must read as "nothing here yet", never as
+               a page that failed to load — this is the shared-iPad screen, and
+               a blank panel on the floor is indistinguishable from a broken
+               one. No CTA: the reader cannot create a module, and CLAUDE.md's
+               "empty states must include a CTA" asks for a next step, which
+               here is a person, not a button. */
+            <>
+              <p className="font-medium text-[var(--color-foreground)] mb-1">No training modules yet</p>
+              <p className="text-sm text-[var(--color-muted-foreground)]">
+                Training published for your store will appear here.
+              </p>
+            </>
           ) : (
             <>
               <p className="font-medium text-[var(--color-foreground)] mb-1">
@@ -521,23 +660,31 @@ export default function TrainingClient() {
         </div>
       ) : (
         <>
-          <div className="mb-3">
-            <button onClick={toggleAll} className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">
-              {allVisibleSelected ? "Clear" : "Select All"}
-            </button>
-          </div>
+          {/* Select All drives the bulk lifecycle bar above, which is ADMIN's. */}
+          {canManage && (
+            <div className="mb-3">
+              <button onClick={toggleAll} className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">
+                {allVisibleSelected ? "Clear" : "Select All"}
+              </button>
+            </div>
+          )}
           {layout === "card" ? (
             <div className="grid grid-cols-3 gap-4">
               {visible.map((m) => (
                 <div key={m.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" className="rounded" checked={selected.has(m.id)} onChange={() => toggleOne(m.id)} />
+                      {canManage && (
+                        <input type="checkbox" className="rounded" checked={selected.has(m.id)} onChange={() => toggleOne(m.id)} />
+                      )}
                       <div className="w-6 h-6 rounded bg-[var(--color-primary)]/10 flex items-center justify-center">
                         <GraduationCap className="h-4 w-4 text-[var(--color-primary)]" />
                       </div>
                     </div>
-                    <StatusBadge isActive={m.isActive} />
+                    {/* Active/Inactive is a builder state. The read tier is
+                        only ever served live modules, so the badge would say
+                        "Active" on every row and mean nothing. */}
+                    {canManage && <StatusBadge isActive={m.isActive} />}
                   </div>
 
                   <h3 className="font-semibold text-[var(--color-foreground)] mb-2">{m.title}</h3>
@@ -559,7 +706,7 @@ export default function TrainingClient() {
                     {contentSummary(m)}
                   </p>
 
-                  <ModuleActions module={m} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
+                  <ModuleActions module={m} canManage={canManage} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
                 </div>
               ))}
             </div>
@@ -572,21 +719,26 @@ export default function TrainingClient() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--color-border)] text-left text-xs text-[var(--color-muted-foreground)]">
-                    <th className="w-10 px-3 py-2" />
+                    {/* The checkbox and Status columns track the card view's
+                        two ADMIN-only elements, so the two layouts stay the
+                        same feature set per role — HR-21's parity rule. */}
+                    {canManage && <th className="w-10 px-3 py-2" />}
                     <th className="px-3 py-2 font-medium">Module</th>
                     <th className="px-3 py-2 font-medium">Category</th>
                     <th className="px-3 py-2 font-medium">Stores</th>
                     <th className="px-3 py-2 font-medium">Content</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
+                    {canManage && <th className="px-3 py-2 font-medium">Status</th>}
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {visible.map((m) => (
                     <tr key={m.id}>
-                      <td className="px-3 py-2.5 align-middle">
-                        <input type="checkbox" className="rounded" checked={selected.has(m.id)} onChange={() => toggleOne(m.id)} />
-                      </td>
+                      {canManage && (
+                        <td className="px-3 py-2.5 align-middle">
+                          <input type="checkbox" className="rounded" checked={selected.has(m.id)} onChange={() => toggleOne(m.id)} />
+                        </td>
+                      )}
                       <td className="w-full max-w-0 px-3 py-2.5">
                         <div className="font-medium text-[var(--color-foreground)] truncate">{m.title}</div>
                         {/* Uncategorized renders as an empty Category cell —
@@ -604,11 +756,13 @@ export default function TrainingClient() {
                       <td className="px-3 py-2.5 whitespace-nowrap text-xs text-[var(--color-muted-foreground)]">
                         {contentSummary(m)}
                       </td>
+                      {canManage && (
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <StatusBadge isActive={m.isActive} />
+                        </td>
+                      )}
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <StatusBadge isActive={m.isActive} />
-                      </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <ModuleActions module={m} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
+                        <ModuleActions module={m} canManage={canManage} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
                       </td>
                     </tr>
                   ))}
@@ -621,22 +775,28 @@ export default function TrainingClient() {
 
       {/* HR-22. Rendered ONCE for the page, driven by the shared action
           cluster — so card and list open the identical dialog, not two
-          copies that can drift. */}
-      <BulkAssignDialog
-        key={bulkAssignFor?.id ?? "none"}
-        module={bulkAssignFor}
-        onClose={() => setBulkAssignFor(null)}
-        onAssigned={load}
-      />
+          copies that can drift. HR-24: both dialogs are authoring surfaces
+          and are not mounted at all for the read tier — nothing to open, and
+          nothing fetching from an ADMIN route in the background. */}
+      {canManage && (
+        <>
+          <BulkAssignDialog
+            key={bulkAssignFor?.id ?? "none"}
+            module={bulkAssignFor}
+            onClose={() => setBulkAssignFor(null)}
+            onAssigned={load}
+          />
 
-      <CategoryManagerDialog
-        open={managerOpen}
-        categories={categories}
-        onClose={() => setManagerOpen(false)}
-        onChanged={async () => {
-          await Promise.all([load(), loadCategories()])
-        }}
-      />
+          <CategoryManagerDialog
+            open={managerOpen}
+            categories={categories}
+            onClose={() => setManagerOpen(false)}
+            onChanged={async () => {
+              await Promise.all([load(), loadCategories()])
+            }}
+          />
+        </>
+      )}
     </div>
   )
 }

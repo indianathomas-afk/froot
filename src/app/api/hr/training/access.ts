@@ -36,6 +36,54 @@ export async function requireHrTrainingAccess() {
   return { ok: true as const, org: viewer.org, dbUser: viewer.dbUser }
 }
 
+// HR-24 READ tier: the training LIBRARY, read-only. ADMIN (who also owns the
+// builder above) and STORE (the shared floor device — Gary's water-heater case:
+// read the procedure on the iPad at the moment it is needed).
+//
+// A SEPARATE GUARD RATHER THAN A WIDENED ONE, DELIBERATELY. requireHrTrainingAccess
+// backs sixteen authoring routes and requireHrTrainingManageAccess eleven
+// assignment/capture routes; both keep refusing STORE at exactly the lines they
+// did before this session, and the HR-24 report names all twenty-seven. Nothing
+// read-only needed to move to open a read path — the guards were already split
+// along the line the feature needed.
+//
+// MANAGER IS ABSENT ON PURPOSE and this is not an oversight: MANAGER page access
+// to the training library is its own future row (HR-24 settled item 6). Folding
+// it in here would decide it silently. MANAGER's existing reach — the HR-17
+// preview for modules applying to their stores — is untouched.
+//
+// STAFF is absent because staff read training through /my/training, scoped to
+// their own assignments by a stricter policy. This tier is the library, not an
+// assignment.
+export async function requireHrTrainingReadAccess() {
+  const fail = (error: string, status: number) =>
+    ({ ok: false as const, response: NextResponse.json({ error }, { status }) })
+
+  const { orgId: clerkOrgId } = await auth()
+  if (!clerkOrgId) return fail("Unauthorized", 401)
+
+  if (!hrModuleAvailable(clerkOrgId)) return fail("Not found", 404)
+  try {
+    await requireModule("hr")
+  } catch {
+    return fail("HR module is not active", 403)
+  }
+
+  let viewer
+  try {
+    viewer = await getCurrentUser()
+  } catch {
+    return fail("Unauthorized", 401)
+  }
+
+  const role = viewer.dbUser?.role
+  if (role !== "ADMIN" && role !== "STORE") {
+    return fail("Admin or Store access required", 403)
+  }
+
+  return { ok: true as const, org: viewer.org, dbUser: viewer.dbUser!, role }
+}
+
 // HR-7 execution tier: assignment CRUD and attested completion are
 // ADMIN/MANAGER (the builder above stays ADMIN-only). MANAGER callers get
 // their store scope back and every route must check the target staff member

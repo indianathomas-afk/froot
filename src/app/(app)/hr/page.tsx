@@ -53,18 +53,26 @@ export default async function HrPage() {
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Link
-          href="/staff"
-          className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
-        >
-          <div className="w-10 h-10 mb-3 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
-            <Users className="h-5 w-5 text-[var(--color-primary)]" />
-          </div>
-          <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Staff Directory</h2>
-          <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-            Team roster, profiles, and manager notes
-          </p>
-        </Link>
+        {/* HR-24 ROW #1 (training access audit §2.4, triage #2): this card used
+            to render for EVERYONE, and /staff requires staff.view (MANAGE) — so
+            a STORE login on the shared iPad tapped it and bounced, as did a
+            STAFF login reaching /hr by URL (the sidebar sends STAFF to
+            /my/documents, but this page has no role gate of its own). One
+            condition closes both, and it matches staff.view's tier exactly. */}
+        {(dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER") && (
+          <Link
+            href="/staff"
+            className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
+          >
+            <div className="w-10 h-10 mb-3 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
+              <Users className="h-5 w-5 text-[var(--color-primary)]" />
+            </div>
+            <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Staff Directory</h2>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+              Team roster, profiles, and manager notes
+            </p>
+          </Link>
+        )}
         <Link
           href="/hr/documents"
           className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
@@ -105,7 +113,13 @@ export default async function HrPage() {
             </p>
           </Link>
         )}
-        {dbUser?.role === "ADMIN" && (
+        {/* HR-24: STORE joins ADMIN here — the card is the first of the three
+            gates a STORE login must pass to reach the library (card, page,
+            data route). The copy branches because the surfaces genuinely
+            differ: ADMIN gets the builder, STORE gets a reading surface.
+            MANAGER is deliberately unchanged (settled item 6 — MANAGER page
+            access is its own future row). */}
+        {(dbUser?.role === "ADMIN" || dbUser?.role === "STORE") && (
           <Link
             href="/hr/training"
             className="border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-card)] hover:border-[var(--color-primary)]/40 transition-colors"
@@ -115,7 +129,9 @@ export default async function HrPage() {
             </div>
             <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Training</h2>
             <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-              Build lesson-based training modules with videos, files, and quizzes
+              {dbUser?.role === "ADMIN"
+                ? "Build lesson-based training modules with videos, files, and quizzes"
+                : "Read the training modules for your store — procedures, lessons, and videos"}
             </p>
           </Link>
         )}

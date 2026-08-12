@@ -32,6 +32,47 @@ export function selfFilesServed(assignment: { status: string; certifiedAt: Date 
   return assignment.status !== "Completed" && assignment.certifiedAt === null
 }
 
+// ── HR-24: who may READ a training module ────────────────────────────────────
+// The canReadHrDocument analogue (hr-files.ts:243) and the reason this session
+// has a policy FUNCTION rather than a role test copied into three files: when
+// the input to this rule changes, it changes here, once, with a name.
+//
+// R-j, ruled by Gary 2026-08-11 — OPTION (i), NO CLASSIFICATION. The library is
+// one bucket: there is no confidential/operational distinction, so nothing about
+// a module's CONTENT is consulted here. TrainingCategory (HR-20) stays a label
+// and is deliberately NOT an input — promoting it would have made a cosmetic
+// field a permission input while 12 of 12 Keva production modules are
+// uncategorized (HR-20's row), which is wrong on day one in both directions.
+//
+// R-h, ruled the same day — OPTION (i), ORG-WIDE. STORE sees every module in
+// its org, not only those applying to its store. Measured on preview/staging
+// (br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1): all 5 modules are
+// appliesTo "all", so the store filter would have filtered NOTHING while
+// permanently promoting appliesTo from an ASSIGNABILITY filter to a VISIBILITY
+// one — a one-way semantic change bought for a measured zero effect. If store
+// scoping is wanted later it is the OR clause at preview/page.tsx and belongs
+// on its own row, with evidence.
+//
+// WHAT IS LEFT, THEN, IS LIFECYCLE, and it is the whole rule: ADMIN owns the
+// builder and must reach drafts and archives; STORE reads the library and has no
+// business with either. TWO EXPRESSIONS OF ONE RULE KEPT ADJACENT, the HR-25
+// pattern directly above — the fragment narrows the list query, the function is
+// asked per module (the list re-filters through it, and the read surface asks it
+// before rendering). MANAGER and STAFF are absent on purpose: MANAGER page
+// access is its own future row (settled item 6) and STAFF reads through
+// /my/training with its own assignment-scoped policy.
+export const STORE_LIBRARY_WHERE = { isActive: true, isArchived: false }
+
+export function canReadTrainingModule(
+  trainingModule: { organizationId: string; isActive: boolean; isArchived: boolean },
+  viewer: { orgDbId: string; role: string | null }
+): boolean {
+  if (trainingModule.organizationId !== viewer.orgDbId) return false
+  if (viewer.role === "ADMIN") return true
+  if (viewer.role === "STORE") return trainingModule.isActive && !trainingModule.isArchived
+  return false
+}
+
 // Module completion = every lesson completed + quiz passed (vacuously true
 // when the module has no quiz). hoursLogged and certification are tracked on
 // top of Completed, they don't gate it.

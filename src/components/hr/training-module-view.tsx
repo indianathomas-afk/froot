@@ -31,6 +31,20 @@ export type TrainingViewMode =
       certifiedAt: Date | null
     }
   | { kind: "preview" }
+  // HR-24 (R-g option ii-b, Gary 2026-08-11): the REFERENCE mode — a STORE
+  // login reading the library on the shared floor device. Still one renderer
+  // (HR-17's "no second renderer" rule), because the alternative priced was a
+  // second component and drift between what STORE sees and what a trainee sees
+  // is exactly what that rule was written against.
+  //
+  // WHAT IT DROPS AND WHY, since "read-only" was already true of preview mode:
+  // preview exists to show an ADMIN what a trainee will get, so it keeps the
+  // trainee's furniture — a disabled Mark-complete button on every lesson, an
+  // unsubmittable quiz, a 0/N progress bar. On a floor iPad that furniture is
+  // not informative, it is dead controls on the screen someone opened because
+  // a water heater is broken. Read mode renders the material and nothing that
+  // implies an action: no progress bar, no complete button, no quiz.
+  | { kind: "read" }
 
 // Strip correctOptionIds before anything reaches the client — the quiz
 // payload must never carry the answer key (rule shared by both modes so the
@@ -86,17 +100,25 @@ export function TrainingModuleView({
       {description && (
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">{description}</p>
       )}
-      <div className="flex items-center gap-3 mt-3 mb-6">
-        <div className="flex-1 h-2 rounded-full bg-[var(--color-muted)] overflow-hidden">
-          <div
-            className="h-full bg-[var(--color-primary)] transition-all duration-300"
-            style={{ width: `${pct}%` }}
-          />
+      {/* Progress is a property of an ASSIGNMENT. Read mode has none, so the
+          bar would sit at 0/N forever and read as "you haven't started". */}
+      {mode.kind === "read" ? (
+        <p className="text-xs text-[var(--color-muted-foreground)] mt-3 mb-6">
+          {lessons.length} lesson{lessons.length !== 1 ? "s" : ""}
+        </p>
+      ) : (
+        <div className="flex items-center gap-3 mt-3 mb-6">
+          <div className="flex-1 h-2 rounded-full bg-[var(--color-muted)] overflow-hidden">
+            <div
+              className="h-full bg-[var(--color-primary)] transition-all duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <span className="text-xs text-[var(--color-muted-foreground)]">
+            {done}/{lessons.length} lessons
+          </span>
         </div>
-        <span className="text-xs text-[var(--color-muted-foreground)]">
-          {done}/{lessons.length} lessons
-        </span>
-      </div>
+      )}
 
       {mode.kind === "execute" && mode.certifiedAt && (
         <div className="flex items-center gap-3 border border-[var(--color-success-border,#bfe8c5)] bg-[var(--color-success-bg,#e8f8ea)] rounded-lg p-4 mb-6">
@@ -174,12 +196,20 @@ export function TrainingModuleView({
                     ))}
                   </div>
                 ) : (
+                  // Two tiers answer resourcesAvailable false for different
+                  // reasons, so they must say different things: HR-25's
+                  // completed trainee HAD these files, HR-24's store reader
+                  // never did. One sentence covering both would be wrong for
+                  // one of them, and "no longer available" on a device that
+                  // never had access is simply false.
                   <p className="text-sm text-[var(--color-muted-foreground)] mb-3">
-                    Attached files are no longer available — you&apos;ve completed this module.
+                    {mode.kind === "read"
+                      ? "Attached files aren't available on a store device — ask a manager for a copy."
+                      : "Attached files are no longer available — you've completed this module."}
                   </p>
                 ))}
 
-              {mode.kind === "preview" ? (
+              {mode.kind === "read" ? null : mode.kind === "preview" ? (
                 <button
                   disabled
                   className="inline-flex items-center gap-1.5 min-h-11 px-4 rounded-md bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-sm font-medium opacity-60 cursor-not-allowed"
@@ -199,7 +229,12 @@ export function TrainingModuleView({
         })}
       </div>
 
-      {quiz && quiz.questions.length > 0 && (
+      {/* The quiz is an assessment of an assignee. Read mode has no assignment,
+          so there is nothing to submit, nothing to grade and nothing to record
+          — an unlocked-but-inert quiz on a floor device invites someone to
+          answer fourteen questions into a void. Preview keeps it because
+          showing the ADMIN the quiz is the point of previewing. */}
+      {quiz && quiz.questions.length > 0 && mode.kind !== "read" && (
         <div className="mt-6">
           <h2 className="text-sm font-medium uppercase tracking-wide text-[var(--color-muted-foreground)] mb-2">
             Quiz
