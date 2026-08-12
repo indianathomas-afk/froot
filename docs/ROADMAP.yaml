@@ -3834,6 +3834,239 @@ phases:
       docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md §4 and §9.7; session
       prompt docs/prompts/2026-08-11_HR-25_SESSION.md.
 
+  - id: HR-26
+    track: hr
+    size: M
+    status: in_progress
+    title: "MANAGER reads the training library and assigns from it — store-scoped, no authoring, all 27 guards untouched"
+    notes: >
+      BUILT 2026-08-12 (work commit "7048504"). Status in_progress until the
+      push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
+      HR-20/21/22/24/25). No schema change and no database queries by the
+      session.
+      PROMOTION ORDER — UNCHANGED AND NOW TRANSITIVE. HR-24's constraint stands:
+      it must not reach production ahead of HR-25 (f5d2883). HR-26 sits on top
+      of HR-24 (it extends requireHrTrainingReadAccess and the library route
+      HR-24 created), so it cannot promote without it either. All four commits
+      are on staging and none is on production, so ONE PROMOTION CARRYING ALL
+      OF THEM, or HR-25 first, remain the only correct orders.
+      THE OPERATOR NEED, GARY 2026-08-12 AFTER TESTING HR-24 ON STAGING:
+      STORE read access worked, and MANAGER then had LESS training access than
+      STORE, which is backwards. A manager needed to read the modules for their
+      stores and assign them to their team, individually and in bulk, without
+      gaining any authoring.
+      WHAT A MANAGER CAN NOW DO: open the Training card on /hr, see the live
+      modules for their own stores in card or list view with category badges and
+      filter chips, open any of them and read it end to end WITH its attached
+      files, and bulk assign any of them from either view.
+      ITEM 2 WAS A GATE-AND-UI CHANGE, NOT A NEW WRITE PATH — CONFIRMED AT HEAD
+      BEFORE ANYTHING WAS EDITED. The audit's claim reproduced exactly: POST
+      /api/hr/training/assignments/bulk (:46) and GET .../bulk/recipients (:15)
+      have both admitted store-scoped MANAGER at requireHrTrainingManageAccess
+      (access.ts:113) since HR-22. The page gate at hr/training/page.tsx:30 was
+      the only thing keeping managers out. assignments/bulk/route.ts,
+      bulk/recipients/route.ts and bulk/shared.ts ARE NOT IN THE DIFF, and no
+      HR-22 rule was weakened: store-id ownership + caller scope
+      (bulk/route.ts:73-88), staff-id scope (:94-109), all-in-scope honouring
+      isAdmin (:132-134), corporate exclusion from store expansion (:152, :187),
+      ACTIVE-only in the picker (recipients:44) and the counts-sum-to-input
+      invariant (:251-269) all stand untouched.
+      THE RULINGS, AS GARY RULED THEM AT HARD STOP #1 ON 2026-08-12.
+      (A) MANAGER'S LIBRARY IS STORE-SCOPED, AND R-h(i) IS NOT REVERSED. R-h's
+      org-wide ruling rests on appliesTo never having been a visibility filter —
+      true for STORE, and FALSE for MANAGER, which HR-17 has narrowed by exactly
+      this OR clause since 2026-07-25 (preview/page.tsx) as has the manage tier
+      of the resource download route. An org-wide manager library would have
+      WIDENED manager read reach beyond what HR-17 settled, in a session about
+      assignment. Store scoping preserves it, and it buys the chain LIST ⊆
+      PREVIEW ⊆ DOWNLOAD: no row can appear whose Read 404s, and no file link
+      can appear that the download route refuses. THIS IS THE ONE PLACE MANAGER
+      AND STORE DIFFER ON THE READ SURFACE, and it differs in the stricter
+      direction.
+      (B) {kind:"read"} FOR MANAGER, per settled item 1 — extend the tier that
+      exists, do not build a third variant. ADMIN is now the only previewer.
+      TWO CONSEQUENCES, RULED RATHER THAN ABSORBED. (i) MANAGER loses the quiz
+      on that page, since read mode drops it — and nothing anyone clicks
+      changes, because at HEAD there was NO in-app link to the preview page for
+      MANAGER at all (the only two are training-client.tsx, ADMIN+STORE, and
+      the ADMIN save-and-preview at training-form.tsx:679), so the surface was
+      URL-only for managers; the list row still carries quiz size and pass mark.
+      (ii) MANAGER's URL reach NARROWS to live modules — HR-17 let a manager
+      URL-reach an inactive or archived module there, and canReadTrainingModule
+      is now authoritative for all three read roles. Gary ruled the narrowing in
+      at the stop: drafts and archives belong to the builder.
+      FILES FOR MANAGER — resourcesAvailable={true}, AND IT IS NOT NEW REACH.
+      MANAGER has held manage-tier download access since HR-17
+      (download/route.ts:29-52, scoped by the same appliesTo/store-overlap
+      clause) and this session did not touch that route. Because (A) makes the
+      library match that route's own clause, EVERY LINK A MANAGER CAN SEE IS ONE
+      THAT ROUTE ALREADY SERVES — the audit's §3.3 dead-affordance failure
+      avoided by construction rather than by suppression. HR-25 does not bite:
+      its narrowing is scoped to the SELF tier (SELF_FILES_SERVED_WHERE at
+      download/route.ts:72) and its own row says the manage tier is untouched.
+      R-g(c)'s false answer, and its "ask a manager for a copy" copy, remain
+      STORE's alone — which is correct, since the reader would otherwise BE the
+      manager.
+      ONE FLAG NO LONGER SUFFICED, AND THE SECOND IS NAMED FOR AN ACTION SET
+      RATHER THAN A ROLE. Three tiers now view /hr/training with three different
+      action sets — ADMIN everything, MANAGER read + assign, STORE read — and a
+      single boolean expresses two. So: canManage (ADMIN — create, import,
+      export, categories, edit, duplicate, lifecycle) and canAssign (ADMIN +
+      MANAGER — the Assign button and the bulk dialog). canManage implies
+      canAssign, no role name reaches the client, and the alternative the prompt
+      warned against (a role-conditional tangle) never arises because every
+      branch below the shell asks what the viewer may DO.
+      PARITY HELD BY CONSTRUCTION (HR-21's rule). The Assign button went into
+      the shared ModuleActions cluster and nowhere else, so card view and list
+      view gained it in one edit — the slot HR-22 deliberately left there. The
+      two dialogs SPLIT along the two flags: BulkAssignDialog under canAssign,
+      CategoryManagerDialog stays ADMIN's. Category badges and filter chips are
+      READ and both tiers keep them, deriving from the categories present in the
+      viewer's own list, so admitting managers touched NO category route.
+      THE BULK DIALOG NEEDED NO CHANGES, AND THAT IS HR-22'S DESIGN RATHER THAN
+      LUCK. It computes no rule: stores, staff and eligibility all arrive
+      pre-scoped from GET .../bulk/recipients under the same guard the write
+      uses, and caller.isAdmin is stated by the server so even the preview count
+      and "Everyone in my scope" are the server's reading. The prompt asked
+      whether the dialog must render differently for a manager — it does, and it
+      already did, because what the picker offers is what the write will accept.
+      NO AUTHORING FOR MANAGER, AND NO GUARD MOVED TO MAKE THAT TRUE. All 16
+      requireHrTrainingAccess sites are ADMIN-only and untouched, as are both
+      authoring PAGES (new/page.tsx:14, [id]/edit/page.tsx:15). The access.ts
+      diff touches requireHrTrainingReadAccess ONLY — the ADMIN guard and the
+      manage guard have zero deletions between them. Census unchanged at 16 +
+      11 + 1.
+      R-C IS NOW FULLY SUPERSEDED, AND THE HISTORY IS THE POINT. R-c ruled
+      /hr/training ADMIN-only on 2026-08-10, session-recommended and ratified,
+      and said so REVERSIBLY-BY-ROW on demonstrated need. HR-24 superseded it
+      for STORE-as-reader on the ground that the gate was a consequence of the
+      page being an authoring tool. This row supersedes it for
+      MANAGER-as-reader-and-assigner, on demonstrated operator need — the
+      condition R-c itself named. R-C WAS NOT WRONG; ITS CONDITION WAS MET.
+      STORE-as-assigner (R-i) remains unbuilt and unfiled, and PERM-5's rule
+      that a role needing something it lacks means a different role still
+      stands over it.
+      ITEM 4 WAS NOT BUILT — priced only, filed as HR-27 (blocked on HR-19).
+      Nothing in the capability registry was touched by this session.
+      GARY'S WORKING ASSUMPTION, RECORDED 2026-08-12 SO HR-27 CAN BE
+      RECONSIDERED AGAINST IT: admins build trainings, managers read and assign.
+      If a manager genuinely needs to author, the answer is a different role,
+      per PERM-5.
+      NO BROWSER VERIFICATION BY THIS SESSION, deliberately and per the prompt:
+      it is Gary's after the push, and the staging-SHA precondition forbids it
+      before (staging serves 0ec4f20 at commit time; this work is not on it).
+      Audit and ruling packets:
+      docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md §§1-3, §5, §6, §9.3;
+      session prompt docs/prompts/2026-08-12_HR-26_SESSION.md.
+
+  - id: HR-27
+    track: hr
+    size: L
+    status: planned
+    title: "ADMIN-toggleable manager training capabilities (create/edit/delete/categorize), default off"
+    blockers:
+      - >
+        BLOCKED ON HR-19 — ruled by Gary 2026-08-12, at HR-26's hard stop.
+        NOT STARTED, and it must not be started as a side effect of a training
+        session. There is no quiet third option: HR-27 either lands AFTER HR-19,
+        or it is ruled EXPLICITLY to be HR-19's first slice, taken deliberately
+        and recorded as such. R-e ruled that a phase must not quietly begin the
+        registry migration, and PERM-5C left this exact boundary untouched with
+        a comment (staff/[id]/page.tsx:102-106) so that it could not be crossed
+        inside a file nobody would review as part of it.
+    notes: >
+      FILED 2026-08-12 by the HR-26 session as a PRICED PACKET. Item 4 of that
+      session's prompt; build-nothing was the instruction and nothing was built.
+      All evidence below was read at HEAD 0ec4f20. No database was queried.
+      THE ASK: ADMIN-toggleable manager training capabilities — create, edit,
+      delete, categorize — DEFAULT OFF.
+      (1) THE CONTRADICTION THAT MUST BE RESOLVED BEFORE ANYTHING ELSE IS
+      PRICED. The override layer is a DENY LIST WITH NO DIRECTION —
+      User.deniedCapabilities: String[], no grantedCapabilities, no sign field.
+      can()'s ceiling precedes its only `return true` (permissions.ts:309-320)
+      and PATCH /api/users/[id]:104 filters submitted capabilities through
+      can({ role }, c) before storage, so a GRANT CANNOT EVEN BE WRITTEN DOWN.
+      A toggle for manager authoring is therefore expressible ONLY IF MANAGER
+      HOLDS AUTHORING IN ITS ROLE BASELINE — hr.training.author moving from
+      ADMIN_ONLY (permissions.ts:258) to MANAGE — and the moment it does, every
+      manager account holds authoring from deploy until an admin removes it, one
+      login at a time. THAT IS DEFAULT-ON. Unlike R-i (which was
+      unrepresentable), this is representable, but only in the direction
+      OPPOSITE to the one asked for. Everything below prices closing that gap.
+      (2) THE CAPABILITIES ARE INERT TODAY, SO A TOGGLE WOULD DO NOTHING — which
+      the grid's own founding rule forbids (permissions.ts:353-357: "A toggle
+      that does nothing is WORSE than no toggle"). Zero can() calls exist in the
+      entire training surface: 28 guard call sites at HEAD (16 + 11 + 1), all
+      resolving to three inline role tests (access.ts:32, :80, :113) — R-e's
+      pattern, held exactly. hr.training.author (:258, ADMIN_ONLY) and
+      hr.training.manage (:259, MANAGE) are registry entries with no enforcement
+      anywhere, and NEITHER IS IN ENFORCED_CAPABILITIES (:399-547), so neither
+      is deniable from the /users grid at all.
+      (3) ROUTES THAT MUST CONSULT can() FOR THE FOUR NAMED TOGGLES — all 16
+      ADMIN sites, grouped, read at HEAD. CREATE: training/route.ts:89 POST,
+      upload-url:18 POST, lessons/[lessonId]/resources:22 POST, import:15 POST.
+      EDIT: training/[id]/route.ts:58 PATCH, training/route.ts:70 PATCH (bulk
+      lifecycle). DELETE: training/[id]/route.ts:194 DELETE,
+      resources/[id]/route.ts:7 DELETE. CATEGORIZE: categories/route.ts:45 POST,
+      categories/[id]/route.ts:12 PATCH and :65 DELETE,
+      categories/[id]/reassign:15 POST. READ-SIDE THAT MUST FOLLOW OR THE
+      SURFACES DISAGREE: training/route.ts:57 GET, training/[id]/route.ts:41
+      GET, categories/route.ts:14 GET, export:17 GET. PLUS two page gates
+      (new/page.tsx:14, [id]/edit/page.tsx:15) and the authoring cluster in
+      training-client.tsx, which would need a per-capability flag SET rather
+      than HR-26's two booleans.
+      (4) IS THAT A PARTIAL HR-19? YES, UNAMBIGUOUSLY — 16 of HR-19's 35 routes
+      and 2 of its 13 pages, roughly half its route surface, arriving under a
+      non-HR-19 heading. This is why the row is blocked; see the blocker above.
+      (5) "DEFAULT OFF" SEMANTICS — FOUR MECHANISMS, PRICED, NONE RECOMMENDED.
+      (i) SEED DENIALS AT CREATION — baseline moves to MANAGE and a denial is
+      written for every manager at creation, BACKFILLED onto existing ones.
+      Needs a data write across every existing manager (its own TIER 3 piece)
+      and every creation path must seed it — POST /api/users, the Clerk webhook,
+      and any role change to MANAGER. A SINGLE MISSED PATH IS A MANAGER SILENTLY
+      HOLDING AUTHORING, and nothing errors. Grid copy stays literally true but
+      reads as a grant.
+      (ii) INVERT THE MEANING FOR THESE KEYS — an entry means "granted" for
+      hr.training.*. Genuine default-off, no backfill. DESTROYS the one-line
+      guarantee that can()'s override block contains no `true` literal
+      (permissions.ts:296-320); every future reader must know which keys are
+      inverted, and the grid copy (user-actions.tsx:355-356, "restrict below
+      what their role allows, never above it") is FLATLY FALSE for those rows.
+      (iii) A REAL GRANT DIRECTION — grantedCapabilities or a signed entry, plus
+      a `return true` above the ceiling. Clean default-off; OVERTURNS A RECORDED
+      RULING (PERM-5's row and DECISIONS.md 2026-07-27) including PERM-5's
+      advance answer to this exact situation, and the price is paid by every
+      capability rather than this one. SCHEMA CHANGE.
+      (iv) OUTSIDE THE REGISTRY — a per-user boolean consulted by a new
+      requireHrTrainingAuthorAccess. Clean, additive, PERM-5 untouched;
+      re-scatters what PERM-1..PERM-5C consolidated and hands HR-19 a bespoke
+      flag alongside 35 routes. SCHEMA CHANGE. Cheapest to build, most expensive
+      to have built.
+      SUMMARY OF (5) AS GARY ASKED IT RECORDED: two of the four are schema
+      changes, one overturns PERM-5's recorded ruling, and the cheapest carries
+      a fleet-wide backfill with a silent failure mode.
+      (6) BLAST RADIUS — THE MANAGER-ACCOUNT COUNT IS OWED AND WAS NOT TAKEN.
+      If authoring becomes a MANAGER baseline, every manager account holds it
+      from deploy until removed, one login at a time, and the failure is silent:
+      nothing errors, rows just appear. The number must be READ OFF /users, not
+      queried: that page renders one row per Clerk org member with a role badge
+      (users/page.tsx:316-317) and has NO aggregate count and NO role filter, so
+      it is a manual count of rows badged "Manager". Two caveats make it a
+      per-environment reading rather than a fact — the list is Clerk-membership
+      driven and defaults an unresolved member to STAFF (:198), so it is the
+      CLERK INSTANCE's truth (production Clerk is not the dev instance staging
+      shares); and it shows only the ACTIVE ORG. The figure HR-27 needs is
+      managers in the Keva PRODUCTION org, read from production /users, dated,
+      with the org id named. A staging count answers a different question.
+      (7) NOTHING IS RECOMMENDED HERE, per the commissioning instruction —
+      priced, not advised.
+      GARY'S WORKING ASSUMPTION, RECORDED 2026-08-12 SO THIS ROW IS RECONSIDERED
+      AGAINST IT RATHER THAN IN A VACUUM: admins build trainings, managers read
+      and assign. If a manager genuinely needs to author, the answer is a
+      different role, per PERM-5.
+      Source: docs/prompts/2026-08-12_HR-26_SESSION.md item 4; evidence packet
+      docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md §7 and §9.3 (R-i).
+
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
   # NOTHING IS FILED UNDER `LABOR-`, AND NOTHING SHOULD BE. The 2026-08-02

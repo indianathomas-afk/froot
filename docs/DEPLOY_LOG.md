@@ -100,6 +100,32 @@ Deploy verification: 2026-07-02T22:00:05Z
   promotion carrying both — or HR-25 first — are the only correct orders.
   Like HR-25, HR-24 is an **access-control change on a confidential-content
   surface** and the entry should say so rather than list it as a training tweak.
+- **Added 2026-08-12 (HR-26 build session).** The next real PRODUCTION
+  promotion's entry must also name this session's two staging commits:
+  `7048504` (HR-26 work — MANAGER admitted to the training library as a reader
+  and assigner: `requireHrTrainingReadAccess` widened to ADMIN/MANAGER/STORE
+  and now returning `storeIds`, a MANAGER branch on `canReadTrainingModule`
+  plus `managerLibraryWhere` in `lib/training.ts`, a third scope branch in `GET
+  /api/hr/training/library`, MANAGER admitted to the `/hr` Training card, the
+  `/hr/training` page and the HR-17 preview page — where MANAGER moves from
+  `{kind:"preview"}` to `{kind:"read"}` and ADMIN becomes the only previewer —
+  and a **second** UI flag, `canAssign`, carrying the Bulk Assign button and
+  dialog. **No migration** — no schema change and no database queries in that
+  session. **No new write path:** the bulk-assign route and its recipients
+  endpoint already admitted store-scoped MANAGER since HR-22 and are not in the
+  diff; **all 16 ADMIN-only and 11 manage-tier guard call sites untouched.** Not
+  docs-only; listed so this list stays the one complete place the promotion
+  entry reads) and the HR-26 docs commit, which cannot carry its own SHA and
+  resolves as the commit that added this line
+  (`git log --oneline -- docs/DEPLOY_LOG.md`).
+  **PROMOTION ORDER — HR-24'S CONSTRAINT ABOVE IS NOW TRANSITIVE.** HR-26
+  extends the guard and the route HR-24 created, so it cannot promote without
+  HR-24, which in turn must not land ahead of HR-25 (`f5d2883`). All four
+  commits are on staging and none is on production: **one promotion carrying
+  all of them, or HR-25 first, remain the only correct orders.** Like HR-24 and
+  HR-25, HR-26 is an **access-control change on a confidential-content
+  surface** — it changes what a MANAGER account can see and do — and the entry
+  should say so rather than list it as a training tweak.
 - **Preserve-and-mark:** extend this list by dated line; when a promotion
   discharges an item, mark it discharged with the promotion SHA — never
   delete.
