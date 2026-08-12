@@ -86,6 +86,11 @@ export default async function TrainingPreviewPage({
           lessons={trainingModule.lessons}
           quiz={quiz ? { passThreshold: quiz.passThreshold, questions: quizQuestions } : null}
           mode={{ kind: "preview" }}
+          // HR-25 made this prop required rather than defaulted so each tier
+          // answers it explicitly. Unchanged for the preview: this page is
+          // ADMIN/MANAGER only and the download route's manage tier serves
+          // them, so the links work here exactly as they did before.
+          resourcesAvailable
         />
       </div>
     </div>

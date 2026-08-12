@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
+import { selfFilesServed } from "@/lib/training"
 import {
   TrainingModuleView,
   toClientQuizQuestions,
@@ -16,6 +17,10 @@ import { MyDenied } from "../../denied"
 // session's staff profile — foreign ids 404. Rule 5: certification shows as
 // STATUS only; the cert PDF is never downloadable here. Rendering lives in
 // TrainingModuleView (shared with the HR-17 admin preview).
+//
+// HR-25 (R-m option iii): the page itself does NOT close after completion —
+// the module stays readable for refreshers, badge and all. Only the attached
+// files stop, and the route refuses them independently of this render.
 export default async function MyModulePage({
   params,
 }: {
@@ -64,6 +69,7 @@ export default async function MyModulePage({
         description={mod.description}
         lessons={mod.lessons}
         quiz={quiz ? { passThreshold: quiz.passThreshold, questions: quizQuestions } : null}
+        resourcesAvailable={selfFilesServed(assignment)}
         mode={{
           kind: "execute",
           assignmentId: assignment.id,

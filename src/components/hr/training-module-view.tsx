@@ -46,18 +46,28 @@ export function toClientQuizQuestions(questions: unknown): MyQuizQuestion[] {
   }))
 }
 
+// HR-25: `resourcesAvailable` is REQUIRED, deliberately — every call site has
+// to answer "may this viewer be served the attached files?" rather than inherit
+// links by default. The link block below was previously conditioned on nothing
+// but the resource count, so any tier added to this renderer silently gained
+// downloads (training access audit, triage #6). Answering false renders the
+// lesson in full and says the files are no longer available; the resource
+// download route refuses independently — this prop is the UI half, never the
+// gate.
 export function TrainingModuleView({
   title,
   description,
   lessons,
   quiz,
   mode,
+  resourcesAvailable,
 }: {
   title: string
   description: string | null
   lessons: TrainingViewLesson[]
   quiz: { passThreshold: number; questions: MyQuizQuestion[] } | null
   mode: TrainingViewMode
+  resourcesAvailable: boolean
 }) {
   const progressByLesson = new Map(
     mode.kind === "execute" ? mode.lessonProgress.map((p) => [p.trainingLessonId, p]) : []
@@ -147,22 +157,27 @@ export function TrainingModuleView({
                 </a>
               ) : null}
 
-              {lesson.resources.length > 0 && (
-                <div className="space-y-1 mb-3">
-                  {lesson.resources.map((r) => (
-                    <a
-                      key={r.id}
-                      href={`/api/hr/training/resources/${r.id}/download`}
-                      target="_blank"
-                      rel="noopener"
-                      className="flex items-center gap-1.5 text-sm text-[var(--color-primary)] min-h-11"
-                    >
-                      <FileDown className="h-4 w-4 shrink-0" />
-                      {r.label}
-                    </a>
-                  ))}
-                </div>
-              )}
+              {lesson.resources.length > 0 &&
+                (resourcesAvailable ? (
+                  <div className="space-y-1 mb-3">
+                    {lesson.resources.map((r) => (
+                      <a
+                        key={r.id}
+                        href={`/api/hr/training/resources/${r.id}/download`}
+                        target="_blank"
+                        rel="noopener"
+                        className="flex items-center gap-1.5 text-sm text-[var(--color-primary)] min-h-11"
+                      >
+                        <FileDown className="h-4 w-4 shrink-0" />
+                        {r.label}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-[var(--color-muted-foreground)] mb-3">
+                    Attached files are no longer available — you&apos;ve completed this module.
+                  </p>
+                ))}
 
               {mode.kind === "preview" ? (
                 <button

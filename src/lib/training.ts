@@ -4,6 +4,34 @@ import { prisma } from "@/lib/prisma"
 // (/staff/[id] Training tab, attested completion) and the /my/training
 // self-service routes.
 
+// ── HR-25: completed training stops serving files ────────────────────────────
+// R-m option (iii), ruled by Gary 2026-08-11 — CONTENT STAYS, FILES STOP. Once
+// a staff member's own assignment is finished they may still READ the module
+// (lesson bodies, quiz result, the Completed/Certified badge) but are no longer
+// served its attached files.
+//
+// TWO EXPRESSIONS OF ONE RULE, AND THEY LIVE TOGETHER SO THEY CANNOT DRIFT: the
+// Prisma fragment gates the SELF tier of the resource download route; the
+// boolean gates whether the renderer draws the links at all. Both must move
+// together — a server refusal without the UI half leaves visible links that
+// 404, which is the failure the training access audit named (§3.3), and the UI
+// half without the server refusal is not a gate.
+//
+// certifiedAt is in the test as well as status, and it is not redundant.
+// Certification requires Completed today, but a module that gains a lesson
+// AFTER someone was certified recalculates to InProgress on the next write
+// (recalcAssignmentStatus below) while certifiedAt stays set. Belt and braces
+// keeps that person on the refused side, which is the direction the ruling
+// points.
+//
+// SCOPED TO THE SELF TIER ONLY. The ADMIN/MANAGER (manage) tier of the download
+// route is untouched — a manager reviewing training is unaffected.
+export const SELF_FILES_SERVED_WHERE = { status: { not: "Completed" }, certifiedAt: null }
+
+export function selfFilesServed(assignment: { status: string; certifiedAt: Date | null }): boolean {
+  return assignment.status !== "Completed" && assignment.certifiedAt === null
+}
+
 // Module completion = every lesson completed + quiz passed (vacuously true
 // when the module has no quiz). hoursLogged and certification are tracked on
 // top of Completed, they don't gate it.

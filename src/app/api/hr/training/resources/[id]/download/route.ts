@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { getHrFileDownloadUrl, hrPathnameFromUrl } from "@/lib/hr-files"
+import { SELF_FILES_SERVED_WHERE } from "@/lib/training"
 import { requireHrTrainingManageAccess } from "../../../access"
 
 // GET /api/hr/training/resources/[id]/download — authorized delivery for
@@ -15,6 +16,13 @@ import { requireHrTrainingManageAccess } from "../../../access"
 // store scope misses falls through to the staff tier, since they may still
 // be assigned the module as a trainee. Lesson reference files only —
 // signed-record/cert PDFs live on other routes with the stricter policy.
+//
+// HR-25 (R-m option iii, Gary 2026-08-11) narrowed the SELF tier only: the
+// assignment must still be OPEN (SELF_FILES_SERVED_WHERE — content stays
+// readable after completion, files stop). A completed holder misses the
+// findFirst and takes the existing 404 below, the same refusal this route
+// already gives for unassigned, terminated and cross-org. The manage tier is
+// deliberately untouched.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
@@ -57,7 +65,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       trainingLesson: {
         trainingModule: {
           organizationId: self.org.id,
-          assignments: { some: { staffMemberId: self.staffMember.id } },
+          // One assignment per (module × staff member) — schema.prisma's
+          // @@unique from HR-20 — so `some` with the HR-25 predicate reads as
+          // "their assignment, and it is still open", not "some open one".
+          assignments: {
+            some: { staffMemberId: self.staffMember.id, ...SELF_FILES_SERVED_WHERE },
+          },
         },
       },
     },
