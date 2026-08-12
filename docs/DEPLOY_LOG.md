@@ -58,6 +58,25 @@ Deploy verification: 2026-07-02T22:00:05Z
   this line (`git log --oneline -- docs/DEPLOY_LOG.md`). With this, the
   training trilogy HR-20/21/22 (`0a745c3`, `a56c905`, `bd63da7`) is complete on
   staging and awaits one promotion.
+- **Added 2026-08-11 (HR-25 build session).** The next real PRODUCTION
+  promotion's entry must also name **three** staging commits from the training
+  access thread: `cc75949` (docs-only — the training access audit
+  `docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md` and its session prompt,
+  written 2026-08-11. **Named here for the first time**: it carried no recorded
+  obligation anywhere at HEAD `cc75949`, the same gap `f318d2e` had above, and
+  a docs-only commit with no entry is exactly what this list exists to catch);
+  `f5d2883` (HR-25 work — the SELF tier of
+  `api/hr/training/resources/[id]/download` now requires an open assignment,
+  `SELF_FILES_SERVED_WHERE`/`selfFilesServed` in `lib/training.ts`, and
+  `TrainingModuleView`'s new REQUIRED `resourcesAvailable` prop with its two
+  call sites. **No migration** — no schema change and no database queries in
+  that session. Not docs-only; listed so this list stays the one complete place
+  the promotion entry reads); and the HR-25 docs commit, which cannot carry its
+  own SHA and resolves as the commit that added this line
+  (`git log --oneline -- docs/DEPLOY_LOG.md`). Note for whoever writes that
+  promotion entry: HR-25 is an **access-control change on a confidential-content
+  surface** — completed training stops being served its attached files — so the
+  entry should say so rather than list it as a training tweak.
 - **Preserve-and-mark:** extend this list by dated line; when a promotion
   discharges an item, mark it discharged with the promotion SHA — never
   delete.

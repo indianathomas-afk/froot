@@ -3579,6 +3579,102 @@ phases:
       doing odd things inside their own org, and the UI offers neither (audit
       §4.2) — which is why HR-22 shipped without waiting for it.
 
+  - id: HR-25
+    track: hr
+    size: S-M
+    status: in_progress
+    title: "Completed training stops serving files — content stays readable, attachments stop"
+    notes: >
+      BUILT 2026-08-11 (work commit "f5d2883"). Status in_progress until the
+      push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
+      HR-20/21/22). No schema change and no database queries.
+      THE RULING — R-m OPTION (iii), GARY 2026-08-11: CONTENT STAYS, FILES
+      STOP. Once a staff member's own assignment for a module is complete they
+      may still READ that module through their own self-service surfaces, but
+      are no longer served its attached files. The concern being closed, in
+      Gary's words: trade-secret material leaving the building after hours,
+      once the training no longer requires it. Option (ii) — closing the
+      content too — was rejected on its merits: an employee losing the ability
+      to re-read training they completed (refreshers, reference during a shift,
+      the food-safety module they want to check) is a real operational loss.
+      THE PRE-HR-25 STATE WAS OBSCURITY, NOT A GATE, AND THIS ROW EXISTS
+      BECAUSE OF IT. docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md §4
+      established that the only completion-aware filter in the whole training
+      surface was one line on the /my home card — openItems.filter(i =>
+      i.status !== "complete") ((my)/my/page.tsx:72) — written as a TO-DO
+      FILTER, for a to-do list, not as an access control. /my/training (:17),
+      the assignment page (:29) and the resource download route's self tier
+      (download/route.ts:60) carried NO status predicate: completed modules
+      rendered in full with working download links, and an employee who
+      finished a module in March could still fetch its PDFs in December. The
+      one other mitigation was navigational — F7 removed Training from the
+      staff portal's tab bar while my-shell.tsx:14 records that the routes
+      "stay live", so the module was reachable by URL, history or bookmark.
+      The property being preserved did not exist; preserving the behavior
+      preserved a card filter.
+      SHIPPED — the server gate and the UI half in ONE commit, because they
+      cannot ship apart: a visible link that 403s is the failure the audit
+      named on the STORE side (§3.3), and a suppressed link over an open route
+      is not a gate at all.
+      (1) src/lib/training.ts — SELF_FILES_SERVED_WHERE (a Prisma fragment) and
+      selfFilesServed() (a boolean), two expressions of one rule kept adjacent
+      so they cannot drift. certifiedAt is tested alongside status: normally
+      redundant (certification requires Completed), it stops being redundant
+      when a module gains a lesson AFTER someone was certified and the
+      assignment recalculates to InProgress while certifiedAt stays set —
+      belt and braces keeps that person on the refused side.
+      (2) resources/[id]/download/route.ts — the SELF tier's assignment match
+      now requires an open assignment. A completed holder misses the findFirst
+      and takes the route's EXISTING 404 ({ error: "Not found" }), the same
+      refusal it already gives for unassigned, terminated and cross-org. No new
+      error contract was invented.
+      (3) TrainingModuleView — resourcesAvailable is REQUIRED, not defaulted,
+      so every viewing tier must answer it rather than inherit links. This
+      closes audit triage #6 (the link block was conditioned on the resource
+      count and nothing else, so any future tier gained downloads silently).
+      When false the lesson renders in full with one muted line: "Attached
+      files are no longer available — you've completed this module."
+      (4) /my/training/[assignmentId] passes selfFilesServed(assignment); the
+      page does not close after completion. (5) The HR-17 preview passes
+      resourcesAvailable explicitly — NO behavior change, ADMIN/MANAGER are
+      served by the manage tier as before.
+      NOT CHANGED, DELIBERATELY: /my/training (the list) renders no download
+      links at all, so it needed no edit — completed rows keep their
+      Completed/Certified badges and stay clickable. The /my home to-do filter
+      stays exactly as it was; it was never the gate. The manage tier of the
+      download route and all 25 existing training guards are untouched — a
+      manager reviewing training is unaffected.
+      THIS ROW IS NOT A COMPLETE GUARANTEE, AND MUST NOT BE READ AS ONE. A
+      lesson's YouTube link is an EXTERNAL URL and is deliberately not hidden
+      after completion (Gary, 2026-08-11): video is lesson content — for most
+      modules it IS the lesson — and hiding it buys no protection, since anyone
+      who watched it already had the URL and it was copyable from the DOM
+      throughout the assignment. Hiding it was priced (the same flag applied to
+      the video block, about five lines) and declined. HR-25 closes what the
+      APP SERVES; nothing in this app can claw back an external link.
+      CONSEQUENCE FOR WHOEVER BUILDS RE-ASSIGNMENT CYCLES — FINDABLE HERE
+      BECAUSE IT IS A CONSEQUENCE OF WHERE THE PREDICATE SITS. Re-assignment is
+      unreachable today by two independent mechanisms: HR-22's read-then-skip
+      plus skipDuplicates at the route, AND @@unique([trainingModuleId,
+      staffMemberId]) in the schema (HR-20/R-b) — which is also what makes the
+      predicate inside `some` read as "their assignment, and it is still open"
+      rather than "some open one". If HR-15b-shaped cycle rows are ever built,
+      FILE ACCESS RETURNS as soon as a not-complete row exists for that module x
+      staff pair. Gary ruled that correct 2026-08-11 — reassigned means they
+      need the material again — but it follows from the predicate's POSITION,
+      not from an explicit decision in the query, so whoever adds cycles must
+      confirm it is still what they want.
+      HR-18 (supervised completion, unbuilt) IS NOT OBSTRUCTED: a proctored
+      session exists to CAPTURE a completion, so it operates on an assignment
+      that is by definition not yet complete, and it is launched from the Staff
+      profile by an elevated user — resolving through the manage tier, not
+      getActiveStaffSelf. Not built for, not blocked.
+      SEQUENCE — R-l's note applies and is now live: HR-24 (STORE read access,
+      unfiled) widens who can read module content, so the employee-side line
+      closed here should stand before it. Audit and ruling packet:
+      docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md §4 and §9.7; session
+      prompt docs/prompts/2026-08-11_HR-25_SESSION.md.
+
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
   # NOTHING IS FILED UNDER `LABOR-`, AND NOTHING SHOULD BE. The 2026-08-02
