@@ -7,12 +7,12 @@ const nextConfig: NextConfig = {
   // was replaced — it referenced DOMMatrix/Path2D/etc. and threw "DOMMatrix is
   // not defined" in the Vercel Node runtime. (pdfjs-dist stays a dependency for
   // the browser-side HR-11 viewer, which is unaffected.)
-  // HR-28: isomorphic-dompurify loads jsdom, which the bundler cannot trace —
-  // staging built green and then 500'd at RUNTIME on every /api/hr/training
-  // request with "Failed to load external module jsdom". Same treatment as
-  // unpdf above: keep it external so the function requires it from
-  // node_modules instead of being bundled.
-  serverExternalPackages: ["unpdf", "isomorphic-dompurify"],
+  // HR-28 carried an "isomorphic-dompurify" entry here for one commit. It is
+  // gone along with the package: making it external is what FORCED the runtime
+  // require() that threw ERR_REQUIRE_ESM inside jsdom's tree, so the entry made
+  // things worse, not better. Its replacement (sanitize-html) needs no DOM and
+  // must stay bundled — do not add it here.
+  serverExternalPackages: ["unpdf"],
 };
 
 export default nextConfig;
