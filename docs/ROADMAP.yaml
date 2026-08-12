@@ -4067,6 +4067,131 @@ phases:
       Source: docs/prompts/2026-08-12_HR-26_SESSION.md item 4; evidence packet
       docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md §7 and §9.3 (R-i).
 
+  - id: HR-28
+    track: hr
+    size: S
+    status: in_progress
+    commits: ["142e858"]
+    title: "Training module descriptions are rich text — Tiptap editor, one sanitizer allowlist, three write paths"
+    notes: >
+      BUILT 2026-08-12 (work commit "142e858"). Status in_progress until the
+      push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
+      HR-20/21/22/24/25/26). NO SCHEMA CHANGE — TrainingModule.description is
+      the same text column it always was; it simply holds sanitized HTML now.
+      No database was queried by this session, on any branch.
+      FILED AS HR-28, NOT HR-23. The session prompt specified HR-23; that id
+      was already taken by a planned row (the single-assign path, filed
+      2026-08-11 by HR-22). HR-28 is the next free id and the prompt's own
+      instruction was to use it if HR-23 was occupied.
+      THE PROBLEM: the Description field was a plain textarea and rendered
+      through a bare <p> with no whitespace handling, so an admin's paragraph
+      breaks collapsed into one run-on line on the trainee's screen. The
+      authoring tool accepted structure the renderer discarded. Note the
+      LESSON body beside it already rendered with whitespace-pre-wrap
+      (training-module-view.tsx:155) — the description was the odd one out.
+      WHAT SHIPPED. (1) src/components/ui/rich-text-editor.tsx — Tiptap 3.30
+      with a four-button toolbar: bold, italic, bullet list, numbered list.
+      (2) src/lib/sanitize-html.ts — ONE DOMPurify allowlist
+      (p br strong em b i ul ol li), ZERO attributes, shared by every write
+      path and by the renderer. (3) src/lib/rich-text.ts — the pure half.
+      (4) The renderer branches: HTML gets sanitized-then-dangerouslySetInnerHTML
+      inside a wrapper carrying explicit list classes, legacy plain text gets
+      whitespace-pre-wrap so it at least keeps the breaks its author typed.
+      THE TOOLBAR AND THE ALLOWLIST ARE ONE DECISION, NOT TWO. StarterKit v3
+      ships heading, link, code, codeBlock, blockquote, strike and underline
+      ENABLED BY DEFAULT. Left alone, an admin hits Cmd-Alt-1, saves, and
+      watches the heading come back as plain text, because the server strips
+      what the allowlist does not name — formatting that appears to work and
+      then silently doesn't, which is worse than formatting never offered. All
+      seven are disabled at the source. trailingNode is disabled too, for a
+      different reason: it appends a real empty paragraph and it SERIALISES, so
+      a description ending in a list would be stored as "<ul>…</ul><p></p>".
+      Adding a toolbar button means adding its tag to the allowlist, in the
+      same commit; the rule is written in both files.
+      SANITIZED ON THREE WRITE PATHS, AND THE THIRD IS THE FINDING. The prompt
+      named POST /api/hr/training and PATCH /api/hr/training/[id]. The audit
+      found POST /api/hr/training/import (import/route.ts:98) writes
+      module_description from a CSV cell straight to the column, never touching
+      the editor or either named handler — so sanitizing only the two would
+      have left "the database never stores unsanitized HTML" FALSE for every
+      imported module, on the bulk path most likely to carry content pasted out
+      of someone else's system. Gary approved closing it in the same commit
+      (two lines). Duplicate needed nothing: it re-POSTs through the create
+      route and inherits its sanitizer.
+      THE PREDICATE IS THE HTML TOKENIZER'S RULE, AND THAT WAS A FIX FOUND BY
+      TESTING RATHER THAN BY READING. looksLikeHtml started as a full
+      tag-shaped match, which does not match "<svg/onload=alert(1)>" (the "/"
+      is followed by a letter, not ">") — so that input was classified plain
+      text and STORED WITHOUT SANITIZING. Nothing executed: the renderer
+      branches on the same predicate and its plain-text branch is a React text
+      node, which escapes the string. But the safety then rested on one regex
+      agreeing with every present and future caller rather than on the stored
+      string being harmless, and one future component that innerHTMLs a
+      description without the branch would turn a storage quirk into a
+      vulnerability. Replaced with the browser's own rule — a tag starts at "<"
+      followed by an ASCII letter, or "</" — so "stored as plain text" now
+      means "no browser can find a tag in here", which is the property the
+      text-node branch is entitled to assume. COST, NAMED: a legacy
+      description containing something like "the <name> field" now takes the
+      sanitizer branch and loses that literal. Correct side to err on, since a
+      browser reads it as a tag too, but it is a behavior change on existing
+      rows.
+      PLAIN TEXT BYPASSES THE SANITIZER, AND THAT IS CORRECTNESS, NOT
+      OPTIMISATION. DOMPurify entity-encodes bare ampersands, so running a
+      CSV-imported "Tom & Jerry" through it would store "Tom &amp; Jerry" — and
+      the renderer, still finding no tag, would take the plain-text branch and
+      show staff the entity literally. Tag-free input is therefore returned
+      verbatim, which is safe precisely because the predicate above is now as
+      permissive as the parser.
+      ONE RENDERER, SO BOTH SURFACES WERE FIXED BY ONE EDIT — HR-17's
+      no-second-renderer rule paying out. Verified by grep that
+      TrainingModuleView:100 is the ONLY site that renders a module
+      description; the admin list, the edit page and HR-24's library route
+      carry it in payloads without displaying it. It sanitizes AGAIN on the way
+      out, which is not theatre: rows written before today were never sanitized
+      at all, and HR-24 serves this component to a shared store iPad.
+      EMPTY NORMALISES TO NULL. Tiptap serialises an emptied editor as
+      "<p></p>", a truthy string that would otherwise render a blank paragraph
+      forever. The server tests TEXT (tags stripped, &nbsp; as whitespace), so
+      "<p><br></p>" and "<ul><li></li></ul>" are both null while "&amp;" is
+      not. The editor emits "" as well, but that half is courtesy — a client is
+      never the gate.
+      THREE NEW FILES, NOT THE TWO THE PROMPT LISTED, approved before
+      implementation. sanitize-html.ts pulls jsdom via isomorphic-dompurify and
+      the editor is a CLIENT component that needs the same predicate;
+      importing the sanitizer from the browser to reach one regex risks
+      dragging jsdom into the client bundle. The alternative was defining the
+      rule twice, non-adjacently — the thing HR-25's SELF_FILES_SERVED_WHERE /
+      selfFilesServed() pairing exists to avoid. So rich-text.ts holds the pure
+      half with no dependencies at all.
+      VERIFIED LOCALLY ONLY — NO STAGING, NO PRODUCTION, NO DATABASE. Two
+      harnesses, both deleted before the commit. A tsx script over sixteen
+      sanitizer inputs: script, img/onerror, javascript: anchor and svg/onload
+      all stripped; Google Docs and Word paste reduced to allowlisted tags with
+      every attribute gone; empty/junk/br-only all null; plain text verbatim
+      including "Tom & Jerry, 5 < 10"; idempotent. And a browser pass on a
+      temporary page under the public /menu route: bold-with-live-selection
+      works (the onMouseDown preventDefault holds it), aria-pressed tracks
+      state, list markers survive Tailwind preflight on both sides, legacy
+      plain text loads readable AND does not fire onChange (so opening an old
+      module without touching the description leaves it clean), clear emits "",
+      hostile input renders as "<p>safe</p>", no hydration errors. ONE DEFECT
+      FOUND THERE AND FIXED: Tiptap wraps list-item content in <p>, so real
+      output is "<li><p>text</p></li>" and the renderer's [&_p]:mb-2 applied
+      inside every bullet and spaced the list out like body copy. [&_li_p]:mb-0
+      added to BOTH the editor and the renderer, kept identical so the builder
+      is a true preview. Gary's four staging checks are the real gate and are
+      unaltered.
+      LESSON `info` HAS THE SAME PROBLEM AND IS DELIBERATELY UNTOUCHED — see
+      the triage in the audit (§11 item 8). It is the BIGGER surface: info is
+      the substance of a module ("what the trainee needs to read and learn"),
+      it keeps line breaks today but cannot express a list, and procedures are
+      lists. Every piece built here is reusable; the work is the lesson write
+      paths in both handlers plus the CSV importer's lesson_info column, and
+      the two inline lesson forms in training-form.tsx. It also renders on a
+      shared store iPad via HR-24. Not filed as a row by this session.
+      Audit: docs/prompts/2026-08-12_HR-28_AUDIT.md.
+
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
   # NOTHING IS FILED UNDER `LABOR-`, AND NOTHING SHOULD BE. The 2026-08-02
