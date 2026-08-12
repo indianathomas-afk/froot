@@ -4071,7 +4071,7 @@ phases:
     track: hr
     size: S
     status: in_progress
-    commits: ["142e858"]
+    commits: ["142e858", "340f99b"]
     title: "Training module descriptions are rich text — Tiptap editor, one sanitizer allowlist, three write paths"
     notes: >
       BUILT 2026-08-12 (work commit "142e858"). Status in_progress until the
@@ -4190,6 +4190,22 @@ phases:
       paths in both handlers plus the CSV importer's lesson_info column, and
       the two inline lesson forms in training-form.tsx. It also renders on a
       shared store iPad via HR-24. Not filed as a row by this session.
+      FOLLOW-UP "340f99b" (2026-08-12) — STAGING 500'd AT RUNTIME, AND THE
+      BUILD WAS NEVER GOING TO CATCH IT. Every /api/hr/training request failed
+      with "Failed to load external module jsdom". isomorphic-dompurify loads
+      jsdom, whose dynamic requires the bundler cannot trace, so the traced
+      function shipped without it. Fixed by adding isomorphic-dompurify to
+      serverExternalPackages in next.config.ts — the same treatment unpdf
+      already carries there for the same class of failure (HR-11b, DOMMatrix).
+      THE SHAPE OF THIS FAILURE IS THE POINT: it builds green locally, in CI
+      and on Vercel, and only appears on the first request that reaches the
+      code path. A build gate cannot see it. The HR-28 audit named this exact
+      fallback in advance (§8) precisely because the hazard was visible from
+      the dependency and not from any test — which is the argument for writing
+      down a predicted failure even when it does not occur during the session
+      that predicts it. Whoever next adds a server dependency with a native or
+      dynamically-required backend should assume the same and reach for
+      serverExternalPackages before staging finds it.
       Audit: docs/prompts/2026-08-12_HR-28_AUDIT.md.
 
   # ---- Labor ----
