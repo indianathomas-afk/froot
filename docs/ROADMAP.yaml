@@ -3959,6 +3959,143 @@ phases:
       docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md §§1-3, §5, §6, §9.3;
       session prompt docs/prompts/2026-08-12_HR-26_SESSION.md.
 
+  - id: DOC-1
+    track: hr
+    size: L
+    status: in_progress
+    title: "Document audience grants — a document is visible to its assigned audience, not to the whole org"
+    notes: >
+      PHASE A BUILT 2026-08-12 (work commit "d728da4"). Status in_progress until
+      the push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
+      HR-20/21/22/24/25/26). THREE PHASES: A is the grant table + the policy
+      choke point + the ten ruled-in call sites (this commit); B is the assign
+      dialog; C is the compliance rollup, the agreements panel and
+      audience-scoped signing counters. A ships with NO UI.
+      THE AUDIT FOUND THE PHASE WAS NOT THE PHASE THAT WAS SCOPED, TWICE, AND
+      BOTH FINDINGS CHANGED THE BUILD.
+      (1) canReadHrDocument had ONE caller — api/hr/documents/[id]/download —
+      out of fifteen sites that resolve an HrDocument. Its own comment said
+      "every future HR read path must resolve version -> document and ask this
+      function"; eleven read paths and two write paths were built afterwards and
+      not one of them did. The instruction was correct, in the right place, and
+      did not propagate, because it lived in hr-files.ts — a Blob-service module
+      that a page adding a document list has no reason to import. Phase A
+      therefore had to ESTABLISH the choke point, not extend it; the function
+      moved to lib/hr-documents-access.ts as part of the fix.
+      (2) AN AUDIENCE MECHANISM ALREADY EXISTED AND WAS ALREADY LOAD-BEARING.
+      HrDocument.appliesTo + HrDocumentStoreAssignment shipped with the original
+      HR model, four call sites already filtered on it, and NOTHING IN src/ HAS
+      EVER WRITTEN EITHER ONE — so all four were filtering on a constant, their
+      store disjunct never once evaluated against a non-empty set. Measured on
+      dev br-broad-wave-a6vpjdw0: 3 documents, 3 appliesTo "all", 0 grant rows.
+      CORRECTION TO THAT FINDING, recorded here because the audit artifact is a
+      claim wholesale and is never edited (CLAUDE.md § Where documents live):
+      the audit said no writer exists and cited a grep across src/. There IS one
+      — scripts/verify-hr8-compliance.ts:125, an HR-8 verification fixture — and
+      the grep could not have found it because it was scoped to src/. The
+      finding's substance is untouched (no APPLICATION writer, so no
+      user-created row can exist in any environment) and the build caught the
+      omission immediately at the rename. A sweep is only as complete as the
+      directory it searched.
+      R2, GARY 2026-08-12 — EXTEND, DO NOT DUPLICATE. HrDocumentGrant was NOT
+      created as a second table. appliesTo "all" IS the company-wide grant and
+      needs no row; the existing table gained granteeType (STORE | STAFF),
+      nullable storeId and staffMemberId, createdById and createdAt. The Prisma
+      MODEL was renamed to HrDocumentGrant with @@map holding the physical table
+      name HrDocumentStoreAssignment — an honest name for the first mechanism,
+      at zero SQL, rather than a rival mechanism beside it. Anything reading raw
+      SQL still sees the old table name; the four existing call sites stay
+      correct instead of being orphaned.
+      ADDITIVE, WITH ONE WIDENING NAMED OUT LOUD: storeId went NOT NULL ->
+      nullable, because a STAFF grant has no store. No column dropped. appliesTo
+      changed its DEFAULT to "selected" and NOT its data, so every pre-existing
+      document keeps "all" and keeps reaching everyone. NOTHING GOES DARK
+      BETWEEN PHASES — the session prompt and this session's own hard-stop-1
+      report both predicted staging would empty for non-admins after Phase A,
+      and both were WRONG once R2 replaced a new table with a default flip. Only
+      documents uploaded after the migration start ADMIN-only, which is the
+      intended Phase B hand-off.
+      TWO QUESTIONS, TWO FUNCTIONS, AND THAT IS THE PHASE'S LOAD-BEARING
+      DECISION. canReadHrDocument(doc, viewer) answers "may this viewer read it"
+      — the viewer may be a STORE login with no StaffMember at all.
+      grantedToStaff(doc, staff) answers "does this document apply to this
+      person". The manager-attest path is why they are not one function with a
+      flag: /hr/acknowledge/[id]?staff=X must ask the second question about X
+      and never the first about the manager (ruling 4). Pre-DOC-1 that path
+      asked NEITHER — it tested only whether the manager's stores overlapped the
+      staff member's, which answers "may this manager act for this person" and
+      says nothing about whether the document was ever assigned. A single
+      function with a subject flag would eventually be passed the wrong subject
+      at one of ten sites; two names cannot be.
+      THE WRITES ASK TOO, AND THAT IS THE HALF THAT MATTERS MOST (R1). POST
+      .../acknowledgments and POST .../signed-record now refuse a signature for
+      a document the staff member was never granted. A read refusal prevents a
+      leak; this prevents a PERMANENT ARTIFACT, because completing the required
+      checkpoint set mints an HrSignedRecord and ruling 4 makes that permanent —
+      there is no path that un-signs it. It also closes the stale-tab and
+      hand-rolled-POST cases a page gate cannot reach.
+      R3 — STORE GRANTS NEVER REACH CORPORATE STAFF. Square expands corporate
+      staff to a StoreStaffAssignment for EVERY store, so a naive roster match
+      sweeps them into every store grant, silently, with correct-looking data at
+      every step. The exclusion is explicit in both the predicate and the query
+      fragment, mirroring the training bulk-assign rule
+      (assignments/bulk/route.ts:187). COMPANY grants still reach them and an
+      individual STAFF grant always can.
+      MANAGER READS STORE-SCOPED — A DECISION THIS SESSION MADE, NOT ONE GARY
+      RULED, recorded so it can be overturned cheaply. Managers frequently have
+      no StaffMember row and would otherwise have lost read access they hold
+      today while still being able to attest for their team — an incoherent
+      pair. Store-scoped rather than org-wide follows HR-26's precedent for the
+      same question; org-wide reach stays ADMIN's alone. This does NOT touch the
+      attest path, which asks grantedToStaff about the staff member.
+      SCOPE HELD. #9 (/staff/[id] Agreements) was ruled IN so the two tabs of
+      one page share one audience rule. hr-compliance.ts is RENAMED ONLY and its
+      rule is still the pre-DOC-1 one, with a comment saying so at the call site
+      — audience changes the compliance DENOMINATOR there, not just visibility,
+      and that is Phase C with its own verification. The /hr/forms FillableForm
+      surfaces are untouched and canReadHrDocument's FillableForm branch is
+      unchanged (ADMIN/MANAGER), deliberately, so no out-of-scope behaviour
+      change rides in through a shared function. The audit's count of those
+      sites is corrected in the artifact itself at §3.1 — eleven query sites
+      across seven files, not the four reported at hard stop 1.
+      VERIFIED ON DEV (br-broad-wave-a6vpjdw0), 28/28 — the query fragment and
+      the predicate return the SAME document set for store staff, other-store
+      staff and corporate staff (the fragment/function drift the training.ts
+      pattern exists to prevent); the CHECK rejected a STORE row carrying a
+      staff member (23514); the partial unique index rejected a duplicate STAFF
+      grant (23505); ADMIN saw all four fixtures including the zero-grant one;
+      a STORE login saw only its own store's and the company-wide one. All
+      DOC-1A-named fixtures removed and the removal asserted.
+      A CLAIM THIS SESSION GOT WRONG AND CORRECTED, kept because the correction
+      is reusable: the schema comment and the work commit message both said a
+      future `prisma migrate diff` would propose DROPPING the two hand-written
+      objects. It will not — MIGRATIONS.md § Protected indexes already recorded,
+      with evidence from 2026-07-29, that diff is blind to partial indexes in
+      both directions, and this session re-measured it and extended the finding
+      to CHECK constraints. The reasoning error was "Prisma cannot express it"
+      -> "Prisma will fight it". The wrong version would have sent a reader
+      hunting a DROP INDEX line that never appears while leaving the REAL hazard
+      — the §2 baseline squash, which regenerates from the schema and omits both
+      — unwatched. The schema comment was corrected; THE MIGRATION FILE'S HEADER
+      STILL CARRIES THE WRONG CLAIM AND WAS LEFT ALONE ON PURPOSE, because
+      editing an applied migration changes its checksum in _prisma_migrations
+      and breaks migrate deploy on every branch that already ran it. An applied
+      migration is frozen even when it is wrong.
+      NOT PROMOTED. Applied to dev only; staging and production receive it via
+      migrate deploy on Gary's push. BEFORE PRODUCTION, run hard stop 4 on
+      br-sparkling-block — SELECT count(*) FROM "HrDocument" with the branch
+      column in the same output. Zero → the fresh-start ruling holds and no
+      backfill ships. Nonzero → STOP, a COMPANY-grant backfill becomes a ruling
+      in planning chat. Note what makes this easy to skip: because existing rows
+      keep "all", a forgotten backfill breaks nothing visible — it just leaves
+      real production documents company-wide forever, which is the right default
+      but was never an explicit decision about real content.
+      NO BROWSER VERIFICATION BY THIS SESSION, per the staging-SHA precondition:
+      this work is not on staging at commit time. Audit:
+      docs/prompts/DOC-1_A_AUDIT.md; session prompt
+      docs/prompts/DOC-1_phase_A_audience_grants_audit.md; migration entry
+      docs/MIGRATIONS.md § 2026-08-12.
+
   - id: HR-27
     track: hr
     size: L

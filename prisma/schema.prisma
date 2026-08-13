@@ -1636,9 +1636,14 @@ model HrDocument {
 // changed because the table stopped being about stores; renaming the table
 // would have been a destructive migration to fix a comment.
 //
-// INTEGRITY IS TWO RAW-SQL OBJECTS PRISMA CANNOT EXPRESS, and they are listed
-// in docs/MIGRATIONS.md because `prisma migrate diff` is blind to both and a
-// future generated diff will propose dropping them:
+// INTEGRITY IS TWO RAW-SQL OBJECTS PRISMA CANNOT EXPRESS. They are listed in
+// docs/MIGRATIONS.md § Protected indexes, and the hazard is NOT the one it
+// looks like: `prisma migrate diff` is blind to both in BOTH directions, so no
+// generated diff will ever propose dropping them (measured on dev
+// br-broad-wave-a6vpjdw0, 2026-08-12, with both objects present — both
+// directions returned an empty migration). The real hazard is the §2 baseline
+// squash, which regenerates from the SCHEMA and therefore silently omits
+// anything the schema cannot express. Re-append by hand after any squash.
 //   hrdoc_grant_shape (CHECK)  — STORE rows carry storeId only, STAFF rows
 //                                staffMemberId only. Neither ever both.
 //   ..._staff_grant_key (partial UNIQUE, WHERE granteeType = 'STAFF')

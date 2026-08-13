@@ -155,13 +155,32 @@ Rules:
 
 ## Protected indexes — expressible only in migration SQL, not in the schema
 
-Two unique indexes exist in every database but **cannot be written in
-`prisma/schema.prisma`**, because Prisma has no `WHERE` clause on `@@unique`:
+Three unique indexes and one CHECK constraint exist in every database but
+**cannot be written in `prisma/schema.prisma`** — Prisma has no `WHERE` clause
+on `@@unique` and no CHECK support at all:
 
-| Index | Table | Predicate | Origin |
+| Object | Table | Predicate | Origin |
 |---|---|---|---|
 | `LaborSettings_org_default_key` | `LaborSettings` | `WHERE "storeId" IS NULL` — one org-default row | `20260720000000_labor0_positions_settings_forecast` |
 | `StoreStaffAssignment_one_primary_key` | `StoreStaffAssignment` | `WHERE "isPrimary"` — one primary store per staff member | `20260729145504_build2_staff_one_primary_store` |
+| `HrDocumentStoreAssignment_staff_grant_key` | `HrDocumentStoreAssignment` | `WHERE "granteeType" = 'STAFF'` — one STAFF grant per (document, person) | `20260812171500_doc1a_document_audience_grants` |
+| `hrdoc_grant_shape` (**CHECK**, not an index) | `HrDocumentStoreAssignment` | STORE rows carry `storeId` only; STAFF rows carry `staffMemberId` only | `20260812171500_doc1a_document_audience_grants` |
+
+**Read the table name in those last two rows carefully.** The Prisma model is
+`HrDocumentGrant`; the physical table is still `HrDocumentStoreAssignment`,
+because DOC-1 A renamed the model with `@@map` rather than renaming the table
+(a rename would have been a destructive migration to fix a name). Anything
+touching raw SQL — these objects, a Neon console query, a hand-written
+migration — sees the old name. The Prisma client sees the new one.
+
+**Why the DOC-1 A partial index is needed at all**, since the table also carries
+`@@unique([hrDocumentId, storeId])`: that key cannot constrain STAFF rows,
+whose `storeId` is NULL. Postgres treats NULLs as distinct in a unique index, so
+`(doc, NULL)` never collides with itself and a document could otherwise
+accumulate unlimited duplicate grants to the same person. Verified 2026-08-12 on
+dev — a second identical STAFF row was rejected with `23505` against this index,
+and a STORE row carrying a `staffMemberId` was rejected with `23514` against the
+CHECK.
 
 ### Hazard 1 — the baseline squash silently drops them
 
@@ -229,6 +248,33 @@ Disconfirming evidence, if it ever appears: a `DROP INDEX` for either name in
 generated output. Two diffs in both directions on a branch that provably had the
 index produced none.
 
+**Re-confirmed 2026-08-12 by DOC-1 A, and extended to CHECK constraints.** With
+`HrDocumentStoreAssignment_staff_grant_key` *and* the `hrdoc_grant_shape` CHECK
+both provably present on dev (`br-broad-wave-a6vpjdw0` — read back from
+`pg_indexes` and `pg_constraint` minutes earlier), both directions returned
+`-- This is an empty migration.`:
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+npx prisma migrate diff --from-schema prisma/schema.prisma --to-config-datasource --script
+```
+
+So the blindness covers CHECK constraints as well as partial indexes, and in
+both directions. Recorded because DOC-1 A initially wrote the OPPOSITE into its
+schema comment and its commit message — "a future generated diff will propose
+dropping them" — reasoning from "Prisma cannot express it" to "Prisma will fight
+it". This section already said otherwise, with evidence, and was not consulted
+until the entry was being written. **The schema comment was corrected; the
+migration file's header comment still carries the wrong claim and was
+deliberately left alone**, because editing an applied migration changes the
+checksum in `_prisma_migrations` and breaks `migrate deploy` on every branch that
+already ran it. An applied migration is frozen even when it is wrong — put the
+correction here.
+
+Note the direction of the error, which is why it is worth writing down: it would
+have sent a future reader hunting for a `DROP INDEX` line that never appears,
+and left Hazard 1 — the one that actually drops these — unwatched.
+
 ## Hand-authored FK `ON DELETE` vs the schema's implied default
 
 **When a hand-authored migration states an `ON DELETE` behaviour and
@@ -254,6 +300,31 @@ schema-only, no database changed.
 schema edit did not touch. Never paste that through; resolve the drift first.**
 One instance is fixed; the sweep across every other hand-authored FK is
 DEBT-68 (unowned).
+
+### DOC-1 A: grant rows CASCADE with the staff member, by design
+
+`HrDocumentStoreAssignment_staffMemberId_fkey` is `ON DELETE CASCADE`, annotated
+`onDelete: Cascade` in the schema, so the two agree and no drift exists here.
+Recorded because the *reason* is a policy decision rather than a convenience,
+and DOC-1 A's grant rows sit next to the most delete-averse tables in this
+schema:
+
+**Access rules die with the person; records do not.** A grant answers "may this
+person be shown this document" — a question that stops existing when the staff
+member does. `HrSignedRecord` and `HrDocumentAcknowledgment` answer "did this
+person sign this document", which never stops being true. So they carry **no
+cascade at all** and deliberately block deletion of the version and staff member
+they pin, while a grant is swept up with its subject. Deleting a staff member
+removes their grants and cannot touch a signature they gave (ruling 4, Gary
+2026-08-12 — signed records are permanent regardless of any later grant change).
+
+The store side is `ON DELETE CASCADE` for the same reason it always was: a grant
+naming a deleted store is unresolvable, not merely stale.
+
+**The one thing this does NOT mean:** revoking access is not deletion. Documents
+themselves are never hard-deleted (`isActive: false` is the pattern, ruling 8),
+and un-assigning an audience is a grant-row change that leaves every signature
+already on file intact and readable.
 
 ## Which branch am I actually reading?
 
@@ -380,3 +451,46 @@ therefore fully independent for that change.
 The consequence for anyone auditing this file: **`prisma/migrations/` is not a
 complete record of what has mutated production data.** Approved-SQL events are
 logged in `DEPLOY_LOG.md` instead, marked "NOT a promotion". Read both.
+
+## 2026-08-12 — `20260812171500_doc1a_document_audience_grants` (DOC-1 A)
+
+Applied to **dev only** so far (`br-broad-wave-a6vpjdw0`, direct endpoint
+`ep-late-water-a6k53nv2`, no `-pooler`). Staging and production get it via
+`migrate deploy` in the Vercel build on Gary's push — **not yet promoted at time
+of writing**. Work commit `d728da4`.
+
+| Statement | Kind |
+|---|---|
+| `HrDocument.appliesTo` `SET DEFAULT 'selected'` | default only — **no row rewritten** |
+| `HrDocumentStoreAssignment` + `granteeType` (`NOT NULL DEFAULT 'STORE'`), `staffMemberId`, `createdById`, `createdAt` | additive columns |
+| `HrDocumentStoreAssignment.storeId` `DROP NOT NULL` | widening — required, a STAFF grant has no store |
+| index + FK on `staffMemberId` (`ON DELETE CASCADE`) | additive |
+| `HrDocumentStoreAssignment_staff_grant_key`, `hrdoc_grant_shape` | hand-written — see § Protected indexes |
+
+**No table was renamed.** The Prisma model `HrDocumentStoreAssignment` became
+`HrDocumentGrant` in the same commit with `@@map` holding the physical name, so
+the rename produced zero SQL and every pre-existing row is a valid STORE grant
+under the new `granteeType` default.
+
+**The default flip is the part to understand before promoting.** It changes what
+NEW documents inherit and nothing else: every document that predates the
+migration keeps `appliesTo = 'all'` and keeps reaching everyone, so no library
+empties and no compliance denominator moves when this lands. Documents uploaded
+*after* it start with zero grants and are ADMIN-only until Phase B's assign
+dialog gives them an audience — intended, not a regression.
+
+**Pre-promotion check (hard stop 4 of the DOC-1 A session prompt, Gary's to
+run).** On production (`br-sparkling-block`), with the branch id in the same
+output:
+
+```sql
+SELECT current_setting('neon.branch_id', true) AS branch_id,
+       current_database(), count(*) FROM "HrDocument";
+```
+
+Zero → the fresh-start ruling holds and no backfill ships. Nonzero → **stop**: a
+COMPANY-grant backfill for the existing rows becomes a ruling in planning chat
+before this promotes. Note what makes this cheap to get wrong — because existing
+rows keep `'all'`, a forgotten backfill does **not** break anything visible; it
+simply leaves those documents company-wide forever, which is the correct default
+but was never an explicit decision for real production content.
