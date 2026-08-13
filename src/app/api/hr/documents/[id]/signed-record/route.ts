@@ -26,6 +26,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 })
 
+  // NO isActive FILTER, AND THAT IS A RULING RATHER THAN AN OVERSIGHT (Gary,
+  // 2026-08-12, DOC-1 B audit). Every other document read path in the codebase
+  // narrows on isActive; this one deliberately does not.
+  //
+  // This route only ever runs after a person has completed the entire required
+  // checkpoint set — ensureSignedRecord refuses an incomplete one, so nothing
+  // can be minted early. Adding the filter would mean: someone signs everything,
+  // the synchronous PDF generator fails, an admin archives the document, and
+  // their completed signature can now never become its artifact. That is the
+  // opposite of the ruling that completed signed records are permanent.
+  // Archiving is a VISIBILITY decision; it must not reach backwards into
+  // signatures already given.
   const doc = await prisma.hrDocument.findFirst({
     where: { id, organizationId: org.id, kind: "Acknowledgment" },
     include: { versions: { where: { isCurrent: true }, take: 1 }, ...AUDIENCE_INCLUDE },

@@ -102,6 +102,26 @@ export async function createFillableForm({
       bodyText,
       requiresAcknowledgment: false,
       isActive: true,
+      // DOC-1 B FIX NOW (Gary, 2026-08-12) — REPAIRING A PHASE A REGRESSION,
+      // NOT ADOPTING FORMS INTO THE AUDIENCE MECHANISM.
+      //
+      // Phase A flipped HrDocument.appliesTo's DEFAULT from "all" to "selected"
+      // and left this create call setting it explicitly nowhere, so every form
+      // built after 2026-08-12 was born with an empty audience. /hr/forms never
+      // noticed — canReadHrDocument's FillableForm branch does not consult the
+      // audience at all — but /staff/[id]'s Agreements tab filters through
+      // staffAudienceWhere (ruled IN by Phase A so both tabs of one page share
+      // one rule), and NOTHING IN THE APPLICATION CAN GRANT A FORM AN AUDIENCE:
+      // the assign dialog is scoped to the document library, which excludes
+      // FillableForm by construction. New forms were therefore invisible on
+      // every staff member's Agreements tab, permanently and unfixably.
+      //
+      // "all" restores the pre-DOC-1 behaviour exactly — every form that
+      // predates the migration carries it, and the clause that tab used before
+      // Phase A was the appliesTo "all" disjunct. Forms stay OUT of the grant
+      // mechanism, which is the point: this is the value that makes the
+      // audience layer a no-op for them, not a foothold for it.
+      appliesTo: "all",
       formFields: {
         create: snapshot.fields.map((f) => ({
           label: f.label,

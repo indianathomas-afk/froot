@@ -31,12 +31,21 @@ export default async function HrDocumentsPage() {
   if (!org.activeModules.includes("hr")) redirect("/hr")
 
   const viewer = await resolveDocumentViewer(org.id, dbUser)
+  const isAdmin = dbUser?.role === "ADMIN"
 
   const docs = await prisma.hrDocument.findMany({
     where: {
       organizationId: org.id,
       kind: { in: ["Reference", "Acknowledgment"] },
-      isActive: true,
+      // DOC-1 B: ADMIN SEES ARCHIVED ROWS, EVERYONE ELSE DOES NOT. Archiving
+      // was already one-way in the UI — the Archive button has shipped since
+      // HR-4, PATCH has always accepted isActive:true, and this filter then hid
+      // the row from the only surface that lists it, so an archived Reference
+      // document was reachable only by typed URL. The lifecycle gate stays in
+      // this where clause for non-admins; canReadHrDocument below answers
+      // audience, which is a different question and does not know about
+      // isActive.
+      ...(isAdmin ? {} : { isActive: true }),
       ...viewerAudienceWhere(viewer),
     },
     include: { versions: { where: { isCurrent: true }, take: 1 }, ...AUDIENCE_INCLUDE },
@@ -53,7 +62,14 @@ export default async function HrDocumentsPage() {
       fileName: d.versions[0]?.fileName ?? "",
       sizeBytes: d.versions[0]?.sizeBytes ?? 0,
       uploadedAt: (d.versions[0]?.createdAt ?? d.createdAt).toISOString(),
+      isActive: d.isActive,
+      // The audience chip's inputs. No extra query: AUDIENCE_INCLUDE was
+      // already loaded so the predicate above could be asked, and appliesTo is
+      // on the row — both were simply dropped in this mapping before.
+      appliesTo: d.appliesTo,
+      storeGrants: d.grants.filter((g) => g.granteeType === "STORE").length,
+      staffGrants: d.grants.filter((g) => g.granteeType === "STAFF").length,
     }))
 
-  return <HrDocumentsClient documents={documents} isAdmin={dbUser?.role === "ADMIN"} />
+  return <HrDocumentsClient documents={documents} isAdmin={isAdmin} />
 }

@@ -38,6 +38,53 @@ export const HR_KIND_LABELS: Record<HrDocumentKind, string> = {
   Acknowledgment: "Requires signature",
 }
 
+// ── DOC-1 B: the audience chip ──────────────────────────────────────────────
+// A row's reach at a glance. Before this, an admin could not tell a locked
+// document from a company-wide one by looking — the library rendered both
+// identically while the policy treated them as opposites.
+//
+// IT COUNTS GRANT ROWS, NOT PEOPLE, AND THAT IS THE DECISION. The reach of a
+// store ("reaches 7") is the assign dialog's number, computed server-side by
+// asking the policy predicate itself; putting a people-count here would mean
+// either a second read on every library render or a browser-side copy of the
+// corporate-exclusion rule, and the second is the drift this phase exists to
+// avoid. "2 stores" is a fact the row already holds.
+//
+// This lives here rather than in lib/hr-documents-access.ts on purpose: it is
+// display, not policy, and the policy module's semantics are out of scope for
+// Phase B. It is also client-safe, which that module is not obliged to be.
+export type HrAudienceSummary = {
+  appliesTo: string
+  storeGrants: number
+  staffGrants: number
+}
+
+const storesLabel = (n: number) => `${n} ${n === 1 ? "store" : "stores"}`
+const peopleLabel = (n: number) => `${n} ${n === 1 ? "person" : "people"}`
+
+export function hrAudienceLabel({ appliesTo, storeGrants, staffGrants }: HrAudienceSummary): string {
+  // Dormant grant rows under "all" read as Everyone, deliberately — the chip
+  // states who the document reaches TODAY. That rows are being preserved
+  // underneath, and will govern again if the audience is narrowed, is disclosed
+  // in the assign dialog where it is actionable, not in a one-word badge.
+  if (appliesTo === "all") return "Everyone"
+  if (storeGrants === 0 && staffGrants === 0) return "Unassigned"
+  if (storeGrants === 0) return peopleLabel(staffGrants)
+  if (staffGrants === 0) return storesLabel(storeGrants)
+  return `${storesLabel(storeGrants)} · ${peopleLabel(staffGrants)}`
+}
+
+// "Unassigned" is the WARNING state, not a neutral one: it means the document
+// is visible to admins and to nobody else, which is the condition this whole
+// phase was built to make visible. Everything else is informational.
+export function hrAudienceChipStyle(summary: HrAudienceSummary): string {
+  const unassigned =
+    summary.appliesTo !== "all" && summary.storeGrants === 0 && summary.staffGrants === 0
+  return unassigned
+    ? "bg-amber-100 text-amber-800 border border-amber-200"
+    : "bg-gray-100 text-gray-600 border border-gray-200"
+}
+
 // ── HR-5: fillable agreement forms ──────────────────────────────────────────
 
 export const FORM_FIELD_TYPES = ["Text", "Date", "Email", "Phone", "Number", "Select"] as const
