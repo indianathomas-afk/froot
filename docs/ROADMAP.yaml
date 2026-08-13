@@ -4095,6 +4095,136 @@ phases:
       docs/prompts/DOC-1_A_AUDIT.md; session prompt
       docs/prompts/DOC-1_phase_A_audience_grants_audit.md; migration entry
       docs/MIGRATIONS.md § 2026-08-12.
+      ────────────────────────────────────────────────────────────────────
+      PHASE B BUILT 2026-08-12 (work commit "e18dd54"). The assign dialog,
+      the visibility toggle and the audience chips. Phase A shipped the
+      audience machinery with NO WRITER anywhere in the application; this is
+      the writer plus the two admin surfaces that make an audience legible.
+      PUT/GET /api/hr/documents/[id]/audience, ADMIN on the canManage seam,
+      scoped to Reference|Acknowledgment by the same guard [id]/route.ts
+      uses — a FillableForm id 404s, so forms stay outside the mechanism.
+      THE REACH COUNT IS THE POLICY FUNCTION, ASKED A HYPOTHETICAL, AND
+      DECLINING TO ADD A HELPER IS THE DESIGN DECISION OF THE PHASE. A
+      reachOfStoreGrant() beside grantedToStaff would read as tidier and
+      would be a SECOND EXPRESSION OF ONE RULE — precisely what
+      lib/hr-documents-access.ts's header exists to prevent, and precisely
+      the drift class the session prompt named. Instead the route builds the
+      document that WOULD exist and asks the real predicate about it, so the
+      corporate exclusion (R3) cannot be forgotten in the dialog because it
+      is never restated there.
+      LOSSLESSNESS IS A TYPE, NOT A PROMISE. The PUT body is a Zod
+      discriminated union on appliesTo; the "all" branch carries no selection
+      arrays at all, so the route PHYSICALLY CANNOT delete a grant row on
+      that path — the parser refuses the fields that would let it. Rows go
+      dormant under "all" and govern again on narrowing. Verified: the flip
+      deleted zero rows (3 → 3) and narrowing restored the audience exactly.
+      DELTA, NOT REPLACE (ruling (c), Gary 2026-08-12) — surviving rows keep
+      createdAt and createdById, provenance a delete-all/insert-all resets on
+      every unrelated save. Extracted to lib/hr-document-audience.ts because
+      a Next route file may export only handlers, and the delta is the piece
+      most needing to be callable by a verification script rather than
+      re-typed into one. Testing a copy of a write algorithm proves the copy.
+      THE PICKER OFFERS TERMINATED GRANT-HOLDERS, AND THAT IS LOAD-BEARING,
+      NOT COURTESY. With an ACTIVE-only population a delta write silently
+      revokes anyone terminated since their grant was made: absent from the
+      picker, absent from the submitted set, deleted. Both populations were
+      measured on the same fixture — ACTIVE-only produces one spurious
+      removal, the shipped union produces none.
+      RULING (a), GARY 2026-08-12 — reach counts load ACTIVE staff only,
+      counted via grantedToStaff, worded "reaches N" per HR-22. NAMED
+      DIVERGENCE, NOT DRIFT: THE POLICY HAS NO EMPLOYMENT-STATUS TEST OF ANY
+      KIND and reaches TERMINATED staff. PHASE C MUST COUNT ACTIVE STAFF ONLY
+      IN COMPLIANCE DENOMINATORS — recorded here by that ruling because the
+      divergence is invisible from inside either module.
+      RULING (b) — the signed-record recovery path KEEPS its missing isActive
+      filter, now with the reasoning written down at the query. It is the only
+      one of twelve document read paths without it, and adding it would strand
+      a completed signature whose PDF generation failed before an archive:
+      archiving is a VISIBILITY decision and must not reach backwards into
+      signatures already given. ensureSignedRecord refuses an incomplete
+      checkpoint set, so nothing can be minted early.
+      VISIBILITY WAS ALREADY BROKEN, NOT MISSING, AND THAT CHANGED WHAT ITEM 2
+      WAS. Archive shipped with HR-4 and PATCH has always accepted
+      isActive:true — the write half of restore was already there — but the
+      library filtered isActive UNCONDITIONALLY, INCLUDING FOR ADMIN, so
+      archiving removed the row from the only surface that lists it. An
+      archived Reference document was reachable only by typed URL and ruling
+      8's "hide, never delete" was in practice "hide forever". ADMIN now sees
+      archived rows behind a collapsed disclosure with Restore; every
+      non-admin query is byte-for-byte unchanged.
+      CHIPS COUNT GRANT ROWS, NOT PEOPLE. A reach count per library row would
+      cost either a second read per render or a browser-side copy of the
+      corporate rule; "2 stores" is a fact the row already holds. Unassigned
+      is the WARNING state because it means visible to admins and nobody else
+      — the condition the whole phase exists to surface. NO LIVE CLIENT-SIDE
+      TOTAL IN THE DIALOG, deliberately: HR-22 can afford an advisory
+      browser-computed preview because its POST reports the server's own
+      figures afterwards, and copying that here would put a second copy of R3
+      in the client. The aggregate arrives in the PUT response instead. HR-22's
+      compliance-dip disclosure has no analogue either — a training assignment
+      enters the denominator the instant it is written, whereas an audience
+      edit is reversible by ruling, so warning about it would claim a
+      consequence that does not exist.
+      FIX NOW ADMITTED INTO PHASE B BY RULING — PHASE A CLOSED THE AGREEMENTS
+      TAB TO EVERY NEW FILLABLE FORM. createFillableForm (lib/hr-forms.ts:96)
+      never set appliesTo, so after Phase A flipped the column DEFAULT to
+      "selected" every form built since was born with an EMPTY AUDIENCE.
+      /hr/forms never noticed (canReadHrDocument's FillableForm branch does not
+      consult the audience) and the org-level Agreements panel never noticed
+      (no audience filter) — but /staff/[id]'s Agreements tab did, because
+      Phase A ruled it IN so both tabs of one page share one rule, AND NOTHING
+      IN THE APPLICATION COULD EVER GRANT A FORM AN AUDIENCE, since the assign
+      dialog is scoped to a library that excludes FillableForm by construction.
+      New forms were invisible there permanently and unfixably. Gary ruled
+      option (i) 2026-08-12: createFillableForm sets appliesTo "all" — one
+      line, restoring pre-DOC-1 behaviour exactly (every form predating the
+      migration carries it, and the clause that tab used before Phase A WAS
+      the appliesTo "all" disjunct) and keeping forms OUT of the grant
+      mechanism rather than dragging them in.
+      CORRECTION TO PHASE A'S OWN CLAIM, DATED 2026-08-12 AND MARKED RATHER
+      THAN EDITED (Gary's instruction; CLAUDE.md § Where documents live).
+      Phase A's entry above states "NOTHING GOES DARK BETWEEN PHASES". That
+      was TRUE FOR DOCUMENTS and FALSE FOR FORMS, and the exception was found
+      by Phase B's audit and fixed in this commit. The original sentence
+      stands unedited; this is its correction. Note the shape — the claim was
+      reasoned from the default flip preserving existing ROWS, which it did;
+      what it missed is a CREATE PATH that never named the column. A default
+      is a promise about rows that exist and says nothing about the code that
+      makes new ones.
+      VERIFIED ON DEV br-broad-wave-a6vpjdw0 / neondb, 32/32, on Organization
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd (clerkOrgId
+      org_3FhYUR4l0ue7egug1I0Ig8wxOVn — a PRODUCTION-ORIGINATED id on a
+      dev-branch row, dev having been forked from production; the branch label
+      is what makes the result evidence). Reach count equals measured policy
+      reach; corporate excluded from store grants; other stores unreached; the
+      Everyone flip deletes nothing and narrowing restores exactly; provenance
+      survives an unrelated edit; hrdoc_grant_shape rejects a STORE row
+      carrying a staff member (23514) and the partial unique index rejects a
+      duplicate STAFF grant (23505); archived vanishes from both the non-admin
+      library query and the /my + /staff audience query, stays listed for
+      ADMIN, and returns on restore; six chip states. All fixtures DOC-1B-named,
+      removed, removal asserted.
+      NOT VERIFIED, AND IT IS THE HTTP SHELL — the guard, the Zod parse, the
+      transaction composition and the response shape. Reaching the route needs
+      an authenticated ADMIN session and this session may not enter
+      credentials. The delta was extracted specifically so a script could call
+      the SHIPPED function instead of a copy, and the policy, constraints and
+      query fragments were measured directly; but the route was never called
+      over HTTP. Chips and the archived disclosure were rendered in a browser
+      through a temporary page under the public /menu route (removed before the
+      work commit, no console errors). BOTH GAPS BELONG TO THE STAGING PASS.
+      FOR THE STAGING CHECKLIST — dev has ZERO FillableForm rows with
+      appliesTo='selected' (branch id in the same query output). STAGING HAS
+      HAD THE DEFAULT FLIP SINCE GARY'S PUSH EARLIER ON 2026-08-12, so run the
+      same query there: any such rows were BORN DARK on the Agreements tab and
+      may need a one-time correction at promote time. Also still outstanding
+      from Phase A: the STORE-login (shared iPad) staging walk-through has
+      never been observed. And unchanged, before any production promotion:
+      hard stop 4 — production HrDocument count on br-sparkling-block with the
+      branch column in the same output; nonzero stops the promotion.
+      Audit: docs/prompts/DOC-1_B_AUDIT.md; session prompt
+      docs/prompts/DOC-1_phase_B_assign_dialog.md. NO MIGRATION IN PHASE B —
+      every column, constraint and index it writes already existed.
 
   - id: HR-27
     track: hr

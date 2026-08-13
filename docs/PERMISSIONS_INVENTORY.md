@@ -162,7 +162,7 @@ referenced by the capability registry in §5.
 | PG-21 | `(app)/inventory/recipes`, `recipes/[id]`, `storage-areas`, `vendors` pages | Inventory asset surfaces | **Any member** (nav says ADMIN/MANAGER; no server role check); manage UI `canManage` | data-scope + client-render (role restriction nav-only) |
 | PG-22 | `(app)/inventory/expected`, `alerts`, `reports`, `orders/new`, `purchase-orders/new`, `ingredients/deleted`, `ingredients/duplicates` pages | Inventory manager surfaces | ADMIN+MANAGER (redirect) | route-guard |
 | PG-23 | `(app)/hr/page.tsx` | HR hub | HR gates; any member; cards conditional (compliance ADMIN/MANAGER; documents/forms/training links ADMIN) | route-guard (gates) + client-render |
-| PG-24 | `(app)/hr/documents/page.tsx` | Document library | HR gates; any member; manage buttons ADMIN | route-guard + client-render |
+| PG-24 | `(app)/hr/documents/page.tsx` | Document library | HR gates; audience-scoped per DOC-1 (ADMIN unnarrowed); **archived rows listed for ADMIN only** (DOC-1 B); manage buttons ADMIN | route-guard + data-scope + client-render |
 | PG-25 | `(app)/hr/documents/[id]/page.tsx` | Document config (checkpoints/anchors) | ADMIN (notFound) | route-guard |
 | PG-26 | `(app)/hr/forms/page.tsx`, `forms/[id]/page.tsx` | Form builder | ADMIN (notFound) | route-guard |
 | PG-27 | `(app)/hr/forms/[id]/submit/page.tsx` | Supervised form execution | ADMIN/MANAGER; manager limited to staff in own stores (notFound) | route-guard + data-scope |
@@ -255,7 +255,7 @@ display restriction, not a confidentiality one".
 | ID | Route(s) | What it guards | Roles allowed today | Enforcement type |
 |---|---|---|---|---|
 | HR-1 | `hr/documents` GET, `[id]/download` GET | Document library reads (reference library) | Any member | handler |
-| HR-2 | `hr/documents` POST, `[id]` PATCH, `versions`, `upload-url`, `checkpoints` writes, `anchors` GET/POST, `anchors/rescan` | Document config/manage | ADMIN (`{admin:true}`) | handler |
+| HR-2 | `hr/documents` POST, `[id]` PATCH, `[id]/audience` GET/PUT, `versions`, `upload-url`, `checkpoints` writes, `anchors` GET/POST, `anchors/rescan` | Document config/manage | ADMIN (`{admin:true}`) | handler |
 | HR-3 | `hr/documents/[id]/acknowledgments` GET | Signing status | Self; for another staff member: ADMIN/MANAGER (manager in-scope) | handler + data-scope |
 | HR-4 | `hr/documents/[id]/acknowledgments` POST | The signing act | Self-sign: linked ACTIVE staff; attested: ADMIN/MANAGER, manager in-scope (terminated staff allowed for attested backfill) | handler + data-scope |
 | HR-5 | `hr/documents/[id]/signed-record` GET/POST | Signed-record generate/lookup | Self, or ADMIN/MANAGER in-scope | handler + data-scope |
@@ -304,7 +304,7 @@ display restriction, not a confidentiality one".
 | `dashboard/rollup-view.tsx` (Store Ranking header) | `canViewForecasting` gates the `Forecasting →` link — was ungated for every role (PERM-3) |
 | `inventory/*-client.tsx` (ingredients, counts, storage-areas, vendors, po-detail, sales-items, adjustments) | `canManage` / `isAdmin` props gate add/edit/delete/sync/import buttons |
 | `messages/messages-client.tsx` | `isManager` status/ack controls; `isAdmin` corporate-update compose/delete |
-| `hr/documents/documents-client.tsx` | `isAdmin` add/edit/archive/generate |
+| `hr/documents/documents-client.tsx` | `isAdmin` add/edit/archive/restore/generate, audience chip and Assign action, archived disclosure |
 | `staff/page.tsx`, `staff-buttons.tsx`, `staff/[id]/*` | `isAdmin` add/import/edit; `canSeeNotes`; note delete author-or-ADMIN; legal-name controls |
 | `users/user-actions.tsx` | Role options; STAFF only in Edit dialog (UM-1 f) |
 | `hr/page.tsx` | Cards conditional per role |
