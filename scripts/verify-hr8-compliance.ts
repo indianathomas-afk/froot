@@ -122,7 +122,10 @@ async function main() {
       data: {
         organizationId: org.id, kind: "Acknowledgment", title: "HR8 Doc C", category: "Policy",
         appliesTo: "selected", requiresAcknowledgment: true,
-        storeAssignments: { create: { storeId: storeB.id } },
+        // DOC-1 A: HrDocumentStoreAssignment → HrDocumentGrant (relation field
+        // `grants`), granteeType STORE. Same physical table (@@map), same row
+        // shape for a store grant — this fixture is unchanged in meaning.
+        grants: { create: { granteeType: "STORE", storeId: storeB.id } },
         versions: { create: { versionNumber: 1, fileHash: "hashC1", ...FILE } },
         checkpoints: { create: [{ name: "C ck1", type: "Signature", orderIndex: 0 }] },
       },

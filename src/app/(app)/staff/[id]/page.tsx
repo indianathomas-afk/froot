@@ -6,6 +6,7 @@ import { format } from "date-fns"
 import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
 import { can } from "@/lib/permissions"
+import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { LegalNameControls } from "./legal-name-controls"
@@ -166,17 +167,17 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // status to "needs-current" while the old record stays downloadable.
   let documentRows: StaffDocumentRow[] = []
   if (canSeeHrTabs) {
-    const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
     const docs = await prisma.hrDocument.findMany({
       where: {
         organizationId: member.organizationId,
         kind: "Acknowledgment",
         isActive: true,
         requiresAcknowledgment: true,
-        OR: [
-          { appliesTo: "all" },
-          { storeAssignments: { some: { storeId: { in: memberStoreIds } } } },
-        ],
+        // DOC-1 A: the hand-written OR clause became staffAudienceWhere. The
+        // subject is the PROFILE'S OWNER, never the manager reading the page —
+        // this tab has always answered "what does this person owe", and the
+        // audience rule keeps that subject.
+        ...staffAudienceWhere(member),
       },
       include: {
         checkpoints: { where: { required: true }, select: { id: true } },
@@ -253,16 +254,17 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // Check-Out/Check-In pairs are grouped by the client component.
   let formDocRows: StaffFormDocRow[] = []
   if (canSeeHrTabs) {
-    const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
     const formDocs = await prisma.hrDocument.findMany({
       where: {
         organizationId: member.organizationId,
         kind: "FillableForm",
         isActive: true,
-        OR: [
-          { appliesTo: "all" },
-          { storeAssignments: { some: { storeId: { in: memberStoreIds } } } },
-        ],
+        // DOC-1 A: same rule as the Documents tab above, per Gary's ruling 1
+        // (2026-08-12) — two tabs on one page must follow one audience rule.
+        // The /hr/forms surfaces are out of scope and keep their ADMIN /
+        // store-scoped-MANAGER gates; this is the staff-facing view of which
+        // agreements reach this person, which is an audience question.
+        ...staffAudienceWhere(member),
       },
       select: { id: true, title: true, category: true, linkedFormId: true },
       orderBy: { title: "asc" },

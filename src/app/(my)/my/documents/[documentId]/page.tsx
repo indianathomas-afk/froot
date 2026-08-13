@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
+import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { SigningClient } from "@/app/(app)/hr/acknowledge/[documentId]/signing-client"
 import { LegalNameRequired } from "@/components/hr/legal-name-required"
 import { MyShell } from "../../my-shell"
@@ -25,10 +26,17 @@ export default async function MyAcknowledgePage({
     include: {
       checkpoints: { orderBy: { orderIndex: "asc" } },
       versions: { where: { isCurrent: true }, take: 1 },
+      ...AUDIENCE_INCLUDE,
     },
   })
   const version = doc?.versions[0]
   if (!doc || !version) notFound()
+
+  // DOC-1 A: always self mode here, so the subject is the caller's own staff
+  // record — but the question is still grantedToStaff, not canReadHrDocument.
+  // A document that does not reach you is indistinguishable from one that does
+  // not exist, matching the line above.
+  if (!grantedToStaff(doc, staffMember)) notFound()
 
   // HR-15 Policy B: resume state is per signing cycle — a rehire starts the
   // current version fresh; their prior-cycle acknowledgments stay on file.

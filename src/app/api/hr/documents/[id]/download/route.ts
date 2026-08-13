@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { canReadHrDocument, getHrFileDownloadUrl, hrPathnameFromUrl, streamHrFile } from "@/lib/hr-files"
+import { getHrFileDownloadUrl, hrPathnameFromUrl, streamHrFile } from "@/lib/hr-files"
+import {
+  AUDIENCE_INCLUDE,
+  canReadHrDocument,
+  resolveDocumentViewer,
+} from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
 // GET /api/hr/documents/[id]/download — authorized delivery for private HR
@@ -19,7 +24,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const doc = await prisma.hrDocument.findFirst({
     where: { id, organizationId: org.id, isActive: true },
-    include: { versions: { where: { isCurrent: true }, take: 1 } },
+    include: { versions: { where: { isCurrent: true }, take: 1 }, ...AUDIENCE_INCLUDE },
   })
   const version = doc?.versions[0]
   // Cross-org or unknown IDs 404 rather than 403 — don't leak existence.
@@ -27,7 +32,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Document not found" }, { status: 404 })
   }
 
-  if (!canReadHrDocument(doc, { orgDbId: org.id, role: dbUser?.role ?? null })) {
+  // DOC-1 A: the policy is now audience-aware. This route is the ONE call site
+  // that had it before the phase, and it keeps 403 rather than 404 for a
+  // refusal — the id is real and the caller may well have been shown it by a
+  // stale page, so "forbidden" is the honest answer and leaks nothing a list
+  // surface did not already give away.
+  const viewer = await resolveDocumentViewer(org.id, dbUser)
+  if (!canReadHrDocument(doc, viewer)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

@@ -237,34 +237,22 @@ export async function streamHrFile(fileUrl: string): Promise<Response> {
   return res
 }
 
-// Document access policy, keyed on HrDocument.kind. The download route (and
-// every future HR read path) must resolve version → document and ask this
-// function — authorization is per document policy, never "any HR file".
-export function canReadHrDocument(
-  doc: { kind: string; organizationId: string },
-  viewer: { orgDbId: string; role: string | null }
-): boolean {
-  if (doc.organizationId !== viewer.orgDbId) return false
-  switch (doc.kind) {
-    case "Reference":
-      // General HR library: readable by every authenticated member of the org.
-      return true
-    case "Acknowledgment":
-      // The BLANK template: readable by every org member — staff must be able
-      // to read what they are asked to sign. Executed signed-record PDFs are
-      // not documents; canReadHrSignedRecord governs those.
-      return true
-    case "FillableForm":
-      // HR-5: the template DEFINITION (no source file exists — forms render
-      // natively). Managed by ADMIN, executed by ADMIN/MANAGER; staff see the
-      // rendered form during signing on the supervisor's device (self-service
-      // arrives with /my/* in HR-7). Executed PDFs are governed by
-      // canReadHrSignedRecord via the submission download route.
-      return viewer.role === "ADMIN" || viewer.role === "MANAGER"
-    default:
-      return false
-  }
-}
+// canReadHrDocument MOVED to lib/hr-documents-access.ts on 2026-08-12 (DOC-1
+// Phase A). It is a policy, not a file service, and it now needs the document's
+// grant rows and the viewer's two kinds of store assignment — none of which
+// belongs in a module whose job is Blob tokens and signed URLs.
+//
+// THE MOVE IS ALSO THE FIX FOR WHY THE INSTRUCTION THAT USED TO STAND HERE DID
+// NOT TAKE. It read "the download route (and every future HR read path) must
+// resolve version → document and ask this function". Eleven read paths and two
+// write paths were built afterwards and not one of them called it: it sat in a
+// file nobody imports unless they are touching Blob storage, so the paths that
+// needed it never encountered it. It now lives beside the query fragments that
+// make it usable, and DOC-1 A wired the ten call sites that R1 ruled in.
+//
+// canReadHrSignedRecord stays HERE, unchanged: executed PDFs are the sensitive
+// tier, governed per record rather than per audience, and DOC-1 does not touch
+// them (ruling 4 — signed records are permanent regardless of grant changes).
 
 // Executed signed-record PDFs are the sensitive tier: ADMIN, or a MANAGER
 // whose store scope overlaps the owning staff member's stores — nobody else.

@@ -165,7 +165,15 @@ export async function computeStaffComplianceDetails(
       },
       include: {
         checkpoints: { where: { required: true }, select: { id: true } },
-        storeAssignments: { select: { storeId: true } },
+        // DOC-1 A: RENAMED ONLY, NOT MIGRATED. The relation field moved
+        // storeAssignments → grants with the model rename, so this had to
+        // change to compile. The RULE below (:247) is untouched and is still
+        // the pre-DOC-1 one — no STAFF grants, no corporate exclusion. Gary
+        // ruled the compliance rollup into PHASE C (R1, 2026-08-12) because
+        // audience changes the denominator here, not just the visibility, and
+        // that is a numbers change that deserves its own phase and its own
+        // verification. Do not read this call site as adopted.
+        grants: { select: { granteeType: true, storeId: true } },
         versions: {
           orderBy: { versionNumber: "desc" },
           select: { id: true, versionNumber: true, isCurrent: true },
@@ -243,9 +251,15 @@ export async function computeStaffComplianceDetails(
     const primary = member.storeAssignments[0] ?? null
 
     const docItems: ComplianceDocItem[] = docs.flatMap((d) => {
+      // DOC-1 A: renamed relation, unchanged rule (see the include above —
+      // this is Phase C's call site, not Phase A's). granteeType is filtered so
+      // a STAFF grant's null storeId can never be compared against a store id;
+      // that is defensive, not the STAFF rule, which Phase C adds.
       const applies =
         d.appliesTo === "all" ||
-        d.storeAssignments.some((sa) => memberStoreIds.includes(sa.storeId))
+        d.grants.some(
+          (g) => g.granteeType === "STORE" && g.storeId !== null && memberStoreIds.includes(g.storeId)
+        )
       if (!applies) return []
       const current = d.versions.find((v) => v.isCurrent)
       if (!current) return []

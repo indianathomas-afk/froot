@@ -3,6 +3,7 @@ import { format } from "date-fns"
 import { BookOpen, CheckCircle2, ChevronRight, FileText, ShieldCheck } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
+import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { Badge } from "@/components/ui/badge"
 import { MyShell } from "../my-shell"
 import { MyDenied } from "../denied"
@@ -47,8 +48,18 @@ export default async function MyDocumentsPage() {
       },
       orderBy: { completedAt: "desc" },
     }),
+    // DOC-1 A: the reference library was org-wide and unfiltered here — every
+    // Reference document in the org, to every active staff member. It is now
+    // the staff member's own audience, the same rule the To-sign list above
+    // uses, so the two halves of this page cannot disagree about what reaches
+    // this person.
     prisma.hrDocument.findMany({
-      where: { organizationId: org.id, kind: "Reference", isActive: true },
+      where: {
+        organizationId: org.id,
+        kind: "Reference",
+        isActive: true,
+        ...staffAudienceWhere(staffMember),
+      },
       select: { id: true, title: true, category: true },
       orderBy: { title: "asc" },
     }),

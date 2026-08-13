@@ -4,6 +4,7 @@ import { FileQuestion } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { findStaffMemberForUser } from "@/lib/hr"
+import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { LegalNameRequired } from "@/components/hr/legal-name-required"
 import { AcknowledgeClient } from "./acknowledge-client"
 import { SigningClient } from "./signing-client"
@@ -36,6 +37,7 @@ export default async function AcknowledgePage({
     include: {
       checkpoints: { orderBy: { orderIndex: "asc" } },
       versions: { where: { isCurrent: true }, take: 1 },
+      ...AUDIENCE_INCLUDE,
     },
   })
   const version = doc?.versions[0]
@@ -75,6 +77,18 @@ export default async function AcknowledgePage({
     staff = target
     attested = true
   }
+
+  // DOC-1 A, ruling 4: THE DOCUMENT MUST REACH THE STAFF MEMBER BEING SIGNED
+  // FOR — never the person holding the browser. The manager-scope test above
+  // answers "may this manager act for this person"; it says nothing about
+  // whether the document was ever assigned to them, and before this phase
+  // nothing asked. On the attested branch `staff` is the TARGET, so this one
+  // check covers both entry points with the right subject in each.
+  //
+  // notFound() rather than a refusal page, matching the missing-document case
+  // three lines up: a document that does not reach you should not be
+  // distinguishable from one that does not exist.
+  if (staff && !grantedToStaff(doc, staff)) notFound()
 
   // Signed-in user with no matching staff profile: explain instead of 404 —
   // this is a data-setup miss, not a missing page.

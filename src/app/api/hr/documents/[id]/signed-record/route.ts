@@ -3,6 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { findStaffMemberForUser } from "@/lib/hr"
 import { ensureSignedRecord, SignedRecordError } from "@/lib/hr-signed-pdf"
+import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
 const bodySchema = z.object({
@@ -27,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const doc = await prisma.hrDocument.findFirst({
     where: { id, organizationId: org.id, kind: "Acknowledgment" },
-    include: { versions: { where: { isCurrent: true }, take: 1 } },
+    include: { versions: { where: { isCurrent: true }, take: 1 }, ...AUDIENCE_INCLUDE },
   })
   const version = doc?.versions[0]
   if (!doc || !version) {
@@ -41,20 +42,40 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "No staff profile is linked to your account" }, { status: 403 })
   }
 
+  // DOC-1 A: the subject is loaded ONCE, up front, in one fixed shape. It used
+  // to be fetched only inside the MANAGER branch, which meant an ADMIN passing
+  // an unknown id fell through to ensureSignedRecord and failed there instead
+  // of 404-ing here. The audience test below needs it on every path anyway.
+  const subject = await prisma.staffMember.findFirst({
+    where: { id: staffMemberId, organizationId: org.id },
+    select: { id: true, isCorporate: true, storeAssignments: { select: { storeId: true } } },
+  })
+  if (!subject) {
+    return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
+  }
+
   if (staffMemberId !== selfStaff?.id) {
     if (dbUser.role !== "ADMIN" && dbUser.role !== "MANAGER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
     if (dbUser.role === "MANAGER") {
-      const staff = await prisma.staffMember.findFirst({
-        where: { id: staffMemberId, organizationId: org.id },
-        include: { storeAssignments: { select: { storeId: true } } },
-      })
       const managerStoreIds = dbUser.storeAssignments.map((a) => a.storeId)
-      if (!staff || !staff.storeAssignments.some((a) => managerStoreIds.includes(a.storeId))) {
+      if (!subject.storeAssignments.some((a) => managerStoreIds.includes(a.storeId))) {
         return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
       }
     }
+  }
+
+  // Ruling 4, same subject rule as the capture route: the document must reach
+  // the STAFF MEMBER the record is being minted for. ensureSignedRecord refuses
+  // an incomplete checkpoint set, so this cannot mint anything early — but
+  // without it, a grant revoked after signing would still let this path
+  // generate the artifact, and the artifact is permanent.
+  if (!grantedToStaff(doc, subject)) {
+    return NextResponse.json(
+      { error: "This document is not assigned to this team member" },
+      { status: 403 }
+    )
   }
 
   try {

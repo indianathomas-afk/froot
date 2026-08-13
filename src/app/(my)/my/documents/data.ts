@@ -1,10 +1,18 @@
 import { prisma } from "@/lib/prisma"
+import { staffAudienceWhere } from "@/lib/hr-documents-access"
 
 // Required-acknowledgment status rows for ONE staff member — the /my twin of
 // the /staff/[id] Documents-tab query, version-pinned the same way: a signed
 // record binds to the version signed; a re-upload flips status to
 // needs-current while the old record stays (managers can retrieve it — staff
 // never download PDFs, rule 5).
+//
+// DOC-1 A: the hand-written appliesTo/store OR clause became
+// staffAudienceWhere. Same shape, one behaviour change — corporate staff are no
+// longer reached by store grants (R3), which could not have mattered before
+// because no grant row had ever existed. Ruling 7: for an Acknowledgment,
+// being in the audience IS the obligation to sign, so this list is both what
+// the staff member sees and what compliance counts.
 export type MyDocumentRow = {
   documentId: string
   title: string
@@ -20,16 +28,16 @@ export async function requiredDocumentRows(staffMember: {
   id: string
   organizationId: string
   signingCycle: number
+  isCorporate: boolean
   storeAssignments: { storeId: string }[]
 }): Promise<MyDocumentRow[]> {
-  const storeIds = staffMember.storeAssignments.map((a) => a.storeId)
   const docs = await prisma.hrDocument.findMany({
     where: {
       organizationId: staffMember.organizationId,
       kind: "Acknowledgment",
       isActive: true,
       requiresAcknowledgment: true,
-      OR: [{ appliesTo: "all" }, { storeAssignments: { some: { storeId: { in: storeIds } } } }],
+      ...staffAudienceWhere(staffMember),
     },
     include: {
       checkpoints: { where: { required: true }, select: { id: true } },

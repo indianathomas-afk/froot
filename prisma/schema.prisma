@@ -169,7 +169,7 @@ model Store {
   ingredientPars            StoreIngredientPar[]
   teamMessages              TeamMessage[]
   paceAlertLogs             PaceAlertLog[]
-  hrDocumentAssignments     HrDocumentStoreAssignment[]
+  hrDocumentGrants          HrDocumentGrant[]
   trainingModuleAssignments TrainingModuleStoreAssignment[]
   laborSettings             LaborSettings[]
   salesForecasts            SalesForecast[]
@@ -300,6 +300,7 @@ model StaffMember {
   lessonCompletions   TrainingLessonProgress[]
   signedRecords       HrSignedRecord[]
   uploadedDocuments   StaffDocument[]
+  hrDocumentGrants    HrDocumentGrant[]
 
   @@unique([organizationId, squareTeamMemberId])
 }
@@ -1590,7 +1591,18 @@ model HrDocument {
   kind                   String // Acknowledgment | FillableForm | Reference
   title                  String
   category               String // Handbook | PayAgreement | Policy | HRManagement | Other
-  appliesTo              String   @default("all") // all | selected (store assignments below)
+  // DOC-1 A: THE COMPANY-WIDE GRANT. "all" reaches every staff member in the
+  // org (corporate included) and needs no grant row; "selected" means the
+  // HrDocumentGrant rows below are the whole audience — zero rows reaches
+  // ADMIN only, which is the deliberate default for a newly uploaded document
+  // until Phase B's assign dialog gives it one.
+  //
+  // THE DEFAULT FLIPPED FROM "all" TO "selected" ON 2026-08-12 AND EXISTING
+  // ROWS WERE NOT TOUCHED. Every document that predates the migration keeps
+  // "all" and keeps reaching everyone, so no library goes dark and no
+  // compliance denominator moves; only documents uploaded AFTER it start
+  // closed. Read a row's value, never assume the default.
+  appliesTo              String   @default("selected") // all | selected (grants below)
   requiresAcknowledgment Boolean  @default(false)
   isActive               Boolean  @default(true)
   linkedFormId           String? // Check-Out ↔ Check-In form pairing
@@ -1598,24 +1610,64 @@ model HrDocument {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  organization     Organization                @relation(fields: [organizationId], references: [id])
-  versions         HrDocumentVersion[]
-  checkpoints      HrDocumentCheckpoint[]
-  formFields       FormField[]
-  storeAssignments HrDocumentStoreAssignment[]
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  versions     HrDocumentVersion[]
+  checkpoints  HrDocumentCheckpoint[]
+  formFields   FormField[]
+  grants       HrDocumentGrant[]
 
   @@index([organizationId])
 }
 
-model HrDocumentStoreAssignment {
-  id           String @id @default(cuid())
-  hrDocumentId String
-  storeId      String
+// DOC-1 A: the document's AUDIENCE. One row per STORE or STAFF grant; the
+// company-wide grant is HrDocument.appliesTo = "all" and has no row at all, so
+// there is exactly one audience mechanism in this schema and no dormant twin
+// (Gary, R2, 2026-08-12).
+//
+// STANDING GRANTS, NOT SNAPSHOTS (ruling 1). A STORE row names a store, never
+// the people in it — the roster is resolved at READ time, so a new hire or a
+// transfer picks up the right documents with no assignment sweep. That is why
+// the STORE row carries no staff ids and why nothing here is materialized.
+//
+// THE MODEL WAS RENAMED FROM HrDocumentStoreAssignment ON 2026-08-12 AND THE
+// PHYSICAL TABLE WAS NOT. @@map below keeps the original table name, so the
+// rename costs zero SQL and every existing row is a valid STORE grant
+// (granteeType defaults to "STORE", which is what all of them are). The name
+// changed because the table stopped being about stores; renaming the table
+// would have been a destructive migration to fix a comment.
+//
+// INTEGRITY IS TWO RAW-SQL OBJECTS PRISMA CANNOT EXPRESS, and they are listed
+// in docs/MIGRATIONS.md because `prisma migrate diff` is blind to both and a
+// future generated diff will propose dropping them:
+//   hrdoc_grant_shape (CHECK)  — STORE rows carry storeId only, STAFF rows
+//                                staffMemberId only. Neither ever both.
+//   ..._staff_grant_key (partial UNIQUE, WHERE granteeType = 'STAFF')
+//                              — the @@unique below cannot cover STAFF rows:
+//                                their storeId is NULL, Postgres treats NULLs
+//                                as distinct, so (doc, NULL) never collides
+//                                with itself and duplicate STAFF grants would
+//                                otherwise be representable.
+model HrDocumentGrant {
+  id            String   @id @default(cuid())
+  hrDocumentId  String
+  granteeType   String   @default("STORE") // STORE | STAFF (COMPANY is appliesTo "all")
+  storeId       String? // STORE rows only
+  staffMemberId String? // STAFF rows only
+  // Who assigned it. Plain id, no FK (the PendingInvite.staffMemberId pattern):
+  // a grant is operational data and must never block a user row's lifecycle.
+  // Null on any row that predates DOC-1 A.
+  createdById   String?
+  createdAt     DateTime @default(now())
 
-  hrDocument HrDocument @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
-  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  hrDocument  HrDocument   @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
+  store       Store?       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  staffMember StaffMember? @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
 
+  // Covers STORE rows. STAFF rows are covered by the partial unique index
+  // described above — see docs/MIGRATIONS.md.
   @@unique([hrDocumentId, storeId])
+  @@index([staffMemberId])
+  @@map("HrDocumentStoreAssignment")
 }
 
 // Immutable file snapshot per upload. fileHash (sha256 of the exact bytes) is

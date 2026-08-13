@@ -9,6 +9,7 @@ import {
   HR_ESIGN_CONSENT_VERSION,
 } from "@/lib/hr-documents"
 import { ensureSignedRecord } from "@/lib/hr-signed-pdf"
+import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
 const bodySchema = z.object({
@@ -72,6 +73,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     include: {
       checkpoints: true,
       versions: { where: { isCurrent: true }, take: 1 },
+      ...AUDIENCE_INCLUDE,
     },
   })
   const version = doc?.versions[0]
@@ -123,6 +125,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // paperwork is a manager call.
   if (!isAttested && staff.status !== "ACTIVE") {
     return NextResponse.json({ error: "Your staff profile is no longer active" }, { status: 403 })
+  }
+
+  // ── DOC-1 A: THE AUDIENCE CHECK, ON THE WRITE ────────────────────────────
+  // Ruling 4 (Gary, 2026-08-12) — the STAFF MEMBER's grant governs, never the
+  // signer's. On the attested branch `staff` is the target, so this asks about
+  // the right person on both paths, and the manager-scope test above is left
+  // doing the job it actually does ("may this manager act for this person").
+  //
+  // THIS IS A WRITE GUARD AND NOT A DUPLICATE OF THE PAGE'S. The page can only
+  // hide a door; this is what stops a signature being recorded against a
+  // document the person was never assigned — through a stale tab, a
+  // hand-rolled POST, or a grant revoked between page load and submit. It
+  // matters more than any read refusal in this phase, because what it prevents
+  // is not a leak but a permanent artifact: completing the required set below
+  // mints an HrSignedRecord, and ruling 4 makes that record permanent. There is
+  // no path that un-signs it later.
+  //
+  // 403, not 404: the caller already had the document open, so pretending it
+  // does not exist would be a lie they can disprove — and a confusing one
+  // mid-ceremony.
+  if (!grantedToStaff(doc, staff)) {
+    return NextResponse.json(
+      { error: "This document is not assigned to this team member" },
+      { status: 403 }
+    )
   }
 
   // ── Validate entries against the document's checkpoints ──────────────────
