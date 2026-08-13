@@ -29,6 +29,18 @@ export default async function HrDocumentDetailPage({
       },
       checkpoints: {
         orderBy: { orderIndex: "asc" },
+        // DOC-1 C: THIS COUNT IS UNFILTERED ON PURPOSE — every acknowledgment on
+        // the checkpoint, every staff member, every version, every signing
+        // cycle. It is never rendered as a number; its only consumer is the
+        // edit/delete lock in document-detail-client.tsx ("this checkpoint has
+        // been signed and is part of the permanent record"). Audience-filtering
+        // it would be actively wrong: if the only person who ever signed has
+        // since left the document's audience the count would read 0 and the
+        // checkpoint would become DELETABLE — reaching backwards into a
+        // signature already given, which ruling 5 forbids. "Has anyone ever
+        // signed this" is a different question from "who owes it", and the
+        // unfiltered count is the correct answer to it. Audited and ruled OUT
+        // of Phase C; not a missed adoption site.
         include: { _count: { select: { acknowledgments: true } } },
       },
     },

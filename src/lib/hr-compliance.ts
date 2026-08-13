@@ -15,8 +15,26 @@
 //   Completed = "overdue", the loudest gap state.
 // - Only ACTIVE staff count in rollups; terminated staff keep auditable
 //   records but are excluded from every percentage.
+//
+// DOC-1 PHASE C (2026-08-12) — WHICH DOCUMENTS COUNT IS NOW AN AUDIENCE
+// QUESTION. Until this phase every "N of M" figure below was computed over a
+// pre-DOC-1 rule that knew only about store assignments. The denominators now
+// come from the document's CURRENT audience, asked through the one policy
+// function (lib/hr-documents-access.ts). Gary's rulings, 2026-08-12:
+//   1. Denominator = the document's CURRENT audience. An audience change moves
+//      the denominator, never the signature rows.
+//   2. ACTIVE staff only — applied HERE, at the counting layer. THE POLICY
+//      MODULE HAS NO EMPLOYMENT-STATUS TEST AND REACHES TERMINATED STAFF; that
+//      divergence is deliberate and is not to be closed by adding a status test
+//      to grantedToStaff (see :501 and :173).
+//   3. STORE grants never reach corporate staff (R3); company-wide ones do.
+//   4. Numerator = signatures from people currently IN the audience. Satisfied
+//      structurally, not by a filter — see :353.
+//   5. Counting READS. Nothing in this file writes, and no audience change ever
+//      deletes or alters a signed record.
 
 import { prisma } from "@/lib/prisma"
+import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 
 export type ComplianceItemStatus =
   | "complete"
@@ -142,6 +160,16 @@ export async function computeStaffComplianceDetails(
 ): Promise<StaffComplianceDetail[]> {
   if (staffIds && staffIds.length === 0) return []
 
+  // THE MISSING ACTIVE FILTER ON THE staffIds BRANCH IS DELIBERATE AND RULED
+  // (Gary, 2026-08-12, DOC-1 C). It looks like an oversight next to ruling 2 and
+  // it is not: ruling 2 governs WHO IS COUNTED IN A POPULATION, not whether a
+  // terminated person's own profile renders their history. Both callers that
+  // pass ids depend on this — getStaffComplianceSummaries hands in the whole
+  // /staff roster including TERMINATED members and zeroes them afterwards
+  // (:460), and getStaffComplianceDetail passes one id so /staff/[id] can show a
+  // terminated member their auditable records. The population denominators are
+  // filtered by their own callers, where the claim is actually made
+  // (getOrgComplianceRollup, :501). Do not "fix" this line.
   const staff = await prisma.staffMember.findMany({
     where: { organizationId, ...(staffIds ? { id: { in: staffIds } } : { status: "ACTIVE" }) },
     include: {
@@ -165,15 +193,24 @@ export async function computeStaffComplianceDetails(
       },
       include: {
         checkpoints: { where: { required: true }, select: { id: true } },
-        // DOC-1 A: RENAMED ONLY, NOT MIGRATED. The relation field moved
-        // storeAssignments → grants with the model rename, so this had to
-        // change to compile. The RULE below (:247) is untouched and is still
-        // the pre-DOC-1 one — no STAFF grants, no corporate exclusion. Gary
-        // ruled the compliance rollup into PHASE C (R1, 2026-08-12) because
-        // audience changes the denominator here, not just the visibility, and
-        // that is a numbers change that deserves its own phase and its own
-        // verification. Do not read this call site as adopted.
-        grants: { select: { granteeType: true, storeId: true } },
+        // DOC-1 C: ADOPTED. Phase A left a hand-written rule here and a comment
+        // saying so; this is the named shape the policy predicate requires, and
+        // the reason the swap is not cosmetic is the field it adds —
+        // staffMemberId was NOT selected before, which is the mechanical cause
+        // of the STAFF-grant defect described at :353. No extra query: the
+        // relation was already being loaded, one column narrower.
+        //
+        // ARCHIVED DOCUMENTS ARE EXCLUDED BY isActive ABOVE, AND THAT IS THE
+        // WHOLE ARCHIVE RULE (ruling, Gary 2026-08-12). Archiving is a
+        // FORWARD-LOOKING VISIBILITY decision: it removes a document from active
+        // compliance and never reaches backward into records already made —
+        // nothing in this file writes, so no signature can be touched by it.
+        // NOTE WHAT THAT DOES TO THE NUMBERS, because it will be reported as a
+        // bug: archiving IMMEDIATELY CLEARS NON-COMPLIANCE for everyone who
+        // never signed. That is correct — the obligation was withdrawn, not
+        // met — and it is the same class of expected-but-surprising movement as
+        // the R3 note at :353.
+        ...AUDIENCE_INCLUDE,
         versions: {
           orderBy: { versionNumber: "desc" },
           select: { id: true, versionNumber: true, isCurrent: true },
@@ -250,17 +287,70 @@ export async function computeStaffComplianceDetails(
     const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
     const primary = member.storeAssignments[0] ?? null
 
+    // The audience subject, assembled from rows already in memory (the fetch
+    // above has no `select`, so isCorporate is present — it is read again at
+    // :430). No second query and no per-staff read; the batching promise at
+    // :195 is unchanged.
+    const audienceSubject = {
+      id: member.id,
+      isCorporate: member.isCorporate,
+      storeAssignments: member.storeAssignments.map((a) => ({ storeId: a.storeId })),
+    }
+
     const docItems: ComplianceDocItem[] = docs.flatMap((d) => {
-      // DOC-1 A: renamed relation, unchanged rule (see the include above —
-      // this is Phase C's call site, not Phase A's). granteeType is filtered so
-      // a STAFF grant's null storeId can never be compared against a store id;
-      // that is defensive, not the STAFF rule, which Phase C adds.
-      const applies =
-        d.appliesTo === "all" ||
-        d.grants.some(
-          (g) => g.granteeType === "STORE" && g.storeId !== null && memberStoreIds.includes(g.storeId)
-        )
-      if (!applies) return []
+      // ── DOC-1 C: THE DENOMINATOR RULE, ASKED OF THE POLICY ─────────────────
+      // Phase A left a hand-written copy of one disjunct of grantedToStaff here
+      // and marked it. This is the adoption. Three things were wrong with the
+      // copy, and all three are closed by asking instead of restating:
+      //
+      //   STAFF GRANTS WERE INVISIBLE. The copy tested granteeType "STORE"
+      //   only, so a document granted to a named individual never entered that
+      //   person's compliance items — while /my/documents showed it to them and
+      //   the signing write accepted their signature. Two surfaces disagreeing
+      //   about one person and one document.
+      //
+      //   THE CORPORATE EXCLUSION (R3) WAS ABSENT. Square expands corporate
+      //   staff to a StoreStaffAssignment for EVERY store, so any STORE grant
+      //   swept every corporate member in — permanently dragging a pct for a
+      //   document no surface would ever show them (staffAudienceWhere excludes
+      //   them, so /my/documents never listed it).
+      //
+      //   IT WAS A SECOND EXPRESSION OF ONE RULE, which is the drift class
+      //   lib/hr-documents-access.ts exists to prevent.
+      //
+      // THE PREDICATE, NOT THE QUERY FRAGMENT, AND THAT IS THE DESIGN DECISION.
+      // staffAudienceWhere narrows ONE QUERY PER STAFF MEMBER; this function
+      // fetches the org's documents once and filters in JS for every member
+      // (:147 — "a fixed set of batched queries, never per-staff"). Asking the
+      // predicate per (doc, member) keeps that property and still leaves exactly
+      // one expression of the audience rule. Same move as DOC-1 B's refusal to
+      // add a reachOfStoreGrant() helper beside the real function.
+      //
+      // RULING 4 IS SATISFIED STRUCTURALLY, NOT BY A FILTER. A signature from
+      // someone who has since left the audience (a transfer) stops counting
+      // because the DOCUMENT leaves their items here — requiredTotal and
+      // completedCount fall together, out of the same array (:422), so the
+      // numerator and denominator cannot be drawn from different populations.
+      // Their HrSignedRecord and HrDocumentAcknowledgment rows are untouched:
+      // this file never writes.
+      //
+      // ZERO-AUDIENCE DOCUMENTS ("selected" with no grant rows) ARE EXCLUDED
+      // FROM EVERY DENOMINATOR, ruled by Gary 2026-08-12. grantedToStaff
+      // returns false for everyone, so such a document contributes nothing
+      // anywhere — which is the pre-existing behaviour, preserved deliberately
+      // rather than inherited by accident. The annunciator for "this document
+      // reaches nobody" is the Unassigned WARNING chip DOC-1 B put on the
+      // library; a second alarm here would be a second expression of one fact,
+      // on a page whose contract is percentages over PEOPLE, contributing a
+      // number that is zero by definition. Counting it would also manufacture an
+      // obligation nobody could discharge — the same shape as the corporate
+      // defect above.
+      //
+      // EXPECT ORG-WIDE REQUIRED TOTALS TO DROP the first time store grants come
+      // into real use, as corporate staff stop being swept into store-granted
+      // documents. That is R3 working as ratified, and it is expected to be
+      // mistaken for a bug.
+      if (!grantedToStaff(d, audienceSubject)) return []
       const current = d.versions.find((v) => v.isCurrent)
       if (!current) return []
 
@@ -398,6 +488,16 @@ export async function getOrgComplianceRollup(
   const scopedStaff = await prisma.staffMember.findMany({
     where: {
       organizationId,
+      // DOC-1 C — THIS LINE IS THE COUNTING LAYER RULING 2 NAMES (Gary,
+      // 2026-08-12). Compliance denominators count ACTIVE staff only, and the
+      // filter lives HERE rather than in the policy module because THE POLICY
+      // HAS NO EMPLOYMENT-STATUS TEST OF ANY KIND AND REACHES TERMINATED STAFF.
+      // That divergence is named and deliberate, not drift: grantedToStaff
+      // answers "does this document apply to this person", which stays true of
+      // someone terminated yesterday, and DOC-1 B depends on it — the assign
+      // dialog offers terminated grant-holders precisely so a delta save cannot
+      // silently revoke them. Adding a status test to the policy would break
+      // that and would be invisible from inside either module.
       status: "ACTIVE",
       // DEBT-9: corporate staff are excluded from EVERY store-scoped surface, so
       // a MANAGER never sees them at all — not in By Store, not in the KPI
@@ -477,6 +577,30 @@ export async function getOrgComplianceRollup(
 
   // Agreements panel — outside the percentage by design. Forms are org
   // resources; executed/pending counts are limited to the staff in scope.
+  //
+  // ── DOC-1 C: AUDITED, AND RULED TO STAY UNFILTERED (Gary, 2026-08-12) ──────
+  // This is Phase A's site #11, the one place in HR with no audience rule. It
+  // keeps none, on purpose, and the reason is that THIS PANEL HAS NO
+  // DENOMINATOR: executedCount and pendingCount are raw submission counts, never
+  // rendered as "N of M" (docs/DECISIONS.md, Gary 2026-07-22 — there is no
+  // mechanism saying who is SUPPOSED to hold a form, which is why agreements sit
+  // outside the compliance percentage entirely). An audience filter here could
+  // therefore only ever REMOVE ROWS FROM A LIST; it could not correct a number,
+  // because there is no number for it to correct.
+  //
+  // The row it could remove is a FillableForm born with appliesTo "selected" in
+  // the window between Phase A's default flip and Phase B's one-line fix — a
+  // form no application code can ever grant an audience to, since the assign
+  // dialog 404s FillableForm ids by construction. THAT SET IS EMPTY EVERYWHERE
+  // IT COULD EXIST, measured rather than assumed: dev br-broad-wave-a6vpjdw0 has
+  // zero such rows (DOC-1 C audit), staging measured 2026-08-12 returned
+  // dark_forms=0 on neondb / ep-odd-rain, and production has received no DOC-1
+  // code at all. Forms are company-wide by construction anyway —
+  // createFillableForm sets appliesTo "all" (lib/hr-forms.ts).
+  //
+  // So the filter would buy nothing and could delist a real form's history. The
+  // DOC-1 C verification measures this panel before and after the phase and
+  // asserts the figures identical.
   const staffIdSet = new Set(staff.map((s) => s.staffId))
   const [forms, submissions] = await Promise.all([
     prisma.hrDocument.findMany({
