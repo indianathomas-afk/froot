@@ -4225,6 +4225,185 @@ phases:
       Audit: docs/prompts/DOC-1_B_AUDIT.md; session prompt
       docs/prompts/DOC-1_phase_B_assign_dialog.md. NO MIGRATION IN PHASE B —
       every column, constraint and index it writes already existed.
+      ────────────────────────────────────────────────────────────────────
+      PHASE C BUILT 2026-08-12 (work commit "9133dcf") — DOC-1 IS NOW
+      FEATURE-COMPLETE, still in_progress until the push reaches Vercel.
+      Compliance denominators answer the audience question.
+      THE AUDIT'S FIRST FINDING CHANGED WHAT THE PHASE WAS. The question
+      this whole feature exists for — "3 of 5 Colorado people have signed
+      the handbook" — IS NOT A QUESTION ANY SURFACE IN THE PRODUCT ASKS.
+      There is no per-document completion counter anywhere in src/: not on
+      the library, not on the admin detail, not in an API route, not on a
+      dashboard. Every completion figure is PER-STAFF-MEMBER ("how many of
+      the items that apply to YOU are done"), summed upward into store and
+      org aggregates. The only per-document population figure is Phase B's
+      assign-dialog "reaches", which was already correct. So Phase C is not
+      "build the N-of-M denominator"; it is "the per-staff document set is
+      chosen by a rule that knows nothing about STAFF grants or the
+      corporate exclusion, and that wrong set propagates into every
+      aggregate the product renders". Q1 RULED (Gary, 2026-08-12): correct
+      the existing counters only, one phase no riders — the per-document
+      counter is DOC-2 below.
+      FIFTEEN COUNTER SURFACES ENUMERATED, TWO IN. Everything marked IN —
+      the /hr/compliance KPI cards, By Store, the per-employee table, the
+      /staff pct column, /staff/[id]'s Compliance tab, /my's open items —
+      reduces to ONE call in computeStaffComplianceDetails, which is why
+      there was one expression to change and not nine. Two enumerated
+      ABSENCES worth keeping: there is no HR-3 acknowledgment-status route
+      (49 files under api/hr/**, none returns one), and neither /dashboard
+      nor /store-view references HR compliance at all.
+      THREE DEFECTS CLOSED, ALL LIVE-ON-FIRST-USE RATHER THAN THEORETICAL,
+      and the verification runs the OLD rule side by side so they are
+      recorded as measured rather than argued. (i) STAFF GRANTS WERE
+      INVISIBLE — the rule tested granteeType "STORE" only, so an
+      individually-granted document never entered that person's compliance
+      items while /my/documents showed it to them and the signing write
+      accepted their signature: two surfaces disagreeing about one person
+      and one document. (ii) R3 WAS ABSENT — Square expands corporate staff
+      to a StoreStaffAssignment for EVERY store, so any store grant swept
+      every corporate member in, permanently dragging a pct for a document
+      staffAudienceWhere would never have shown them. (iii) it was a second
+      expression of one rule.
+      THE PREDICATE, NOT THE QUERY FRAGMENT. staffAudienceWhere narrows one
+      query per staff member; this function fetches the org's documents once
+      and filters in JS for every member, a fixed set of batched queries by
+      construction. Asking grantedToStaff per (doc, member) keeps that and
+      still leaves exactly one expression of the rule — Phase B's
+      reachOfStoreGrant refusal, again. No new query: the grants relation
+      was already loaded one column narrower, and THE MISSING staffMemberId
+      IS DEFECT (i)'s MECHANICAL CAUSE, which is why AUDIENCE_INCLUDE (a
+      named shape that cannot be half-loaded) replaced the inline select.
+      RULING 4 IS SATISFIED STRUCTURALLY, NOT BY A FILTER — recorded because
+      it is the ruling that could have implied numerator work and did not. A
+      transferred signer's document leaves their items, so requiredTotal and
+      completedCount fall together out of the same array; numerator and
+      denominator cannot be drawn from different populations. Verified
+      anyway: a property that is free today is exactly the kind that stops
+      being free without anyone noticing.
+      Q2 RULED — THE AGREEMENTS PANEL (Phase A site #11) STAYS UNFILTERED,
+      closed as "audited, ruled to stay", reasoning at the call site. It has
+      NO DENOMINATOR: executedCount and pendingCount are raw submission
+      counts, so a filter could only ever REMOVE ROWS FROM A LIST, never
+      correct a number. The row it could remove is a form born appliesTo
+      "selected" between Phase A's default flip and Phase B's fix — a form
+      no application code can ever grant an audience, since the assign
+      dialog 404s FillableForm ids. THAT SET IS EMPTY EVERYWHERE IT COULD
+      EXIST, measured not assumed: dev br-broad-wave-a6vpjdw0 zero, STAGING
+      MEASURED 2026-08-12 dark_forms=0 (neondb, ep-odd-rain), and production
+      has received no DOC-1 code. This closes the Phase B staging checklist
+      item. The fixture set still includes that stranded shape and asserts
+      it is listed, so the ruling is tested rather than trusted.
+      Q4 RULED — ZERO-AUDIENCE DOCUMENTS STAY EXCLUDED from every
+      denominator. grantedToStaff returns false for everyone, so this is the
+      pre-existing behaviour PRESERVED DELIBERATELY rather than inherited by
+      accident. Gary: the Unassigned chip is the annunciator; no second
+      alarm. A second one would restate one fact on a page whose contract is
+      percentages over PEOPLE, contributing a number that is zero by
+      definition — and counting it would manufacture an obligation nobody
+      could discharge, the same shape as defect (ii).
+      Q5 RULED — ARCHIVING IS A FORWARD-LOOKING VISIBILITY DECISION: it
+      removes a document from active compliance and never reaches backward
+      into records already made. No code change (isActive already did it),
+      but the consequence is now written down.
+      TWO NUMBERS THAT WILL MOVE FOR CORRECT REASONS AND WILL BE REPORTED AS
+      BUGS. Both are recorded here in plain words because that is the whole
+      point of recording them. FIRST: org-wide required totals WILL DROP the
+      first time store grants come into real use, as corporate staff stop
+      being swept into store-granted documents. That is R3 working exactly
+      as ratified, not a regression. SECOND: archiving a document
+      IMMEDIATELY CLEARS NON-COMPLIANCE for everyone who never signed it —
+      correct, because the obligation was withdrawn rather than met.
+      THE :173 RULING, WRITTEN DOWN RATHER THAN "FIXED". The absent ACTIVE
+      filter on computeStaffComplianceDetails' staffIds branch is
+      deliberate: ruling 2 governs who is counted in a POPULATION, not
+      whether a terminated person's own profile renders their auditable
+      history, and both id-passing callers depend on it. It looks like an
+      oversight sitting next to ruling 2, which is why it now carries a
+      comment saying it is not one. The ACTIVE filter that ruling 2 DOES
+      mean is named at getOrgComplianceRollup, with the divergence stated:
+      the policy module has no employment-status test and reaches TERMINATED
+      staff, deliberately, because Phase B's assign dialog depends on it.
+      ALSO AUDITED AND RULED OUT: hr/documents/[id]'s per-checkpoint
+      acknowledgmentCount stays unfiltered. It drives the edit/delete lock
+      and is never rendered as a number; filtering it would let a checkpoint
+      become DELETABLE once its only signer left the audience — reaching
+      backwards into a signature already given, which ruling 5 forbids. It
+      now carries a comment so the next audience sweep does not read it as a
+      missed site.
+      VERIFIED ON DEV br-broad-wave-a6vpjdw0 / neondb, 43/43, IN A THROWAWAY
+      FIXTURE ORG so the six real dev staff and three real dev documents
+      were never touched. Every count asserted against expectedTitles(),
+      written from the ruling text rather than from the code under test, so
+      a bug in grantedToStaff cannot make its own test pass. 7 staff
+      (in-audience signer, transferred signer, non-signer, TERMINATED
+      member, corporate member HOLDING AN ASSIGNMENT ON THE GRANTED STORE —
+      asserted, so the R3 check cannot pass vacuously — other-store member,
+      STAFF-grant holder), 5 documents (store, staff, zero-audience,
+      archived, company-wide), 2 forms including the stranded shape. The
+      transferred signer's HrSignedRecord and both acknowledgment rows are
+      asserted to SURVIVE while their document leaves the denominator; the
+      company-wide flip is asserted to bring both the corporate member and
+      that signature back. All fixtures DOC-1C-named, removed, removal
+      asserted BY RE-QUERY rather than by delete count.
+      NO MIGRATION — every column, constraint and index already existed; the
+      only shape change is a Prisma select widening.
+      lib/hr-documents-access.ts is untouched and grantedToStaff gained no
+      status test. NO BROWSER VERIFICATION BY THIS SESSION, per the
+      staging-SHA precondition: this work is not on staging at commit time.
+      Audit: docs/prompts/DOC-1_C_AUDIT.md; session prompt
+      docs/prompts/DOC-1_phase_C_compliance_counters.md.
+      CARRIED, STILL OPEN AFTER THIS PHASE — the STORE-login (shared iPad)
+      staging walk-through has never been observed (Phase A); a live
+      store-sweep assignment has not been observed on staging (Phase B); and
+      unchanged before any production promotion, HARD STOP 4 — production
+      HrDocument count on br-sparkling-block with the branch column in the
+      same output, nonzero stops the promotion.
+
+  - id: DOC-2
+    track: hr
+    size: M
+    status: planned
+    title: "Per-document compliance view — who hasn't signed this document"
+    notes: >
+      SPLIT OUT OF DOC-1 PHASE C BY RULING (Gary, Q1, 2026-08-12): "correct
+      the existing per-staff counters only. The per-document completion
+      counter is NOT built this phase: file it as its own row. One phase, no
+      riders."
+      THE GAP THIS ROW EXISTS TO CLOSE, in the words the DOC-1 planning used
+      throughout: "3 of 5 Colorado people have signed the handbook." DOC-1 C's
+      audit established that NO SURFACE IN THE PRODUCT ASKS THAT QUESTION.
+      Every completion figure is per-staff-member — "how many of the items
+      that apply to YOU are done" — summed upward into store and org
+      aggregates. Nothing anywhere pivots the other way, from a DOCUMENT to
+      the people who owe it. An admin who uploads a handbook, assigns it to
+      Colorado and wants to know who is outstanding has to read the
+      per-employee table and filter it by eye.
+      WHAT MAKES THIS CHEAP NOW, AND WHY IT WAS RIGHT TO DEFER. The hard part
+      is already built and verified: the audience is a policy function
+      (grantedToStaff), the ACTIVE-staff rule is ruled and sited at the
+      counting layer, and DOC-1 B's assign dialog ALREADY COMPUTES A
+      PER-DOCUMENT POPULATION — "reaches N" — through that same predicate
+      (api/hr/documents/[id]/audience/route.ts). This row is that population
+      joined to signature state, which is a new READ and a new surface, not a
+      new rule. Do not restate the audience rule to build it; ask the
+      predicate, as Phase B and Phase C both did.
+      LIKELY SHAPE, NOT YET RULED — a section on /hr/documents/[id] (already
+      ADMIN-only) listing the current audience with each person's status, or
+      a per-row "N of M" on the library. The library option costs a reach
+      count per row, which DOC-1 B explicitly declined for the audience chips
+      (either a second read per render or a browser-side copy of R3); take
+      that finding as an input rather than rediscovering it.
+      THE RULINGS IT INHERITS, all ratified 2026-08-12 and all already
+      enforced in lib/hr-compliance.ts: denominator = the document's CURRENT
+      audience; ACTIVE staff only, filtered at the counting layer and never
+      in the policy module; STORE grants never reach corporate staff (R3);
+      numerator = signatures from people CURRENTLY in the audience, so a
+      transferred signer's record survives but stops counting; zero-audience
+      documents are excluded (the Unassigned chip is the annunciator);
+      archiving removes a document from active compliance and never reaches
+      backward into records already made.
+      NOT STARTED. No files, no schema expected — DOC-1 C needed none and
+      this needs strictly less.
 
   - id: HR-27
     track: hr
