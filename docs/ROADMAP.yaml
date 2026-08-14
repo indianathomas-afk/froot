@@ -2667,6 +2667,91 @@ phases:
       remains deferred.
     blockers:
       - >
+        PRODUCTION CONFIGURED 2026-08-13 BY GARY — STILL OPEN, AND WHAT REMAINS
+        IS ONE SENTENCE LONG. Prepended; nothing below is edited. The two-part
+        fix this row has demanded since 2026-07-27 is DONE for production. What
+        it is NOT is closed: the closing evidence is a real transaction moving
+        "Today so far" without a manual refresh, which needs a store to be open,
+        which is tomorrow. Everything below is configuration; that is evidence.
+        WHAT WAS DONE, production Square app sq0idp-UdjqLfkxl0hlbw7b30IiLA:
+        webhook subscription registered, notification URL
+        https://www.usefroot.com/api/webhooks/square, API version 2024-01-18,
+        events order.created, order.updated, payment.created, payment.updated —
+        the exact four the handler switches on (route.ts:44).
+        SQUARE_WEBHOOK_SIGNATURE_KEY set in Vercel at Production scope, Sensitive,
+        and production redeployed AFTER the save (the ordering CLAUDE.md
+        § Provisioning insists on — a deployment carries the env values it was
+        BUILT with).
+        THE 401 THEN 200 IS THIS ROW'S OWN PREDICTION, CONFIRMED. The first test
+        event returned 401; it went 200 only after Production's
+        NEXT_PUBLIC_APP_URL was changed to https://www.usefroot.com and made
+        non-sensitive. That is exactly the byte-for-byte notification-URL
+        mismatch the F-4 FINAL audit named as the failure mode and the reason it
+        flagged the Sensitive marking as a blocker rather than a nuisance
+        (docs/prompts/F-4_FINAL_AUDIT.md § 1d). The handler derives the signed
+        URL from the env var and not from the request, deliberately
+        (src/lib/square-webhook.ts:9), which is what makes the two values have to
+        agree to the byte.
+        WHAT THE 200 PROVES, AND PRECISELY WHAT IT DOES NOT. Proves: the env var
+        reached the running lambda, the notification URL matches
+        NEXT_PUBLIC_APP_URL byte-for-byte, and HMAC verification passes. Does NOT
+        prove anything downstream of it — the test event's location_id is
+        Square's sample, not a Keva location, so NO SALES DATA MOVED. And note
+        the handler ACKs before processing (route.ts:89-94), so a 200 is returned
+        whether processEvent succeeds, no-ops or throws. A 200 can never be
+        evidence about the resync path. The sample id will have resolved to no
+        store and returned early at :107, which is correct behaviour and still
+        not a test of anything that writes.
+        API VERSION DISCREPANCY, RECORDED SO NOBODY "FIXES" IT LATER. The
+        subscription is 2024-01-18. src/lib/square.ts:4 pins SQUARE_VERSION
+        "2024-01-17", and Square's dropdown offers no such version — 2024-01-18
+        is the nearest. THESE ARE NOT THE SAME KNOB AND DO NOT HAVE TO MATCH: the
+        subscription version governs the shape of events Square SENDS US; the
+        pinned constant is the Square-Version header on the calls WE SEND SQUARE.
+        Different directions, independently versioned. The pin is also not
+        broken — every outbound Square call in the product works today — so this
+        is an unreconciled oddity, not a defect, and it is written down rather
+        than explained because nobody has established WHY 2024-01-17 was chosen.
+        L-2 already carries the same pin as a live constraint (it sits below the
+        2025-05-21 floor the Labor/Timecard endpoints need); anyone changing it
+        should read that row first.
+        order.created AND order.updated CARRY SQUARE'S BETA TAG; the two payment
+        events do not. Worth knowing because beta events can change shape or be
+        withdrawn. The handler degrades rather than breaks if they do: it reads
+        the location from `order_created ?? order_updated ?? payment`
+        (route.ts:76), so payment.created/payment.updated alone still resolve a
+        store and still trigger the resync. Reduced latency, not lost function.
+        CHANGING NEXT_PUBLIC_APP_URL MOVED FOUR OTHER URLS WITH IT — FLAGGED, NOT
+        DIAGNOSED, AND NOT PART OF THIS ROW. Five things derive from that env var
+        besides the webhook. Gary updated one of them the same night (Square
+        OAuth Production Redirect URL -> https://www.usefroot.com/api/square/callback).
+        The others were not mentioned and are worth a look before anyone reports
+        them as new breakage:
+          - src/lib/instagram.ts:25 — the Instagram callback defaults to
+            ${NEXT_PUBLIC_APP_URL}/api/instagram/callback and must match what is
+            registered in the Meta app, unless INSTAGRAM_REDIRECT_URI is set.
+          - src/app/api/users/route.ts:112 and
+            src/app/api/staff/[id]/invite/route.ts:63 — Clerk invite redirects
+            to ${NEXT_PUBLIC_APP_URL}/accept-invite.
+          - src/lib/pace-alerts.ts:133 — already falls back to the literal
+            "https://www.usefroot.com". THAT FALLBACK IS THE INTERESTING PART: the
+            codebase has always assumed www.usefroot.com is production, so the old
+            env value was drifted and last night's change corrected a
+            long-standing mismatch rather than introducing one. Which also means
+            the Square OAuth redirect had been wrong for as long as the env var
+            was, and nobody noticed.
+        PREVIEW IS NOT DONE. Only Production was configured. Preview's
+        NEXT_PUBLIC_APP_URL has not been confirmed changed or made readable, and
+        the staging Square app has no subscription — so the staging half will hit
+        the identical 401 until both are addressed. The audit's step 4a stands.
+        SUPERSEDES A CLAIM BELOW, SAID PLAINLY BECAUSE THE ENTRIES BELOW ARE NOT
+        EDITED: the next two entries assert the signature key is "ABSENT from
+        EVERY Vercel environment". That was true when written and is now true of
+        PREVIEW ONLY. Production has it as of 2026-08-13.
+        WHAT REMAINS ON THIS ROW, and it is the whole of it: ONE REAL TRANSACTION
+        ON A KEVA STORE, IN PRODUCTION, CONFIRMING "Today so far" MOVES WITHOUT A
+        MANUAL PAGE REFRESH. Nothing else closes it.
+      - >
         RE-MEASURED 2026-08-13 — THE ENV VAR IS STILL ABSENT, AND THE
         DEGRADATION SENTENCE BELOW IS WRONG. Prepended; nothing below is
         edited. Session: docs/prompts/F-4_FINAL_AUDIT.md.
@@ -7727,8 +7812,37 @@ bugs:
       SO THE CLOSURE CONDITION IS UNCHANGED: deploy 00881dc, then either observe
       that discard line or observe sustained concurrent load with no P2002. This
       row stays in_progress.
+      PRODUCTION WEBHOOK WENT LIVE 2026-08-13 — THIS ROW'S BLAST-RADIUS
+      PARAGRAPH IS NO LONGER HYPOTHETICAL. Gary registered the subscription on
+      the production Square app (F-4 carries the configuration record). So the
+      next store-day write race is a REAL one, in production, on real money.
+      THE ORDER THIS SHIPPED IN IS THE INVERSE OF WHAT THIS ROW RECOMMENDED, and
+      that is recorded as fact rather than as objection — Gary read the audit and
+      made the call. The consequence to hold onto is precise: 00881dc IS DEPLOYED
+      NOWHERE. Not production, not staging. Production is therefore running the
+      OLD delete-then-insert write with a webhook writer attached to it, which is
+      exactly the combination the audit described as converting a rare,
+      self-healing, invisible race into a frequent one — while removing the poll
+      and the 15-minute lazy sync that were hiding it, because a fresh cache is
+      the whole point of the webhook.
+      WHAT THAT ACTUALLY COSTS, unchanged and still bounded: the unique
+      constraints and the single transaction still hold, so a collision discards
+      one sync's work and can never corrupt a day, half-write it, or duplicate
+      rows. The two live risks are the going-backwards hazard (an older fetch
+      overwriting a newer one and stamping itself fresher, then suppressing the
+      refresh and the burst absorber for 15 minutes) and silent loss, since
+      processEvent logs and swallows after the route has already returned 200, so
+      Square never retries.
+      THE CHECK RIDES ALONG WITH F-4'S TRANSACTION TEST (Gary): when the real
+      transaction is rung tomorrow, read the production runtime logs for P2002 on
+      ("storeId", date) alongside watching "Today so far" move. One store, one
+      operator, one transaction is the LIGHTEST possible load, so a clean read
+      there is weak evidence — the race needs two writers within ~1s. Absence of
+      P2002 in that window means very little; PRESENCE of it means the hazard is
+      live in production and this row becomes urgent.
       CROSS-REFS: BUG-6 (whose extra requests made this frequent), F-4 (blocked
-      behind it), DEBT-69 (coalescing, filed not built).
+      behind it, and now the source of production's webhook writer), DEBT-69
+      (coalescing, filed not built).
 
   - id: BUG-8
     title: "One store returns ~6704ms from /api/dashboard/summary where every other store returns ~800ms"
