@@ -163,6 +163,28 @@ phases:
     title: "Instagram integration — org-level connect, /instagram page, dashboard strip"
     blockers:
       - >
+        POINTER REPAIR 2026-08-13 — THIS ROW QUOTES F-4, AND WHAT IT QUOTES HAS
+        BEEN CORRECTED. Prepended; neither preserved passage below is edited,
+        per the never-edit-an-entry's-text rule. Session:
+        docs/prompts/F-4_FINAL_AUDIT.md.
+        TWO ENTRIES BELOW CITE F-4 AND THEY FARE DIFFERENTLY.
+        The ORIGINAL FRAMING block calls F-4 "dead since 2026-07-10" and "worse
+        than recorded". The severity half is now WRONG: F-4 measured 2026-08-13
+        found the 15-minute lazy sync alive in all three dashboard routes, so
+        pacing degraded to 15-minutes-plus-one-request, not to the nightly
+        backfill. F-4 carries the correction as its first blocker.
+        THE STRUCTURAL HALF SURVIVES INTACT, and it is the half this row
+        actually relies on: the `narrowed` entry's point — that the env var and
+        the callback/subscription registration are two separate things, and
+        setting one without the other yields exactly the silence of doing
+        neither — is UNAFFECTED and was re-confirmed by the same session. F-4's
+        env var is still absent from every environment on 2026-08-13, 34 days
+        on, which is that argument's strongest evidence yet.
+        SO: keep reading F-4 as the cautionary analogue for the Meta callback.
+        Do not carry its "day-old pacing" figure anywhere. A quoted number ages
+        differently from the argument it was quoted to support — the argument
+        held and the number did not.
+      - >
         UNVERIFIED SINCE 2026-07-10 — flagged 2026-07-27 (reconcile Pass 2a),
         re-dated 2026-08-06. TRUE AGE IS NOW 27 DAYS.
         THIS ENTRY ASKED NOT TO BE CARRIED ANOTHER 17 DAYS AND WAS CARRIED
@@ -2645,6 +2667,39 @@ phases:
       remains deferred.
     blockers:
       - >
+        RE-MEASURED 2026-08-13 — THE ENV VAR IS STILL ABSENT, AND THE
+        DEGRADATION SENTENCE BELOW IS WRONG. Prepended; nothing below is
+        edited. Session: docs/prompts/F-4_FINAL_AUDIT.md.
+        STILL LIVE, unchanged: SQUARE_WEBHOOK_SIGNATURE_KEY is absent from
+        every Vercel environment (`vercel env ls`, names and scopes only,
+        2026-08-13). 34 days after the 2026-07-27 confirmation, nothing has
+        been set. The two-part fix in the entry below stands verbatim.
+        WHAT IS WRONG IS THE SEVERITY, and it is wrong in the safe direction
+        for once. The entry below says pacing "has been silently degraded to
+        the nightly sales-reconcile backfill" and that the dashboard "has been
+        showing day-old pacing". IT HAS NOT. The 15-minute lazy sync is alive
+        at HEAD in all three dashboard routes — /api/dashboard/summary:19,83,
+        /api/dashboard/sales:18,192, /api/dashboard/rollup:18,66 — so
+        docs/FORECASTING.md:121-124, which asserted the lazy sync survived as
+        the fallback, was RIGHT and this row was wrong. Actual degradation
+        since 2026-07-10 is 15-minutes-plus-one-request, not 24 hours.
+        WHAT WAS GENUINELY LOST is sub-minute latency: "Today so far" no
+        longer moves while an operator watches it. That is still a real
+        regression of F-4's headline feature. It is not the nightly-backfill
+        regression that was written down.
+        NOTE WHICH SOURCE WON. Both claims were in the repo the whole time and
+        they contradicted each other; the row's own prose was believed over
+        the doc's for 17 days because a blocker reads as measured and a doc
+        reads as aspirational. Neither is evidence. The routes are.
+        A SECOND DEFECT WAS FOUND WHILE PROVING THIS AND IS NOT THIS ROW'S —
+        see BUG-6. Gary's dashboard store-switch staleness is a separate code
+        regression dating to 2026-07-23 (2081401, BUG-1 step 4), not a symptom
+        of the dead webhook. THE TWO COMPOUND: with webhooks live the sales
+        cache is rarely stale, so BUG-6's branch would almost never fire.
+        THEREFORE ORDER MATTERS — verify BUG-6's fix on staging BEFORE
+        registering any Square subscription, or the webhook masks it and
+        neither fix can be attributed. Ruled by Gary 2026-08-13.
+      - >
         CONFIRMED LIVE 2026-07-27 — not stale, and worse than "never confirmed
         closed" implied. SQUARE_WEBHOOK_SIGNATURE_KEY is ABSENT from EVERY
         Vercel environment. The Square vars that do exist are
@@ -2670,6 +2725,26 @@ phases:
         against an app with no subscription registered yields exactly the same
         silence as today.
     open:
+      - >
+        RE-CONFIRMED INDEPENDENTLY 2026-08-13 AT A LATER HEAD (ce036f9), by a
+        second full reading of the route rather than by citing the entry below.
+        Same answer, same lines: src/app/api/webhooks/square/route.ts:47-50
+        returns 500 when SQUARE_WEBHOOK_SIGNATURE_KEY is unset, and :51-54 does
+        the same for NEXT_PUBLIC_APP_URL. Both guards precede `await req.text()`
+        at :57, so an unconfigured deployment never reads the body. No branch
+        anywhere in the file skips verification; :59-62 gates :66's JSON.parse,
+        and it parses the same rawBody that was signed. FAIL-CLOSED.
+        THE FLAG THIS ENTRY CANNOT CARRY. The F-4 FINAL prompt asked for the
+        `resolved` flag on this entry. It is not writable: `open` is typed
+        `string[]` (src/lib/roadmap.ts:120) — bare strings only — so
+        `{resolved: true, text}` type-errors the build. That is DEBT-42's
+        deliberate state, not an oversight, and no count on /internal/roadmap
+        reads this field, so the entry inflates nothing. Recorded here because
+        the request will recur: the flag lives on `blockers` alone.
+        THE GUARD NOW HAS A TEST, which is what actually protects this finding
+        going forward. scripts/verify-f4-rollup-webhook.ts asserts the unset-key
+        500 (37361ba). Until then the fixture set the key itself and the guard
+        could have been deleted with all fourteen checks still green.
       - >
         RESOLVED 2026-08-06 AT SOURCE — FAILS CLOSED, CONFIRMED. Prepended as a
         new entry; the one below stays exactly as written, including its caveat,
@@ -7232,6 +7307,21 @@ bugs:
       fetch timeout, API error/duration logging, maxDuration on sales-sync
       routes. Step 4 shipped inside STAFF-1 (2081401): request-path Square
       sync moved behind after().
+      APPENDED 2026-08-13, NOT A CORRECTION — step 4 above is accurate and the
+      trade it made was the right one. But it had a consequence nobody wrote
+      down: moving the sync behind after() means the response that TRIGGERS the
+      refresh is composed before it runs, so the dashboard serves numbers one
+      request old whenever the cache is stale. That is BUG-6, found 2026-08-13
+      and fixed in 37361ba by having the client re-fetch until the cache
+      timestamp advances — NOT by reverting step 4, which would restore exactly
+      the hung card this row was raised to fix.
+      THE LESSON IS ABOUT WHAT MADE IT INVISIBLE FOR THREE WEEKS: step 4's own
+      comment says "the next load sees the refreshed cache", which was true and
+      read as harmless because Square order webhooks were assumed to be keeping
+      the cache fresh. They were not — F-4's signature key has been absent from
+      every environment since 2026-07-10. A deferral is only safe while the
+      thing it defers to is actually running; this one leaned on a feature that
+      had been dead for thirteen days when it shipped.
 
   - id: BUG-2
     title: "Staff-profile linking failed on sign/acknowledge — Clerk identifier vs email"
@@ -7326,6 +7416,83 @@ bugs:
       route's `data`. Before changing it, check each branch for duplicates
       already created live — the current behaviour has shipped since the field
       existed, so someone may be relying on a copy that went live immediately.
+
+  - id: BUG-6
+    title: "Dashboard store switch serves the previous request's sales — the lazy refresh lands after the response"
+    status: in_progress
+    commits: [37361ba]
+    notes: >
+      Found 2026-08-13 while proving F-4's second symptom; FIXED IN CODE, NOT
+      YET VERIFIED ON STAGING, which is why this is in_progress and not
+      `staging`. Audit: docs/prompts/F-4_FINAL_AUDIT.md.
+      COST OF DOING NOTHING: LIVE. Every operator on the single-store dashboard
+      reads sales one request out of date, and has since 2026-07-23.
+      THE DEFECT. src/app/api/dashboard/summary/route.ts:83-95 (and its twin
+      src/app/api/dashboard/sales/route.ts:192-202) registers the stale-cache
+      Square refresh in after(), then composes the response at :103-127 from the
+      rows it read BEFORE that callback runs. after() fires once the response
+      has flushed, so the payload can never contain its own refresh. The route
+      is one REQUEST behind, not one sync behind. A manual page refresh is a
+      second request, which is why refreshing "fixed" it and nothing else did.
+      WHY THE STORE PICKER IS WHERE IT SHOWS: a store not viewed in the last 15
+      minutes is always past STALE_MS, so switching to it always takes the
+      deferred branch. The same staleness is on first page load; it is just
+      invisible there because there is no previous number to contradict.
+      RULED OUT BY SOURCE READING, NOT BY ELIMINATION — both alternatives were
+      checked and are false. The client DOES refetch: saveStoreId dispatches
+      STORE_EVENT (dashboard-client.tsx:145-148) into a useSyncExternalStore
+      (:137-143), storeId changes, the useCallback deps invalidate and the
+      effect refires with the new URL; results are keyed by storeId (:177,:210)
+      so a previous store's payload cannot render. And NOTHING CACHES: grep over
+      src/app/api/dashboard and src/app/(app)/dashboard returns zero hits for
+      dynamic/revalidate/fetchCache/unstable_cache/revalidatePath, and every
+      route is dynamic via req.url searchParams plus getCurrentUser().
+      IT IS A REGRESSION OF BUG-1's OWN FIX. git log -L 79,95 on the summary
+      route returns exactly two commits: 1b8160f (2026-07-06, D-1) where the
+      stale branch was an INLINE await, and 2081401 (2026-07-23, BUG-1 step 4)
+      which moved it behind after(). So 07-10 to 07-23 the dashboard was fresh
+      and slow; from 07-23 it has been fast and one request stale.
+      NOT THE SAME DEFECT AS F-4, AND THE DISTINCTION IS LOAD-BEARING. F-4 is a
+      CONFIGURATION gap from 2026-07-10 (an env var and two Square
+      subscriptions never created). This is a CODE regression from 2026-07-23.
+      They compound: with webhooks live the cache is rarely stale, so this
+      branch would almost never fire — meaning FIXING F-4 WOULD LARGELY MASK
+      THIS WITHOUT REPAIRING IT, and it would resurface on any store not
+      transacting, any webhook outage, and the first load after any quiet
+      15 minutes. Hence Gary's ruling 2026-08-13: VERIFY THIS ON STAGING BEFORE
+      REGISTERING ANY SQUARE SUBSCRIPTION, so the result is attributable.
+      THE FIX (37361ba). Both routes report `salesRefreshing` and the
+      `salesSyncedAt` their numbers were read at; both cards re-fetch until
+      syncedAt advances — at most 3 attempts 2s apart, one sequence per
+      (request key, baseline syncedAt), returning the moment it moves. Bounds
+      live once in card-fetch.ts. after() is deliberately NOT reverted to an
+      inline await: that is BUG-1 verbatim, and a card hung against
+      card-fetch.ts's 12s timeout is worse than a stale one.
+      THE WINDOW IS SIZED AGAINST A MEASUREMENT. A full store-day sync took
+      969-1179ms across four stores — branch br-broad-wave-a6vpjdw0 (dev), org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd, 76-144 orders each, 2026-08-13 —
+      so 6s is generous and the FIRST poll should normally catch it. Measured
+      from a dev machine, not from a lambda; the routes now log the duration on
+      every deferred refresh so each environment reports its own figure rather
+      than inheriting this one.
+      THE ROLLUP ASYMMETRY IS PART OF THIS ROW (folded in on Gary's ruling
+      2026-08-13 rather than opened as BUG-7). /api/dashboard/rollup:66-68 never
+      received BUG-1 step 4 and still syncs INLINE, so today the all-locations
+      view is fresh-and-slow while the single-store view is fast-and-stale, and
+      the two surfaces of the same dashboard can disagree about the same store's
+      "today" seconds apart. NOT TOUCHED BY 37361ba — deciding which posture is
+      canonical is this row's remaining work, and it is a real decision rather
+      than an oversight: the rollup loops every store serially, so giving it the
+      same treatment means N syncs, not one.
+      NO AUTOMATED COVERAGE OF THE FIXED PATH EXISTS, said plainly rather than
+      implied. scripts/verify-f4-rollup-webhook.ts cannot reach it twice over —
+      the dashboard routes need a Clerk session, and store switching is
+      localStorage plus a window event, so a Node fixture has neither. The
+      fixture staying green (15/15) is a no-regression signal, not proof.
+      Closure is Gary switching stores on staging and seeing current numbers
+      without a manual refresh.
+      CROSS-REFS: F-4 (the dead webhook that hid this for three weeks, and whose
+      fix must NOT be applied first), BUG-1 (whose step 4 introduced it).
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
