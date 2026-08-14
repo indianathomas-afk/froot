@@ -7420,7 +7420,7 @@ bugs:
   - id: BUG-6
     title: "Dashboard store switch serves the previous request's sales — the lazy refresh lands after the response"
     status: in_progress
-    commits: [37361ba]
+    commits: [37361ba, b77082e]
     notes: >
       Found 2026-08-13 while proving F-4's second symptom; FIXED IN CODE, NOT
       YET VERIFIED ON STAGING, which is why this is in_progress and not
@@ -7491,6 +7491,39 @@ bugs:
       fixture staying green (15/15) is a no-regression signal, not proof.
       Closure is Gary switching stores on staging and seeing current numbers
       without a manual refresh.
+      APPENDED 2026-08-13 — THE FIRST FIX SHIPPED THE BUG'S OWN SHAPE, caught by
+      Gary reading the guard before pushing, corrected in b77082e. pollGuard was
+      a Set nothing deleted from, so a (store, baseline) key latched for the
+      component's lifetime: inert in the healthy case, because syncedAt advances
+      and a revisit presents a new baseline, and PERMANENT in the failure case,
+      because a failed background sync never moves the baseline. Since each poll
+      re-enters the route and registers a FRESH after() sync, what latched was
+      the RETRY OF A FAILED SYNC, not a redundant read — and the manual Retry
+      button was blocked by the same key. Now cleared in a finally, so the Set
+      means "in flight" rather than "ever started": StrictMode's double effect
+      invocation is still deduped, a later revisit polls again. The bound was
+      never the guard's job and is unchanged — sequences are spawned only by the
+      effect and by Retry, a poll writes state directly rather than re-entering
+      loadSummary, and POLL_ATTEMPTS bounds each one.
+      NOTE THE SHAPE THAT REPEATED. BUG-6 is a deferral whose result nobody
+      came back for; the first fix added a guard whose expiry nobody came back
+      for. Both are cheap-at-write, invisible-until-the-unhappy-path, and both
+      were found by reading rather than by anything failing.
+      CHECKED AND CORRECT, so it is written down rather than re-derived next
+      time: a poll CANNOT paint one store's data under another's label. Guarded
+      independently at two levels — the in-sequence checks before the fetch and
+      after it resolves (dashboard-client.tsx:211,213 on activeStoreRef;
+      sales-performance-card.tsx:301,303 on requestSeq, which is tighter because
+      requestSeq is bumped synchronously in the effect body while activeStoreRef
+      lags one commit) — and the render-time keying BUG-1 introduced for exactly
+      this (`current` at dashboard-client.tsx:255, `loading` at
+      sales-performance-card.tsx:321). Worst case if both in-sequence checks
+      went stale is a flicker back to the skeleton, never wrong-store numbers.
+      ONE LATENT EDGE, now commented at the declaration rather than left
+      implicit: `data` in sales-performance-card is UNKEYED, and its safety
+      rests entirely on every read sitting inside the `loading ?` ternary.
+      Rendering it outside that ternary — moving the unconfirmed teaser into the
+      header, say — reintroduces the cross-store paint.
       CROSS-REFS: F-4 (the dead webhook that hid this for three weeks, and whose
       fix must NOT be applied first), BUG-1 (whose step 4 introduced it).
 
