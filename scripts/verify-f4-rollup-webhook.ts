@@ -24,6 +24,7 @@ import { localDateStr, dbDate } from "../src/lib/reports"
 import { round2, monthStart, daysInMonth, projectMonthEnd, computeRollup, effectiveMtdGoal, type RollupStoreInput } from "../src/lib/pacing"
 import { getMonthGoal } from "../src/lib/month-goal"
 import { squareWebhookSignature, SQUARE_SIGNATURE_HEADER } from "../src/lib/square-webhook"
+import { writeSalesCache } from "../src/lib/sales-sync"
 import { POST as squareWebhookPost } from "../src/app/api/webhooks/square/route"
 
 const TZ = "America/Los_Angeles"
@@ -218,6 +219,80 @@ async function main() {
     const unconfigured = await callWebhook(goodBody, goodSig)
     check("webhook: unset signature key fails CLOSED with 500", unconfigured.status === 500, `status ${unconfigured.status}`)
     process.env.SQUARE_WEBHOOK_SIGNATURE_KEY = signatureKey
+
+    // 6. BUG-7 — the guarded write. Exercises writeSalesCache directly, which
+    // is why it needs no Square connection: the whole race lives in that one
+    // function, and the fixture org has no squareAccessToken to call out with.
+    //
+    // A date far outside the seeded month so nothing above is disturbed.
+    const raceDate = "2020-02-02"
+    const dayOf = (net: number) => new Map([[raceDate, { gross: net, net, tax: 0, tip: 0, discount: 0, orders: 1, unconfirmed: 0 }]])
+    const hourOf = (net: number) => new Map([[`${raceDate}|9`, { net, orders: 1 }]])
+    const lineOf = (qty: number) => new Map([[`${raceDate}|VAR-${tag}`, { qty, gross: qty }]])
+
+    const older = new Date("2020-02-02T10:00:00.000Z")
+    const newer = new Date("2020-02-02T10:00:01.000Z")
+
+    // The case Gary named: the NEWER fetch commits FIRST, then the OLDER fetch
+    // commits. Sequential, so the commit order is deterministic — the point is
+    // that "committed last" must not mean "wins".
+    const firstWrite = await writeSalesCache(org, storeA, newer, [raceDate], dayOf(500), hourOf(500), lineOf(5))
+    check("BUG-7: newer fetch writes", firstWrite.written.length === 1 && firstWrite.discarded.length === 0)
+
+    const staleWrite = await writeSalesCache(org, storeA, older, [raceDate], dayOf(1), hourOf(1), lineOf(99))
+    check(
+      "BUG-7: older fetch committing LAST is discarded",
+      staleWrite.written.length === 0 && staleWrite.discarded.length === 1,
+      `written=${staleWrite.written.length} discarded=${staleWrite.discarded.length}`
+    )
+
+    const afterStale = await prisma.salesPeriodCache.findUnique({
+      where: { storeId_date: { storeId: storeA.id, date: dbDate(raceDate) } },
+    })
+    check("BUG-7: newer totals survive the late stale write", afterStale?.netSales === 500, `netSales=${afterStale?.netSales}`)
+    check(
+      "BUG-7: syncedAt is the FETCH instant, not the insert instant",
+      afterStale?.syncedAt.toISOString() === newer.toISOString(),
+      `${afterStale?.syncedAt.toISOString()} vs ${newer.toISOString()}`
+    )
+
+    // A discarded day must not have its detail stripped — deleting the hourly
+    // and line rows of a total this writer declined to overwrite would leave
+    // the day's header and its breakdown disagreeing.
+    const staleHours = await prisma.salesHourlyCache.findMany({ where: { storeId: storeA.id, date: dbDate(raceDate) } })
+    const staleLines = await prisma.salesLineCache.findMany({ where: { storeId: storeA.id, date: dbDate(raceDate) } })
+    check("BUG-7: discarded write leaves the winner's hourly rows intact", staleHours.length === 1 && staleHours[0].netSales === 500)
+    check("BUG-7: discarded write leaves the winner's line rows intact", staleLines.length === 1 && staleLines[0].quantitySold === 5)
+
+    // The crash itself: two writers for one store-day, genuinely concurrent.
+    // Before the fix this pair raced deleteMany against createMany and the
+    // loser threw P2002 on ("storeId", date).
+    const concurrentDate = "2020-02-03"
+    const cDay = (net: number) => new Map([[concurrentDate, { gross: net, net, tax: 0, tip: 0, discount: 0, orders: 1, unconfirmed: 0 }]])
+    const cHour = (net: number) => new Map([[`${concurrentDate}|9`, { net, orders: 1 }]])
+    const cLine = () => new Map([[`${concurrentDate}|VAR-${tag}`, { qty: 1, gross: 1 }]])
+    const tA = new Date("2020-02-03T10:00:00.000Z")
+    const tB = new Date("2020-02-03T10:00:02.000Z")
+
+    let raced = true
+    try {
+      await Promise.all([
+        writeSalesCache(org, storeA, tA, [concurrentDate], cDay(111), cHour(111), cLine()),
+        writeSalesCache(org, storeA, tB, [concurrentDate], cDay(222), cHour(222), cLine()),
+      ])
+    } catch (e) {
+      raced = false
+      check("BUG-7: concurrent writes do not throw", false, (e as Error).message.slice(0, 160))
+    }
+    if (raced) check("BUG-7: concurrent writes do not throw", true)
+
+    const concurrentRows = await prisma.salesPeriodCache.findMany({ where: { storeId: storeA.id, date: dbDate(concurrentDate) } })
+    check("BUG-7: concurrent writes leave exactly one row", concurrentRows.length === 1, `rows=${concurrentRows.length}`)
+    check(
+      "BUG-7: the newer fetch wins regardless of commit order",
+      concurrentRows[0]?.netSales === 222,
+      `netSales=${concurrentRows[0]?.netSales}`
+    )
   } finally {
     await prisma.store.deleteMany({ where: { organizationId: org.id } })
     await prisma.organization.delete({ where: { id: org.id } })
