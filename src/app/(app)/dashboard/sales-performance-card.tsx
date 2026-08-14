@@ -286,6 +286,10 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
   // refresh past the response, so a stale-cache load has to fetch again to see
   // it. `requestSeq` already guards against out-of-order responses; the poll
   // reuses it so a selection or store change abandons the sequence.
+  //
+  // Holds IN-FLIGHT sequence keys only, cleared in a finally — see the summary
+  // card's pollGuard for why "every sequence ever started" latched on exactly
+  // the case that needed a retry.
   const pollGuard = useRef<Set<string>>(new Set())
 
   useEffect(() => {
@@ -298,16 +302,23 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
       const guardKey = `${key}|${baseline ?? "none"}`
       if (pollGuard.current.has(guardKey)) return
       pollGuard.current.add(guardKey)
-      for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-        if (seq !== requestSeq.current) return
-        const json = await fetchCard<SalesResponse>("sales", url)
-        if (seq !== requestSeq.current) return
-        // Never write null over numbers already on screen — that is the card's
-        // failed-load state (see the summary card's poll for the same note).
-        if (!json) return
-        setResult({ key, data: json })
-        if (json.salesSyncedAt !== baseline) return
+      try {
+        for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+          // Before the fetch AND after it resolves. requestSeq is bumped
+          // synchronously at the top of this effect, so any store, range or
+          // compare change retires an in-flight sequence immediately.
+          if (seq !== requestSeq.current) return
+          const json = await fetchCard<SalesResponse>("sales", url)
+          if (seq !== requestSeq.current) return
+          // Never write null over numbers already on screen — that is the card's
+          // failed-load state (see the summary card's poll for the same note).
+          if (!json) return
+          setResult({ key, data: json })
+          if (json.salesSyncedAt !== baseline) return
+        }
+      } finally {
+        pollGuard.current.delete(guardKey)
       }
     }
 
@@ -319,6 +330,12 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
   }, [storeId, range.start, range.end, compare, retryTick])
 
   const loading = !result || result.key !== requestKey
+  // `data` is NOT keyed — it is whatever the last settled request returned,
+  // which may belong to a previously selected store or date range. Every read
+  // of it below sits inside the `loading ?` ternary, and `loading` is false
+  // only when result.key === requestKey, so it can never paint under the wrong
+  // store's label. RENDERING `data` OUTSIDE THAT TERNARY REINTRODUCES EXACTLY
+  // THAT BUG — key it first if you need it in the header or the pickers.
   const data = result?.data ?? null
 
   const applySelection = (nextPreset: Preset, nextRange: { start: string; end: string }) => {

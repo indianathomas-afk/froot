@@ -193,9 +193,26 @@ export function DashboardClient({
   const [commsRes, setCommsRes] = useState<{ storeId: string; data: Comms | null } | null>(null)
   const [checkedOverride, setCheckedOverride] = useState<Record<string, boolean>>({})
 
-  // BUG-6 poll state. `pollGuard` holds `${storeId}|${baseline}` keys already
-  // polled; `activeStoreRef` lets an in-flight sequence abandon itself when the
-  // operator switches away rather than spending requests on a hidden store.
+  // BUG-6 poll state. `pollGuard` holds the keys of sequences CURRENTLY IN
+  // FLIGHT — not every sequence ever started, which is what it held first and
+  // was wrong. Keyed `${storeId}|${baseline}` and cleared in a finally, so:
+  // React StrictMode's double effect invocation is still deduped (both fire in
+  // one tick, the second sees the first still live), while a later return to
+  // the same store gets a fresh sequence.
+  //
+  // The ever-started version latched exactly where it hurt. It was inert in the
+  // healthy case — syncedAt moves, so a revisit presents a new baseline and a
+  // new key — and permanent in the failure case: if the background sync failed,
+  // the baseline never moved, the key stayed, and that store never polled again
+  // for the component's lifetime. Since each poll re-enters the route and
+  // registers a FRESH after() sync, what it suppressed was the retry of a
+  // failed sync, not a redundant read. It also blocked the manual Retry button,
+  // which routes through loadSummary with the same baseline.
+  //
+  // The bound was never this guard's job: sequences are spawned only by the
+  // effect (once per storeId change) and by Retry (once per click), and a
+  // poll's response calls setSummaryRes directly rather than re-entering
+  // loadSummary, so a sequence cannot spawn another. POLL_ATTEMPTS is the bound.
   const pollGuard = useRef<Set<string>>(new Set())
   const activeStoreRef = useRef(storeId)
   useEffect(() => {
@@ -206,19 +223,25 @@ export function DashboardClient({
     const key = `${targetStoreId}|${baseline ?? "none"}`
     if (pollGuard.current.has(key)) return
     pollGuard.current.add(key)
-    for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-      if (activeStoreRef.current !== targetStoreId) return
-      const data = await fetchCard<Summary>("summary", `/api/dashboard/summary?storeId=${targetStoreId}`)
-      if (activeStoreRef.current !== targetStoreId) return
-      // A failed poll must NOT write null: `data: null` is the card's "load
-      // failed, offer Retry" state, and flipping a card that is currently
-      // showing real numbers into an error state is worse than staying stale.
-      if (!data) return
-      setSummaryRes({ storeId: targetStoreId, data })
-      // syncedAt only ever moves forward (sales-sync rewrites the day), so any
-      // change means the deferred refresh landed and these numbers are current.
-      if (data.salesSyncedAt !== baseline) return
+    try {
+      for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        // Checked before the fetch AND after it resolves: a sequence for a
+        // store the operator has switched away from must not write state.
+        if (activeStoreRef.current !== targetStoreId) return
+        const data = await fetchCard<Summary>("summary", `/api/dashboard/summary?storeId=${targetStoreId}`)
+        if (activeStoreRef.current !== targetStoreId) return
+        // A failed poll must NOT write null: `data: null` is the card's "load
+        // failed, offer Retry" state, and flipping a card that is currently
+        // showing real numbers into an error state is worse than staying stale.
+        if (!data) return
+        setSummaryRes({ storeId: targetStoreId, data })
+        // syncedAt only ever moves forward (sales-sync rewrites the day), so any
+        // change means the deferred refresh landed and these numbers are current.
+        if (data.salesSyncedAt !== baseline) return
+      }
+    } finally {
+      pollGuard.current.delete(key)
     }
   }, [])
 
