@@ -69,6 +69,14 @@ export async function GET(req: Request) {
     monthToDate: number
   } | null = null
 
+  // BUG-6: the stale branch below refreshes AFTER the response, so the payload
+  // is composed from pre-refresh rows. Say so, and hand back the syncedAt those
+  // rows carry, so the client can poll until it advances instead of leaving the
+  // operator looking at last request's numbers. See the client poll in
+  // src/app/(app)/dashboard/dashboard-client.tsx.
+  let salesRefreshing = false
+  let salesSyncedAt: string | null = null
+
   if (salesAvailable) {
     try {
       // Refresh today when stale; gap-fill the month + comparison day once.
@@ -85,9 +93,16 @@ export async function GET(req: Request) {
         // card renders cached numbers immediately instead of hanging on a
         // slow Square call; the next load sees the refreshed cache. Square
         // order webhooks + the reconcile cron remain the primary freshness.
+        // BUG-6: "the next load" used to mean a manual page refresh. The flag
+        // set here tells the client to fetch again on its own.
+        salesRefreshing = true
         after(async () => {
+          const tSync = Date.now()
           try {
             await syncSalesForStore(org, store, today, today)
+            // BUG-6 evidence line: how long the deferred refresh actually
+            // takes, which is what the client's poll window has to cover.
+            console.log(`[api/dashboard/summary] background refresh ${Date.now() - tSync}ms store=${storeId}`)
           } catch (err) {
             console.error(`[api/dashboard/summary] background refresh failed store=${storeId}:`, err)
           }
@@ -110,6 +125,10 @@ export async function GET(req: Request) {
         _sum: { netSales: true },
       }),
     ])
+
+    // The syncedAt the numbers above were actually read at — the client's poll
+    // stops as soon as this advances.
+    salesSyncedAt = todayDay?.syncedAt.toISOString() ?? null
 
     sales = {
       today: {
@@ -162,6 +181,8 @@ export async function GET(req: Request) {
     today,
     canManageGoal,
     salesAvailable,
+    salesRefreshing,
+    salesSyncedAt,
     sales,
     goal: {
       ...monthGoal,

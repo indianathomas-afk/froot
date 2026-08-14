@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Line, LineChart, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer } from "recharts"
-import { fetchCard } from "./card-fetch"
+import { fetchCard, POLL_ATTEMPTS, POLL_INTERVAL_MS } from "./card-fetch"
 
 // Sales Performance card (Dashboard) — date navigation + comparison baseline.
 // The selection may be a single day (hourly pace chart) or a range (daily
@@ -34,6 +34,9 @@ type SalesResponse = {
   store: { id: string; name: string; timezone: string }
   today: string
   salesAvailable: boolean
+  // BUG-6 — see the twin fields on /api/dashboard/summary's payload.
+  salesRefreshing: boolean
+  salesSyncedAt: string | null
   selection: { start: string; end: string }
   comparison: { start: string; end: string; mode: CompareMode }
   granularity: "hourly" | "daily"
@@ -279,15 +282,39 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
   const requestSeq = useRef(0)
   const requestKey = `${storeId}|${range.start}|${range.end}|${compare}`
 
+  // BUG-6: same bounded poll as the summary card — the route defers its Square
+  // refresh past the response, so a stale-cache load has to fetch again to see
+  // it. `requestSeq` already guards against out-of-order responses; the poll
+  // reuses it so a selection or store change abandons the sequence.
+  const pollGuard = useRef<Set<string>>(new Set())
+
   useEffect(() => {
     if (!storeId) return
     const seq = ++requestSeq.current
     const key = `${storeId}|${range.start}|${range.end}|${compare}`
-    fetchCard<SalesResponse>(
-      "sales",
-      `/api/dashboard/sales?storeId=${storeId}&start=${range.start}&end=${range.end}&compare=${compare}`
-    ).then((json) => {
-      if (seq === requestSeq.current) setResult({ key, data: json })
+    const url = `/api/dashboard/sales?storeId=${storeId}&start=${range.start}&end=${range.end}&compare=${compare}`
+
+    const poll = async (baseline: string | null) => {
+      const guardKey = `${key}|${baseline ?? "none"}`
+      if (pollGuard.current.has(guardKey)) return
+      pollGuard.current.add(guardKey)
+      for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        if (seq !== requestSeq.current) return
+        const json = await fetchCard<SalesResponse>("sales", url)
+        if (seq !== requestSeq.current) return
+        // Never write null over numbers already on screen — that is the card's
+        // failed-load state (see the summary card's poll for the same note).
+        if (!json) return
+        setResult({ key, data: json })
+        if (json.salesSyncedAt !== baseline) return
+      }
+    }
+
+    fetchCard<SalesResponse>("sales", url).then((json) => {
+      if (seq !== requestSeq.current) return
+      setResult({ key, data: json })
+      if (json?.salesRefreshing) void poll(json.salesSyncedAt)
     })
   }, [storeId, range.start, range.end, compare, retryTick])
 

@@ -204,6 +204,20 @@ async function main() {
     const unknownBody = makeBody(`FIXTURE-F4-${tag}-NOPE`)
     const unknown = await callWebhook(unknownBody, squareWebhookSignature(notificationUrl, unknownBody, signatureKey))
     check("webhook: unknown location acked without error", unknown.status === 200, `status ${unknown.status}`)
+
+    // 5. The fail-closed guard itself (route.ts:47-50). Until this check
+    // existed the fixture SET the signature key at the top of section 4 and
+    // never cleared it, so the guard could have been deleted outright and all
+    // fourteen checks would still have passed — on the one branch that IS the
+    // route's entire security posture, and the one that has defined its
+    // deployed behaviour since 2026-07-10 (F-4's blocker: the var is absent
+    // from every Vercel environment). A correctly signed payload is used on
+    // purpose: with the key gone there is nothing to verify against, so 500
+    // must win ahead of any signature outcome, and the body must never be read.
+    delete process.env.SQUARE_WEBHOOK_SIGNATURE_KEY
+    const unconfigured = await callWebhook(goodBody, goodSig)
+    check("webhook: unset signature key fails CLOSED with 500", unconfigured.status === 500, `status ${unconfigured.status}`)
+    process.env.SQUARE_WEBHOOK_SIGNATURE_KEY = signatureKey
   } finally {
     await prisma.store.deleteMany({ where: { organizationId: org.id } })
     await prisma.organization.delete({ where: { id: org.id } })

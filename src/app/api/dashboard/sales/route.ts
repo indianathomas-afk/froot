@@ -170,6 +170,8 @@ export async function GET(req: Request) {
       store: { id: store.id, name: store.name, timezone: tz },
       today,
       salesAvailable: false,
+      salesRefreshing: false,
+      salesSyncedAt: null,
       selection: { start, end },
       comparison: { start: compStart, end: compEnd, mode: compare },
       granularity: start === end ? "hourly" : "daily",
@@ -177,6 +179,13 @@ export async function GET(req: Request) {
       compareData: null,
     })
   }
+
+  // BUG-6: mirrors /api/dashboard/summary — the stale branch refreshes AFTER
+  // the response, so the payload is composed from pre-refresh rows. The flag
+  // and the syncedAt let the client poll until the refresh lands instead of
+  // waiting for a manual page refresh.
+  let salesRefreshing = false
+  let salesSyncedAt: string | null = null
 
   try {
     // Refresh today when the selection touches it and the cache is stale;
@@ -192,9 +201,14 @@ export async function GET(req: Request) {
       } else if (Date.now() - todayRow.syncedAt.getTime() > STALE_MS) {
         // BUG-1 step 4: stale-but-present refreshes AFTER the response so the
         // chart serves cached data immediately (webhooks + cron stay primary).
+        // BUG-6: the flag tells the client to fetch again once it lands.
+        salesRefreshing = true
         after(async () => {
+          const tSync = Date.now()
           try {
             await syncSalesForStore(org, store, today, today)
+            // BUG-6 evidence line — see the summary route's twin.
+            console.log(`[api/dashboard/sales] background refresh ${Date.now() - tSync}ms store=${storeId}`)
           } catch (err) {
             console.error(`[api/dashboard/sales] background refresh failed store=${storeId}:`, err)
           }
@@ -214,6 +228,18 @@ export async function GET(req: Request) {
     loadWindow(storeId, compStart, compEnd, hourly),
   ])
 
+  // Only a selection that includes today can be refreshed under the client, so
+  // only that case reports a syncedAt to poll against.
+  if (end === today) {
+    const syncedRow = await prisma.salesPeriodCache.findUnique({
+      where: { storeId_date: { storeId, date: dbDate(today) } },
+      select: { syncedAt: true },
+    })
+    salesSyncedAt = syncedRow?.syncedAt.toISOString() ?? null
+  } else {
+    salesRefreshing = false
+  }
+
   // BUG-1 evidence line: request duration in the runtime logs.
   console.log(`[api/dashboard/sales] ${Date.now() - t0}ms store=${storeId} ${start}..${end}`)
 
@@ -221,6 +247,8 @@ export async function GET(req: Request) {
     store: { id: store.id, name: store.name, timezone: tz },
     today,
     salesAvailable: true,
+    salesRefreshing,
+    salesSyncedAt,
     selection: { start, end },
     comparison: { start: compStart, end: compEnd, mode: compare },
     granularity: hourly ? "hourly" : "daily",

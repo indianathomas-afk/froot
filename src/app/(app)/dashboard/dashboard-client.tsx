@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight, ClipboardList, Megaphone, StickyNote } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { projectMonthEnd } from "@/lib/pacing"
 import { MessageAttachments, type FeedAttachment } from "@/app/(app)/messages/messages-client"
-import { fetchCard } from "./card-fetch"
+import { fetchCard, POLL_ATTEMPTS, POLL_INTERVAL_MS } from "./card-fetch"
 import { SalesPerformanceCard } from "./sales-performance-card"
 import { LaborBudgetCard } from "./labor-budget-card"
 import { LaborCoverageCard } from "./labor-coverage-card"
@@ -25,6 +25,11 @@ type Summary = {
   today: string
   canManageGoal: boolean
   salesAvailable: boolean
+  // BUG-6: set when the route deferred its Square refresh past the response, so
+  // `sales` below is one request old. `salesSyncedAt` is the cache timestamp
+  // those numbers came from — the poll stops as soon as it changes.
+  salesRefreshing: boolean
+  salesSyncedAt: string | null
   sales: {
     today: { total: number; hourly: HourPoint[] }
     lastYear: { date: string; total: number; hourly: HourPoint[] } | null
@@ -125,6 +130,16 @@ const STORE_EVENT = "froot-dashboard-store"
 // offered when the user can see more than one store.
 const ALL_STORES = "all"
 
+// BUG-6: /api/dashboard/summary and /api/dashboard/sales refresh a stale sales
+// cache AFTER their response (BUG-1 step 4), so the payload that triggers the
+// refresh cannot contain its result. When a response says a refresh is in
+// flight, re-fetch a bounded number of times until the cache timestamp moves —
+// bounds and their rationale in card-fetch.ts.
+//
+// A single delayed re-fetch was the first design and was wrong: it can land
+// before the refresh completes, and the guard then blocks the retry that would
+// have caught it — the same staleness with extra steps.
+
 function subscribeStoreKey(callback: () => void) {
   window.addEventListener("storage", callback)
   window.addEventListener(STORE_EVENT, callback)
@@ -178,12 +193,42 @@ export function DashboardClient({
   const [commsRes, setCommsRes] = useState<{ storeId: string; data: Comms | null } | null>(null)
   const [checkedOverride, setCheckedOverride] = useState<Record<string, boolean>>({})
 
+  // BUG-6 poll state. `pollGuard` holds `${storeId}|${baseline}` keys already
+  // polled; `activeStoreRef` lets an in-flight sequence abandon itself when the
+  // operator switches away rather than spending requests on a hidden store.
+  const pollGuard = useRef<Set<string>>(new Set())
+  const activeStoreRef = useRef(storeId)
+  useEffect(() => {
+    activeStoreRef.current = storeId
+  }, [storeId])
+
+  const pollSummary = useCallback(async (targetStoreId: string, baseline: string | null) => {
+    const key = `${targetStoreId}|${baseline ?? "none"}`
+    if (pollGuard.current.has(key)) return
+    pollGuard.current.add(key)
+    for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+      if (activeStoreRef.current !== targetStoreId) return
+      const data = await fetchCard<Summary>("summary", `/api/dashboard/summary?storeId=${targetStoreId}`)
+      if (activeStoreRef.current !== targetStoreId) return
+      // A failed poll must NOT write null: `data: null` is the card's "load
+      // failed, offer Retry" state, and flipping a card that is currently
+      // showing real numbers into an error state is worse than staying stale.
+      if (!data) return
+      setSummaryRes({ storeId: targetStoreId, data })
+      // syncedAt only ever moves forward (sales-sync rewrites the day), so any
+      // change means the deferred refresh landed and these numbers are current.
+      if (data.salesSyncedAt !== baseline) return
+    }
+  }, [])
+
   const loadSummary = useCallback(() => {
     if (!storeId || storeId === ALL_STORES) return
-    fetchCard<Summary>("summary", `/api/dashboard/summary?storeId=${storeId}`).then((data) =>
+    fetchCard<Summary>("summary", `/api/dashboard/summary?storeId=${storeId}`).then((data) => {
       setSummaryRes({ storeId, data })
-    )
-  }, [storeId])
+      if (data?.salesRefreshing) void pollSummary(storeId, data.salesSyncedAt)
+    })
+  }, [storeId, pollSummary])
 
   const loadComms = useCallback(() => {
     if (!storeId || storeId === ALL_STORES) return
