@@ -7524,8 +7524,37 @@ bugs:
       rests entirely on every read sitting inside the `loading ?` ternary.
       Rendering it outside that ternary — moving the unconfirmed teaser into the
       header, say — reintroduces the cross-store paint.
+      APPENDED 2026-08-13 — THIS FIX SURFACED BUG-7, AND THE ROW IS STILL NOT
+      VERIFIED. Observed by Gary on staging, preview env, branch 92de25f, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd, 2026-08-13 18:48:50 UTC:
+        prisma.salesPeriodCache.createMany() — P2002, unique constraint failed
+        on ("storeId", date), store=cmrd1a4hz000004jjl91v23nm
+      followed 3.5s later by a clean 796ms refresh on the same store. A later
+      poll attempt recovered it, so the symptom is invisible to the operator.
+      THE POLL IS NOT THE DEFECT AND IS NOT TO BE TOUCHED (Gary, 2026-08-13).
+      Lambda timings 796/1032/1162/1184ms confirm the 3x2s window empirically,
+      from a real deployment rather than the dev-machine figure this row cites
+      above. The defect is in the WRITE — see BUG-7 and
+      docs/prompts/BUG-7_AUDIT.md.
+      WHAT THIS FIX ACTUALLY DID TO IT, stated precisely because the first
+      framing overstated it: the race was ALREADY REACHABLE and this fix raised
+      its frequency. A single dashboard load has always issued two concurrent
+      syncs for the same store-day — dashboard-client.tsx:225 fetches
+      /api/dashboard/summary while SalesPerformanceCard:291 fetches
+      /api/dashboard/sales, whose default preset is `today`, so both evaluate
+      the same STALE_MS test and both register an after() sync milliseconds
+      apart. That has held since 2081401 (2026-07-23). What the poll changed is
+      the MULTIPLIER: each attempt re-enters the route and, because an in-flight
+      sync has not yet advanced syncedAt, schedules another. One store switch
+      can now schedule up to 8 syncs for one store-day where it scheduled 2.
+      BUG-6 REMAINS in_progress AND UNVERIFIED. The store-switch behaviour has
+      not been confirmed on staging, and this row does not close on a P2002.
+      ORDERING NOW STACKS THREE DEEP: verify BUG-6 on staging -> fix BUG-7 ->
+      register the Square subscriptions -> verify F-4. BUG-7 before the
+      subscriptions is not optional; see that row's blast-radius finding.
       CROSS-REFS: F-4 (the dead webhook that hid this for three weeks, and whose
-      fix must NOT be applied first), BUG-1 (whose step 4 introduced it).
+      fix must NOT be applied first), BUG-1 (whose step 4 introduced it),
+      BUG-7 (the write race this fix's extra requests made frequent).
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
