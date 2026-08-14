@@ -7556,6 +7556,112 @@ bugs:
       fix must NOT be applied first), BUG-1 (whose step 4 introduced it),
       BUG-7 (the write race this fix's extra requests made frequent).
 
+  - id: BUG-7
+    title: "Concurrent syncs raced on the sales caches — P2002, and the older fetch could win"
+    status: in_progress
+    commits: [00881dc]
+    notes: >
+      Observed by Gary on staging, preview env, branch 92de25f, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd, 2026-08-13 18:48:50 UTC:
+      prisma.salesPeriodCache.createMany() — P2002 on ("storeId", date),
+      store=cmrd1a4hz000004jjl91v23nm, followed 3.5s later by a clean 796ms
+      refresh. FIXED IN CODE 2026-08-13, NOT YET VERIFIED ON STAGING.
+      Audit: docs/prompts/BUG-7_AUDIT.md. Ruled Option 2 by Gary the same day.
+      COST OF DOING NOTHING: LIVE, but low today and rising sharply — see the
+      webhook paragraph. Today the constraint and the transaction hold, so a
+      collision costs discarded work, never corruption.
+      THE DEFECT. sales-sync.ts wrote each day as deleteMany-then-createMany in
+      one transaction — check-then-act, the delete standing in for the check,
+      with nothing holding it true until the insert. Under READ COMMITTED (the
+      Postgres default, and unset anywhere in this repo) two writers for one
+      store-day collided on @@unique([storeId, date]).
+      THE SECOND DEFECT, INDEPENDENT OF THE RACE, and the reason Gary ruled
+      Option 2 over the cheaper Option 1: syncedAt was @default(now()), stamped
+      at INSERT. The winner was therefore whichever COMMITTED last, which is not
+      whichever READ SQUARE last. An older fetch could overwrite a newer one and
+      stamp the result as FRESHER — the day's sales tick DOWNWARD, and the
+      fresh-looking stamp then suppresses the 15-minute refresh and the webhook
+      burst absorber for a further 15 minutes. Silent and self-sustaining, on
+      the screen F-4 exists to make trustworthy. Gary declined to accept that in
+      writing, which is the whole reason this row is not a one-line upsert.
+      THE FIX (00881dc). syncedAt now carries fetchStartedAt, taken before the
+      first Square page — start-time UNDERSTATES freshness, which is the safe
+      direction (an extra refresh, never a skipped one) and is the only instant
+      true of the whole window rather than of its last page. The write is one
+      INSERT ... ON CONFLICT DO UPDATE ... WHERE stored.syncedAt <
+      EXCLUDED.syncedAt, doing three jobs at once: it cannot collide, because ON
+      CONFLICT takes the row lock and the second writer re-evaluates against the
+      COMMITTED value; the older fetch loses even when it commits later; and a
+      row whose WHERE is false is skipped and not RETURNED, which is exactly the
+      discard signal. Winning the period row also holds the store-day for the
+      rest of the transaction, so the hourly/line rewrite needs no guard of its
+      own — hence the period upsert MUST come first.
+      THE INVARIANT THAT MAKES DISCARDING SAFE, worth keeping because it is what
+      justifies the whole design: every sync re-reads the WHOLE day from Square,
+      so the winner's read covers everything the loser saw. Discarding a
+      superseded write can never lose information.
+      SYNCEDAT READER AUDIT — all six functional readers re-checked against the
+      changed meaning, and the notable result is that NONE broke and ONE was
+      already wrong and is now right:
+        1. dashboard/summary/route.ts:91 — 15-min staleness test. HOLDS, and is
+           more correct: the test asks how old the DATA is, and fetch time is
+           when the data was read. Insert time overstated freshness by the sync
+           duration. Rows now read ~1s staler against a 900s threshold.
+        2. dashboard/sales/route.ts:201 — identical test. HOLDS, same reasoning.
+        3. dashboard/rollup/route.ts:66 — identical test. HOLDS, unchanged and
+           deliberately not touched (out of scope).
+        4. webhooks/square/route.ts:119 — the burst absorber,
+           `cached.syncedAt >= eventAt`, whose comment claims "that sync saw the
+           post-event order state". THIS WAS FALSE BEFORE AND IS TRUE NOW. With
+           insert-time stamps, a sync that read Square at T0 and inserted at
+           T0+1s stamped T0+1s, so an event emitted at T0+0.5s was skipped even
+           though the sync's read never saw it — a genuinely dropped event, for
+           the whole duration of every sync. Fetch-time stamping closes that.
+           Effect: slightly FEWER skips, i.e. more syncs, the safe direction.
+        5-6. summary:131 and sales:238 — `salesSyncedAt`, BUG-6's poll baseline,
+           stopped on `!== baseline`. HOLDS and is STRENGTHENED: the guard makes
+           syncedAt monotonic by construction, where before monotonicity was
+           accidental and could be violated by this very race. New behaviour to
+           know: a DISCARDED write does not move syncedAt, so the poll spends
+           its remaining attempts and stops — harmless, because the numbers on
+           screen already belong to the newer winner. Bounded at 3 either way.
+        getSyncedThrough (sales-sync.ts) reads `date`, not syncedAt. Unaffected.
+      FIXTURE: 24/24, nine new. Covers the ruled case — newer fetch commits
+      FIRST, older fetch commits LAST, newer totals survive — plus fetch-instant
+      stamping, a discarded write leaving the winner's hourly and line rows
+      intact, and two genuinely concurrent writers not throwing and leaving one
+      row with the newer numbers. CONFIRMED IT CAN GO RED, and how it fails is
+      the useful part: removing ONLY the WHERE clause leaves the P2002 fixed
+      (one row, no throw — that is Option 1 exactly) while netSales goes
+      500 -> 1 and 222 -> 111. The fixture reproduces Option 1's going-backwards
+      hazard as a failing assertion rather than as an argument.
+      RAW SQL WAS NOT A PREFERENCE. No typed Prisma API expresses a conditional
+      ON CONFLICT, and the obvious alternative — updateMany, then create on zero
+      rows, catching P2002 — cannot work inside an interactive transaction: once
+      a statement errors, Postgres puts the transaction in a failed state and
+      every later statement fails with 25P02. Measured on br-broad-wave-a6vpjdw0:
+      `id` has NO database default on any of the three cache tables (Prisma
+      generates cuid client-side) and syncedAt DOES default to CURRENT_TIMESTAMP,
+      so the raw insert supplies both explicitly. New rows therefore carry uuid
+      ids beside older cuids; the column is a bare primary key that no foreign
+      key references and no response exposes, so the formats never meet.
+      NO SCHEMA CHANGE — every constraint relied on already existed. That is
+      worth stating because Option 2 sounds like it needs one.
+      WHY THIS BLOCKS THE SQUARE SUBSCRIPTIONS. Registering a webhook today adds
+      a writer at transaction rate — 76-144 paid orders/store/day measured, x3-5
+      events per order across the four subscribed types — against a ~1s sync.
+      The burst absorber collapses most of one order's cluster but fails exactly
+      on events arriving within the ~1s a sync takes, because the in-flight sync
+      has not committed; it is the same check-then-act one layer up. And
+      processEvent swallows the failure after the route already returned 200, so
+      Square never retries: a raced webhook sync is simply lost. The recovery
+      paths that hide this today are the poll and the cron — precisely what the
+      webhook is meant to make unnecessary.
+      ORDERING: verify BUG-6 on staging -> verify BUG-7 on staging -> register
+      the Square subscriptions -> verify F-4.
+      CROSS-REFS: BUG-6 (whose extra requests made this frequent), F-4 (blocked
+      behind it), DEBT-69 (coalescing, filed not built).
+
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
 #
@@ -7584,6 +7690,35 @@ bugs:
 # DEBT-TRIAGE audit — whose own 22 assessments exist nowhere in this repo. That
 # hole is DEBT-45.
 debt:
+  - id: DEBT-69
+    status: planned
+    title: "Coalesce concurrent sales syncs per store-day — Square quota, not correctness"
+    notes: >
+      FILED 2026-08-13 BY GARY'S RULING, DELIBERATELY NOT BUILT. It was Option 4
+      in the BUG-7 audit (docs/prompts/BUG-7_AUDIT.md § 1c) and was rejected as a
+      FIX because it is per-lambda-instance and therefore closes nothing: it
+      lowers the probability of a race without removing it, and cannot help
+      across concurrent instances or across users. BUG-7's guarded upsert is the
+      correctness fix and is already in (00881dc).
+      COST OF DOING NOTHING: NONE today, in this file's own sense — no user of
+      the product is affected. This is spend, not behaviour.
+      WHAT IT WOULD BE. Single-flight coalescing keyed on (storeId, date) so
+      concurrent callers await one in-flight sync instead of each starting their
+      own; and/or stopping /api/dashboard/summary and /api/dashboard/sales from
+      independently scheduling a sync for the same store-day, which they have
+      done on every stale dashboard load since 2081401's after() deferral.
+      WHY IT IS WORTH ANYTHING AT ALL. Every racer completes a full paginated
+      Square orders/search before losing at commit, so a discarded sync is a
+      round trip already spent. One store switch can currently schedule up to 8
+      syncs for one store-day (2 initial + 6 polled, BUG-6), times every user and
+      every open tab. Square publishes no rate limits — sales-reconcile/route.ts
+      says so, which is why that cron walks stores serially — so this is
+      unquantified spend against an unknown ceiling.
+      REVISIT WHEN WEBHOOKS ARE LIVE (Gary, 2026-08-13). The webhook adds a
+      writer at transaction rate, which is when the wasted-call volume starts to
+      matter; until then there is nothing to measure. Do NOT build it as a race
+      fix — that question is settled and belongs to BUG-7.
+
   - id: DEBT-1
     status: verified
     commits: ["c17ccc1", "c01a2b1"]
