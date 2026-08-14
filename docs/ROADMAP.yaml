@@ -7464,6 +7464,11 @@ bugs:
       CARRIED FORWARD, NOT PART OF THIS CLOSURE: see BUG-8 (one store returns
       ~6704ms where every other store returns ~800ms). Observed in this same
       session and deliberately not diagnosed in it.
+      CLOSURE RECORDED IN 728638d — the commit carrying the verification prose
+      above, per the two-commit pattern. The code it verifies is 37361ba and
+      b77082e, both already in `commits:`; this third SHA is the bookkeeping, and
+      it is a separate commit rather than an amend because amending would
+      invalidate the SHA this sentence just recorded.
       ── PRE-VERIFICATION RECORD BELOW, UNEDITED ──
       Found 2026-08-13 while proving F-4's second symptom; FIXED IN CODE, NOT
       YET VERIFIED ON STAGING, which is why this is in_progress and not
