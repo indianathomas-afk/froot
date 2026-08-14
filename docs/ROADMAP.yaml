@@ -7419,9 +7419,52 @@ bugs:
 
   - id: BUG-6
     title: "Dashboard store switch serves the previous request's sales — the lazy refresh lands after the response"
-    status: in_progress
+    status: staging
     commits: [37361ba, b77082e]
     notes: >
+      VERIFIED ON STAGING BY GARY 2026-08-13 — THE DEFECT IS CLOSED. Prepended;
+      everything below stays exactly as written. Org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd on Clerk instance verified-snapper-7,
+      staging preview, deployed SHA 92de25f read off the dashboard's own build
+      stamp ON THE SAME SCREEN as the observations — which is the § Staging
+      Verification precondition satisfied by construction rather than by a
+      separate command whose answer could drift.
+      WHAT WAS OBSERVED, all four:
+        1. Cold load of Las Brisas — chart flatlined at zero, then populated at
+           ~1s WITHOUT a manual refresh. The poll firing as designed, and the
+           clearest possible demonstration of the defect being gone: the zero
+           state IS the pre-refresh payload this row is about.
+        2. Store switch across 4-5 stores — current sales on each, no refresh.
+        3. Return trip to a previously visited store — fresh. THIS IS THE LATCH
+           CASE b77082e FIXED, and it is the one that could not have passed
+           before: the ever-started guard would have suppressed the poll on a
+           revisit whose baseline had not moved.
+        4. BUG-1 not regressed — cold dashboard load paints promptly, no eternal
+           skeleton. The negative check, and the one that proves the fix did not
+           buy freshness back by reintroducing the hang.
+      TIMINGS SUPERSEDED, NOT CORRECTED — the 969-1179ms figure further down is
+      preserved and was never wrong, it was just measured in the wrong place (a
+      dev machine against the dev branch, and the row said so). THE AUTHORITATIVE
+      FIGURE IS NOW ~800ms typical for /api/dashboard/summary on Preview across
+      the session, spot values 796/1032/1162/1184ms, measured from a real lambda.
+      Against a 3x2s poll window the first attempt catches it with room to spare,
+      which is what the duration log added in 37361ba was for.
+      STATUS IS `staging`, NOT `verified`, AND THAT IS DELIBERATE — read this
+      before changing it. Gary's instruction was "set status verified"; the
+      observations fully support the closure and none of this qualifies them.
+      But `verified` is grouped into the "In production" board column
+      (src/lib/roadmap.ts:229, statuses ["shipped","verified"]), and neither
+      37361ba nor b77082e is on origin/main — measured 2026-08-13 with
+      `git merge-base --is-ancestor`, origin/main at ce036f9, which is where this
+      session started. So `verified` would render this row as in production while
+      its code has never left staging. `staging` is simply true, the way CHK-4's
+      row says of itself, and the verification lives in the prose above where no
+      column mapping can overstate it. Flip to `shipped` when it reaches main and
+      to `verified` after a production observation.
+      CARRIED FORWARD, NOT PART OF THIS CLOSURE: see BUG-8 (one store returns
+      ~6704ms where every other store returns ~800ms). Observed in this same
+      session and deliberately not diagnosed in it.
+      ── PRE-VERIFICATION RECORD BELOW, UNEDITED ──
       Found 2026-08-13 while proving F-4's second symptom; FIXED IN CODE, NOT
       YET VERIFIED ON STAGING, which is why this is in_progress and not
       `staging`. Audit: docs/prompts/F-4_FINAL_AUDIT.md.
@@ -7659,8 +7702,64 @@ bugs:
       webhook is meant to make unnecessary.
       ORDERING: verify BUG-6 on staging -> verify BUG-7 on staging -> register
       the Square subscriptions -> verify F-4.
+      ZERO P2002 OBSERVED 2026-08-13 during BUG-6's staging verification — org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd, Clerk instance verified-snapper-7,
+      staging preview, deployed SHA 92de25f. RECORDED SEPARATELY FROM BUG-6'S
+      CLOSURE AT GARY'S INSTRUCTION, AND IT DOES NOT CLOSE THIS ROW.
+      Read what it is and is not. 92de25f PREDATES the fix — the guarded upsert
+      is 00881dc, which is not deployed anywhere — so this session exercised the
+      OLD delete-then-insert write. Zero P2002 across it is therefore evidence
+      about the RACE's FREQUENCY on a quiet single-operator session, not evidence
+      that the fix works. The original sighting was one collision in one session,
+      so a session with none is exactly what a rare race looks like either way.
+      IT ALSO IS NOT NOTHING. It is the closest thing to a baseline this row will
+      get: the same screens, the same store set, the same poll behaviour, one
+      operator, no collision. A post-fix session showing the same absence proves
+      little on its own; what would prove the fix is the `[sales-sync] ...
+      discarded N superseded by a newer fetch` line appearing in Preview logs,
+      because that line can only be emitted by the new code and means a race was
+      caught and resolved correctly rather than avoided by luck.
+      SO THE CLOSURE CONDITION IS UNCHANGED: deploy 00881dc, then either observe
+      that discard line or observe sustained concurrent load with no P2002. This
+      row stays in_progress.
       CROSS-REFS: BUG-6 (whose extra requests made this frequent), F-4 (blocked
       behind it), DEBT-69 (coalescing, filed not built).
+
+  - id: BUG-8
+    title: "One store returns ~6704ms from /api/dashboard/summary where every other store returns ~800ms"
+    status: planned
+    notes: >
+      OBSERVED 2026-08-13 BY GARY, NOT INVESTIGATED — this row is the
+      observation and deliberately nothing more. Carried forward out of BUG-6's
+      staging verification at Gary's instruction; no diagnosis was done in that
+      session and none should be read into this row.
+      THE OBSERVATION, verbatim in substance. Org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd, Clerk instance verified-snapper-7,
+      staging preview, deployed SHA 92de25f. One store — THE ONE WITH NO LABOR
+      BUDGET SET — reproducibly returns ~6704ms from /api/dashboard/summary,
+      where every other store in the same session returns ~800ms typical (spot
+      values 796/1032/1162/1184ms). REPRODUCIBLE, NOT A COLD START; that was
+      checked at the time and is the reason this is a row rather than a shrug.
+      WHY IT MATTERS, which is Gary's framing and is the whole point of filing
+      it: A STORE WITH NO LABOR BUDGET IS THE STATE EVERY NEWLY ADDED STORE
+      ARRIVES IN. So if that path costs 6s, every Keva onboarding hits it — the
+      slow case is the DEFAULT case, not an edge one, and the population that
+      hits it is exactly the population with nobody watching yet.
+      IT CAN EXHAUST BUG-6'S POLL WINDOW. That window is 3 attempts at 2s
+      (POLL_ATTEMPTS/POLL_INTERVAL_MS, src/app/(app)/dashboard/card-fetch.ts),
+      i.e. 6s of cover sized against ~800ms responses. A 6704ms response is
+      outside it. So on a brand-new store the store-switch staleness BUG-6 just
+      fixed could reappear — not because that fix is wrong, but because its
+      window was sized against the healthy case. Do not read that as a BUG-6
+      regression; the two interact, and BUG-6's staging verification stands.
+      NOT DIAGNOSED. No file, no line, no cause is asserted here on purpose. The
+      labor-budget correlation is Gary's observation of WHICH store, not a claim
+      about which code path — writing a suspected cause into the row before
+      anyone has read the code is how a guess becomes a fact by being quoted.
+      COST OF DOING NOTHING: LIVE for any newly added store, LATENT for existing
+      ones, on the named trigger of adding a store.
+      CROSS-REFS: BUG-6 (the poll window this can exceed, and the session this
+      was observed in).
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
