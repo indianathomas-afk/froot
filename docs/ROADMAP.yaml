@@ -5137,7 +5137,7 @@ phases:
   - id: HR-11j
     track: hr
     size: L
-    status: in_progress
+    status: verified
     title: "Signed truth & assignability — R1 completion from the record, R4 assignability gate"
     commits:
       - "32205a4"
@@ -5452,6 +5452,111 @@ phases:
 
       STILL OUTSTANDING: the four acceptance checks themselves. The pre-check
       establishes only that they are RUNNABLE. Status stays in_progress.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      ACCEPTANCE PASSED 2026-08-15. All four checks verified by Gary on
+      staging, deployment dpl_8dqx2ay7Hx3rWAFxqkXgSvTTmUJj (created 09:45 PDT),
+      matched by HEAD SHA. Org org_3G02wO4QlVVSWppi8aqlnSZnsDa on Clerk instance
+      verified-snapper-7; database branch br-square-feather-a63z92vz / neondb.
+      Status moves in_progress -> verified.
+
+
+      (1) R1 REGRESSION — PASS. Gdogg's /my/documents shows the document under
+      TO SIGN reading "In progress — ask your manager." THE DAY BEFORE, THE SAME
+      SCREEN SHOWED IT UNDER COMPLETED AS "Signed v2" IN GREEN. That before/after
+      on one screen is the closest thing this row has to a direct measurement of
+      the defect, and it is why the check was specified as a comparison rather
+      than as a lone screenshot.
+
+
+      (2) A3 GUARD — PASS. Opening the document lands on the refusal screen, not
+      the reader. This is the entry point that had no readiness call at all, and
+      the one the original signer walked in through.
+
+
+      (3) R4 GATE — PASS. The assign dialog shows the amber panel with "Confirm
+      this document's fields before assigning it.", states that 10 fields are
+      detected and none confirmed, links to the confirm screen, and disables
+      Save. WITHDRAWAL CONFIRMED AVAILABLE — the invariant held in the browser,
+      not only in the unit sweep.
+
+
+      (4) R1 POSITIVE — PASS. Tommy's v1 signed record is intact and
+      downloadable. Nothing in R1 reached backwards into a record already made.
+
+
+      EVERY PREDICTION IN THE PRE-CHECK ABOVE WAS BORNE OUT, including the one
+      flagged in advance as correct-but-surprising: Tommy's row reads "Needs
+      current version". See the finding filed on HR-11k — that behaviour is
+      right under HR-11f and WRONG under R2, which supersedes it.
+
+  - id: HR-11k
+    track: hr
+    size: M
+    status: planned
+    title: "R2 — two upload paths: new file re-signs, new version does not"
+    notes: >
+      RULED 2026-08-15 (Gary), in the HR-11j session. FILED, NOT BUILT — it
+      needs its own design pass and will likely add a column to
+      HrDocumentVersion. The ruling itself is recorded on HR-11j alongside R1,
+      R3 and R4; this row is the work.
+
+
+      THE RULING. A NEW FILE is a new document: everyone signs it. A NEW VERSION
+      is the same document: existing signers KEEP their record and are NOT
+      re-prompted, and a read-only notice tells them an update is available.
+
+
+      R2 SUPERSEDES HR-11f (2026-08-14), WHICH REQUIRED UNIVERSAL
+      RE-ACKNOWLEDGMENT. HR-11f has never had a row of its own — it exists as a
+      ruling cited inside HR-11d — so the marker lives here and on HR-11j rather
+      than at a row that could be edited. The superseded text, preserved:
+
+
+      [SUPERSEDED 2026-08-15 BY R2] HR-11f, ruled 2026-08-14 — a new version of
+      a document requires new acknowledgment from everyone; signed records stay
+      bound to the version signed, and a version bump re-prompts every signer.
+
+
+      GARY'S POSITION, WHICH IS THE DESIGN CONSTRAINT: THE VERSION ORIGINALLY
+      SIGNED IS THE MASTER DOCUMENT FOR THAT SIGNER. A minor revision does not
+      re-prompt someone who has already signed.
+
+
+      ── THE CONCRETE SURFACE WHERE R2'S ABSENCE IS VISIBLE ──────────────────
+      Observed 2026-08-15 during the HR-11j acceptance pass, on staging
+      dpl_8dqx2ay7Hx3rWAFxqkXgSvTTmUJj, org org_3G02wO4QlVVSWppi8aqlnSZnsDa
+      (Clerk verified-snapper-7), document cmstv3r1s000004jxdcyhkbui.
+
+
+      TOMMY'S ROW READS "NEEDS CURRENT VERSION". He holds a signed record on v1;
+      v2 is current and he has no acknowledgments on it. That is CORRECT under
+      HR-11f and INCORRECT under R2. NOT REWORDED (Gary's instruction) — the copy
+      is accurate for the rule the code still implements, and changing the words
+      without changing the rule would hide the gap rather than close it.
+
+
+      THE STRUCTURAL STATEMENT OF THE DEFECT. "The current version" and "the
+      version this signer is bound to" ARE TWO DISTINCT FACTS, AND ONLY ONE IS
+      CURRENTLY SHOWN. Every surface collapses them into a single status, so a
+      signer who is fully covered by the document they actually signed is
+      rendered as owing something. The fix is not a copy change; it is teaching
+      the surfaces to carry both facts, which is why this needs a column and a
+      design pass rather than an edit.
+
+
+      NOTE THE FAMILY RESEMBLANCE TO HR-11j'S OWN DEFECT, which is why it is
+      worth writing down here: that one was two predicates reading different
+      sources with different lifetimes and never required to agree. This one is
+      two facts collapsed into one field. Both are shapes where a surface
+      answers a question nobody asked it precisely enough.
+
+
+      SCOPE NOTE: R3 (compliance shows "signed, version noted", plus a separate
+      "who has acknowledged the current text" report) is adjacent and was ruled
+      the same day. It is not this row — but whoever builds R2 should read it,
+      because the two together decide what a version bump means to a reader.
 
   - id: HR-11i
     track: hr
