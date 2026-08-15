@@ -4848,18 +4848,20 @@ phases:
   - id: HR-11d
     track: hr
     size: M
+    commits: [576fc4e]
     status: in_progress
     title: "Hollow signed records — completion reads document checkpoints, stamping reads version anchors; guard, upload reporting, vocabulary, hash carry-forward"
     notes: >
-      PHASE 0 CLOSED 2026-08-14. PHASE 1 NOT STARTED. Audit:
-      docs/prompts/HR-11d_AUDIT.md — 634 lines, and the diagnosis of record.
-      Phase 0 audit preserved at "7fbf618".
+      PHASE 0 CLOSED 2026-08-14. PHASE 1 BUILT 2026-08-14 ("576fc4e") — FIVE OF
+      SIX ITEMS; 2f IS HELD, see below. Audit: docs/prompts/HR-11d_AUDIT.md —
+      634 lines, and the diagnosis of record. Phase 0 audit preserved at
+      "7fbf618".
 
       NO `commits:` FIELD UNTIL PHASE 1. The audit SHA above is prose
       deliberately: `commits:` means WORK commits everywhere else in this file,
       and seeding it with a docs commit would have quietly made it mean two
       things the moment Phase 1 appended to it. The field arrives with the
-      first work commit.
+      first work commit — and now has, carrying "576fc4e" and nothing else.
 
       HANDOFF POINTER — Phase 1 must be handed BOTH
       docs/prompts/HR-11d-phase1-build.md ("2212a1e") AND
@@ -4997,8 +4999,77 @@ phases:
       notes because `comment:` is not a field on the phase type — see the
       Phase interface in src/lib/roadmap.ts.)
 
-      SCHEMA: NONE. MIGRATION: NONE. No work commits and no `shipped:` date
-      yet; both land with the two-commit pattern at Phase 1 and at promotion.
+      ──────────────────────────────────────────────────────────────────────
+
+      PHASE 1 BUILT 2026-08-14 ("576fc4e"). NOT PUSHED. 2a, 2b, 2c, 2d and 2e
+      shipped; 2f is built up to but not including the words.
+
+      2f IS HELD ON GARY'S RULING, WHICH IS THE INSTRUCTION AND NOT A GAP. The
+      addendum requires the certificate copy to be presented and ruled BEFORE
+      either string is written into the certificate writer, so
+      src/lib/hr-signed-pdf.ts carries no mode line and the ruling is
+      outstanding. Three questions went to Gary: which of three wordings; page
+      count in the stamped line or field count alone; and whether the count
+      reports MARKS ACTUALLY DRAWN or ANCHORS CONFIRMED. The third is a second
+      decision hiding inside the first — marks-drawn makes the certificate
+      describe the artifact in the reader's hands, and its one visible
+      consequence is that a version with confirmed anchors whose values all came
+      back empty (an all-attested initial set, a "Store:" with no store on file)
+      prints the certificate-only line. Proposed position: a labeled() row under
+      Source SHA-256, same 8pt/9pt weight as every other row, no colour and no
+      box. Phase 1 recommends Option A, "Document marks", constant label across
+      both modes so two certificates line up when read side by side.
+
+      THE GUARD IS THE PREDICATE, AND IT LIVES IN ONE PLACE. isSigningBlocked
+      (src/lib/hr-anchors.ts) is pure and exported, so the fixture asserts the
+      shipped function rather than a copy of it, and the ceremony page, the mint
+      and the fixture cannot drift. getVersionAnchorReadiness is the one query
+      that feeds it.
+
+      TWO PLACES THE PHASE WENT BEYOND THE PROMPT'S LETTER, BOTH FLAGGED FOR
+      CHEAP REVERSAL. (1) R2's reporting was applied to POST /api/hr/documents
+      as well as the versions route §2a names — that route is what creates the
+      brand-new document R3(i-a) was ratified to catch, so reporting only on
+      re-upload would leave the flag-at-upload layer silent for exactly that
+      population. (2) The attested entry point gets an admin-facing refusal
+      instead of the ruled signer copy, because "ask your manager" is addressed
+      to a person who, on that path, is the manager. The ruled copy is verbatim
+      and untouched on the signer path.
+
+      LAYER (c)'S REFUSAL IS NOW ADMITTED RATHER THAN SWALLOWED. The capture
+      route already caught every generator failure and returned complete:true
+      with signedRecordId:null — so a bypassed layer (b) would have told the
+      signer "executed" while no record existed, which is this row's own defect
+      wearing a different coat. It now returns signingUnavailable and both
+      clients render the refusal. This is NOT a fourth guard and deliberately
+      not a refusal on the write: the ceremony saves progressively, so refusing
+      at the write would strand a signer mid-document — the exact failure layer
+      (b) is at the door to prevent.
+
+      FIXTURE 55/55, UP FROM 35/35 AT HEAD — and the prompt's "current 28/28" is
+      STALE, which is worth knowing before anyone reads a regression into the
+      number. 35 check() calls are in scripts/verify-hr-anchors.ts at HEAD
+      (git show HEAD:scripts/verify-hr-anchors.ts | grep -c) and all 35 still
+      pass. THE 2b REGRESSION ASSERTION NEEDED NEITHER A REAL PDF FIXTURE NOR A
+      SECOND HARNESS, which was §5's question: the trip-wire is a pure function
+      of two counts, so the synthetic PDFs already in the file supply the real
+      `matched` and `confirmed` is 0 by construction (detection writes every
+      proposal unconfirmed). Asserting that ensureSignedRecord itself throws
+      needs a database, a blob store, a StaffMember and acknowledgment rows —
+      a second harness, and it is the Phase 2 staging walk, which already
+      requires an authenticated session.
+
+      NOT VERIFIED BY THIS SESSION, AND BOTH BELONG TO PHASE 2. The
+      non-regression check §3 asks for — that the DOC-1 audience modal still
+      saves — needs an authenticated ADMIN session this session may not create.
+      What IS evidence: assign-audience-dialog.tsx, api/hr/documents/[id]/audience,
+      hr-document-audience.ts and hr-documents-access.ts are BYTE-UNTOUCHED by
+      the work commit, and the guard is at the ceremony page and the mint, never
+      on a grant path. And no browser observation was taken at all, per the
+      staging-SHA precondition: this work is not on staging at commit time.
+
+      SCHEMA: NONE. MIGRATION: NONE. No `shipped:` date yet; that lands at
+      promotion.
     open:
       - >
         The anchor rows behind the 8-12 artifact were never read. Close in
@@ -5012,6 +5083,32 @@ phases:
       - >
         anchors/route.ts deletes a keep:false anchor with no guard on
         confirmed — hypothesis B representable. File its own row.
+      - >
+        2f COPY IS UNRULED. Phase 1 shipped everything else and wrote no mode
+        line into the certificate writer, per the addendum's instruction to
+        present and stop. Gary rules on wording, on whether the page count
+        appears, and on marks-drawn vs anchors-confirmed as the count; then the
+        line and its two fixture assertions land as a follow-up commit on this
+        row.
+      - >
+        AN ERRORED SCAN IS NOT "matched == 0", AND THE RATIFIED GUARD CANNOT
+        TELL THEM APART. R3(i-a) fires on matched > 0 && confirmed == 0. When
+        detection THROWS, matched is 0 — so the version reads as legitimately
+        certificate-only and stays signable, and a record mints with nothing
+        stamped: this row's own defect, reached through the error path instead
+        of the empty-confirm path. 2a makes the failure loud to the operator
+        standing at the upload ("field scanning failed … before anyone signs"),
+        which is the mitigation Phase 1 has. It is not a fix. Fixing it means
+        recording per-version scan state so the ceremony can ask "was this ever
+        successfully scanned?" — which is a column, so a migration, so a ruling
+        rather than a Phase 2 fix-up. Built exactly as ruled and surfaced
+        rather than resolved.
+      - >
+        The §3 non-regression check — that the DOC-1 audience modal still saves
+        — was not observed. It needs an authenticated ADMIN session. The
+        audience files are byte-untouched by "576fc4e" and the guard is nowhere
+        near a grant path, but that is an argument, not the observation the
+        prompt asked for. Fold it into the Phase 2 browser pass.
 
   - id: HR-11h
     track: hr
