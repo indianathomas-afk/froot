@@ -2,8 +2,10 @@ import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
+import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
 import { SigningClient } from "@/app/(app)/hr/acknowledge/[documentId]/signing-client"
 import { LegalNameRequired } from "@/components/hr/legal-name-required"
+import { SigningUnavailable } from "@/components/hr/signing-unavailable"
 import { MyShell } from "../../my-shell"
 import { MyDenied } from "../../denied"
 
@@ -37,6 +39,41 @@ export default async function MyAcknowledgePage({
   // A document that does not reach you is indistinguishable from one that does
   // not exist, matching the line above.
   if (!grantedToStaff(doc, staffMember)) notFound()
+
+  // ── HR-11j Item 4: LAYER (b) ON THE PATH IT WAS NEVER BUILT ON ────────────
+  // The staff-portal ceremony. Same refusal as /hr/acknowledge, same predicate,
+  // audience="signer" — this route is always self mode, so the viewer is the
+  // person being asked to sign and gets the ruled signer copy, never the
+  // manager variant.
+  //
+  // LAYER (b) WAS NOT BYPASSED HERE. IT WAS NEVER PRESENT. HR-11d built the
+  // guard on /hr/acknowledge/[documentId] and its comment claimed it "covers
+  // BOTH entry points" — true of self and attested WITHIN THAT FILE, and false
+  // of this one, which lives in route group (my) and imports SigningClient
+  // across the group boundary. So the signer in the 2026-08-14/15 reproduction
+  // walked into the ceremony on unconfirmed v2, initialed four pages and signed
+  // two, and only ensureSignedRecord (layer c) stopped the hollow record.
+  //
+  // AND NO SEARCH FOUND IT, WHICH IS THE REUSABLE PART. Grepping
+  // isSigningBlocked or getVersionAnchorReadiness returned a CLEAN result —
+  // one definition, correct callers, nothing out of place — because a missing
+  // call site has nothing to match on. What found it was enumerating every
+  // renderer of the shared ceremony CLIENT and checking each renderer. Written
+  // into CLAUDE.md § Verifying a guard covers every path; same shape as the
+  // DEBT-22 miss recorded a few lines below in this very file.
+  const readiness = await getVersionAnchorReadiness(version.id)
+  if (readiness.blocked) {
+    return (
+      <MyShell showInstagram={!!org.instagramEnabled && !!org.instagramAccessToken}>
+        <SigningUnavailable
+          audience="signer"
+          documentId={doc.id}
+          documentTitle={doc.title}
+          matched={readiness.matched}
+        />
+      </MyShell>
+    )
+  }
 
   // HR-15 Policy B: resume state is per signing cycle — a rehire starts the
   // current version fresh; their prior-cycle acknowledgments stay on file.

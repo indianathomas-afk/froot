@@ -124,10 +124,33 @@ export default async function AcknowledgePage({
   // because manager-attested capture completes through the same
   // ensureSignedRecord call and would hit the same backstop.
   //
-  // THE GUARD IS AT THE CEREMONY, NEVER AT THE GRANT. Assigning an unconfirmed
-  // document to the whole company still works exactly as before (DOC-1 audience
-  // modal, untouched by this phase) — what an admin cannot do is have someone
-  // sign it.
+  // ── CORRECTED 2026-08-15 (HR-11j Item 4). "BOTH entry points" MEANT BOTH
+  // MODES OF THIS FILE — self and attested — AND WAS READ AS BOTH CEREMONIES.
+  // There is a third: /my/documents/[documentId], the staff portal, which
+  // imports SigningClient across the (my)/(app) route-group boundary and had no
+  // readiness call at all. That is the route the reproduction's signer used. It
+  // now carries this same guard. The sentence above is left standing because it
+  // is what was believed, and because the way it misleads is the finding: a
+  // count of entry points taken from inside one file cannot see the importers
+  // outside it.
+  //
+  // ── SUPERSEDED 2026-08-15 BY R4 (Gary). The paragraph below is kept, not
+  // deleted (CLAUDE.md — corrections prepend with dates), because it is an
+  // accurate statement of the HR-11d §2b carve-out and that carve-out is what
+  // R4 overturns by name.
+  //
+  // THE GUARD IS NOW AT THE GRANT AS WELL. PUT /api/hr/documents/[id]/audience
+  // asks this same predicate about the current version and refuses to give an
+  // unconfirmed document an audience at all — so what an admin cannot do is
+  // assign it in the first place. This layer stays regardless: R4 makes the
+  // state rare, not impossible (a new version uploaded under a live grant
+  // reaches it), and the ceremony must still refuse when it happens.
+  //
+  //   [SUPERSEDED 2026-08-15 — R4 moved the guard upstream to the grant]
+  //   THE GUARD IS AT THE CEREMONY, NEVER AT THE GRANT. Assigning an
+  //   unconfirmed document to the whole company still works exactly as before
+  //   (DOC-1 audience modal, untouched by this phase) — what an admin cannot do
+  //   is have someone sign it.
   const readiness = await getVersionAnchorReadiness(version.id)
   if (readiness.blocked) {
     return (

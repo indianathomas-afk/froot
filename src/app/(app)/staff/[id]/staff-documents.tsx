@@ -157,11 +157,18 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
 function GenerateRecordButton({ documentId, staffId }: { documentId: string; staffId: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  // R4 addition (Gary, 2026-08-15): the route hands back where to go when the
+  // refusal is "fields aren't confirmed". Rendering it is the difference between
+  // an instruction and an instruction someone can act on — the admin is one
+  // click from the screen that clears this, and used to be told to ask their
+  // manager instead.
+  const [confirmHref, setConfirmHref] = useState<string | null>(null)
   const router = useRouter()
 
   async function handleGenerate() {
     setBusy(true)
     setError("")
+    setConfirmHref(null)
     try {
       const res = await fetch(`/api/hr/documents/${documentId}/signed-record`, {
         method: "POST",
@@ -171,6 +178,7 @@ function GenerateRecordButton({ documentId, staffId }: { documentId: string; sta
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.error ?? "Failed to generate the record")
+        if (typeof data.confirmHref === "string") setConfirmHref(data.confirmHref)
         return
       }
       router.refresh()
@@ -180,12 +188,27 @@ function GenerateRecordButton({ documentId, staffId }: { documentId: string; sta
   }
 
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex items-center gap-2 flex-wrap">
       <Button variant="outline" size="sm" onClick={handleGenerate} disabled={busy}>
         <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
         {busy ? "Generating..." : "Generate record"}
       </Button>
-      {error && <span className="text-xs text-[var(--color-destructive)]">{error}</span>}
+      {error && (
+        <span className="text-xs text-[var(--color-destructive)]">
+          {error}
+          {confirmHref && (
+            <>
+              {" "}
+              <Link
+                href={confirmHref}
+                className="font-medium underline underline-offset-2 text-[var(--color-primary)]"
+              >
+                Confirm fields
+              </Link>
+            </>
+          )}
+        </span>
+      )}
     </span>
   )
 }

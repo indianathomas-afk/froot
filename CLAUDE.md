@@ -591,6 +591,54 @@ Two rows answering to "Keva Juice" make the name worthless as a check, and the
 app offers no in-app switcher to confirm against (see the org-switcher row in
 `docs/ROADMAP.yaml`).
 
+## Verifying a guard covers every path
+
+**YOU CANNOT GREP FOR A MISSING CALL SITE. To verify that a guard covers every
+path, enumerate every RENDERER of the shared component — or every CALLER of the
+shared route — and check each one. Never conclude coverage from a search for the
+guard's own name.**
+
+Recorded 2026-08-15 (HR-11j Item 4). `isSigningBlocked` refuses to start a
+signing ceremony on a document version whose detected fields are unconfirmed.
+Grepping it returned a **clean** result: one definition, one readiness helper,
+callers at the ceremony page and at the mint, all correct. Nothing was out of
+place, because the route that was missing the call had nothing to match on.
+
+The uncovered path was `/my/documents/[documentId]`, which imports
+`SigningClient` from `(app)/hr/acknowledge/[documentId]/` **across a route-group
+boundary**. A signer walked into the ceremony on an unconfirmed version through
+that route, initialed four pages and signed two; only the mint-time backstop
+stopped a hollow record. The guard had been built on the page that OWNS the
+client and was believed to be complete.
+
+**The belief was recorded in a comment, and the comment was true.** It said the
+guard "covers BOTH entry points" — meaning the self and attested modes of that
+file. It was read as meaning both ceremonies. **A count of entry points taken
+from inside one file cannot see the importers outside it**, and a shared client
+in a different route group is exactly the importer that does not come to mind.
+
+Note the direction of the failure, which is what makes it expensive: the search
+produces a PASS. A grep that finds nothing wrong reads as coverage confirmed, so
+the session stops looking. Compare § Staging Verification, where an empty grep
+reads as a FAIL and merely wastes an hour — a check that cannot produce a false
+pass is a different class of tool from one that can.
+
+**Second time this shape has cost a session.** DEBT-22 swept for unordered
+`storeAssignments` loads and correctly reported it had fixed the last one; it
+missed a STORE load keyed by assignment ids, because that is not a
+`storeAssignments` load and the pattern could not match it (the note lives in
+`src/app/(my)/my/documents/[documentId]/page.tsx`). Same lesson at a different
+layer: **a sweep is only as complete as the shape it searches for, and the shape
+you are searching for is chosen from what you already know exists.**
+
+The reliable procedure, in order:
+
+1. Find every file that renders the shared component or calls the shared route —
+   search the COMPONENT'S name, not the guard's.
+2. Include importers from other route groups, other directories, and re-exports.
+3. Check each one individually for the guard.
+4. Only then claim coverage, and say how many paths were checked.
+
 ## Git Rules
 
 Claude Code **commits when asked and never pushes** — including when the

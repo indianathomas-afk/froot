@@ -242,6 +242,60 @@ export const HR_ESIGN_CONSENT_TEXT =
   "have been given access to read the full document before signing, and that I may request a " +
   "paper copy at any time."
 
+// ─── R4: the assignability refusal ───────────────────────────────────────────
+//
+// Ruled verbatim by Gary 2026-08-15. Shown when an admin tries to give a
+// document an audience while its current version's detected fields are
+// unconfirmed. It lives HERE rather than beside isSigningBlocked because
+// hr-anchors.ts is server-side (unpdf, prisma) and the assign dialog is a client
+// component — this file exists precisely to be the shared, client-safe half.
+//
+// R4 SUPERSEDES THE HR-11d §2b CARVE-OUT, which reads "THE GUARD IS AT THE
+// CEREMONY, NEVER AT THE GRANT" (hr/acknowledge/[documentId]/page.tsx). The
+// guard moves upstream: a document whose anchors are unconfirmed cannot be
+// granted to anyone in the first place.
+//
+// Admin-facing by construction — only an ADMIN can reach the audience write —
+// so this needs no signer variant, unlike the R1 copy pair.
+export const HR_ASSIGN_BLOCKED_COPY = "Confirm this document's fields before assigning it."
+
+/**
+ * Would this audience selection give the document to anyone? R4 gates GRANTING
+ * and never REVOKING.
+ *
+ * An audience that reaches nobody — "selected" with an empty selection — is how
+ * an admin WITHDRAWS a document, and it is exactly what they need when a version
+ * has gone unconfirmed underneath a live grant. Refusing that would trap the
+ * document in the audience it already has: blocking the grant while forbidding
+ * the retreat is worse than not blocking at all, and it is the same dead-end
+ * shape the Q1 ruling rejected for image-only PDFs.
+ *
+ * EXPORTED, PURE, AND SHARED BY THE ROUTE AND THE DIALOG ON PURPOSE. The PUT is
+ * the gate and the dialog's disabled Save is only an affordance, so the two are
+ * allowed to be different layers — but they are NOT allowed to be different
+ * RULES. A Next route file may export nothing but handlers, so a rule defined
+ * there could only reach the client as a retyped copy, and a copy of
+ * "would this grant to anyone" that drifts by one condition either disables Save
+ * on a withdrawal or offers Save on a refusal. Same reason DOC-1 B extracted
+ * computeAudienceDelta rather than testing a copy of it.
+ *
+ * THE "all" LITERAL IS COMPANY_WIDE'S VALUE, restated rather than imported.
+ * COMPANY_WIDE lives in lib/hr-documents-access.ts, which reaches prisma through
+ * lib/hr and so cannot be imported by a client component — this file is the
+ * client-safe half by design. The restatement is contained: the route's Zod
+ * union already guarantees `appliesTo` is COMPANY_WIDE or "selected", and the
+ * dialog's own Mode type is `"all" | "selected"`, so both callers are typed
+ * against the same two strings. The verification script asserts the pairing.
+ */
+export function audienceWouldGrant(selection: {
+  appliesTo: string
+  storeIds?: string[]
+  staffMemberIds?: string[]
+}): boolean {
+  if (selection.appliesTo === "all") return true
+  return (selection.storeIds?.length ?? 0) + (selection.staffMemberIds?.length ?? 0) > 0
+}
+
 // Manager-attested variant: the manager is recording that the staff member
 // completed the document (e.g. on paper) — a weaker method, recorded as such.
 export const HR_ATTEST_CONSENT_VERSION = "attest-2026-07"

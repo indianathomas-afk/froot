@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { audienceWouldGrant, HR_ASSIGN_BLOCKED_COPY } from "@/lib/hr-documents"
 import {
   Dialog,
   DialogContent,
@@ -48,6 +50,11 @@ type AudienceStaff = {
 }
 type AudiencePayload = {
   document: { id: string; title: string; appliesTo: string; isActive: boolean }
+  // R4 (Gary, 2026-08-15): the current version's anchor readiness, decided by
+  // the server. `blocked` = fields were detected and none confirmed. Rendered,
+  // never derived — this component has no copy of isSigningBlocked, the same
+  // reason it has no copy of the corporate-exclusion rule.
+  signing: { blocked: boolean; matched: number; confirmed: number }
   stores: AudienceStore[]
   staff: AudienceStaff[]
   granted: { storeIds: string[]; staffMemberIds: string[] }
@@ -143,6 +150,28 @@ export function AssignAudienceDialog({
     ? data.granted.storeIds.length + data.granted.staffMemberIds.length
     : 0
 
+  // R4: THIS IS AN AFFORDANCE, NOT THE GATE. The PUT refuses on its own and this
+  // component cannot talk it out of it — a stale dialog left open while an admin
+  // uploads a new version in another tab still gets a 409, which is why the
+  // refusal is rendered from the response too. What this buys is that an admin
+  // does not pick a store list, press Save, and only then learn the document was
+  // never assignable.
+  //
+  // IT ASKS THE SERVER'S OWN FUNCTION rather than restating the condition. Two
+  // LAYERS are intended; two RULES are not, and a mirror that drifts by one
+  // condition either disables Save on a withdrawal or offers it on a refusal.
+  //
+  // AND IT MUST NOT DISABLE THE WITHDRAWAL. Selecting nobody is how a live grant
+  // is pulled back — the thing an admin most needs when a version has gone
+  // unconfirmed underneath an assigned document.
+  const assignBlocked =
+    !!data?.signing.blocked &&
+    audienceWouldGrant({
+      appliesTo: mode,
+      storeIds: [...stores],
+      staffMemberIds: [...staff],
+    })
+
   return (
     <Dialog open={!!doc} onOpenChange={(open) => !open && onClose()}>
       {/* Same three-band shape as the bulk-assign dialog (UX-1): pinned header,
@@ -158,6 +187,28 @@ export function AssignAudienceDialog({
         )}
 
         {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
+
+        {/* R4: the block, stated on OPEN and not only after a refused save. The
+            link is the whole point — the admin is one click from the screen that
+            clears this, and an instruction with no route to the fix is how the
+            Generate-record button reads today. */}
+        {data?.signing.blocked && !result && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-medium text-amber-900">{HR_ASSIGN_BLOCKED_COPY}</p>
+            <p className="text-xs text-amber-800 mt-1">
+              This document&apos;s current version has {data.signing.matched} detected{" "}
+              {data.signing.matched === 1 ? "field" : "fields"} and none confirmed, so anyone who
+              signed it would get a record with nothing marked on the document body.{" "}
+              <Link
+                href={`/hr/documents/${data.document.id}`}
+                className="font-medium underline underline-offset-2"
+              >
+                Confirm the fields
+              </Link>
+              , then assign it. You can still remove it from people below.
+            </p>
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
           {result ? (
@@ -306,7 +357,11 @@ export function AssignAudienceDialog({
               <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button onClick={save} disabled={saving || !data}>
+              <Button
+                onClick={save}
+                disabled={saving || !data || assignBlocked}
+                title={assignBlocked ? HR_ASSIGN_BLOCKED_COPY : undefined}
+              >
                 {saving ? "Saving..." : "Save audience"}
               </Button>
             </>
