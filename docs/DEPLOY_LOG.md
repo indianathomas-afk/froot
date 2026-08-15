@@ -129,6 +129,82 @@ Deploy verification: 2026-07-02T22:00:05Z
 - **Preserve-and-mark:** extend this list by dated line; when a promotion
   discharges an item, mark it discharged with the promotion SHA — never
   delete.
+- **Added 2026-08-15 (HR-11j signed-truth session).** The next real PRODUCTION
+  promotion's entry must also name this session's commits, since only one of
+  them is a work commit and the rest would otherwise ride in unnamed:
+  `32205a4` (R1 work), `2afcf0f` (R4 gate + A3 guard + Q2 copy + the CLAUDE.md
+  rule) — both work commits, listed so the reconciliation list stays the one
+  complete place — plus the docs-only commits `887ee14` (session prompt + Item 1
+  audit), `72e4adc` (the reproduction fixture PDFs, ~30 MB, a permanent
+  addition to every clone), `c15b54d`, `717f37b`, `17524c0` and `523a35a` (the
+  four HR-11j recorder commits), and the commit that adds THIS LINE, which
+  cannot carry its own SHA and resolves as
+  `git log --oneline -- docs/DEPLOY_LOG.md`.
+
+## 2026-08-15 — STAGING deploy + HR-11j acceptance pass — NOT a promotion
+
+- **Staging SHA:** `717f37b` — full:
+  `717f37bb432778c22c5671edb486a4af1f3ec88b`. Pushed to `origin/staging`
+  2026-08-15 by Gary. **`origin/main` remains `06dc830` — nothing was promoted
+  to production.**
+- **Deployed SHA confirmed** on
+  `froot-git-staging-indianathomas-2483s-projects.vercel.app` →
+  `dpl_8dqx2ay7Hx3rWAFxqkXgSvTTmUJj` (`froot-gthvkp3w8`), created 2026-08-15
+  09:45:13 PDT, READY. Method as corrected on 2026-08-02: `vercel inspect` on
+  the alias to get the deployment id, then
+  `vercel ls --meta githubCommitSha=<FULL 40-char sha>` returning that same
+  deployment. **Confirmed independently by the session rather than transcribed
+  from the report of the push** — the entry records it as a claim, so it was
+  re-run.
+- **Migration applied by the build: NONE.** No schema change was needed at any
+  point in this session, and none was written. `prisma migrate deploy` had
+  nothing new to replay.
+- **What shipped to staging.** R1 — completion status now derives from the
+  existence of an `HrSignedRecord` for (version, staff member, signing cycle),
+  through one exported pure predicate (`src/lib/hr-completion.ts`) replacing
+  six independently written derivations. R4 — a document whose current version
+  has detected fields and none confirmed can no longer be granted an audience.
+  The staff-portal ceremony gained the readiness guard it never had. The
+  signed-record route's refusal copy now branches on whether the caller is
+  acting on their own record.
+- **ACCEPTANCE PASS — all four checks, verified by Gary on the deployment
+  above.** Org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`, Clerk instance
+  `verified-snapper-7`, database branch `br-square-feather-a63z92vz` /
+  `neondb`. Document `cmstv3r1s000004jxdcyhkbui`.
+  1. **R1 regression — PASS.** Gdogg's `/my/documents` shows the document under
+     TO SIGN reading "In progress — ask your manager." **The day before, the
+     same screen showed it under COMPLETED as "Signed v2" in green.** The check
+     was specified as that before/after comparison rather than a lone
+     screenshot, because the completion screen is the thing that lied.
+  2. **A3 guard — PASS.** Opening the document lands on the refusal screen, not
+     the reader. This is the entry point that had no readiness call at all, and
+     the one the original signer walked in through.
+  3. **R4 gate — PASS.** The assign dialog refuses with "Confirm this
+     document's fields before assigning it.", states 10 fields detected and
+     none confirmed, links to the confirm screen, and disables Save.
+     **Withdrawal confirmed still available** — the block-granting-never-
+     revoking invariant held in the browser, not only in the unit sweep.
+  4. **R1 positive — PASS.** Tommy's v1 signed record is intact and
+     downloadable. Nothing in R1 reached backwards into a record already made.
+- **Pre-check measured before the pass**, `preview/staging`
+  (`br-square-feather-a63z92vz` / `neondb`), read-only SELECTs run by Gary in
+  the Neon console — CLAUDE.md § Environment Variables forbids pulling deployed
+  credentials and says read-only is explicitly not an exception. v2 current
+  with 0 confirmed / 10 unconfirmed anchors, 7 acknowledgments, 0 signed
+  records; v1 with 10 confirmed anchors and 1 record; 7 required checkpoints of
+  7 total. Full figures and the predicted surface output are on the HR-11j row.
+- **One finding filed, not fixed.** Tommy's row reads "Needs current version" —
+  correct under HR-11f and incorrect under R2, which supersedes it. Deliberately
+  not reworded: the copy is accurate for the rule the code still implements.
+  Filed as `HR-11k`.
+- **Unpromoted stack: 17 commits**, `7fbf618..523a35a` inclusive — `7fbf618`
+  itself is not an ancestor of `origin/main`. Spans HR-11d Phases 0 and 1 (the
+  hollow-signed-record work) and all of HR-11j. The production promotion entry,
+  with its own SHA and verification list, is owed separately when that happens.
+- **Two commits were unpushed when this entry was written** — `17524c0` and
+  `523a35a`, both HR-11j recorders — plus the commit carrying this entry.
+  Gary pushes them together with it; the acceptance above was run against
+  `717f37b`, and the three that follow it are docs-only.
 
 ## 2026-08-10 (evening) — PRODUCTION promotion (the CHK phase's two surfaces: CHK-4 lifecycle visible + CHK-5 operations report + CHK-3's defect trilogy + DEBT-63/65 closed)
 
