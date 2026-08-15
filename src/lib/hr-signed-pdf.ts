@@ -127,6 +127,34 @@ function sanitize(text: string): string {
     .replace(/[^\n\x20-\x7E\xA0-\xFF]/g, "?")
 }
 
+// ── HR-11d 2f (R3(ii)): the certificate states which mode produced it ────────
+// A certificate-only record used to read identically to a stamped one — the
+// artifact that is the whole point of the ceremony could not be told apart from
+// the artifact that silently skipped it. The 2b guard stops a hollow record
+// being minted from here on; it says nothing about what the certificate claims.
+//
+// BOTH MODES ARE LEGITIMATE once 2b ships: a version reporting matched == 0
+// (image-only, or predating anchoring and never scanned) is certificate-only by
+// design and stays signable. So the line describes a valid state of the
+// document and must not read as an error, a warning or a defect notice —
+// no "failed", no "missing", no "unable", no "skipped".
+//
+// THE COUNT IS MARKS ACTUALLY DRAWN, NOT ANCHORS CONFIRMED (Gary's ruling,
+// 2026-08-14). The certificate describes THE ARTIFACT IN THE READER'S HANDS,
+// not the intent behind it. One visible consequence, which is correct rather
+// than incidental: a version whose anchors are all confirmed but whose values
+// came back empty — an all-attested initial set, a "Store:" with no store on
+// file — draws nothing and truthfully says certificate-only.
+//
+// Field count only; no page count (ruled). Pure and exported so the fixture
+// asserts the shipped strings rather than a copy of them.
+export const CERT_MODE_LABEL = "Document marks"
+export function certificateModeLine(marksDrawn: number): string {
+  return marksDrawn > 0
+    ? `Stamped - ${marksDrawn} field mark${marksDrawn === 1 ? "" : "s"} applied to the document body.`
+    : "Certificate-only - no field marks were applied to the document body. This certificate is the complete record of acknowledgment."
+}
+
 export class SignedRecordError extends Error {}
 
 // HR-11d 2b, layer (c). Thrown when the version has detected fields and not one
@@ -344,6 +372,10 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   const anchors = await prisma.documentAnchor.findMany({
     where: { hrDocumentVersionId, confirmed: true },
   })
+  // HR-11d 2f: counted as marks are DRAWN, not as anchors are read — a
+  // confirmed anchor whose value resolves to null puts nothing on the page and
+  // must not be counted as though it did.
+  let marksDrawn = 0
   if (anchors.length > 0) {
     const STAMP_INK = rgb(0.1, 0.18, 0.5) // pen blue, so fills read as filled-in
     const helvOblique = await pdf.embedFont(StandardFonts.HelveticaOblique)
@@ -404,6 +436,8 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
         line(0, sigName, helvOblique, 12)
         line(1, `Signed electronically - ${utc(sigTime)}`, helv, 6.5)
         line(2, `Record ${recordRef}`, courier, 6.5)
+        // One signature block is ONE mark on the document, not three lines.
+        marksDrawn++
         continue
       }
 
@@ -440,6 +474,7 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
         color: STAMP_INK,
         rotate: degrees(pos.rotateDeg),
       })
+      marksDrawn++
     }
   }
 
@@ -459,6 +494,12 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   w.labeled("Document", `${lastAck.documentTitle} (version ${lastAck.documentVersionNumber})`)
   w.labeled("Source file", version.fileName)
   w.labeled("Source SHA-256", lastAck.documentFileHash, courier)
+  // HR-11d 2f (R3(ii), Gary 2026-08-14). Sits with the facts about THE FILE,
+  // above the signer-identity block, in the same 8pt/9pt labeled row as every
+  // other line — a constant label across both modes, so two certificates line
+  // up when they are read side by side. That comparison is the entire reason
+  // this line exists.
+  w.labeled(CERT_MODE_LABEL, certificateModeLine(marksDrawn))
   w.rule()
   w.labeled("Name on record", lastAck.staffName)
   w.labeled("Name as executed", executedName)

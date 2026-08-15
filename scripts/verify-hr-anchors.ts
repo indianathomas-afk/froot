@@ -20,7 +20,9 @@
  *     emits nothing at all;
  *   - the 2b signing guard (R3(i-a)): matched > 0 && confirmed == 0 refuses.
  *     The guard is a pure function of two counts, so it is asserted here
- *     rather than in a second, database-backed harness — see the ROADMAP row.
+ *     rather than in a second, database-backed harness — see the ROADMAP row;
+ *   - the 2f certificate mode line (R3(ii)) — stamped vs certificate-only, the
+ *     field count, and that NEITHER mode reads as a failure.
  *
  * Nothing is persisted.
  */
@@ -33,7 +35,7 @@ import {
   isSigningBlocked,
   type AnchorCandidate,
 } from "../src/lib/hr-anchors"
-import { computeStampPlacement } from "../src/lib/hr-signed-pdf"
+import { computeStampPlacement, certificateModeLine } from "../src/lib/hr-signed-pdf"
 
 let pass = 0
 let fail = 0
@@ -328,6 +330,44 @@ async function main() {
     check(
       "admin discarded every proposal (0 rows, 0 confirmed) stays signable",
       isSigningBlocked(0, 0) === false
+    )
+  }
+
+  // ── HR-11d 2f: the certificate states which mode produced it ─────────────────
+  // The addendum puts these assertions with the §5 fixtures rather than in a
+  // second harness. Generating a real certificate needs a database, a blob
+  // store, a StaffMember and acknowledgment rows — so the COPY is exported pure
+  // and asserted here against the shipped strings, and the end-to-end
+  // "certificate for a confirmed version says stamped" is the Phase 2 walk.
+  console.log("\nHR-11d 2f — certificate mode line (R3(ii)):")
+  {
+    const stamped = certificateModeLine(41)
+    const one = certificateModeLine(1)
+    const certOnly = certificateModeLine(0)
+
+    check("marks drawn → stamped mode named first", stamped.startsWith("Stamped"), stamped)
+    check("stamped line carries the field count", stamped.includes("41 field marks"), stamped)
+    check("count of 1 is singular", one.includes("1 field mark applied"), one)
+    check("no page count in the stamped line (ruled)", !/page/i.test(stamped), stamped)
+
+    check("zero marks → certificate-only mode named first", certOnly.startsWith("Certificate-only"), certOnly)
+    check(
+      "certificate-only closes rather than trailing off",
+      certOnly.includes("complete record of acknowledgment"),
+      certOnly
+    )
+    // Both modes are legitimate once 2b ships, so neither line may read as a
+    // defect notice. This is the assertion that keeps a future edit honest.
+    for (const [name, line] of [["stamped", stamped], ["certificate-only", certOnly]] as const) {
+      check(
+        `${name} line uses no failure language`,
+        !/\b(fail(ed|ure)?|error|missing|unable|skipped|could not|problem|invalid)\b/i.test(line),
+        line
+      )
+    }
+    check(
+      "the two modes are distinguishable at a glance",
+      stamped.split(" ")[0] !== certOnly.split(" ")[0]
     )
   }
 
