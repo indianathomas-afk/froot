@@ -5141,6 +5141,7 @@ phases:
     title: "Signed truth & assignability — R1 completion from the record, R4 assignability gate"
     commits:
       - "32205a4"
+      - "2afcf0f"
     notes: >
       SESSION 2026-08-15. Prompt: docs/prompts/2026-08-15-signed-truth-and-assignability.md
       ("887ee14"). Item 1 audit: docs/prompts/2026-08-15_COMPLETION_INVENTORY_AUDIT.md
@@ -5280,6 +5281,112 @@ phases:
       shape, the R1 positive, the ambiguous v1-signed/v2-acked case, the vacuous
       zero-required-checkpoint guard, both copy strings verbatim, and a
       96-combination sweep. NO SCHEMA CHANGE, NO MIGRATION.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      ITEMS 3 AND 4 BUILT 2026-08-15 ("2afcf0f") — R4's GATE, THE THIRD
+      CEREMONY ENTRY POINT, AND Q2 IN THE SIGNED-RECORD ROUTE.
+
+
+      THE R4 GATE IS ON THE WRITE. PUT /api/hr/documents/[id]/audience asks
+      getVersionAnchorReadiness on the current version and returns 409, after
+      the org-scoped lookup so an unknown id still 404s rather than leaking a
+      readiness answer, and before BOTH write branches. ONE WRITER, ESTABLISHED
+      BY SWEEP: HrDocument.appliesTo and HrDocumentGrant have exactly one writer
+      in src/ — every other appliesTo hit is TrainingModule or ChecklistTemplate.
+      The dialog's disabled Save is an AFFORDANCE, not the gate, and asks the
+      same exported audienceWouldGrant() rather than restating it: two LAYERS
+      are intended, two RULES are not, and a mirror that drifts by one condition
+      either disables Save on a withdrawal or offers it on a refusal.
+
+
+      ITEM 4 — LAYER (b) WAS NOT BYPASSED. IT WAS NEVER PRESENT ON THAT ROUTE.
+      Three ceremony entry points exist: /hr/acknowledge/[documentId] in self
+      mode, the same route in attested mode, and /my/documents/[documentId] in
+      the staff portal. HR-11d built the guard on the first file and its comment
+      claimed it "covers BOTH entry points" — TRUE OF THE TWO MODES OF THAT
+      FILE, FALSE OF THE THIRD ROUTE, which imports SigningClient across the
+      (my)/(app) route-group boundary. That is the route the reproduction's
+      signer walked in through. All three now call the predicate; the stale
+      comment is corrected at its own site under a dated marker with the
+      original preserved.
+
+
+      Q2 ONE LAYER DOWN. POST .../signed-record returned the SIGNER copy to
+      every caller, and the only surface rendering it is the admin-facing
+      Generate-record button — so "ask your manager" was told to the manager,
+      with no remedy named and no link to the screen that clears it. It now
+      branches on actingForSelf, named at the permission check that already
+      establishes it, and the admin path carries confirmHref — the field name
+      SigningUnavailable already uses, rather than a second affordance.
+
+
+      Q1's WARNING HALF ALREADY SHIPPED AND WAS RE-MEASURED RATHER THAN REBUILT.
+      hrScanMessage covers noTextLayer and noFieldsMatched on both upload routes
+      (HR-11d 2a), and AnchorsCard renders a persistent "No fields detected yet"
+      panel on the document. A third would have duplicated shipped copy.
+
+
+      VERIFIED: next build green, eslint clean over 7 files, 17/17 assertions
+      against the SHIPPED functions — the reproduction refused for both
+      all-company and per-store, the WITHDRAWAL permitted at every readiness
+      state, image-only permitted per Q1, and a before/after pair proving that
+      confirming anchors makes the document assignable. NO SCHEMA CHANGE, NO
+      MIGRATION.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      NOTE 1 — THE V1 HASH IN THE SESSION PROMPT IDENTIFIES A BLOB, NOT THE
+      LOCAL FILE. The prompt cites 1539cd866058 for v1. That hash came off
+      TOMMY'S CERTIFICATE and identifies the v1 in the STAGING BLOB STORE. The
+      file committed at docs/test_docs/V1_Test_Employee_Handbook.pdf ("72e4adc")
+      measures bec90ef31b1b — a different file. fileHash is plain sha256 of the
+      bytes (lib/hr-files.ts), so the two are directly comparable and genuinely
+      differ. RECORDED SO A LATER READER DOES NOT REPEAT THE ERROR: anyone
+      verifying the R1 positive against the local V1 would be checking the wrong
+      bytes and would get a fileHash that matches no version row. Verify against
+      the DB row's fileHash, not the committed file. V2 MATCHES (1685fc241b1c)
+      and is unaffected — it is the unconfirmed version both R1 and R4 turn on.
+
+
+      NOTE 2 — YOU CANNOT GREP FOR A MISSING CALL SITE. Grepping isSigningBlocked
+      returned a CLEAN result — one definition, correct callers, nothing out of
+      place — because the route missing the call had nothing to match on. Note
+      the direction: the search produces a PASS, so the session stops looking.
+      What found it was enumerating every RENDERER of the shared ceremony client
+      and checking each renderer. SAME SHAPE AS THE DEBT-22 MISS, which swept for
+      unordered storeAssignments loads and missed a STORE load keyed by
+      assignment ids — second time this shape has cost a session, which is why
+      it is now a rule rather than a note: CLAUDE.md § Verifying a guard covers
+      every path, added in "2afcf0f".
+
+
+      ──────────────────────────────────────────────────────────────────────
+      NOT DONE, AND IT IS THE WHOLE REMAINING RISK ON THIS ROW. EVERYTHING
+      ABOVE IS UNIT ASSERTIONS AND A GREEN BUILD. THE 2026-08-14/15
+      REPRODUCTION HAS NOT BEEN RE-RUN AGAINST THE FIXED CODE. Predicate tests
+      passing is not the same as the bug being gone (Gary, 2026-08-15). Status
+      stays in_progress until the acceptance pass lands.
+
+
+      ACCEPTANCE — run after "2afcf0f" reaches staging, and re-run the
+      staging-SHA precondition first or the entire pass is void. PRE-CHECK: the
+      test document cmstv3r1s000004jxdcyhkbui must still be on v2 with anchors
+      UNCONFIRMED, and Gdogg must still hold his 7 acknowledgment rows and no
+      HrSignedRecord — if anyone has confirmed v2's anchors since 8-15 the R1
+      and R4 tests both evaporate and the state has to be rebuilt. (1) R1
+      REGRESSION — Gdogg's /my/documents shows the document under TO SIGN
+      reading "In progress — ask your manager.", not under Completed as "Signed
+      v2"; confirmed BY QUERY, signed-record count 0 for (v2, Gdogg, current
+      cycle) while the surface reports in progress. (2) R1 POSITIVE — Tommy's v1
+      record still reads signed (against the DB row's fileHash, per NOTE 1).
+      (3) R4 — the assign dialog refuses with "Confirm this document's fields
+      before assigning it."; confirming v2's anchors makes it assignable; and
+      WITHDRAWAL was available throughout. (4) ITEM 4 — opening
+      /my/documents/cmstv3r1s000004jxdcyhkbui on unconfirmed v2 lands on the
+      refusal screen, not the reader. Every DB result carries neon.branch_id and
+      current_database() in the same output; every browser observation names the
+      org ID and the Clerk instance.
 
   - id: HR-11i
     track: hr
