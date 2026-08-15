@@ -5691,8 +5691,10 @@ phases:
   - id: HR-11n
     track: hr
     size: M
-    status: planned
+    status: in_progress
     title: "Orphaned Signature checkpoints cannot be removed — DELETE refuses anything acked"
+    commits:
+      - "72df99a"
     notes: >
       IN PLAIN TERMS. The test handbook shows SIX "Sign here" prompts for TWO
       signature lines, four of them landing on top of body text where no
@@ -5751,6 +5753,177 @@ phases:
       record: the acknowledgments are real signer acts against a step that should
       never have existed. Deleting the checkpoint either orphans or destroys
       them, and neither is obviously right. Decide that before writing any code.
+
+
+      ────────────────────────────────────────────────────────────── PHASE A
+      BUILT 2026-08-15 ("72df99a") — THE CAPABILITY. NOTHING RETIRED.
+
+
+      THE RULING (Gary, 2026-08-15, verbatim):
+
+
+      I ruled that we hide these, not delete them. Four leftover signature lines
+      got stapled onto the test document by the old version bug, and people
+      already signed them, so the delete button refuses. That's the whole problem
+      — there was no way to get rid of them.
+
+
+      Retiring a checkpoint means it stops showing up for anybody signing from
+      that point on. It doesn't come off the board. Every signature already
+      collected on it stays exactly where it is. I'm not throwing away something
+      an employee typed their name into just because I set the document up wrong.
+
+
+      Certificates already issued don't change and don't get reissued. What a
+      certificate says is what the ceremony was on the day that person signed.
+      That stays true.
+
+
+      Retired checkpoints don't get stamped on the page either. If the
+      certificate doesn't list a step, there shouldn't be ink on the page for it.
+
+
+      No script does this. I retire them by hand, one at a time, with a confirm
+      that tells me how many signatures are on it. ADMIN only. Managers don't
+      touch document setup. And I can un-retire if I get one wrong.
+
+
+      Anybody in the middle of signing when I retire something doesn't get an
+      error and doesn't get their entry quietly recorded against a step I just
+      retired. They just finish.
+
+
+      The test for what to retire is: it's a Signature checkpoint AND no anchor
+      backs it. Not just unbacked on its own. Initials checkpoints get made one
+      per page at upload, so an unbacked initials line is normal — Page 1
+      initials has four real signatures on it and stays.
+
+
+      [END OF RULING. Everything below is a record of what was BUILT and
+      MEASURED, not a statement of what is ruled.]
+
+
+      Prompt: docs/prompts/hr-11n-phase-a-retire-checkpoints.md ("72df99a").
+      Audit: docs/prompts/hr-11n-phase-a-retire-checkpoints_AUDIT.md (same
+      commit). Migration ledger entry: docs/MIGRATIONS.md.
+
+
+      WHAT SHIPPED. Retirement — additive nullable columns retiredAt /
+      retiredByUserId / retiredReason on HrDocumentCheckpoint
+      ("20260815150000_hr11n_checkpoint_retirement", applied to DEV ONLY at time
+      of writing), ADMIN-only retire and unretire routes, and the retire action +
+      collapsed Retired section on the document-configuration screen. A retired
+      checkpoint is excluded FROM THAT MOMENT FORWARD from the ceremony step
+      list, the required-completion denominator at every call site, and the
+      checkpoint table, initials grid and INLINE STAMPS of any certificate
+      generated after retirement. Its acknowledgments are never deleted or
+      modified. No auto-retire anywhere; no backfill migration; THIS SESSION
+      RETIRED NOTHING.
+
+
+      TEN FILTERED SITES, FOUND BY ENUMERATING LOADS RATHER THAN FILTERS. A
+      missing filter has nothing to grep for (CLAUDE.md § Verifying a guard
+      covers every path), so the audit swept every read of the checkpoint
+      relation and checked each consumer individually. The prompt's known list
+      named four and was wrong about two more: there is NO checkpoint list API
+      (POST/PATCH/DELETE only — the admin list is server-rendered), and the
+      HR-11j "staff-portal readiness check" counts ANCHORS, not checkpoints, so
+      filtering it would have been a defect rather than an adoption.
+
+
+      STAMPING IS FILTERED TOO (Gary's ruling, 2026-08-15): a stamp is a claim on
+      the page body and must not appear for a step the certificate does not list.
+      That path resolves an ack through the ANCHOR's generatedCheckpointId and
+      never through doc.checkpoints, so hr-signed-pdf.ts filters ackByCheckpoint
+      itself rather than the checkpoint load — one filter covering all five
+      consumers. FILTERING THE LOAD WOULD HAVE LEFT THE STAMPS, which is the
+      whole reason this is written down.
+
+
+      THE MID-CEREMONY DROP HAD TO BE WRITTEN, NOT INHERITED, AND THE PROMPT'S
+      REASON FOR IT WAS THE WRONG WAY ROUND. §4 asked for a drop instead of a
+      400. The 400 could never have fired: the capture route loads checkpoints
+      unfiltered, so a retired checkpoint is still in the map and the entry would
+      have been INSERTED as an acknowledgment against a retired step. The
+      exposure was a silent write, not a spurious refusal. An emptied entry array
+      now returns the live-set completion result rather than an error.
+
+
+      EMPTY-REDUCE GUARD. orderedAcks.reduce has no seed and throws on an empty
+      array; retirement makes empty reachable, because `missing` passes vacuously
+      when every acknowledged checkpoint has been retired. Refuses now, and the
+      completedAt Math.max is seeded (it returns -Infinity rather than throwing —
+      a silently wrong date, the worse failure of the two).
+
+
+      SCOPE CUT MID-SESSION (Gary): THE ANCHOR COLUMN IS WITHDRAWN TO PHASE B,
+      and hr-anchors.ts was not touched. §2.3 assumed HR-11m left a reusable
+      helper resolving the pageRef + ordinal reuse key. It did not — the key is
+      inline in syncCheckpointsForConfirmedAnchors and interleaved with creates
+      and updates, so a display-only column cannot call it without refactoring
+      the G1-critical file. A SECOND, INDEPENDENT REASON came out of real data:
+      an unbacked INITIAL is normal (initials are minted one per page at upload;
+      anchors only link to them), so a bare boolean would have rendered "false"
+      beside a live initials line carrying four signatures, next to a Retire
+      action. RULED: the retire criterion is type = 'Signature' AND
+      anchor_backed = false; the anchor flag alone is never the criterion for any
+      row type, and Phase B's column must be TYPE-AWARE.
+
+
+      HR-11m WAS RE-OPENED AND CONFIRMED CLOSED BEFORE ANY FILTER WAS WRITTEN.
+      The document held 7 checkpoints at the HR-11k pre-check and 11 now, and
+      four Signature checkpoints minted after HR-11m shipped would have meant
+      this cleanup tool was being built against a running leak. Dated by proxy
+      (HrDocumentCheckpoint has no createdAt) on br-square-feather-a63z92vz /
+      neondb: every orphan's FIRST acknowledgment predates deployment
+      dpl_3UP4Hu4tHAHQXvgF7a8fYjWp3uH2 (created 2026-08-15 12:46:58 PDT, built
+      from 974bf494ca06c010759bfdebb7290e18f86e326f), and acknowledgment
+      documentVersionNumber sets are {1,2,3,4} / {2,3,4} / {3,4} with NO
+      checkpoint acked on {4} alone — +2 at v2, +2 at v3, 0 at v4. HR-11m holds.
+
+
+      THE TIMESTAMP COMPARISON NEEDS A TIMEZONE CONVERSION AND READS THE OPPOSITE
+      WAY WITHOUT IT. signedAt is TIMESTAMP(3) with no zone (Prisma stores UTC);
+      Vercel reports deploy times in PDT. Compared naively, an orphan first
+      signed at 19:02 against a 12:46 deploy looks like it appeared six hours
+      AFTER the fix — which would have convicted HR-11m and stopped the phase on
+      a false finding. The column type was checked only because the answer looked
+      wrong. Record the clock alongside any timestamp used as evidence.
+
+
+      WHERE THE FOUR ORPHANS CAME FROM, since the row above could not say. The v2
+      pair was first signed at 12:02 PDT, after the HR-11k pre-check measured 7
+      checkpoints at ~09:45 the same morning; the event between them was
+      confirming v2's anchors, WHICH WAS HR-11k'S OWN R4 ACCEPTANCE TEST. The
+      HR-11k acceptance session minted two of these orphans while verifying
+      something else, under pre-fix code, hours before HR-11m was written that
+      afternoon. The v3 pair followed nine minutes later in the HR-11m
+      reproduction.
+
+
+      CORRECTION TO THE PROMPT'S §9, made in the audit and NOT in the prompt
+      (a saved prompt is a claim wholesale): "page 28" is the real Employee
+      Handbook, whose signature lines are pp. 11/22/24/28. THIS TEST DOCUMENT'S
+      signature lines are on PAGES 3 AND 4, each currently rendering three
+      stacked "Sign here" buttons (orderIndex 5/7/9 on p3, 6/8/10 on p4). The
+      rest of §9 stands: the required signature-step count falls from six to two
+      and no existing signed record changes state.
+
+
+      VERIFIED: next build green, eslint clean over 11 files, both new routes
+      registered in the build output. Migration applied to DEV ONLY —
+      br-square-feather-a63z92vz and production get it via migrate deploy on
+      Gary's push. NOT PUSHED.
+
+
+      NOT DONE, AND IT IS THE WHOLE REMAINING RISK ON THIS ROW. NOTHING HAS BEEN
+      EXERCISED IN A BROWSER. Every claim above is a green build, a clean lint,
+      and unit-level reasoning over measured data. Status stays in_progress until
+      a verification session retires the four orphans by hand and confirms the
+      three observable consequences: pages 3 and 4 each render ONE "Sign here"
+      button instead of three, the required signature-step count for the document
+      falls from six to two, and NO existing signed record changes state. Re-run
+      the staging-SHA precondition first or the entire pass is void.
 
   - id: HR-11i
     track: hr
