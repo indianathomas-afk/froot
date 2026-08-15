@@ -4845,6 +4845,183 @@ phases:
       this correction supersedes; the file itself is a claim wholesale and
       stays unedited.
 
+  - id: HR-11d
+    track: hr
+    size: M
+    status: in_progress
+    commits: ["7fbf618"]
+    title: "Hollow signed records — completion reads document checkpoints, stamping reads version anchors; guard, upload reporting, vocabulary, hash carry-forward"
+    notes: >
+      PHASE 0 CLOSED 2026-08-14. PHASE 1 NOT STARTED. Audit:
+      docs/prompts/HR-11d_AUDIT.md, committed "7fbf618" — 634 lines, and the
+      diagnosis of record. The "7fbf618" in `commits` is that audit, NOT work;
+      no code has been written.
+
+      HANDOFF POINTER — Phase 1 must be handed BOTH
+      docs/prompts/HR-11d-phase1-build.md ("2212a1e") AND
+      docs/prompts/HR-11d-phase1-build-addendum.md ("82713ea"). The original
+      alone reproduces the R3(ii) omission recorded below.
+
+      THIS IS NOT A REGRESSION, and the audit's opening premise was withdrawn
+      mid-session. The audit began on a 7-24 artifact stamped correctly and an
+      8-12 artifact stamped not at all. Gary's confirmation: "I have never
+      formalized a document in production. The 7-24 record is a dev/staging
+      observation. This is NOT a regression — inline stamping has never run in
+      production." There is no 7-24 to 8-12 production delta to explain. Both
+      artifacts are non-production observations of the same system in two
+      configurations — one where an admin had confirmed the version's field
+      anchors, one where nobody had.
+
+      THE DATING CONFIRMS IT INDEPENDENTLY. Two proofs put the 7-24 artifact
+      before 07:50 PDT on 7-24: its certificate labels the name row "Signer",
+      predating the dual name rows introduced by "232d568" at 12:29 PDT; and
+      its signature sub-lines stack DOWNWARD, predating the reader-up stacking
+      for Above placements introduced by "01c5ed9" at 07:50 PDT. The
+      HR-11b/HR-11c production merge "59a6cdc" landed at 21:07 PDT the same
+      day. The artifact was produced by pre-HR-11c code roughly FOURTEEN HOURS
+      before HR existed in production. A third proof drawn from the
+      certificate's "Organization: Microsoft" line was drafted and WITHDRAWN —
+      that field is a known-suspect open HR-11c verification item and cannot be
+      used to identify an org (corrected by Gary, 2026-08-14).
+
+      THE CODE DID NOT CHANGE. git diff "59a6cdc"..HEAD across the two stamping
+      libraries: src/lib/hr-anchors.ts is byte-identical — detector, vocabulary,
+      line reassembly, fill-gate and placement resolver all untouched.
+      src/lib/hr-signed-pdf.ts carries two changes, neither on the
+      acknowledgment path: "89c70f7", a let-to-const lint fix with no
+      behaviour, and "4adcb13" (DEBT-9), inside ensureTrainingCertPdf — a
+      different exported function that ensureSignedRecord does not call. The
+      three surrounding HR document routes (versions, anchors, anchors/rescan)
+      are byte-identical too. The diff is behaviourally empty on this path. The
+      cause is configuration that was never established, not a change in code
+      or data.
+
+      THE STRUCTURAL CAUSE. ensureSignedRecord judges COMPLETION from
+      DOCUMENT-LEVEL checkpoints and drives STAMPING from VERSION-LEVEL
+      confirmed anchors. Two predicates, two sources, two lifetimes, never
+      reconciled — so they never have to agree. When the confirmed-anchor set
+      is empty the function mints a record claiming completion, draws the
+      page-1 banner, appends the full Certificate of Acknowledgment, and stamps
+      nothing — silently, with no signal at any point in the chain. The defect
+      is therefore not "what broke"; it is what the system does when nobody has
+      confirmed anchors. Observed on staging 2026-08-14: the Keva Employee
+      Handbook shows "Detected fields (41 across 28 pages)" with a live
+      "Confirm & generate (41)" button — 41 proposals, zero confirmed — while
+      Checkpoints (37) are fully populated. Completion machinery intact,
+      stamping machinery empty.
+
+      RULINGS — RATIFIED BY GARY 2026-08-14, FILED VERBATIM.
+
+      R1 — MOOT. No production signed records exist. Nothing to void, re-issue,
+      or explain to Keva. Closing it here so nobody reopens it later assuming
+      damage was done.
+
+      R2 — RATIFIED. The upload route reports its scan result. Same rule I made
+      on 7-23 for rescan: a scan states which of three things happened — it
+      errored, there was no text layer, or it found N fields on M pages. Never
+      a bare zero standing in for all three. The upload dialog ends by telling
+      the operator what is left to do, not by declaring success.
+
+      R3(i) — RATIFIED. Three layers: flag at upload, refuse to start the
+      ceremony, throw in ensureSignedRecord. The backstop is non-negotiable.
+      Refusing before the ceremony rather than at mint-time is the point — I am
+      not failing a signer after they have typed 27 sets of initials.
+      Signer-facing copy is exactly "This document isn't available yet — ask
+      your manager," with a download and print option so nobody is stuck
+      mid-shift.
+
+      R3(i-a) — RATIFIED, and this CORRECTS the audit. The audit proposed
+      firing when a prior version had confirmed anchors and the current one
+      does not. That test only works on a document with history; a brand-new
+      document whose first version was never confirmed sails through it, and
+      new documents are most of what we will upload. The trip-wire is:
+      detection matched fields and zero are confirmed. A version that matched
+      nothing — image-only, or predating anchoring — is legitimately
+      certificate-only and stays signable. This ruling is the only definition
+      of R3(i-a) anywhere; it does not appear in the audit or the build prompt.
+
+      R3(ii) — RATIFIED. The Certificate of Acknowledgment states whether marks
+      were applied to the document body, and the field count when they were.
+      Language stays neutral — no "failed," no "error" — because once R3(i)
+      ships, a document with nothing to stamp is a valid document, not a broken
+      one. Phase 1 proposes the final copy for both states and I approve it
+      before it ships. I am not putting wording on an executed legal artifact
+      that I have not read.
+
+      2d — RATIFIED. "Manager Signature:" enters the vocabulary with a discard
+      flag: it claims its span so bare "Signature:" cannot steal it, emits no
+      candidate, writes no row, and never enters the matched count — so the
+      R3(i-a) guard needs no carve-out. It is recognized and left alone, not
+      stamped. Manager countersignature is its own row (HR-11h), not this one.
+      "Employee:" defaults to SignatureStamp and is fill-gated; page 13 is a
+      signature line, and if the default is ever wrong the admin unchecks it at
+      confirm in thirty seconds, whereas the reverse error puts a typed name on
+      a signature line with no signer act at all.
+
+      2e — RATIFIED. When a new version's file hash matches the version it
+      replaces, confirmed anchors carry forward as confirmed, and the upload
+      warns that the file is identical. Nine versions of the handbook all carry
+      hash 7d60912ccf4b — identical bytes cannot have different coordinates, so
+      there is no admin judgment left to exercise. Confirmed anchors only;
+      unconfirmed proposals do not carry forward. This moves stamp coordinates
+      and nothing else — signed records stay bound to the version signed, and a
+      new version still requires new acknowledgment. HR-11f is untouched.
+
+      R3(i-a) CORRECTS THE AUDIT — THE TWO DO NOT AGREE AND MUST NOT BE READ AS
+      AGREEING. The audit (§10.1) proposed the trip-wire "prior version had
+      anchors and current has none". The ratified condition is "detection
+      matched fields and zero are confirmed". The audit is a claim wholesale
+      and is not edited; this row is the correction of record. A reader who
+      opens the audit alone will find the superseded condition stated as the
+      proposal, with nothing in that file marking it as overtaken.
+
+      R3(ii) WAS OMITTED FROM THE PHASE 1 BUILD PROMPT IN ERROR, and is now IN
+      SCOPE. It was ruled and then left out of
+      docs/prompts/HR-11d-phase1-build.md — present in neither §2 (scope) nor
+      §4 (out of scope). Carried instead by
+      docs/prompts/HR-11d-phase1-build-addendum.md as §2f ("82713ea"). The
+      omission is recorded rather than tidied away: the original prompt is
+      unedited, and two of its lines are stale as a result — §2 is headed
+      "Scope — five items, no more" (it is now six) and §3 lists "the
+      certificate writer" among the things not to disturb (§2f changes it).
+      Both stale lines fail in the direction of SKIPPING §2f, which is why the
+      handoff pointer above names both files.
+
+      COMMENT — HrAnchorMarkType is a Prisma enum (schema.prisma:1742), not a
+      TS union — any future "mark type that stamps nothing" is a migration, not
+      a vocabulary edit. The discard flag avoids this entirely. (Filed inside
+      notes because `comment:` is not a field on the phase type — see the
+      Phase interface in src/lib/roadmap.ts.)
+
+      SCHEMA: NONE. MIGRATION: NONE. No work commits and no `shipped:` date
+      yet; both land with the two-commit pattern at Phase 1 and at promotion.
+    open:
+      - >
+        The anchor rows behind the 8-12 artifact were never read. Close in
+        Phase 2 with Q2/Q3a/Q3b/Q4a from the audit's query pack re-pointed at
+        staging, branch literal corrected off br-sparkling-block.
+      - >
+        No production document has ever had its anchors confirmed, so once the
+        guard ships Keva cannot sign until someone walks the confirm screen on
+        the production handbook — org ID and Clerk instance recorded before the
+        click.
+      - >
+        anchors/route.ts deletes a keep:false anchor with no guard on
+        confirmed — hypothesis B representable. File its own row.
+
+  - id: HR-11h
+    track: hr
+    size: M
+    status: planned
+    title: "Manager countersignature — two-party documents where a manager signs after the employee"
+    notes: >
+      Surfaced during HR-11d. The 2023 handbook's Keva Pay Agreement (p. 9)
+      carries a "Manager Signature:" line that HR-11d deliberately recognizes
+      and leaves unstamped. Needs: routing to a manager after the employee
+      completes, a second signing ceremony, completion semantics while awaiting
+      the countersignature, and notification. Not started; HR-11d only keeps
+      the line clean for it.
+
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
   # NOTHING IS FILED UNDER `LABOR-`, AND NOTHING SHOULD BE. The 2026-08-02
