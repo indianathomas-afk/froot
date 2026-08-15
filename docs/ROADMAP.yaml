@@ -5497,6 +5497,16 @@ phases:
     status: planned
     title: "R2 — two upload paths: new file re-signs, new version does not"
     notes: >
+      IN PLAIN TERMS. Fixing a typo in a handbook currently drags every person
+      who already signed it back through the whole signing ceremony. It should
+      not. Uploading a NEW FILE means a new document and everyone signs; a NEW
+      VERSION of the same document leaves existing signers' records intact and
+      just tells them an update is available. Until this is built, no document
+      can be revised without re-prompting its entire audience. (Lead paragraph
+      added 2026-08-15 for legibility; everything below is the original row,
+      unchanged.)
+
+
       RULED 2026-08-15 (Gary), in the HR-11j session. FILED, NOT BUILT — it
       needs its own design pass and will likely add a column to
       HrDocumentVersion. The ruling itself is recorded on HR-11j alongside R1,
@@ -5684,6 +5694,17 @@ phases:
     status: planned
     title: "Orphaned Signature checkpoints cannot be removed — DELETE refuses anything acked"
     notes: >
+      IN PLAIN TERMS. The test handbook shows SIX "Sign here" prompts for TWO
+      signature lines, four of them landing on top of body text where no
+      signature line exists, and an admin currently has no way to delete the
+      four extras. They cannot be removed because people have already signed
+      them, and the only delete path refuses anything signed. HR-11m stopped
+      this getting worse; nothing yet makes it better. Until this is built, any
+      document that accumulated duplicates before HR-11m stays visibly wrong to
+      every signer who opens it. (Lead paragraph added 2026-08-15 for
+      legibility; everything below is the original row, unchanged.)
+
+
       FILED 2026-08-15 (Gary's instruction, in the HR-11m session), NOT BUILT.
       Surfaced while auditing HR-11m and CONFIRMED BY MEASUREMENT before filing —
       the original session prompt had framed orphan removal as "a separate admin
