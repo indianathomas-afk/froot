@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HR_ESIGN_CONSENT_TEXT, HR_ESIGN_CONSENT_VERSION } from "@/lib/hr-documents"
 import { PdfViewer } from "@/components/hr/pdf-viewer"
+import { SigningUnavailable } from "@/components/hr/signing-unavailable"
 
 interface SigningCheckpoint {
   id: string
@@ -85,7 +86,10 @@ export function SigningClient({
 }) {
   const router = useRouter()
 
-  type Phase = "consent" | "review" | "finalize" | "done"
+  // "unavailable" — HR-11d 2b layer (c) refused to mint after the last capture.
+  // Only reachable when layer (b) was bypassed (a stale tab, a hand-rolled
+  // POST): the page itself refuses this state before the ceremony starts.
+  type Phase = "consent" | "review" | "finalize" | "done" | "unavailable"
 
   const [phase, setPhase] = useState<Phase>(() =>
     checkpoints.filter((c) => c.required && !c.done).length === 0 ? "done" : "consent"
@@ -205,7 +209,8 @@ export function SigningClient({
         return next
       })
       if (data.complete === true) {
-        setPhase("done")
+        // Never claim "executed" when no record was minted (HR-11d 2b).
+        setPhase(data.signingUnavailable === true ? "unavailable" : "done")
         router.refresh()
       }
       return true
@@ -240,6 +245,18 @@ export function SigningClient({
       </span>
     </p>
   )
+
+  // ── Phase: unavailable ─────────────────────────────────────────────────────
+  // Layer (c) declined to mint. The signer's captures are all on file — they do
+  // not sign again — so the copy must not read as "you failed" or "start over".
+  if (phase === "unavailable") {
+    return (
+      <div className="max-w-2xl mx-auto">
+        {back}
+        <SigningUnavailable audience="signer" documentId={doc.id} documentTitle={doc.title} />
+      </div>
+    )
+  }
 
   // ── Phase: done ────────────────────────────────────────────────────────────
   if (phase === "done") {

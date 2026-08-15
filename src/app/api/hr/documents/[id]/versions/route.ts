@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { detectAndStoreVersionAnchors } from "@/lib/hr-anchors"
+import {
+  buildVersionScanReport,
+  carryForwardConfirmedAnchors,
+  detectAndStoreVersionAnchors,
+  syncCheckpointsForConfirmedAnchors,
+} from "@/lib/hr-anchors"
 import { HrFileValidationError, readHrFileMeta, validateHrFileMeta } from "@/lib/hr-files"
 import { isOrgHrBlobUrl, requireHrDocumentAccess } from "../../access"
 
@@ -83,13 +88,41 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }),
   ])
 
+  // HR-11d 2e: IDENTICAL BYTES CANNOT HAVE DIFFERENT COORDINATES. When the new
+  // file's hash matches the version it replaces, the prior version's CONFIRMED
+  // anchors carry forward as confirmed — arithmetic, not inference, so there is
+  // no admin judgment left to exercise. Runs BEFORE detection so the
+  // already-confirmed dedup inside detectAndStoreVersionAnchors sees them and
+  // re-proposes nothing on top. Stamp coordinates only: everyone still
+  // re-acknowledges the new version (HR-11f untouched).
+  let carriedForward = 0
+  if (isAcknowledgment && meta.fileHash === doc.versions[0].fileHash) {
+    carriedForward = await carryForwardConfirmedAnchors(doc.versions[0].id, version.id)
+    if (carriedForward > 0) {
+      // Re-link each carried anchor to the checkpoint it drives. Checkpoints are
+      // document-scoped, so this reuses the existing ones and creates nothing.
+      await syncCheckpointsForConfirmedAnchors(doc.id, version.id)
+    }
+  }
+
   // HR-11b: anchors are per-version — a new file needs a fresh scan (ruling #1,
   // re-detect + re-confirm on every version). Checkpoints still carry forward
   // (document-level); the admin re-confirms the new version's anchors before
-  // stamping uses them. Best effort — image-only / scan failure → zero anchors.
-  if (isAcknowledgment && meta.bytes) {
-    await detectAndStoreVersionAnchors(version.id, new Uint8Array(meta.bytes))
-  }
+  // stamping uses them.
+  //
+  // HR-11d 2a: THE RESULT IS NO LONGER DISCARDED. It used to be called for its
+  // side effect alone, and the `meta.bytes` falsy branch skipped detection with
+  // no record at all — so an errored scan, an image-only PDF and a genuinely
+  // field-less document were indistinguishable to the operator, all three
+  // reading as "no fields". Same distinct-reporting rule as the rescan route
+  // (R2 / DECISIONS HR-11b §k). Detection still never blocks the upload.
+  const scanned =
+    isAcknowledgment && meta.bytes
+      ? await detectAndStoreVersionAnchors(version.id, new Uint8Array(meta.bytes))
+      : null
+  const scan = isAcknowledgment
+    ? await buildVersionScanReport(version.id, scanned, carriedForward)
+    : null
 
-  return NextResponse.json(version, { status: 201 })
+  return NextResponse.json({ ...version, scan }, { status: 201 })
 }

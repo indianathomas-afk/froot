@@ -1,6 +1,7 @@
 import { createHash } from "crypto"
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from "pdf-lib"
 import { prisma } from "@/lib/prisma"
+import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
 import { streamHrFile, uploadHrFile } from "@/lib/hr-files"
 import { primaryStoreName } from "@/lib/hr"
 import type { SubmittedFormValue } from "@/lib/hr-forms"
@@ -128,6 +129,20 @@ function sanitize(text: string): string {
 
 export class SignedRecordError extends Error {}
 
+// HR-11d 2b, layer (c). Thrown when the version has detected fields and not one
+// is confirmed — the state that used to mint a record claiming completion,
+// draw the page-1 banner, append the full certificate, and stamp nothing.
+// A DISTINCT CLASS because callers must be able to tell it apart from
+// "checkpoints incomplete": this one is an admin's outstanding task, not the
+// signer's, and the signer-facing surfaces answer it differently.
+export class UnconfirmedAnchorsError extends SignedRecordError {
+  constructor(readonly matched: number) {
+    super(
+      `Version has ${matched} detected field(s) and none confirmed — refusing to mint a signed record that would stamp nothing`
+    )
+  }
+}
+
 interface CertFonts {
   helv: PDFFont
   helvBold: PDFFont
@@ -249,6 +264,29 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   const missing = doc.checkpoints.filter((c) => c.required && !ackByCheckpoint.has(c.id))
   if (missing.length > 0) {
     throw new SignedRecordError(`Required checkpoints incomplete (${missing.length} outstanding)`)
+  }
+
+  // ── HR-11d 2b, layer (c): THE BACKSTOP ────────────────────────────────────
+  // Non-negotiable (R3(i), Gary 2026-08-14). Completion is judged from
+  // DOCUMENT-level checkpoints a dozen lines above; stamping is driven by
+  // VERSION-level confirmed anchors a hundred lines below. Two predicates, two
+  // sources, two lifetimes — nothing ever made them agree, so a version with 41
+  // detected fields and zero confirmed produced a record that claimed
+  // completion and marked nothing, silently. This is the line that makes them
+  // agree.
+  //
+  // IF THIS EVER FIRES IN PRODUCTION, LAYER (b) FAILED. The ceremony refuses to
+  // start in this state, so reaching here means someone got past that — a stale
+  // tab, a hand-rolled POST, the recovery route on a document whose anchors
+  // were unconfirmed after the fact. That is exactly what the fixture asserts.
+  //
+  // Refusing is REVERSIBLE and issuing a hollow record is not: acknowledgments
+  // are append-only and carry their own hrDocumentVersionId, so a refusal
+  // leaves every capture intact — the admin confirms the anchors and the next
+  // call mints correctly, from the same signatures.
+  const readiness = await getVersionAnchorReadiness(hrDocumentVersionId)
+  if (readiness.blocked) {
+    throw new UnconfirmedAnchorsError(readiness.matched)
   }
 
   // Snapshot-first: the certificate is built from the acknowledgment rows'

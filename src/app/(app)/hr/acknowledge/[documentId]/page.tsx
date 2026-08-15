@@ -5,7 +5,9 @@ import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { findStaffMemberForUser } from "@/lib/hr"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
+import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
 import { LegalNameRequired } from "@/components/hr/legal-name-required"
+import { SigningUnavailable } from "@/components/hr/signing-unavailable"
 import { AcknowledgeClient } from "./acknowledge-client"
 import { SigningClient } from "./signing-client"
 
@@ -108,6 +110,38 @@ export default async function AcknowledgePage({
           </p>
         </div>
       </div>
+    )
+  }
+
+  // ── HR-11d 2b, layer (b): REFUSE TO START THE CEREMONY ────────────────────
+  // The load-bearing layer (R3(i), Gary 2026-08-14). The version has detected
+  // fields and none are confirmed, so completing this ceremony would mint a
+  // record that claims completion and stamps nothing. Failing at mint-time
+  // instead would refuse a signer who has just typed 27 sets of initials.
+  //
+  // This is a DOCUMENT-state refusal, not a permission one, so it renders an
+  // explanation rather than notFound() — and it covers BOTH entry points,
+  // because manager-attested capture completes through the same
+  // ensureSignedRecord call and would hit the same backstop.
+  //
+  // THE GUARD IS AT THE CEREMONY, NEVER AT THE GRANT. Assigning an unconfirmed
+  // document to the whole company still works exactly as before (DOC-1 audience
+  // modal, untouched by this phase) — what an admin cannot do is have someone
+  // sign it.
+  const readiness = await getVersionAnchorReadiness(version.id)
+  if (readiness.blocked) {
+    return (
+      <SigningUnavailable
+        documentId={doc.id}
+        documentTitle={doc.title}
+        // The ruled signer copy is "ask your manager" — which reads as nonsense
+        // to the manager who IS standing there. On the attested path the viewer
+        // is an ADMIN or MANAGER (checked above), so they get the actionable
+        // version and a link to the screen that fixes it.
+        audience={attested ? "manager" : "signer"}
+        confirmHref={attested ? `/hr/documents/${doc.id}` : undefined}
+        matched={readiness.matched}
+      />
     )
   }
 

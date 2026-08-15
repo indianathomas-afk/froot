@@ -12,6 +12,7 @@ import {
   HR_ATTEST_CONSENT_TEXT,
   HR_ESIGN_CONSENT_TEXT,
 } from "@/lib/hr-documents"
+import { SigningUnavailable } from "@/components/hr/signing-unavailable"
 
 interface CaptureCheckpoint {
   id: string
@@ -63,6 +64,7 @@ export function AcknowledgeClient({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [finished, setFinished] = useState(false)
+  const [unavailable, setUnavailable] = useState(false)
 
   const pending = useMemo(() => checkpoints.filter((c) => !c.done), [checkpoints])
   const fields = pending.filter((c) => c.type === "Field")
@@ -121,11 +123,29 @@ export function AcknowledgeClient({
         setError(data.error ?? "Failed to save — please try again")
         return
       }
-      setFinished(data.complete === true)
+      // HR-11d 2b: "complete" is not "recorded". If layer (c) refused to mint,
+      // say so instead of showing the manager a green tick for a record that
+      // does not exist. The captures themselves are on file either way.
+      if (data.signingUnavailable === true) setUnavailable(true)
+      else setFinished(data.complete === true)
       router.refresh()
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (unavailable) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <BackLink attested={attested} staffId={staff.id} backHref={backHref} backLabel={backLabel} />
+        <SigningUnavailable
+          audience={attested ? "manager" : "signer"}
+          documentId={doc.id}
+          documentTitle={doc.title}
+          confirmHref={attested ? `/hr/documents/${doc.id}` : undefined}
+        />
+      </div>
+    )
   }
 
   if (finished || alreadyComplete) {

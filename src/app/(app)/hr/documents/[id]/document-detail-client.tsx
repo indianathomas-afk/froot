@@ -35,6 +35,7 @@ import {
   HR_CHECKPOINT_TYPE_LABELS,
   HR_CHECKPOINT_TYPE_STYLES,
   HR_KIND_LABELS,
+  hrScanMessage,
   type HrAnchorMarkTypeName,
   type HrAnchorPlacementName,
   type HrCheckpointTypeName,
@@ -181,13 +182,42 @@ function VersionsCard({ doc }: { doc: DocumentDetail }) {
   )
 }
 
+// HR-11d 2e: the browser's own sha256 of the chosen file, so the "this is the
+// same file" warning can be shown BEFORE the upload rather than explained after
+// it. Same digest the server computes over the stored bytes (hr-files.ts:93),
+// so the two agree. Returns null where crypto.subtle is unavailable (an
+// insecure context) — the warning is advisory and its absence changes nothing
+// about what the server does with identical bytes.
+async function sha256Hex(file: File): Promise<string | null> {
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer())
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
+  } catch {
+    return null
+  }
+}
+
 function ReuploadButton({ doc }: { doc: DocumentDetail }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  // HR-11d 2a: what the scan actually did, shown to the operator standing here
+  // instead of the dialog just vanishing.
+  const [scanNotice, setScanNotice] = useState("")
+  // HR-11d 2e: set when the chosen file is byte-identical to the current
+  // version; cleared once the operator answers "upload anyway".
+  const [identicalPending, setIdenticalPending] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const isSignatureDoc = doc.kind === "Acknowledgment"
+  const currentHash = doc.versions.find((v) => v.isCurrent)?.fileHash ?? null
+
+  function reset() {
+    setError("")
+    setScanNotice("")
+    setIdenticalPending(false)
+    if (fileRef.current) fileRef.current.value = ""
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -203,6 +233,17 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
     setSaving(true)
     setError("")
     try {
+      // Nine versions of the Keva handbook all carry the same sha256 — the same
+      // bytes uploaded nine times. Ask once before adding a tenth. Confirmed
+      // anchors carry forward either way (server side, 2e); this only stops the
+      // pointless version that makes everyone re-acknowledge for nothing.
+      if (!identicalPending && currentHash) {
+        const hash = await sha256Hex(file)
+        if (hash && hash === currentHash) {
+          setIdenticalPending(true)
+          return
+        }
+      }
       const uploaded = await uploadHrFileFromBrowser(file)
       if (!uploaded.ok) {
         setError(uploaded.error)
@@ -218,9 +259,18 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
         setError(data.error ?? "Failed to save the new version")
         return
       }
-      setOpen(false)
-      if (fileRef.current) fileRef.current.value = ""
       router.refresh()
+      // 2a: THE DIALOG ENDS BY SAYING WHAT IS LEFT TO DO. It used to close on
+      // success, which said "done" about an upload whose fields nobody has
+      // confirmed and which therefore cannot stamp anything. Non-signature
+      // documents have no scan and close as before.
+      if (data.scan) {
+        setIdenticalPending(false)
+        setScanNotice(hrScanMessage(data.scan))
+      } else {
+        setOpen(false)
+        reset()
+      }
     } finally {
       setSaving(false)
     }
@@ -228,35 +278,65 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="outline" onClick={() => { reset(); setOpen(true) }}>
         <Upload className="h-4 w-4" />
         Upload New Version
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v)
+          if (!v) reset()
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Upload New Version</DialogTitle>
+            <DialogTitle>{scanNotice ? "New version uploaded" : "Upload New Version"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>File *</Label>
-              <Input required ref={fileRef} type="file" accept={isSignatureDoc ? ".pdf" : ".pdf,.png,.jpg,.jpeg,.doc,.docx"} />
-              <p className="text-xs text-[var(--color-muted-foreground)]">
-                {isSignatureDoc ? "PDF — up to 25 MB." : "PDF, PNG, JPG, DOC, or DOCX — up to 25 MB."}
-              </p>
+          {scanNotice ? (
+            <div className="space-y-4">
+              <p className="text-sm text-[var(--color-foreground)]">{scanNotice}</p>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    reset()
+                  }}
+                >
+                  Done
+                </Button>
+              </DialogFooter>
             </div>
-            {isSignatureDoc && (
-              <p className="text-sm text-[var(--color-warning,#efa201)]">
-                Existing signatures stay bound to the version they signed. Everyone will need to
-                acknowledge this new version.
-              </p>
-            )}
-            {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving ? "Uploading..." : "Upload Version"}</Button>
-            </DialogFooter>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>File *</Label>
+                <Input required ref={fileRef} type="file" accept={isSignatureDoc ? ".pdf" : ".pdf,.png,.jpg,.jpeg,.doc,.docx"} onChange={() => setIdenticalPending(false)} />
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  {isSignatureDoc ? "PDF — up to 25 MB." : "PDF, PNG, JPG, DOC, or DOCX — up to 25 MB."}
+                </p>
+              </div>
+              {isSignatureDoc && (
+                <p className="text-sm text-[var(--color-warning,#efa201)]">
+                  Existing signatures stay bound to the version they signed. Everyone will need to
+                  acknowledge this new version.
+                </p>
+              )}
+              {identicalPending && (
+                <p className="text-sm font-medium text-[var(--color-warning,#efa201)]">
+                  This file is identical to the current version — upload anyway?
+                </p>
+              )}
+              {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setOpen(false); reset() }}>Cancel</Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Uploading..." : identicalPending ? "Upload anyway" : "Upload Version"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </>

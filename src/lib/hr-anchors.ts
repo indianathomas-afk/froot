@@ -18,7 +18,11 @@
 // in hr-documents.ts.
 
 import { prisma } from "@/lib/prisma"
-import type { HrAnchorMarkTypeName, HrAnchorPlacementName } from "@/lib/hr-documents"
+import type {
+  HrAnchorMarkTypeName,
+  HrAnchorPlacementName,
+  HrVersionScanReport,
+} from "@/lib/hr-documents"
 
 export interface AnchorCandidate {
   page: number // 1-based
@@ -42,10 +46,16 @@ export interface AnchorCandidate {
 // requiresFill: a generic bare word (no colon) that also occurs in body prose —
 // accepted ONLY when a fill line (an underscore run) sits beside or just above
 // it, so the word "Date" inside a policy sentence is not mistaken for a field.
+//
+// discard (HR-11d 2d): the token is RECOGNIZED so it claims its span under
+// longest-match-wins, and then produces nothing — no candidate, no row, and no
+// contribution to the matched count. It exists purely to stop a shorter token
+// stealing a line that must never be stamped. See MANAGER_SIGNATURE below.
 export const ANCHOR_VOCABULARY: ReadonlyArray<{
   token: string
   markType: HrAnchorMarkTypeName
   requiresFill?: boolean
+  discard?: boolean
 }> = [
   { token: "Employee Name (Print):", markType: "PrintedName" },
   { token: "Employee Signature:", markType: "SignatureStamp" },
@@ -58,6 +68,29 @@ export const ANCHOR_VOCABULARY: ReadonlyArray<{
   // Bare "Date" (no colon) — pages 22/24 signature blocks. Gated on a nearby
   // fill line so body-text "Date" is ignored.
   { token: "Date", markType: "DateStamp", requiresFill: true },
+
+  // ── HR-11d 2d: the real 2023 Keva handbook ────────────────────────────────
+  // Tokens the vocabulary above walks past. All ruled by Gary 2026-08-14; the
+  // HR-11d ROADMAP row is the spec.
+  //
+  // MANAGER SIGNATURE IS A DISCARD, AND THE ORDER OF THESE TWO LINES IS NOT
+  // WHAT MAKES IT WORK — the tokenizer sorts by descending length, so
+  // "Manager Signature:" (18) always claims its span before bare "Signature:"
+  // (10) can reach it. Without this entry the bare token matches the substring
+  // and stamps the EMPLOYEE's signature on the MANAGER's line. Recognized and
+  // left alone: it emits no candidate, writes no row, and never enters the
+  // matched count — so the 2b guard needs no carve-out for a document whose
+  // only signature line belongs to a manager. Countersignature is HR-11h.
+  { token: "Manager Signature:", markType: "SignatureStamp", discard: true },
+  { token: "Signature:", markType: "SignatureStamp" }, // bare form, pp. 9 and 19
+  { token: "Store Location:", markType: "Store" }, // "Store:" does not match this
+  { token: "Acceptance (PRINT):", markType: "PrintedName" }, // p. 9
+  // p. 13 is a signature line, so SignatureStamp is the default — and it is
+  // fill-gated, because bare "Employee:" also opens prose rows elsewhere in the
+  // handbook. A wrong default here costs an admin one unchecked box at confirm;
+  // the reverse error (PrintedName) types a name onto a signature line with no
+  // signer act behind it, which is not recoverable at all.
+  { token: "Employee:", markType: "SignatureStamp", requiresFill: true },
 ]
 
 // Longest-match-wins ordering, precomputed once.
@@ -161,6 +194,7 @@ interface LineMatch {
   width: number
   end: number // index just past the match in line.text (for trailing-fill test)
   requiresFill: boolean // bare generic token that must sit beside/under a fill line
+  discard: boolean // recognized to claim its span, then dropped (2d)
 }
 
 export function matchLine(line: AssembledLine): LineMatch[] {
@@ -169,7 +203,7 @@ export function matchLine(line: AssembledLine): LineMatch[] {
   const claimed = new Array<boolean>(line.text.length).fill(false)
   const matches: LineMatch[] = []
 
-  for (const { token, markType, requiresFill } of VOCAB_BY_LENGTH) {
+  for (const { token, markType, requiresFill, discard } of VOCAB_BY_LENGTH) {
     const needle = normalizePunct(token).toLowerCase()
     let from = 0
     for (;;) {
@@ -189,6 +223,7 @@ export function matchLine(line: AssembledLine): LineMatch[] {
           width: line.charX[lastCharIdx] + line.charW[lastCharIdx] - line.charX[at],
           end,
           requiresFill: requiresFill ?? false,
+          discard: discard ?? false,
         })
       }
       from = at + 1
@@ -283,6 +318,11 @@ export async function detectAnchors(pdfBytes: Uint8Array): Promise<DetectionResu
       const lines = assembleLines(segments)
       for (const line of lines) {
         for (const m of matchLine(line)) {
+          // 2d: a discard token has already done its only job — claiming its
+          // span inside matchLine so a shorter token could not take the line.
+          // It never becomes a candidate, so it never becomes a row and never
+          // counts as matched.
+          if (m.discard) continue
           const { placement, keep } = resolveMatch(m, line, lines)
           if (!keep) continue
           candidates.push({
@@ -426,6 +466,139 @@ export async function detectAndStoreVersionAnchors(
     hadTextLayer: result.textItemCount > 0,
     error: null,
   }
+}
+
+// ── HR-11d 2b: the anchor readiness predicate ────────────────────────────────
+
+export interface AnchorReadiness {
+  matched: number // anchor rows on the version — detection's surviving proposals + confirmed
+  confirmed: number
+  blocked: boolean
+}
+
+/**
+ * THE TRIP-WIRE, and the ONE definition of it (HR-11d R3(i-a), Gary
+ * 2026-08-14). Detection matched fields and NOT ONE is confirmed ⇒ the version
+ * would mint a record that claims completion and stamps nothing. Refuse.
+ *
+ * THIS CORRECTS THE AUDIT, which proposed "a prior version had anchors and the
+ * current one has none". That test needs a document with history; a brand-new
+ * document whose first version was never confirmed sails straight through it,
+ * and new documents are most of what gets uploaded.
+ *
+ * matched == 0 is LEGITIMATE and stays signable — an image-only PDF, a document
+ * that predates anchoring and was never scanned, or one whose admin confirmed
+ * the screen and discarded every proposal (which deletes the rows, so the count
+ * is a real zero, not an unexamined one). Those are certificate-only by design.
+ *
+ * Pure, so the fixture can assert it without a database.
+ */
+export function isSigningBlocked(matched: number, confirmed: number): boolean {
+  return matched > 0 && confirmed === 0
+}
+
+/** Count a version's anchors and apply isSigningBlocked. */
+export async function getVersionAnchorReadiness(
+  hrDocumentVersionId: string
+): Promise<AnchorReadiness> {
+  const [matched, confirmed] = await Promise.all([
+    prisma.documentAnchor.count({ where: { hrDocumentVersionId } }),
+    prisma.documentAnchor.count({ where: { hrDocumentVersionId, confirmed: true } }),
+  ])
+  return { matched, confirmed, blocked: isSigningBlocked(matched, confirmed) }
+}
+
+// ── HR-11d 2a: the upload's scan report ──────────────────────────────────────
+
+/**
+ * Turn a detection result into the discriminated report the upload routes
+ * return and the upload dialog renders (R2). Pass `result: null` when detection
+ * was never attempted — that is its own outcome, not a zero.
+ *
+ * Note the ORDER: carry-forward wins over everything, because on an identical
+ * re-upload the anchors are already active and there is genuinely nothing for
+ * the operator to do. `scanFailed` is checked before the text-layer question,
+ * since a throw tells us nothing about whether a text layer exists.
+ */
+export async function buildVersionScanReport(
+  hrDocumentVersionId: string,
+  result: StoreAnchorsResult | null,
+  carriedForward: number
+): Promise<HrVersionScanReport> {
+  const confirmed = await prisma.documentAnchor.count({
+    where: { hrDocumentVersionId, confirmed: true },
+  })
+  const base = {
+    matched: result?.matched ?? 0,
+    stored: result?.stored ?? 0,
+    confirmed,
+    carriedForward,
+    pagesScanned: result?.pagesScanned ?? 0,
+    error: result?.error ?? null,
+  }
+  if (carriedForward > 0) return { ...base, outcome: "carriedForward" }
+  if (!result) return { ...base, outcome: "notScanned" }
+  if (result.error) return { ...base, outcome: "scanFailed" }
+  if (result.matched > 0) return { ...base, outcome: "needsConfirm" }
+  return { ...base, outcome: result.hadTextLayer ? "noFieldsMatched" : "noTextLayer" }
+}
+
+// ── HR-11d 2e: hash-match anchor carry-forward ───────────────────────────────
+
+/**
+ * When a new version's file hash equals the hash of the version it replaces,
+ * copy that version's CONFIRMED anchors forward as confirmed. Identical bytes
+ * cannot have different coordinates — that is arithmetic, not inference, so
+ * there is no admin judgment left to exercise. Staging shows nine versions of
+ * the Keva handbook all carrying sha256 7d60912ccf4b; the 8-12 signer signed a
+ * file byte-identical to one that stamped correctly and got nothing, purely
+ * because the anchor rows did not travel.
+ *
+ * CONFIRMED ONLY. Unconfirmed proposals do not carry forward — an admin who has
+ * not reviewed them on the old version has not reviewed them on the new one
+ * either, and detection re-proposes them anyway.
+ *
+ * This moves STAMP COORDINATES AND NOTHING ELSE. Signed records stay bound to
+ * the version signed, and a new version still requires new acknowledgment
+ * (HR-11f: current behavior stands). Nothing here touches compliance or
+ * re-signing.
+ *
+ * Returns the number carried. Runs BEFORE detection, so detection's
+ * already-confirmed dedup sees them and re-proposes nothing on top.
+ */
+export async function carryForwardConfirmedAnchors(
+  fromVersionId: string,
+  toVersionId: string
+): Promise<number> {
+  const prior = await prisma.documentAnchor.findMany({
+    where: { hrDocumentVersionId: fromVersionId, confirmed: true },
+  })
+  if (prior.length === 0) return 0
+
+  await prisma.documentAnchor.createMany({
+    data: prior.map((a) => ({
+      hrDocumentVersionId: toVersionId,
+      page: a.page,
+      x: a.x,
+      y: a.y,
+      width: a.width,
+      pageRotation: a.pageRotation,
+      anchorText: a.anchorText,
+      markType: a.markType,
+      placement: a.placement,
+      confirmed: true,
+      // Checkpoints are DOCUMENT-scoped and carry forward on their own, so the
+      // link still resolves — and keeping it means syncCheckpointsForConfirmedAnchors
+      // reuses each signature's existing checkpoint instead of minting a
+      // duplicate ceremony step for the same line.
+      generatedCheckpointId: a.generatedCheckpointId,
+    })),
+  })
+  console.info(
+    `[hr-anchors] carried ${prior.length} confirmed anchor(s) forward from version ` +
+      `${fromVersionId} to ${toVersionId} (identical file hash)`
+  )
+  return prior.length
 }
 
 /**

@@ -171,6 +171,56 @@ export const HR_ANCHOR_PLACEMENT_LABELS: Record<HrAnchorPlacementName, string> =
   Below: "Below the line",
 }
 
+// ── HR-11d 2a: what the upload's field scan actually did ─────────────────────
+// R2 (Gary, 2026-08-14), the same rule already shipped on rescan: a scan states
+// WHICH of the outcomes below happened. A bare zero must never stand in for all
+// of them — "0 fields" reads as "this document has no fields" when it can just
+// as easily mean "pdfjs threw" or "nobody scanned it".
+//
+// Client-safe: the routes return the shape, the upload dialog renders the copy.
+export const HR_SCAN_OUTCOMES = [
+  "carriedForward", // identical bytes ⇒ the prior version's confirmed anchors travelled (2e)
+  "needsConfirm", // fields found, none active yet — the operator's to-do
+  "noFieldsMatched", // text layer present, no vocabulary token matched
+  "noTextLayer", // image-only / scanned PDF
+  "scanFailed", // detection threw — NOT the same as finding nothing
+  "notScanned", // never attempted (bytes unavailable)
+] as const
+export type HrScanOutcome = (typeof HR_SCAN_OUTCOMES)[number]
+
+export interface HrVersionScanReport {
+  outcome: HrScanOutcome
+  matched: number // fields detected in the file
+  stored: number // NEW unconfirmed proposals written
+  confirmed: number // active anchors on this version after the upload
+  carriedForward: number // confirmed anchors copied from an identical prior file (2e)
+  pagesScanned: number
+  error: string | null
+}
+
+/**
+ * The line the operator reads when the upload finishes. It ends by telling the
+ * person standing there WHAT IS LEFT TO DO — this is a to-do handed to a human,
+ * not a success message. The two certificate-only outcomes say so plainly, so
+ * "nothing to confirm" cannot be misread as "something went wrong".
+ */
+export function hrScanMessage(r: HrVersionScanReport): string {
+  switch (r.outcome) {
+    case "carriedForward":
+      return `${r.confirmed} field${r.confirmed === 1 ? "" : "s"} carried forward from the identical previous file — already active. Nothing to confirm.`
+    case "needsConfirm":
+      return `${r.matched} field${r.matched === 1 ? "" : "s"} found. None are active yet — confirm them before anyone signs.`
+    case "noFieldsMatched":
+      return `Scanned ${r.pagesScanned} page${r.pagesScanned === 1 ? "" : "s"} — a text layer was found, but none of the field labels matched. Signing works; execution is recorded on the Certificate of Acknowledgment.`
+    case "noTextLayer":
+      return "No text layer found — this looks like a scanned or image-only PDF. Signing works; execution is recorded on the Certificate of Acknowledgment."
+    case "scanFailed":
+      return `The version was saved, but field scanning failed${r.error ? `: ${r.error}` : ""}. Use "Scan for fields" on this document before anyone signs — until it runs, nothing can be stamped onto the page body.`
+    case "notScanned":
+      return 'The version was saved, but its file could not be read for field scanning. Use "Scan for fields" on this document before anyone signs.'
+  }
+}
+
 // Org-level inline Date: rendering (Organization.hrDateStampFormat). Validation
 // stamps and certificates always render full date+time regardless (DECISIONS F5b).
 export const HR_DATE_STAMP_FORMATS = ["dateOnly", "dateTime"] as const

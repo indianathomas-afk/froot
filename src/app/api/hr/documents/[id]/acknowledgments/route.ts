@@ -8,7 +8,7 @@ import {
   HR_ESIGN_CONSENT_TEXT,
   HR_ESIGN_CONSENT_VERSION,
 } from "@/lib/hr-documents"
-import { ensureSignedRecord } from "@/lib/hr-signed-pdf"
+import { ensureSignedRecord, UnconfirmedAnchorsError } from "@/lib/hr-signed-pdf"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
@@ -293,16 +293,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // failure must not lose the acknowledgments we just wrote — the download
   // path retries ensureSignedRecord lazily, so report and move on.
   let signedRecordId: string | null = null
+  // HR-11d 2b: set when layer (c) refused — the version has detected fields and
+  // none confirmed. THE CAPTURES ABOVE ARE KEPT: acknowledgments are
+  // append-only, carry their own hrDocumentVersionId, and are what the record
+  // will be built from once an admin confirms the anchors. Reported rather than
+  // swallowed, because the alternative is telling the signer "executed" while
+  // no record exists — the same silence this phase exists to remove.
+  //
+  // NOT A FOURTH GUARD, AND DELIBERATELY NOT A REFUSAL ON THE WRITE. The
+  // ceremony saves progressively (signing-client postEntries), so refusing here
+  // would strand a signer mid-document — the exact failure R3(i) put layer (b)
+  // at the door to avoid. This only changes what the response ADMITS after
+  // layer (c) has already declined to mint.
+  let signingUnavailable = false
   if (complete) {
     try {
       signedRecordId = (await ensureSignedRecord(version.id, staff.id)).id
     } catch (err) {
-      console.error("HR-4 signed-PDF generation failed", err)
+      if (err instanceof UnconfirmedAnchorsError) {
+        signingUnavailable = true
+        console.error(
+          `HR-11d: layer (b) was bypassed — ${err.message} (version ${version.id}, staff ${staff.id})`
+        )
+      } else {
+        console.error("HR-4 signed-PDF generation failed", err)
+      }
     }
   }
 
   return NextResponse.json(
-    { complete, signedCheckpoints: ackedIds.size, signedRecordId },
+    { complete, signedCheckpoints: ackedIds.size, signedRecordId, signingUnavailable },
     { status: 201 }
   )
 }

@@ -2,7 +2,11 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { findStaffMemberForUser } from "@/lib/hr"
-import { ensureSignedRecord, SignedRecordError } from "@/lib/hr-signed-pdf"
+import {
+  ensureSignedRecord,
+  SignedRecordError,
+  UnconfirmedAnchorsError,
+} from "@/lib/hr-signed-pdf"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
@@ -94,6 +98,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const record = await ensureSignedRecord(version.id, staffMemberId)
     return NextResponse.json({ id: record.id }, { status: 201 })
   } catch (err) {
+    // HR-11d 2b/2c: this route can be called BY THE SIGNER for themselves, so
+    // the guard's refusal must not arrive as a raw internal message. Gary's
+    // signer-facing copy, exact — nothing implying they did something wrong,
+    // because the outstanding task is an admin's. `signingUnavailable` lets a
+    // caller tell this apart from an incomplete checkpoint set without parsing
+    // prose.
+    if (err instanceof UnconfirmedAnchorsError) {
+      return NextResponse.json(
+        {
+          error: "This document isn't available yet — ask your manager.",
+          signingUnavailable: true,
+        },
+        { status: 409 }
+      )
+    }
     if (err instanceof SignedRecordError) {
       return NextResponse.json({ error: err.message }, { status: 409 })
     }
