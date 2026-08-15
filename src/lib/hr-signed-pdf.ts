@@ -285,11 +285,35 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   if (!version) throw new SignedRecordError("Document version not found")
   const doc = version.hrDocument
 
+  // ── HR-11n: retirement is excluded HERE, at the map, not at each consumer ──
+  // A retired checkpoint leaves the completion denominator, the certificate's
+  // checkpoint table, the initials grid, and INLINE STAMPING (Gary's ruling,
+  // 2026-08-15: a stamp is a claim on the page body and must not appear for a
+  // step the certificate does not list).
+  //
+  // THE STAMP PATH IS WHY THIS FILTER IS ON `ackByCheckpoint` AND NOT ON THE
+  // CHECKPOINT LOAD. Stamping resolves an ack through the ANCHOR's
+  // generatedCheckpointId (~line 430 below), never through doc.checkpoints — so
+  // filtering the checkpoint query would leave the stamps and produce a marked
+  // page for a step absent from the table. Filtering the shared map catches
+  // every consumer of an acknowledgment at once, which is the whole set.
+  //
+  // THE ACK ROWS THEMSELVES ARE UNTOUCHED. `acks` still holds them; they remain
+  // on file, queryable, and are never deleted or modified by retirement. They
+  // stop counting because the step is no longer required, not because the
+  // evidence went away.
+  const liveCheckpoints = doc.checkpoints.filter((c) => c.retiredAt == null)
+  const retiredCheckpointIds = new Set(
+    doc.checkpoints.filter((c) => c.retiredAt != null).map((c) => c.id)
+  )
+
   const acks = await prisma.hrDocumentAcknowledgment.findMany({
     where: { hrDocumentVersionId, staffMemberId, signingCycle },
   })
-  const ackByCheckpoint = new Map(acks.map((a) => [a.checkpointId, a]))
-  const missing = doc.checkpoints.filter((c) => c.required && !ackByCheckpoint.has(c.id))
+  const ackByCheckpoint = new Map(
+    acks.filter((a) => !retiredCheckpointIds.has(a.checkpointId)).map((a) => [a.checkpointId, a])
+  )
+  const missing = liveCheckpoints.filter((c) => c.required && !ackByCheckpoint.has(c.id))
   if (missing.length > 0) {
     throw new SignedRecordError(`Required checkpoints incomplete (${missing.length} outstanding)`)
   }
@@ -319,14 +343,27 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
 
   // Snapshot-first: the certificate is built from the acknowledgment rows'
   // frozen fields, not live lookups. completedAt = the last required capture.
-  const orderedAcks = doc.checkpoints
+  const orderedAcks = liveCheckpoints
     .map((c) => ({ checkpoint: c, ack: ackByCheckpoint.get(c.id) }))
     .filter((x): x is { checkpoint: (typeof doc.checkpoints)[number]; ack: (typeof acks)[number] } => !!x.ack)
+  // HR-11n: `reduce` with no seed THROWS on an empty array, and retirement is
+  // what makes empty reachable. `missing` above passes when nothing REQUIRED is
+  // outstanding, which a document whose every acknowledged checkpoint has been
+  // retired satisfies vacuously — so this line can now be reached with no acks
+  // at all, and would fail inside certificate generation rather than at a
+  // validation boundary. Refuse instead: there is nothing to certify.
+  if (orderedAcks.length === 0) {
+    throw new SignedRecordError("No live checkpoints remain on this document — nothing to certify")
+  }
   const lastAck = orderedAcks.reduce((a, b) => (a.ack.signedAt > b.ack.signedAt ? a : b)).ack
+  // Math.max() of an empty list is -Infinity, not a throw — a silently wrong
+  // date rather than a crash. The guard above makes it unreachable; the
+  // fallback keeps it honest if a later edit removes that guard.
+  const requiredTimes = orderedAcks
+    .filter((x) => x.checkpoint.required)
+    .map((x) => x.ack.signedAt.getTime())
   const completedAt = new Date(
-    Math.max(
-      ...orderedAcks.filter((x) => x.checkpoint.required).map((x) => x.ack.signedAt.getTime())
-    )
+    requiredTimes.length > 0 ? Math.max(...requiredTimes) : lastAck.signedAt.getTime()
   )
 
   // ── Assemble the PDF ──────────────────────────────────────────────────────

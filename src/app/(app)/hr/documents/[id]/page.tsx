@@ -51,6 +51,25 @@ export default async function HrDocumentDetailPage({
   // version's set (historical versions keep what they were signed against).
   const currentVersion = doc.versions.find((v) => v.isCurrent) ?? doc.versions[0]
 
+  // HR-11n: resolve the names behind retiredByUserId for the Retired section.
+  // Soft pointer (no FK), so a deleted user yields no row and the UI falls back
+  // to "Unknown" rather than dropping the retirement from the list — WHO retired
+  // it is secondary evidence; THAT it was retired is the record.
+  const retiredByIds = [
+    ...new Set(doc.checkpoints.map((c) => c.retiredByUserId).filter((v): v is string => !!v)),
+  ]
+  const retiredByUsers = retiredByIds.length
+    ? await prisma.user.findMany({
+        // Org-scoped: a soft pointer is not a trusted key (CLAUDE.md — never a
+        // bare lookup by id alone on a page).
+        where: { id: { in: retiredByIds }, organizationId: org.id },
+        select: { id: true, name: true, email: true },
+      })
+    : []
+  const retiredByName = new Map(
+    retiredByUsers.map((u) => [u.id, u.name?.trim() || u.email || "Unknown"])
+  )
+
   return (
     <DocumentDetailClient
       doc={{
@@ -77,6 +96,10 @@ export default async function HrDocumentDetailPage({
           attestationText: c.attestationText,
           required: c.required,
           acknowledgmentCount: c._count.acknowledgments,
+          // HR-11n
+          retiredAt: c.retiredAt?.toISOString() ?? null,
+          retiredByName: c.retiredByUserId ? retiredByName.get(c.retiredByUserId) ?? "Unknown" : null,
+          retiredReason: c.retiredReason,
         })),
         currentVersionId: currentVersion?.id ?? null,
         anchors: (currentVersion?.anchors ?? []).map((a) => ({

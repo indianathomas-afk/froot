@@ -233,7 +233,11 @@ export async function computeStaffComplianceDetails(
         requiresAcknowledgment: true,
       },
       include: {
-        checkpoints: { where: { required: true }, select: { id: true } },
+        // HR-11n: `retiredAt: null` is part of the DENOMINATOR, not a display
+        // filter — a retired step is no longer required of anyone, so leaving it
+        // in would hold every member permanently short of completion on a step
+        // they can never act on (the ceremony no longer renders it).
+        checkpoints: { where: { required: true, retiredAt: null }, select: { id: true } },
         // DOC-1 C: ADOPTED. Phase A left a hand-written rule here and a comment
         // saying so; this is the named shape the policy predicate requires, and
         // the reason the swap is not cosmetic is the field it adds —

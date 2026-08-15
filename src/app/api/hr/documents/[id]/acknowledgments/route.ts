@@ -152,9 +152,35 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  // ── Validate entries against the document's checkpoints ──────────────────
-  const checkpointById = new Map(doc.checkpoints.map((c) => [c.id, c]))
-  for (const entry of entries) {
+  // ── HR-11n: DROP entries for checkpoints retired since the page loaded ────
+  // A signer who opened the ceremony before an admin retired a step submits
+  // entries for it. Those entries are DROPPED and the submission proceeds; a
+  // signer mid-signature must be able to finish, so this is never a 400.
+  //
+  // THE RISK HERE IS THE OPPOSITE OF THE ONE IT LOOKS LIKE. The "Unknown
+  // checkpoint" 400 below could never have fired for a retired checkpoint —
+  // `checkpoints: true` above is unfiltered, so the row is present in the map
+  // and the entry would have sailed through validation and been INSERTED as an
+  // acknowledgment against a retired step. The drop has to be written; it does
+  // not fall out of any filter applied to the completion gate.
+  //
+  // The load stays UNFILTERED on purpose: retired and unknown are different
+  // answers (drop vs 400) and a filtered load would collapse them into one.
+  const liveCheckpoints = doc.checkpoints.filter((c) => c.retiredAt == null)
+  const retiredCheckpointIds = new Set(
+    doc.checkpoints.filter((c) => c.retiredAt != null).map((c) => c.id)
+  )
+  const liveEntries = entries.filter((e) => !retiredCheckpointIds.has(e.checkpointId))
+  if (liveEntries.length < entries.length) {
+    console.info(
+      `[hr-11n] dropped ${entries.length - liveEntries.length} entr(ies) for retired checkpoints ` +
+        `on document ${doc.id} (staff ${staffMemberId}) — retired mid-ceremony`
+    )
+  }
+
+  // ── Validate entries against the document's LIVE checkpoints ─────────────
+  const checkpointById = new Map(liveCheckpoints.map((c) => [c.id, c]))
+  for (const entry of liveEntries) {
     const checkpoint = checkpointById.get(entry.checkpointId)
     if (!checkpoint) {
       return NextResponse.json({ error: "Unknown checkpoint" }, { status: 400 })
@@ -239,7 +265,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const userAgent = req.headers.get("user-agent")
   const signedAt = new Date()
 
-  const rows = entries.map((entry) => {
+  const rows = liveEntries.map((entry) => {
     const checkpoint = checkpointById.get(entry.checkpointId)!
     return {
       checkpointId: checkpoint.id,
@@ -275,10 +301,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // staffMemberId, signingCycle]) constraint — a re-submitted checkpoint is
   // silently skipped within a cycle, so the original record (and its
   // evidence) is never replaced; a rehire's new cycle inserts cleanly.
-  await prisma.hrDocumentAcknowledgment.createMany({
-    data: rows,
-    skipDuplicates: true,
-  })
+  // HR-11n: `rows` is empty when EVERY submitted entry was for a checkpoint
+  // retired mid-ceremony. That is not an error — the signer has nothing left to
+  // do — so completion is computed against the live set below and returned
+  // normally. createMany([]) is a no-op, but the guard says why rather than
+  // relying on the reader knowing that.
+  if (rows.length > 0) {
+    // skipDuplicates rides the @@unique([checkpointId, hrDocumentVersionId,
+    // staffMemberId, signingCycle]) constraint — a re-submitted checkpoint is
+    // silently skipped within a cycle, so the original record (and its
+    // evidence) is never replaced; a rehire's new cycle inserts cleanly.
+    await prisma.hrDocumentAcknowledgment.createMany({
+      data: rows,
+      skipDuplicates: true,
+    })
+  }
 
   // ── Completion check for the CURRENT version, current cycle ───────────────
   const acked = await prisma.hrDocumentAcknowledgment.findMany({
@@ -292,7 +329,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // display surfaces were faithfully reporting what this route told them.
   // `complete` is now derived from the mint below and means one thing only —
   // a record exists.
-  const checkpointsComplete = doc.checkpoints.filter((c) => c.required).every((c) => ackedIds.has(c.id))
+  // HR-11n: computed against the LIVE set. A retired step is no longer required
+  // of anyone, so it cannot hold a signer short of completion — which is the
+  // whole point of the mid-ceremony drop above: entries went away, and the steps
+  // they belonged to went away with them.
+  const checkpointsComplete = liveCheckpoints.filter((c) => c.required).every((c) => ackedIds.has(c.id))
 
   // All required checkpoints in: produce the executed artifact synchronously
   // (handbook-size PDFs finish well within the function timeout). A generator

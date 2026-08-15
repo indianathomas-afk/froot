@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { ArrowLeft, Download, FileScan, FileText, Pencil, PenLine, Plus, RefreshCw, Trash2, Upload } from "lucide-react"
+import { Archive, ArrowLeft, Download, FileScan, FileText, Pencil, PenLine, Plus, RefreshCw, Trash2, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -52,6 +52,12 @@ export interface CheckpointRow {
   attestationText: string | null
   required: boolean
   acknowledgmentCount: number
+  // HR-11n. retiredAt set ⇒ the step is hidden from the ceremony, the completion
+  // denominator, and future certificates. retiredByName is resolved server-side
+  // from the soft retiredByUserId pointer and is "Unknown" if that user is gone.
+  retiredAt: string | null
+  retiredByName: string | null
+  retiredReason: string | null
 }
 
 export interface VersionRow {
@@ -588,13 +594,18 @@ function AnchorsCard({ doc }: { doc: DocumentDetail }) {
 }
 
 function CheckpointsCard({ doc }: { doc: DocumentDetail }) {
+  // HR-11n: retired rows collapse into their own section below the live list, so
+  // the count in the heading is the count of steps a signer is actually asked
+  // for. A retired row in the main list would read as an active step.
+  const live = doc.checkpoints.filter((c) => !c.retiredAt)
+  const retired = doc.checkpoints.filter((c) => c.retiredAt)
   return (
     <section className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)]">
       <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
         <div>
           <h2 className="text-sm font-semibold text-[var(--color-foreground)]">
             Checkpoints{" "}
-            <span className="font-normal text-[var(--color-muted-foreground)]">({doc.checkpoints.length})</span>
+            <span className="font-normal text-[var(--color-muted-foreground)]">({live.length})</span>
           </h2>
           <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
             What a team member must initial, fill in, sign, and acknowledge to complete this document.
@@ -602,13 +613,13 @@ function CheckpointsCard({ doc }: { doc: DocumentDetail }) {
         </div>
         <CheckpointFormButton docId={doc.id} />
       </div>
-      {doc.checkpoints.length === 0 ? (
+      {live.length === 0 ? (
         <p className="p-6 text-sm text-[var(--color-muted-foreground)] text-center">
           No checkpoints yet — add the first one above.
         </p>
       ) : (
         <div className="divide-y divide-[var(--color-border)]">
-          {doc.checkpoints.map((c) => (
+          {live.map((c) => (
             <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
               <span className="text-xs text-[var(--color-muted-foreground)] font-mono w-7 shrink-0 text-right">
                 {c.orderIndex + 1}.
@@ -632,15 +643,188 @@ function CheckpointsCard({ doc }: { doc: DocumentDetail }) {
               {c.pageRef != null && (
                 <span className="text-xs text-[var(--color-muted-foreground)] shrink-0">p. {c.pageRef}</span>
               )}
+              <span className="text-xs text-[var(--color-muted-foreground)] shrink-0 tabular-nums">
+                {c.acknowledgmentCount} ack{c.acknowledgmentCount === 1 ? "" : "s"}
+              </span>
               <div className="flex items-center gap-1 shrink-0">
                 <CheckpointFormButton docId={doc.id} checkpoint={c} />
+                <RetireCheckpointButton docId={doc.id} checkpoint={c} />
                 <DeleteCheckpointButton docId={doc.id} checkpoint={c} />
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {retired.length > 0 && (
+        <div className="border-t border-[var(--color-border)]">
+          <div className="px-4 py-2.5 bg-[var(--color-muted)]/40">
+            <h3 className="text-xs font-semibold text-[var(--color-foreground)]">
+              Retired{" "}
+              <span className="font-normal text-[var(--color-muted-foreground)]">
+                ({retired.length})
+              </span>
+            </h3>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+              Not shown to signers and not counted toward completion. Signatures already given on
+              these steps are kept on file.{" "}
+              {/* Ruled copy — certificates are forward-only and never reissued. */}
+              Certificates issued before a step was retired may still list it.
+            </p>
+          </div>
+          <div className="divide-y divide-[var(--color-border)]">
+            {retired.map((c) => (
+              <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 opacity-70">
+                <span className="text-xs text-[var(--color-muted-foreground)] font-mono w-7 shrink-0 text-right">
+                  {c.orderIndex + 1}.
+                </span>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${HR_CHECKPOINT_TYPE_STYLES[c.type as HrCheckpointTypeName] ?? ""}`}>
+                  {HR_CHECKPOINT_TYPE_LABELS[c.type as HrCheckpointTypeName] ?? c.type}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-[var(--color-foreground)] truncate line-through">
+                    {c.name}
+                  </p>
+                  <p className="text-xs text-[var(--color-muted-foreground)] truncate">
+                    Retired by {c.retiredByName ?? "Unknown"} on{" "}
+                    {new Date(c.retiredAt!).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                    {c.retiredReason ? ` — ${c.retiredReason}` : ""}
+                  </p>
+                </div>
+                {c.pageRef != null && (
+                  <span className="text-xs text-[var(--color-muted-foreground)] shrink-0">
+                    p. {c.pageRef}
+                  </span>
+                )}
+                <span className="text-xs text-[var(--color-muted-foreground)] shrink-0 tabular-nums">
+                  {c.acknowledgmentCount} ack{c.acknowledgmentCount === 1 ? "" : "s"}
+                </span>
+                <div className="shrink-0">
+                  <UnretireCheckpointButton docId={doc.id} checkpoint={c} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
+  )
+}
+
+// HR-11n. Retire is NOT a delete and the dialog has to say so in as many words:
+// the acknowledgment count is stated, and stated as PRESERVED. An admin reading
+// "3 acknowledgments" beside a confirm button will otherwise assume they are
+// about to destroy three signatures, which is the one thing this feature
+// guarantees it never does.
+function RetireCheckpointButton({ docId, checkpoint }: { docId: string; checkpoint: CheckpointRow }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const router = useRouter()
+  const acks = checkpoint.acknowledgmentCount
+
+  async function handleRetire() {
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch(
+        `/api/hr/documents/${docId}/checkpoints/${checkpoint.id}/retire`,
+        { method: "POST" }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? "Failed to retire the checkpoint")
+        return
+      }
+      setOpen(false)
+      router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="p-1.5 rounded hover:bg-[var(--color-accent)]"
+        title="Retire checkpoint — hide it from signers, keep its signatures"
+      >
+        <Archive className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+      </button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retire &ldquo;{checkpoint.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Team members will no longer be asked for this step, and it will stop counting
+                  toward completion of this document.
+                </p>
+                <p>
+                  {acks === 0
+                    ? "No one has signed this step."
+                    : `${acks} acknowledgment${acks === 1 ? "" : "s"} ${acks === 1 ? "has" : "have"} been recorded against this step. ${acks === 1 ? "It" : "They"} will be kept on file and are not deleted or changed.`}
+                </p>
+                <p>
+                  Certificates already issued are not changed and may still list this step. You can
+                  un-retire it at any time.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRetire} disabled={saving}>
+              {saving ? "Retiring..." : "Retire"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
+// Un-retire needs no confirm: it restores a step to the ceremony, which is the
+// reversible direction and destroys nothing.
+function UnretireCheckpointButton({
+  docId,
+  checkpoint,
+}: {
+  docId: string
+  checkpoint: CheckpointRow
+}) {
+  const [saving, setSaving] = useState(false)
+  const router = useRouter()
+
+  async function handleUnretire() {
+    setSaving(true)
+    try {
+      const res = await fetch(
+        `/api/hr/documents/${docId}/checkpoints/${checkpoint.id}/unretire`,
+        { method: "POST" }
+      )
+      if (res.ok) router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleUnretire}
+      disabled={saving}
+      className="text-xs px-2 py-1 rounded border border-[var(--color-border)] hover:bg-[var(--color-accent)] disabled:opacity-50"
+      title="Un-retire — put this step back into the signing ceremony"
+    >
+      {saving ? "..." : "Un-retire"}
+    </button>
   )
 }
 

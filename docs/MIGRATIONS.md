@@ -494,3 +494,33 @@ before this promotes. Note what makes this cheap to get wrong — because existi
 rows keep `'all'`, a forgotten backfill does **not** break anything visible; it
 simply leaves those documents company-wide forever, which is the correct default
 but was never an explicit decision for real production content.
+
+---
+
+## 2026-08-15 — `20260815150000_hr11n_checkpoint_retirement` (HR-11n Phase A)
+
+Applied to **dev only** so far (`ep-late-water-a6k53nv2`, direct endpoint, no
+`-pooler`; database `neondb`). Staging and production get it via `migrate deploy`
+in the Vercel build on Gary's push — **not yet promoted at time of writing**.
+
+| Statement | Kind |
+|---|---|
+| `HrDocumentCheckpoint.retiredAt` `TIMESTAMP(3)` | additive, nullable, no default |
+| `HrDocumentCheckpoint.retiredByUserId` `TEXT` | additive, nullable, no default — soft pointer, no FK |
+| `HrDocumentCheckpoint.retiredReason` `TEXT` | additive, nullable, no default |
+
+Three nullable columns and nothing else. No drops, no renames, no type changes,
+no index changes, and **no backfill** — every existing row reads `retiredAt NULL`,
+which is "live", so the migration moves no behaviour on its own. Promoting it
+changes nothing until an admin retires something by hand.
+
+`retiredByUserId` carries **no foreign key**, matching `DocumentAnchor.generatedCheckpointId`
+and the `HrDocumentAcknowledgment` snapshot columns: a deleted user must never
+cascade into, or block, a record of what was done. The admin UI resolves the name
+org-scoped and falls back to "Unknown" — *who* retired a step is secondary
+evidence, *that* it was retired is the record.
+
+**The diff was clean, which is itself worth recording.** `migrate diff` compares
+the whole schema against the live database, so any pre-existing drift on dev would
+have appeared as extra statements in the generated file. Only these three lines
+came out, so dev was in sync with `schema.prisma` at `0e49bdb`.

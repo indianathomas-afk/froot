@@ -1718,6 +1718,26 @@ model HrDocumentCheckpoint {
   attestationText String? // present for Acknowledgment; the "I have read and understand..." text
   required        Boolean          @default(true)
 
+  // HR-11n Phase A: retirement. Set ⇒ the checkpoint is excluded FROM THAT
+  // MOMENT FORWARD from the ceremony step list, the required-completion
+  // denominator, and the table + inline stamps of any certificate generated
+  // after retirement. It stays queryable everywhere else and its
+  // acknowledgments are never deleted or modified — they stop counting because
+  // the step is no longer required, not because the evidence went away.
+  //
+  // Retirement exists because DELETE cannot reach these rows: the 409 guard in
+  // checkpoints/[checkpointId]/route.ts refuses any checkpoint with
+  // acknowledgments, and every orphan this feature targets has them. Reversible
+  // by design (unretire clears all three), which is why this is a nullable
+  // marker rather than a delete.
+  //
+  // FORWARD-ONLY. Certificates already issued are never touched or reissued.
+  // Nothing sets these automatically — not upload, not version change, not
+  // rescan, not re-confirmation. An ADMIN sets them by hand, one at a time.
+  retiredAt       DateTime?
+  retiredByUserId String? // User.id of the admin who retired it; no FK, mirroring the audit-snapshot pattern
+  retiredReason   String?
+
   hrDocument      HrDocument                 @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
   acknowledgments HrDocumentAcknowledgment[]
 }

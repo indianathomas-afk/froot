@@ -37,7 +37,12 @@ export default async function AcknowledgePage({
   const doc = await prisma.hrDocument.findFirst({
     where: { id: documentId, organizationId: org.id, kind: "Acknowledgment", isActive: true },
     include: {
-      checkpoints: { orderBy: { orderIndex: "asc" } },
+      // HR-11n: a retired checkpoint renders NO step — no button, no row. This
+      // is the surface the feature exists for: six Signature checkpoints for two
+      // signature lines meant three stacked "Sign here" buttons on one line.
+      // Both ceremony pages carry this filter; /my/documents/[documentId] is the
+      // other, and it is a different file in a different route group.
+      checkpoints: { where: { retiredAt: null }, orderBy: { orderIndex: "asc" } },
       versions: { where: { isCurrent: true }, take: 1 },
       ...AUDIENCE_INCLUDE,
     },

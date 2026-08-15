@@ -181,7 +181,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         ...staffAudienceWhere(member),
       },
       include: {
-        checkpoints: { where: { required: true }, select: { id: true } },
+        // HR-11n: retired checkpoints leave the denominator (see hr-compliance.ts).
+        checkpoints: { where: { required: true, retiredAt: null }, select: { id: true } },
         versions: {
           orderBy: { versionNumber: "desc" },
           include: {

@@ -26,7 +26,11 @@ export default async function MyAcknowledgePage({
   const doc = await prisma.hrDocument.findFirst({
     where: { id: documentId, organizationId: org.id, kind: "Acknowledgment", isActive: true },
     include: {
-      checkpoints: { orderBy: { orderIndex: "asc" } },
+      // HR-11n: a retired checkpoint renders no step. The staff-portal ceremony
+      // — the third entry point, and the one HR-11j found had no readiness call
+      // at all because it imports SigningClient across the route-group boundary.
+      // Same filter as /hr/acknowledge/[documentId].
+      checkpoints: { where: { retiredAt: null }, orderBy: { orderIndex: "asc" } },
       versions: { where: { isCurrent: true }, take: 1 },
       ...AUDIENCE_INCLUDE,
     },
