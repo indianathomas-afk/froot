@@ -5558,6 +5558,179 @@ phases:
       the same day. It is not this row — but whoever builds R2 should read it,
       because the two together decide what a version bump means to a reader.
 
+  - id: HR-11m
+    track: hr
+    size: S
+    status: verified
+    title: "Signature checkpoints duplicated on every version — reuse by pageRef + ordinal"
+    commits:
+      - "974bf49"
+      - "eab6254"
+    notes: >
+      SESSION 2026-08-15. Prompt:
+      docs/prompts/2026-08-15-signature-checkpoint-duplication.md ("974bf49").
+      Item 1 audit:
+      docs/prompts/2026-08-15-signature-checkpoint-duplication_AUDIT.md (same
+      commit). Reproduction fixtures V3/V4: docs/test_docs/ ("eab6254").
+
+
+      ID NOTE: the series skips HR-11l on purpose. A lowercase l reads as a 1 in
+      an id that gets typed by hand. Nothing is missing between HR-11k and here.
+
+
+      THE DEFECT. syncCheckpointsForConfirmedAnchors minted a FRESH Signature
+      checkpoint on every version confirmation. The reuse key was the anchor's
+      own generatedCheckpointId — and DocumentAnchor is VERSION-scoped (HR-11b
+      ruling a) while HrDocumentCheckpoint is DOCUMENT-scoped. A new version's
+      anchors are fresh rows with that field null, so the lookup always missed
+      and the document grew two ceremony steps per version. Initial never had it:
+      its key (pageRef) is document-scoped on BOTH sides.
+
+
+      SAME DEFECT FAMILY AS HR-11j — two objects with different lifetimes, and
+      the reuse key sitting on the one that dies. That is the third time this
+      shape has cost a session and it is worth recognising on sight.
+
+
+      WHAT IT DID TO SIGNERS. Each orphaned Signature checkpoint is a ceremony
+      step with no anchor behind it: the signer is prompted to sign and the
+      capture has nowhere to be stamped on the document body, so the affordance
+      renders at a fallback position over the prose. Gdogg Thomas's v3
+      certificate listed SIX Signature checkpoints for TWO signature lines. R2
+      (HR-11k) does not fix this — checkpoints are minted at ANCHOR CONFIRMATION,
+      an admin action independent of who signs.
+
+
+      ── THE RULING (Gary, 2026-08-15) ────────────────────────────────────────
+      REUSE KEY IS pageRef PLUS ORDINAL. The k-th Signature checkpoint on the
+      page, by orderIndex, belongs to the k-th signature anchor on that page, by
+      y-descending. When a page carries several, the OLDEST orderIndex wins —
+      deterministic, fixed regardless of version history, and what Initial
+      already does.
+
+
+      pageRef ALONE WAS REJECTED. It mirrors Initial and fixes the measured case,
+      but it collapses two signature lines on ONE page onto a single checkpoint —
+      one signer act and one timestamp for two attestations, which is precisely
+      the behavior HR-11j removed.
+
+
+      THE EMPIRICAL INPUT, and it is worth keeping because the question was open
+      when the session started. Running the shipped detectAnchors() against the
+      PDFs on disk: the real 2026 Employee Handbook has FOUR signature lines on
+      FOUR DISTINCT pages (11, 22, 24, 28) and 27 Initial anchors on 27 distinct
+      pages — NO same-page pairs anywhere. The test handbook has two, on pp. 3
+      and 4. So on today's data pageRef-alone and pageRef+ordinal are identical;
+      the ordinal is only different where pageRef alone is wrong. It was chosen
+      for four lines of cost, not because anything currently needs it.
+
+
+      NOTE WHAT THAT MEANS ABOUT INITIAL: its pageRef key has never been
+      STRESSED, only never contradicted. One Initial per page in every document
+      in play is why it has held.
+
+
+      THE MATCH IS POSITIONAL, NOT IDENTITY-BASED, and that is the known
+      weakness. A future version that inserts a signature line ABOVE an existing
+      one on the same page shifts every ordinal on that page and anchors adopt
+      each other's checkpoints. That is a wrong reuse, not a duplicate, and it
+      stays inside one page. The identity-based alternative (inherit the pointer
+      from the previous version's anchors, matched on page + anchorText +
+      ordinal) was weighed and set aside as several times the code for
+      robustness nothing currently needs.
+
+
+      ALSO FIXED: the checkpoint read had no orderBy — a latent bug independent
+      of the key. It matters more now, because the Signature lookup indexes into
+      that list positionally, so an unordered read would make adoption depend on
+      whatever order Postgres happened to return.
+
+
+      G1 HELD. Nothing in this path deletes or modifies a checkpoint. Existing
+      orphans stay: growth stops, the backlog does not clear itself. One orphan
+      per page per version is adopted on the next confirm and the rest remain.
+      THE ORPHANS HAVE NO REMOVAL PATH — see HR-11n, which is the measured
+      consequence and is FILED, NOT BUILT.
+
+
+      ── VERIFICATION ─────────────────────────────────────────────────────────
+      UNIT ASSERTIONS ON ONE VERSION CANNOT SEE THIS DEFECT, which is exactly
+      what the earlier fixture missed. Asserted directly against the shipped
+      function across four versions on dev (br-broad-wave-a6vpjdw0 / neondb):
+      totals held at 2 Signature + 3 Initial from v1 through v4, re-confirm was
+      idempotent, every anchor linked to a DISTINCT checkpoint, and a synthetic
+      same-page pair kept two checkpoints across three versions. Fixtures tagged
+      sigdup-2026-08-15, deleted on the way out.
+
+
+      NEGATIVE CONTROL, and it is the half that makes the rest mean anything: the
+      same assertions run against the PRE-FIX code reproduced the defect exactly
+      — 5 / 7 / 9 / 11, +2 per version. A test that cannot fail proves nothing.
+
+
+      LIVE ACCEPTANCE PASSED on staging (br-square-feather-a63z92vz / neondb),
+      deployment built from 974bf494ca06c010759bfdebb7290e18f86e326f, document
+      "Test - Handbook Regression" cmstv3r1s000004jxdcyhkbui. V4 uploaded with
+      DIFFERENT BYTES (sha256 7d0911b46725 vs V3's aac6a74bc9e4, so the
+      hash-match carry-forward never fired and could not mask the result) and its
+      anchors confirmed. Checkpoint composition BEFORE and AFTER that confirm was
+      IDENTICAL: total 11, Signature 6, Initial 4, Acknowledgment 1. Pass was 11;
+      fail would have been 13. Gdogg's v4 signed record stamped 10 field marks
+      and the certificate lists 11 checkpoints, 6 Signature.
+
+  - id: HR-11n
+    track: hr
+    size: M
+    status: planned
+    title: "Orphaned Signature checkpoints cannot be removed — DELETE refuses anything acked"
+    notes: >
+      FILED 2026-08-15 (Gary's instruction, in the HR-11m session), NOT BUILT.
+      Surfaced while auditing HR-11m and CONFIRMED BY MEASUREMENT before filing —
+      the original session prompt had framed orphan removal as "a separate admin
+      action requiring its own ruling", which assumed a working path exists. It
+      does not.
+
+
+      THE GAP. DELETE /api/hr/documents/[id]/checkpoints/[checkpointId] returns
+      409 for any checkpoint with acknowledgments — correct on its own terms,
+      since acknowledgment rows are append-only records and the FK is RESTRICT.
+      But the signing ceremony selects ALL of a document's checkpoints with NO
+      filter against anchors (src/app/(app)/hr/acknowledge/[documentId]/page.tsx),
+      so orphans are presented as required steps and ACCUMULATE ACKNOWLEDGMENTS.
+      Every orphan therefore becomes undeletable by the only path that exists.
+
+
+      THE MEASUREMENT (br-square-feather-a63z92vz / neondb, document
+      cmstv3r1s000004jxdcyhkbui, 2026-08-15). Six Signature checkpoints for two
+      signature lines, EVERY ONE carrying acknowledgments:
+
+
+      orderIndex 5 "Page 3 signature" acks 4; orderIndex 6 "Page 4 signature"
+      acks 4; orderIndex 7 "Page 3 signature" acks 3; orderIndex 8 "Page 4
+      signature" acks 3; orderIndex 9 "Page 3 signature" acks 2; orderIndex 10
+      "Page 4 signature" acks 2.
+
+
+      Four of the six are orphans — no confirmed anchor on the current version
+      points at them — and all four are refused by the DELETE path. THE FINDING
+      IS CONFIRMED, NOT THEORETICAL.
+
+
+      WHY THIS IS NOT JUST HR-11m'S LEFTOVERS. HR-11m stopped the growth; it
+      could not clear the backlog, because G1 forbids that path deleting or
+      modifying a checkpoint and the ruling deliberately kept it that way. So the
+      test document is stuck at six prompts for two signature lines, and the
+      misplaced "Sign here" affordances sitting over body text stay visible to
+      signers until something removes the rows. "The fix landed" and "the screen
+      is right" are separated by exactly this missing path.
+
+
+      WHAT IT NEEDS, AND WHY IT IS NOT A ONE-LINER. Its own G1 ruling on what
+      removing a SIGNED-but-anchorless checkpoint means for the defensible
+      record: the acknowledgments are real signer acts against a step that should
+      never have existed. Deleting the checkpoint either orphans or destroys
+      them, and neither is obviously right. Decide that before writing any code.
+
   - id: HR-11i
     track: hr
     size: S
