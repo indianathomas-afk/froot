@@ -5134,6 +5134,153 @@ phases:
         near a grant path, but that is an argument, not the observation the
         prompt asked for. Fold it into the Phase 2 browser pass.
 
+  - id: HR-11j
+    track: hr
+    size: L
+    status: in_progress
+    title: "Signed truth & assignability — R1 completion from the record, R4 assignability gate"
+    commits:
+      - "32205a4"
+    notes: >
+      SESSION 2026-08-15. Prompt: docs/prompts/2026-08-15-signed-truth-and-assignability.md
+      ("887ee14"). Item 1 audit: docs/prompts/2026-08-15_COMPLETION_INVENTORY_AUDIT.md
+      (same commit). Reproduction fixtures: docs/test_docs/ ("72e4adc").
+
+
+      FOUR RULINGS AND TWO SUPERSESSIONS, ALL MADE 2026-08-15 AFTER A FULL
+      REPRODUCTION ON STAGING (br-square-feather-a63z92vz / neondb, document
+      "Test - Handbook Regression" cmstv3r1s000004jxdcyhkbui). They are recorded
+      here as RULINGS — what is true from now on — not as a summary of what was
+      changed. The changes are in the commits.
+
+
+      R1 — SIGNED MEANS THE SIGNED RECORD EXISTS. A document is signed when an
+      HrSignedRecord row exists for that version, that staff member, and that
+      signing cycle. Not before. Completed checkpoints are PROGRESS, not
+      COMPLETION. Every surface that reports completion status reads the record.
+      Checkpoint counts may still drive a progress display ("2 of 7
+      checkpoints"); they may never produce a "Signed" or "Completed" state. A
+      signer holding acknowledgments and no record is IN PROGRESS, not done, and
+      the document stays in their TO SIGN list.
+
+
+      R2 — TWO UPLOAD PATHS, AND THEY MEAN DIFFERENT THINGS. A NEW FILE is a new
+      document: everyone signs it. A NEW VERSION is the same document: existing
+      signers KEEP their record and are NOT re-prompted, and a read-only notice
+      tells them an update is available. FILED, NOT BUILT IN THIS SESSION —
+      it needs its own design pass and will likely add a column to
+      HrDocumentVersion.
+
+
+      R2 SUPERSEDES HR-11f (2026-08-14), WHICH REQUIRED UNIVERSAL
+      RE-ACKNOWLEDGMENT. Marked here rather than edited there; the HR-11f text
+      stands as written and is preserved beneath this marker:
+
+
+      [SUPERSEDED 2026-08-15 BY R2] HR-11f, ruled 2026-08-14 — a new version of
+      a document requires new acknowledgment from everyone; signed records stay
+      bound to the version signed, and a version bump re-prompts every signer.
+      That is now the NEW FILE path only. The NEW VERSION path no longer
+      re-prompts an existing signer.
+
+
+      R3 — COMPLIANCE SHOWS SIGNED, WITH THE VERSION NOTED. No warning, no flag,
+      no amber state for a signature executed against an older version. A
+      separate report — "who has acknowledged the current text" — is FILED FOR
+      LATER and is the right home for that question. Not built in this session.
+
+
+      R4 — A DOCUMENT IS NOT ASSIGNABLE UNTIL ITS FIELDS ARE CONFIRMED. The
+      guard moves UPSTREAM, from the ceremony to the grant. A document whose
+      current version has detected fields and none confirmed cannot be granted
+      to anyone.
+
+
+      R4 SUPERSEDES THE HR-11d §2b CARVE-OUT (2026-08-14), WHICH DELIBERATELY
+      LEFT THE GRANT/AUDIENCE PATH UNTOUCHED. The carve-out's own words are
+      preserved beneath this marker, and are corrected at their code site the
+      same way:
+
+
+      [SUPERSEDED 2026-08-15 BY R4] "THE GUARD IS AT THE CEREMONY, NEVER AT THE
+      GRANT. Assigning an unconfirmed document to the whole company still works
+      exactly as before (DOC-1 audience modal, untouched by this phase) — what
+      an admin cannot do is have someone sign it."
+
+
+      Q1 — IMAGE-ONLY PDFs WARN, THEY NEVER BLOCK. isSigningBlocked is
+      `matched > 0 && confirmed == 0`, so a PDF with no text layer produces
+      matched 0 and is not blocked. That stands. matched == 0 means fields were
+      not DETECTED, which is a WARNING condition, not a block condition.
+      BLOCKING WOULD CREATE A DEAD END WITH NO ACTION THAT CLEARS IT — there
+      would be no fields to confirm — and would silently overturn R3(i-a),
+      ratified the day before. One predicate, two outcomes.
+
+
+      Q2 — ADMIN-FACING COPY DIFFERS FROM SIGNER-FACING COPY, ON EVERY SURFACE
+      AND IN THE SIGNED-RECORD ROUTE. "Ask your manager" is nonsense read by the
+      manager who is standing there. The three ruled strings, verbatim:
+      employee "In progress — ask your manager."; admin "Not signed — ceremony
+      incomplete, no record"; assignment refusal "Confirm this document's fields
+      before assigning it." The signed-record route's 409 branches on whether
+      the caller is acting on their own record or someone else's.
+
+
+      INVARIANT — THE GRANT GATE BLOCKS GRANTING, NEVER REVOKING. No readiness
+      state may trap a document in its current audience. Withdrawing a document
+      is exactly what an admin needs when a version goes unconfirmed underneath
+      a live grant, and blocking the grant while forbidding the retreat would be
+      worse than not blocking at all — the same dead-end shape Q1 rejects.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      ITEM 2 BUILT 2026-08-15 ("32205a4") — R1 ACROSS ALL SIX SURFACES.
+
+
+      THE DEFECT WAS SIX EXPRESSIONS OF ONE PREDICATE. Six separately written
+      derivations of "this document is signed" — hr-compliance.ts, the /my
+      documents data layer, /staff/[id], the capture route, and both ceremony
+      clients — had to agree by discipline and were not required to agree by
+      construction. All six treated a full required-checkpoint set as
+      completion, so all six were wrong at the same time; the reproduction
+      exercised only two of them. The predicate now lives once, in
+      src/lib/hr-completion.ts, as an exported PURE function on the
+      isSigningBlocked pattern. It imports nothing, which is load-bearing rather
+      than tidy: two of the six sites are CLIENT components, and a predicate
+      they cannot import is a predicate they will reimplement.
+
+
+      THE CAPTURE ROUTE WAS THE ORIGIN. POST .../acknowledgments computed
+      `complete` from checkpoints BEFORE attempting the mint and never revised
+      it, so the five display surfaces were faithfully reporting what the API
+      told them. `complete` is now the mint result. THIS CLOSED A FAILURE
+      signingUnavailable NEVER COVERED: that flag narrows one cause, and every
+      other generator failure returned complete:true with signedRecordId:null —
+      the same lie with a different cause, undetectable by any client.
+
+
+      PRECEDENCE IS THE PRE-R1 CHAIN ARM FOR ARM, and the first draft got this
+      wrong. Deleting the allAcked arm lets that case fall through to
+      needs-current whenever the member also holds an older-version record, so a
+      row could be BOTH "needs current version" AND record-missing and each
+      surface would invent its own rule for which to show. The arm is KEPT and
+      only its CLAIM changed. recordMissing therefore always implies
+      in-progress and no caller has to choose.
+
+
+      EXPECT COMPLIANCE PERCENTAGES TO FALL, AND EXPECT IT TO BE FILED AS A
+      REGRESSION. Anyone whose checkpoints are all in but whose record was never
+      minted moves from complete to in-progress, and their store's pct drops
+      with them. Written into hr-compliance.ts in advance, the same as the R3
+      corporate-exclusion and archive notes DOC-1 C left there.
+
+
+      VERIFIED: next build green, eslint clean over 13 files, 23/23 assertions
+      against the SHIPPED predicate imported from src/ — the exact reproduction
+      shape, the R1 positive, the ambiguous v1-signed/v2-acked case, the vacuous
+      zero-required-checkpoint guard, both copy strings verbatim, and a
+      96-combination sweep. NO SCHEMA CHANGE, NO MIGRATION.
+
   - id: HR-11i
     track: hr
     size: S
