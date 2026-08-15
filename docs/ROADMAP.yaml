@@ -4848,7 +4848,7 @@ phases:
   - id: HR-11d
     track: hr
     size: M
-    commits: [576fc4e]
+    commits: [576fc4e, 6ff7ea6]
     status: in_progress
     title: "Hollow signed records — completion reads document checkpoints, stamping reads version anchors; guard, upload reporting, vocabulary, hash carry-forward"
     notes: >
@@ -4861,7 +4861,9 @@ phases:
       deliberately: `commits:` means WORK commits everywhere else in this file,
       and seeding it with a docs commit would have quietly made it mean two
       things the moment Phase 1 appended to it. The field arrives with the
-      first work commit — and now has, carrying "576fc4e" and nothing else.
+      first work commit — and now has, carrying the two Phase 1 WORK commits
+      and nothing else: "576fc4e" (2a-2e) and "6ff7ea6" (2f). The audit SHA
+      stays in prose above, where it has always been.
 
       HANDOFF POINTER — Phase 1 must be handed BOTH
       docs/prompts/HR-11d-phase1-build.md ("2212a1e") AND
@@ -5001,24 +5003,42 @@ phases:
 
       ──────────────────────────────────────────────────────────────────────
 
-      PHASE 1 BUILT 2026-08-14 ("576fc4e"). NOT PUSHED. 2a, 2b, 2c, 2d and 2e
-      shipped; 2f is built up to but not including the words.
+      PHASE 1 BUILT 2026-08-14 — ALL SIX ITEMS. 2a, 2b, 2c, 2d and 2e in
+      "576fc4e"; 2f in "6ff7ea6" after Gary ruled the copy. NOT PUSHED.
 
-      2f IS HELD ON GARY'S RULING, WHICH IS THE INSTRUCTION AND NOT A GAP. The
-      addendum requires the certificate copy to be presented and ruled BEFORE
-      either string is written into the certificate writer, so
-      src/lib/hr-signed-pdf.ts carries no mode line and the ruling is
-      outstanding. Three questions went to Gary: which of three wordings; page
-      count in the stamped line or field count alone; and whether the count
-      reports MARKS ACTUALLY DRAWN or ANCHORS CONFIRMED. The third is a second
-      decision hiding inside the first — marks-drawn makes the certificate
-      describe the artifact in the reader's hands, and its one visible
-      consequence is that a version with confirmed anchors whose values all came
-      back empty (an all-attested initial set, a "Store:" with no store on file)
-      prints the certificate-only line. Proposed position: a labeled() row under
-      Source SHA-256, same 8pt/9pt weight as every other row, no colour and no
-      box. Phase 1 recommends Option A, "Document marks", constant label across
-      both modes so two certificates line up when read side by side.
+      2f WAS HELD MID-SESSION AND THEN RULED, which is the shape the addendum
+      asks for and not a delay. The copy was presented before anything was
+      written into the certificate writer; Gary ruled Option A, FIELD COUNT ONLY
+      WITH NO PAGE COUNT, and MARKS ACTUALLY DRAWN rather than anchors
+      confirmed. The stamped line reads "Stamped - 41 field marks applied to the
+      document body."; the certificate-only line reads "Certificate-only - no
+      field marks were applied to the document body. This certificate is the
+      complete record of acknowledgment."
+
+      MARKS-DRAWN WAS THE SECOND DECISION HIDING INSIDE THE FIRST, and it is
+      what makes the line worth having: the certificate describes THE ARTIFACT
+      IN THE READER'S HANDS, not the intent behind it. Its one visible
+      consequence is correct rather than incidental — a version whose anchors
+      are all confirmed but whose values resolve to null (an all-attested
+      initial set, a "Store:" with no store on file) draws nothing and
+      truthfully says certificate-only. A signature block counts as ONE mark,
+      not three lines.
+
+      Position: a labeled() row under Source SHA-256, with the facts about the
+      file and above the signer-identity block, same 8pt/9pt weight as every
+      other row. The LABEL IS CONSTANT across both modes so two certificates
+      line up when read side by side — that comparison is the entire reason the
+      line exists, and a label that changed with the mode would hide the
+      difference from anyone skimming a stack. Both modes are legitimate once 2b
+      ships, so the fixture asserts neither string contains failure language
+      ("failed", "error", "missing", "unable", "skipped", "could not",
+      "problem", "invalid") and that the certificate-only line closes on what
+      the certificate IS rather than trailing off after what is absent.
+
+      2f is the ONE item on §3's do-not-disturb list that the addendum
+      deliberately changes. Everything else on that line is untouched. It
+      applies FORWARD ONLY — no certificate already generated is re-issued or
+      amended, and R1 is moot because no production signed records exist.
 
       THE GUARD IS THE PREDICATE, AND IT LIVES IN ONE PLACE. isSigningBlocked
       (src/lib/hr-anchors.ts) is pure and exported, so the fixture asserts the
@@ -5046,10 +5066,13 @@ phases:
       at the write would strand a signer mid-document — the exact failure layer
       (b) is at the door to prevent.
 
-      FIXTURE 55/55, UP FROM 35/35 AT HEAD — and the prompt's "current 28/28" is
-      STALE, which is worth knowing before anyone reads a regression into the
-      number. 35 check() calls are in scripts/verify-hr-anchors.ts at HEAD
-      (git show HEAD:scripts/verify-hr-anchors.ts | grep -c) and all 35 still
+      FIXTURE 55/55 AT "576fc4e", THEN 64/64 WITH 2f — up from 35/35 at the
+      pre-phase HEAD. THE PROMPT'S "current 28/28" IS STALE AND CAME FROM
+      docs/DECISIONS.md:1142, where it was the HR-11b-era count for
+      scripts/verify-hr-anchors.ts; HR-11c's dedup work added seven more checks
+      and neither number was revisited. Recorded because the gap reads like a
+      regression to anyone comparing 28 against 35 — 35 check() calls are in the
+      file at the pre-phase HEAD (git show HEAD:… | grep -c) and all 35 still
       pass. THE 2b REGRESSION ASSERTION NEEDED NEITHER A REAL PDF FIXTURE NOR A
       SECOND HARNESS, which was §5's question: the trip-wire is a pure function
       of two counts, so the synthetic PDFs already in the file supply the real
@@ -5057,7 +5080,23 @@ phases:
       proposal unconfirmed). Asserting that ensureSignedRecord itself throws
       needs a database, a blob store, a StaffMember and acknowledgment rows —
       a second harness, and it is the Phase 2 staging walk, which already
-      requires an authenticated session.
+      requires an authenticated session. 2f's two assertions land the same way:
+      the copy is exported pure (certificateModeLine) and asserted against the
+      SHIPPED strings, while "a certificate generated for a version with
+      confirmed anchors states the stamped mode" is that same Phase 2 walk.
+
+      THE ROADMAP COMMIT'S MESSAGE WAS AMENDED; THE WORK COMMIT WAS NOT. The
+      first attempt at the recording commit wrote `commits:` in backticks inside
+      a double-quoted zsh -m argument, which command-substituted and swallowed
+      the word; the message was amended to restore it. "576fc4e" was never
+      touched, so the SHA this row records is still the SHA that was committed —
+      the only property the two-commit pattern exists to protect. Amending the
+      RECORDER is outside that hazard; amending the RECORDED is the thing the
+      pattern forbids. Written down because the history now shows an amend on an
+      HR-11d commit, and the next reader should not have to work out which one.
+      The reusable half: heredoc every commit message with quoted EOF — a
+      backtick in -m is a live command substitution, and it fails SILENTLY, with
+      a message that is merely missing a word rather than obviously broken.
 
       NOT VERIFIED BY THIS SESSION, AND BOTH BELONG TO PHASE 2. The
       non-regression check §3 asks for — that the DOC-1 audience modal still
@@ -5084,31 +5123,55 @@ phases:
         anchors/route.ts deletes a keep:false anchor with no guard on
         confirmed — hypothesis B representable. File its own row.
       - >
-        2f COPY IS UNRULED. Phase 1 shipped everything else and wrote no mode
-        line into the certificate writer, per the addendum's instruction to
-        present and stop. Gary rules on wording, on whether the page count
-        appears, and on marks-drawn vs anchors-confirmed as the count; then the
-        line and its two fixture assertions land as a follow-up commit on this
-        row.
-      - >
-        AN ERRORED SCAN IS NOT "matched == 0", AND THE RATIFIED GUARD CANNOT
-        TELL THEM APART. R3(i-a) fires on matched > 0 && confirmed == 0. When
-        detection THROWS, matched is 0 — so the version reads as legitimately
-        certificate-only and stays signable, and a record mints with nothing
-        stamped: this row's own defect, reached through the error path instead
-        of the empty-confirm path. 2a makes the failure loud to the operator
-        standing at the upload ("field scanning failed … before anyone signs"),
-        which is the mitigation Phase 1 has. It is not a fix. Fixing it means
-        recording per-version scan state so the ceremony can ask "was this ever
-        successfully scanned?" — which is a column, so a migration, so a ruling
-        rather than a Phase 2 fix-up. Built exactly as ruled and surfaced
-        rather than resolved.
+        THE ERRORED-SCAN GAP IS HR-11i, RULED OUT OF THIS ROW (Gary,
+        2026-08-14): it needs a column and a migration, and HR-11d is not
+        growing one at the end. §2a's loud failure at upload holds the line
+        meanwhile. Nothing about it is built here.
       - >
         The §3 non-regression check — that the DOC-1 audience modal still saves
         — was not observed. It needs an authenticated ADMIN session. The
         audience files are byte-untouched by "576fc4e" and the guard is nowhere
         near a grant path, but that is an argument, not the observation the
         prompt asked for. Fold it into the Phase 2 browser pass.
+
+  - id: HR-11i
+    track: hr
+    size: S
+    status: planned
+    title: "Errored scan is indistinguishable from image-only — per-version scan state"
+    notes: >
+      Surfaced during HR-11d Phase 1 and ruled OUT of it (Gary, 2026-08-14):
+      it needs a column and a migration, and HR-11d was not growing one at the
+      end. NOT STARTED. Nothing about it is built.
+
+      IT REACHES HR-11d'S DEFECT THROUGH THE ERROR PATH, AND R3(i-a)'S
+      CONDITION DOES NOT COVER IT. The ratified trip-wire fires on
+      `matched > 0 && confirmed == 0`. When detection THROWS,
+      detectAndStoreVersionAnchors returns matched 0 (src/lib/hr-anchors.ts) —
+      so the version presents as `matched == 0`, which R3(i-a) defines as
+      LEGITIMATELY certificate-only and therefore signable. A record then mints
+      claiming completion with nothing stamped on the body: HR-11d's exact
+      defect, arrived at from the other side.
+
+      The two states are not the same and the schema cannot currently tell them
+      apart. "No anchors because this PDF has no text layer" is a fact about
+      the document. "No anchors because pdfjs threw" is an absence of
+      knowledge. Both persist as zero rows on HrDocumentVersion, and the
+      ceremony has nothing to ask.
+
+      THE MITIGATION THAT EXISTS, AND WHY IT IS NOT THE FIX. HR-11d 2a (R2)
+      makes the failure loud to the operator standing at the upload — the
+      dialog says field scanning failed and to scan again before anyone signs,
+      instead of a bare zero standing in for three outcomes. That is a human
+      holding the line, at one moment, on one screen. It does not survive the
+      operator closing the dialog, and the ceremony never learns.
+
+      THE FIX IS PER-VERSION SCAN STATE: record on HrDocumentVersion whether a
+      scan has ever SUCCEEDED (and when), so the guard can distinguish "scanned,
+      genuinely no fields" from "never successfully scanned" and refuse the
+      second. Additive column, its own migration, and its own ruling on what the
+      guard does with the third state — refuse, or warn the admin and let the
+      document stay signable. Do not fold it into an HR-11d follow-up.
 
   - id: HR-11h
     track: hr
