@@ -4849,13 +4849,17 @@ phases:
     track: hr
     size: M
     status: in_progress
-    commits: ["7fbf618"]
     title: "Hollow signed records — completion reads document checkpoints, stamping reads version anchors; guard, upload reporting, vocabulary, hash carry-forward"
     notes: >
       PHASE 0 CLOSED 2026-08-14. PHASE 1 NOT STARTED. Audit:
-      docs/prompts/HR-11d_AUDIT.md, committed "7fbf618" — 634 lines, and the
-      diagnosis of record. The "7fbf618" in `commits` is that audit, NOT work;
-      no code has been written.
+      docs/prompts/HR-11d_AUDIT.md — 634 lines, and the diagnosis of record.
+      Phase 0 audit preserved at "7fbf618".
+
+      NO `commits:` FIELD UNTIL PHASE 1. The audit SHA above is prose
+      deliberately: `commits:` means WORK commits everywhere else in this file,
+      and seeding it with a docs commit would have quietly made it mean two
+      things the moment Phase 1 appended to it. The field arrives with the
+      first work commit.
 
       HANDOFF POINTER — Phase 1 must be handed BOTH
       docs/prompts/HR-11d-phase1-build.md ("2212a1e") AND
