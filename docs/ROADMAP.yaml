@@ -5388,6 +5388,71 @@ phases:
       current_database() in the same output; every browser observation names the
       org ID and the Clerk instance.
 
+
+      ──────────────────────────────────────────────────────────────────────
+      PUSHED AND DEPLOYED 2026-08-15 09:45 PDT. Gary pushed; the
+      staging-SHA precondition was then confirmed independently rather than
+      transcribed. Local HEAD and origin/staging both
+      717f37bb432778c22c5671edb486a4af1f3ec88b; the alias
+      froot-git-staging-indianathomas-2483s-projects.vercel.app serves
+      dpl_8dqx2ay7Hx3rWAFxqkXgSvTTmUJj (froot-gthvkp3w8, created 09:45:13 PDT),
+      and `vercel ls --meta githubCommitSha=<full 40-char>` returns THAT SAME
+      DEPLOYMENT. Matched by deployment id, not by URL similarity, and with the
+      full sha — the short form returns "No deployments found", which is
+      indistinguishable from a genuine mismatch.
+
+
+      ACCEPTANCE PRE-CHECK, MEASURED 2026-08-15 ON preview/staging
+      (branch_id br-square-feather-a63z92vz, database neondb, both selected in
+      the same query as the rows). Read-only SELECTs run by Gary in the Neon
+      console — CLAUDE.md § Environment Variables forbids pulling deployed
+      credentials, and read-only is explicitly not an exception. Document
+      cmstv3r1s000004jxdcyhkbui:
+
+
+      v1 — isCurrent false, anchors 10 confirmed / 0 unconfirmed, 7
+      acknowledgments, 1 signed record. v2 — isCurrent TRUE, anchors 0 confirmed
+      / 10 UNCONFIRMED, 7 acknowledgments, 0 signed records. Exactly one
+      isCurrent row. Checkpoints: 7 required of 7 total. Per-staff on v2: one
+      row only — Gdogg Thomas cmsugvzfn000104l1fl8jcgi3, signingCycle 1, 7 acks,
+      0 records; so v1's 7 acks and its 1 record are Tommy's.
+
+
+      WHAT THE PRE-CHECK ESTABLISHES. isSigningBlocked(10, 0) is TRUE, so R1 and
+      R4 are both live and neither test has evaporated. v1's TEN CONFIRMED
+      ANCHORS independently corroborate the session prompt's "stamped correctly,
+      10 field marks". And 7 required checkpoints against Gdogg's 7 acks makes
+      allRequiredAcked TRUE BY MEASUREMENT rather than by inference from the old
+      defect having fired — that number was the one input not in the original
+      pull, and it is the difference between the ruled copy and an ordinary
+      "In progress 7/8" badge.
+
+
+      PREDICTED SURFACE OUTPUT, computed by feeding those measured numbers
+      through the SHIPPED functions. Gdogg: status in-progress, isSigned false,
+      recordMissing TRUE — "In progress — ask your manager." on /my, "Not signed
+      — ceremony incomplete, no record" on the admin surfaces, Generate record
+      offered and the ceremony link withheld. THAT RESULT HOLDS WHETHER OR NOT
+      v1'S RECORD IS HIS, which the measured set does not say and does not need
+      to: recordMissing implies in-progress, so no surface has to choose between
+      two labels. That is the Item 2 arm-ordering decision paying for itself
+      against real data. R4: assign-to-all refused, assign-to-store refused,
+      WITHDRAWAL PERMITTED.
+
+
+      TOMMY WILL READ "NEW VERSION TO SIGN", AND THAT IS CORRECT — FLAGGED IN
+      ADVANCE SO IT IS NOT FILED AS A REGRESSION. v2 is current and he has no
+      acknowledgments on it, so the DOCUMENT ROW is needs-current. His V1 RECORD
+      IS INTACT and still renders as signed, in the Signed records section of
+      his portal and as a downloadable "Signed record for v1" on /staff/[id].
+      Acceptance check (2) is about the RECORD surviving, not about a green
+      badge on the document row. This behaviour predates R1 and no arm of the
+      chain touching it was changed.
+
+
+      STILL OUTSTANDING: the four acceptance checks themselves. The pre-check
+      establishes only that they are RUNNABLE. Status stays in_progress.
+
   - id: HR-11i
     track: hr
     size: S
