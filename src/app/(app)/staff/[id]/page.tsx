@@ -19,6 +19,7 @@ import { StaffEditActions } from "./staff-edit-actions"
 import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
 import { StaffCompliance } from "./staff-compliance"
 import { getStaffComplianceDetail, type StaffComplianceDetail } from "@/lib/hr-compliance"
+import { documentCompletion } from "@/lib/hr-completion"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -214,12 +215,17 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
       const priorSigned = d.versions.find((v) => !v.isCurrent && v.signedRecords.length > 0)
 
-      let status: StaffDocumentRow["status"]
-      if (currentRecord) status = "signed"
-      else if (allAcked) status = "pending-record"
-      else if (priorCycleRecord || priorSigned) status = "needs-current"
-      else if (ackedIds.size > 0) status = "in-progress"
-      else status = "not-started"
+      // R1: asked, not restated — the same predicate /my/documents and the
+      // compliance rollup use, so this tab and the portal cannot disagree about
+      // one person and one document by being edited apart.
+      const completion = documentCompletion({
+        hasCurrentCycleRecord: !!currentRecord,
+        hasPriorCycleRecordOnCurrentVersion: !!priorCycleRecord,
+        hasRecordOnEarlierVersion: !!priorSigned,
+        requiredCount,
+        ackedCount: ackedIds.size,
+        allRequiredAcked: allAcked,
+      })
 
       return [
         {
@@ -227,14 +233,21 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           title: d.title,
           category: d.category,
           currentVersionNumber: current.versionNumber,
-          status,
+          status: completion.status,
+          recordMissing: completion.recordMissing,
+          // ── R1 (Gary, 2026-08-15): A VERSION NUMBER ONLY EVER COMES FROM A
+          // RECORD. The `allAcked` arm removed here returned
+          // current.versionNumber when NO record existed, so the admin surface
+          // printed "Signed v2" for a signature that was never executed — worse
+          // than printing nothing, because a version number reads as having been
+          // looked up rather than assumed. Each remaining branch names a record
+          // that exists: this cycle's, a prior cycle's on the current version, or
+          // one on an older version.
           signedVersionNumber: currentRecord
             ? current.versionNumber
-            : allAcked
+            : priorCycleRecord
               ? current.versionNumber
-              : priorCycleRecord
-                ? current.versionNumber
-                : priorSigned?.versionNumber ?? null,
+              : (priorSigned?.versionNumber ?? null),
           completedAt: currentRecord?.completedAt.toISOString() ?? null,
           signedRecordId:
             currentRecord?.id ??

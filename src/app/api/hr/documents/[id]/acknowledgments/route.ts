@@ -286,7 +286,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     select: { checkpointId: true },
   })
   const ackedIds = new Set(acked.map((a) => a.checkpointId))
-  const complete = doc.checkpoints.filter((c) => c.required).every((c) => ackedIds.has(c.id))
+  // R1 (Gary, 2026-08-15): this is CHECKPOINTS COMPLETE — the ceremony's own
+  // progress, and nothing more. It used to be called `complete` and be returned
+  // under that name, which made this line THE ORIGIN OF THE FALSE STATE: the six
+  // display surfaces were faithfully reporting what this route told them.
+  // `complete` is now derived from the mint below and means one thing only —
+  // a record exists.
+  const checkpointsComplete = doc.checkpoints.filter((c) => c.required).every((c) => ackedIds.has(c.id))
 
   // All required checkpoints in: produce the executed artifact synchronously
   // (handbook-size PDFs finish well within the function timeout). A generator
@@ -306,7 +312,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // at the door to avoid. This only changes what the response ADMITS after
   // layer (c) has already declined to mint.
   let signingUnavailable = false
-  if (complete) {
+  if (checkpointsComplete) {
     try {
       signedRecordId = (await ensureSignedRecord(version.id, staff.id)).id
     } catch (err) {
@@ -321,8 +327,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
+  // ── R1: `complete` IS THE MINT RESULT ────────────────────────────────────────
+  // Ruled by Gary 2026-08-15. The flag no longer reports what the signer did; it
+  // reports whether a record exists. If ensureSignedRecord throws — for ANY
+  // reason — the response says not complete.
+  //
+  // NOTE WHICH FAILURE THIS CLOSES THAT signingUnavailable DID NOT. That flag
+  // narrows exactly one cause, UnconfirmedAnchorsError. Every other generator
+  // failure took the `else` branch above, which logs and continues, and then
+  // returned complete:true with signedRecordId:null — the same lie with a
+  // different cause, and one no client could detect. Deriving from the mint
+  // covers both without either client having to enumerate failure modes.
+  //
+  // signingUnavailable STAYS, and is not now redundant: it distinguishes "no
+  // record, and an admin must confirm anchors" from "no record, retry may
+  // work", which is what picks the refusal screen over the in-progress screen.
+  const complete = signedRecordId !== null
+
   return NextResponse.json(
-    { complete, signedCheckpoints: ackedIds.size, signedRecordId, signingUnavailable },
+    {
+      complete,
+      // The ceremony still needs its own progress, and this is the honest name
+      // for it. A client showing "4 of 7 initialed" reads this; a client
+      // claiming a signature reads `complete`.
+      checkpointsComplete,
+      signedCheckpoints: ackedIds.size,
+      signedRecordId,
+      signingUnavailable,
+    },
     { status: 201 }
   )
 }

@@ -4,6 +4,7 @@ import { BookOpen, CheckCircle2, ChevronRight, FileText, ShieldCheck } from "luc
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
+import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
 import { Badge } from "@/components/ui/badge"
 import { MyShell } from "../my-shell"
 import { MyDenied } from "../denied"
@@ -14,10 +15,14 @@ import { requiredDocumentRows, type MyDocumentRow } from "./data"
 // acknowledgment flow, completed ones show status. No signed-PDF download
 // exists here (rule 5) — a manager provides a copy on request.
 
+// R1 (Gary, 2026-08-15): only a signed record earns the green Signed badge.
+// `recordMissing` is tested BEFORE the switch, because the state it names has a
+// status of "in-progress" and must not be rendered as an ordinary N/M progress
+// count — this signer has nothing left to do and cannot fix it themselves.
 function statusBadge(row: MyDocumentRow) {
+  if (row.recordMissing) return <Badge variant="warning">{HR_RECORD_MISSING_SIGNER_COPY}</Badge>
   switch (row.status) {
     case "signed":
-    case "pending-record":
       return <Badge variant="success">Signed</Badge>
     case "needs-current":
       return <Badge variant="warning">New version to sign</Badge>
@@ -72,8 +77,13 @@ export default async function MyDocumentsPage() {
     }),
   ])
 
-  const pending = rows.filter((r) => r.status !== "signed" && r.status !== "pending-record")
-  const done = rows.filter((r) => r.status === "signed" || r.status === "pending-record")
+  // R1: ONE PREDICATE DECIDES BOTH BUCKETS, and it is the record. The old pair
+  // tested two statuses each and drifted the moment "pending-record" was added
+  // to both sides — which is how a document with no signature reached Completed
+  // AND cleared the TO SIGN list, so the signer was told they were finished and
+  // would never be prompted again.
+  const pending = rows.filter((r) => r.status !== "signed")
+  const done = rows.filter((r) => r.status === "signed")
 
   return (
     <MyShell showInstagram={!!org.instagramEnabled && !!org.instagramAccessToken}>

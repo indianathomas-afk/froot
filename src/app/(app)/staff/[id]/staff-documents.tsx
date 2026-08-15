@@ -11,6 +11,7 @@ import {
   HR_CATEGORY_STYLES,
   type HrDocumentCategory,
 } from "@/lib/hr-documents"
+import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
 
 // One row per required Acknowledgment document for this staff member, with
 // the version-pinned status: a signed record binds to the version it was
@@ -21,28 +22,35 @@ export interface StaffDocumentRow {
   title: string
   category: string
   currentVersionNumber: number
-  status: "signed" | "pending-record" | "needs-current" | "in-progress" | "not-started"
+  status: "signed" | "needs-current" | "in-progress" | "not-started"
   signedVersionNumber: number | null
   completedAt: string | null
   signedRecordId: string | null // current-version record, or the prior-version one for needs-current
   ackedCount: number
   requiredCount: number
+  /** R1: every checkpoint in, no signed record. Never a completion state. */
+  recordMissing: boolean
 }
 
 const STATUS_STYLES: Record<StaffDocumentRow["status"], string> = {
   signed: "bg-green-100 text-green-700 border border-green-200",
-  "pending-record": "bg-green-100 text-green-700 border border-green-200",
   "needs-current": "bg-amber-100 text-amber-700 border border-amber-200",
   "in-progress": "bg-blue-100 text-blue-700 border border-blue-200",
   "not-started": "bg-gray-100 text-gray-600 border border-gray-200",
 }
 
+// R1 (Gary, 2026-08-15): AMBER, NOT GREEN, and ruled explicitly — the
+// record-missing state must never render in the same treatment as signed. It
+// carried `bg-green-100` identical to `signed` and read "Signed v2 · record
+// pending", so an admin scanning a roster for gaps saw a row of matching green
+// ticks. Amber puts it with "needs current version": something is outstanding.
+const RECORD_MISSING_STYLE = "bg-amber-100 text-amber-700 border border-amber-200"
+
 function statusLabel(row: StaffDocumentRow): string {
+  if (row.recordMissing) return HR_RECORD_MISSING_ADMIN_COPY
   switch (row.status) {
     case "signed":
       return `Signed v${row.signedVersionNumber}${row.completedAt ? ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}` : ""}`
-    case "pending-record":
-      return `Signed v${row.signedVersionNumber} · record pending`
     case "needs-current":
       return "Needs current version"
     case "in-progress":
@@ -89,7 +97,7 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
               )}
             </p>
           </div>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${STATUS_STYLES[row.status]}`}>
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${row.recordMissing ? RECORD_MISSING_STYLE : STATUS_STYLES[row.status]}`}>
             {statusLabel(row)}
           </span>
           <div className="flex items-center gap-2 shrink-0">
@@ -99,8 +107,15 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 target="_blank"
                 rel="noopener"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity"
+                // R1: a record-missing row can still carry a link, when the
+                // member signed an EARLIER version and their re-acknowledgment
+                // of the current one never minted. The badge says "no record"
+                // and means the current version; naming the version this link
+                // actually resolves to keeps the two from reading as a
+                // contradiction. Same treatment needs-current already had.
                 title={
-                  row.status === "needs-current"
+                  (row.status === "needs-current" || row.recordMissing) &&
+                  row.signedVersionNumber != null
                     ? `Signed record for v${row.signedVersionNumber}`
                     : "Download signed record"
                 }
@@ -109,18 +124,27 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 Signed record
               </a>
             )}
-            {row.status === "pending-record" && (
+            {row.recordMissing && (
               <GenerateRecordButton documentId={row.documentId} staffId={staffId} />
             )}
-            {(row.status === "not-started" || row.status === "in-progress" || row.status === "needs-current") && (
-              <Link
-                href={`/hr/acknowledge/${row.documentId}?staff=${staffId}`}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity"
-              >
-                <PenLine className="h-4 w-4" />
-                Record
-              </Link>
-            )}
+            {/* R1: a record-missing row is NOT offered the ceremony link. The
+                signer has already worked through every checkpoint — sending a
+                manager to re-run the ceremony would capture nothing (the
+                acknowledgment write is idempotent within a cycle) and would read
+                as though the signer had to start again. Generate record, above,
+                is the action that actually moves this row. */}
+            {!row.recordMissing &&
+              (row.status === "not-started" ||
+                row.status === "in-progress" ||
+                row.status === "needs-current") && (
+                <Link
+                  href={`/hr/acknowledge/${row.documentId}?staff=${staffId}`}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity"
+                >
+                  <PenLine className="h-4 w-4" />
+                  Record
+                </Link>
+              )}
           </div>
         </div>
       ))}

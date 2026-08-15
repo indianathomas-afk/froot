@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
+import { documentCompletion } from "@/lib/hr-completion"
 
 // Required-acknowledgment status rows for ONE staff member — the /my twin of
 // the /staff/[id] Documents-tab query, version-pinned the same way: a signed
@@ -13,15 +14,23 @@ import { staffAudienceWhere } from "@/lib/hr-documents-access"
 // because no grant row had ever existed. Ruling 7: for an Acknowledgment,
 // being in the audience IS the obligation to sign, so this list is both what
 // the staff member sees and what compliance counts.
+// R1 (Gary, 2026-08-15): "pending-record" is GONE from this union. It used to
+// sit between "signed" and "needs-current" and every consumer collapsed it into
+// "signed" — the green badge, the Completed section, and "All caught up —
+// nothing to sign." THIS IS THE TYPE THAT LIED. The state it named still
+// exists and is now the `recordMissing` flag, which no switch arm can render as
+// completion by omission.
 export type MyDocumentRow = {
   documentId: string
   title: string
   category: string | null
-  status: "signed" | "pending-record" | "needs-current" | "in-progress" | "not-started"
+  status: "signed" | "needs-current" | "in-progress" | "not-started"
   currentVersionNumber: number
   completedAt: string | null
   ackedCount: number
   requiredCount: number
+  /** Every checkpoint in, no signed record. In progress, and only an admin can move it. */
+  recordMissing: boolean
 }
 
 export async function requiredDocumentRows(staffMember: {
@@ -74,23 +83,30 @@ export async function requiredDocumentRows(staffMember: {
     const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
     const priorSigned = d.versions.find((v) => !v.isCurrent && v.signedRecords.length > 0)
 
-    let status: MyDocumentRow["status"]
-    if (currentRecord) status = "signed"
-    else if (allAcked) status = "pending-record"
-    else if (priorCycleRecord || priorSigned) status = "needs-current"
-    else if (ackedIds.size > 0) status = "in-progress"
-    else status = "not-started"
+    // R1: asked, not restated. This function DID load signedRecords and then
+    // let a checkpoint count overrule the answer — which is why the predicate
+    // takes the record facts as inputs rather than trusting a caller to have
+    // consulted them.
+    const completion = documentCompletion({
+      hasCurrentCycleRecord: !!currentRecord,
+      hasPriorCycleRecordOnCurrentVersion: !!priorCycleRecord,
+      hasRecordOnEarlierVersion: !!priorSigned,
+      requiredCount,
+      ackedCount: ackedIds.size,
+      allRequiredAcked: allAcked,
+    })
 
     return [
       {
         documentId: d.id,
         title: d.title,
         category: d.category,
-        status,
+        status: completion.status,
         currentVersionNumber: current.versionNumber,
         completedAt: currentRecord?.completedAt.toISOString() ?? null,
         ackedCount: ackedIds.size,
         requiredCount,
+        recordMissing: completion.recordMissing,
       },
     ]
   })

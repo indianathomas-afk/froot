@@ -35,6 +35,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
+import { documentCompletion } from "@/lib/hr-completion"
 
 export type ComplianceItemStatus =
   | "complete"
@@ -52,6 +53,13 @@ export type ComplianceDocItem = {
   currentVersionNumber: number
   ackedCount: number
   requiredCount: number
+  /**
+   * R1: every required checkpoint acknowledged and NO signed record for this
+   * cycle. Carried beside `status` (which reads "in-progress") because the
+   * distinction is what the admin acts on — this member has nothing left to do
+   * and needs an admin, whereas an ordinary in-progress member needs time.
+   */
+  recordMissing: boolean
   /** Version a prior signed record was executed against, when needs-resign. */
   signedVersionNumber: number | null
   completedAt: string | null
@@ -146,13 +154,46 @@ const pctOf = (completed: number, required: number): number | null =>
 // ─── Core: per-staff compliance details, computed in a fixed set of batched
 // queries (never per-staff) ──────────────────────────────────────────────────
 //
-// The document-status derivation mirrors /staff/[id] (HR-4) exactly so the
-// rollup and the profile page can never disagree:
-//   signed record on current version → complete
-//   all required checkpoints acked   → complete ("pending-record" upstream)
-//   signed record on older version   → needs-resign
-//   some checkpoints acked           → in-progress
-//   otherwise                        → not-started
+// ── CORRECTED 2026-08-15 (R1, Gary). THE BLOCK BELOW IS SUPERSEDED. ──────────
+//
+// The document-status derivation is no longer written here at all. It is
+// documentCompletion() in lib/hr-completion.ts, asked per (document, member)
+// inside the docItems map below — one exported pure predicate, the
+// isSigningBlocked pattern, shared with the five other surfaces that used to
+// derive this independently.
+//
+// WHAT CHANGED IN THE RULE, not just in the location: a full required-checkpoint
+// set is NO LONGER COMPLETION. Only an HrSignedRecord for (current version,
+// member, current cycle) produces "complete". Checkpoints still drive PROGRESS
+// (ackedCount / requiredCount, rendered "2 of 7 checkpoints") and never a
+// completed state.
+//
+// EXPECT PERCENTAGES TO FALL, and expect it to be reported as a bug. Anyone
+// whose checkpoints are all in but whose record was never minted moves from
+// complete to in-progress, carrying `recordMissing`. Their store's pct drops
+// with them. That is the ruling working: the obligation was not discharged, and
+// the old number said it was. This is the same class of expected-but-surprising
+// movement as the R3 corporate-exclusion note and the archive note further down
+// this file — both also written down in advance, for the same reason.
+//
+// THE SUPERSEDED TEXT IS KEPT BELOW RATHER THAN DELETED (Gary, 2026-08-15;
+// CLAUDE.md — nothing is deleted, corrections prepend with dates). It is worth
+// reading once: it is an accurate statement of the contract as it stood, and its
+// second line is the defect, written down as the rule. This was never drift from
+// a documented behaviour. The documented behaviour was the bug.
+//
+//   [SUPERSEDED 2026-08-15 — the second line is the defect R1 overturns]
+//   The document-status derivation mirrors /staff/[id] (HR-4) exactly so the
+//   rollup and the profile page can never disagree:
+//     signed record on current version → complete
+//     all required checkpoints acked   → complete ("pending-record" upstream)
+//     signed record on older version   → needs-resign
+//     some checkpoints acked           → in-progress
+//     otherwise                        → not-started
+//
+// The "mirrors /staff/[id] exactly" half of that promise is now structural
+// rather than aspirational: both call the same function, so they cannot
+// disagree by being edited apart.
 
 export async function computeStaffComplianceDetails(
   organizationId: string,
@@ -367,11 +408,28 @@ export async function computeStaffComplianceDetails(
       const priorCycleRecord =
         !currentRecord && recordAnyCycle.has(`${current.id}:${member.id}`)
 
-      let status: ComplianceItemStatus
-      if (currentRecord || allAcked) status = "complete"
-      else if (priorCycleRecord || priorSigned) status = "needs-resign"
-      else if (ackedIds.size > 0) status = "in-progress"
-      else status = "not-started"
+      // ── R1: ASKED, NOT RESTATED (Gary, 2026-08-15) ────────────────────────
+      // The same move DOC-1 C made for the audience rule at the grantedToStaff
+      // call above — this file used to hold one of six hand-written copies of
+      // the completion derivation, and all six were wrong in the same way.
+      // This is the adoption. `complete` here maps to the predicate's `signed`;
+      // the local vocabulary keeps "needs-resign" (this module's word) where the
+      // predicate says "needs-current".
+      const completion = documentCompletion({
+        hasCurrentCycleRecord: !!currentRecord,
+        hasPriorCycleRecordOnCurrentVersion: priorCycleRecord,
+        hasRecordOnEarlierVersion: !!priorSigned,
+        requiredCount,
+        ackedCount: ackedIds.size,
+        allRequiredAcked: allAcked,
+      })
+
+      const status: ComplianceItemStatus =
+        completion.status === "signed"
+          ? "complete"
+          : completion.status === "needs-current"
+            ? "needs-resign"
+            : completion.status
 
       return [
         {
@@ -383,6 +441,7 @@ export async function computeStaffComplianceDetails(
           currentVersionNumber: current.versionNumber,
           ackedCount: ackedIds.size,
           requiredCount,
+          recordMissing: completion.recordMissing,
           signedVersionNumber:
             status !== "needs-resign"
               ? null

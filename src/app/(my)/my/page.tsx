@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { getStaffComplianceDetail, type ComplianceItem } from "@/lib/hr-compliance"
+import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
 import { messageInclude, serializeMessage } from "@/lib/messages"
 import { MyShell } from "./my-shell"
 import { MyDenied } from "./denied"
@@ -188,10 +189,21 @@ function OpenItemRow({ item }: { item: ComplianceItem }) {
     item.kind === "document" ? `/my/documents/${item.documentId}` : `/my/training/${item.assignmentId}`
   const title = item.kind === "document" ? item.title : item.moduleTitle
   const Icon = item.kind === "document" ? FileText : GraduationCap
-  const badge = ITEM_STATUS_LABELS[item.status] ?? ITEM_STATUS_LABELS["not-started"]
+  // R1 (Gary, 2026-08-15): this row already surfaced correctly once the
+  // predicate stopped calling recordMissing "complete" — the filter above is
+  // `status !== "complete"`, so the member reappears here with no change. What
+  // DOES change is the wording: "3/3 checkpoints" beside an In-progress badge
+  // reads as a stalled signer, when in fact they have finished everything they
+  // can and the outstanding task is an admin's.
+  const recordMissing = item.kind === "document" && item.recordMissing
+  const badge = recordMissing
+    ? { label: "Not signed", className: "bg-amber-100 text-amber-700 border border-amber-200" }
+    : (ITEM_STATUS_LABELS[item.status] ?? ITEM_STATUS_LABELS["not-started"])
   const detail =
     item.kind === "document"
-      ? `${item.ackedCount}/${item.requiredCount} checkpoints`
+      ? recordMissing
+        ? HR_RECORD_MISSING_SIGNER_COPY
+        : `${item.ackedCount}/${item.requiredCount} checkpoints`
       : item.dueDate
         ? `Due ${format(new Date(item.dueDate), "MMM d")}`
         : `${item.lessonsDone}/${item.lessonsTotal} lessons`

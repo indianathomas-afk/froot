@@ -50,6 +50,17 @@ export default async function MyAcknowledgePage({
   })
   const doneIds = new Set(existing.map((a) => a.checkpointId))
 
+  // R1 (Gary, 2026-08-15): SigningClient may only open its executed screen on a
+  // record, and cannot see one from the browser. Same three keys as every other
+  // R1 surface — version, staff member, current signing cycle.
+  const signedRecordCount = await prisma.hrSignedRecord.count({
+    where: {
+      hrDocumentVersionId: version.id,
+      staffMemberId: staffMember.id,
+      signingCycle: staffMember.signingCycle,
+    },
+  })
+
   // Assigned stores for the store selector (getActiveStaffSelf doesn't join names).
   const assignedStores = await prisma.store.findMany({
     where: { id: { in: staffMember.storeAssignments.map((a) => a.storeId) } },
@@ -109,6 +120,7 @@ export default async function MyAcknowledgePage({
           required: c.required,
           done: doneIds.has(c.id),
         }))}
+        hasSignedRecord={signedRecordCount > 0}
         staff={{
           id: staffMember.id,
           name: staffMember.fullName.trim(),

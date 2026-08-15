@@ -7,6 +7,7 @@ import type {
   ComplianceTrainingItem,
   StaffComplianceDetail,
 } from "@/lib/hr-compliance"
+import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
 
 // HR-8: per-employee compliance detail — the drill-down target from the
 // /staff list column and the /hr/compliance rollup. Server-rendered, no
@@ -20,7 +21,17 @@ const STATUS_LABELS: Record<ComplianceItemStatus, string> = {
   "not-started": "Not started",
 }
 
-function StatusBadge({ status }: { status: ComplianceItemStatus }) {
+// R1 (Gary, 2026-08-15): `recordMissing` is passed separately from `status`
+// because it is not a status — it is a fact about a document whose status is
+// in-progress. Amber, never the green success variant.
+function StatusBadge({
+  status,
+  recordMissing = false,
+}: {
+  status: ComplianceItemStatus
+  recordMissing?: boolean
+}) {
+  if (recordMissing) return <Badge variant="warning">Not signed</Badge>
   const variant =
     status === "complete"
       ? "success"
@@ -35,11 +46,18 @@ function StatusBadge({ status }: { status: ComplianceItemStatus }) {
 }
 
 function docDetail(item: ComplianceDocItem): string {
+  // R1: this line used to read "All N checkpoints acknowledged (vX) · record
+  // pending" UNDER A GREEN "Complete" BADGE — the page stated in prose that no
+  // record existed while badging the item done. The prose was right and the
+  // badge was wrong; now they agree, and the ruled admin copy says it once.
+  if (item.recordMissing) return HR_RECORD_MISSING_ADMIN_COPY
   switch (item.status) {
     case "complete":
+      // completedAt is non-null whenever status is complete: R1 makes a record
+      // the only thing that produces it, and every record carries the date.
       return item.completedAt
         ? `Signed v${item.currentVersionNumber} · ${format(new Date(item.completedAt), "MMM d, yyyy")}`
-        : `All ${item.requiredCount} checkpoints acknowledged (v${item.currentVersionNumber}) · record pending`
+        : `Signed v${item.currentVersionNumber}`
     case "needs-resign":
       return `Signed v${item.signedVersionNumber} — v${item.currentVersionNumber} is now current`
     case "in-progress":
@@ -141,7 +159,7 @@ export function StaffCompliance({ detail }: { detail: StaffComplianceDetail }) {
                     </p>
                   </td>
                   <td className="px-6 py-3 text-right">
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={item.status} recordMissing={item.recordMissing} />
                   </td>
                 </tr>
               ))}

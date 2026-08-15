@@ -153,6 +153,21 @@ export default async function AcknowledgePage({
   })
   const doneIds = new Set(existing.map((a) => a.checkpointId))
 
+  // R1 (Gary, 2026-08-15): the ceremony clients decided completion from the
+  // `done` flags above, which are acknowledgment rows. They now need the record
+  // itself, and only the server can see it. Keyed the same three ways every
+  // other R1 surface keys it — version, staff member, CURRENT signing cycle
+  // (HR-15 Policy B) — so a rehire's prior-tenure record cannot open the
+  // executed screen for this tenure.
+  const signedRecordCount = await prisma.hrSignedRecord.count({
+    where: {
+      hrDocumentVersionId: version.id,
+      staffMemberId: staff.id,
+      signingCycle: staff.signingCycle,
+    },
+  })
+  const hasSignedRecord = signedRecordCount > 0
+
   const clientDoc = {
     id: doc.id,
     title: doc.title,
@@ -193,8 +208,20 @@ export default async function AcknowledgePage({
   // HR-11: self-serve signing uses the formal inline ceremony; manager-attested
   // capture keeps the quick form — it records, it doesn't sign.
   return attested ? (
-    <AcknowledgeClient doc={clientDoc} checkpoints={clientCheckpoints} mode="attested" staff={clientStaff} />
+    <AcknowledgeClient
+      doc={clientDoc}
+      checkpoints={clientCheckpoints}
+      hasSignedRecord={hasSignedRecord}
+      mode="attested"
+      staff={clientStaff}
+    />
   ) : (
-    <SigningClient doc={clientDoc} checkpoints={clientCheckpoints} staff={clientStaff} anchors={clientAnchors} />
+    <SigningClient
+      doc={clientDoc}
+      checkpoints={clientCheckpoints}
+      hasSignedRecord={hasSignedRecord}
+      staff={clientStaff}
+      anchors={clientAnchors}
+    />
   )
 }

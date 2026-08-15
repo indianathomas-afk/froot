@@ -13,6 +13,10 @@ import {
   HR_ESIGN_CONSENT_TEXT,
 } from "@/lib/hr-documents"
 import { SigningUnavailable } from "@/components/hr/signing-unavailable"
+import {
+  HR_RECORD_MISSING_ADMIN_COPY,
+  HR_RECORD_MISSING_SIGNER_COPY,
+} from "@/lib/hr-completion"
 
 interface CaptureCheckpoint {
   id: string
@@ -36,9 +40,17 @@ interface CaptureDoc {
 // checkpoint — fields, per-page initials, attestations, typed signature.
 // Attested: a manager records that the staff member completed the document;
 // the manager types their own name and the record is marked ManagerAttested.
+//
+// R1 (Gary, 2026-08-15): `alreadyComplete` — every required checkpoint carrying
+// a done flag — used to render the green "— complete" screen on its own. That is
+// A6 in the audit, the manager-facing twin of the same defect: it told a manager
+// the document was executed for someone who holds no record. Completion is now
+// `hasSignedRecord`, server-supplied, and `alreadyComplete` decides only whether
+// there is anything left to capture.
 export function AcknowledgeClient({
   doc,
   checkpoints,
+  hasSignedRecord,
   mode,
   staff,
   backHref,
@@ -46,6 +58,8 @@ export function AcknowledgeClient({
 }: {
   doc: CaptureDoc
   checkpoints: CaptureCheckpoint[]
+  /** An HrSignedRecord exists for (current version, this staff member, current cycle). */
+  hasSignedRecord: boolean
   mode: "self" | "attested"
   staff: { id: string; name: string }
   // HR-7: the /my/documents flow reuses this screen with its own back link;
@@ -123,9 +137,11 @@ export function AcknowledgeClient({
         setError(data.error ?? "Failed to save — please try again")
         return
       }
-      // HR-11d 2b: "complete" is not "recorded". If layer (c) refused to mint,
-      // say so instead of showing the manager a green tick for a record that
-      // does not exist. The captures themselves are on file either way.
+      // HR-11d 2b: "complete" is not "recorded". R1 made that structural — the
+      // route derives `complete` from the mint, so this line can no longer show
+      // a green tick for a record that does not exist regardless of WHY it does
+      // not. signingUnavailable still picks which refusal screen to show. The
+      // captures themselves are on file in every branch.
       if (data.signingUnavailable === true) setUnavailable(true)
       else setFinished(data.complete === true)
       router.refresh()
@@ -148,7 +164,34 @@ export function AcknowledgeClient({
     )
   }
 
-  if (finished || alreadyComplete) {
+  // R1: nothing left to capture, and no record. Ruled admin copy on the attested
+  // path — the viewer is the manager, checked on the server — and the signer
+  // copy on the self path, the same audience split SigningUnavailable makes.
+  if (!hasSignedRecord && !finished && alreadyComplete) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <BackLink attested={attested} staffId={staff.id} backHref={backHref} backLabel={backLabel} />
+        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+            <PenLine className="h-6 w-6 text-amber-700" />
+          </div>
+          <h1 className="text-lg font-semibold text-[var(--color-foreground)] mb-1">
+            {attested ? HR_RECORD_MISSING_ADMIN_COPY : HR_RECORD_MISSING_SIGNER_COPY}
+          </h1>
+          <p className="text-sm text-[var(--color-muted-foreground)] max-w-md mx-auto">
+            Every required checkpoint of version {doc.versionNumber} is captured
+            {attested ? ` for ${staff.name}` : ""}, and nothing needs capturing again — but no
+            signed record has been issued, so this document is not executed.
+            {attested
+              ? " Generate the record from the team member's Documents tab, or confirm this version's fields first."
+              : " Your manager can complete it."}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (finished || (hasSignedRecord && alreadyComplete)) {
     return (
       <div className="max-w-2xl mx-auto">
         <BackLink attested={attested} staffId={staff.id} backHref={backHref} backLabel={backLabel} />
