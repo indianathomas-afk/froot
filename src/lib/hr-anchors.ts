@@ -610,8 +610,10 @@ export async function carryForwardConfirmedAnchors(
  * Acknowledgment checkpoint.
  *
  *   Initial        → the page's Initial checkpoint (reuse by pageRef, else create)
- *   SignatureStamp → its OWN Signature checkpoint, one per anchor, so each is a
- *                    distinct signer act with its own timestamp (like initials).
+ *   SignatureStamp → the k-th Signature checkpoint on the page (reuse by
+ *                    pageRef + ordinal, else create), so each signature line is
+ *                    a distinct signer act with its own timestamp (like
+ *                    initials) and a new VERSION reuses rather than duplicates.
  *   PrintedName / Store / DateStamp → stamp-only (derived values), no checkpoint.
  *
  * G1 integrity rule: this NEVER deletes or modifies a checkpoint. Removing a
@@ -626,8 +628,25 @@ export async function syncCheckpointsForConfirmedAnchors(
     where: { hrDocumentVersionId, confirmed: true },
     orderBy: [{ page: "asc" }, { y: "desc" }],
   })
-  const checkpoints = await prisma.hrDocumentCheckpoint.findMany({ where: { hrDocumentId } })
+  // ORDERED, and the order is load-bearing (2026-08-15). The Signature reuse
+  // below indexes into this list positionally, so an unordered read would make
+  // which checkpoint an anchor adopts depend on whatever order Postgres happened
+  // to return. Initial's `find` by pageRef had the same latent exposure and has
+  // never shown it, because every document in play has one Initial per page.
+  const checkpoints = await prisma.hrDocumentCheckpoint.findMany({
+    where: { hrDocumentId },
+    orderBy: { orderIndex: "asc" },
+  })
   let nextOrder = checkpoints.reduce((m, c) => Math.max(m, c.orderIndex), -1) + 1
+
+  // Per-page running count of SignatureStamp anchors. `anchors` is ordered
+  // (page asc, y desc), so this is the anchor's ordinal among the signature
+  // lines on its page, counted down the page.
+  const sigSeenOnPage = new Map<number, number>()
+  // A Signature checkpoint adopted by one anchor is not available to another —
+  // two signature lines are two distinct attestations and must never collapse
+  // onto one ceremony step (the pre-HR-11j behavior).
+  const claimedSignatureIds = new Set<string>()
 
   const link = async (anchorId: string, checkpointId: string, current: string | null) => {
     if (current !== checkpointId) {
@@ -648,19 +667,73 @@ export async function syncCheckpointsForConfirmedAnchors(
     } else if (a.markType === "SignatureStamp") {
       // Each signature anchor is a DISTINCT attestation → its own Signature
       // checkpoint the signer acts on during the ceremony, with its own
-      // per-interaction timestamp (like initials). Reuse only the Signature
-      // checkpoint already linked to THIS anchor (idempotent re-confirm); never
-      // reuse another anchor's, and never the final Acknowledgment (the prior
-      // behavior, which collapsed all signatures onto one timestamp).
+      // per-interaction timestamp (like initials). Never the final
+      // Acknowledgment (the prior behavior, which collapsed all signatures onto
+      // one timestamp).
+      //
+      // REUSE KEY: pageRef + ordinal (ruled by Gary 2026-08-15). The k-th
+      // Signature checkpoint on the page, by orderIndex, belongs to the k-th
+      // signature anchor on that page, by y-descending.
+      //
+      // WHY NOT THE ANCHOR'S OWN POINTER ALONE, WHICH IS WHAT THIS USED TO DO.
+      // `generatedCheckpointId` lives on DocumentAnchor, and DocumentAnchor is
+      // VERSION-scoped (HR-11b ruling a) while checkpoints are DOCUMENT-scoped.
+      // A new version's anchors are fresh rows with that field null, so the
+      // lookup always missed and every confirmation minted a fresh checkpoint —
+      // two per version on the test handbook, six ceremony steps for two
+      // signature lines by v3, each extra one a signature prompt with no anchor
+      // behind it. Same defect family as HR-11j: two objects with different
+      // lifetimes, and the reuse key sitting on the one that dies. Initial never
+      // had it because its key (pageRef) is document-scoped on both sides.
+      //
+      // WHY ORDINAL AND NOT pageRef ALONE, which would mirror Initial exactly:
+      // pageRef alone collapses two signature lines on ONE page into a single
+      // checkpoint — one signer act, one timestamp for two attestations, which
+      // is the behavior HR-11j removed. No document in play has a same-page pair
+      // (the 2026 Employee Handbook has four signature lines on four distinct
+      // pages, pp. 11/22/24/28; the test handbook two on pp. 3/4), so on today's
+      // data the two keys are identical. The ordinal costs a counter and is only
+      // different where pageRef alone is wrong.
+      //
+      // The match is POSITIONAL, not identity-based. A future version that
+      // inserts a signature line ABOVE an existing one on the same page shifts
+      // every ordinal on that page and anchors adopt each other's checkpoints.
+      // That is a wrong reuse, not a duplicate, and it stays inside one page.
+      const k = sigSeenOnPage.get(a.page) ?? 0
+      sigSeenOnPage.set(a.page, k + 1)
+
+      // 1. The checkpoint this anchor already drives — idempotent re-confirm of
+      //    the same version, and the hash-match carry-forward path, which brings
+      //    the pointer with it (carryForwardConfirmedAnchors).
       let cp = a.generatedCheckpointId
-        ? checkpoints.find((c) => c.id === a.generatedCheckpointId && c.type === "Signature")
+        ? checkpoints.find(
+            (c) =>
+              c.id === a.generatedCheckpointId &&
+              c.type === "Signature" &&
+              !claimedSignatureIds.has(c.id)
+          )
         : undefined
+
+      // 2. Else the k-th Signature checkpoint on this page. Indexed against the
+      //    UNFILTERED page list so a claim earlier in the list cannot shift a
+      //    later anchor's ordinal; if the k-th slot is already claimed we fall
+      //    through and mint rather than collapse two anchors onto one step.
+      //    Oldest orderIndex wins (Gary's ruling) — deterministic, fixed
+      //    regardless of version history, and what Initial already does.
+      if (!cp) {
+        const candidate = checkpoints.filter(
+          (c) => c.type === "Signature" && c.pageRef === a.page
+        )[k]
+        if (candidate && !claimedSignatureIds.has(candidate.id)) cp = candidate
+      }
+
       if (!cp) {
         cp = await prisma.hrDocumentCheckpoint.create({
           data: { hrDocumentId, name: `Page ${a.page} signature`, type: "Signature", orderIndex: nextOrder++, pageRef: a.page, required: true },
         })
         checkpoints.push(cp)
       }
+      claimedSignatureIds.add(cp.id)
       await link(a.id, cp.id, a.generatedCheckpointId)
     }
     // PrintedName / Store / DateStamp: derived stamp-only, no checkpoint.
