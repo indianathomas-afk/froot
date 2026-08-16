@@ -98,6 +98,12 @@ export type HrDocumentCompletionFacts = {
    * signed in a previous tenure — needs-current, unchanged by R2.
    */
   hasPriorCycleRecordOnEarlierVersion: boolean
+  /**
+   * Case A (R2 Phase B): the CURRENT version demands a fresh signature from
+   * everyone, overriding R2. Read off the version in force — NOT off the version
+   * this member signed. It is a property of the demand being made now.
+   */
+  currentVersionRequiresReacknowledgment: boolean
   /** Required checkpoints on the document. */
   requiredCount: number
   /** Acknowledgments this member holds on the current version, current cycle. */
@@ -128,6 +134,17 @@ export type HrDocumentCompletion = {
    * this module exists to stop being written six times.
    */
   signedOnEarlierVersion: boolean
+  /**
+   * Case A (2026-08-16): this member holds a record that WOULD have satisfied
+   * the current version under R2, and does not only because the current version
+   * demands a fresh signature. `status` is "needs-current".
+   *
+   * IT IS THE ONLY THING THAT SEPARATES THIS FROM A REHIRE, which carries the
+   * same status for an unrelated reason. Surfaces need the distinction because
+   * a re-verification signer is still BOUND to the version they signed until
+   * they sign again, and a rehire is not bound to anything.
+   */
+  reacknowledgmentRequired: boolean
   /**
    * Every required checkpoint is acknowledged and NO record exists for this
    * cycle. The signer has nothing left to do and cannot fix it themselves — an
@@ -182,6 +199,25 @@ export type HrDocumentCompletion = {
  *   harmless, and a later re-verification resumes from them.
  *
  * Moving it either way changes a ruling, not an implementation detail.
+ *
+ * ── CASE A 2026-08-16 (R2 Phase B). THE R2 ARM GAINS AN OVERRIDE, NOT A SKIP. ─
+ * When the CURRENT version carries requiresReacknowledgment, a prior-version
+ * record no longer satisfies it and the member reads needs-current.
+ *
+ * THE DESIGN DOC SAID "row 4 is SKIPPED", AND IMPLEMENTING THAT LITERALLY IS A
+ * DEFECT. Skipping the arm falls through to the acks arms, so a member who
+ * signed v5 and has touched nothing on v6 would read NOT-STARTED — the surface
+ * telling an admin they had never signed anything. THE RECORD DOES NOT STOP
+ * EXISTING BECAUSE A RE-SIGNATURE WAS DEMANDED. So the arm RETURNS
+ * needs-current itself, which keeps `signedVersionNumber` populated and lets the
+ * staff row read "Needs v6 · signed v5" — what they owe, and what they remain
+ * bound to until they give it. Corrected by Gary, 2026-08-16.
+ *
+ * THE FLAG NEVER REACHES ARM 2, and that is ruled rather than incidental. A
+ * member who has fully acknowledged the CURRENT version is complete whatever
+ * this flag says: they already did the newer work, on the very version demanding
+ * it. Only the R2 arm is conditioned — which is why the flag is read inside that
+ * arm's test and nowhere above it.
  */
 export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocumentCompletion {
   const {
@@ -189,6 +225,7 @@ export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocument
     hasPriorCycleRecordOnCurrentVersion,
     hasCurrentCycleRecordOnEarlierVersion,
     hasPriorCycleRecordOnEarlierVersion,
+    currentVersionRequiresReacknowledgment,
     requiredCount,
     ackedCount,
     allRequiredAcked,
@@ -202,7 +239,8 @@ export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocument
   let status: HrDocumentCompletionStatus
   if (hasCurrentCycleRecord) status = "signed"
   else if (recordMissing) status = "in-progress"
-  else if (hasCurrentCycleRecordOnEarlierVersion) status = "signed"
+  else if (hasCurrentCycleRecordOnEarlierVersion)
+    status = currentVersionRequiresReacknowledgment ? "needs-current" : "signed"
   else if (hasPriorCycleRecordOnCurrentVersion || hasPriorCycleRecordOnEarlierVersion)
     status = "needs-current"
   else if (ackedCount > 0) status = "in-progress"
@@ -214,10 +252,28 @@ export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocument
   const signedOnEarlierVersion =
     status === "signed" && !hasCurrentCycleRecord && hasCurrentCycleRecordOnEarlierVersion
 
+  // Case A: the R2 arm still FIRES on this member — they do hold a
+  // current-cycle record on an earlier version — it just resolves the other way.
+  // Written as one arm with two outcomes rather than as a skip, so there is no
+  // path where that record goes unaccounted for.
+  //
+  // GATED ON `status`, NOT ON THE TWO INPUTS ALONE, and a fixture caught the
+  // difference. Computed from the inputs it read TRUE whenever the flag was set
+  // and an older record existed — including when arm 1 or arm 2 had already won,
+  // which is exactly when Case A did NOT apply. It is the sibling of
+  // `signedOnEarlierVersion` directly above and is derived the same way: from
+  // the arm that actually fired. A flag that outlives its own branch is how a
+  // surface ends up rendering one state's reason under another state's name.
+  const reacknowledgmentRequired =
+    status === "needs-current" &&
+    hasCurrentCycleRecordOnEarlierVersion &&
+    currentVersionRequiresReacknowledgment
+
   return {
     status,
     isSigned: status === "signed",
     signedOnEarlierVersion,
+    reacknowledgmentRequired,
     recordMissing,
     requiredCount,
     ackedCount,

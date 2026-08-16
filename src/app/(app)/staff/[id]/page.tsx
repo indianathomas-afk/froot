@@ -246,6 +246,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         hasPriorCycleRecordOnCurrentVersion: !!priorCycleRecord,
         hasCurrentCycleRecordOnEarlierVersion: !!priorSignedThisCycle,
         hasPriorCycleRecordOnEarlierVersion: !!priorSignedPriorCycle,
+        // Case A: read off the version IN FORCE, never off the version signed.
+        currentVersionRequiresReacknowledgment: current.requiresReacknowledgment,
         requiredCount,
         ackedCount: ackedIds.size,
         allRequiredAcked: allAcked,
@@ -260,6 +262,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           status: completion.status,
           recordMissing: completion.recordMissing,
           signedOnEarlierVersion: completion.signedOnEarlierVersion,
+          reacknowledgmentRequired: completion.reacknowledgmentRequired,
           // ── R1 (Gary, 2026-08-15): A VERSION NUMBER ONLY EVER COMES FROM A
           // RECORD. The `allAcked` arm removed here returned
           // current.versionNumber when NO record existed, so the admin surface

@@ -132,6 +132,8 @@ export async function requiredDocumentRows(staffMember: {
       hasPriorCycleRecordOnCurrentVersion: !!priorCycleRecord,
       hasCurrentCycleRecordOnEarlierVersion: !!priorSignedThisCycle,
       hasPriorCycleRecordOnEarlierVersion: !!priorSignedPriorCycle,
+      // Case A: read off the version IN FORCE, never off the version signed.
+      currentVersionRequiresReacknowledgment: current.requiresReacknowledgment,
       requiredCount,
       ackedCount: ackedIds.size,
       allRequiredAcked: allAcked,

@@ -17,6 +17,11 @@ export const maxDuration = 60
 const bodySchema = z.object({
   url: z.string().url(),
   fileName: z.string().trim().min(1),
+  // Case A (R2 Phase B). Optional and defaulting FALSE: an older client,
+  // a retry, or any caller that omits it gets R2 behaviour. The dangerous
+  // direction is a version that demands signatures nobody asked for, so
+  // the absent value can only ever mean "do not demand".
+  requiresReacknowledgment: z.boolean().optional().default(false),
 })
 
 // POST /api/hr/documents/[id]/versions — ADMIN. Re-upload: registers a new
@@ -45,7 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!parsed.success) {
     return NextResponse.json({ error: "An uploaded file is required" }, { status: 400 })
   }
-  const { url, fileName } = parsed.data
+  const { url, fileName, requiresReacknowledgment } = parsed.data
 
   const doc = await prisma.hrDocument.findFirst({
     where: { id, organizationId: org.id },
@@ -93,6 +98,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         sizeBytes: meta.sizeBytes,
         fileHash: meta.fileHash,
         isCurrent: true,
+        // Case A. Scoped to Acknowledgment for the same reason the
+        // assignability gate is (audience/route.ts): a Reference document is
+        // never signed, so "sign it again" is a demand with no meaning.
+        requiresReacknowledgment: isAcknowledgment && requiresReacknowledgment,
         uploadedByUserId: dbUser.id,
       },
     }),

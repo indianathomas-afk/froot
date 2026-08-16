@@ -25,7 +25,16 @@ export default async function HrDocumentDetailPage({
     include: {
       versions: {
         orderBy: { versionNumber: "desc" },
-        include: { anchors: { orderBy: [{ page: "asc" }, { y: "desc" }] } },
+        include: {
+          anchors: { orderBy: [{ page: "asc" }, { y: "desc" }] },
+          // Case A: drives the FREEZE on the re-acknowledgment control.
+          // Unfiltered on purpose, exactly like the checkpoint count below
+          // and for the same reason — the question is "has anyone ever
+          // acknowledged this version", across every staff member, cycle
+          // and audience. Filtering it could read 0 for a version somebody
+          // really has signed and unfreeze a decision that is settled.
+          _count: { select: { acknowledgments: true } },
+        },
       },
       checkpoints: {
         orderBy: { orderIndex: "asc" },
@@ -85,6 +94,8 @@ export default async function HrDocumentDetailPage({
           sizeBytes: v.sizeBytes,
           fileHash: v.fileHash,
           isCurrent: v.isCurrent,
+          requiresReacknowledgment: v.requiresReacknowledgment,
+          acknowledgmentCount: v._count.acknowledgments,
           createdAt: v.createdAt.toISOString(),
         })),
         checkpoints: doc.checkpoints.map((c) => ({

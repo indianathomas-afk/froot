@@ -296,7 +296,12 @@ export async function computeStaffComplianceDetails(
         ...AUDIENCE_INCLUDE,
         versions: {
           orderBy: { versionNumber: "desc" },
-          select: { id: true, versionNumber: true, isCurrent: true },
+          select: {
+            id: true,
+            versionNumber: true,
+            isCurrent: true,
+            requiresReacknowledgment: true,
+          },
         },
       },
       orderBy: { title: "asc" },
@@ -489,6 +494,9 @@ export async function computeStaffComplianceDetails(
         hasPriorCycleRecordOnCurrentVersion: priorCycleRecord,
         hasCurrentCycleRecordOnEarlierVersion: !!priorSignedThisCycle,
         hasPriorCycleRecordOnEarlierVersion: !!priorSignedPriorCycle,
+        // Case A: read off the version IN FORCE, never off the version they
+        // signed. `current` is the isCurrent row resolved above.
+        currentVersionRequiresReacknowledgment: current.requiresReacknowledgment,
         requiredCount,
         ackedCount: ackedIds.size,
         allRequiredAcked: allAcked,

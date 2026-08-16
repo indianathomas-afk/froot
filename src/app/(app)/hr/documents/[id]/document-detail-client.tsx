@@ -67,6 +67,15 @@ export interface VersionRow {
   sizeBytes: number
   fileHash: string
   isCurrent: boolean
+  /** Case A: this version demands a fresh signature from everyone. */
+  requiresReacknowledgment: boolean
+  /**
+   * Case A: every acknowledgment on this version, unfiltered. Not rendered as a
+   * number — its only job is to freeze the re-acknowledgment control once
+   * anyone has started. The server re-reads it on write; this is the courtesy
+   * half (see versions/[versionId]/route.ts).
+   */
+  acknowledgmentCount: number
   createdAt: string
 }
 
@@ -169,6 +178,9 @@ function VersionsCard({ doc }: { doc: DocumentDetail }) {
                   sha256 {v.fileHash.slice(0, 12)}…
                 </span>
               </p>
+              {doc.kind === "Acknowledgment" && (
+                <ReacknowledgmentToggle docId={doc.id} version={v} />
+              )}
             </div>
             {v.isCurrent && (
               <a
@@ -185,6 +197,82 @@ function VersionsCard({ doc }: { doc: DocumentDetail }) {
         ))}
       </div>
     </section>
+  )
+}
+
+// ── CASE A: THE EDIT CARVE-OUT ───────────────────────────────────────────────
+//
+// R2 Phase B, ruled 2026-08-16. The flag is set at upload and is otherwise the
+// only mutable thing about a version — editable while that version has ZERO
+// acknowledgments, frozen after the first one.
+//
+// The narrow window is the whole design: it exists for the admin who forgets to
+// tick the box and notices five minutes later, and it closes the moment anyone
+// acts on the demand. THE SERVER RE-READS THE COUNT AND REFUSES INDEPENDENTLY
+// (versions/[versionId]/route.ts) — what is rendered here is a courtesy, not the
+// guard, and a 409 from that route is surfaced rather than swallowed so a
+// refusal is never invisible.
+function ReacknowledgmentToggle({ docId, version }: { docId: string; version: VersionRow }) {
+  const router = useRouter()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const frozen = version.acknowledgmentCount > 0
+
+  // A frozen version that never demanded anything is the ordinary case — every
+  // pre-Case-A version, and every version an admin left alone. Rendering a
+  // disabled control on all of them would put a re-acknowledgment question on
+  // every row of every document's history for no reason.
+  if (frozen && !version.requiresReacknowledgment) return null
+
+  async function toggle(next: boolean) {
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch(`/api/hr/documents/${docId}/versions/${version.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requiresReacknowledgment: next }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? "Could not change this setting")
+        return
+      }
+      router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-1.5">
+      <label
+        className={`flex items-start gap-2 ${frozen ? "cursor-default" : "cursor-pointer"}`}
+        title={
+          frozen
+            ? "Frozen — someone has already acknowledged this version"
+            : "Editable until the first acknowledgment"
+        }
+      >
+        <Checkbox
+          checked={version.requiresReacknowledgment}
+          disabled={frozen || saving}
+          onCheckedChange={(c) => toggle(c === true)}
+          className="mt-0.5"
+        />
+        <span
+          className={`text-xs ${
+            version.requiresReacknowledgment
+              ? "text-[var(--color-warning,#efa201)]"
+              : "text-[var(--color-muted-foreground)]"
+          }`}
+        >
+          Requires everyone to sign again
+          {frozen && " · frozen, already acknowledged"}
+        </span>
+      </label>
+      {error && <p className="text-xs text-[var(--color-destructive)] mt-1">{error}</p>}
+    </div>
   )
 }
 
@@ -213,6 +301,9 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
   // HR-11d 2e: set when the chosen file is byte-identical to the current
   // version; cleared once the operator answers "upload anyway".
   const [identicalPending, setIdenticalPending] = useState(false)
+  // Case A (R2 Phase B). Default UNTICKED: the safe answer is the R2 one,
+  // and an admin who never touches this box can never re-prompt a company.
+  const [requiresReack, setRequiresReack] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const isSignatureDoc = doc.kind === "Acknowledgment"
@@ -222,6 +313,7 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
     setError("")
     setScanNotice("")
     setIdenticalPending(false)
+    setRequiresReack(false)
     if (fileRef.current) fileRef.current.value = ""
   }
 
@@ -265,7 +357,11 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
       const res = await fetch(`/api/hr/documents/${doc.id}/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: uploaded.url, fileName: file.name }),
+        body: JSON.stringify({
+          url: uploaded.url,
+          fileName: file.name,
+          requiresReacknowledgment: isSignatureDoc ? requiresReack : false,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -345,12 +441,48 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
                   NO LONGER AMBER. The sentence now describes nothing going
                   wrong, and warning colour on reassurance is the same false
                   claim in a different channel. */}
+              {/* ── CASE A: THE BOX, AND THE TEXT THAT MUST FOLLOW IT ─────────
+                  R2 Phase B, ruled 2026-08-16. Default unticked = R2.
+
+                  BOTH THE COPY AND THE COLOUR ARE CONDITIONAL, and that is the
+                  point rather than a nicety. THIS EXACT PARAGRAPH HAS NOW BEEN
+                  WRONG TWICE: it asserted the HR-11f rule until 6b2054f, and a
+                  static version of it under a checkbox would be wrong again the
+                  instant the box is ticked — telling an admin nobody will be
+                  re-prompted while they are in the act of re-prompting
+                  everybody. Static text next to a control that changes what the
+                  text describes is the defect this codebase has produced three
+                  times.
+
+                  MUTED UNTICKED, AMBER TICKED. Unticked it describes nothing
+                  going wrong (which is why 6b2054f took the amber off it).
+                  Ticked it describes people who were told they were finished
+                  being asked again — a genuine warning, and colour is the half
+                  of that message a scanning admin actually reads. */}
               {isSignatureDoc && (
-                <p className="text-sm text-[var(--color-muted-foreground)]">
-                  Existing signers keep their record and won&apos;t be re-prompted — they&apos;ll see
-                  a notice that an update is available. Anyone who hasn&apos;t signed yet gets this
-                  version.
-                </p>
+                <div className="space-y-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <Checkbox
+                      checked={requiresReack}
+                      onCheckedChange={(c) => setRequiresReack(c === true)}
+                      className="mt-0.5"
+                    />
+                    <span className="text-sm text-[var(--color-foreground)]">
+                      Require everyone to sign this version again.
+                    </span>
+                  </label>
+                  <p
+                    className={
+                      requiresReack
+                        ? "text-sm text-[var(--color-warning,#efa201)]"
+                        : "text-sm text-[var(--color-muted-foreground)]"
+                    }
+                  >
+                    {requiresReack
+                      ? "Everyone re-acknowledges this version — including people who already signed an earlier one and have been told they were finished. Their existing records are kept, but they will be asked to sign again."
+                      : "Existing signers keep their record and won't be re-prompted — they'll see a notice that an update is available. Anyone who hasn't signed yet gets this version."}
+                  </p>
+                </div>
               )}
               {identicalPending && (
                 <p className="text-sm font-medium text-[var(--color-warning,#efa201)]">

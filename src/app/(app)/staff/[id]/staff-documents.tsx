@@ -38,6 +38,12 @@ export interface StaffDocumentRow {
   recordMissing: boolean
   /** R2: signed, on a superseded version. GREEN — this is compliant. */
   signedOnEarlierVersion: boolean
+  /**
+   * Case A: they hold a record that R2 would have honoured, and the current
+   * version demands a fresh signature anyway. AMBER — same loudness as a
+   * rehire, different sentence, because they ARE still bound to something.
+   */
+  reacknowledgmentRequired: boolean
 }
 
 const STATUS_STYLES: Record<StaffDocumentRow["status"], string> = {
@@ -65,7 +71,14 @@ function statusLabel(row: StaffDocumentRow): string {
     case "signed":
       return `Signed v${row.signedVersionNumber}${row.completedAt ? ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}` : ""}${row.signedOnEarlierVersion ? ` · current is v${row.currentVersionNumber}` : ""}`
     case "needs-current":
-      return "Needs current version"
+      // Case A (2026-08-16). A re-verification signer is NOT a rehire, even
+      // though they share this status: they are still bound to the version they
+      // signed until they sign again, so the row names both — what they owe and
+      // what holds until they give it. The rehire string is untouched; see the
+      // three-meanings note filed on HR-11k, which is Gary's to rule on.
+      return row.reacknowledgmentRequired && row.signedVersionNumber != null
+        ? `Needs v${row.currentVersionNumber} · signed v${row.signedVersionNumber}`
+        : "Needs current version"
     case "in-progress":
       return `In progress · ${row.ackedCount}/${row.requiredCount}`
     case "not-started":
@@ -108,8 +121,13 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 because the badge is the half carrying the comparison: it names
                 the signed version and the current one in one string, and this
                 line can only ever repeat the second. Every other status still
-                needs it — a not-started row has no badge version at all. */}
-            {!row.signedOnEarlierVersion && (
+                needs it — a not-started row has no badge version at all.
+
+                Case A joins the same condition for the same reason: its badge
+                reads "Needs v6 · signed v5" and already names both numbers, so
+                leaving this line would print v6 and v5 twice each — the exact
+                duplication 6b2054f was cleaning up. */}
+            {!row.signedOnEarlierVersion && !row.reacknowledgmentRequired && (
               <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
                 Current version v{row.currentVersionNumber}
                 {row.status === "needs-current" && row.signedVersionNumber != null && (

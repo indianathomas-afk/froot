@@ -1694,6 +1694,24 @@ model HrDocumentVersion {
   fileHash           String // sha256 (file bytes, or canonical form-definition JSON)
   definitionSnapshot Json? // FillableForm: frozen { bodyText, fields } this version pins
   isCurrent          Boolean  @default(true)
+  // R2 Phase B / Case A (HR-11k, Gary 2026-08-16). Set at upload: this version
+  // demands a fresh signature from EVERYONE, including people who already
+  // signed an earlier version in this same tenure. It overrides R2's default —
+  // the precedence row that lets a prior-version record satisfy the current one
+  // returns needs-current instead when this is true.
+  //
+  // READ OFF THE CURRENT VERSION, NEVER THE VERSION SIGNED. It is a property of
+  // the demand being made now, not of the paper somebody signed months ago.
+  //
+  // DEFAULT FALSE IS THE WHOLE SAFETY ARGUMENT: every version that exists today
+  // keeps R2 behaviour with no backfill, and an admin who never touches the box
+  // can never accidentally re-prompt a company.
+  //
+  // FROZEN AFTER THE FIRST ACKNOWLEDGMENT (enforced in
+  // api/hr/documents/[id]/versions/[versionId]). Unticking cannot un-collect a
+  // signature already given, and ticking late demands one from people who were
+  // told they were finished.
+  requiresReacknowledgment Boolean @default(false)
   uploadedByUserId   String
   createdAt          DateTime @default(now())
 
