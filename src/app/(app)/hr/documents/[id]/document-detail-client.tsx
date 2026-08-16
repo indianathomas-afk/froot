@@ -242,7 +242,14 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
       // Nine versions of the Keva handbook all carry the same sha256 — the same
       // bytes uploaded nine times. Ask once before adding a tenth. Confirmed
       // anchors carry forward either way (server side, 2e); this only stops the
-      // pointless version that makes everyone re-acknowledge for nothing.
+      // pointless version row.
+      //
+      // [SUPERSEDED 2026-08-15 BY R2] "…that makes everyone re-acknowledge for
+      // nothing." Nobody re-acknowledges a new version now, so that is no longer
+      // what the guard is for. The reason it survives R2: a duplicate version
+      // still moves every existing signer into "signed vN · current is vN+1"
+      // and puts an update notice in front of them, for a file whose bytes are
+      // identical. Cheaper consequence than before, still pure noise.
       if (!identicalPending && currentHash) {
         const hash = await sha256Hex(file)
         if (hash && hash === currentHash) {
@@ -323,10 +330,26 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
                   {isSignatureDoc ? "PDF — up to 25 MB." : "PDF, PNG, JPG, DOC, or DOCX — up to 25 MB."}
                 </p>
               </div>
+              {/* R2 (HR-11k, Gary 2026-08-15). [SUPERSEDED] "Existing
+                  signatures stay bound to the version they signed. Everyone
+                  will need to acknowledge this new version."
+
+                  The second sentence was the HR-11f rule and is false: existing
+                  signers keep their record and are never re-prompted. THIS WAS
+                  THE THIRD INSTANCE OF THAT ASSERTION and the one that mattered
+                  most — the two in versions/route.ts are comments read by us,
+                  this is the last thing an admin reads before committing to an
+                  upload. It was actively deterring the revision R2 exists to
+                  make safe.
+
+                  NO LONGER AMBER. The sentence now describes nothing going
+                  wrong, and warning colour on reassurance is the same false
+                  claim in a different channel. */}
               {isSignatureDoc && (
-                <p className="text-sm text-[var(--color-warning,#efa201)]">
-                  Existing signatures stay bound to the version they signed. Everyone will need to
-                  acknowledge this new version.
+                <p className="text-sm text-[var(--color-muted-foreground)]">
+                  Existing signers keep their record and won&apos;t be re-prompted — they&apos;ll see
+                  a notice that an update is available. Anyone who hasn&apos;t signed yet gets this
+                  version.
                 </p>
               )}
               {identicalPending && (

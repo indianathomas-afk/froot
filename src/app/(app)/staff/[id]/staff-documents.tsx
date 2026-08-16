@@ -103,12 +103,20 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 {HR_CATEGORY_LABELS[row.category as HrDocumentCategory] ?? row.category}
               </span>
             </div>
-            <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-              Current version v{row.currentVersionNumber}
-              {row.status === "needs-current" && row.signedVersionNumber != null && (
-                <> · signed v{row.signedVersionNumber}</>
-              )}
-            </p>
+            {/* R2, 2026-08-16: an R2 row said v6 twice — "Current version v6"
+                here and "· current is v6" in the badge. The BADGE keeps it,
+                because the badge is the half carrying the comparison: it names
+                the signed version and the current one in one string, and this
+                line can only ever repeat the second. Every other status still
+                needs it — a not-started row has no badge version at all. */}
+            {!row.signedOnEarlierVersion && (
+              <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+                Current version v{row.currentVersionNumber}
+                {row.status === "needs-current" && row.signedVersionNumber != null && (
+                  <> · signed v{row.signedVersionNumber}</>
+                )}
+              </p>
+            )}
           </div>
           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${row.recordMissing ? RECORD_MISSING_STYLE : STATUS_STYLES[row.status]}`}>
             {statusLabel(row)}
@@ -126,8 +134,16 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 // and means the current version; naming the version this link
                 // actually resolves to keeps the two from reading as a
                 // contradiction. Same treatment needs-current already had.
+                // R2, 2026-08-16: signedOnEarlierVersion joins the same
+                // condition, for the reason the comment above already gives —
+                // on an R2 row this link resolves to the v5 record while the
+                // document in force is v6, which is exactly when naming the
+                // version stops the link and the badge reading as a
+                // contradiction.
                 title={
-                  (row.status === "needs-current" || row.recordMissing) &&
+                  (row.status === "needs-current" ||
+                    row.recordMissing ||
+                    row.signedOnEarlierVersion) &&
                   row.signedVersionNumber != null
                     ? `Signed record for v${row.signedVersionNumber}`
                     : "Download signed record"

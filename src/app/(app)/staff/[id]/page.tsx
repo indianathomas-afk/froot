@@ -281,7 +281,16 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               : (priorSignedThisCycle?.versionNumber ??
                 priorSignedPriorCycle?.versionNumber ??
                 null),
-          completedAt: currentRecord?.completedAt.toISOString() ?? null,
+          // Ruled 2026-08-16: the date comes from the record they actually
+          // signed. Resolved from the SAME record object the version number and
+          // the download link below resolve from, so all three name one record.
+          completedAt:
+            (
+              currentRecord ??
+              priorSignedThisCycle?.signedRecords.find(
+                (r) => r.signingCycle === member.signingCycle
+              )
+            )?.completedAt.toISOString() ?? null,
           // The record behind the label, in the same precedence as the number
           // above — so the download link and the version it claims can never
           // name two different records.

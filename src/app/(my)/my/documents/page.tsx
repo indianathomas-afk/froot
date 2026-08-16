@@ -132,20 +132,16 @@ export default async function MyDocumentsPage() {
                 <FileText className="h-5 w-5 shrink-0 text-[var(--color-muted-foreground)]" />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-[var(--color-foreground)] truncate">{row.title}</p>
-                  <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                    {/* R2 (Gary, 2026-08-15): signedVersionNumber, NOT
-                        currentVersionNumber. This was hardcoded to the current
-                        version — harmless while only a current-version record
-                        could reach this section, and a lie the moment R2 lets a
-                        v4 signer land here: it told them they had signed v6. */}
-                    Signed v{row.signedVersionNumber ?? row.currentVersionNumber}
-                    {row.completedAt && ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}`} — need a
-                    copy? Ask your manager.
-                  </p>
-                  {/* ── R2: THE READ-ONLY NOTICE ──────────────────────────────
-                      Ruled 2026-08-15. An updated version exists and this
-                      signer is NOT being asked to sign it — their version is
-                      their master document.
+                  {/* ── R2: ONE STATEMENT, BOTH FACTS, ONE LINK ───────────────
+                      Ruled 2026-08-15; collapsed 2026-08-16. The notice shipped
+                      as a SECOND paragraph beneath this one, so an R2 row said
+                      "Signed v5" twice in stacked lines — the notice was added
+                      alongside the existing copy instead of replacing it.
+
+                      signedVersionNumber, NOT currentVersionNumber: this was
+                      hardcoded to the current version, harmless while only a
+                      current-version record could reach this section and a lie
+                      the moment R2 lets a v5 signer land here.
 
                       THE LINK IS THE AUDIENCE-AWARE DOWNLOAD ROUTE, exactly as
                       the Library below uses it, and that is the whole point of
@@ -157,19 +153,27 @@ export default async function MyDocumentsPage() {
                       exact person the ruling says must never be prompted. The
                       defect R2 exists to remove, reintroduced by the notice
                       announcing it. No button, no badge change, no ceremony. */}
-                  {row.signedOnEarlierVersion && (
-                    <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-                      Signed v{row.signedVersionNumber} — an updated version is available to read.{" "}
-                      <a
-                        href={`/api/hr/documents/${row.documentId}/download`}
-                        target="_blank"
-                        rel="noopener"
-                        className="font-medium text-[var(--color-primary)] underline"
-                      >
-                        View v{row.currentVersionNumber}
-                      </a>
-                    </p>
-                  )}
+                  <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+                    Signed v{row.signedVersionNumber ?? row.currentVersionNumber}
+                    {row.completedAt && ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}`}
+                    {row.signedOnEarlierVersion ? (
+                      <>
+                        {" "}
+                        — an updated version is available to read.{" "}
+                        <a
+                          href={`/api/hr/documents/${row.documentId}/download`}
+                          target="_blank"
+                          rel="noopener"
+                          className="font-medium text-[var(--color-primary)] underline"
+                        >
+                          View v{row.currentVersionNumber}
+                        </a>{" "}
+                        · Need a copy? Ask your manager.
+                      </>
+                    ) : (
+                      <> — need a copy? Ask your manager.</>
+                    )}
+                  </p>
                 </div>
                 {statusBadge(row)}
               </div>

@@ -154,7 +154,15 @@ export async function requiredDocumentRows(staffMember: {
               priorSignedPriorCycle?.versionNumber ??
               null),
         signedOnEarlierVersion: completion.signedOnEarlierVersion,
-        completedAt: currentRecord?.completedAt.toISOString() ?? null,
+        // Ruled 2026-08-16: the date comes from the record they actually signed
+        // — the same record the version number above resolves from.
+        completedAt:
+          (
+            currentRecord ??
+            priorSignedThisCycle?.signedRecords.find(
+              (r) => r.signingCycle === staffMember.signingCycle
+            )
+          )?.completedAt.toISOString() ?? null,
         ackedCount: ackedIds.size,
         requiredCount,
         recordMissing: completion.recordMissing,

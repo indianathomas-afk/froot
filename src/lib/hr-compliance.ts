@@ -465,6 +465,13 @@ export async function computeStaffComplianceDetails(
           recordAnyCycle.has(`${v.id}:${member.id}`) &&
           !recordByVersionStaffCycle.has(`${v.id}:${member.id}:${cycle}`)
       )
+      // R2 ruling 2026-08-16: the DATE comes from the record they actually
+      // signed, never the current version's. Same map, same key as the version
+      // number above — so the number and the date describe ONE record and
+      // cannot name two.
+      const priorRecordThisCycle = priorSignedThisCycle
+        ? recordByVersionStaffCycle.get(`${priorSignedThisCycle.id}:${member.id}:${cycle}`)
+        : undefined
       // Rehire: a current-version record from an earlier tenure doesn't
       // satisfy this cycle — needs-resign, same loudness as a version bump.
       const priorCycleRecord =
@@ -526,7 +533,14 @@ export async function computeStaffComplianceDetails(
               : (priorSignedThisCycle?.versionNumber ??
                 priorSignedPriorCycle?.versionNumber ??
                 null),
-          completedAt: currentRecord?.completedAt.toISOString() ?? null,
+          // Ruled 2026-08-16. Was `currentRecord?.completedAt ?? null`, which
+          // left an R2 signer's badge reading "Signed v5 · current is v6" with
+          // no date where it used to carry one. Only the R2 branch is added:
+          // the rehire path stays null exactly as before, because no surface
+          // renders a date on needs-resign and widening it further would be an
+          // unruled change wearing a display fix's clothes.
+          completedAt:
+            (currentRecord ?? priorRecordThisCycle)?.completedAt.toISOString() ?? null,
         },
       ]
     })
