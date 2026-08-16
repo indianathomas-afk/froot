@@ -33,6 +33,25 @@ model Organization {
   // Validation stamps and the Certificate of Acknowledgment always render full
   // date+time regardless (court-defensibility, per DECISIONS F5b).
   hrDateStampFormat       String    @default("dateOnly")
+  // DEBT-70a (Gary, 2026-08-16). THE FALLBACK ZONE FOR PEOPLE WHO HAVE NO
+  // STORE. Inline `Date:` stamps on minted PDFs render the STORE-LOCAL day, and
+  // the store's own `Store.timezone` answers that for almost everyone — but
+  // `StaffMember.isCorporate` members are homed at no location by design
+  // (DEBT-9), so there is no store to ask. This is what they resolve to.
+  //
+  // Same default as `Store.timezone`, deliberately: the two are read in one
+  // chain (store → org → default) and a different default here would make the
+  // fallback silently change the answer rather than preserve it.
+  //
+  // MOST-COMMON-STORE-ZONE WAS REJECTED (Gary, 2026-08-16) as the alternative to
+  // this column. It needs no schema, and that is its only merit: it changes what
+  // day an ALREADY-SIGNED signature displays as soon as a store is added in
+  // another zone. An explicit column cannot drift under a record that is
+  // supposed to be frozen.
+  //
+  // Not a display preference like `hrDateStampFormat` above — it feeds a value
+  // stamped onto a permanent artifact, so it is only ever read at MINT time.
+  timezone                String    @default("America/Los_Angeles")
   createdAt               DateTime  @default(now())
 
   stores                        Store[]

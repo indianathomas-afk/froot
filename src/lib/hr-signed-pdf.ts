@@ -3,7 +3,8 @@ import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from "pdf-
 import { prisma } from "@/lib/prisma"
 import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
 import { streamHrFile, uploadHrFile } from "@/lib/hr-files"
-import { primaryStoreName } from "@/lib/hr"
+import { primaryStoreName, primaryStoreTimeZone } from "@/lib/hr"
+import { localDateStr } from "@/lib/reports"
 import type { SubmittedFormValue } from "@/lib/hr-forms"
 
 // HR-4/HR-5 signed-PDF service — the ONE place executed HR artifacts are
@@ -68,9 +69,61 @@ function utc(d: Date): string {
 
 // HR-11b: inline `Date:` fills follow the org display setting; everything
 // court-facing (signature stamps, the certificate) always renders full
-// date+time (DECISIONS F5b). dateOnly => "2026-07-23", dateTime => full UTC.
-function formatDateStamp(d: Date, format: string): string {
-  return format === "dateTime" ? utc(d) : d.toISOString().slice(0, 10)
+// date+time (DECISIONS F5b).
+//
+// ── DEBT-70a (Gary, 2026-08-16). THE STAMP RENDERS THE STORE-LOCAL DAY. ──────
+//
+// [SUPERSEDED] `format === "dateTime" ? utc(d) : d.toISOString().slice(0, 10)`
+//
+// The `dateOnly` branch — the org DEFAULT — was a bare UTC calendar date with no
+// zone marker, stamped into the document body on the `Date:` line a person reads
+// as the day they signed. Gdogg signed at 21:06 PDT on 2026-08-15 and his
+// handbook says 2026-08-16: a day he was not at work, on his own signature line.
+//
+// WHY THIS ONE WENT FIRST, AHEAD OF DEBT-70'S 22 SCREENS. A screen re-renders
+// after a fix. A MINTED PDF NEVER DOES — records are append-only and are never
+// regenerated (see ensureSignedRecord's early return). Every certificate
+// produced before this landed keeps its wrong date permanently, so the cost of
+// this defect grew every day it stayed open, which no display bug does.
+//
+// AND IT WAS INVISIBLE TO THE SWEEP THAT FOUND THE OTHER 64: this file does not
+// use date-fns, so a `format(` search could not see it. It was found by reading
+// the mint path instead. The lesson is CLAUDE.md's — a sweep is only as complete
+// as the shape it searches for.
+//
+// BOTH BRANCHES WERE WRONG, for different reasons, and both are fixed:
+//   dateOnly  — wrong day AND unlabelled. Now the store-local day.
+//   dateTime  — labelled UTC, so honest, but still the wrong DAY on a body
+//               field. Now store-local date+time carrying its zone (PDT/MDT),
+//               so it stays unambiguous without lying about the day.
+//
+// THE ZONE IS NEVER GUESSED AND NEVER BARE UTC. It is resolved by the caller
+// through the ruled chain — the signer's primary store, then
+// Organization.timezone, then the default Store.timezone already carries — and
+// passed in. This function does not reach for a default of its own, because a
+// silent fallback here would be indistinguishable from the bug it replaces.
+//
+// NOTHING ELSE IN THIS FILE CHANGES. Every other stamp — the page-1 banner
+// (:381), the signature validation line (:474), and every line of the
+// Certificate of Acknowledgment — goes through `utc()` above and is explicitly
+// labelled "UTC". Those are court-facing absolute instants and they stay exactly
+// as they are (Gary, 2026-08-16). This is the one stamp a human reads as a plain
+// date, which is why it is the one that follows the human's day.
+function formatDateStamp(d: Date, format: string, timeZone: string): string {
+  if (format !== "dateTime") return localDateStr(d, timeZone)
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZoneName: "short",
+  }).formatToParts(d)
+  const p = Object.fromEntries(parts.map((x) => [x.type, x.value]))
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second} ${p.timeZoneName}`
 }
 
 // HR-11b: turn a detected anchor (raw PDF content-space coords, bottom-left
@@ -262,7 +315,20 @@ class CertificateWriter {
 export async function ensureSignedRecord(hrDocumentVersionId: string, staffMemberId: string) {
   const staff = await prisma.staffMember.findUnique({
     where: { id: staffMemberId },
-    select: { signingCycle: true },
+    select: {
+      signingCycle: true,
+      // DEBT-70a: the inline Date: stamp renders the signer's STORE-LOCAL day,
+      // so the mint needs their store's zone. Selected here rather than in a
+      // second query — this lookup already runs on every mint, and a separate
+      // round trip for one string would be the kind of thing a later edit drops.
+      // The orderBy is belt-and-braces: primaryStoreTimeZone sorts internally
+      // (hr.ts), for the reason recorded above primaryStoreName.
+      isCorporate: true,
+      storeAssignments: {
+        select: { isPrimary: true, store: { select: { timezone: true, name: true } } },
+        orderBy: [{ isPrimary: "desc" as const }, { store: { name: "asc" as const } }],
+      },
+    },
   })
   if (!staff) throw new SignedRecordError("Staff member not found")
   const signingCycle = staff.signingCycle
@@ -418,6 +484,16 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     const helvOblique = await pdf.embedFont(StandardFonts.HelveticaOblique)
     const pages = pdf.getPages()
     const dateFormat = doc.organization.hrDateStampFormat === "dateTime" ? "dateTime" : "dateOnly"
+    // ── DEBT-70a: the ruled resolution chain, in order, with no bare-UTC arm ──
+    // signer's primary store -> Organization.timezone -> the default
+    // Store.timezone already carries. primaryStoreTimeZone returns null for
+    // corporate staff (homed at no location, DEBT-9) which is precisely what
+    // hands the question to the org column. The final literal is unreachable
+    // while the column keeps its own default and exists only so this expression
+    // has no undefined arm — it is NOT a silent UTC fallback, which is the
+    // failure this row removes.
+    const stampTimeZone =
+      primaryStoreTimeZone(staff) ?? doc.organization.timezone ?? "America/Los_Angeles"
 
     // Earliest capture time per page — the inline Date: fill for that page.
     const dateByPage = new Map<number, Date>()
@@ -497,7 +573,7 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
           value = lastAck.storeName ?? null
           break
         case "DateStamp":
-          value = formatDateStamp(dateByPage.get(a.page) ?? completedAt, dateFormat)
+          value = formatDateStamp(dateByPage.get(a.page) ?? completedAt, dateFormat, stampTimeZone)
           font = courier
           break
       }

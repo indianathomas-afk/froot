@@ -101,3 +101,42 @@ export function primaryStoreName(
   )
   return best?.store.name ?? null
 }
+
+// ─── DEBT-70a: the same rule, answering for the ZONE instead of the name ─────
+//
+// Gary, 2026-08-16. An inline `Date:` stamp on a minted PDF must name the day
+// the signer was actually working, and "which day was it" is a question only a
+// timezone can answer. `Store.timezone` is the app's settled answer to that
+// (checklists, forecasting, labor and reports all read it) and this row does not
+// get to invent a second one.
+//
+// DELIBERATELY A SIBLING OF primaryStoreName RATHER THAN A SECOND SORT. The
+// paragraph above that function explains why the ordering lives INSIDE it: the
+// value is frozen into a legal record, and one caller forgetting the `orderBy`
+// would make a signed document depend on row order. Everything in that argument
+// is true of the zone too — it decides a DATE on the same document — so it gets
+// the same internal sort rather than a copy of the rule at the call site. The
+// two functions must always pick the SAME assignment; that is why they are here
+// together, sorted identically, and why neither should be reimplemented inline.
+//
+// NULL FOR CORPORATE, NOT A CONSTANT — and that is the one place the two
+// functions legitimately diverge. primaryStoreName returns CORPORATE_STORE_LABEL
+// because "Corporate" is a true and printable answer to "where do they work".
+// There is no equivalent for a zone: a corporate member is homed at no location
+// (DEBT-9), so there is no store zone to report, and inventing one here would
+// bury the fallback inside a function whose callers cannot see it. Null hands
+// the question up to Organization.timezone, which is exactly where Gary ruled it
+// belongs.
+export function primaryStoreTimeZone(
+  staff: {
+    isCorporate: boolean
+    storeAssignments: { isPrimary: boolean; store: { timezone: string; name: string } }[]
+  }
+): string | null {
+  if (staff.isCorporate) return null
+  const [best] = [...staff.storeAssignments].sort(
+    (a, b) =>
+      Number(b.isPrimary) - Number(a.isPrimary) || a.store.name.localeCompare(b.store.name)
+  )
+  return best?.store.timezone ?? null
+}
