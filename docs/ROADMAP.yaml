@@ -5500,7 +5500,96 @@ phases:
       - "457a57f"
       - "6b2054f"
       - "bf7cd28"
+      - "4363e3b"
     notes: >
+      CASE A VERIFICATION PASS 2026-08-16 ("4363e3b"), TIER 2. Two items were
+      asked for. THE FIRST COULD NOT BE REPRODUCED; the second is STILL OWED.
+      Two different defects were found on the way and fixed.
+
+
+      ── (1) THE REPORTED CHECKBOX BUG DID NOT REPRODUCE ──────────────────────
+      Reported: on /hr/documents/[id], v7's "Requires everyone to sign again"
+      renders UNTICKED while Neon says requiresReacknowledgment = true. Checked
+      at every layer named in the brief, and every layer is correct:
+
+
+      SERVER QUERY — the page's exact query, run against dev
+      (br-broad-wave-a6vpjdw0/neondb), returns requiresReacknowledgment=true.
+      MAPPING — the page's exact map produces VersionRow with reack=true.
+      CLIENT BINDING — the REAL DocumentDetailClient, rendered through a
+      temporary public /menu probe page (deleted before commit) so no admin
+      session was needed, on a fixture built to mirror v7 exactly (current
+      version, flag true, ZERO acknowledgments): the box renders
+      aria-checked="true", data-state="checked", enabled, orange with a white
+      tick, computed opacity 1. Screenshot taken. A second fixture matching the
+      FROZEN case (flag true, 4 acknowledgments) renders checked and disabled.
+
+
+      DEPLOYMENT WAS NOT THE EXPLANATION EITHER, which is the usual one and was
+      checked because of it: the staging alias serves
+      dpl_4KPgS2HjS9vE4U88PiAK8jwtegBV, built from a4a87d2, which contains
+      bf7cd28. The feature was deployed when the observation was made.
+
+
+      SO THE OBSERVATION IS UNEXPLAINED AND THE ROW SAYS SO rather than closing
+      it. Two candidates worth checking before anyone hunts further, both cheap:
+      (a) THE UPLOAD DIALOG'S checkbox, which lives in the versions card header
+      (ReuploadButton is rendered there) and ALWAYS defaults unticked by design —
+      if that is the box that was read, there is no defect at all; (b) the
+      round-trip window in (2) below, which is the only state in this code where
+      the box genuinely disagrees with the database. What would settle it: which
+      row the box was on, and whether a reload changed it.
+
+
+      ── (2) TWO REAL DEFECTS FOUND AND FIXED ────────────────────────────────
+      THE BOX DID NOT MOVE WHEN CLICKED. It was fully server-controlled, so it
+      only changed once the RSC refresh landed — correct on load, correct after,
+      and wrong for the entire round trip between. An admin clicks, sees
+      nothing, concludes the setting did not take. This is the closest thing in
+      the code to the reported symptom. Now optimistic, seeded from the prop and
+      re-synced to it IN RENDER (react-hooks/set-state-in-effect refuses the
+      effect form, correctly), snapping back on any refusal.
+
+
+      A LOST SESSION READ AS A SUCCESSFUL SAVE — and the unauthenticated probe
+      built for item (1) found it by accident, which is the argument for
+      building such probes. With an expired Clerk session the proxy answers this
+      PATCH with a 307 to /sign-in; a DEFAULT FETCH FOLLOWS THE REDIRECT, lands
+      on the sign-in page, and returns 200 with an HTML body. res.ok is
+      therefore TRUE: the save is reported as having worked and the box sits
+      there over a database that was never written. Fixed with redirect:
+      "manual" — a redirect is never a successful write. SAME DEFECT CLASS AS
+      THE FALSE-ASSERTION COPY this row keeps producing, the screen stating the
+      opposite of what the app did, arriving through the error path instead of
+      through a string. Worth checking wherever else a fetch writes.
+
+
+      ── (3) THE 409 IS STILL OWED. THIRD SESSION. ───────────────────────────
+      Step 6 was skipped in the Phase B session and could not be run in this one
+      either, and the reason is structural rather than an oversight: THE ROUTE IS
+      SESSION-PROTECTED AND CLAUDE CANNOT CREATE A SESSION. An unauthenticated
+      PATCH to /api/hr/documents/[id]/versions/[versionId] returns 307 to
+      /sign-in — proof the route is wired and the guard order is right, and proof
+      the 409 branch is unreachable without a signed-in admin. Entering
+      credentials is not something Claude does. The freeze code is 6 lines and
+      re-reads the acknowledgment count inside the write, but IT HAS NEVER BEEN
+      EXERCISED, and this row should keep saying so until it has been. Either
+      Gary runs the two console commands in the session report, or the project
+      decides on a test path for authenticated routes — that second option is
+      the one that stops this recurring.
+
+
+      ── (4) DEBT SWEEP OF THE SIGNING SURFACES, requested, nothing changed ───
+      Nothing new found beyond what is already filed. The stale-copy set is
+      still the six needs-current surfaces enumerated on this row (awaiting
+      Gary's ruling) plus the hr/compliance tile subtitle "Signed an older
+      document version", which is FALSE FOR BOTH REHIRE CASES and predates R2.
+      Version numbers rendered elsewhere — the ceremony pages, the signed-record
+      pages, the form surfaces — all name the version actually being signed or
+      the record's own version, and are correct. No other surface was found
+      rendering a stored value it does not read.
+
+
       PHASE B / CASE A BUILT 2026-08-16 ("bf7cd28"), TIER 2, NOT VERIFIED ON
       STAGING. The per-version re-verification toggle: an admin marks one upload
       as requiring everyone to sign again, and R2 stops applying to that version
