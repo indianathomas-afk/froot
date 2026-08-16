@@ -9703,6 +9703,26 @@ debt:
       should not change depending on who opens it.
 
 
+      SURFACE LIST EXTENDED 2026-08-16, BY GARY'S INSTRUCTION, AFTER IT SURFACED
+      AGAIN ON THE VERSIONS CARD of /hr/documents/[id]: v6 and v7 are 15:02 and
+      17:02 UTC in the database and render as 8:02 AM and 10:02 AM — UTC-7, PDT.
+      AND THAT CARD IS ON THE CORRECT SIDE OF THIS BUG, which is the thing to
+      understand before anyone "fixes" it: document-detail-client.tsx is a
+      client component, so it renders the VIEWER'S day, which is the day a human
+      means. It looks wrong only when read against a raw UTC value in the Neon
+      console. The defect is the ELEVEN SERVER components that print Vercel's
+      UTC day at a reader who is not in UTC.
+
+
+      FULL COUNT, re-measured 2026-08-16 across src/app and src/components:
+      31 files render dates, 64 format() calls. 20 files / 42 calls are CLIENT
+      (viewer-local — correct today, correct by accident). 11 files / 22 calls
+      are SERVER (Vercel UTC — the defect). The "22" recorded above is the
+      server half only; the denominator it should be read against is 64, and any
+      fix has to decide what the other 42 do, not just repair the 22. That is
+      most of why this is TIER 3 rather than a sweep.
+
+
       NOT URGENT, AND SAY WHY: no record is wrong, no compliance state is wrong,
       nothing is miscounted. It is a display disagreement, visible only on
       evening records, and it has been there since the first server-rendered

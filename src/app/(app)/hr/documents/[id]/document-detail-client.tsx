@@ -218,6 +218,34 @@ function ReacknowledgmentToggle({ docId, version }: { docId: string; version: Ve
   const [error, setError] = useState("")
   const frozen = version.acknowledgmentCount > 0
 
+  // ── WHAT THE BOX SHOWS IS THE STORED VALUE, WITH ONE WINDOW CLOSED ──────────
+  //
+  // It was `checked={version.requiresReacknowledgment}` — correct on load and
+  // correct after the refresh lands, and WRONG FOR THE WHOLE ROUND TRIP IN
+  // BETWEEN. A fully server-controlled checkbox does not move when you click
+  // it; it moves when the RSC payload comes back. An admin clicks, sees
+  // nothing change, and concludes the setting did not take — on the one control
+  // that governs whether a company gets re-prompted.
+  //
+  // SEEDED FROM THE PROP AND RE-SYNCED TO IT, never a local default. The server
+  // stays the source of truth: `serverValue` in the dependency list means any
+  // refresh, any navigation, any other tab's write overwrites what is shown
+  // here. On failure it snaps straight back, so a refusal — the 409 in
+  // particular — can never leave the screen claiming a demand that was rejected.
+  //
+  // SYNCED IN RENDER, NOT IN AN EFFECT — React's documented "adjusting state
+  // when a prop changes" pattern, and eslint's react-hooks/set-state-in-effect
+  // refuses the effect version. Storing the previous server value is what makes
+  // it a one-shot: the reset runs only on the render where the prop actually
+  // moved, never on every render.
+  const serverValue = version.requiresReacknowledgment
+  const [checked, setChecked] = useState(serverValue)
+  const [lastServerValue, setLastServerValue] = useState(serverValue)
+  if (lastServerValue !== serverValue) {
+    setLastServerValue(serverValue)
+    setChecked(serverValue)
+  }
+
   // A frozen version that never demanded anything is the ordinary case — every
   // pre-Case-A version, and every version an admin left alone. Rendering a
   // disabled control on all of them would put a re-acknowledgment question on
@@ -227,18 +255,42 @@ function ReacknowledgmentToggle({ docId, version }: { docId: string; version: Ve
   async function toggle(next: boolean) {
     setSaving(true)
     setError("")
+    setChecked(next)
     try {
+      // redirect: "manual" IS LOad-BEARING, and an unauthenticated probe is what
+      // found it. When the Clerk session has expired the proxy answers this
+      // PATCH with a 307 to /sign-in — and a default fetch FOLLOWS it, lands on
+      // the sign-in page, and hands back a 200 with an HTML body. `res.ok` is
+      // then TRUE, the save is reported as having worked, and the box sits
+      // there ticked over a database that was never written. Manual redirect
+      // turns that into an opaque response with ok === false, which is the
+      // honest answer: a redirect is never a successful write.
       const res = await fetch(`/api/hr/documents/${docId}/versions/${version.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requiresReacknowledgment: next }),
+        redirect: "manual",
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error ?? "Could not change this setting")
+        // Snap back to what the server holds, and say why. A 409 here is the
+        // freeze refusing; leaving the box in the clicked position would show a
+        // demand the server never accepted.
+        setChecked(serverValue)
+        setError(
+          data.error ??
+            (res.type === "opaqueredirect"
+              ? "Your session has expired — reload and sign in, then try again."
+              : "Could not change this setting")
+        )
         return
       }
+      // The optimistic value is already on screen; this reconciles it with the
+      // server and re-renders every other surface on the page.
       router.refresh()
+    } catch {
+      setChecked(serverValue)
+      setError("Could not change this setting")
     } finally {
       setSaving(false)
     }
@@ -255,14 +307,14 @@ function ReacknowledgmentToggle({ docId, version }: { docId: string; version: Ve
         }
       >
         <Checkbox
-          checked={version.requiresReacknowledgment}
+          checked={checked}
           disabled={frozen || saving}
           onCheckedChange={(c) => toggle(c === true)}
           className="mt-0.5"
         />
         <span
           className={`text-xs ${
-            version.requiresReacknowledgment
+            checked
               ? "text-[var(--color-warning,#efa201)]"
               : "text-[var(--color-muted-foreground)]"
           }`}
