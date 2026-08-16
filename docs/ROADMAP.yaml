@@ -9831,6 +9831,103 @@ debt:
       date. It becomes urgent if anyone ever reads a date off a screen into a
       legal or HR process.
 
+  - id: DEBT-70b
+    status: in_progress
+    title: "The 22 server-side date displays now render the store-local day"
+    commits:
+      - "cc144dc"
+    notes: >
+      BUILT 2026-08-16 ("cc144dc"), TIER 2, NOT YET VERIFIED ON STAGING. The
+      display half of DEBT-70; the PDF half shipped as DEBT-70a ("623acb6").
+      Audit of record: docs/prompts/DEBT-70_AUDIT.md.
+
+
+      THE RULING (Gary, 2026-08-16): THE CLIENT WAS RIGHT. Gdogg's record is
+      2026-08-16 04:06 UTC = 2026-08-15 21:06 PDT; the staff profile's Documents
+      tab (client) read Aug 15 and its Compliance tab (server) read Aug 16, one
+      scroll apart. The signature happened at 9:06 PM on August 15 and the server
+      printed a day nobody lived, so the 22 server sites move to store-local.
+
+
+      THE TRAP, AND IT WAS HANDLED BEFORE ANY EDIT. Two kinds of DateTime pull in
+      OPPOSITE directions. A CIVIL DATE — Checklist.date, written through
+      dbDate() — is a store-local day already stored at UTC midnight: rendering
+      it in UTC is CORRECT and converting it to Pacific moves it A DAY BACKWARD,
+      silently, with no screen showing it. An INSTANT is a real moment and
+      rendering it in UTC is wrong. All 22 were classified against their WRITE
+      PATHS first: 21 instants, 1 civil date (checklists/page.tsx:191), and zero
+      of the other 21 columns are written through dbDate(). terminatedAt,
+      rehiredAt, certifiedAt and publishedAt are all `new Date()`; dueDate is
+      `new Date("<day>T12:00:00")`, an instant whose NOON PIN is what keeps it
+      drift-proof either way.
+
+
+      THE CIVIL DATE WAS NOT LEFT ALONE — it moved to formatCivilDate, WHICH
+      TAKES NO ZONE ARGUMENT AT ALL. Behaviour is byte-identical; what changed is
+      that being right became STATED rather than accidental, and the one function
+      that could break it can no longer be handed a store zone by a future edit.
+      Exercised deliberately on six boundary days: all unmoved, and the test
+      prints what each WOULD have become if converted (Aug 15 -> Aug 14, Jan 1 ->
+      Dec 31) so the regression is visible rather than asserted.
+
+
+      ONE MECHANISM. lib/display-time.ts is Intl.DateTimeFormat with an explicit
+      timeZone — the same primitive localDateStr (reports.ts:51),
+      businessDayWindow (:71) and formatWindowTime (checklist-status-display.ts
+      :141) already are, given a shared home so 22 call sites do not each
+      hand-roll options. STYLES ARE NAMED RATHER THAN FORMAT STRINGS, and a
+      fixture asserts that with the zone forced to UTC all nine reproduce their
+      date-fns pattern BYTE-FOR-BYTE across eight awkward instants — 72/72 pass.
+      That property is what makes the diff reviewable: the only behavioural
+      change in the whole phase is which zone is asked for.
+
+
+      @date-fns/tz WAS CONSIDERED AND REJECTED. It would have preserved every
+      format string with a one-token edit per site, but it is present only
+      TRANSITIVELY via react-day-picker — an undeclared dependency that an
+      unrelated upgrade could remove — and the brief's "use the existing
+      mechanism" points at Intl regardless.
+
+
+      THE ZONE comes from displayTimeZone (lib/hr.ts): subject's primary store ->
+      Organization.timezone -> the schema default. DEBT-70a established that
+      chain and spelled it out inline at its single mint site; this row FACTORS
+      IT OUT rather than copying it 22 times, because 22 copies of a fallback
+      chain is how a fallback becomes three different chains. THERE IS NO
+      BARE-UTC ARM and `org` is REQUIRED, not optional — a site that cannot
+      supply one has not loaded enough to render a date, and a silent UTC
+      fallback would reproduce this bug while looking fixed. /users legitimately
+      has no staff subject (Clerk identities, not StaffMembers) and enters at the
+      org step; that is the same chain, not a second one.
+
+
+      StaffComplianceDetail and PendingCountersign now CARRY `timeZone`, on the
+      object the timestamps already travel on, so a surface cannot render one
+      without the other — four of the 22 needed no new query because of it.
+
+
+      SCOPE HELD: server sites only, 42 client sites untouched (verified by
+      count, still 42). AND THE CONSEQUENCE IS WORTH WRITING DOWN: the three
+      converted signature surfaces are now STORE-anchored while the staff
+      Documents tab remains VIEWER-anchored. They agree for a viewer in the
+      store's zone — the normal case, and the acceptance case — but CONVERGENCE
+      IS NOT STRUCTURAL until the client sites move too. A manager reading from
+      another zone can still see the split. That is the argument for the client
+      row, and it should be made with this sentence.
+
+
+      LOGIC SITES UNTOUCHED per the brief. hr-compliance.ts:564 (dueDate < now)
+      is instant-vs-instant and safe; dueDate's noon pin is the guard against
+      exactly this bug and was left alone. No logic site was found beyond the
+      audit's.
+
+
+      STILL OWED ON STAGING: the anchor case on all four surfaces using a record
+      whose UTC and local dates actually DIFFER (3 of 10 qualify); the
+      civil-date regression exercised deliberately on /checklists; HrSignedRecord
+      and HrDocumentAcknowledgment counts unchanged. Nothing was observed on
+      staging — these commits are not deployed.
+
   - id: DEBT-70a
     status: in_progress
     title: "Inline Date: stamp on minted PDFs rendered a bare UTC day — now store-local"
