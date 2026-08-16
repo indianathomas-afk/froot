@@ -9812,11 +9812,135 @@ debt:
       most of why this is TIER 3 rather than a sweep.
 
 
+      SPLIT 2026-08-16: DEBT-70a CARRIES THE PDF HALF AND IS BUILT ("623acb6").
+      The audit (docs/prompts/DEBT-70_AUDIT.md §5.2) found an instance this row's
+      own sweep could not see — hr-signed-pdf.ts does not import date-fns, so the
+      `format(` search missed a bare `toISOString().slice(0,10)` stamped into the
+      document BODY as the `Date:` line. Gary split it off and took it first
+      because it is the only part producing PERMANENT artifacts: a screen
+      re-renders after a fix, a minted PDF never does. THIS ROW IS NOW THE 22
+      SERVER DISPLAY SITES ONLY, and DEBT-70a settled two things it inherits —
+      Organization.timezone exists as of migration
+      20260816180000_organization_timezone, and primaryStoreTimeZone (lib/hr.ts)
+      is the ruled resolver. Neither needs re-deciding here.
+
+
       NOT URGENT, AND SAY WHY: no record is wrong, no compliance state is wrong,
       nothing is miscounted. It is a display disagreement, visible only on
       evening records, and it has been there since the first server-rendered
       date. It becomes urgent if anyone ever reads a date off a screen into a
       legal or HR process.
+
+  - id: DEBT-70a
+    status: in_progress
+    title: "Inline Date: stamp on minted PDFs rendered a bare UTC day — now store-local"
+    commits:
+      - "623acb6"
+    notes: >
+      BUILT 2026-08-16 ("623acb6"), TIER 2, NOT YET VERIFIED ON STAGING. Split
+      out of DEBT-70 by Gary because it is THE ONLY PART THAT PRODUCES PERMANENT
+      ARTIFACTS. Audit of record: docs/prompts/DEBT-70_AUDIT.md (same commit),
+      which is DEBT-70's Step 1 audit — this row is §5.2 of it.
+
+
+      THE DEFECT. formatDateStamp's `dateOnly` branch — the ORG DEFAULT — was
+      `d.toISOString().slice(0, 10)`: a bare UTC calendar date, no zone marker,
+      stamped into the document BODY on the `Date:` line a person reads as the
+      day they signed. Gdogg signed at 21:06 PDT on 2026-08-15 and his handbook
+      says 2026-08-16 — a day he was not at work, on his own signature line.
+
+
+      WHY IT WENT AHEAD OF DEBT-70'S 22 SCREENS. A screen re-renders after a fix.
+      A MINTED PDF NEVER DOES: records are append-only and ensureSignedRecord
+      returns the existing row rather than regenerating. Every certificate
+      produced before this landed keeps its wrong date permanently, so this
+      defect's cost grew every day it stayed open, which no display bug does.
+
+
+      IT WAS INVISIBLE TO THE SWEEP THAT FOUND DEBT-70'S 64 SITES, and that is
+      the transferable lesson. hr-signed-pdf.ts does not import date-fns, so a
+      `format(` search could not see it; it was found by reading the mint path
+      instead. CLAUDE.md § Verifying a guard covers every path, one layer out —
+      a sweep is only as complete as the shape it searches for, and the shape is
+      chosen from what you already know exists.
+
+
+      BOTH BRANCHES WERE WRONG, which Gary asked to have confirmed either way.
+      `dateOnly`: wrong day AND unlabelled. `dateTime`: `utc(d)`, so labelled and
+      technically honest — but still the WRONG DAY on a body field, which is the
+      whole complaint. Same function, same mint path, so in scope. It now renders
+      store-local date+time carrying its zone ("2026-08-15 21:06:00 PDT"),
+      keeping the label that made it defensible without lying about the day.
+
+
+      NO SECOND MECHANISM WAS INVENTED (Gary's constraint). The zone comes from
+      the app's settled Store.timezone convention and its EXISTING helper —
+      localDateStr in lib/reports.ts, the same primitive checklists, forecasting,
+      labor and reports already trust. The resolver, primaryStoreTimeZone in
+      lib/hr.ts, is deliberately a SIBLING of primaryStoreName rather than a
+      second sort: that function sorts INTERNALLY because its value is frozen
+      into a legal record and one caller forgetting the orderBy would make a
+      signed document depend on row order. The identical argument holds for the
+      zone, which decides a DATE on the same document, so it gets the identical
+      internal sort. The two must always pick the same assignment.
+
+
+      IT RETURNS NULL FOR CORPORATE STAFF rather than a constant — the one place
+      the siblings legitimately diverge. "Corporate" is a true, printable answer
+      to "where do they work"; there is no equivalent for a zone, so null hands
+      the question up to the org column instead of burying a fallback where
+      callers cannot see it.
+
+
+      SCHEMA — ONE ADDITIVE COLUMN. Organization.timezone String
+      @default("America/Los_Angeles"), migration
+      20260816180000_organization_timezone. SAME DEFAULT AS Store.timezone
+      DELIBERATELY: the two are read in one chain, so a different default here
+      would make the fallback silently CHANGE the answer rather than preserve it.
+      Follows hrDateStampFormat's precedent on that model.
+
+
+      MOST-COMMON-STORE-ZONE WAS REJECTED BY GARY as the no-schema alternative,
+      and the reason belongs on the row: it changes what day an ALREADY-SIGNED
+      signature displays as soon as a store is added in another zone. An explicit
+      column cannot drift under a record that is supposed to be frozen.
+
+
+      RESOLUTION CHAIN, WITH NO BARE-UTC ARM ANYWHERE: signer's primary store ->
+      Organization.timezone -> the default Store.timezone already carries.
+
+
+      THE CERTIFICATE IS UNTOUCHED, per Gary's item 3. `utc()` (hr-signed-pdf.ts
+      :66) and every caller of it — the page-1 banner :381, the signature
+      validation line :474, "SIGNED AT (UTC)" :570, the capture rows :628, and
+      every certificate field — stay exactly as they are. CONFIRMED BY READING
+      THE WHOLE MINT PATH RATHER THAN ASSUMING: formatDateStamp's dateOnly branch
+      was the ONLY unlabelled date rendering in the file; all 15 others go
+      through utc() and carry the label.
+
+
+      VERIFIED AGAINST THE SHIPPED RESOLVER AND PRIMITIVES: Nevada and New Mexico
+      stores both read 2026-08-15 with correct distinct clock times (21:06 PDT /
+      22:06 MDT) — the multi-tenant case, which is the one a single org zone
+      would have broken; a multi-store member with UNSORTED assignments picks the
+      primary; corporate falls to the org column, not UTC; DST handled both ways
+      (PDT/MDT in August, PST/MST in January); output is ASCII-safe for pdf-lib's
+      WinAnsi fonts. Dev (br-broad-wave-a6vpjdw0/neondb): migration applied, 1
+      HrSignedRecord, 0 in the affected window, 0 wrongly stamped.
+
+
+      STILL OWED ON STAGING: mint a fresh PDF after 5 PM Pacific (when UTC has
+      rolled over) and read the body Date: line against the certificate's SIGNED
+      AT; confirm a corporate member resolves through the org column; confirm
+      HrSignedRecord and HrDocumentAcknowledgment counts unchanged. AND THE COUNT
+      OF WHAT CANNOT BE FIXED — how many already-minted records carry a wrong
+      stamp. Dev answers 0; staging holds Gdogg and needs the Neon console. The
+      query is in the session report and runs safely BEFORE the migration
+      deploys, since it uses the literal default rather than the new column.
+
+
+      NOTHING ALREADY MINTED WAS TOUCHED, and nothing here can touch it: this row
+      changes only what FUTURE mints stamp. Signed records are frozen.
 
   - id: DEBT-71
     status: planned
