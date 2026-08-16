@@ -5494,9 +5494,153 @@ phases:
   - id: HR-11k
     track: hr
     size: M
-    status: planned
+    status: in_progress
     title: "R2 — two upload paths: new file re-signs, new version does not"
+    commits:
+      - "457a57f"
     notes: >
+      PHASE A BUILT 2026-08-16 ("457a57f"), NOT VERIFIED. Status is in_progress,
+      not verified, and the gap is deliberate: not one observation has been taken
+      on staging. Local staging and origin/staging are still DIVERGED (ahead 1,
+      behind 1 — local 614dc8d, remote 6e3b9eb, common 7198f77; both carry the
+      same HR-11o roadmap record with different messages), so the staging-SHA
+      precondition cannot pass and verification may not begin. Gary reconciles
+      that by hand — ROADMAP.yaml is append-only and will conflict, and
+      origin/staging is what is deployed. Phase A does not close on a build.
+
+
+      DOCUMENTS. Design spec: docs/prompts/R2-HR11k-DESIGN.md. Step 1 audit:
+      docs/prompts/R2-HR11k-PHASE-A_AUDIT.md. Gary's rulings on that audit:
+      docs/prompts/R2-HR11k-phase-a-addendum-01.md — WHERE IT DISAGREES WITH THE
+      SPEC, THE ADDENDUM WINS. All three committed with the work ("457a57f").
+      The base session prompt (suggested path docs/prompts/R2-HR11k-phase-a.md)
+      WAS NEVER SAVED TO THE REPO — the audit recorded that at the time and it
+      is still true; it is absent from every branch and from git history. The
+      spec, the audit and the addendum together reconstruct it, but the
+      instruction of record for Phase A is missing and cannot be recovered from
+      here.
+
+
+      WHAT WAS BUILT, AND THE ONE THING THAT DECIDED THE SHAPE. The spec's file
+      list was written against main, which does not have R1. Following its §7
+      literally would have written the R2 rule into three files and reversed R1
+      one day after it shipped. The audit caught it; the addendum ruled the
+      corrected shape. THE PRECEDENCE TABLE CHANGES ONCE, IN THE PREDICATE —
+      documentCompletion (src/lib/hr-completion.ts) — and the three call sites
+      (lib/hr-compliance.ts, staff/[id]/page.tsx, my/documents/data.ts) change
+      only in which facts they gather and how they label the result. This is the
+      standing trap firing exactly as documented: project knowledge indexes main
+      only, so staging-only work is invisible at planning time. The spec said to
+      confirm against staging. Doing so is what saved the phase.
+
+
+      THE SPLIT IS THE WHOLE CORRECTNESS RISK. hasRecordOnEarlierVersion asked
+      "did they ever sign an older version, in ANY tenure" — one question
+      standing in for two that R2 answers oppositely. It is now
+      hasCurrentCycleRecordOnEarlierVersion (signed) and
+      hasPriorCycleRecordOnEarlierVersion (rehire, needs-current). The old field
+      was REMOVED rather than kept alongside the pair, so every call site is a
+      type error until it has answered the cycle question — a caller cannot keep
+      the old meaning by accident. Resolved against an any-cycle lookup instead,
+      a rehired employee's previous-tenure signature reads compliant and HR-15
+      Policy B is destroyed WITH NOTHING FAILING.
+
+
+      THE TWO ORDERINGS, RULED IN OPPOSITE DIRECTIONS (addendum §2.1). A FULL
+      current-version acknowledgment set BEATS the prior-version record — they
+      did the newer work, and the fix for their missing record is to mint it. A
+      PARTIAL set does NOT: someone who signed v4 and then initialled two pages
+      of v6 reads signed at v4, and their partial v6 rows are preserved untouched
+      as evidence. Both are recorded in docs/DECISIONS.md under the HR-8 block,
+      preserve-and-mark, with the 2026-07-22 text intact beneath.
+
+
+      A FOURTH DISPLAY SITE, NOT ENUMERATED BY THE ADDENDUM.
+      staff/[id]/staff-compliance.tsx:59 hardcoded currentVersionNumber into its
+      "Signed vN" string on the COMPLETE path, and carried a comment asserting
+      completedAt is non-null whenever status is complete. R2 breaks both: an R2
+      signer is complete on an older version, and completedAt upstream carries
+      only the CURRENT version's record. It was found by sweeping the RENDERERS
+      of currentVersionNumber rather than the callers of the predicate — the
+      same lesson as CLAUDE.md § Verifying a guard covers every path, one layer
+      out: the addendum's grep was on documentCompletion, and this file consumes
+      a TYPE downstream of a call site, so no search for the predicate's name
+      could ever have reached it. Fixed in the same commit.
+
+
+      THE NOTICE LINKS THE DOWNLOAD, NEVER THE CEREMONY (addendum §2.2).
+      /my/documents/[documentId] IS the ceremony and computes hasSignedRecord
+      against the CURRENT version, which an R2 signer does not have — so linking
+      it would open a signing ceremony for the exact person the ruling says must
+      never be prompted: the defect R2 exists to remove, reintroduced through the
+      notice announcing it. It links /api/hr/documents/[id]/download, the
+      audience-aware route the Library already uses on that same page. NOTE: the
+      audit transcribed that call site as carrying "?stream=1"; the Library's
+      actual href has no query string, which is why the addendum said to confirm
+      it from the call site rather than from the audit. Rule 5 is untouched — the
+      source document, never a signed PDF.
+
+
+      NO SCHEMA CHANGE, no migration, no writes to HrSignedRecord or
+      HrDocumentAcknowledgment, no touch to signingCycle semantics, retired
+      checkpoints, audience logic, the upload dialog, HR_MODULE_AVAILABLE, or the
+      ceremony route. Read side only. The "will likely add a column to
+      HrDocumentVersion" line in the original row below is superseded for Phase
+      A: that column is Case A and waits for Phase B.
+
+
+      EXPECT PERCENTAGES TO RISE, and expect it to be reported as a bug — the
+      mirror image of R1's warning, one day later, in the same file. Anyone
+      holding a current-tenure signature on a superseded version moves from
+      needs-resign to complete. Account for the movement before accepting it; a
+      rise for any OTHER reason is a defect.
+
+
+      OPEN, FOR GARY, BEFORE VERIFICATION. (1) THE DATE IS OMITTED on an R2 row.
+      completedAt upstream is the CURRENT version's record, which an R2 signer
+      does not have, so the label renders "Signed v4 · current is v6" with no
+      date — exactly the string ruled in DESIGN §6, which shows a date on the
+      current-version row and none on the R2 row. Built to the ruled string
+      rather than guessed at; if that asymmetry was abbreviation rather than
+      intent, the prior record's completedAt is available at all three sites and
+      is a small change. (2) THE FIXTURE IS UNMEASURED. Per addendum §2.3,
+      verification step 3 does not run against a named person until staging has
+      been read in the NEON CONSOLE to find whoever actually holds a completed
+      signed record on a NON-CURRENT version in their CURRENT signing cycle. If
+      that is nobody, the fixture must be built before verification means
+      anything. A screen that reads green for a member who was never in that
+      state is a completion screen, not evidence.
+
+
+      VERIFICATION STILL OWED (addendum §5, spec §9): build passes — done. The
+      measured fixture reads green on /staff/[id] and on /my/documents with the
+      notice and no signing affordance. THE REHIRE REGRESSION, which is now one
+      test against one predicate — that is R1's dividend, but it also means one
+      wrong lookup breaks every surface at once, so exercise it deliberately; if
+      it appears to pass without being exercised, treat it as unverified. The
+      row-4 member has dropped off /my with NO edit to my/page.tsx (the cheapest
+      proof the change landed in the predicate rather than in the labels). The
+      notice's link opens read-only and no ceremony route is reachable from that
+      row. Compliance percentage movement accounted for. Neon counts of
+      HrSignedRecord and HrDocumentAcknowledgment unchanged before and after,
+      with neon.branch_id and current_database() in the same result.
+
+
+      HR-11j WAS CHECKED AND DOES NOT MEET THIS (addendum §1). Repo-wide grep on
+      documentCompletion: one definition (hr-completion.ts:107) and exactly three
+      call sites, matching the audit's enumeration with nothing missed. All four
+      HR-11j layers — the R4 assignability gate (api/hr/documents/[id]/audience),
+      both ceremony pages, and the mint (lib/hr-signed-pdf.ts) — reach signing
+      readiness through getVersionAnchorReadiness / isSigningBlocked in
+      lib/hr-anchors.ts, and NONE of them imports hr-completion, hr-compliance or
+      my/documents/data. Nothing downstream of the predicate reaches them either:
+      every consumer is a display surface (/hr/compliance, /staff, /staff/[id],
+      /my, /my/documents). The two ceremony CLIENTS do import from hr-completion,
+      but only the recordMissing copy constants — the module boundary is crossed,
+      the predicate is not. R2 changes what satisfies the current version for
+      DISPLAY; HR-11j's "signed" for grant-blocking is unreached by it.
+
+
       IN PLAIN TERMS. Fixing a typo in a handbook currently drags every person
       who already signed it back through the whole signing ceremony. It should
       not. Uploading a NEW FILE means a new document and everyone signs; a NEW
