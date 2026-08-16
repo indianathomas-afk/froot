@@ -22,15 +22,49 @@
 // predicate they cannot import is a predicate they will reimplement.
 //
 // WHAT THE CALLER STILL OWES. This function does not query. Every caller must
-// establish the three record facts below FOR THE MEMBER'S CURRENT SIGNING CYCLE
+// establish the record facts below FOR THE MEMBER'S CURRENT SIGNING CYCLE
 // (HR-15 Policy B) and hand them in. A caller that cannot answer
 // hasCurrentCycleRecord has not loaded enough to claim a document is signed, and
 // that is the shape of the original defect: /my/documents/data.ts DID load
 // signedRecords and then let a checkpoint count overrule the answer.
 
+// ─── R2 (HR-11k Phase A): A PRIOR VERSION'S SIGNATURE SATISFIES THE CURRENT ONE
+//
+// Ruled by Gary 2026-08-15. THE VERSION A PERSON ORIGINALLY SIGNED IS THE MASTER
+// DOCUMENT FOR THAT PERSON. A new FILE is a new document and everyone signs it;
+// a new VERSION of the same document leaves existing signers' records intact and
+// does not re-prompt them. R2 SUPERSEDES HR-11f (2026-08-14), which required
+// universal re-acknowledgment on every version bump.
+//
+// R2 CHANGES ONE FACT INTO TWO, and that split is the whole correctness risk of
+// the phase. `hasRecordOnEarlierVersion` used to mean "signed an older version,
+// in ANY tenure" and fed a single needs-current arm. It is now:
+//
+//   hasCurrentCycleRecordOnEarlierVersion  → SIGNED  (R2, new)
+//   hasPriorCycleRecordOnEarlierVersion    → needs-current (rehire, unchanged)
+//
+// IF THE FIRST OF THOSE IS RESOLVED AGAINST AN ANY-CYCLE LOOKUP, a rehired
+// employee's previous-tenure signature silently reads as compliant and HR-15
+// Policy B is destroyed with nothing failing. The old field is REMOVED rather
+// than kept alongside the new pair, deliberately: every call site is a type
+// error until it has answered the cycle question, which is the only way a
+// caller cannot keep the old meaning by accident.
+//
+// ARM 2 BEATS R2 (Gary, 2026-08-15, addendum 01 §2.1). A member who has fully
+// acknowledged the CURRENT version is bound to the current version even when
+// they also hold a completed record on an earlier one — they did the newer
+// work, and the fix for a missing record is to mint it, not to call an older
+// signature good enough. So `recordMissing` still precedes the R2 arm. The
+// converse ordering — R2 beats a PARTIAL acknowledgment set — is below.
+
 /**
  * The four states a required Acknowledgment document can be in for one staff
- * member, on the CURRENT version, in their CURRENT signing cycle.
+ * member, in their CURRENT signing cycle.
+ *
+ * R2 (2026-08-15) removed "on the CURRENT version" from that sentence. The
+ * states are about the OBLIGATION, and a signature on the version this person
+ * was actually shown discharges it; `signedOnEarlierVersion` on the result says
+ * which version carried it. The cycle qualifier is untouched and load-bearing.
  *
  * `pending-record` is deliberately absent. It used to sit here, between
  * `signed` and `needs-current`, meaning "every checkpoint is in but no record
@@ -51,8 +85,19 @@ export type HrDocumentCompletionFacts = {
   hasCurrentCycleRecord: boolean
   /** HrSignedRecord on the current version from an EARLIER cycle (a rehire). */
   hasPriorCycleRecordOnCurrentVersion: boolean
-  /** HrSignedRecord on any older version, any cycle. */
-  hasRecordOnEarlierVersion: boolean
+  /**
+   * R2: HrSignedRecord on an older version in THIS cycle. Satisfies the current
+   * version — this is the master document for this signer.
+   *
+   * MUST be resolved cycle-keyed. `signedRecords.length > 0` on an older
+   * version is the wrong question and answers row 5's, not this one.
+   */
+  hasCurrentCycleRecordOnEarlierVersion: boolean
+  /**
+   * HrSignedRecord on an older version from an EARLIER cycle only. A rehire who
+   * signed in a previous tenure — needs-current, unchanged by R2.
+   */
+  hasPriorCycleRecordOnEarlierVersion: boolean
   /** Required checkpoints on the document. */
   requiredCount: number
   /** Acknowledgments this member holds on the current version, current cycle. */
@@ -66,8 +111,23 @@ export type HrDocumentCompletion = {
   /**
    * The single predicate every surface gates completion on. True only when a
    * record exists. Read this instead of comparing `status` to a string.
+   *
+   * R2 (2026-08-15) widens WHICH record counts, not whether one is needed: a
+   * current-cycle record on an EARLIER version now satisfies the current
+   * version. `isSigned` and `status === "signed"` remain the same boolean, as
+   * they were under R1 — that identity is what makes the sentence above safe to
+   * follow.
    */
   isSigned: boolean
+  /**
+   * R2: the record satisfying this document is on an OLDER version than the one
+   * in force. True only when `status === "signed"` reached that state through
+   * the R2 arm. Surfaces render the "an updated version is available to read"
+   * notice and the `· current is vN` suffix off this rather than re-deriving it
+   * by comparing two version numbers — the comparison is the same derivation
+   * this module exists to stop being written six times.
+   */
+  signedOnEarlierVersion: boolean
   /**
    * Every required checkpoint is acknowledged and NO record exists for this
    * cycle. The signer has nothing left to do and cannot fix it themselves — an
@@ -103,12 +163,32 @@ export type HrDocumentCompletion = {
  * The case is real, not hypothetical: signed v1 → v2 uploaded → re-read and
  * re-acked all of v2 → mint failed. They do not "need to sign the current
  * version"; they signed it and the record was never made.
+ *
+ * ── AMENDED 2026-08-15 (R2, HR-11k Phase A). ONE ARM INSERTED, NONE MOVED. ───
+ * The chain is now: record → allAcked → PRIOR-VERSION RECORD THIS CYCLE → prior
+ * cycle → some acks → nothing. Everything above and below the new arm keeps the
+ * position it had, so the paragraph above still governs the arms it describes.
+ *
+ * THE NEW ARM'S TWO NEIGHBOURS ARE BOTH RULED, IN OPPOSITE DIRECTIONS, AND THAT
+ * IS WHY IT SITS EXACTLY HERE:
+ *
+ *   arm 2 (`recordMissing`) BEATS it — a FULL current-version acknowledgment
+ *   set means this member did the newer work and is bound to the newer version.
+ *
+ *   it BEATS the acks arm — a PARTIAL current-version acknowledgment set does
+ *   not unbind them from the version they actually signed. Someone who signed
+ *   v4 and then opened v6 and initialled two pages reads signed at v4, and
+ *   their partial v6 rows are left untouched: they are evidence, they are
+ *   harmless, and a later re-verification resumes from them.
+ *
+ * Moving it either way changes a ruling, not an implementation detail.
  */
 export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocumentCompletion {
   const {
     hasCurrentCycleRecord,
     hasPriorCycleRecordOnCurrentVersion,
-    hasRecordOnEarlierVersion,
+    hasCurrentCycleRecordOnEarlierVersion,
+    hasPriorCycleRecordOnEarlierVersion,
     requiredCount,
     ackedCount,
     allRequiredAcked,
@@ -122,13 +202,22 @@ export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocument
   let status: HrDocumentCompletionStatus
   if (hasCurrentCycleRecord) status = "signed"
   else if (recordMissing) status = "in-progress"
-  else if (hasPriorCycleRecordOnCurrentVersion || hasRecordOnEarlierVersion) status = "needs-current"
+  else if (hasCurrentCycleRecordOnEarlierVersion) status = "signed"
+  else if (hasPriorCycleRecordOnCurrentVersion || hasPriorCycleRecordOnEarlierVersion)
+    status = "needs-current"
   else if (ackedCount > 0) status = "in-progress"
   else status = "not-started"
 
+  // Only the R2 arm can produce this: arm 1 reached "signed" through a record on
+  // the CURRENT version, so the current-version record wins the label even when
+  // an older one also exists.
+  const signedOnEarlierVersion =
+    status === "signed" && !hasCurrentCycleRecord && hasCurrentCycleRecordOnEarlierVersion
+
   return {
     status,
-    isSigned: hasCurrentCycleRecord,
+    isSigned: status === "signed",
+    signedOnEarlierVersion,
     recordMissing,
     requiredCount,
     ackedCount,

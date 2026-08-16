@@ -60,7 +60,19 @@ export type ComplianceDocItem = {
    * and needs an admin, whereas an ordinary in-progress member needs time.
    */
   recordMissing: boolean
-  /** Version a prior signed record was executed against, when needs-resign. */
+  /**
+   * R2 (2026-08-15): the signer is bound to an OLDER version than the one in
+   * force, and that satisfies the obligation. `status` is "complete" — green,
+   * no flag, no warning (R3: "they signed what was in force when they signed
+   * it"). Surfaces append "· current is vN"; they do not badge it amber.
+   */
+  signedOnEarlierVersion: boolean
+  /**
+   * Version this signer's record was executed against. R2 (2026-08-15) widened
+   * this from "when needs-resign" to EVERY status backed by a record — the
+   * complete path needs it precisely because it is the one that no longer
+   * implies the current version. Null only when no record exists at all.
+   */
   signedVersionNumber: number | null
   completedAt: string | null
 }
@@ -153,6 +165,32 @@ const pctOf = (completed: number, required: number): number | null =>
 
 // ─── Core: per-staff compliance details, computed in a fixed set of batched
 // queries (never per-staff) ──────────────────────────────────────────────────
+//
+// ── AMENDED 2026-08-15 (R2, HR-11k Phase A, Gary). READ THIS FIRST. ──────────
+//
+// The superseded table further down still has a live-looking line in it:
+// "signed record on older version → needs-resign". R1 marked the block for a
+// different reason and that line survived intact, so it reads as the surviving
+// true half. IT IS NOT. R2 overturns it, and this note exists because the line
+// is the exact statement of the HR-11f rule R2 replaces:
+//
+//   [SUPERSEDED 2026-08-15 BY R2] a signed record on an older version is
+//   "needs-resign" — non-compliant, and the signer is re-prompted.
+//
+// UNDER R2, WHICH VERSION THE RECORD IS ON NO LONGER DECIDES COMPLIANCE. THE
+// SIGNING CYCLE DOES. A record from THIS tenure satisfies the document whatever
+// version carried it (the version a person signed is their master document); a
+// record from a PREVIOUS tenure is needs-resign whatever version carried it
+// (HR-15 Policy B, untouched). The two used to be one lookup here and are now
+// `priorSignedThisCycle` / `priorSignedPriorCycle` at :407.
+//
+// EXPECT PERCENTAGES TO RISE, and expect that to be reported as a bug too — the
+// mirror image of R1's note below, from the same file, four weeks apart in
+// spirit and one day apart in fact. Anyone holding a current-tenure signature on
+// a superseded version moves from needs-resign to complete. That is the ruling
+// working: they signed what was in force when they signed it, and the old number
+// said they owed something they had already given. Account for the movement
+// before accepting it — a rise here for any OTHER reason is a defect.
 //
 // ── CORRECTED 2026-08-15 (R1, Gary). THE BLOCK BELOW IS SUPERSEDED. ──────────
 //
@@ -404,8 +442,28 @@ export async function computeStaffComplianceDetails(
       const ackedIds = ackedByVersionStaffCycle.get(`${current.id}:${member.id}:${cycle}`) ?? new Set()
       const requiredCount = d.checkpoints.length
       const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
-      const priorSigned = d.versions.find(
-        (v) => !v.isCurrent && recordAnyCycle.has(`${v.id}:${member.id}`)
+      // ── R2 (HR-11k Phase A, Gary 2026-08-15) ──────────────────────────────
+      // THE SPLIT THAT USED TO BE ONE LOOKUP. This was a single `priorSigned`
+      // resolved against `recordAnyCycle`, which asks "did they ever sign an
+      // older version, in any tenure". That question cannot tell R2's case from
+      // a rehire's, and R2 turns one of them green. `d.versions` is ordered
+      // versionNumber DESC (:259), so both finds return the HIGHEST matching
+      // version — for R2 that is this signer's master document.
+      //
+      // recordByVersionStaffCycle is built over allVersionIds, not just the
+      // current one (:280, :308), so the cycle-keyed answer needs no new query.
+      const priorSignedThisCycle = d.versions.find(
+        (v) => !v.isCurrent && recordByVersionStaffCycle.has(`${v.id}:${member.id}:${cycle}`)
+      )
+      // Rehire on an older version: a record exists but not under this tenure.
+      // Asked per version so a version carrying BOTH a this-cycle and an
+      // earlier-cycle record is not miscounted as a rehire — it is R2's case,
+      // and the predicate's arm order settles it either way.
+      const priorSignedPriorCycle = d.versions.find(
+        (v) =>
+          !v.isCurrent &&
+          recordAnyCycle.has(`${v.id}:${member.id}`) &&
+          !recordByVersionStaffCycle.has(`${v.id}:${member.id}:${cycle}`)
       )
       // Rehire: a current-version record from an earlier tenure doesn't
       // satisfy this cycle — needs-resign, same loudness as a version bump.
@@ -422,7 +480,8 @@ export async function computeStaffComplianceDetails(
       const completion = documentCompletion({
         hasCurrentCycleRecord: !!currentRecord,
         hasPriorCycleRecordOnCurrentVersion: priorCycleRecord,
-        hasRecordOnEarlierVersion: !!priorSigned,
+        hasCurrentCycleRecordOnEarlierVersion: !!priorSignedThisCycle,
+        hasPriorCycleRecordOnEarlierVersion: !!priorSignedPriorCycle,
         requiredCount,
         ackedCount: ackedIds.size,
         allRequiredAcked: allAcked,
@@ -446,12 +505,27 @@ export async function computeStaffComplianceDetails(
           ackedCount: ackedIds.size,
           requiredCount,
           recordMissing: completion.recordMissing,
-          signedVersionNumber:
-            status !== "needs-resign"
-              ? null
-              : priorCycleRecord
-                ? current.versionNumber
-                : (priorSigned?.versionNumber ?? null),
+          signedOnEarlierVersion: completion.signedOnEarlierVersion,
+          // ── R2 (2026-08-15): THE NUMBER IS NO LONGER NULLED OFF THE WARNING
+          // PATH. It used to be `status !== "needs-resign" ? null : …`, which
+          // was safe only while every non-warning signature was on the current
+          // version. R2 makes "complete" the case that most needs it: a signer
+          // bound to v4 while v6 is in force reads complete, and nulling the
+          // number here would leave the surfaces printing v6 at them.
+          //
+          // THE R1 INVARIANT IS PRESERVED VERBATIM — A VERSION NUMBER ONLY EVER
+          // COMES FROM A RECORD. Each branch names a record that exists: this
+          // cycle's on the current version, a prior cycle's on the current
+          // version, this cycle's on an older version (R2), or a prior cycle's
+          // on an older version. There is no branch that reports a version
+          // nobody signed, which is exactly the branch R1 deleted.
+          signedVersionNumber: currentRecord
+            ? current.versionNumber
+            : priorCycleRecord
+              ? current.versionNumber
+              : (priorSignedThisCycle?.versionNumber ??
+                priorSignedPriorCycle?.versionNumber ??
+                null),
           completedAt: currentRecord?.completedAt.toISOString() ?? null,
         },
       ]

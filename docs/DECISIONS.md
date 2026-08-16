@@ -1448,6 +1448,71 @@ d. **Noted, not fixed:** no `organization.deleted` / `user.deleted`
 
 ## HR-8 compliance rollup — 2026-07-22 (Gary)
 
+**AMENDED 2026-08-15 (R2 / HR-11k Phase A, Gary). Item (a) below is superseded
+in part; the 2026-07-22 text is preserved beneath, unedited.** This is the
+second amendment to item (a) in two days — R1 took its middle sentence on
+2026-08-15, R2 takes its last one the same day. Read the amendments before the
+item.
+
+**R2 — A PRIOR VERSION'S SIGNATURE SATISFIES THE CURRENT ONE.** Item (a)'s last
+sentence ("a record signed against an older version is its own *needs re-sign*
+status: non-compliant") is overturned. A new FILE is a new document and everyone
+in the audience signs it; a new VERSION is the same document, and existing
+signers keep their record and are not re-prompted. **The version a person
+originally signed is the master document for that person.** R2 supersedes HR-11f
+(2026-08-14), which required universal re-acknowledgment on every version bump.
+Churn is handled where it always was — by a disclaimer typed into the document
+itself, "terms and conditions may change, check back regularly for any updates".
+
+**It counts toward the percentage, and it shows no warning.** Someone signed at
+v4 is in the numerator. No new status, no new enum member, no amber, no flag —
+compliance reads *signed, with the version noted* (R3, same day): "Signed v4 ·
+current is v6", green. They signed what was in force when they signed it. Amber
+stays reserved for what genuinely owes a signature: a rehire today, and Case A /
+Case B re-verification if those are ever built.
+
+**WHAT DECIDES COMPLIANCE IS THE SIGNING CYCLE, NOT THE VERSION NUMBER.** The
+rehire lever (HR-15 Policy B) is untouched and is now the *only* route to
+"needs re-sign": a record from a PREVIOUS tenure does not satisfy this one,
+whatever version carried it. The two used to be a single any-cycle lookup, and
+splitting them is the whole correctness risk of the phase — resolved against an
+any-cycle map, a rehire's previous-tenure signature reads compliant and Policy B
+is destroyed with nothing failing.
+
+**TWO PRECEDENCE ORDERINGS, RULED IN OPPOSITE DIRECTIONS.** Both are needed
+because a signer can hold a record on an old version *and* acknowledgment rows
+on the new one at the same time:
+
+- **A FULL current-version acknowledgment set BEATS the prior-version record.**
+  Someone who has acknowledged every required checkpoint of the current version
+  is bound to the CURRENT version — they did the newer work, honour it. The fix
+  for their missing record is to mint it, not to fall back on an older
+  signature. (This is R1's `recordMissing` state, unchanged.)
+- **The prior-version record BEATS a PARTIAL acknowledgment set.** Someone who
+  signed v4, then opened v6 and initialled two pages, reads signed at v4. Their
+  partial v6 rows are preserved untouched: they are evidence, they are harmless,
+  and if re-verification is ever demanded on that version the ceremony resumes
+  from them.
+
+**THE RULE LIVES IN EXACTLY ONE PLACE — `documentCompletion` in
+`src/lib/hr-completion.ts`.** R1 collapsed six hand-written derivations of "this
+document is signed" into that one pure predicate the day before, and Phase A
+deliberately did not recreate them: the precedence table changed once, in the
+predicate, and the three call sites (`lib/hr-compliance.ts`,
+`staff/[id]/page.tsx`, `my/documents/data.ts`) changed only in which facts they
+gather and how they label the result. R1's shape is load-bearing, not
+stylistic — and the dividend is that the rehire regression is one test against
+one predicate rather than three tests that must agree by discipline.
+
+**Phase A carries no schema change.** Read-side only: nothing is written to
+`HrSignedRecord` or `HrDocumentAcknowledgment`, no column is added, no migration
+ships. The re-verification toggle (Case A — an additive `requiresReacknowledgment`
+Boolean on `HrDocumentVersion` that re-imposes re-signing for one version) waits
+for Phase B. Per-person re-verification (Case B) is parked, blocked on whether
+the Key Agreement is a `FillableForm` or an `Acknowledgment`.
+
+The 2026-07-22 text, preserved:
+
 a. **Acknowledgment docs: current version only.** Compliant = every required
    checkpoint acknowledged on the CURRENT document version. A completed set of
    acknowledgments whose signed PDF hasn't been generated yet ("pending-record")

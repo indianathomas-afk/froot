@@ -52,12 +52,26 @@ function docDetail(item: ComplianceDocItem): string {
   // badge was wrong; now they agree, and the ruled admin copy says it once.
   if (item.recordMissing) return HR_RECORD_MISSING_ADMIN_COPY
   switch (item.status) {
-    case "complete":
-      // completedAt is non-null whenever status is complete: R1 makes a record
-      // the only thing that produces it, and every record carries the date.
+    case "complete": {
+      // [SUPERSEDED 2026-08-15 BY R2] "completedAt is non-null whenever status
+      // is complete: R1 makes a record the only thing that produces it, and
+      // every record carries the date."
+      //
+      // R2 (Gary, 2026-08-15) BREAKS BOTH HALVES OF THAT LINE, which is why
+      // this site is corrected even though it is one hop further out than the
+      // three the phase enumerated. A record is still the only thing that
+      // produces "complete" — but it may now be a record on an EARLIER version,
+      // and `completedAt` upstream carries only the CURRENT version's record.
+      // So a complete item can arrive here with a null date, and the version
+      // hardcoded below was about to tell a v4 signer they signed v6.
+      //
+      // The null-date branch already existed and now carries real traffic.
+      const v = item.signedVersionNumber ?? item.currentVersionNumber
+      const suffix = item.signedOnEarlierVersion ? ` · current is v${item.currentVersionNumber}` : ""
       return item.completedAt
-        ? `Signed v${item.currentVersionNumber} · ${format(new Date(item.completedAt), "MMM d, yyyy")}`
-        : `Signed v${item.currentVersionNumber}`
+        ? `Signed v${v} · ${format(new Date(item.completedAt), "MMM d, yyyy")}${suffix}`
+        : `Signed v${v}${suffix}`
+    }
     case "needs-resign":
       return `Signed v${item.signedVersionNumber} — v${item.currentVersionNumber} is now current`
     case "in-progress":

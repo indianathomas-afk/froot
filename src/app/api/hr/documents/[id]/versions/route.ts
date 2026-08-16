@@ -21,9 +21,19 @@ const bodySchema = z.object({
 
 // POST /api/hr/documents/[id]/versions — ADMIN. Re-upload: registers a new
 // HrDocumentVersion as current and demotes the prior one. The old version row
-// (and its file, hash, acknowledgments, and signed records) is never touched —
-// staff who signed it now read as "needs current version". Checkpoints are
-// document-scoped, so they carry forward to the new version automatically.
+// (and its file, hash, acknowledgments, and signed records) is never touched.
+// Checkpoints are document-scoped, so they carry forward to the new version
+// automatically.
+//
+// [SUPERSEDED 2026-08-15 BY R2] "— staff who signed it now read as 'needs
+// current version'."
+//
+// R2 (HR-11k Phase A, Gary 2026-08-15): THEY DO NOT. Staff who signed the prior
+// version in their current tenure keep their record, stay green, and are not
+// re-prompted; a read-only notice tells them an update is available. This route
+// is UNCHANGED BY R2 — the correction is to what the comment claimed about the
+// downstream read, which the route never implemented and cannot control. The
+// rule lives in documentCompletion (lib/hr-completion.ts).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const access = await requireHrDocumentAccess({ admin: true })
@@ -93,8 +103,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // anchors carry forward as confirmed — arithmetic, not inference, so there is
   // no admin judgment left to exercise. Runs BEFORE detection so the
   // already-confirmed dedup inside detectAndStoreVersionAnchors sees them and
-  // re-proposes nothing on top. Stamp coordinates only: everyone still
-  // re-acknowledges the new version (HR-11f untouched).
+  // re-proposes nothing on top. Stamp coordinates only.
+  //
+  // [SUPERSEDED 2026-08-15 BY R2] "…: everyone still re-acknowledges the new
+  // version (HR-11f untouched)." R2 SUPERSEDES HR-11f. Corrected in the same
+  // commit as its twin at the top of this file, and deliberately: correcting one
+  // false HR-11f assertion and leaving the other makes the survivor read as
+  // current and authoritative, which is worse than correcting neither. The
+  // carry-forward itself is unaffected — it is about ANCHOR COORDINATES, not
+  // about who owes a signature.
   let carriedForward = 0
   if (isAcknowledgment && meta.fileHash === doc.versions[0].fileHash) {
     carriedForward = await carryForwardConfirmedAnchors(doc.versions[0].id, version.id)

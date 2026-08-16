@@ -15,8 +15,14 @@ import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
 
 // One row per required Acknowledgment document for this staff member, with
 // the version-pinned status: a signed record binds to the version it was
-// signed against, so a re-upload flips status to "Needs current version"
-// while the old record stays downloadable.
+// signed against, and the old record stays downloadable.
+//
+// [SUPERSEDED 2026-08-15 BY R2] "…so a re-upload flips status to 'Needs current
+// version'."
+//
+// R2 (Gary, 2026-08-15): a re-upload leaves an existing signer SIGNED, at the
+// version they signed, with "· current is vN" appended and the badge still
+// green. "Needs current version" now means a REHIRE and nothing else.
 export interface StaffDocumentRow {
   documentId: string
   title: string
@@ -30,6 +36,8 @@ export interface StaffDocumentRow {
   requiredCount: number
   /** R1: every checkpoint in, no signed record. Never a completion state. */
   recordMissing: boolean
+  /** R2: signed, on a superseded version. GREEN — this is compliant. */
+  signedOnEarlierVersion: boolean
 }
 
 const STATUS_STYLES: Record<StaffDocumentRow["status"], string> = {
@@ -46,11 +54,16 @@ const STATUS_STYLES: Record<StaffDocumentRow["status"], string> = {
 // ticks. Amber puts it with "needs current version": something is outstanding.
 const RECORD_MISSING_STYLE = "bg-amber-100 text-amber-700 border border-amber-200"
 
+// R2 (Gary, 2026-08-15): the suffix, and NO STYLE CHANGE WITH IT. STATUS_STYLES
+// is untouched on purpose — a signer bound to a superseded version is compliant
+// and reads green. Amber stays reserved for what genuinely owes a signature: a
+// rehire today, and Case A/Case B re-verification if they are ever built. R3:
+// "compliance shows signed, with the version noted. No warning, no flag."
 function statusLabel(row: StaffDocumentRow): string {
   if (row.recordMissing) return HR_RECORD_MISSING_ADMIN_COPY
   switch (row.status) {
     case "signed":
-      return `Signed v${row.signedVersionNumber}${row.completedAt ? ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}` : ""}`
+      return `Signed v${row.signedVersionNumber}${row.completedAt ? ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}` : ""}${row.signedOnEarlierVersion ? ` · current is v${row.currentVersionNumber}` : ""}`
     case "needs-current":
       return "Needs current version"
     case "in-progress":

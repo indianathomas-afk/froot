@@ -133,10 +133,43 @@ export default async function MyDocumentsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-[var(--color-foreground)] truncate">{row.title}</p>
                   <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                    Signed v{row.currentVersionNumber}
+                    {/* R2 (Gary, 2026-08-15): signedVersionNumber, NOT
+                        currentVersionNumber. This was hardcoded to the current
+                        version — harmless while only a current-version record
+                        could reach this section, and a lie the moment R2 lets a
+                        v4 signer land here: it told them they had signed v6. */}
+                    Signed v{row.signedVersionNumber ?? row.currentVersionNumber}
                     {row.completedAt && ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}`} — need a
                     copy? Ask your manager.
                   </p>
+                  {/* ── R2: THE READ-ONLY NOTICE ──────────────────────────────
+                      Ruled 2026-08-15. An updated version exists and this
+                      signer is NOT being asked to sign it — their version is
+                      their master document.
+
+                      THE LINK IS THE AUDIENCE-AWARE DOWNLOAD ROUTE, exactly as
+                      the Library below uses it, and that is the whole point of
+                      the choice. The only per-document route in this portal is
+                      /my/documents/[documentId], which IS the ceremony: it
+                      renders SigningClient and computes hasSignedRecord against
+                      the CURRENT version — which a signer in this state does not
+                      have — so that link would open a signing ceremony for the
+                      exact person the ruling says must never be prompted. The
+                      defect R2 exists to remove, reintroduced by the notice
+                      announcing it. No button, no badge change, no ceremony. */}
+                  {row.signedOnEarlierVersion && (
+                    <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+                      Signed v{row.signedVersionNumber} — an updated version is available to read.{" "}
+                      <a
+                        href={`/api/hr/documents/${row.documentId}/download`}
+                        target="_blank"
+                        rel="noopener"
+                        className="font-medium text-[var(--color-primary)] underline"
+                      >
+                        View v{row.currentVersionNumber}
+                      </a>
+                    </p>
+                  )}
                 </div>
                 {statusBadge(row)}
               </div>

@@ -186,7 +186,16 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         versions: {
           orderBy: { versionNumber: "desc" },
           include: {
-            signedRecords: { where: { staffMemberId: member.id } },
+            // R2: ORDERING ADDED, AND IT IS NOW LOAD-BEARING. This was
+            // unordered and read as `[0]`, which was nearly harmless while the
+            // value only fed a boolean and a download link. R2 makes a record
+            // SELECT a version to display, and a rehire holds two records on one
+            // version across two cycles, so `[0]` was about to become "whatever
+            // Postgres returned". Newest tenure first, newest record first.
+            signedRecords: {
+              where: { staffMemberId: member.id },
+              orderBy: [{ signingCycle: "desc" }, { completedAt: "desc" }],
+            },
             acknowledgments: {
               where: { staffMemberId: member.id },
               select: { checkpointId: true, signingCycle: true },
@@ -214,7 +223,20 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       )
       const requiredCount = d.checkpoints.length
       const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
-      const priorSigned = d.versions.find((v) => !v.isCurrent && v.signedRecords.length > 0)
+      // ── R2 (HR-11k Phase A, Gary 2026-08-15) ──────────────────────────────
+      // `v.signedRecords.length > 0` asked "did they ever sign this older
+      // version, in any tenure" — one question standing in for two, and R2
+      // answers them oppositely. Split by CYCLE, not by version: versions are
+      // already ordered versionNumber DESC above, so each find returns the
+      // highest match, and for R2 that is this signer's master document.
+      const priorSignedThisCycle = d.versions.find(
+        (v) =>
+          !v.isCurrent && v.signedRecords.some((r) => r.signingCycle === member.signingCycle)
+      )
+      const priorSignedPriorCycle = d.versions.find(
+        (v) =>
+          !v.isCurrent && v.signedRecords.some((r) => r.signingCycle !== member.signingCycle)
+      )
 
       // R1: asked, not restated — the same predicate /my/documents and the
       // compliance rollup use, so this tab and the portal cannot disagree about
@@ -222,7 +244,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       const completion = documentCompletion({
         hasCurrentCycleRecord: !!currentRecord,
         hasPriorCycleRecordOnCurrentVersion: !!priorCycleRecord,
-        hasRecordOnEarlierVersion: !!priorSigned,
+        hasCurrentCycleRecordOnEarlierVersion: !!priorSignedThisCycle,
+        hasPriorCycleRecordOnEarlierVersion: !!priorSignedPriorCycle,
         requiredCount,
         ackedCount: ackedIds.size,
         allRequiredAcked: allAcked,
@@ -236,6 +259,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           currentVersionNumber: current.versionNumber,
           status: completion.status,
           recordMissing: completion.recordMissing,
+          signedOnEarlierVersion: completion.signedOnEarlierVersion,
           // ── R1 (Gary, 2026-08-15): A VERSION NUMBER ONLY EVER COMES FROM A
           // RECORD. The `allAcked` arm removed here returned
           // current.versionNumber when NO record existed, so the admin surface
@@ -244,16 +268,30 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           // looked up rather than assumed. Each remaining branch names a record
           // that exists: this cycle's, a prior cycle's on the current version, or
           // one on an older version.
+          //
+          // R2 (2026-08-15) SPLITS THE LAST BRANCH IN TWO and preserves the
+          // invariant unchanged — both new branches still name a record. This
+          // cycle's older-version record is tried first because it is the one
+          // that produces a GREEN label, and picking the rehire's number there
+          // would print the wrong version under the right status.
           signedVersionNumber: currentRecord
             ? current.versionNumber
             : priorCycleRecord
               ? current.versionNumber
-              : (priorSigned?.versionNumber ?? null),
+              : (priorSignedThisCycle?.versionNumber ??
+                priorSignedPriorCycle?.versionNumber ??
+                null),
           completedAt: currentRecord?.completedAt.toISOString() ?? null,
+          // The record behind the label, in the same precedence as the number
+          // above — so the download link and the version it claims can never
+          // name two different records.
           signedRecordId:
             currentRecord?.id ??
             priorCycleRecord?.id ??
-            priorSigned?.signedRecords[0]?.id ??
+            priorSignedThisCycle?.signedRecords.find(
+              (r) => r.signingCycle === member.signingCycle
+            )?.id ??
+            priorSignedPriorCycle?.signedRecords[0]?.id ??
             null,
           ackedCount: ackedIds.size,
           requiredCount,
