@@ -525,6 +525,62 @@ report what they touched — `RETURNING`, and a row count you assert against an
 expected number — so a right-shaped result on the wrong branch is at least
 *visible* afterwards.
 
+**A DATABASE TIMESTAMP IS UTC. EVERYTHING YOU READ OFF YOUR OWN MACHINE IS
+LOCAL. Never compare one to the other until both are converted, and state the
+conversion in the same output as the comparison.** Recorded 2026-08-15 after
+this fired THREE TIMES IN ONE DAY.
+
+Every `DateTime` column in `prisma/schema.prisma` is `TIMESTAMP(3)` **with no
+time zone** — there is not one `@db.Timestamptz` in the file — so Prisma writes
+and returns UTC. Vercel deployment times, `git log` commit times, and anything
+`date` prints on a dev machine are **local**. The two sources are seven hours
+apart in PDT and eight in PST, and nothing in either output says which it is.
+
+Note what that offset does to a comparison. It is large enough to move an event
+across a deployment boundary, across a commit, and across midnight into the
+wrong DAY — and it does so *silently*, because both numbers are real, correctly
+transcribed, and printed without a suffix.
+
+**The failure mode is the branch-label mode exactly, and this is the third
+section of this document to describe it: the naive comparison produces a
+coherent, urgent, entirely wrong conclusion, and every observation supporting it
+is real. It does not look like an error.** It looks like a finding, and it argues
+back.
+
+The three occurrences, all 2026-08-15, all on the same handful of rows:
+
+1. **HR-11n Phase A** dated four orphaned checkpoints by their first
+   acknowledgment against the HR-11m deploy time. Raw, `19:02` read as six hours
+   AFTER a `12:46` deployment — which would have convicted a fix that was
+   working, declared a live leak, and stopped the phase. Converted (`19:02 UTC`
+   = `12:02 PDT`), it is 44 minutes BEFORE. The column type was checked only
+   because the answer looked wrong.
+2. **The same rows, a second time**, after that correction was written down —
+   `20:05 UTC` read as an hour after an `18:59` local deployment when it is five
+   hours and fifty-four minutes before it.
+3. **The ceremony-route investigation that produced this rule**
+   (`docs/prompts/hr-11n-ceremony-route-audit.md`), which spent a session
+   hunting an unfiltered ceremony route that did not exist. The
+   acknowledgments in question predated the retirement feature's first commit by
+   2 h 18 m. There was no defect to find.
+
+**The correction did not stop it from happening again**, which is why this is a
+precondition and not a note. Writing down "I got the timezone wrong" fixes one
+comparison; the habit that fixes all of them is converting BEFORE the comparison
+looks surprising, rather than after.
+
+Two cheap checks, in order:
+
+- **State the zone on every timestamp you write down**, the way § Database
+  Evidence already demands a branch label on every row. `20:05:58 UTC
+  (13:05:58 PDT)` cannot be misread; `20:05:58` invites it.
+- **When a timestamp implies a defect, check whether the artifact predates the
+  code being blamed.** `git log --format="%h %ad %s" --date=format:"%Y-%m-%d
+  %H:%M:%S" <sha>` is one command and ends the question. An artifact cannot have
+  been produced by code that did not exist when it was made — and a signed record
+  is never regenerated, so the certificate you are looking at may be hours older
+  than the deployment you are testing.
+
 ## Browser Evidence — Precondition
 
 **Every observation taken in a browser must name the ORGANIZATION ID it was
