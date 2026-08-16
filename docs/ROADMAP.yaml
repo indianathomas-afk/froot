@@ -5925,6 +5925,121 @@ phases:
       falls from six to two, and NO existing signed record changes state. Re-run
       the staging-SHA precondition first or the entire pass is void.
 
+  - id: HR-11o
+    track: hr
+    size: S
+    status: in_progress
+    commits:
+      - "7456565"
+    title: "Certificate table sorted by ceremony order, Sign here over body text, struck-through date"
+    notes: >
+      TIER 2, BUILT 2026-08-15 ("7456565"). RENDER LAYER ONLY — no schema, no
+      migration, no change to what is recorded. Three display defects found by
+      Gary during HR-11n Phase A verification on staging (26aa21d, org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance verified-snapper-7).
+      Evidence: Tommy Thomas's v4 certificate for "Test - Handbook Regression",
+      completed 2026-08-16 01:25:58 UTC.
+
+
+      THE RULING:
+
+
+      <<< GARY'S RULING TEXT GOES HERE — left empty deliberately, per
+      instruction. Everything below is a record of what was BUILT, not a
+      statement of what is ruled. >>>
+
+
+      D1 — THE CERTIFICATE TABLE SORTED BY CEREMONY ORDER AND READ AS A FALSE
+      SEQUENCE. orderIndex is the order a signer is ASKED for steps. It is not
+      the order the steps happened in, and on Tommy's certificate the two
+      diverged: the Final acknowledgment (orderIndex 4, signed 01:25:58) sorted
+      ABOVE both signatures (01:25:43 and 01:25:41), so the document asserted
+      that he acknowledged it BEFORE he signed it. NOT A COSMETIC COMPLAINT ON A
+      LEGAL RECORD — the certificate is the defensible artifact, and it was
+      stating an order of events that did not occur. Now sorted by signedAt
+      ascending with the # column numbering that order. Nothing stored changed;
+      orderIndex still drives the ceremony.
+
+
+      SORTED INTO A SEPARATE ARRAY, AND THAT IS THE LOAD-BEARING PART.
+      orderedAcks stays in orderIndex order because the signature-block lookup
+      further down takes the FIRST Signature/Acknowledgment row and means
+      "earliest CEREMONY step of that kind". Re-sorting in place would have
+      silently repointed it at whichever step was signed first — a second,
+      quieter defect shipped under cover of fixing the first. orderIndex is the
+      tie-break, because one submit stamps a single signedAt across all its rows
+      and an unstable sort would otherwise scramble them arbitrarily.
+
+
+      THE PER-PAGE INITIALS GRID IS DELIBERATELY NOT SORTED BY TIME. Asked to
+      check whether it had the same defect; it does not, and the reason is worth
+      keeping. Every cell carries its own page label ("p3: GT"), so the block is
+      a page-indexed REFERENCE, not a narrative — it asserts no sequence and
+      therefore cannot misstate one. Sorted by time it would read p3, p1, p4, p2
+      and be materially harder to scan against the document. It IS now sorted by
+      pageRef explicitly rather than inheriting orderIndex order: the two
+      coincide only while the set is auto-generated (Initials are minted p1..pN
+      at upload), and an admin who reorders or inserts a checkpoint breaks the
+      correspondence.
+
+
+      D2 — THE "Sign here" BUTTON COVERED THE SENTENCE BEING SIGNED. Affordances
+      were lifted above their anchor (translate(0,-118%)) to clear the signature
+      line and its caption. On page 3 of the test document that placed the button
+      on the acknowledgment paragraph — "By accepting employment with Keva Juice,
+      you acknowledge you have fully read and understand..." — so the signer
+      could not read what they were signing under.
+
+
+      NO VERTICAL OFFSET COULD HAVE FIXED IT, which is why the fix changes the
+      axis rather than the number. Prose sits directly above a signature line BY
+      CONSTRUCTION — that is what a signature line is — so every upward placement
+      collides with text, and downward is the parked Initials-vs-footer
+      collision. Affordances now move SIDEWAYS ONLY: placed on the fill line to
+      the right of the anchor token, which is an underscore run the document
+      itself reserves for a mark and where nothing readable sits, and vertically
+      centred on the baseline rather than lifted. This is the rule the identity
+      chips already used; signatures and initials now share it. The collision
+      nudge goes RIGHT — the old `top -= 46` walked stacked affordances further
+      into body text with every step. Overflowing the page width falls back to
+      the corner dock that already handles anchorless checkpoints.
+
+
+      THE PARKED FOOTER COLLISION IS FIXED BY THE SAME CHANGE, and both were done
+      rather than one. Nothing moves vertically any more, so an Initials control
+      can no longer be pushed down into the page footer.
+
+
+      D3 — THE STAMPED DATE RENDERED STRUCK THROUGH. The identity chip was
+      bg-[var(--color-primary)]/10 — TEN PERCENT ALPHA — and by design it sits on
+      the fill line, whose underscores are drawn on the PDF canvas underneath.
+      Those underscores read straight through the translucent chip and crossed
+      the text, so the date showed as "Aug 15, 2026" struck out. On a signed
+      document a struck-through date reads as an alteration. Background is now
+      opaque; border and text colour unchanged.
+
+
+      READER ONLY — CHECKED, NOT ASSUMED. The stamped PDF is unaffected. The
+      stamping loop calls page.drawText and nothing else; every drawLine and
+      drawRectangle in hr-signed-pdf.ts belongs to the appended certificate pages
+      or the first-page banner, none of them near a stamp. Drawn glyphs are
+      opaque, so a fill line beneath a stamped date shows as a line UNDER the
+      text — which is what a filled-in form is supposed to look like.
+
+
+      VERIFIED: next build green, eslint clean over both files.
+
+
+      NOT VERIFIED IN A BROWSER, and that is the whole remaining risk. D2 in
+      particular is a geometry change reasoned from the code, not observed. The
+      test document and its confirmed anchors live on staging, and standing up an
+      equivalent local fixture was disproportionate for a render fix Gary is
+      about to verify directly. Status stays in_progress until that pass lands:
+      re-sign the test document as a second signer and confirm the certificate
+      table reads in true time order, the acknowledgment sentence on page 3 is
+      fully readable with the "Sign here" button present, and the stamped date
+      has no line through it. Re-run the staging-SHA precondition first.
+
   - id: HR-11i
     track: hr
     size: S
