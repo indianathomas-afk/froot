@@ -5498,7 +5498,85 @@ phases:
     title: "R2 — two upload paths: new file re-signs, new version does not"
     commits:
       - "457a57f"
+      - "6b2054f"
     notes: >
+      DISPLAY FOLLOW-UPS 2026-08-16 ("6b2054f"), TIER 2, on top of Phase A. Four
+      items Gary found on staging once R2 was live; three fixed, one filed as a
+      row. All display or copy — hr-completion.ts and the precedence table
+      untouched, no schema, no writes.
+
+
+      (1) THE UPLOAD DIALOG CARRIED A THIRD INSTANCE OF THE HR-11f ASSERTION.
+      "Everyone will need to acknowledge this new version" — false under R2, and
+      THE ONE THAT MATTERED MOST of the three: the two in versions/route.ts are
+      comments read by us, this was the last thing an admin read before
+      committing to an upload, so it was actively deterring the revision R2
+      exists to make safe. Replaced with what happens to both audiences. Also
+      dropped from amber to muted — the sentence now describes nothing going
+      wrong, and warning colour on reassurance is the same false claim in a
+      different channel. Flagged as a call, not assumed.
+
+
+      (2) THE DATE IS BACK ON AN R2 ROW, sourced from the record they actually
+      signed. Phase A left it null and reported it as an open question; Gary
+      ruled 2026-08-16 that DESIGN §6's dateless string was abbreviation, not
+      intent. completedAt now resolves from the SAME record object the version
+      number and the download link resolve from, at all three sites, so the
+      three fields name ONE record and cannot disagree. Only the R2 branch was
+      added — the rehire path stays null exactly as before, because no surface
+      renders a date on needs-resign and widening it further would have been an
+      unruled change wearing a display fix's clothes.
+
+
+      (3) DUPLICATED VERSION TEXT, BOTH SURFACES, AND BOTH WERE PHASE A'S OWN
+      DOING. On /my/documents the notice shipped as a SECOND paragraph beneath
+      the existing copy instead of replacing it, so an R2 row said "Signed v5"
+      twice in stacked lines. On the staff page the badge gained "· current is
+      v6" while the subtitle kept "Current version v6". Both are the same
+      mistake — new copy added ALONGSIDE old copy that already said it — and
+      neither showed up in a build. Collapsed to one statement each; the badge
+      keeps the comparison because it is the half that names both numbers, and
+      the subtitle drops out on R2 rows only, since every other status still
+      needs it.
+
+
+      (4) NOT FIXED, FILED AS DEBT-70. The Aug 15 / Aug 16 disagreement Gary saw
+      between the staff page and /my/documents is a CLIENT-VS-SERVER TIMEZONE
+      SPLIT, not an R2 defect: client components print the viewer's local day,
+      server components print Vercel's UTC day, and an evening record falls on
+      two different calendar days. R2 only made it visible by putting a date on
+      a row that reaches both surfaces. It reaches 11 server components across
+      22 call sites — checklists, users, HR, training — so per Gary's own
+      instruction it became a row rather than a fix. A partial fix would be
+      worse than none: correcting /my/documents alone would make it agree with
+      the staff Documents tab and still disagree with the staff Compliance tab
+      one scroll away.
+
+
+      COPY SWEEP for the HR-11f claim, requested with item 1: two more found.
+      document-detail-client.tsx:149 ("signed records stay bound to the version
+      they were signed against") is TRUE under R2 and more relevant than before
+      — kept. The identical-hash guard's comment claimed a duplicate upload
+      "makes everyone re-acknowledge for nothing" — corrected, with the reason
+      the guard survives R2 recorded on it. REPORTED AND DELIBERATELY NOT
+      CHANGED: /my/documents renders "New version to sign" on needs-current,
+      which under R2 means a REHIRE who may be facing the very same version. Its
+      admin twin "Needs current version" was ruled NOT REWORDED on this row, so
+      rewording only the employee side would break that ruling from the other
+      end. Both need one decision, not two edits.
+
+
+      VERIFICATION OF THE FOLLOW-UPS: build passes; documentCompletion exercised
+      across all 12 arms of the R2 matrix including the rehire regression,
+      deliberately rather than incidentally — all pass. THE LIVE FIXTURE WAS NOT
+      EXERCISED and that is the gap: local dev (br-broad-wave-a6vpjdw0/neondb)
+      holds 1 signed record and 0 in the R2 state, so there was nothing to drive
+      locally, and these commits are not deployed. A screen that reads green for
+      a member who was never in the R2 state is a completion screen, not
+      evidence — so no screenshot was taken. Gdogg Thomas's row on staging still
+      owes the check.
+
+
       PHASE A BUILT 2026-08-16 ("457a57f"), NOT VERIFIED. Status is in_progress,
       not verified, and the gap is deliberate: not one observation has been taken
       on staging. Local staging and origin/staging are still DIVERGED (ahead 1,
@@ -9454,6 +9532,113 @@ debt:
       writer at transaction rate, which is when the wasted-call volume starts to
       matter; until then there is nothing to measure. Do NOT build it as a race
       fix — that question is settled and belongs to BUG-7.
+
+  - id: DEBT-70
+    status: planned
+    title: "Server-rendered dates print UTC calendar days — two surfaces disagree about one signature"
+    notes: >
+      FILED 2026-08-16 BY GARY'S INSTRUCTION, during the HR-11k Phase A display
+      follow-ups ("6b2054f"). Observed by Gary on staging: the SAME signed record
+      renders "Aug 15" on the staff profile's Documents tab and "Aug 16" on
+      /my/documents. Two compliance surfaces telling different stories about one
+      signature. Not an R2 defect — R2 only made it visible by putting a date on
+      a row that reaches both surfaces.
+
+
+      THE MECHANISM, MEASURED. Every DateTime column is TIMESTAMP(3) with no
+      time zone, so Prisma returns UTC. `format()` from date-fns renders in the
+      TZ OF WHATEVER RUNS IT. A "use client" component runs in the browser and
+      prints the viewer's local day; a server component runs on Vercel, where
+      TZ is UTC, and prints the UTC day. Same instant, two calendar days,
+      whenever the record falls in the evening:
+
+
+        record 2026-08-16 04:06 UTC = 2026-08-15 21:06 PDT
+        TZ=America/Los_Angeles -> "Aug 15, 2026"    (staff-documents.tsx, client)
+        TZ=UTC                 -> "Aug 16, 2026"    (my/documents/page.tsx, server)
+
+
+      Reproduced locally against the shipped formatter, both zones, 2026-08-16.
+
+
+      IT IS ALSO WITHIN ONE PAGE. The staff profile's Documents tab is a client
+      component and reads Aug 15; its Compliance tab (staff-compliance.tsx) is a
+      server component and reads Aug 16. Same profile, same record, one scroll
+      apart.
+
+
+      SCOPE, AND WHY IT WAS NOT FIXED IN THAT SESSION. 11 server components
+      render dates across 22 call sites — checklists, users, hr/compliance,
+      hr/signed-records, staff/[id], staff-compliance, my, my/training,
+      my/documents, my/documents/records/[recordId], training-module-view — set
+      against 20 client components doing it correctly by accident. Gary's
+      instruction was explicit: contained, fix it; reaches beyond those files,
+      file a row. It reaches. A PARTIAL FIX IS WORSE THAN NONE HERE: correcting
+      only /my/documents would make it agree with the staff Documents tab and
+      still disagree with the staff Compliance tab, trading one visible
+      disagreement for a subtler one.
+
+
+      THIS IS CLAUDE.md § Database Evidence's UTC/local precondition ONE LAYER
+      OUT. That precondition governs what WE compare while investigating; this
+      is the same offset reaching the PRODUCT, where the reader has no way to
+      know which zone they are looking at and no suffix tells them. The
+      precondition was written after the offset fired three times in one day on
+      four rows. Same failure, rendered for a customer.
+
+
+      WHAT THE FIX PROBABLY IS, not ruled: one shared formatter, and a decision
+      about WHOSE day is authoritative — the viewer's browser, or the store's.
+      They are different questions and the second may need a timezone on Store
+      or Organization (schema, so TIER 3). The viewer's-browser answer is
+      additive and needs no column. Note that a SIGNATURE arguably belongs to
+      the store's day rather than the reader's, which is the argument for the
+      harder option; a signed certificate is a legal artifact and its date
+      should not change depending on who opens it.
+
+
+      NOT URGENT, AND SAY WHY: no record is wrong, no compliance state is wrong,
+      nothing is miscounted. It is a display disagreement, visible only on
+      evening records, and it has been there since the first server-rendered
+      date. It becomes urgent if anyone ever reads a date off a screen into a
+      legal or HR process.
+
+  - id: DEBT-71
+    status: planned
+    title: "Name-mismatch banner fires on correct initials — compares Initial checkpoints to fullName"
+    notes: >
+      FILED 2026-08-16 BY GARY'S INSTRUCTION, observed by him on staging during
+      the HR-11k Phase A follow-ups. NOT FIXED — explicitly out of scope for that
+      session ("Real defect, pre-existing, needs its own row. Do not fix here"),
+      and untouched by it.
+
+
+      THE DEFECT AS OBSERVED. The name-mismatch banner fires on the value "GT".
+      It compares Initial-type checkpoints against the staff member's `fullName`,
+      so a correctly-executed INITIAL — which is by definition not the full name —
+      trips a warning that says the signer typed the wrong name. The certificate
+      confirms name-as-executed matches exactly, so the artifact is right and the
+      banner is wrong.
+
+
+      WHY IT MATTERS MORE THAN IT LOOKS. The banner is a fraud/identity signal.
+      One that fires on the correct value trains every reader to dismiss it, and
+      the whole worth of the check is that it is rare. A warning nobody believes
+      is worse than no warning, because it still costs a look.
+
+
+      PRE-EXISTING, NOT R2. R2 changed nothing on this path; it was visible in
+      the same pass only because that pass was looking at a signed record.
+
+
+      WHAT TO CHECK FIRST, not ruled: whether the comparison should be
+      checkpoint-KIND aware (Initial checkpoints compared against derived
+      initials, Signature checkpoints against fullName), and what "derived
+      initials" means for names the app has not seen — middle names, particles,
+      single-word legal names, non-Latin scripts. That last question is the
+      reason this is its own row rather than a one-line fix: the naive
+      first-letters rule is wrong for a large minority of real names, and a
+      banner that fires on THOSE is the same defect with a worse blast radius.
 
   - id: DEBT-1
     status: verified
