@@ -5499,7 +5499,113 @@ phases:
     commits:
       - "457a57f"
       - "6b2054f"
+      - "bf7cd28"
     notes: >
+      PHASE B / CASE A BUILT 2026-08-16 ("bf7cd28"), TIER 2, NOT VERIFIED ON
+      STAGING. The per-version re-verification toggle: an admin marks one upload
+      as requiring everyone to sign again, and R2 stops applying to that version
+      only. THE PHASE'S ONLY SCHEMA CHANGE — migration
+      20260816120000_hr_document_version_requires_reacknowledgment, one ADD
+      COLUMN, `requiresReacknowledgment` Boolean @default(false) on
+      HrDocumentVersion. Purely additive: on dev (br-broad-wave-a6vpjdw0/neondb)
+      all 4 existing version rows defaulted false, and HrSignedRecord (1) and
+      HrDocumentAcknowledgment (4) were unchanged across it.
+
+
+      THE DESIGN DOC WAS WRONG AND GARY CORRECTED IT BEFORE ANY CODE WAS
+      WRITTEN. DESIGN §10 says that when the flag is set, row 4 is "SKIPPED".
+      Implementing that literally is a defect: skipping the arm falls through to
+      the acknowledgment arms, so a member who signed v5 and has touched nothing
+      on v6 reads NOT-STARTED — the surface telling an admin they had never
+      signed anything. THE RECORD DOES NOT STOP EXISTING BECAUSE A RE-SIGNATURE
+      WAS DEMANDED. The arm RETURNS needs-current itself, which keeps
+      signedVersionNumber populated and lets the row name both facts. Recorded
+      here because the design doc is preserved unedited and a future reader will
+      meet its wording before this correction.
+
+
+      THE FLAG IS READ OFF THE VERSION IN FORCE, NEVER OFF THE VERSION SIGNED.
+      It is a property of the demand being made now, not of the paper somebody
+      signed months ago. And it NEVER REACHES ARM 1 OR ARM 2 (Gary, ruled): a
+      member holding a current-version record, or one who has fully acknowledged
+      the current version, is untouched by it — they did the newer work on the
+      very version demanding it.
+
+
+      A FIXTURE CAUGHT A REAL DEFECT MID-BUILD, and it is worth the sentence
+      because the defect was invisible to the build and to the eye.
+      `reacknowledgmentRequired` was first derived from its two inputs alone, so
+      it read TRUE whenever the flag was set and an older record existed —
+      INCLUDING when arm 1 or arm 2 had already won, which is exactly when Case
+      A does not apply. It would have suppressed the version subtitle on rows
+      that still needed it. It is now gated on the status that actually
+      resulted, derived like its sibling `signedOnEarlierVersion`. A FLAG THAT
+      OUTLIVES ITS OWN BRANCH is how a surface renders one state's reason under
+      another state's name — the same family as the two-facts-in-one-field
+      defect this whole row exists to fix.
+
+
+      THE DIALOG'S COPY AND COLOUR ARE BOTH CONDITIONAL, ruled by Gary and not a
+      nicety. THIS EXACT PARAGRAPH HAS NOW BEEN WRONG TWICE: it asserted the
+      HR-11f rule until "6b2054f", and a STATIC version of it under a checkbox
+      would be wrong again the instant the box is ticked — telling an admin
+      nobody will be re-prompted while they are in the act of re-prompting
+      everybody. Muted unticked (nothing is going wrong); amber ticked (people
+      who were told they were finished will be asked again). Static text beside
+      a control that changes what the text describes is the defect this codebase
+      has produced three times.
+
+
+      THE FREEZE IS ENFORCED SERVER-SIDE, ON A NEW ROUTE. PATCH
+      /api/hr/documents/[id]/versions/[versionId] — the one mutable field on an
+      otherwise immutable snapshot. Editable while the version has ZERO
+      acknowledgments, frozen after the first, REFUSED IN BOTH DIRECTIONS:
+      unticking cannot un-collect a signature already given, and ticking late
+      demands one from people already told they were finished. The count is
+      re-read inside the same request that writes, so what the UI believed when
+      it rendered cannot decide what the server allows now — A DISABLED CHECKBOX
+      IS NOT ENFORCEMENT (Gary). 409 rather than 403: the caller is permitted,
+      the version's state refuses. The control on /hr/documents/[id] surfaces
+      that 409 rather than swallowing it.
+
+
+      /my/documents NEEDED NO CODE. needs-current is already bucketed into TO
+      SIGN and already wrapped in the ceremony link, so the move out of COMPLETED
+      and the replacement of the read-only notice with a real signing affordance
+      are the existing machinery working — the cheapest available proof that
+      Case A landed in the predicate rather than in the labels, the same test
+      /my/page.tsx served for Phase A. The ceremony itself is untouched: a
+      re-verification signer walks the path a new signer walks.
+
+
+      THE `needs-current` NAMING PROBLEM IS NOW THREE MEANINGS AND IS GARY'S TO
+      RULE — REPORTED, NOTHING REWORDED. After Case A the status covers: (a) a
+      REHIRE, who may be facing the very same version they already signed; (b)
+      RE-VERIFICATION DEMANDED, where the version changed and an admin insisted;
+      (c) NEVER SIGNED THE CURRENT VERSION at all. Six surfaces render it and
+      most say something false for at least one case:
+      staff-documents.tsx:73 "Needs current version" (now conditional — Case A
+      gets "Needs v6 · signed v5", the two others unchanged);
+      staff-compliance.tsx:19 badge "Needs re-sign" and :75 detail "Signed v5 —
+      v6 is now current"; my/page.tsx:182 "New version to sign";
+      my/documents/page.tsx:27 "New version to sign"; and the org rollup tile
+      hr/compliance/page.tsx:71 "Needs Re-sign" with the subtitle "Signed an
+      older document version" — WHICH IS FALSE FOR BOTH REHIRE CASES, since a
+      rehire's record can sit on the CURRENT version. The employee strings are
+      the worst of it: "New version to sign" is simply untrue for a rehire. The
+      admin twin was ruled NOT REWORDED on this row, which is why nothing has
+      been touched piecemeal — one decision covering all three, not six edits.
+      Proposals are in the session report.
+
+
+      VERIFICATION OF PHASE B: build passes; a 12-case Case A matrix and a
+      12-case R2 regression both pass, including the rehire regression exercised
+      under BOTH flag states. STAGING IS OWED, and so is Phase A's own browser
+      check — "6b2054f" has still never been confirmed in a browser, because the
+      deployment predated it. Nothing in Phase B was observed on staging; these
+      commits are not deployed.
+
+
       DISPLAY FOLLOW-UPS 2026-08-16 ("6b2054f"), TIER 2, on top of Phase A. Four
       items Gary found on staging once R2 was live; three fixed, one filed as a
       row. All display or copy — hr-completion.ts and the precedence table
