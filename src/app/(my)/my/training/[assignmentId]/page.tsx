@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
+import { displayTimeZone } from "@/lib/hr"
 import { selfFilesServed } from "@/lib/training"
 import {
   TrainingModuleView,
@@ -68,6 +69,7 @@ export default async function MyModulePage({
         title={mod.title}
         description={mod.description}
         lessons={mod.lessons}
+        timeZone={displayTimeZone(self.staffMember, self.org)}
         quiz={quiz ? { passThreshold: quiz.passThreshold, questions: quizQuestions } : null}
         resourcesAvailable={selfFilesServed(assignment)}
         mode={{

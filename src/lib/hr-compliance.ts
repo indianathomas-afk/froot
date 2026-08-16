@@ -36,6 +36,7 @@
 import { prisma } from "@/lib/prisma"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { documentCompletion } from "@/lib/hr-completion"
+import { DEFAULT_TIME_ZONE, displayTimeZone } from "@/lib/hr"
 
 export type ComplianceItemStatus =
   | "complete"
@@ -107,6 +108,14 @@ export type StaffComplianceDetail = {
   overdueCount: number
   needsResignCount: number
   inProgressCount: number
+  /**
+   * DEBT-70b: the zone this member's dates are rendered in — their primary
+   * store's, else the org's. Carried HERE, on the object the timestamps already
+   * travel on, so a surface cannot render one without the other. Four of the 22
+   * server sites (staff-compliance ×3, /my ×1) are downstream of this field and
+   * needed no new query because of it.
+   */
+  timeZone: string
 }
 
 export type StaffComplianceSummary = {
@@ -140,6 +149,8 @@ export type PendingCountersign = {
   staffId: string
   staffName: string
   employeeSignedAt: string
+  /** DEBT-70b: the signer's zone — the signature must read the day THEY signed. */
+  timeZone: string
 }
 
 export type OrgComplianceRollup = {
@@ -253,13 +264,24 @@ export async function computeStaffComplianceDetails(
     where: { organizationId, ...(staffIds ? { id: { in: staffIds } } : { status: "ACTIVE" }) },
     include: {
       storeAssignments: {
-        include: { store: { select: { id: true, name: true } } },
+        // DEBT-70b: `timezone` joins the select so every date this module hands
+        // out can be rendered in the day its subject actually lived.
+        include: { store: { select: { id: true, name: true, timezone: true } } },
         orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }],
       },
     },
     orderBy: { displayName: "asc" },
   })
   if (staff.length === 0) return []
+
+  // DEBT-70b: the org half of the display-zone chain, fetched once for the whole
+  // batch rather than per member — this module's whole discipline is a fixed set
+  // of queries, never per-staff. Only corporate members and members with no
+  // store assignment actually reach it; everyone else resolves at their store.
+  const orgZone = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { timezone: true },
+  })
   const allStaffIds = staff.map((s) => s.id)
 
   const [docs, assignments] = await Promise.all([
@@ -597,6 +619,7 @@ export async function computeStaffComplianceDetails(
       overdueCount: items.filter((i) => i.status === "overdue").length,
       needsResignCount: items.filter((i) => i.status === "needs-resign").length,
       inProgressCount: items.filter((i) => i.status === "in-progress").length,
+      timeZone: displayTimeZone(member, orgZone ?? { timezone: DEFAULT_TIME_ZONE }),
     }
   })
 }
@@ -788,6 +811,10 @@ export async function getOrgComplianceRollup(
   ])
 
   const staffNameById = new Map(staff.map((s) => [s.staffId, s.fullName ?? s.displayName]))
+  // DEBT-70b: the signer's own zone, off the detail objects already in hand — a
+  // countersign line must read the day the EMPLOYEE signed, which is also the
+  // day stamped on their PDF (DEBT-70a resolves the same way at mint time).
+  const staffZoneById = new Map(staff.map((s) => [s.staffId, s.timeZone]))
   const formRollups = new Map<string, AgreementFormRollup>(
     forms.map((f) => [f.id, { documentId: f.id, title: f.title, executedCount: 0, pendingCount: 0 }])
   )
@@ -814,6 +841,7 @@ export async function getOrgComplianceRollup(
           staffId: sub.staffMemberId,
           staffName: staffNameById.get(sub.staffMemberId) ?? "Unknown",
           employeeSignedAt: (sub.employeeSignedAt ?? sub.signedAt).toISOString(),
+          timeZone: staffZoneById.get(sub.staffMemberId) ?? DEFAULT_TIME_ZONE,
         })
       }
     }

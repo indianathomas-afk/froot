@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
+import { displayTimeZone } from "@/lib/hr"
 import { ArrowLeft, Download, FileCheck2 } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
@@ -22,7 +23,18 @@ export default async function HrSignedRecordsPage() {
     where: { version: { hrDocument: { organizationId: org.id } } },
     include: {
       version: { select: { versionNumber: true, hrDocument: { select: { title: true } } } },
-      staffMember: { select: { id: true, displayName: true, fullName: true } },
+      // DEBT-70b: store zones join the select so each row renders the day ITS
+      // OWN signer lived — the same resolution DEBT-70a stamps into the PDF, so
+      // this list and the artifact it links to cannot disagree.
+      staffMember: {
+        select: {
+          id: true, displayName: true, fullName: true, isCorporate: true,
+          storeAssignments: {
+            select: { isPrimary: true, store: { select: { timezone: true, name: true } } },
+            orderBy: [{ isPrimary: "desc" as const }, { store: { name: "asc" as const } }],
+          },
+        },
+      },
     },
     orderBy: { completedAt: "desc" },
     take: 50,
@@ -81,7 +93,7 @@ export default async function HrSignedRecordsPage() {
                   · {r.version.hrDocument.title} v{r.version.versionNumber}
                 </p>
                 <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                  Completed {format(r.completedAt, "MMM d, yyyy h:mm a")} ·{" "}
+                  Completed {formatInstant(r.completedAt, displayTimeZone(r.staffMember, org), "mediumTime")} ·{" "}
                   <span className="font-mono" title={`sha256 ${r.signedPdfHash}`}>
                     sha256 {r.signedPdfHash.slice(0, 12)}…
                   </span>

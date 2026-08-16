@@ -2,9 +2,10 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
 import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
+import { displayTimeZone } from "@/lib/hr"
 import { can } from "@/lib/permissions"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +35,10 @@ async function getStaffMember(id: string, clerkOrgId: string) {
         include: { store: true },
         orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }],
       },
+      // DEBT-70b: the org half of the display-zone chain, for corporate members
+      // and anyone with no store assignment. `store: true` above already carries
+      // `timezone`, so the store half needed no change.
+      organization: { select: { timezone: true } },
     },
   })
   if (!member) return null
@@ -129,6 +134,10 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // regardless of assignments. `noPrimary` names a fix that must not be applied
   // to them: setting a primary would write a store name that is not true, which
   // is the whole reason the designation exists.
+  // DEBT-70b: this profile's display zone — the member's primary store, else
+  // the org. Every date on the page renders through it, so the Overview and
+  // Compliance tabs cannot disagree about the same instant again.
+  const zone = displayTimeZone(member, member.organization)
   const noStore = !member.isCorporate && member.storeAssignments.length === 0
   const noPrimary =
     !member.isCorporate &&
@@ -593,7 +602,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
             )}
           </div>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
-            {member.fullName ?? member.displayName} · Member since {format(member.createdAt, "MMMM d, yyyy")}
+            {member.fullName ?? member.displayName} · Member since {formatInstant(member.createdAt, zone, "long")}
           </p>
           {member.storeAssignments.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
@@ -615,12 +624,12 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           )}
           {member.status === "TERMINATED" && member.terminatedAt && (
             <p className="text-sm text-[var(--color-destructive)] mt-2">
-              Terminated {format(member.terminatedAt, "MMMM d, yyyy")} — records retained
+              Terminated {formatInstant(member.terminatedAt, zone, "long")} — records retained
             </p>
           )}
           {member.status === "ACTIVE" && member.rehiredAt && (
             <p className="text-sm text-[var(--color-muted-foreground)] mt-2">
-              Rehired {format(member.rehiredAt, "MMMM d, yyyy")} — required documents need re-signing
+              Rehired {formatInstant(member.rehiredAt, zone, "long")} — required documents need re-signing
             </p>
           )}
           {canManage && noStore && (
@@ -708,7 +717,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               </div>
               <div>
                 <dt className="text-[var(--color-muted-foreground)]">Member Since</dt>
-                <dd className="text-[var(--color-foreground)] font-medium">{format(member.createdAt, "MMMM d, yyyy")}</dd>
+                <dd className="text-[var(--color-foreground)] font-medium">{formatInstant(member.createdAt, zone, "long")}</dd>
               </div>
               <div>
                 <dt className="text-[var(--color-muted-foreground)]">Source</dt>

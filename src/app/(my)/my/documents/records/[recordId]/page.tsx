@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
+import { displayTimeZone } from "@/lib/hr"
 import { ArrowLeft, ShieldCheck } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
@@ -19,6 +20,9 @@ export default async function MySignedRecordPage({
   const self = await getActiveStaffSelf()
   if (!self.ok) return <MyDenied reason={self.reason} />
   const { org, staffMember } = self
+  // DEBT-70b: the day THIS person lived — their primary store's zone, else
+  // the org's. Resolved once per render through the one shared chain.
+  const zone = displayTimeZone(staffMember, org)
 
   const { recordId } = await params
   const record = await prisma.hrSignedRecord.findUnique({
@@ -56,7 +60,7 @@ export default async function MySignedRecordPage({
         </h1>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
           Version {record.version.versionNumber} · signed{" "}
-          {format(record.completedAt, "MMMM d, yyyy · h:mm a")}
+          {formatInstant(record.completedAt, zone, "longDot")}
         </p>
         <p className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)] mt-2">
           <ShieldCheck className="h-3.5 w-3.5 text-[var(--color-primary)]" />

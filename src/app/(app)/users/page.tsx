@@ -1,6 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
+import { DEFAULT_TIME_ZONE, displayTimeZone } from "@/lib/hr"
 import { InviteUserButton, EditUserButton, RemoveUserButton, RevokeInviteButton } from "./user-actions"
 import { getCurrentUser } from "@/lib/auth"
 import { can, type PermissionUser } from "@/lib/permissions"
@@ -18,7 +19,7 @@ const ROLE_STYLES: Record<string, string> = {
 
 async function getData() {
   const { orgId } = await auth()
-  if (!orgId) return { members: [], pendingInvites: [], stores: [] }
+  if (!orgId) return { members: [], pendingInvites: [], stores: [], timeZone: DEFAULT_TIME_ZONE }
 
   const clerk = await clerkClient()
   // DEBT-46 Phase 3 step 1. Both of these were capped and neither said so.
@@ -51,7 +52,7 @@ async function getData() {
     prisma.organization.findUnique({ where: { clerkOrgId: orgId } }),
   ])
 
-  if (!org) return { members: [], pendingInvites: [], stores: [] }
+  if (!org) return { members: [], pendingInvites: [], stores: [], timeZone: DEFAULT_TIME_ZONE }
 
   const [dbUsers, stores, pendingInviteRecords, staffMembers] = await Promise.all([
     prisma.user.findMany({
@@ -231,7 +232,11 @@ async function getData() {
     }
   })
 
-  return { members, pendingInvites, stores }
+  // DEBT-70b: /users lists CLERK IDENTITIES, not StaffMembers — there is no
+  // store to ask, so this enters the shared chain at the org step. That is
+  // the same chain, not a second one, and it is why displayTimeZone takes a
+  // nullable staff argument.
+  return { members, pendingInvites, stores, timeZone: displayTimeZone(null, org) }
 }
 
 export default async function UsersPage() {
@@ -251,7 +256,7 @@ export default async function UsersPage() {
   }
   if (!can(actor, "users.manage")) redirect("/dashboard")
 
-  const { members, pendingInvites, stores } = await getData()
+  const { members, pendingInvites, stores, timeZone: zone } = await getData()
 
   const storeProps = stores.map((s) => ({ id: s.id, name: s.name, storeNumber: s.storeNumber }))
   const totalCount = members.length + pendingInvites.length
@@ -336,7 +341,7 @@ export default async function UsersPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
-                      {format(member.createdAt, "M/d/yyyy")}
+                      {formatInstant(member.createdAt, zone, "numeric")}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
@@ -383,7 +388,7 @@ export default async function UsersPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
-                      {format(inv.createdAt, "M/d/yyyy")}
+                      {formatInstant(inv.createdAt, zone, "numeric")}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
 import { AlertCircle, ArrowLeft, FileSignature, Gauge, RefreshCw, Users, XCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
@@ -218,7 +218,7 @@ export default async function HrCompliancePage() {
                   <Link href={`/staff/${p.staffId}`} className="font-medium hover:text-[var(--color-primary)] hover:underline">
                     {p.staffName}
                   </Link>{" "}
-                  · {p.formTitle} · employee signed {format(new Date(p.employeeSignedAt), "MMM d, yyyy")}
+                  · {p.formTitle} · employee signed {formatInstant(p.employeeSignedAt, p.timeZone, "medium")}
                 </li>
               ))}
             </ul>

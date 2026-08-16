@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
+import { displayTimeZone } from "@/lib/hr"
 import { BookOpen, CheckCircle2, ChevronRight, FileText, ShieldCheck } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
@@ -37,6 +38,9 @@ export default async function MyDocumentsPage() {
   const self = await getActiveStaffSelf()
   if (!self.ok) return <MyDenied reason={self.reason} />
   const { staffMember, org } = self
+  // DEBT-70b: the day THIS person lived — their primary store's zone, else
+  // the org's. Resolved once per render through the one shared chain.
+  const zone = displayTimeZone(staffMember, org)
 
   const [rows, signedRecords, referenceDocs, sharedDocs] = await Promise.all([
     requiredDocumentRows(staffMember),
@@ -155,7 +159,7 @@ export default async function MyDocumentsPage() {
                       announcing it. No button, no badge change, no ceremony. */}
                   <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
                     Signed v{row.signedVersionNumber ?? row.currentVersionNumber}
-                    {row.completedAt && ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}`}
+                    {row.completedAt && ` · ${formatInstant(row.completedAt, zone, "medium")}`}
                     {row.signedOnEarlierVersion ? (
                       <>
                         {" "}
@@ -200,7 +204,7 @@ export default async function MyDocumentsPage() {
                     {r.version.hrDocument.title}
                   </p>
                   <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                    Version {r.version.versionNumber} · signed {format(r.completedAt, "MMM d, yyyy · h:mm a")}
+                    Version {r.version.versionNumber} · signed {formatInstant(r.completedAt, zone, "mediumDot")}
                   </p>
                 </div>
                 <span className="text-xs font-medium text-[var(--color-primary)] shrink-0">View</span>
@@ -230,7 +234,7 @@ export default async function MyDocumentsPage() {
                   <p className="font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
                   <p className="text-xs text-[var(--color-muted-foreground)]">
                     {doc.category ? `${doc.category} · ` : ""}
-                    {format(new Date(doc.createdAt), "MMM d, yyyy")}
+                    {formatInstant(doc.createdAt, zone, "medium")}
                   </p>
                 </div>
               </a>

@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
+import { displayTimeZone } from "@/lib/hr"
 import { ChevronRight, GraduationCap } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
@@ -12,6 +13,9 @@ import { MyDenied } from "../denied"
 export default async function MyTrainingPage() {
   const self = await getActiveStaffSelf()
   if (!self.ok) return <MyDenied reason={self.reason} />
+  // DEBT-70b: the day THIS person lived — their primary store's zone, else
+  // the org's. Resolved once per render through the one shared chain.
+  const zone = displayTimeZone(self.staffMember, self.org)
 
   const assignments = await prisma.trainingAssignment.findMany({
     where: { staffMemberId: self.staffMember.id },
@@ -74,7 +78,7 @@ export default async function MyTrainingPage() {
                   </div>
                   <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
                     {done}/{total} lessons
-                    {a.dueDate && ` · Due ${format(a.dueDate, "MMM d, yyyy")}`}
+                    {a.dueDate && ` · Due ${formatInstant(a.dueDate, zone, "medium")}`}
                   </p>
                   <div className="h-2 mt-2 rounded-full bg-[var(--color-muted)] overflow-hidden">
                     <div

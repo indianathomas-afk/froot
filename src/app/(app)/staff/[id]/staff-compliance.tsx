@@ -1,4 +1,4 @@
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
 import { Gauge, FileText, GraduationCap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type {
@@ -45,7 +45,10 @@ function StatusBadge({
   return <Badge variant={variant}>{STATUS_LABELS[status]}</Badge>
 }
 
-function docDetail(item: ComplianceDocItem): string {
+// DEBT-70b: every date on this tab renders in `timeZone` — the member's
+// primary store, else the org. It was UTC, which is how this tab read Aug 16
+// for a signature the Documents tab (a client component) read as Aug 15.
+function docDetail(item: ComplianceDocItem, timeZone: string): string {
   // R1: this line used to read "All N checkpoints acknowledged (vX) · record
   // pending" UNDER A GREEN "Complete" BADGE — the page stated in prose that no
   // record existed while badging the item done. The prose was right and the
@@ -69,7 +72,7 @@ function docDetail(item: ComplianceDocItem): string {
       const v = item.signedVersionNumber ?? item.currentVersionNumber
       const suffix = item.signedOnEarlierVersion ? ` · current is v${item.currentVersionNumber}` : ""
       return item.completedAt
-        ? `Signed v${v} · ${format(new Date(item.completedAt), "MMM d, yyyy")}${suffix}`
+        ? `Signed v${v} · ${formatInstant(item.completedAt, timeZone, "medium")}${suffix}`
         : `Signed v${v}${suffix}`
     }
     case "needs-resign":
@@ -81,11 +84,11 @@ function docDetail(item: ComplianceDocItem): string {
   }
 }
 
-function trainingDetail(item: ComplianceTrainingItem): string {
+function trainingDetail(item: ComplianceTrainingItem, timeZone: string): string {
   const lessons = `${item.lessonsDone} of ${item.lessonsTotal} lesson${item.lessonsTotal === 1 ? "" : "s"}`
   if (item.status === "overdue" && item.dueDate)
-    return `${lessons} · was due ${format(new Date(item.dueDate), "MMM d, yyyy")}`
-  if (item.dueDate) return `${lessons} · due ${format(new Date(item.dueDate), "MMM d, yyyy")}`
+    return `${lessons} · was due ${formatInstant(item.dueDate, timeZone, "medium")}`
+  if (item.dueDate) return `${lessons} · due ${formatInstant(item.dueDate, timeZone, "medium")}`
   return lessons
 }
 
@@ -169,7 +172,7 @@ export function StaffCompliance({ detail }: { detail: StaffComplianceDetail }) {
                   <td className="px-6 py-3">
                     <p className="text-sm font-medium text-[var(--color-foreground)]">{item.title}</p>
                     <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                      {docDetail(item)}
+                      {docDetail(item, detail.timeZone)}
                     </p>
                   </td>
                   <td className="px-6 py-3 text-right">
@@ -201,7 +204,7 @@ export function StaffCompliance({ detail }: { detail: StaffComplianceDetail }) {
                       {item.moduleTitle}
                     </p>
                     <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                      {trainingDetail(item)}
+                      {trainingDetail(item, detail.timeZone)}
                     </p>
                   </td>
                   <td className="px-6 py-3 text-right space-x-1.5">

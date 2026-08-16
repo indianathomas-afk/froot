@@ -6,7 +6,7 @@ import { isOverdue, isCompletedLate } from "@/lib/checklist-lifecycle"
 import { frozenWindow, STATE_BADGES, COMPLETED_LATE_BADGE } from "@/lib/checklist-status-display"
 import { CheckSquare } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatCivilDate } from "@/lib/display-time"
 import { StoreFilter } from "./store-filter"
 
 // CHK-4: `Missed` JOINS THE MAP, AND THE `?? STATUS_STYLES.Pending` FALLBACK AT
@@ -188,7 +188,7 @@ export default async function ChecklistsPage({
                 </div>
 
                 <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)] mb-4">
-                  📅 {format(new Date(checklist.date), "EEE, MMM d")}
+                  📅 {formatCivilDate(checklist.date, "weekdayMonthDay")}
                 </div>
 
                 <Link
