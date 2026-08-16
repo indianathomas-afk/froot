@@ -682,16 +682,60 @@ export function SigningClient({
 
               if (!geom) return cornerDock(pageSignatures, pageInitials)
 
-              // Place at the anchor, lifted above its line so it never covers the
-              // caption/rule. Nudge up on near-overlap so affordances don't stack.
+              // ── HR-11o D2: affordances move SIDEWAYS, never vertically ──────
+              // These used to be lifted above the anchor (translate(0,-118%)) so
+              // they would clear the signature line and its caption. On page 3 of
+              // the test document that put "Sign here" squarely on top of the
+              // acknowledgment paragraph — "By accepting employment with Keva
+              // Juice, you acknowledge you have fully read and understand…" — so
+              // the signer could not read the sentence they were signing under.
+              //
+              // ANY upward placement collides, because prose sits directly above
+              // a signature line by construction; that is what a signature line
+              // IS. Downward is the parked Initials-vs-footer collision. So the
+              // fix cannot be a better vertical offset — it has to leave the
+              // vertical band alone entirely.
+              //
+              // Horizontal is safe because the space to the right of an anchor
+              // token is the FILL LINE: an underscore run the document itself
+              // reserves for a mark. Nothing readable is there. The identity
+              // chips (printed name / store / date) have always placed this way.
+              //
+              // Vertically centred on the anchor baseline rather than lifted, so
+              // the control sits ON the line it belongs to and reads as attached
+              // to it.
               const placed: { top: number; left: number }[] = []
-              const at = (ax: number, ay: number, node: ReactNode, key: string, lift: string) => {
+              const NUDGE = 132
+              const at = (
+                ax: number,
+                ay: number,
+                node: ReactNode,
+                key: string,
+                dockOnOverflow = false
+              ) => {
                 const p = geom.toCss(ax, ay)
-                let top = p.top
-                while (placed.some((q) => Math.abs(q.top - top) < 40 && Math.abs(q.left - p.left) < 130)) top -= 46
-                placed.push({ top, left: p.left })
+                let left = p.left
+                // Collision nudge goes RIGHT, not up — the old `top -= 46` walked
+                // stacked affordances further into the body text with each step.
+                while (placed.some((q) => Math.abs(q.top - p.top) < 28 && Math.abs(q.left - left) < NUDGE)) {
+                  left += NUDGE
+                }
+                // Ran out of page. Controls fall back to the corner dock — which
+                // is already the answer for anchorless checkpoints — because a
+                // control clipped at the right edge is unclickable. Read-only
+                // identity chips clamp instead: a visible date slightly out of
+                // position beats no date at all.
+                if (left > geom.cssWidth - 120) {
+                  if (dockOnOverflow) return null
+                  left = Math.max(0, geom.cssWidth - 120)
+                }
+                placed.push({ top: p.top, left })
                 return (
-                  <div key={key} className="absolute z-10" style={{ left: p.left, top, transform: lift }}>
+                  <div
+                    key={key}
+                    className="absolute z-10"
+                    style={{ left, top: p.top, transform: "translate(0, -50%)" }}
+                  >
                     {node}
                   </div>
                 )
@@ -699,6 +743,33 @@ export function SigningClient({
 
               const dockSig = pageSignatures.filter((c) => !anchorByCheckpoint.get(c.id))
               const dockInit = pageInitials.filter((c) => !anchorByCheckpoint.get(c.id))
+
+              // Where a mark belongs relative to its anchor token. "Right" means
+              // a fill line follows the label, so sit on it; otherwise the label
+              // captions a line and its own right side is the clear space. This
+              // is the rule the identity chips already used — signatures and
+              // initials now share it instead of lifting vertically (D2).
+              const anchorX = (a: { x: number; width: number | null; placement: string }) =>
+                a.placement === "Right" ? a.x + (a.width ?? 0) + 4 : a.x
+
+              // Anchored controls that overflow the page width dock instead. Built
+              // before the return so the dock list is complete when it renders.
+              const overflowSig: SigningCheckpoint[] = []
+              const overflowInit: SigningCheckpoint[] = []
+              const sigNodes = pageSignatures.map((c) => {
+                const a = anchorByCheckpoint.get(c.id)
+                if (!a) return null
+                const node = at(anchorX(a), a.y, signatureControl(c), c.id, true)
+                if (!node) overflowSig.push(c)
+                return node
+              })
+              const initNodes = pageInitials.map((c) => {
+                const a = anchorByCheckpoint.get(c.id)
+                if (!a) return null
+                const node = at(anchorX(a), a.y, initialControl(c), c.id, true)
+                if (!node) overflowInit.push(c)
+                return node
+              })
 
               return (
                 <>
@@ -709,26 +780,27 @@ export function SigningClient({
                         : a.markType === "Store"
                           ? selectedStoreName || "—"
                           : format(new Date(), "MMM d, yyyy")
-                    const vx = a.placement === "Right" ? a.x + (a.width ?? 0) + 4 : a.x
                     return at(
-                      vx,
+                      anchorX(a),
                       a.y,
-                      <span className="inline-block rounded bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/25 px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)] whitespace-nowrap">
+                      // HR-11o D3: OPAQUE background. This chip was
+                      // bg-[var(--color-primary)]/10 — 10% alpha — and it sits by
+                      // design on the fill line, an underscore run drawn on the
+                      // PDF canvas underneath. Those underscores read straight
+                      // through the translucent chip and crossed the text, so the
+                      // stamped date rendered as "Aug 15, 2026" struck out. On a
+                      // signed document a struck-through date reads as an
+                      // alteration. Opaque card background, primary border and
+                      // text kept, so nothing on the page can show through.
+                      <span className="inline-block rounded bg-[var(--color-card)] border border-[var(--color-primary)]/25 px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)] whitespace-nowrap">
                         {value}
                       </span>,
-                      `id-${i}`,
-                      "translate(0, -90%)"
+                      `id-${i}`
                     )
                   })}
-                  {pageSignatures.map((c) => {
-                    const a = anchorByCheckpoint.get(c.id)
-                    return a ? at(a.x, a.y, signatureControl(c), c.id, "translate(0, -118%)") : null
-                  })}
-                  {pageInitials.map((c) => {
-                    const a = anchorByCheckpoint.get(c.id)
-                    return a ? at(a.x, a.y, initialControl(c), c.id, "translate(0, -118%)") : null
-                  })}
-                  {cornerDock(dockSig, dockInit)}
+                  {sigNodes}
+                  {initNodes}
+                  {cornerDock([...dockSig, ...overflowSig], [...dockInit, ...overflowInit])}
                 </>
               )
             }}

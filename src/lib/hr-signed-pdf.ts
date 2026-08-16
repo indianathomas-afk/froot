@@ -573,7 +573,30 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   w.drawLines(["Checkpoints"], { size: 11, font: helvBold })
   w.y -= 2
   header()
-  for (const [i, { checkpoint, ack }] of orderedAcks.entries()) {
+  // ── HR-11o D1: the table reads in TIME order, not orderIndex order ────────
+  // orderIndex is CEREMONY order — the sequence the signer is ASKED for steps.
+  // It is not the order they happened in, and on Tommy's v4 certificate the two
+  // diverge: the Final acknowledgment (orderIndex 4, signed 01:25:58) sorted
+  // ABOVE the two signatures (orderIndex 5 and 6, signed 01:25:43 and 01:25:41),
+  // so the certificate read as though he acknowledged the document before he
+  // signed it. On a legal record that is not a cosmetic complaint — the document
+  // asserted a sequence of events that did not occur.
+  //
+  // A SEPARATE ARRAY, DELIBERATELY. `orderedAcks` stays in orderIndex order
+  // because the signature-block lookup below (~line 523) takes the FIRST
+  // Signature/Acknowledgment row and means "the earliest ceremony step of that
+  // kind"; re-sorting in place would silently repoint it at whichever was signed
+  // first. Nothing stored changes — orderIndex still drives the ceremony.
+  //
+  // orderIndex is the tie-break so two captures sharing a timestamp (one submit
+  // stamps a single `signedAt` across its rows — see the capture route) stay in
+  // a stable, ceremony-sensible order rather than an arbitrary one.
+  const chronologicalAcks = [...orderedAcks].sort(
+    (a, b) =>
+      a.ack.signedAt.getTime() - b.ack.signedAt.getTime() ||
+      a.checkpoint.orderIndex - b.checkpoint.orderIndex
+  )
+  for (const [i, { checkpoint, ack }] of chronologicalAcks.entries()) {
     const captured =
       ack.method === "Attested"
         ? `Attested by ${ack.typedName ?? "-"}`
@@ -608,7 +631,20 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   w.rule()
 
   // ── Per-page initials grid (spike layout): p1: GT   p2: GT   … ───────────
-  const initialAcks = orderedAcks.filter((x) => x.checkpoint.type === "Initial" && x.checkpoint.pageRef != null)
+  // HR-11o D1: the initials grid does NOT get the chronological treatment, and
+  // that is a finding rather than an omission. Every cell is labelled with its
+  // own page ("p3: GT"), so the block is a page-indexed REFERENCE, not a
+  // narrative — it asserts no sequence and therefore cannot misstate one. Sorted
+  // by time it would read p3, p1, p4, p2 and be materially harder to scan
+  // against the document.
+  //
+  // It is sorted by pageRef explicitly rather than inheriting orderIndex order.
+  // For an auto-generated set the two are identical (Initials are minted p1..pN
+  // at upload), but an admin who reorders or inserts a checkpoint breaks that
+  // correspondence, and page order is what this block actually means.
+  const initialAcks = orderedAcks
+    .filter((x) => x.checkpoint.type === "Initial" && x.checkpoint.pageRef != null)
+    .sort((a, b) => (a.checkpoint.pageRef ?? 0) - (b.checkpoint.pageRef ?? 0))
   if (initialAcks.length > 0) {
     w.drawLines(["Per-page initials"], { size: 11, font: helvBold })
     w.y -= 2
