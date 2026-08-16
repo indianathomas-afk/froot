@@ -5928,7 +5928,7 @@ phases:
   - id: HR-11o
     track: hr
     size: S
-    status: in_progress
+    status: verified
     commits:
       - "7456565"
     title: "Certificate table sorted by ceremony order, Sign here over body text, struck-through date"
@@ -6082,6 +6082,76 @@ phases:
       established that HR-11n does NOT reopen. It also produced the timezone
       precondition now in CLAUDE.md § Database Evidence, after the UTC/local trap
       fired three times in one day on these same rows.
+
+
+      ────────────────────────────────────────────────────────────── VERIFIED
+      2026-08-15 BY GARY ON STAGING. All three defects confirmed fixed in the
+      browser. Status in_progress -> verified.
+
+
+      EVIDENCE. Gdogg Thomas, v5 of "Test - Handbook Regression", record
+      completed 2026-08-16 04:06:52 UTC (= 2026-08-15 21:06:52 PDT — both stated,
+      per CLAUDE.md § Database Evidence). Staging deployment built from
+      "68c5a2d", org org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance
+      verified-snapper-7. THE PRECONDITION THIS ROW ADDED WAS MET: the record was
+      minted by a deployment carrying the fixes, and a NEW signing was used
+      rather than an existing certificate, which was the only way to exercise
+      them — signed records are never regenerated.
+
+
+      D1 — PASS. The certificate checkpoint table sorts by signedAt. The column
+      reads 04:06:35, :38, :40, :42, :44, :47, :52 with no row out of sequence,
+      and the Final acknowledgment is row 7, at the bottom. On Tommy's pre-fix
+      certificate the same checkpoint was row 5, ABOVE two signatures signed
+      fifteen seconds earlier. The before/after on one document is the direct
+      measurement of the defect.
+
+
+      AND THE FIX SURFACED SOMETHING THE OLD SORT WAS HIDING, WHICH IS THE PART
+      WORTH KEEPING. In true time order the signer completed PAGE 3'S SIGNATURE
+      BEFORE PAGE 3'S INITIALS, and page 4's signature before page 4's initials —
+      out of ceremony order. The orderIndex sort concealed it completely, because
+      it rendered every certificate in the order the steps were DEFINED rather
+      than the order they were taken. The table now reports what happened instead
+      of what was expected, and the first thing it reported was a sequence nobody
+      knew was occurring.
+
+
+      NOT FILED AS A DEFECT, AND DELIBERATELY NOT RULED ON HERE. Whether a signer
+      may sign a page before initialing it is a question about the ceremony, not
+      about this row's render fix; per-page initialing is gated sequentially
+      (nextRequiredInitial) but signatures are not gated on the page's initials.
+      Recorded so the observation is not lost — it exists only because D1 shipped.
+
+
+      D2 — PASS. The acknowledgment text on pages 3 and 4 is fully legible with
+      the "Sign here" affordance beside it. Verified in the reader.
+
+
+      D3 — PASS. The stamped date renders clean, with no line through it.
+      Verified in the reader.
+
+
+      Per-page initials read p1 through p4 in page order, as designed — the
+      block that was deliberately NOT time-sorted (see D1 above) behaves as
+      argued.
+
+
+      THE PARKED FOOTER-COLLISION FINDING IS CLOSED BY "7456565". It was parked
+      in the HR-11m session prompt's out-of-scope list —
+      docs/prompts/2026-08-15-signature-checkpoint-duplication.md line 149,
+      "Initials button colliding with the page footer in the reader" — and never
+      had a row of its own, which is why it is closed here rather than there (a
+      saved prompt is a claim wholesale and is never edited). D2's change removes
+      it by construction: affordances no longer move vertically at all, so an
+      Initials control cannot be pushed down into the footer. One fix, both
+      defects, as intended when the change was made.
+
+
+      STILL OPEN FROM THAT SAME PARKED LIST: "Initials input hardening" (line
+      148). D1 closed the "certificate table sorting by signedAt" half of that
+      line; the hardening half is untouched by this row and has no row of its
+      own.
 
   - id: HR-11i
     track: hr
