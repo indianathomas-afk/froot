@@ -5,6 +5,73 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## A gate written in a document the procedure never opens is not a gate — 2026-08-16 (Gary's framing; Claude's corollary)
+
+Recorded as a **mechanism**, not a mea culpa. Nothing here reverses a decision;
+the point is that no decision was involved.
+
+Gary's framing, and the spine of the entry:
+
+> A promotion procedure that never reads the roadmap cannot enforce a gate the
+> roadmap records. `00881dc` shipped while its own row said `in_progress` and
+> the file said the gate required a staging verification that had not happened.
+> Nothing was ignored — nothing ever looked.
+
+The specifics, so the abstraction has something under it. `docs/ROADMAP.yaml`
+carried an explicit ordering constraint on the BUG-7 row: *verify BUG-6 on
+staging → verify BUG-7 on staging → register the Square subscriptions → verify
+F-4*. BUG-6 was verified on staging and the commit says so. BUG-7 was not.
+`00881dc` was promoted to production on 2026-08-14 and the Square subscriptions
+had been registered on 2026-08-13, about two hours after BUG-6 closed. Promotion
+is `git merge staging` plus a push. Neither command has ever opened
+`docs/ROADMAP.yaml`, so the gate could not have fired, and no one declined to
+honour it.
+
+**The failure mode is the one this repo keeps rediscovering in new clothing: a
+check that cannot produce a false pass versus one that produces no signal at
+all.** A gate in a document is the second kind. It reads as protection when you
+are writing it, and it is inert at the only moment it matters. The backlog
+counterpart is `DEBT-72`; the remedy is deliberately not drafted there, because
+Gary reserved the WORKFLOW.md promotion gate as his own ruling to write and
+ratify — a recommendation is not a ruling until he has written it.
+
+The same shape, one document over: five consecutive promotions skipped
+WORKFLOW.md §2 entirely, leaving no `docs/DEPLOY_LOG.md` entry and no merge
+commit, in violation of the `--no-ff` rule that §2 itself added. That is
+DEBT-38's second genuine recurrence. Two documents, one seam, and the seam is
+that promotion is a pair of git commands with no reading step in it.
+
+### The corollary that matters for future evidence work
+
+**The direct proof of a concurrency guard is a SUCCESS log, not an error log.**
+
+BUG-7's guard was hunted for three days in the wrong place. `P2002` is what the
+defect used to emit, so `P2002` is what got searched for — and the fix works by
+making `P2002` **structurally impossible**, since `ON CONFLICT` cannot raise it.
+The search could only ever return zero. Zero was then available to be read as
+"the guard is working", which would have been the right conclusion drawn from
+evidence incapable of supporting it.
+
+What actually proved the guard was `[sales-sync] ... discarded N superseded by a
+newer fetch` — a line the new code emits when it **succeeds** at the thing it
+was built to do. ~55 of them across nine production stores on 2026-08-16,
+including collisions 70 ms and 270 ms apart.
+
+Two rules fall out of this, both cheap:
+
+1. **When a fix removes an error, stop searching for the error.** Ask what the
+   fixed code emits when it works, and search for that. If it emits nothing when
+   it works, that is a finding about the fix's observability, not about its
+   correctness.
+2. **A log filter that selects failures cannot measure a rate.** The BUG-7
+   discard line is wrapped in `if (discarded.length > 0)`, so successful writes
+   emit nothing and the filter returns losers only. The ~55 is a count, never a
+   percentage; the denominator is invisible by construction. This is written on
+   the BUG-7 and DEBT-69 rows as well, because a reader who finds that filter
+   later and computes a 100% discard rate will have a coherent, urgent and
+   entirely wrong finding — the failure mode CLAUDE.md § Database Evidence
+   describes three times over.
+
 ## A Square disconnect does NOT disable the labor toggle — it degrades the overlay — 2026-08-05 (Gary)
 
 Closes the third of L-2's three open questions, the only one that could be
@@ -1447,6 +1514,71 @@ d. **Noted, not fixed:** no `organization.deleted` / `user.deleted`
    reads on the users surfaces left as-is (cosmetic).
 
 ## HR-8 compliance rollup — 2026-07-22 (Gary)
+
+**AMENDED 2026-08-15 (R2 / HR-11k Phase A, Gary). Item (a) below is superseded
+in part; the 2026-07-22 text is preserved beneath, unedited.** This is the
+second amendment to item (a) in two days — R1 took its middle sentence on
+2026-08-15, R2 takes its last one the same day. Read the amendments before the
+item.
+
+**R2 — A PRIOR VERSION'S SIGNATURE SATISFIES THE CURRENT ONE.** Item (a)'s last
+sentence ("a record signed against an older version is its own *needs re-sign*
+status: non-compliant") is overturned. A new FILE is a new document and everyone
+in the audience signs it; a new VERSION is the same document, and existing
+signers keep their record and are not re-prompted. **The version a person
+originally signed is the master document for that person.** R2 supersedes HR-11f
+(2026-08-14), which required universal re-acknowledgment on every version bump.
+Churn is handled where it always was — by a disclaimer typed into the document
+itself, "terms and conditions may change, check back regularly for any updates".
+
+**It counts toward the percentage, and it shows no warning.** Someone signed at
+v4 is in the numerator. No new status, no new enum member, no amber, no flag —
+compliance reads *signed, with the version noted* (R3, same day): "Signed v4 ·
+current is v6", green. They signed what was in force when they signed it. Amber
+stays reserved for what genuinely owes a signature: a rehire today, and Case A /
+Case B re-verification if those are ever built.
+
+**WHAT DECIDES COMPLIANCE IS THE SIGNING CYCLE, NOT THE VERSION NUMBER.** The
+rehire lever (HR-15 Policy B) is untouched and is now the *only* route to
+"needs re-sign": a record from a PREVIOUS tenure does not satisfy this one,
+whatever version carried it. The two used to be a single any-cycle lookup, and
+splitting them is the whole correctness risk of the phase — resolved against an
+any-cycle map, a rehire's previous-tenure signature reads compliant and Policy B
+is destroyed with nothing failing.
+
+**TWO PRECEDENCE ORDERINGS, RULED IN OPPOSITE DIRECTIONS.** Both are needed
+because a signer can hold a record on an old version *and* acknowledgment rows
+on the new one at the same time:
+
+- **A FULL current-version acknowledgment set BEATS the prior-version record.**
+  Someone who has acknowledged every required checkpoint of the current version
+  is bound to the CURRENT version — they did the newer work, honour it. The fix
+  for their missing record is to mint it, not to fall back on an older
+  signature. (This is R1's `recordMissing` state, unchanged.)
+- **The prior-version record BEATS a PARTIAL acknowledgment set.** Someone who
+  signed v4, then opened v6 and initialled two pages, reads signed at v4. Their
+  partial v6 rows are preserved untouched: they are evidence, they are harmless,
+  and if re-verification is ever demanded on that version the ceremony resumes
+  from them.
+
+**THE RULE LIVES IN EXACTLY ONE PLACE — `documentCompletion` in
+`src/lib/hr-completion.ts`.** R1 collapsed six hand-written derivations of "this
+document is signed" into that one pure predicate the day before, and Phase A
+deliberately did not recreate them: the precedence table changed once, in the
+predicate, and the three call sites (`lib/hr-compliance.ts`,
+`staff/[id]/page.tsx`, `my/documents/data.ts`) changed only in which facts they
+gather and how they label the result. R1's shape is load-bearing, not
+stylistic — and the dividend is that the rehire regression is one test against
+one predicate rather than three tests that must agree by discipline.
+
+**Phase A carries no schema change.** Read-side only: nothing is written to
+`HrSignedRecord` or `HrDocumentAcknowledgment`, no column is added, no migration
+ships. The re-verification toggle (Case A — an additive `requiresReacknowledgment`
+Boolean on `HrDocumentVersion` that re-imposes re-signing for one version) waits
+for Phase B. Per-person re-verification (Case B) is parked, blocked on whether
+the Key Agreement is a `FillableForm` or an `Acknowledgment`.
+
+The 2026-07-22 text, preserved:
 
 a. **Acknowledgment docs: current version only.** Compliant = every required
    checkpoint acknowledged on the CURRENT document version. A completed set of

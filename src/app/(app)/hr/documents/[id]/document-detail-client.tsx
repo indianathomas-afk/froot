@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { ArrowLeft, Download, FileScan, FileText, Pencil, PenLine, Plus, RefreshCw, Trash2, Upload } from "lucide-react"
+import { Archive, ArrowLeft, Download, FileScan, FileText, Pencil, PenLine, Plus, RefreshCw, Trash2, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -35,6 +35,7 @@ import {
   HR_CHECKPOINT_TYPE_LABELS,
   HR_CHECKPOINT_TYPE_STYLES,
   HR_KIND_LABELS,
+  hrScanMessage,
   type HrAnchorMarkTypeName,
   type HrAnchorPlacementName,
   type HrCheckpointTypeName,
@@ -51,6 +52,12 @@ export interface CheckpointRow {
   attestationText: string | null
   required: boolean
   acknowledgmentCount: number
+  // HR-11n. retiredAt set ⇒ the step is hidden from the ceremony, the completion
+  // denominator, and future certificates. retiredByName is resolved server-side
+  // from the soft retiredByUserId pointer and is "Unknown" if that user is gone.
+  retiredAt: string | null
+  retiredByName: string | null
+  retiredReason: string | null
 }
 
 export interface VersionRow {
@@ -60,6 +67,15 @@ export interface VersionRow {
   sizeBytes: number
   fileHash: string
   isCurrent: boolean
+  /** Case A: this version demands a fresh signature from everyone. */
+  requiresReacknowledgment: boolean
+  /**
+   * Case A: every acknowledgment on this version, unfiltered. Not rendered as a
+   * number — its only job is to freeze the re-acknowledgment control once
+   * anyone has started. The server re-reads it on write; this is the courtesy
+   * half (see versions/[versionId]/route.ts).
+   */
+  acknowledgmentCount: number
   createdAt: string
 }
 
@@ -162,6 +178,9 @@ function VersionsCard({ doc }: { doc: DocumentDetail }) {
                   sha256 {v.fileHash.slice(0, 12)}…
                 </span>
               </p>
+              {doc.kind === "Acknowledgment" && (
+                <ReacknowledgmentToggle docId={doc.id} version={v} />
+              )}
             </div>
             {v.isCurrent && (
               <a
@@ -181,13 +200,174 @@ function VersionsCard({ doc }: { doc: DocumentDetail }) {
   )
 }
 
+// ── CASE A: THE EDIT CARVE-OUT ───────────────────────────────────────────────
+//
+// R2 Phase B, ruled 2026-08-16. The flag is set at upload and is otherwise the
+// only mutable thing about a version — editable while that version has ZERO
+// acknowledgments, frozen after the first one.
+//
+// The narrow window is the whole design: it exists for the admin who forgets to
+// tick the box and notices five minutes later, and it closes the moment anyone
+// acts on the demand. THE SERVER RE-READS THE COUNT AND REFUSES INDEPENDENTLY
+// (versions/[versionId]/route.ts) — what is rendered here is a courtesy, not the
+// guard, and a 409 from that route is surfaced rather than swallowed so a
+// refusal is never invisible.
+function ReacknowledgmentToggle({ docId, version }: { docId: string; version: VersionRow }) {
+  const router = useRouter()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const frozen = version.acknowledgmentCount > 0
+
+  // ── WHAT THE BOX SHOWS IS THE STORED VALUE, WITH ONE WINDOW CLOSED ──────────
+  //
+  // It was `checked={version.requiresReacknowledgment}` — correct on load and
+  // correct after the refresh lands, and WRONG FOR THE WHOLE ROUND TRIP IN
+  // BETWEEN. A fully server-controlled checkbox does not move when you click
+  // it; it moves when the RSC payload comes back. An admin clicks, sees
+  // nothing change, and concludes the setting did not take — on the one control
+  // that governs whether a company gets re-prompted.
+  //
+  // SEEDED FROM THE PROP AND RE-SYNCED TO IT, never a local default. The server
+  // stays the source of truth: `serverValue` in the dependency list means any
+  // refresh, any navigation, any other tab's write overwrites what is shown
+  // here. On failure it snaps straight back, so a refusal — the 409 in
+  // particular — can never leave the screen claiming a demand that was rejected.
+  //
+  // SYNCED IN RENDER, NOT IN AN EFFECT — React's documented "adjusting state
+  // when a prop changes" pattern, and eslint's react-hooks/set-state-in-effect
+  // refuses the effect version. Storing the previous server value is what makes
+  // it a one-shot: the reset runs only on the render where the prop actually
+  // moved, never on every render.
+  const serverValue = version.requiresReacknowledgment
+  const [checked, setChecked] = useState(serverValue)
+  const [lastServerValue, setLastServerValue] = useState(serverValue)
+  if (lastServerValue !== serverValue) {
+    setLastServerValue(serverValue)
+    setChecked(serverValue)
+  }
+
+  // A frozen version that never demanded anything is the ordinary case — every
+  // pre-Case-A version, and every version an admin left alone. Rendering a
+  // disabled control on all of them would put a re-acknowledgment question on
+  // every row of every document's history for no reason.
+  if (frozen && !version.requiresReacknowledgment) return null
+
+  async function toggle(next: boolean) {
+    setSaving(true)
+    setError("")
+    setChecked(next)
+    try {
+      // redirect: "manual" IS LOad-BEARING, and an unauthenticated probe is what
+      // found it. When the Clerk session has expired the proxy answers this
+      // PATCH with a 307 to /sign-in — and a default fetch FOLLOWS it, lands on
+      // the sign-in page, and hands back a 200 with an HTML body. `res.ok` is
+      // then TRUE, the save is reported as having worked, and the box sits
+      // there ticked over a database that was never written. Manual redirect
+      // turns that into an opaque response with ok === false, which is the
+      // honest answer: a redirect is never a successful write.
+      const res = await fetch(`/api/hr/documents/${docId}/versions/${version.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requiresReacknowledgment: next }),
+        redirect: "manual",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Snap back to what the server holds, and say why. A 409 here is the
+        // freeze refusing; leaving the box in the clicked position would show a
+        // demand the server never accepted.
+        setChecked(serverValue)
+        setError(
+          data.error ??
+            (res.type === "opaqueredirect"
+              ? "Your session has expired — reload and sign in, then try again."
+              : "Could not change this setting")
+        )
+        return
+      }
+      // The optimistic value is already on screen; this reconciles it with the
+      // server and re-renders every other surface on the page.
+      router.refresh()
+    } catch {
+      setChecked(serverValue)
+      setError("Could not change this setting")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-1.5">
+      <label
+        className={`flex items-start gap-2 ${frozen ? "cursor-default" : "cursor-pointer"}`}
+        title={
+          frozen
+            ? "Frozen — someone has already acknowledged this version"
+            : "Editable until the first acknowledgment"
+        }
+      >
+        <Checkbox
+          checked={checked}
+          disabled={frozen || saving}
+          onCheckedChange={(c) => toggle(c === true)}
+          className="mt-0.5"
+        />
+        <span
+          className={`text-xs ${
+            checked
+              ? "text-[var(--color-warning,#efa201)]"
+              : "text-[var(--color-muted-foreground)]"
+          }`}
+        >
+          Requires everyone to sign again
+          {frozen && " · frozen, already acknowledged"}
+        </span>
+      </label>
+      {error && <p className="text-xs text-[var(--color-destructive)] mt-1">{error}</p>}
+    </div>
+  )
+}
+
+// HR-11d 2e: the browser's own sha256 of the chosen file, so the "this is the
+// same file" warning can be shown BEFORE the upload rather than explained after
+// it. Same digest the server computes over the stored bytes (hr-files.ts:93),
+// so the two agree. Returns null where crypto.subtle is unavailable (an
+// insecure context) — the warning is advisory and its absence changes nothing
+// about what the server does with identical bytes.
+async function sha256Hex(file: File): Promise<string | null> {
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer())
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
+  } catch {
+    return null
+  }
+}
+
 function ReuploadButton({ doc }: { doc: DocumentDetail }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  // HR-11d 2a: what the scan actually did, shown to the operator standing here
+  // instead of the dialog just vanishing.
+  const [scanNotice, setScanNotice] = useState("")
+  // HR-11d 2e: set when the chosen file is byte-identical to the current
+  // version; cleared once the operator answers "upload anyway".
+  const [identicalPending, setIdenticalPending] = useState(false)
+  // Case A (R2 Phase B). Default UNTICKED: the safe answer is the R2 one,
+  // and an admin who never touches this box can never re-prompt a company.
+  const [requiresReack, setRequiresReack] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const isSignatureDoc = doc.kind === "Acknowledgment"
+  const currentHash = doc.versions.find((v) => v.isCurrent)?.fileHash ?? null
+
+  function reset() {
+    setError("")
+    setScanNotice("")
+    setIdenticalPending(false)
+    setRequiresReack(false)
+    if (fileRef.current) fileRef.current.value = ""
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -203,6 +383,24 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
     setSaving(true)
     setError("")
     try {
+      // Nine versions of the Keva handbook all carry the same sha256 — the same
+      // bytes uploaded nine times. Ask once before adding a tenth. Confirmed
+      // anchors carry forward either way (server side, 2e); this only stops the
+      // pointless version row.
+      //
+      // [SUPERSEDED 2026-08-15 BY R2] "…that makes everyone re-acknowledge for
+      // nothing." Nobody re-acknowledges a new version now, so that is no longer
+      // what the guard is for. The reason it survives R2: a duplicate version
+      // still moves every existing signer into "signed vN · current is vN+1"
+      // and puts an update notice in front of them, for a file whose bytes are
+      // identical. Cheaper consequence than before, still pure noise.
+      if (!identicalPending && currentHash) {
+        const hash = await sha256Hex(file)
+        if (hash && hash === currentHash) {
+          setIdenticalPending(true)
+          return
+        }
+      }
       const uploaded = await uploadHrFileFromBrowser(file)
       if (!uploaded.ok) {
         setError(uploaded.error)
@@ -211,16 +409,29 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
       const res = await fetch(`/api/hr/documents/${doc.id}/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: uploaded.url, fileName: file.name }),
+        body: JSON.stringify({
+          url: uploaded.url,
+          fileName: file.name,
+          requiresReacknowledgment: isSignatureDoc ? requiresReack : false,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.error ?? "Failed to save the new version")
         return
       }
-      setOpen(false)
-      if (fileRef.current) fileRef.current.value = ""
       router.refresh()
+      // 2a: THE DIALOG ENDS BY SAYING WHAT IS LEFT TO DO. It used to close on
+      // success, which said "done" about an upload whose fields nobody has
+      // confirmed and which therefore cannot stamp anything. Non-signature
+      // documents have no scan and close as before.
+      if (data.scan) {
+        setIdenticalPending(false)
+        setScanNotice(hrScanMessage(data.scan))
+      } else {
+        setOpen(false)
+        reset()
+      }
     } finally {
       setSaving(false)
     }
@@ -228,35 +439,117 @@ function ReuploadButton({ doc }: { doc: DocumentDetail }) {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="outline" onClick={() => { reset(); setOpen(true) }}>
         <Upload className="h-4 w-4" />
         Upload New Version
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v)
+          if (!v) reset()
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Upload New Version</DialogTitle>
+            <DialogTitle>{scanNotice ? "New version uploaded" : "Upload New Version"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>File *</Label>
-              <Input required ref={fileRef} type="file" accept={isSignatureDoc ? ".pdf" : ".pdf,.png,.jpg,.jpeg,.doc,.docx"} />
-              <p className="text-xs text-[var(--color-muted-foreground)]">
-                {isSignatureDoc ? "PDF — up to 25 MB." : "PDF, PNG, JPG, DOC, or DOCX — up to 25 MB."}
-              </p>
+          {scanNotice ? (
+            <div className="space-y-4">
+              <p className="text-sm text-[var(--color-foreground)]">{scanNotice}</p>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    reset()
+                  }}
+                >
+                  Done
+                </Button>
+              </DialogFooter>
             </div>
-            {isSignatureDoc && (
-              <p className="text-sm text-[var(--color-warning,#efa201)]">
-                Existing signatures stay bound to the version they signed. Everyone will need to
-                acknowledge this new version.
-              </p>
-            )}
-            {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving ? "Uploading..." : "Upload Version"}</Button>
-            </DialogFooter>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>File *</Label>
+                <Input required ref={fileRef} type="file" accept={isSignatureDoc ? ".pdf" : ".pdf,.png,.jpg,.jpeg,.doc,.docx"} onChange={() => setIdenticalPending(false)} />
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  {isSignatureDoc ? "PDF — up to 25 MB." : "PDF, PNG, JPG, DOC, or DOCX — up to 25 MB."}
+                </p>
+              </div>
+              {/* R2 (HR-11k, Gary 2026-08-15). [SUPERSEDED] "Existing
+                  signatures stay bound to the version they signed. Everyone
+                  will need to acknowledge this new version."
+
+                  The second sentence was the HR-11f rule and is false: existing
+                  signers keep their record and are never re-prompted. THIS WAS
+                  THE THIRD INSTANCE OF THAT ASSERTION and the one that mattered
+                  most — the two in versions/route.ts are comments read by us,
+                  this is the last thing an admin reads before committing to an
+                  upload. It was actively deterring the revision R2 exists to
+                  make safe.
+
+                  NO LONGER AMBER. The sentence now describes nothing going
+                  wrong, and warning colour on reassurance is the same false
+                  claim in a different channel. */}
+              {/* ── CASE A: THE BOX, AND THE TEXT THAT MUST FOLLOW IT ─────────
+                  R2 Phase B, ruled 2026-08-16. Default unticked = R2.
+
+                  BOTH THE COPY AND THE COLOUR ARE CONDITIONAL, and that is the
+                  point rather than a nicety. THIS EXACT PARAGRAPH HAS NOW BEEN
+                  WRONG TWICE: it asserted the HR-11f rule until 6b2054f, and a
+                  static version of it under a checkbox would be wrong again the
+                  instant the box is ticked — telling an admin nobody will be
+                  re-prompted while they are in the act of re-prompting
+                  everybody. Static text next to a control that changes what the
+                  text describes is the defect this codebase has produced three
+                  times.
+
+                  MUTED UNTICKED, AMBER TICKED. Unticked it describes nothing
+                  going wrong (which is why 6b2054f took the amber off it).
+                  Ticked it describes people who were told they were finished
+                  being asked again — a genuine warning, and colour is the half
+                  of that message a scanning admin actually reads. */}
+              {isSignatureDoc && (
+                <div className="space-y-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <Checkbox
+                      checked={requiresReack}
+                      onCheckedChange={(c) => setRequiresReack(c === true)}
+                      className="mt-0.5"
+                    />
+                    <span className="text-sm text-[var(--color-foreground)]">
+                      Require everyone to sign this version again.
+                    </span>
+                  </label>
+                  <p
+                    className={
+                      requiresReack
+                        ? "text-sm text-[var(--color-warning,#efa201)]"
+                        : "text-sm text-[var(--color-muted-foreground)]"
+                    }
+                  >
+                    {requiresReack
+                      ? "Everyone re-acknowledges this version — including people who already signed an earlier one and have been told they were finished. Their existing records are kept, but they will be asked to sign again."
+                      : "Existing signers keep their record and won't be re-prompted — they'll see a notice that an update is available. Anyone who hasn't signed yet gets this version."}
+                  </p>
+                </div>
+              )}
+              {identicalPending && (
+                <p className="text-sm font-medium text-[var(--color-warning,#efa201)]">
+                  This file is identical to the current version — upload anyway?
+                </p>
+              )}
+              {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setOpen(false); reset() }}>Cancel</Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Uploading..." : identicalPending ? "Upload anyway" : "Upload Version"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -508,13 +801,18 @@ function AnchorsCard({ doc }: { doc: DocumentDetail }) {
 }
 
 function CheckpointsCard({ doc }: { doc: DocumentDetail }) {
+  // HR-11n: retired rows collapse into their own section below the live list, so
+  // the count in the heading is the count of steps a signer is actually asked
+  // for. A retired row in the main list would read as an active step.
+  const live = doc.checkpoints.filter((c) => !c.retiredAt)
+  const retired = doc.checkpoints.filter((c) => c.retiredAt)
   return (
     <section className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)]">
       <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
         <div>
           <h2 className="text-sm font-semibold text-[var(--color-foreground)]">
             Checkpoints{" "}
-            <span className="font-normal text-[var(--color-muted-foreground)]">({doc.checkpoints.length})</span>
+            <span className="font-normal text-[var(--color-muted-foreground)]">({live.length})</span>
           </h2>
           <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
             What a team member must initial, fill in, sign, and acknowledge to complete this document.
@@ -522,13 +820,13 @@ function CheckpointsCard({ doc }: { doc: DocumentDetail }) {
         </div>
         <CheckpointFormButton docId={doc.id} />
       </div>
-      {doc.checkpoints.length === 0 ? (
+      {live.length === 0 ? (
         <p className="p-6 text-sm text-[var(--color-muted-foreground)] text-center">
           No checkpoints yet — add the first one above.
         </p>
       ) : (
         <div className="divide-y divide-[var(--color-border)]">
-          {doc.checkpoints.map((c) => (
+          {live.map((c) => (
             <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
               <span className="text-xs text-[var(--color-muted-foreground)] font-mono w-7 shrink-0 text-right">
                 {c.orderIndex + 1}.
@@ -552,15 +850,188 @@ function CheckpointsCard({ doc }: { doc: DocumentDetail }) {
               {c.pageRef != null && (
                 <span className="text-xs text-[var(--color-muted-foreground)] shrink-0">p. {c.pageRef}</span>
               )}
+              <span className="text-xs text-[var(--color-muted-foreground)] shrink-0 tabular-nums">
+                {c.acknowledgmentCount} ack{c.acknowledgmentCount === 1 ? "" : "s"}
+              </span>
               <div className="flex items-center gap-1 shrink-0">
                 <CheckpointFormButton docId={doc.id} checkpoint={c} />
+                <RetireCheckpointButton docId={doc.id} checkpoint={c} />
                 <DeleteCheckpointButton docId={doc.id} checkpoint={c} />
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {retired.length > 0 && (
+        <div className="border-t border-[var(--color-border)]">
+          <div className="px-4 py-2.5 bg-[var(--color-muted)]/40">
+            <h3 className="text-xs font-semibold text-[var(--color-foreground)]">
+              Retired{" "}
+              <span className="font-normal text-[var(--color-muted-foreground)]">
+                ({retired.length})
+              </span>
+            </h3>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+              Not shown to signers and not counted toward completion. Signatures already given on
+              these steps are kept on file.{" "}
+              {/* Ruled copy — certificates are forward-only and never reissued. */}
+              Certificates issued before a step was retired may still list it.
+            </p>
+          </div>
+          <div className="divide-y divide-[var(--color-border)]">
+            {retired.map((c) => (
+              <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 opacity-70">
+                <span className="text-xs text-[var(--color-muted-foreground)] font-mono w-7 shrink-0 text-right">
+                  {c.orderIndex + 1}.
+                </span>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${HR_CHECKPOINT_TYPE_STYLES[c.type as HrCheckpointTypeName] ?? ""}`}>
+                  {HR_CHECKPOINT_TYPE_LABELS[c.type as HrCheckpointTypeName] ?? c.type}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-[var(--color-foreground)] truncate line-through">
+                    {c.name}
+                  </p>
+                  <p className="text-xs text-[var(--color-muted-foreground)] truncate">
+                    Retired by {c.retiredByName ?? "Unknown"} on{" "}
+                    {new Date(c.retiredAt!).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                    {c.retiredReason ? ` — ${c.retiredReason}` : ""}
+                  </p>
+                </div>
+                {c.pageRef != null && (
+                  <span className="text-xs text-[var(--color-muted-foreground)] shrink-0">
+                    p. {c.pageRef}
+                  </span>
+                )}
+                <span className="text-xs text-[var(--color-muted-foreground)] shrink-0 tabular-nums">
+                  {c.acknowledgmentCount} ack{c.acknowledgmentCount === 1 ? "" : "s"}
+                </span>
+                <div className="shrink-0">
+                  <UnretireCheckpointButton docId={doc.id} checkpoint={c} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
+  )
+}
+
+// HR-11n. Retire is NOT a delete and the dialog has to say so in as many words:
+// the acknowledgment count is stated, and stated as PRESERVED. An admin reading
+// "3 acknowledgments" beside a confirm button will otherwise assume they are
+// about to destroy three signatures, which is the one thing this feature
+// guarantees it never does.
+function RetireCheckpointButton({ docId, checkpoint }: { docId: string; checkpoint: CheckpointRow }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const router = useRouter()
+  const acks = checkpoint.acknowledgmentCount
+
+  async function handleRetire() {
+    setSaving(true)
+    setError("")
+    try {
+      const res = await fetch(
+        `/api/hr/documents/${docId}/checkpoints/${checkpoint.id}/retire`,
+        { method: "POST" }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? "Failed to retire the checkpoint")
+        return
+      }
+      setOpen(false)
+      router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="p-1.5 rounded hover:bg-[var(--color-accent)]"
+        title="Retire checkpoint — hide it from signers, keep its signatures"
+      >
+        <Archive className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+      </button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retire &ldquo;{checkpoint.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Team members will no longer be asked for this step, and it will stop counting
+                  toward completion of this document.
+                </p>
+                <p>
+                  {acks === 0
+                    ? "No one has signed this step."
+                    : `${acks} acknowledgment${acks === 1 ? "" : "s"} ${acks === 1 ? "has" : "have"} been recorded against this step. ${acks === 1 ? "It" : "They"} will be kept on file and are not deleted or changed.`}
+                </p>
+                <p>
+                  Certificates already issued are not changed and may still list this step. You can
+                  un-retire it at any time.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRetire} disabled={saving}>
+              {saving ? "Retiring..." : "Retire"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
+// Un-retire needs no confirm: it restores a step to the ceremony, which is the
+// reversible direction and destroys nothing.
+function UnretireCheckpointButton({
+  docId,
+  checkpoint,
+}: {
+  docId: string
+  checkpoint: CheckpointRow
+}) {
+  const [saving, setSaving] = useState(false)
+  const router = useRouter()
+
+  async function handleUnretire() {
+    setSaving(true)
+    try {
+      const res = await fetch(
+        `/api/hr/documents/${docId}/checkpoints/${checkpoint.id}/unretire`,
+        { method: "POST" }
+      )
+      if (res.ok) router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleUnretire}
+      disabled={saving}
+      className="text-xs px-2 py-1 rounded border border-[var(--color-border)] hover:bg-[var(--color-accent)] disabled:opacity-50"
+      title="Un-retire — put this step back into the signing ceremony"
+    >
+      {saving ? "..." : "Un-retire"}
+    </button>
   )
 }
 

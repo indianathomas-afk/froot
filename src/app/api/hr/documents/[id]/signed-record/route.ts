@@ -2,7 +2,11 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { findStaffMemberForUser } from "@/lib/hr"
-import { ensureSignedRecord, SignedRecordError } from "@/lib/hr-signed-pdf"
+import {
+  ensureSignedRecord,
+  SignedRecordError,
+  UnconfirmedAnchorsError,
+} from "@/lib/hr-signed-pdf"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
@@ -66,7 +70,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
   }
 
-  if (staffMemberId !== selfStaff?.id) {
+  // R4 addition (Gary, 2026-08-15): the ONE fact the refusal copy branches on,
+  // named here rather than recomputed in the catch. It is the same test the
+  // permission check below already makes — acting on your own record, or on
+  // someone else's — so the copy cannot disagree with the authorization about
+  // who the caller is.
+  const actingForSelf = staffMemberId === selfStaff?.id
+
+  if (!actingForSelf) {
     if (dbUser.role !== "ADMIN" && dbUser.role !== "MANAGER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -94,6 +105,42 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const record = await ensureSignedRecord(version.id, staffMemberId)
     return NextResponse.json({ id: record.id }, { status: 201 })
   } catch (err) {
+    // HR-11d 2b/2c: this route can be called BY THE SIGNER for themselves, so
+    // the guard's refusal must not arrive as a raw internal message. Gary's
+    // signer-facing copy, exact — nothing implying they did something wrong,
+    // because the outstanding task is an admin's. `signingUnavailable` lets a
+    // caller tell this apart from an incomplete checkpoint set without parsing
+    // prose.
+    //
+    // ── BRANCHED 2026-08-15 (Gary, R4 addition) ──────────────────────────────
+    // It used to return the signer copy to EVERY caller, and the only surface
+    // that renders it is the admin-facing Generate-record button on
+    // /staff/[id] — so in practice "ask your manager" was told to the manager,
+    // who is the person who has to act. That is the Q2 collision one layer
+    // below the display surfaces: fixing it on the five surfaces and leaving it
+    // here would have been fixing five of six.
+    //
+    // The signer path keeps the RULED VERBATIM copy, untouched. The admin path
+    // gets the actionable variant plus `confirmHref` — the same field name
+    // SigningUnavailable already uses for exactly this affordance, so the
+    // caller reuses that component's prop rather than inventing a second way to
+    // point at the same screen.
+    if (err instanceof UnconfirmedAnchorsError) {
+      return NextResponse.json(
+        actingForSelf
+          ? {
+              error: "This document isn't available yet — ask your manager.",
+              signingUnavailable: true,
+            }
+          : {
+              error:
+                "This document's fields aren't confirmed yet. Confirm them, then generate the record.",
+              signingUnavailable: true,
+              confirmHref: `/hr/documents/${doc.id}`,
+            },
+        { status: 409 }
+      )
+    }
     if (err instanceof SignedRecordError) {
       return NextResponse.json({ error: err.message }, { status: 409 })
     }

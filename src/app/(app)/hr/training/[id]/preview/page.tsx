@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation"
 import { ArrowLeft, Eye } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
+import { displayTimeZone } from "@/lib/hr"
 import { STORE_LIBRARY_WHERE, canReadTrainingModule, managerLibraryWhere } from "@/lib/training"
 import {
   TrainingModuleView,
@@ -146,10 +147,15 @@ export default async function TrainingPreviewPage({
           </div>
         )}
 
+        {/* DEBT-70b: an admin PREVIEW of a module — there is no trainee, so no
+            store to ask, and this enters the shared chain at the org step.
+            Preview mode renders no dates today; the prop is required rather
+            than defaulted so it cannot quietly start rendering UTC ones. */}
         <TrainingModuleView
           title={trainingModule.title}
           description={trainingModule.description}
           lessons={trainingModule.lessons}
+          timeZone={displayTimeZone(null, org)}
           quiz={quiz ? { passThreshold: quiz.passThreshold, questions: quizQuestions } : null}
           mode={isReader ? { kind: "read" } : { kind: "preview" }}
           // HR-25 made this prop required rather than defaulted so each tier

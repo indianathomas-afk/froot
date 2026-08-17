@@ -1,4 +1,4 @@
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
 import { Award, CheckCircle2, FileDown, PlayCircle } from "lucide-react"
 import { z } from "zod"
 import { canonicalYouTubeUrl, youTubeVideoId } from "@/lib/messages"
@@ -77,6 +77,7 @@ export function TrainingModuleView({
   quiz,
   mode,
   resourcesAvailable,
+  timeZone,
 }: {
   title: string
   description: string | null
@@ -84,6 +85,12 @@ export function TrainingModuleView({
   quiz: { passThreshold: number; questions: MyQuizQuestion[] } | null
   mode: TrainingViewMode
   resourcesAvailable: boolean
+  /**
+   * DEBT-70b: the trainee's display zone. REQUIRED, not defaulted — this
+   * component is shared by the admin preview and /my/training, and a default
+   * would let one of them silently keep rendering UTC.
+   */
+  timeZone: string
 }) {
   const progressByLesson = new Map(
     mode.kind === "execute" ? mode.lessonProgress.map((p) => [p.trainingLessonId, p]) : []
@@ -153,7 +160,7 @@ export function TrainingModuleView({
         <div className="flex items-center gap-3 border border-[var(--color-success-border,#bfe8c5)] bg-[var(--color-success-bg,#e8f8ea)] rounded-lg p-4 mb-6">
           <Award className="h-5 w-5 shrink-0 text-[var(--color-success,#25ba3b)]" />
           <p className="text-sm text-[var(--color-success-text,#166b23)]">
-            Certified {format(mode.certifiedAt, "MMMM d, yyyy")}. Need a copy of your certificate?
+            Certified {formatInstant(mode.certifiedAt, timeZone, "long")}. Need a copy of your certificate?
             Ask your manager.
           </p>
         </div>
@@ -248,7 +255,7 @@ export function TrainingModuleView({
                 </button>
               ) : progress ? (
                 <p className="text-xs text-[var(--color-muted-foreground)]">
-                  Completed {format(progress.completedAt, "MMM d, yyyy")}
+                  Completed {formatInstant(progress.completedAt, timeZone, "medium")}
                 </p>
               ) : (
                 <LessonCompleteButton assignmentId={mode.assignmentId} lessonId={lesson.id} />

@@ -1,4 +1,4 @@
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
 import { Gauge, FileText, GraduationCap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type {
@@ -7,6 +7,7 @@ import type {
   ComplianceTrainingItem,
   StaffComplianceDetail,
 } from "@/lib/hr-compliance"
+import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
 
 // HR-8: per-employee compliance detail — the drill-down target from the
 // /staff list column and the /hr/compliance rollup. Server-rendered, no
@@ -20,7 +21,17 @@ const STATUS_LABELS: Record<ComplianceItemStatus, string> = {
   "not-started": "Not started",
 }
 
-function StatusBadge({ status }: { status: ComplianceItemStatus }) {
+// R1 (Gary, 2026-08-15): `recordMissing` is passed separately from `status`
+// because it is not a status — it is a fact about a document whose status is
+// in-progress. Amber, never the green success variant.
+function StatusBadge({
+  status,
+  recordMissing = false,
+}: {
+  status: ComplianceItemStatus
+  recordMissing?: boolean
+}) {
+  if (recordMissing) return <Badge variant="warning">Not signed</Badge>
   const variant =
     status === "complete"
       ? "success"
@@ -34,12 +45,36 @@ function StatusBadge({ status }: { status: ComplianceItemStatus }) {
   return <Badge variant={variant}>{STATUS_LABELS[status]}</Badge>
 }
 
-function docDetail(item: ComplianceDocItem): string {
+// DEBT-70b: every date on this tab renders in `timeZone` — the member's
+// primary store, else the org. It was UTC, which is how this tab read Aug 16
+// for a signature the Documents tab (a client component) read as Aug 15.
+function docDetail(item: ComplianceDocItem, timeZone: string): string {
+  // R1: this line used to read "All N checkpoints acknowledged (vX) · record
+  // pending" UNDER A GREEN "Complete" BADGE — the page stated in prose that no
+  // record existed while badging the item done. The prose was right and the
+  // badge was wrong; now they agree, and the ruled admin copy says it once.
+  if (item.recordMissing) return HR_RECORD_MISSING_ADMIN_COPY
   switch (item.status) {
-    case "complete":
+    case "complete": {
+      // [SUPERSEDED 2026-08-15 BY R2] "completedAt is non-null whenever status
+      // is complete: R1 makes a record the only thing that produces it, and
+      // every record carries the date."
+      //
+      // R2 (Gary, 2026-08-15) BREAKS BOTH HALVES OF THAT LINE, which is why
+      // this site is corrected even though it is one hop further out than the
+      // three the phase enumerated. A record is still the only thing that
+      // produces "complete" — but it may now be a record on an EARLIER version,
+      // and `completedAt` upstream carries only the CURRENT version's record.
+      // So a complete item can arrive here with a null date, and the version
+      // hardcoded below was about to tell a v4 signer they signed v6.
+      //
+      // The null-date branch already existed and now carries real traffic.
+      const v = item.signedVersionNumber ?? item.currentVersionNumber
+      const suffix = item.signedOnEarlierVersion ? ` · current is v${item.currentVersionNumber}` : ""
       return item.completedAt
-        ? `Signed v${item.currentVersionNumber} · ${format(new Date(item.completedAt), "MMM d, yyyy")}`
-        : `All ${item.requiredCount} checkpoints acknowledged (v${item.currentVersionNumber}) · record pending`
+        ? `Signed v${v} · ${formatInstant(item.completedAt, timeZone, "medium")}${suffix}`
+        : `Signed v${v}${suffix}`
+    }
     case "needs-resign":
       return `Signed v${item.signedVersionNumber} — v${item.currentVersionNumber} is now current`
     case "in-progress":
@@ -49,11 +84,11 @@ function docDetail(item: ComplianceDocItem): string {
   }
 }
 
-function trainingDetail(item: ComplianceTrainingItem): string {
+function trainingDetail(item: ComplianceTrainingItem, timeZone: string): string {
   const lessons = `${item.lessonsDone} of ${item.lessonsTotal} lesson${item.lessonsTotal === 1 ? "" : "s"}`
   if (item.status === "overdue" && item.dueDate)
-    return `${lessons} · was due ${format(new Date(item.dueDate), "MMM d, yyyy")}`
-  if (item.dueDate) return `${lessons} · due ${format(new Date(item.dueDate), "MMM d, yyyy")}`
+    return `${lessons} · was due ${formatInstant(item.dueDate, timeZone, "medium")}`
+  if (item.dueDate) return `${lessons} · due ${formatInstant(item.dueDate, timeZone, "medium")}`
   return lessons
 }
 
@@ -137,11 +172,11 @@ export function StaffCompliance({ detail }: { detail: StaffComplianceDetail }) {
                   <td className="px-6 py-3">
                     <p className="text-sm font-medium text-[var(--color-foreground)]">{item.title}</p>
                     <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                      {docDetail(item)}
+                      {docDetail(item, detail.timeZone)}
                     </p>
                   </td>
                   <td className="px-6 py-3 text-right">
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={item.status} recordMissing={item.recordMissing} />
                   </td>
                 </tr>
               ))}
@@ -169,7 +204,7 @@ export function StaffCompliance({ detail }: { detail: StaffComplianceDetail }) {
                       {item.moduleTitle}
                     </p>
                     <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                      {trainingDetail(item)}
+                      {trainingDetail(item, detail.timeZone)}
                     </p>
                   </td>
                   <td className="px-6 py-3 text-right space-x-1.5">

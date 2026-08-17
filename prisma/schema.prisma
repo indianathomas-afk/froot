@@ -33,6 +33,25 @@ model Organization {
   // Validation stamps and the Certificate of Acknowledgment always render full
   // date+time regardless (court-defensibility, per DECISIONS F5b).
   hrDateStampFormat       String    @default("dateOnly")
+  // DEBT-70a (Gary, 2026-08-16). THE FALLBACK ZONE FOR PEOPLE WHO HAVE NO
+  // STORE. Inline `Date:` stamps on minted PDFs render the STORE-LOCAL day, and
+  // the store's own `Store.timezone` answers that for almost everyone — but
+  // `StaffMember.isCorporate` members are homed at no location by design
+  // (DEBT-9), so there is no store to ask. This is what they resolve to.
+  //
+  // Same default as `Store.timezone`, deliberately: the two are read in one
+  // chain (store → org → default) and a different default here would make the
+  // fallback silently change the answer rather than preserve it.
+  //
+  // MOST-COMMON-STORE-ZONE WAS REJECTED (Gary, 2026-08-16) as the alternative to
+  // this column. It needs no schema, and that is its only merit: it changes what
+  // day an ALREADY-SIGNED signature displays as soon as a store is added in
+  // another zone. An explicit column cannot drift under a record that is
+  // supposed to be frozen.
+  //
+  // Not a display preference like `hrDateStampFormat` above — it feeds a value
+  // stamped onto a permanent artifact, so it is only ever read at MINT time.
+  timezone                String    @default("America/Los_Angeles")
   createdAt               DateTime  @default(now())
 
   stores                        Store[]
@@ -1694,6 +1713,24 @@ model HrDocumentVersion {
   fileHash           String // sha256 (file bytes, or canonical form-definition JSON)
   definitionSnapshot Json? // FillableForm: frozen { bodyText, fields } this version pins
   isCurrent          Boolean  @default(true)
+  // R2 Phase B / Case A (HR-11k, Gary 2026-08-16). Set at upload: this version
+  // demands a fresh signature from EVERYONE, including people who already
+  // signed an earlier version in this same tenure. It overrides R2's default —
+  // the precedence row that lets a prior-version record satisfy the current one
+  // returns needs-current instead when this is true.
+  //
+  // READ OFF THE CURRENT VERSION, NEVER THE VERSION SIGNED. It is a property of
+  // the demand being made now, not of the paper somebody signed months ago.
+  //
+  // DEFAULT FALSE IS THE WHOLE SAFETY ARGUMENT: every version that exists today
+  // keeps R2 behaviour with no backfill, and an admin who never touches the box
+  // can never accidentally re-prompt a company.
+  //
+  // FROZEN AFTER THE FIRST ACKNOWLEDGMENT (enforced in
+  // api/hr/documents/[id]/versions/[versionId]). Unticking cannot un-collect a
+  // signature already given, and ticking late demands one from people who were
+  // told they were finished.
+  requiresReacknowledgment Boolean @default(false)
   uploadedByUserId   String
   createdAt          DateTime @default(now())
 
@@ -1717,6 +1754,26 @@ model HrDocumentCheckpoint {
   pageRef         Int? // page anchor -> enables in-page stamping later
   attestationText String? // present for Acknowledgment; the "I have read and understand..." text
   required        Boolean          @default(true)
+
+  // HR-11n Phase A: retirement. Set ⇒ the checkpoint is excluded FROM THAT
+  // MOMENT FORWARD from the ceremony step list, the required-completion
+  // denominator, and the table + inline stamps of any certificate generated
+  // after retirement. It stays queryable everywhere else and its
+  // acknowledgments are never deleted or modified — they stop counting because
+  // the step is no longer required, not because the evidence went away.
+  //
+  // Retirement exists because DELETE cannot reach these rows: the 409 guard in
+  // checkpoints/[checkpointId]/route.ts refuses any checkpoint with
+  // acknowledgments, and every orphan this feature targets has them. Reversible
+  // by design (unretire clears all three), which is why this is a nullable
+  // marker rather than a delete.
+  //
+  // FORWARD-ONLY. Certificates already issued are never touched or reissued.
+  // Nothing sets these automatically — not upload, not version change, not
+  // rescan, not re-confirmation. An ADMIN sets them by hand, one at a time.
+  retiredAt       DateTime?
+  retiredByUserId String? // User.id of the admin who retired it; no FK, mirroring the audit-snapshot pattern
+  retiredReason   String?
 
   hrDocument      HrDocument                 @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
   acknowledgments HrDocumentAcknowledgment[]

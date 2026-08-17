@@ -11,40 +11,74 @@ import {
   HR_CATEGORY_STYLES,
   type HrDocumentCategory,
 } from "@/lib/hr-documents"
+import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
 
 // One row per required Acknowledgment document for this staff member, with
 // the version-pinned status: a signed record binds to the version it was
-// signed against, so a re-upload flips status to "Needs current version"
-// while the old record stays downloadable.
+// signed against, and the old record stays downloadable.
+//
+// [SUPERSEDED 2026-08-15 BY R2] "…so a re-upload flips status to 'Needs current
+// version'."
+//
+// R2 (Gary, 2026-08-15): a re-upload leaves an existing signer SIGNED, at the
+// version they signed, with "· current is vN" appended and the badge still
+// green. "Needs current version" now means a REHIRE and nothing else.
 export interface StaffDocumentRow {
   documentId: string
   title: string
   category: string
   currentVersionNumber: number
-  status: "signed" | "pending-record" | "needs-current" | "in-progress" | "not-started"
+  status: "signed" | "needs-current" | "in-progress" | "not-started"
   signedVersionNumber: number | null
   completedAt: string | null
   signedRecordId: string | null // current-version record, or the prior-version one for needs-current
   ackedCount: number
   requiredCount: number
+  /** R1: every checkpoint in, no signed record. Never a completion state. */
+  recordMissing: boolean
+  /** R2: signed, on a superseded version. GREEN — this is compliant. */
+  signedOnEarlierVersion: boolean
+  /**
+   * Case A: they hold a record that R2 would have honoured, and the current
+   * version demands a fresh signature anyway. AMBER — same loudness as a
+   * rehire, different sentence, because they ARE still bound to something.
+   */
+  reacknowledgmentRequired: boolean
 }
 
 const STATUS_STYLES: Record<StaffDocumentRow["status"], string> = {
   signed: "bg-green-100 text-green-700 border border-green-200",
-  "pending-record": "bg-green-100 text-green-700 border border-green-200",
   "needs-current": "bg-amber-100 text-amber-700 border border-amber-200",
   "in-progress": "bg-blue-100 text-blue-700 border border-blue-200",
   "not-started": "bg-gray-100 text-gray-600 border border-gray-200",
 }
 
+// R1 (Gary, 2026-08-15): AMBER, NOT GREEN, and ruled explicitly — the
+// record-missing state must never render in the same treatment as signed. It
+// carried `bg-green-100` identical to `signed` and read "Signed v2 · record
+// pending", so an admin scanning a roster for gaps saw a row of matching green
+// ticks. Amber puts it with "needs current version": something is outstanding.
+const RECORD_MISSING_STYLE = "bg-amber-100 text-amber-700 border border-amber-200"
+
+// R2 (Gary, 2026-08-15): the suffix, and NO STYLE CHANGE WITH IT. STATUS_STYLES
+// is untouched on purpose — a signer bound to a superseded version is compliant
+// and reads green. Amber stays reserved for what genuinely owes a signature: a
+// rehire today, and Case A/Case B re-verification if they are ever built. R3:
+// "compliance shows signed, with the version noted. No warning, no flag."
 function statusLabel(row: StaffDocumentRow): string {
+  if (row.recordMissing) return HR_RECORD_MISSING_ADMIN_COPY
   switch (row.status) {
     case "signed":
-      return `Signed v${row.signedVersionNumber}${row.completedAt ? ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}` : ""}`
-    case "pending-record":
-      return `Signed v${row.signedVersionNumber} · record pending`
+      return `Signed v${row.signedVersionNumber}${row.completedAt ? ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}` : ""}${row.signedOnEarlierVersion ? ` · current is v${row.currentVersionNumber}` : ""}`
     case "needs-current":
-      return "Needs current version"
+      // Case A (2026-08-16). A re-verification signer is NOT a rehire, even
+      // though they share this status: they are still bound to the version they
+      // signed until they sign again, so the row names both — what they owe and
+      // what holds until they give it. The rehire string is untouched; see the
+      // three-meanings note filed on HR-11k, which is Gary's to rule on.
+      return row.reacknowledgmentRequired && row.signedVersionNumber != null
+        ? `Needs v${row.currentVersionNumber} · signed v${row.signedVersionNumber}`
+        : "Needs current version"
     case "in-progress":
       return `In progress · ${row.ackedCount}/${row.requiredCount}`
     case "not-started":
@@ -82,14 +116,27 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 {HR_CATEGORY_LABELS[row.category as HrDocumentCategory] ?? row.category}
               </span>
             </div>
-            <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-              Current version v{row.currentVersionNumber}
-              {row.status === "needs-current" && row.signedVersionNumber != null && (
-                <> · signed v{row.signedVersionNumber}</>
-              )}
-            </p>
+            {/* R2, 2026-08-16: an R2 row said v6 twice — "Current version v6"
+                here and "· current is v6" in the badge. The BADGE keeps it,
+                because the badge is the half carrying the comparison: it names
+                the signed version and the current one in one string, and this
+                line can only ever repeat the second. Every other status still
+                needs it — a not-started row has no badge version at all.
+
+                Case A joins the same condition for the same reason: its badge
+                reads "Needs v6 · signed v5" and already names both numbers, so
+                leaving this line would print v6 and v5 twice each — the exact
+                duplication 6b2054f was cleaning up. */}
+            {!row.signedOnEarlierVersion && !row.reacknowledgmentRequired && (
+              <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+                Current version v{row.currentVersionNumber}
+                {row.status === "needs-current" && row.signedVersionNumber != null && (
+                  <> · signed v{row.signedVersionNumber}</>
+                )}
+              </p>
+            )}
           </div>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${STATUS_STYLES[row.status]}`}>
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${row.recordMissing ? RECORD_MISSING_STYLE : STATUS_STYLES[row.status]}`}>
             {statusLabel(row)}
           </span>
           <div className="flex items-center gap-2 shrink-0">
@@ -99,8 +146,23 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 target="_blank"
                 rel="noopener"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity"
+                // R1: a record-missing row can still carry a link, when the
+                // member signed an EARLIER version and their re-acknowledgment
+                // of the current one never minted. The badge says "no record"
+                // and means the current version; naming the version this link
+                // actually resolves to keeps the two from reading as a
+                // contradiction. Same treatment needs-current already had.
+                // R2, 2026-08-16: signedOnEarlierVersion joins the same
+                // condition, for the reason the comment above already gives —
+                // on an R2 row this link resolves to the v5 record while the
+                // document in force is v6, which is exactly when naming the
+                // version stops the link and the badge reading as a
+                // contradiction.
                 title={
-                  row.status === "needs-current"
+                  (row.status === "needs-current" ||
+                    row.recordMissing ||
+                    row.signedOnEarlierVersion) &&
+                  row.signedVersionNumber != null
                     ? `Signed record for v${row.signedVersionNumber}`
                     : "Download signed record"
                 }
@@ -109,18 +171,27 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 Signed record
               </a>
             )}
-            {row.status === "pending-record" && (
+            {row.recordMissing && (
               <GenerateRecordButton documentId={row.documentId} staffId={staffId} />
             )}
-            {(row.status === "not-started" || row.status === "in-progress" || row.status === "needs-current") && (
-              <Link
-                href={`/hr/acknowledge/${row.documentId}?staff=${staffId}`}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity"
-              >
-                <PenLine className="h-4 w-4" />
-                Record
-              </Link>
-            )}
+            {/* R1: a record-missing row is NOT offered the ceremony link. The
+                signer has already worked through every checkpoint — sending a
+                manager to re-run the ceremony would capture nothing (the
+                acknowledgment write is idempotent within a cycle) and would read
+                as though the signer had to start again. Generate record, above,
+                is the action that actually moves this row. */}
+            {!row.recordMissing &&
+              (row.status === "not-started" ||
+                row.status === "in-progress" ||
+                row.status === "needs-current") && (
+                <Link
+                  href={`/hr/acknowledge/${row.documentId}?staff=${staffId}`}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity"
+                >
+                  <PenLine className="h-4 w-4" />
+                  Record
+                </Link>
+              )}
           </div>
         </div>
       ))}
@@ -133,11 +204,18 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
 function GenerateRecordButton({ documentId, staffId }: { documentId: string; staffId: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  // R4 addition (Gary, 2026-08-15): the route hands back where to go when the
+  // refusal is "fields aren't confirmed". Rendering it is the difference between
+  // an instruction and an instruction someone can act on — the admin is one
+  // click from the screen that clears this, and used to be told to ask their
+  // manager instead.
+  const [confirmHref, setConfirmHref] = useState<string | null>(null)
   const router = useRouter()
 
   async function handleGenerate() {
     setBusy(true)
     setError("")
+    setConfirmHref(null)
     try {
       const res = await fetch(`/api/hr/documents/${documentId}/signed-record`, {
         method: "POST",
@@ -147,6 +225,7 @@ function GenerateRecordButton({ documentId, staffId }: { documentId: string; sta
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.error ?? "Failed to generate the record")
+        if (typeof data.confirmHref === "string") setConfirmHref(data.confirmHref)
         return
       }
       router.refresh()
@@ -156,12 +235,27 @@ function GenerateRecordButton({ documentId, staffId }: { documentId: string; sta
   }
 
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex items-center gap-2 flex-wrap">
       <Button variant="outline" size="sm" onClick={handleGenerate} disabled={busy}>
         <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
         {busy ? "Generating..." : "Generate record"}
       </Button>
-      {error && <span className="text-xs text-[var(--color-destructive)]">{error}</span>}
+      {error && (
+        <span className="text-xs text-[var(--color-destructive)]">
+          {error}
+          {confirmHref && (
+            <>
+              {" "}
+              <Link
+                href={confirmHref}
+                className="font-medium underline underline-offset-2 text-[var(--color-primary)]"
+              >
+                Confirm fields
+              </Link>
+            </>
+          )}
+        </span>
+      )}
     </span>
   )
 }

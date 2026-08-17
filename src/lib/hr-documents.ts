@@ -171,6 +171,56 @@ export const HR_ANCHOR_PLACEMENT_LABELS: Record<HrAnchorPlacementName, string> =
   Below: "Below the line",
 }
 
+// ── HR-11d 2a: what the upload's field scan actually did ─────────────────────
+// R2 (Gary, 2026-08-14), the same rule already shipped on rescan: a scan states
+// WHICH of the outcomes below happened. A bare zero must never stand in for all
+// of them — "0 fields" reads as "this document has no fields" when it can just
+// as easily mean "pdfjs threw" or "nobody scanned it".
+//
+// Client-safe: the routes return the shape, the upload dialog renders the copy.
+export const HR_SCAN_OUTCOMES = [
+  "carriedForward", // identical bytes ⇒ the prior version's confirmed anchors travelled (2e)
+  "needsConfirm", // fields found, none active yet — the operator's to-do
+  "noFieldsMatched", // text layer present, no vocabulary token matched
+  "noTextLayer", // image-only / scanned PDF
+  "scanFailed", // detection threw — NOT the same as finding nothing
+  "notScanned", // never attempted (bytes unavailable)
+] as const
+export type HrScanOutcome = (typeof HR_SCAN_OUTCOMES)[number]
+
+export interface HrVersionScanReport {
+  outcome: HrScanOutcome
+  matched: number // fields detected in the file
+  stored: number // NEW unconfirmed proposals written
+  confirmed: number // active anchors on this version after the upload
+  carriedForward: number // confirmed anchors copied from an identical prior file (2e)
+  pagesScanned: number
+  error: string | null
+}
+
+/**
+ * The line the operator reads when the upload finishes. It ends by telling the
+ * person standing there WHAT IS LEFT TO DO — this is a to-do handed to a human,
+ * not a success message. The two certificate-only outcomes say so plainly, so
+ * "nothing to confirm" cannot be misread as "something went wrong".
+ */
+export function hrScanMessage(r: HrVersionScanReport): string {
+  switch (r.outcome) {
+    case "carriedForward":
+      return `${r.confirmed} field${r.confirmed === 1 ? "" : "s"} carried forward from the identical previous file — already active. Nothing to confirm.`
+    case "needsConfirm":
+      return `${r.matched} field${r.matched === 1 ? "" : "s"} found. None are active yet — confirm them before anyone signs.`
+    case "noFieldsMatched":
+      return `Scanned ${r.pagesScanned} page${r.pagesScanned === 1 ? "" : "s"} — a text layer was found, but none of the field labels matched. Signing works; execution is recorded on the Certificate of Acknowledgment.`
+    case "noTextLayer":
+      return "No text layer found — this looks like a scanned or image-only PDF. Signing works; execution is recorded on the Certificate of Acknowledgment."
+    case "scanFailed":
+      return `The version was saved, but field scanning failed${r.error ? `: ${r.error}` : ""}. Use "Scan for fields" on this document before anyone signs — until it runs, nothing can be stamped onto the page body.`
+    case "notScanned":
+      return 'The version was saved, but its file could not be read for field scanning. Use "Scan for fields" on this document before anyone signs.'
+  }
+}
+
 // Org-level inline Date: rendering (Organization.hrDateStampFormat). Validation
 // stamps and certificates always render full date+time regardless (DECISIONS F5b).
 export const HR_DATE_STAMP_FORMATS = ["dateOnly", "dateTime"] as const
@@ -191,6 +241,60 @@ export const HR_ESIGN_CONSENT_TEXT =
   "initials, and acknowledgments are the legal equivalent of my handwritten signature, that I " +
   "have been given access to read the full document before signing, and that I may request a " +
   "paper copy at any time."
+
+// ─── R4: the assignability refusal ───────────────────────────────────────────
+//
+// Ruled verbatim by Gary 2026-08-15. Shown when an admin tries to give a
+// document an audience while its current version's detected fields are
+// unconfirmed. It lives HERE rather than beside isSigningBlocked because
+// hr-anchors.ts is server-side (unpdf, prisma) and the assign dialog is a client
+// component — this file exists precisely to be the shared, client-safe half.
+//
+// R4 SUPERSEDES THE HR-11d §2b CARVE-OUT, which reads "THE GUARD IS AT THE
+// CEREMONY, NEVER AT THE GRANT" (hr/acknowledge/[documentId]/page.tsx). The
+// guard moves upstream: a document whose anchors are unconfirmed cannot be
+// granted to anyone in the first place.
+//
+// Admin-facing by construction — only an ADMIN can reach the audience write —
+// so this needs no signer variant, unlike the R1 copy pair.
+export const HR_ASSIGN_BLOCKED_COPY = "Confirm this document's fields before assigning it."
+
+/**
+ * Would this audience selection give the document to anyone? R4 gates GRANTING
+ * and never REVOKING.
+ *
+ * An audience that reaches nobody — "selected" with an empty selection — is how
+ * an admin WITHDRAWS a document, and it is exactly what they need when a version
+ * has gone unconfirmed underneath a live grant. Refusing that would trap the
+ * document in the audience it already has: blocking the grant while forbidding
+ * the retreat is worse than not blocking at all, and it is the same dead-end
+ * shape the Q1 ruling rejected for image-only PDFs.
+ *
+ * EXPORTED, PURE, AND SHARED BY THE ROUTE AND THE DIALOG ON PURPOSE. The PUT is
+ * the gate and the dialog's disabled Save is only an affordance, so the two are
+ * allowed to be different layers — but they are NOT allowed to be different
+ * RULES. A Next route file may export nothing but handlers, so a rule defined
+ * there could only reach the client as a retyped copy, and a copy of
+ * "would this grant to anyone" that drifts by one condition either disables Save
+ * on a withdrawal or offers Save on a refusal. Same reason DOC-1 B extracted
+ * computeAudienceDelta rather than testing a copy of it.
+ *
+ * THE "all" LITERAL IS COMPANY_WIDE'S VALUE, restated rather than imported.
+ * COMPANY_WIDE lives in lib/hr-documents-access.ts, which reaches prisma through
+ * lib/hr and so cannot be imported by a client component — this file is the
+ * client-safe half by design. The restatement is contained: the route's Zod
+ * union already guarantees `appliesTo` is COMPANY_WIDE or "selected", and the
+ * dialog's own Mode type is `"all" | "selected"`, so both callers are typed
+ * against the same two strings. The verification script asserts the pairing.
+ */
+export function audienceWouldGrant(selection: {
+  appliesTo: string
+  storeIds?: string[]
+  staffMemberIds?: string[]
+}): boolean {
+  if (selection.appliesTo === "all") return true
+  return (selection.storeIds?.length ?? 0) + (selection.staffMemberIds?.length ?? 0) > 0
+}
 
 // Manager-attested variant: the manager is recording that the staff member
 // completed the document (e.g. on paper) — a weaker method, recorded as such.

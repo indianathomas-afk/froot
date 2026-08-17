@@ -18,7 +18,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HR_ESIGN_CONSENT_TEXT, HR_ESIGN_CONSENT_VERSION } from "@/lib/hr-documents"
+import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
 import { PdfViewer } from "@/components/hr/pdf-viewer"
+import { SigningUnavailable } from "@/components/hr/signing-unavailable"
 
 interface SigningCheckpoint {
   id: string
@@ -46,9 +48,18 @@ interface SigningDoc {
 // API — one entry per moment — so each checkpoint row carries the real
 // server-clock time it happened (the Defect-1 fix). Resume state comes from
 // the per-cycle `done` flags; nothing here can touch a prior signed record.
+//
+// R1 (Gary, 2026-08-15): RESUME STATE COMES FROM THE `done` FLAGS, COMPLETION
+// DOES NOT. Those two sentences used to be one, and that is A5 in the audit:
+// the opening phase was "done" whenever every required checkpoint carried a
+// flag, so the signer in the reproduction re-opened the document and was shown
+// the executed screen — "your signed record is kept permanently" — with no
+// record in existence. `hasSignedRecord` is now the only thing that opens that
+// screen, and it is server-supplied because this component cannot see a record.
 export function SigningClient({
   doc,
   checkpoints,
+  hasSignedRecord,
   staff,
   anchors = [],
   backHref,
@@ -56,6 +67,11 @@ export function SigningClient({
 }: {
   doc: SigningDoc
   checkpoints: SigningCheckpoint[]
+  /**
+   * An HrSignedRecord exists for (current version, this signer, current cycle).
+   * The ONLY input that may produce the executed screen.
+   */
+  hasSignedRecord: boolean
   // name = the LEGAL Full Name on file (read-only context; the signer types
   // their own signature). stores = the signer's assigned stores for the
   // select-from-assigned store picker.
@@ -85,10 +101,20 @@ export function SigningClient({
 }) {
   const router = useRouter()
 
-  type Phase = "consent" | "review" | "finalize" | "done"
+  // "unavailable" — HR-11d 2b layer (c) refused to mint after the last capture.
+  // Only reachable when layer (b) was bypassed (a stale tab, a hand-rolled
+  // POST): the page itself refuses this state before the ceremony starts.
+  //
+  // "record-missing" — R1. Every required checkpoint is captured and no record
+  // exists, for a reason this client cannot distinguish (the mint threw for
+  // something other than unconfirmed anchors, or it never ran). The signer has
+  // nothing left to do, so this is not "consent" — and nothing was executed, so
+  // it is emphatically not "done".
+  type Phase = "consent" | "review" | "finalize" | "done" | "unavailable" | "record-missing"
 
+  const allRequiredCaptured = checkpoints.filter((c) => c.required && !c.done).length === 0
   const [phase, setPhase] = useState<Phase>(() =>
-    checkpoints.filter((c) => c.required && !c.done).length === 0 ? "done" : "consent"
+    hasSignedRecord ? "done" : allRequiredCaptured ? "record-missing" : "consent"
   )
   const [consented, setConsented] = useState(false)
   const [typedName, setTypedName] = useState("")
@@ -204,8 +230,15 @@ export function SigningClient({
         entries.forEach((e) => next.set(e.checkpointId, now))
         return next
       })
+      // R1: `complete` now IS the mint result, so this is the record test and no
+      // longer needs signingUnavailable to avoid claiming a signature. That flag
+      // still picks WHICH refusal to show — anchors an admin must confirm, or a
+      // mint that may simply be retried.
       if (data.complete === true) {
         setPhase("done")
+        router.refresh()
+      } else if (data.checkpointsComplete === true) {
+        setPhase(data.signingUnavailable === true ? "unavailable" : "record-missing")
         router.refresh()
       }
       return true
@@ -240,6 +273,45 @@ export function SigningClient({
       </span>
     </p>
   )
+
+  // ── Phase: unavailable ─────────────────────────────────────────────────────
+  // Layer (c) declined to mint. The signer's captures are all on file — they do
+  // not sign again — so the copy must not read as "you failed" or "start over".
+  if (phase === "unavailable") {
+    return (
+      <div className="max-w-2xl mx-auto">
+        {back}
+        <SigningUnavailable audience="signer" documentId={doc.id} documentTitle={doc.title} />
+      </div>
+    )
+  }
+
+  // ── Phase: record-missing ──────────────────────────────────────────────────
+  // R1. Everything the signer can do is done and no record exists. The copy is
+  // the ruled verbatim string; the paragraph under it exists because the screen
+  // this replaces told them they were finished, and the correction must not now
+  // read as "you did something wrong" or "start again" — neither is true, and
+  // their captures are all on file.
+  if (phase === "record-missing") {
+    return (
+      <div className="max-w-2xl mx-auto">
+        {back}
+        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-10 text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+            <Loader2 className="h-6 w-6 text-amber-700" />
+          </div>
+          <h1 className="text-lg font-semibold text-[var(--color-foreground)] mb-1">
+            {HR_RECORD_MISSING_SIGNER_COPY}
+          </h1>
+          <p className="text-sm text-[var(--color-muted-foreground)] max-w-md mx-auto">
+            You have completed every step of {doc.title}. Each one is saved with the date and time
+            you did it, and nothing needs doing again — but the signed record has not been issued
+            yet, so this document is not finished. Your manager can complete it.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   // ── Phase: done ────────────────────────────────────────────────────────────
   if (phase === "done") {
@@ -610,16 +682,60 @@ export function SigningClient({
 
               if (!geom) return cornerDock(pageSignatures, pageInitials)
 
-              // Place at the anchor, lifted above its line so it never covers the
-              // caption/rule. Nudge up on near-overlap so affordances don't stack.
+              // ── HR-11o D2: affordances move SIDEWAYS, never vertically ──────
+              // These used to be lifted above the anchor (translate(0,-118%)) so
+              // they would clear the signature line and its caption. On page 3 of
+              // the test document that put "Sign here" squarely on top of the
+              // acknowledgment paragraph — "By accepting employment with Keva
+              // Juice, you acknowledge you have fully read and understand…" — so
+              // the signer could not read the sentence they were signing under.
+              //
+              // ANY upward placement collides, because prose sits directly above
+              // a signature line by construction; that is what a signature line
+              // IS. Downward is the parked Initials-vs-footer collision. So the
+              // fix cannot be a better vertical offset — it has to leave the
+              // vertical band alone entirely.
+              //
+              // Horizontal is safe because the space to the right of an anchor
+              // token is the FILL LINE: an underscore run the document itself
+              // reserves for a mark. Nothing readable is there. The identity
+              // chips (printed name / store / date) have always placed this way.
+              //
+              // Vertically centred on the anchor baseline rather than lifted, so
+              // the control sits ON the line it belongs to and reads as attached
+              // to it.
               const placed: { top: number; left: number }[] = []
-              const at = (ax: number, ay: number, node: ReactNode, key: string, lift: string) => {
+              const NUDGE = 132
+              const at = (
+                ax: number,
+                ay: number,
+                node: ReactNode,
+                key: string,
+                dockOnOverflow = false
+              ) => {
                 const p = geom.toCss(ax, ay)
-                let top = p.top
-                while (placed.some((q) => Math.abs(q.top - top) < 40 && Math.abs(q.left - p.left) < 130)) top -= 46
-                placed.push({ top, left: p.left })
+                let left = p.left
+                // Collision nudge goes RIGHT, not up — the old `top -= 46` walked
+                // stacked affordances further into the body text with each step.
+                while (placed.some((q) => Math.abs(q.top - p.top) < 28 && Math.abs(q.left - left) < NUDGE)) {
+                  left += NUDGE
+                }
+                // Ran out of page. Controls fall back to the corner dock — which
+                // is already the answer for anchorless checkpoints — because a
+                // control clipped at the right edge is unclickable. Read-only
+                // identity chips clamp instead: a visible date slightly out of
+                // position beats no date at all.
+                if (left > geom.cssWidth - 120) {
+                  if (dockOnOverflow) return null
+                  left = Math.max(0, geom.cssWidth - 120)
+                }
+                placed.push({ top: p.top, left })
                 return (
-                  <div key={key} className="absolute z-10" style={{ left: p.left, top, transform: lift }}>
+                  <div
+                    key={key}
+                    className="absolute z-10"
+                    style={{ left, top: p.top, transform: "translate(0, -50%)" }}
+                  >
                     {node}
                   </div>
                 )
@@ -627,6 +743,33 @@ export function SigningClient({
 
               const dockSig = pageSignatures.filter((c) => !anchorByCheckpoint.get(c.id))
               const dockInit = pageInitials.filter((c) => !anchorByCheckpoint.get(c.id))
+
+              // Where a mark belongs relative to its anchor token. "Right" means
+              // a fill line follows the label, so sit on it; otherwise the label
+              // captions a line and its own right side is the clear space. This
+              // is the rule the identity chips already used — signatures and
+              // initials now share it instead of lifting vertically (D2).
+              const anchorX = (a: { x: number; width: number | null; placement: string }) =>
+                a.placement === "Right" ? a.x + (a.width ?? 0) + 4 : a.x
+
+              // Anchored controls that overflow the page width dock instead. Built
+              // before the return so the dock list is complete when it renders.
+              const overflowSig: SigningCheckpoint[] = []
+              const overflowInit: SigningCheckpoint[] = []
+              const sigNodes = pageSignatures.map((c) => {
+                const a = anchorByCheckpoint.get(c.id)
+                if (!a) return null
+                const node = at(anchorX(a), a.y, signatureControl(c), c.id, true)
+                if (!node) overflowSig.push(c)
+                return node
+              })
+              const initNodes = pageInitials.map((c) => {
+                const a = anchorByCheckpoint.get(c.id)
+                if (!a) return null
+                const node = at(anchorX(a), a.y, initialControl(c), c.id, true)
+                if (!node) overflowInit.push(c)
+                return node
+              })
 
               return (
                 <>
@@ -637,26 +780,27 @@ export function SigningClient({
                         : a.markType === "Store"
                           ? selectedStoreName || "—"
                           : format(new Date(), "MMM d, yyyy")
-                    const vx = a.placement === "Right" ? a.x + (a.width ?? 0) + 4 : a.x
                     return at(
-                      vx,
+                      anchorX(a),
                       a.y,
-                      <span className="inline-block rounded bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/25 px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)] whitespace-nowrap">
+                      // HR-11o D3: OPAQUE background. This chip was
+                      // bg-[var(--color-primary)]/10 — 10% alpha — and it sits by
+                      // design on the fill line, an underscore run drawn on the
+                      // PDF canvas underneath. Those underscores read straight
+                      // through the translucent chip and crossed the text, so the
+                      // stamped date rendered as "Aug 15, 2026" struck out. On a
+                      // signed document a struck-through date reads as an
+                      // alteration. Opaque card background, primary border and
+                      // text kept, so nothing on the page can show through.
+                      <span className="inline-block rounded bg-[var(--color-card)] border border-[var(--color-primary)]/25 px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)] whitespace-nowrap">
                         {value}
                       </span>,
-                      `id-${i}`,
-                      "translate(0, -90%)"
+                      `id-${i}`
                     )
                   })}
-                  {pageSignatures.map((c) => {
-                    const a = anchorByCheckpoint.get(c.id)
-                    return a ? at(a.x, a.y, signatureControl(c), c.id, "translate(0, -118%)") : null
-                  })}
-                  {pageInitials.map((c) => {
-                    const a = anchorByCheckpoint.get(c.id)
-                    return a ? at(a.x, a.y, initialControl(c), c.id, "translate(0, -118%)") : null
-                  })}
-                  {cornerDock(dockSig, dockInit)}
+                  {sigNodes}
+                  {initNodes}
+                  {cornerDock([...dockSig, ...overflowSig], [...dockInit, ...overflowInit])}
                 </>
               )
             }}

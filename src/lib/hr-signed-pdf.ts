@@ -1,8 +1,10 @@
 import { createHash } from "crypto"
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from "pdf-lib"
 import { prisma } from "@/lib/prisma"
+import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
 import { streamHrFile, uploadHrFile } from "@/lib/hr-files"
-import { primaryStoreName } from "@/lib/hr"
+import { primaryStoreName, primaryStoreTimeZone } from "@/lib/hr"
+import { localDateStr } from "@/lib/reports"
 import type { SubmittedFormValue } from "@/lib/hr-forms"
 
 // HR-4/HR-5 signed-PDF service — the ONE place executed HR artifacts are
@@ -67,9 +69,61 @@ function utc(d: Date): string {
 
 // HR-11b: inline `Date:` fills follow the org display setting; everything
 // court-facing (signature stamps, the certificate) always renders full
-// date+time (DECISIONS F5b). dateOnly => "2026-07-23", dateTime => full UTC.
-function formatDateStamp(d: Date, format: string): string {
-  return format === "dateTime" ? utc(d) : d.toISOString().slice(0, 10)
+// date+time (DECISIONS F5b).
+//
+// ── DEBT-70a (Gary, 2026-08-16). THE STAMP RENDERS THE STORE-LOCAL DAY. ──────
+//
+// [SUPERSEDED] `format === "dateTime" ? utc(d) : d.toISOString().slice(0, 10)`
+//
+// The `dateOnly` branch — the org DEFAULT — was a bare UTC calendar date with no
+// zone marker, stamped into the document body on the `Date:` line a person reads
+// as the day they signed. Gdogg signed at 21:06 PDT on 2026-08-15 and his
+// handbook says 2026-08-16: a day he was not at work, on his own signature line.
+//
+// WHY THIS ONE WENT FIRST, AHEAD OF DEBT-70'S 22 SCREENS. A screen re-renders
+// after a fix. A MINTED PDF NEVER DOES — records are append-only and are never
+// regenerated (see ensureSignedRecord's early return). Every certificate
+// produced before this landed keeps its wrong date permanently, so the cost of
+// this defect grew every day it stayed open, which no display bug does.
+//
+// AND IT WAS INVISIBLE TO THE SWEEP THAT FOUND THE OTHER 64: this file does not
+// use date-fns, so a `format(` search could not see it. It was found by reading
+// the mint path instead. The lesson is CLAUDE.md's — a sweep is only as complete
+// as the shape it searches for.
+//
+// BOTH BRANCHES WERE WRONG, for different reasons, and both are fixed:
+//   dateOnly  — wrong day AND unlabelled. Now the store-local day.
+//   dateTime  — labelled UTC, so honest, but still the wrong DAY on a body
+//               field. Now store-local date+time carrying its zone (PDT/MDT),
+//               so it stays unambiguous without lying about the day.
+//
+// THE ZONE IS NEVER GUESSED AND NEVER BARE UTC. It is resolved by the caller
+// through the ruled chain — the signer's primary store, then
+// Organization.timezone, then the default Store.timezone already carries — and
+// passed in. This function does not reach for a default of its own, because a
+// silent fallback here would be indistinguishable from the bug it replaces.
+//
+// NOTHING ELSE IN THIS FILE CHANGES. Every other stamp — the page-1 banner
+// (:381), the signature validation line (:474), and every line of the
+// Certificate of Acknowledgment — goes through `utc()` above and is explicitly
+// labelled "UTC". Those are court-facing absolute instants and they stay exactly
+// as they are (Gary, 2026-08-16). This is the one stamp a human reads as a plain
+// date, which is why it is the one that follows the human's day.
+function formatDateStamp(d: Date, format: string, timeZone: string): string {
+  if (format !== "dateTime") return localDateStr(d, timeZone)
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZoneName: "short",
+  }).formatToParts(d)
+  const p = Object.fromEntries(parts.map((x) => [x.type, x.value]))
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second} ${p.timeZoneName}`
 }
 
 // HR-11b: turn a detected anchor (raw PDF content-space coords, bottom-left
@@ -126,7 +180,49 @@ function sanitize(text: string): string {
     .replace(/[^\n\x20-\x7E\xA0-\xFF]/g, "?")
 }
 
+// ── HR-11d 2f (R3(ii)): the certificate states which mode produced it ────────
+// A certificate-only record used to read identically to a stamped one — the
+// artifact that is the whole point of the ceremony could not be told apart from
+// the artifact that silently skipped it. The 2b guard stops a hollow record
+// being minted from here on; it says nothing about what the certificate claims.
+//
+// BOTH MODES ARE LEGITIMATE once 2b ships: a version reporting matched == 0
+// (image-only, or predating anchoring and never scanned) is certificate-only by
+// design and stays signable. So the line describes a valid state of the
+// document and must not read as an error, a warning or a defect notice —
+// no "failed", no "missing", no "unable", no "skipped".
+//
+// THE COUNT IS MARKS ACTUALLY DRAWN, NOT ANCHORS CONFIRMED (Gary's ruling,
+// 2026-08-14). The certificate describes THE ARTIFACT IN THE READER'S HANDS,
+// not the intent behind it. One visible consequence, which is correct rather
+// than incidental: a version whose anchors are all confirmed but whose values
+// came back empty — an all-attested initial set, a "Store:" with no store on
+// file — draws nothing and truthfully says certificate-only.
+//
+// Field count only; no page count (ruled). Pure and exported so the fixture
+// asserts the shipped strings rather than a copy of them.
+export const CERT_MODE_LABEL = "Document marks"
+export function certificateModeLine(marksDrawn: number): string {
+  return marksDrawn > 0
+    ? `Stamped - ${marksDrawn} field mark${marksDrawn === 1 ? "" : "s"} applied to the document body.`
+    : "Certificate-only - no field marks were applied to the document body. This certificate is the complete record of acknowledgment."
+}
+
 export class SignedRecordError extends Error {}
+
+// HR-11d 2b, layer (c). Thrown when the version has detected fields and not one
+// is confirmed — the state that used to mint a record claiming completion,
+// draw the page-1 banner, append the full certificate, and stamp nothing.
+// A DISTINCT CLASS because callers must be able to tell it apart from
+// "checkpoints incomplete": this one is an admin's outstanding task, not the
+// signer's, and the signer-facing surfaces answer it differently.
+export class UnconfirmedAnchorsError extends SignedRecordError {
+  constructor(readonly matched: number) {
+    super(
+      `Version has ${matched} detected field(s) and none confirmed — refusing to mint a signed record that would stamp nothing`
+    )
+  }
+}
 
 interface CertFonts {
   helv: PDFFont
@@ -219,7 +315,20 @@ class CertificateWriter {
 export async function ensureSignedRecord(hrDocumentVersionId: string, staffMemberId: string) {
   const staff = await prisma.staffMember.findUnique({
     where: { id: staffMemberId },
-    select: { signingCycle: true },
+    select: {
+      signingCycle: true,
+      // DEBT-70a: the inline Date: stamp renders the signer's STORE-LOCAL day,
+      // so the mint needs their store's zone. Selected here rather than in a
+      // second query — this lookup already runs on every mint, and a separate
+      // round trip for one string would be the kind of thing a later edit drops.
+      // The orderBy is belt-and-braces: primaryStoreTimeZone sorts internally
+      // (hr.ts), for the reason recorded above primaryStoreName.
+      isCorporate: true,
+      storeAssignments: {
+        select: { isPrimary: true, store: { select: { timezone: true, name: true } } },
+        orderBy: [{ isPrimary: "desc" as const }, { store: { name: "asc" as const } }],
+      },
+    },
   })
   if (!staff) throw new SignedRecordError("Staff member not found")
   const signingCycle = staff.signingCycle
@@ -242,25 +351,85 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   if (!version) throw new SignedRecordError("Document version not found")
   const doc = version.hrDocument
 
+  // ── HR-11n: retirement is excluded HERE, at the map, not at each consumer ──
+  // A retired checkpoint leaves the completion denominator, the certificate's
+  // checkpoint table, the initials grid, and INLINE STAMPING (Gary's ruling,
+  // 2026-08-15: a stamp is a claim on the page body and must not appear for a
+  // step the certificate does not list).
+  //
+  // THE STAMP PATH IS WHY THIS FILTER IS ON `ackByCheckpoint` AND NOT ON THE
+  // CHECKPOINT LOAD. Stamping resolves an ack through the ANCHOR's
+  // generatedCheckpointId (~line 430 below), never through doc.checkpoints — so
+  // filtering the checkpoint query would leave the stamps and produce a marked
+  // page for a step absent from the table. Filtering the shared map catches
+  // every consumer of an acknowledgment at once, which is the whole set.
+  //
+  // THE ACK ROWS THEMSELVES ARE UNTOUCHED. `acks` still holds them; they remain
+  // on file, queryable, and are never deleted or modified by retirement. They
+  // stop counting because the step is no longer required, not because the
+  // evidence went away.
+  const liveCheckpoints = doc.checkpoints.filter((c) => c.retiredAt == null)
+  const retiredCheckpointIds = new Set(
+    doc.checkpoints.filter((c) => c.retiredAt != null).map((c) => c.id)
+  )
+
   const acks = await prisma.hrDocumentAcknowledgment.findMany({
     where: { hrDocumentVersionId, staffMemberId, signingCycle },
   })
-  const ackByCheckpoint = new Map(acks.map((a) => [a.checkpointId, a]))
-  const missing = doc.checkpoints.filter((c) => c.required && !ackByCheckpoint.has(c.id))
+  const ackByCheckpoint = new Map(
+    acks.filter((a) => !retiredCheckpointIds.has(a.checkpointId)).map((a) => [a.checkpointId, a])
+  )
+  const missing = liveCheckpoints.filter((c) => c.required && !ackByCheckpoint.has(c.id))
   if (missing.length > 0) {
     throw new SignedRecordError(`Required checkpoints incomplete (${missing.length} outstanding)`)
   }
 
+  // ── HR-11d 2b, layer (c): THE BACKSTOP ────────────────────────────────────
+  // Non-negotiable (R3(i), Gary 2026-08-14). Completion is judged from
+  // DOCUMENT-level checkpoints a dozen lines above; stamping is driven by
+  // VERSION-level confirmed anchors a hundred lines below. Two predicates, two
+  // sources, two lifetimes — nothing ever made them agree, so a version with 41
+  // detected fields and zero confirmed produced a record that claimed
+  // completion and marked nothing, silently. This is the line that makes them
+  // agree.
+  //
+  // IF THIS EVER FIRES IN PRODUCTION, LAYER (b) FAILED. The ceremony refuses to
+  // start in this state, so reaching here means someone got past that — a stale
+  // tab, a hand-rolled POST, the recovery route on a document whose anchors
+  // were unconfirmed after the fact. That is exactly what the fixture asserts.
+  //
+  // Refusing is REVERSIBLE and issuing a hollow record is not: acknowledgments
+  // are append-only and carry their own hrDocumentVersionId, so a refusal
+  // leaves every capture intact — the admin confirms the anchors and the next
+  // call mints correctly, from the same signatures.
+  const readiness = await getVersionAnchorReadiness(hrDocumentVersionId)
+  if (readiness.blocked) {
+    throw new UnconfirmedAnchorsError(readiness.matched)
+  }
+
   // Snapshot-first: the certificate is built from the acknowledgment rows'
   // frozen fields, not live lookups. completedAt = the last required capture.
-  const orderedAcks = doc.checkpoints
+  const orderedAcks = liveCheckpoints
     .map((c) => ({ checkpoint: c, ack: ackByCheckpoint.get(c.id) }))
     .filter((x): x is { checkpoint: (typeof doc.checkpoints)[number]; ack: (typeof acks)[number] } => !!x.ack)
+  // HR-11n: `reduce` with no seed THROWS on an empty array, and retirement is
+  // what makes empty reachable. `missing` above passes when nothing REQUIRED is
+  // outstanding, which a document whose every acknowledged checkpoint has been
+  // retired satisfies vacuously — so this line can now be reached with no acks
+  // at all, and would fail inside certificate generation rather than at a
+  // validation boundary. Refuse instead: there is nothing to certify.
+  if (orderedAcks.length === 0) {
+    throw new SignedRecordError("No live checkpoints remain on this document — nothing to certify")
+  }
   const lastAck = orderedAcks.reduce((a, b) => (a.ack.signedAt > b.ack.signedAt ? a : b)).ack
+  // Math.max() of an empty list is -Infinity, not a throw — a silently wrong
+  // date rather than a crash. The guard above makes it unreachable; the
+  // fallback keeps it honest if a later edit removes that guard.
+  const requiredTimes = orderedAcks
+    .filter((x) => x.checkpoint.required)
+    .map((x) => x.ack.signedAt.getTime())
   const completedAt = new Date(
-    Math.max(
-      ...orderedAcks.filter((x) => x.checkpoint.required).map((x) => x.ack.signedAt.getTime())
-    )
+    requiredTimes.length > 0 ? Math.max(...requiredTimes) : lastAck.signedAt.getTime()
   )
 
   // ── Assemble the PDF ──────────────────────────────────────────────────────
@@ -306,11 +475,25 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   const anchors = await prisma.documentAnchor.findMany({
     where: { hrDocumentVersionId, confirmed: true },
   })
+  // HR-11d 2f: counted as marks are DRAWN, not as anchors are read — a
+  // confirmed anchor whose value resolves to null puts nothing on the page and
+  // must not be counted as though it did.
+  let marksDrawn = 0
   if (anchors.length > 0) {
     const STAMP_INK = rgb(0.1, 0.18, 0.5) // pen blue, so fills read as filled-in
     const helvOblique = await pdf.embedFont(StandardFonts.HelveticaOblique)
     const pages = pdf.getPages()
     const dateFormat = doc.organization.hrDateStampFormat === "dateTime" ? "dateTime" : "dateOnly"
+    // ── DEBT-70a: the ruled resolution chain, in order, with no bare-UTC arm ──
+    // signer's primary store -> Organization.timezone -> the default
+    // Store.timezone already carries. primaryStoreTimeZone returns null for
+    // corporate staff (homed at no location, DEBT-9) which is precisely what
+    // hands the question to the org column. The final literal is unreachable
+    // while the column keeps its own default and exists only so this expression
+    // has no undefined arm — it is NOT a silent UTC fallback, which is the
+    // failure this row removes.
+    const stampTimeZone =
+      primaryStoreTimeZone(staff) ?? doc.organization.timezone ?? "America/Los_Angeles"
 
     // Earliest capture time per page — the inline Date: fill for that page.
     const dateByPage = new Map<number, Date>()
@@ -366,6 +549,8 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
         line(0, sigName, helvOblique, 12)
         line(1, `Signed electronically - ${utc(sigTime)}`, helv, 6.5)
         line(2, `Record ${recordRef}`, courier, 6.5)
+        // One signature block is ONE mark on the document, not three lines.
+        marksDrawn++
         continue
       }
 
@@ -388,7 +573,7 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
           value = lastAck.storeName ?? null
           break
         case "DateStamp":
-          value = formatDateStamp(dateByPage.get(a.page) ?? completedAt, dateFormat)
+          value = formatDateStamp(dateByPage.get(a.page) ?? completedAt, dateFormat, stampTimeZone)
           font = courier
           break
       }
@@ -402,6 +587,7 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
         color: STAMP_INK,
         rotate: degrees(pos.rotateDeg),
       })
+      marksDrawn++
     }
   }
 
@@ -421,6 +607,12 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   w.labeled("Document", `${lastAck.documentTitle} (version ${lastAck.documentVersionNumber})`)
   w.labeled("Source file", version.fileName)
   w.labeled("Source SHA-256", lastAck.documentFileHash, courier)
+  // HR-11d 2f (R3(ii), Gary 2026-08-14). Sits with the facts about THE FILE,
+  // above the signer-identity block, in the same 8pt/9pt labeled row as every
+  // other line — a constant label across both modes, so two certificates line
+  // up when they are read side by side. That comparison is the entire reason
+  // this line exists.
+  w.labeled(CERT_MODE_LABEL, certificateModeLine(marksDrawn))
   w.rule()
   w.labeled("Name on record", lastAck.staffName)
   w.labeled("Name as executed", executedName)
@@ -457,7 +649,30 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   w.drawLines(["Checkpoints"], { size: 11, font: helvBold })
   w.y -= 2
   header()
-  for (const [i, { checkpoint, ack }] of orderedAcks.entries()) {
+  // ── HR-11o D1: the table reads in TIME order, not orderIndex order ────────
+  // orderIndex is CEREMONY order — the sequence the signer is ASKED for steps.
+  // It is not the order they happened in, and on Tommy's v4 certificate the two
+  // diverge: the Final acknowledgment (orderIndex 4, signed 01:25:58) sorted
+  // ABOVE the two signatures (orderIndex 5 and 6, signed 01:25:43 and 01:25:41),
+  // so the certificate read as though he acknowledged the document before he
+  // signed it. On a legal record that is not a cosmetic complaint — the document
+  // asserted a sequence of events that did not occur.
+  //
+  // A SEPARATE ARRAY, DELIBERATELY. `orderedAcks` stays in orderIndex order
+  // because the signature-block lookup below (~line 523) takes the FIRST
+  // Signature/Acknowledgment row and means "the earliest ceremony step of that
+  // kind"; re-sorting in place would silently repoint it at whichever was signed
+  // first. Nothing stored changes — orderIndex still drives the ceremony.
+  //
+  // orderIndex is the tie-break so two captures sharing a timestamp (one submit
+  // stamps a single `signedAt` across its rows — see the capture route) stay in
+  // a stable, ceremony-sensible order rather than an arbitrary one.
+  const chronologicalAcks = [...orderedAcks].sort(
+    (a, b) =>
+      a.ack.signedAt.getTime() - b.ack.signedAt.getTime() ||
+      a.checkpoint.orderIndex - b.checkpoint.orderIndex
+  )
+  for (const [i, { checkpoint, ack }] of chronologicalAcks.entries()) {
     const captured =
       ack.method === "Attested"
         ? `Attested by ${ack.typedName ?? "-"}`
@@ -492,7 +707,20 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   w.rule()
 
   // ── Per-page initials grid (spike layout): p1: GT   p2: GT   … ───────────
-  const initialAcks = orderedAcks.filter((x) => x.checkpoint.type === "Initial" && x.checkpoint.pageRef != null)
+  // HR-11o D1: the initials grid does NOT get the chronological treatment, and
+  // that is a finding rather than an omission. Every cell is labelled with its
+  // own page ("p3: GT"), so the block is a page-indexed REFERENCE, not a
+  // narrative — it asserts no sequence and therefore cannot misstate one. Sorted
+  // by time it would read p3, p1, p4, p2 and be materially harder to scan
+  // against the document.
+  //
+  // It is sorted by pageRef explicitly rather than inheriting orderIndex order.
+  // For an auto-generated set the two are identical (Initials are minted p1..pN
+  // at upload), but an admin who reorders or inserts a checkpoint breaks that
+  // correspondence, and page order is what this block actually means.
+  const initialAcks = orderedAcks
+    .filter((x) => x.checkpoint.type === "Initial" && x.checkpoint.pageRef != null)
+    .sort((a, b) => (a.checkpoint.pageRef ?? 0) - (b.checkpoint.pageRef ?? 0))
   if (initialAcks.length > 0) {
     w.drawLines(["Per-page initials"], { size: 11, font: helvBold })
     w.y -= 2

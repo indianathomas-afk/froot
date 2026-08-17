@@ -35,6 +35,8 @@
 
 import { prisma } from "@/lib/prisma"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
+import { documentCompletion } from "@/lib/hr-completion"
+import { DEFAULT_TIME_ZONE, displayTimeZone } from "@/lib/hr"
 
 export type ComplianceItemStatus =
   | "complete"
@@ -52,7 +54,26 @@ export type ComplianceDocItem = {
   currentVersionNumber: number
   ackedCount: number
   requiredCount: number
-  /** Version a prior signed record was executed against, when needs-resign. */
+  /**
+   * R1: every required checkpoint acknowledged and NO signed record for this
+   * cycle. Carried beside `status` (which reads "in-progress") because the
+   * distinction is what the admin acts on — this member has nothing left to do
+   * and needs an admin, whereas an ordinary in-progress member needs time.
+   */
+  recordMissing: boolean
+  /**
+   * R2 (2026-08-15): the signer is bound to an OLDER version than the one in
+   * force, and that satisfies the obligation. `status` is "complete" — green,
+   * no flag, no warning (R3: "they signed what was in force when they signed
+   * it"). Surfaces append "· current is vN"; they do not badge it amber.
+   */
+  signedOnEarlierVersion: boolean
+  /**
+   * Version this signer's record was executed against. R2 (2026-08-15) widened
+   * this from "when needs-resign" to EVERY status backed by a record — the
+   * complete path needs it precisely because it is the one that no longer
+   * implies the current version. Null only when no record exists at all.
+   */
   signedVersionNumber: number | null
   completedAt: string | null
 }
@@ -87,6 +108,14 @@ export type StaffComplianceDetail = {
   overdueCount: number
   needsResignCount: number
   inProgressCount: number
+  /**
+   * DEBT-70b: the zone this member's dates are rendered in — their primary
+   * store's, else the org's. Carried HERE, on the object the timestamps already
+   * travel on, so a surface cannot render one without the other. Four of the 22
+   * server sites (staff-compliance ×3, /my ×1) are downstream of this field and
+   * needed no new query because of it.
+   */
+  timeZone: string
 }
 
 export type StaffComplianceSummary = {
@@ -120,6 +149,8 @@ export type PendingCountersign = {
   staffId: string
   staffName: string
   employeeSignedAt: string
+  /** DEBT-70b: the signer's zone — the signature must read the day THEY signed. */
+  timeZone: string
 }
 
 export type OrgComplianceRollup = {
@@ -146,13 +177,72 @@ const pctOf = (completed: number, required: number): number | null =>
 // ─── Core: per-staff compliance details, computed in a fixed set of batched
 // queries (never per-staff) ──────────────────────────────────────────────────
 //
-// The document-status derivation mirrors /staff/[id] (HR-4) exactly so the
-// rollup and the profile page can never disagree:
-//   signed record on current version → complete
-//   all required checkpoints acked   → complete ("pending-record" upstream)
-//   signed record on older version   → needs-resign
-//   some checkpoints acked           → in-progress
-//   otherwise                        → not-started
+// ── AMENDED 2026-08-15 (R2, HR-11k Phase A, Gary). READ THIS FIRST. ──────────
+//
+// The superseded table further down still has a live-looking line in it:
+// "signed record on older version → needs-resign". R1 marked the block for a
+// different reason and that line survived intact, so it reads as the surviving
+// true half. IT IS NOT. R2 overturns it, and this note exists because the line
+// is the exact statement of the HR-11f rule R2 replaces:
+//
+//   [SUPERSEDED 2026-08-15 BY R2] a signed record on an older version is
+//   "needs-resign" — non-compliant, and the signer is re-prompted.
+//
+// UNDER R2, WHICH VERSION THE RECORD IS ON NO LONGER DECIDES COMPLIANCE. THE
+// SIGNING CYCLE DOES. A record from THIS tenure satisfies the document whatever
+// version carried it (the version a person signed is their master document); a
+// record from a PREVIOUS tenure is needs-resign whatever version carried it
+// (HR-15 Policy B, untouched). The two used to be one lookup here and are now
+// `priorSignedThisCycle` / `priorSignedPriorCycle` at :407.
+//
+// EXPECT PERCENTAGES TO RISE, and expect that to be reported as a bug too — the
+// mirror image of R1's note below, from the same file, four weeks apart in
+// spirit and one day apart in fact. Anyone holding a current-tenure signature on
+// a superseded version moves from needs-resign to complete. That is the ruling
+// working: they signed what was in force when they signed it, and the old number
+// said they owed something they had already given. Account for the movement
+// before accepting it — a rise here for any OTHER reason is a defect.
+//
+// ── CORRECTED 2026-08-15 (R1, Gary). THE BLOCK BELOW IS SUPERSEDED. ──────────
+//
+// The document-status derivation is no longer written here at all. It is
+// documentCompletion() in lib/hr-completion.ts, asked per (document, member)
+// inside the docItems map below — one exported pure predicate, the
+// isSigningBlocked pattern, shared with the five other surfaces that used to
+// derive this independently.
+//
+// WHAT CHANGED IN THE RULE, not just in the location: a full required-checkpoint
+// set is NO LONGER COMPLETION. Only an HrSignedRecord for (current version,
+// member, current cycle) produces "complete". Checkpoints still drive PROGRESS
+// (ackedCount / requiredCount, rendered "2 of 7 checkpoints") and never a
+// completed state.
+//
+// EXPECT PERCENTAGES TO FALL, and expect it to be reported as a bug. Anyone
+// whose checkpoints are all in but whose record was never minted moves from
+// complete to in-progress, carrying `recordMissing`. Their store's pct drops
+// with them. That is the ruling working: the obligation was not discharged, and
+// the old number said it was. This is the same class of expected-but-surprising
+// movement as the R3 corporate-exclusion note and the archive note further down
+// this file — both also written down in advance, for the same reason.
+//
+// THE SUPERSEDED TEXT IS KEPT BELOW RATHER THAN DELETED (Gary, 2026-08-15;
+// CLAUDE.md — nothing is deleted, corrections prepend with dates). It is worth
+// reading once: it is an accurate statement of the contract as it stood, and its
+// second line is the defect, written down as the rule. This was never drift from
+// a documented behaviour. The documented behaviour was the bug.
+//
+//   [SUPERSEDED 2026-08-15 — the second line is the defect R1 overturns]
+//   The document-status derivation mirrors /staff/[id] (HR-4) exactly so the
+//   rollup and the profile page can never disagree:
+//     signed record on current version → complete
+//     all required checkpoints acked   → complete ("pending-record" upstream)
+//     signed record on older version   → needs-resign
+//     some checkpoints acked           → in-progress
+//     otherwise                        → not-started
+//
+// The "mirrors /staff/[id] exactly" half of that promise is now structural
+// rather than aspirational: both call the same function, so they cannot
+// disagree by being edited apart.
 
 export async function computeStaffComplianceDetails(
   organizationId: string,
@@ -174,13 +264,24 @@ export async function computeStaffComplianceDetails(
     where: { organizationId, ...(staffIds ? { id: { in: staffIds } } : { status: "ACTIVE" }) },
     include: {
       storeAssignments: {
-        include: { store: { select: { id: true, name: true } } },
+        // DEBT-70b: `timezone` joins the select so every date this module hands
+        // out can be rendered in the day its subject actually lived.
+        include: { store: { select: { id: true, name: true, timezone: true } } },
         orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }],
       },
     },
     orderBy: { displayName: "asc" },
   })
   if (staff.length === 0) return []
+
+  // DEBT-70b: the org half of the display-zone chain, fetched once for the whole
+  // batch rather than per member — this module's whole discipline is a fixed set
+  // of queries, never per-staff. Only corporate members and members with no
+  // store assignment actually reach it; everyone else resolves at their store.
+  const orgZone = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { timezone: true },
+  })
   const allStaffIds = staff.map((s) => s.id)
 
   const [docs, assignments] = await Promise.all([
@@ -192,7 +293,11 @@ export async function computeStaffComplianceDetails(
         requiresAcknowledgment: true,
       },
       include: {
-        checkpoints: { where: { required: true }, select: { id: true } },
+        // HR-11n: `retiredAt: null` is part of the DENOMINATOR, not a display
+        // filter — a retired step is no longer required of anyone, so leaving it
+        // in would hold every member permanently short of completion on a step
+        // they can never act on (the ceremony no longer renders it).
+        checkpoints: { where: { required: true, retiredAt: null }, select: { id: true } },
         // DOC-1 C: ADOPTED. Phase A left a hand-written rule here and a comment
         // saying so; this is the named shape the policy predicate requires, and
         // the reason the swap is not cosmetic is the field it adds —
@@ -213,7 +318,12 @@ export async function computeStaffComplianceDetails(
         ...AUDIENCE_INCLUDE,
         versions: {
           orderBy: { versionNumber: "desc" },
-          select: { id: true, versionNumber: true, isCurrent: true },
+          select: {
+            id: true,
+            versionNumber: true,
+            isCurrent: true,
+            requiresReacknowledgment: true,
+          },
         },
       },
       orderBy: { title: "asc" },
@@ -359,19 +469,67 @@ export async function computeStaffComplianceDetails(
       const ackedIds = ackedByVersionStaffCycle.get(`${current.id}:${member.id}:${cycle}`) ?? new Set()
       const requiredCount = d.checkpoints.length
       const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
-      const priorSigned = d.versions.find(
-        (v) => !v.isCurrent && recordAnyCycle.has(`${v.id}:${member.id}`)
+      // ── R2 (HR-11k Phase A, Gary 2026-08-15) ──────────────────────────────
+      // THE SPLIT THAT USED TO BE ONE LOOKUP. This was a single `priorSigned`
+      // resolved against `recordAnyCycle`, which asks "did they ever sign an
+      // older version, in any tenure". That question cannot tell R2's case from
+      // a rehire's, and R2 turns one of them green. `d.versions` is ordered
+      // versionNumber DESC (:259), so both finds return the HIGHEST matching
+      // version — for R2 that is this signer's master document.
+      //
+      // recordByVersionStaffCycle is built over allVersionIds, not just the
+      // current one (:280, :308), so the cycle-keyed answer needs no new query.
+      const priorSignedThisCycle = d.versions.find(
+        (v) => !v.isCurrent && recordByVersionStaffCycle.has(`${v.id}:${member.id}:${cycle}`)
       )
+      // Rehire on an older version: a record exists but not under this tenure.
+      // Asked per version so a version carrying BOTH a this-cycle and an
+      // earlier-cycle record is not miscounted as a rehire — it is R2's case,
+      // and the predicate's arm order settles it either way.
+      const priorSignedPriorCycle = d.versions.find(
+        (v) =>
+          !v.isCurrent &&
+          recordAnyCycle.has(`${v.id}:${member.id}`) &&
+          !recordByVersionStaffCycle.has(`${v.id}:${member.id}:${cycle}`)
+      )
+      // R2 ruling 2026-08-16: the DATE comes from the record they actually
+      // signed, never the current version's. Same map, same key as the version
+      // number above — so the number and the date describe ONE record and
+      // cannot name two.
+      const priorRecordThisCycle = priorSignedThisCycle
+        ? recordByVersionStaffCycle.get(`${priorSignedThisCycle.id}:${member.id}:${cycle}`)
+        : undefined
       // Rehire: a current-version record from an earlier tenure doesn't
       // satisfy this cycle — needs-resign, same loudness as a version bump.
       const priorCycleRecord =
         !currentRecord && recordAnyCycle.has(`${current.id}:${member.id}`)
 
-      let status: ComplianceItemStatus
-      if (currentRecord || allAcked) status = "complete"
-      else if (priorCycleRecord || priorSigned) status = "needs-resign"
-      else if (ackedIds.size > 0) status = "in-progress"
-      else status = "not-started"
+      // ── R1: ASKED, NOT RESTATED (Gary, 2026-08-15) ────────────────────────
+      // The same move DOC-1 C made for the audience rule at the grantedToStaff
+      // call above — this file used to hold one of six hand-written copies of
+      // the completion derivation, and all six were wrong in the same way.
+      // This is the adoption. `complete` here maps to the predicate's `signed`;
+      // the local vocabulary keeps "needs-resign" (this module's word) where the
+      // predicate says "needs-current".
+      const completion = documentCompletion({
+        hasCurrentCycleRecord: !!currentRecord,
+        hasPriorCycleRecordOnCurrentVersion: priorCycleRecord,
+        hasCurrentCycleRecordOnEarlierVersion: !!priorSignedThisCycle,
+        hasPriorCycleRecordOnEarlierVersion: !!priorSignedPriorCycle,
+        // Case A: read off the version IN FORCE, never off the version they
+        // signed. `current` is the isCurrent row resolved above.
+        currentVersionRequiresReacknowledgment: current.requiresReacknowledgment,
+        requiredCount,
+        ackedCount: ackedIds.size,
+        allRequiredAcked: allAcked,
+      })
+
+      const status: ComplianceItemStatus =
+        completion.status === "signed"
+          ? "complete"
+          : completion.status === "needs-current"
+            ? "needs-resign"
+            : completion.status
 
       return [
         {
@@ -383,13 +541,36 @@ export async function computeStaffComplianceDetails(
           currentVersionNumber: current.versionNumber,
           ackedCount: ackedIds.size,
           requiredCount,
-          signedVersionNumber:
-            status !== "needs-resign"
-              ? null
-              : priorCycleRecord
-                ? current.versionNumber
-                : (priorSigned?.versionNumber ?? null),
-          completedAt: currentRecord?.completedAt.toISOString() ?? null,
+          recordMissing: completion.recordMissing,
+          signedOnEarlierVersion: completion.signedOnEarlierVersion,
+          // ── R2 (2026-08-15): THE NUMBER IS NO LONGER NULLED OFF THE WARNING
+          // PATH. It used to be `status !== "needs-resign" ? null : …`, which
+          // was safe only while every non-warning signature was on the current
+          // version. R2 makes "complete" the case that most needs it: a signer
+          // bound to v4 while v6 is in force reads complete, and nulling the
+          // number here would leave the surfaces printing v6 at them.
+          //
+          // THE R1 INVARIANT IS PRESERVED VERBATIM — A VERSION NUMBER ONLY EVER
+          // COMES FROM A RECORD. Each branch names a record that exists: this
+          // cycle's on the current version, a prior cycle's on the current
+          // version, this cycle's on an older version (R2), or a prior cycle's
+          // on an older version. There is no branch that reports a version
+          // nobody signed, which is exactly the branch R1 deleted.
+          signedVersionNumber: currentRecord
+            ? current.versionNumber
+            : priorCycleRecord
+              ? current.versionNumber
+              : (priorSignedThisCycle?.versionNumber ??
+                priorSignedPriorCycle?.versionNumber ??
+                null),
+          // Ruled 2026-08-16. Was `currentRecord?.completedAt ?? null`, which
+          // left an R2 signer's badge reading "Signed v5 · current is v6" with
+          // no date where it used to carry one. Only the R2 branch is added:
+          // the rehire path stays null exactly as before, because no surface
+          // renders a date on needs-resign and widening it further would be an
+          // unruled change wearing a display fix's clothes.
+          completedAt:
+            (currentRecord ?? priorRecordThisCycle)?.completedAt.toISOString() ?? null,
         },
       ]
     })
@@ -438,6 +619,7 @@ export async function computeStaffComplianceDetails(
       overdueCount: items.filter((i) => i.status === "overdue").length,
       needsResignCount: items.filter((i) => i.status === "needs-resign").length,
       inProgressCount: items.filter((i) => i.status === "in-progress").length,
+      timeZone: displayTimeZone(member, orgZone ?? { timezone: DEFAULT_TIME_ZONE }),
     }
   })
 }
@@ -629,6 +811,10 @@ export async function getOrgComplianceRollup(
   ])
 
   const staffNameById = new Map(staff.map((s) => [s.staffId, s.fullName ?? s.displayName]))
+  // DEBT-70b: the signer's own zone, off the detail objects already in hand — a
+  // countersign line must read the day the EMPLOYEE signed, which is also the
+  // day stamped on their PDF (DEBT-70a resolves the same way at mint time).
+  const staffZoneById = new Map(staff.map((s) => [s.staffId, s.timeZone]))
   const formRollups = new Map<string, AgreementFormRollup>(
     forms.map((f) => [f.id, { documentId: f.id, title: f.title, executedCount: 0, pendingCount: 0 }])
   )
@@ -655,6 +841,7 @@ export async function getOrgComplianceRollup(
           staffId: sub.staffMemberId,
           staffName: staffNameById.get(sub.staffMemberId) ?? "Unknown",
           employeeSignedAt: (sub.employeeSignedAt ?? sub.signedAt).toISOString(),
+          timeZone: staffZoneById.get(sub.staffMemberId) ?? DEFAULT_TIME_ZONE,
         })
       }
     }

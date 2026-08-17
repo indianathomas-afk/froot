@@ -5,7 +5,9 @@ import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { findStaffMemberForUser } from "@/lib/hr"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
+import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
 import { LegalNameRequired } from "@/components/hr/legal-name-required"
+import { SigningUnavailable } from "@/components/hr/signing-unavailable"
 import { AcknowledgeClient } from "./acknowledge-client"
 import { SigningClient } from "./signing-client"
 
@@ -35,7 +37,12 @@ export default async function AcknowledgePage({
   const doc = await prisma.hrDocument.findFirst({
     where: { id: documentId, organizationId: org.id, kind: "Acknowledgment", isActive: true },
     include: {
-      checkpoints: { orderBy: { orderIndex: "asc" } },
+      // HR-11n: a retired checkpoint renders NO step — no button, no row. This
+      // is the surface the feature exists for: six Signature checkpoints for two
+      // signature lines meant three stacked "Sign here" buttons on one line.
+      // Both ceremony pages carry this filter; /my/documents/[documentId] is the
+      // other, and it is a different file in a different route group.
+      checkpoints: { where: { retiredAt: null }, orderBy: { orderIndex: "asc" } },
       versions: { where: { isCurrent: true }, take: 1 },
       ...AUDIENCE_INCLUDE,
     },
@@ -111,6 +118,61 @@ export default async function AcknowledgePage({
     )
   }
 
+  // ── HR-11d 2b, layer (b): REFUSE TO START THE CEREMONY ────────────────────
+  // The load-bearing layer (R3(i), Gary 2026-08-14). The version has detected
+  // fields and none are confirmed, so completing this ceremony would mint a
+  // record that claims completion and stamps nothing. Failing at mint-time
+  // instead would refuse a signer who has just typed 27 sets of initials.
+  //
+  // This is a DOCUMENT-state refusal, not a permission one, so it renders an
+  // explanation rather than notFound() — and it covers BOTH entry points,
+  // because manager-attested capture completes through the same
+  // ensureSignedRecord call and would hit the same backstop.
+  //
+  // ── CORRECTED 2026-08-15 (HR-11j Item 4). "BOTH entry points" MEANT BOTH
+  // MODES OF THIS FILE — self and attested — AND WAS READ AS BOTH CEREMONIES.
+  // There is a third: /my/documents/[documentId], the staff portal, which
+  // imports SigningClient across the (my)/(app) route-group boundary and had no
+  // readiness call at all. That is the route the reproduction's signer used. It
+  // now carries this same guard. The sentence above is left standing because it
+  // is what was believed, and because the way it misleads is the finding: a
+  // count of entry points taken from inside one file cannot see the importers
+  // outside it.
+  //
+  // ── SUPERSEDED 2026-08-15 BY R4 (Gary). The paragraph below is kept, not
+  // deleted (CLAUDE.md — corrections prepend with dates), because it is an
+  // accurate statement of the HR-11d §2b carve-out and that carve-out is what
+  // R4 overturns by name.
+  //
+  // THE GUARD IS NOW AT THE GRANT AS WELL. PUT /api/hr/documents/[id]/audience
+  // asks this same predicate about the current version and refuses to give an
+  // unconfirmed document an audience at all — so what an admin cannot do is
+  // assign it in the first place. This layer stays regardless: R4 makes the
+  // state rare, not impossible (a new version uploaded under a live grant
+  // reaches it), and the ceremony must still refuse when it happens.
+  //
+  //   [SUPERSEDED 2026-08-15 — R4 moved the guard upstream to the grant]
+  //   THE GUARD IS AT THE CEREMONY, NEVER AT THE GRANT. Assigning an
+  //   unconfirmed document to the whole company still works exactly as before
+  //   (DOC-1 audience modal, untouched by this phase) — what an admin cannot do
+  //   is have someone sign it.
+  const readiness = await getVersionAnchorReadiness(version.id)
+  if (readiness.blocked) {
+    return (
+      <SigningUnavailable
+        documentId={doc.id}
+        documentTitle={doc.title}
+        // The ruled signer copy is "ask your manager" — which reads as nonsense
+        // to the manager who IS standing there. On the attested path the viewer
+        // is an ADMIN or MANAGER (checked above), so they get the actionable
+        // version and a link to the screen that fixes it.
+        audience={attested ? "manager" : "signer"}
+        confirmHref={attested ? `/hr/documents/${doc.id}` : undefined}
+        matched={readiness.matched}
+      />
+    )
+  }
+
   // HR-15 Policy B: resume state is per signing cycle — a rehire starts the
   // current version fresh; their prior-cycle acknowledgments stay on file.
   const existing = await prisma.hrDocumentAcknowledgment.findMany({
@@ -118,6 +180,21 @@ export default async function AcknowledgePage({
     select: { checkpointId: true },
   })
   const doneIds = new Set(existing.map((a) => a.checkpointId))
+
+  // R1 (Gary, 2026-08-15): the ceremony clients decided completion from the
+  // `done` flags above, which are acknowledgment rows. They now need the record
+  // itself, and only the server can see it. Keyed the same three ways every
+  // other R1 surface keys it — version, staff member, CURRENT signing cycle
+  // (HR-15 Policy B) — so a rehire's prior-tenure record cannot open the
+  // executed screen for this tenure.
+  const signedRecordCount = await prisma.hrSignedRecord.count({
+    where: {
+      hrDocumentVersionId: version.id,
+      staffMemberId: staff.id,
+      signingCycle: staff.signingCycle,
+    },
+  })
+  const hasSignedRecord = signedRecordCount > 0
 
   const clientDoc = {
     id: doc.id,
@@ -159,8 +236,20 @@ export default async function AcknowledgePage({
   // HR-11: self-serve signing uses the formal inline ceremony; manager-attested
   // capture keeps the quick form — it records, it doesn't sign.
   return attested ? (
-    <AcknowledgeClient doc={clientDoc} checkpoints={clientCheckpoints} mode="attested" staff={clientStaff} />
+    <AcknowledgeClient
+      doc={clientDoc}
+      checkpoints={clientCheckpoints}
+      hasSignedRecord={hasSignedRecord}
+      mode="attested"
+      staff={clientStaff}
+    />
   ) : (
-    <SigningClient doc={clientDoc} checkpoints={clientCheckpoints} staff={clientStaff} anchors={clientAnchors} />
+    <SigningClient
+      doc={clientDoc}
+      checkpoints={clientCheckpoints}
+      hasSignedRecord={hasSignedRecord}
+      staff={clientStaff}
+      anchors={clientAnchors}
+    />
   )
 }

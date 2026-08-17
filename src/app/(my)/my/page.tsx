@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
+import { displayTimeZone } from "@/lib/hr"
 import {
   AlertTriangle,
   CheckCircle2,
@@ -12,6 +13,7 @@ import {
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { getStaffComplianceDetail, type ComplianceItem } from "@/lib/hr-compliance"
+import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
 import { messageInclude, serializeMessage } from "@/lib/messages"
 import { MyShell } from "./my-shell"
 import { MyDenied } from "./denied"
@@ -28,6 +30,9 @@ export default async function MyPortalPage() {
   const self = await getActiveStaffSelf()
   if (!self.ok) return <MyDenied reason={self.reason} />
   const { staffMember, org, dbUser } = self
+  // DEBT-70b: the day THIS person lived — their primary store's zone, else
+  // the org's. Resolved once per render through the one shared chain.
+  const zone = displayTimeZone(staffMember, org)
 
   // Primary store (staffSelfInclude orders isPrimary first).
   //
@@ -103,7 +108,7 @@ export default async function MyPortalPage() {
           ) : (
             <div className="space-y-2">
               {openItems.map((item) => (
-                <OpenItemRow key={itemKey(item)} item={item} />
+                <OpenItemRow key={itemKey(item)} item={item} timeZone={zone} />
               ))}
             </div>
           )}
@@ -135,7 +140,7 @@ export default async function MyPortalPage() {
                   </span>
                   <div className="min-w-0">
                     <p className="text-xs text-[var(--color-muted-foreground)]">
-                      {m.author.name} · {format(new Date(m.createdAt), "MMM d, h:mm a")}
+                      {m.author.name} · {formatInstant(m.createdAt, zone, "monthDayTime")}
                     </p>
                     <p className="text-sm text-[var(--color-foreground)] truncate">{m.body}</p>
                   </div>
@@ -153,7 +158,7 @@ export default async function MyPortalPage() {
               {corporateUpdate.title}
             </p>
             <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-              {format(corporateUpdate.publishedAt!, "MMMM d, yyyy")}
+              {formatInstant(corporateUpdate.publishedAt!, zone, "long")}
             </p>
             <p className="text-sm text-[var(--color-foreground)] mt-2 whitespace-pre-wrap line-clamp-6">
               {corporateUpdate.body}
@@ -183,17 +188,28 @@ const ITEM_STATUS_LABELS: Record<string, { label: string; className: string }> =
   "not-started": { label: "To do", className: "bg-gray-100 text-gray-600 border border-gray-200" },
 }
 
-function OpenItemRow({ item }: { item: ComplianceItem }) {
+function OpenItemRow({ item, timeZone }: { item: ComplianceItem; timeZone: string }) {
   const href =
     item.kind === "document" ? `/my/documents/${item.documentId}` : `/my/training/${item.assignmentId}`
   const title = item.kind === "document" ? item.title : item.moduleTitle
   const Icon = item.kind === "document" ? FileText : GraduationCap
-  const badge = ITEM_STATUS_LABELS[item.status] ?? ITEM_STATUS_LABELS["not-started"]
+  // R1 (Gary, 2026-08-15): this row already surfaced correctly once the
+  // predicate stopped calling recordMissing "complete" — the filter above is
+  // `status !== "complete"`, so the member reappears here with no change. What
+  // DOES change is the wording: "3/3 checkpoints" beside an In-progress badge
+  // reads as a stalled signer, when in fact they have finished everything they
+  // can and the outstanding task is an admin's.
+  const recordMissing = item.kind === "document" && item.recordMissing
+  const badge = recordMissing
+    ? { label: "Not signed", className: "bg-amber-100 text-amber-700 border border-amber-200" }
+    : (ITEM_STATUS_LABELS[item.status] ?? ITEM_STATUS_LABELS["not-started"])
   const detail =
     item.kind === "document"
-      ? `${item.ackedCount}/${item.requiredCount} checkpoints`
+      ? recordMissing
+        ? HR_RECORD_MISSING_SIGNER_COPY
+        : `${item.ackedCount}/${item.requiredCount} checkpoints`
       : item.dueDate
-        ? `Due ${format(new Date(item.dueDate), "MMM d")}`
+        ? `Due ${formatInstant(item.dueDate, timeZone, "monthDay")}`
         : `${item.lessonsDone}/${item.lessonsTotal} lessons`
 
   return (

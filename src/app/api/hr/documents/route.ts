@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { PDFDocument } from "pdf-lib"
 import { prisma } from "@/lib/prisma"
-import { detectAndStoreVersionAnchors } from "@/lib/hr-anchors"
+import { buildVersionScanReport, detectAndStoreVersionAnchors } from "@/lib/hr-anchors"
 import { HrFileValidationError, readHrFileMeta, validateHrFileMeta } from "@/lib/hr-files"
 import {
   HR_DOCUMENT_CATEGORIES,
@@ -135,13 +135,26 @@ export async function POST(req: Request) {
   })
 
   // HR-11b: scan the version's text layer for field anchors and persist them as
-  // unconfirmed proposals for the admin to confirm on /hr/documents/[id]. Best
-  // effort — a scan failure or an image-only PDF just leaves zero anchors
-  // (certificate-only fallback) and never blocks the upload. Clone the bytes:
-  // pdfjs may detach the buffer during parsing.
-  if (isAcknowledgment && meta.bytes && doc.versions[0]) {
-    await detectAndStoreVersionAnchors(doc.versions[0].id, new Uint8Array(meta.bytes))
-  }
+  // unconfirmed proposals for the admin to confirm on /hr/documents/[id]. A scan
+  // failure or an image-only PDF leaves zero anchors (certificate-only fallback)
+  // and never blocks the upload. Clone the bytes: pdfjs may detach the buffer
+  // during parsing.
+  //
+  // HR-11d 2a: R2 IS APPLIED HERE TOO, and this route is where it matters most.
+  // §2a names the versions route, but R3(i-a) exists precisely because "a
+  // brand-new document whose first version was never confirmed" is the case the
+  // audit's proposed trip-wire missed — and this is the route that creates that
+  // document. Reporting only on re-upload would leave the flag-at-upload layer
+  // silent for exactly the population the ruling was written to catch. Same
+  // discriminated shape, same message builder, no behaviour change to the
+  // upload itself.
+  const version = doc.versions[0]
+  const scanned =
+    isAcknowledgment && meta.bytes && version
+      ? await detectAndStoreVersionAnchors(version.id, new Uint8Array(meta.bytes))
+      : null
+  const scan =
+    isAcknowledgment && version ? await buildVersionScanReport(version.id, scanned, 0) : null
 
-  return NextResponse.json(doc, { status: 201 })
+  return NextResponse.json({ ...doc, scan }, { status: 201 })
 }

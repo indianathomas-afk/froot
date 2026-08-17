@@ -2,7 +2,12 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { computeAudienceDelta } from "@/lib/hr-document-audience"
-import { HR_DOCUMENT_KINDS } from "@/lib/hr-documents"
+import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
+import {
+  audienceWouldGrant,
+  HR_ASSIGN_BLOCKED_COPY,
+  HR_DOCUMENT_KINDS,
+} from "@/lib/hr-documents"
 import {
   COMPANY_WIDE,
   GRANTEE_STAFF,
@@ -79,6 +84,48 @@ async function loadDocument(id: string, orgDbId: string) {
   })
 }
 
+// ─── R4: THE ASSIGNABILITY GATE ──────────────────────────────────────────────
+//
+// Ruled by Gary 2026-08-15. A document whose CURRENT version has detected fields
+// and none confirmed cannot be granted to anyone. Same predicate the ceremony
+// (layer b) and the mint (layer c) use — asked here, upstream of both.
+//
+// THIS SUPERSEDES THE HR-11d §2b CARVE-OUT, which deliberately left this path
+// untouched and said so in a comment on the ceremony page: "Assigning an
+// unconfirmed document to the whole company still works exactly as before." It
+// no longer does, and that comment is corrected at its own site.
+//
+// SCOPED TO Acknowledgment, AND THE SCOPE IS BELT-AND-BRACES RATHER THAN
+// LOAD-BEARING. Anchor detection only ever runs for Acknowledgment documents
+// (api/hr/documents/route.ts and the versions route both gate on
+// isAcknowledgment), so a Reference document has zero anchors, matched == 0, and
+// isSigningBlocked returns false for it already. Naming the kind states the
+// intent instead of relying on that — a Reference PDF is never signed, so
+// "confirm its fields" would be a demand with no meaning — and it saves two
+// counts per save on the kind that can never be blocked.
+//
+// IMAGE-ONLY DOCUMENTS ARE NOT BLOCKED (Gary's Q1 ruling, 2026-08-15, accepting
+// this session's recommendation). matched == 0 means fields were not DETECTED,
+// which is legitimate for a certificate-only document and gets a WARNING, not a
+// block. Blocking would create a dead end with no action that clears it — there
+// would be no fields to confirm — and would silently overturn R3(i-a), ratified
+// the day before. One predicate, two outcomes.
+async function currentVersionBlocked(
+  hrDocumentId: string,
+  kind: string
+): Promise<{ blocked: boolean; matched: number; confirmed: number }> {
+  if (kind !== "Acknowledgment") return { blocked: false, matched: 0, confirmed: 0 }
+  const version = await prisma.hrDocumentVersion.findFirst({
+    where: { hrDocumentId, isCurrent: true },
+    select: { id: true },
+  })
+  // No current version = nothing to sign against and nothing to confirm. The
+  // ceremony pages already notFound() on this, so refusing an audience edit for
+  // it would strand a document in a state no other surface treats as an error.
+  if (!version) return { blocked: false, matched: 0, confirmed: 0 }
+  return getVersionAnchorReadiness(version.id)
+}
+
 async function loadGrants(hrDocumentId: string) {
   return prisma.hrDocumentGrant.findMany({
     where: { hrDocumentId },
@@ -131,13 +178,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // (ruled 2026-08-11): deactivating a store does not un-employ the people
   // rostered to it, and hiding it would strand them behind a picker that cannot
   // reach them.
-  const [stores, staff] = await Promise.all([
+  const [stores, staff, readiness] = await Promise.all([
     prisma.store.findMany({
       where: { organizationId: org.id },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
     loadStaff(org.id, grantedStaffIds),
+    // R4: reported on OPEN so the dialog can say why before an admin spends
+    // time choosing an audience it is going to refuse. THE GATE IS THE PUT, NOT
+    // THIS — a stale dialog, or a hand-rolled request, never sees this field.
+    // Same two-layer split HR-11d used for the ceremony: the server refuses, the
+    // client explains.
+    currentVersionBlocked(doc.id, doc.kind),
   ])
 
   const active = activeOnly(staff)
@@ -148,6 +201,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       title: doc.title,
       appliesTo: doc.appliesTo,
       isActive: doc.isActive,
+    },
+    signing: {
+      blocked: readiness.blocked,
+      matched: readiness.matched,
+      confirmed: readiness.confirmed,
     },
     stores: stores.map((s) => ({
       id: s.id,
@@ -192,6 +250,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const doc = await loadDocument(id, org.id)
   if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 })
+
+  // ── R4: refuse before anything is written ────────────────────────────────
+  // Placed after the org-scoped document lookup so an unknown id still 404s
+  // rather than leaking a readiness answer, and before BOTH write branches so
+  // neither the flag flip nor the delta can run. `signingBlocked` lets the
+  // dialog tell this apart from a validation error without parsing prose — the
+  // same shape signingUnavailable has on the ceremony routes.
+  // audienceWouldGrant lives in lib/hr-documents.ts so the dialog's disabled
+  // Save asks the SAME function rather than restating it — see its doc comment.
+  if (audienceWouldGrant(parsed.data)) {
+    const readiness = await currentVersionBlocked(doc.id, doc.kind)
+    if (readiness.blocked) {
+      return NextResponse.json(
+        {
+          error: HR_ASSIGN_BLOCKED_COPY,
+          signingBlocked: true,
+          matched: readiness.matched,
+        },
+        { status: 409 }
+      )
+    }
+  }
 
   // ── "Everyone in my company" ─────────────────────────────────────────────
   // The flag, and nothing else. Existing grant rows are left exactly where they

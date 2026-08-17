@@ -2667,6 +2667,60 @@ phases:
       remains deferred.
     blockers:
       - >
+        RESOLVED 2026-08-16 — THE BLOCKER BELOW IS DISCHARGED ON ITS OWN TERMS.
+        Prepended per preserve-and-mark; nothing below is edited. The entry below
+        ends "WHAT REMAINS ON THIS ROW, and it is the whole of it: ONE REAL
+        TRANSACTION ON A KEVA STORE, IN PRODUCTION, CONFIRMING 'Today so far'
+        MOVES WITHOUT A MANUAL PAGE REFRESH. Nothing else closes it." It needed a
+        store to be open. NINE WERE.
+        THE EVIDENCE, and it is production on both halves. Neon console,
+        PRODUCTION branch br-sparkling-block-a620qvg4 (endpoint ep-green-smoke),
+        2026-08-16 ~21:10 UTC (2:10 PM PT): nine linked stores — Spanish Springs,
+        South Reno, Meadowood Mall, Carson, Las Brisas, UNR, Sparks, University
+        Village, Southgate — ALL with last_sync inside the previous ten minutes
+        and latest_day = 2026-08-16. Keva Kiosk (17:12 UTC) and Cafe De Keva Cart
+        (11:01 UTC) lag, consistent with lower volume or closure. Rohan's
+        Restaurant is unlinked (squareLocationId null). Square Developer Console,
+        PRODUCTION application sq0idp-UdjqLfkxl0hlbw7b30IiLA ("Froot"): 34,914
+        delivery results, ALL 200, to
+        https://www.usefroot.com/api/webhooks/square, most recent 2026-08-16
+        13:18 PT.
+        THE 200s ARE NOT THE PROOF AND THIS ROW ALREADY KNEW THAT — the handler
+        ACKs before processing (route.ts:89-94), so a 200 proves acceptance only,
+        exactly as the entry below says of the F-4 test event. What proves the
+        resync path RAN is the sales caches themselves: nine stores whose
+        syncedAt is minutes old on a live business date could not have got that
+        way without the webhook, because the 15-minute lazy sync requires a
+        request and the cron runs once at 11:00 UTC. Corroborated a third time by
+        BUG-7's ~55 `discarded ... superseded by a newer fetch` lines in the same
+        afternoon's production logs, every one of them on POST
+        /api/webhooks/square — a line that can only be emitted by a sync the
+        webhook triggered.
+        THE FORM OF THE EVIDENCE, SAID PRECISELY so nobody has to guess later.
+        This is server-side evidence — database freshness, delivery logs, and
+        function logs — of the mechanism that makes "Today so far" move, taken
+        continuously across nine stores over an afternoon. It is not a
+        screenshot of the number changing in a browser. Gary ruled it closing,
+        and it is stronger than the single-transaction observation the sentence
+        below asked for; recording which kind of evidence it is costs nothing and
+        stops a future reader inferring a browser pass that was not taken.
+        TWO SQUARE PORTALS, DELIBERATELY — recorded here because the docs
+        elsewhere carry a "staging Square app points at the production domain"
+        gap that this arrangement is the resolution of, not an instance of.
+        sq0idp-UdjqLfkxl0hlbw7b30IiLA ("Froot") is PRODUCTION;
+        sq0idp-YPgmfGap_oYDRTyYIFG3zw ("Froot Staging") is STAGING. Two separate
+        Square applications against the same real merchant account, so staging
+        exercises real live data without sharing production's webhook
+        subscription, signature key, or notification URL. Anything that reads as
+        one app misconfigured is two apps working as designed; check the
+        application id before filing it.
+        WHAT THIS DOES NOT CLOSE. The entry below also records "PREVIEW IS NOT
+        DONE" — Preview's NEXT_PUBLIC_APP_URL unconfirmed, and no subscription on
+        the staging Square app, so the staging half still hits the identical 401.
+        NONE of that is touched by the evidence above, which is entirely
+        production. That half of the entry below stays open and this resolution
+        does not reach it.
+      - >
         PRODUCTION CONFIGURED 2026-08-13 BY GARY — STILL OPEN, AND WHAT REMAINS
         IS ONE SENTENCE LONG. Prepended; nothing below is edited. The two-part
         fix this row has demanded since 2026-07-27 is DONE for production. What
@@ -4844,6 +4898,1797 @@ phases:
       Audit: docs/prompts/2026-08-12_HR-28_AUDIT.md — §8's fallback is the part
       this correction supersedes; the file itself is a claim wholesale and
       stays unedited.
+
+  - id: HR-11d
+    track: hr
+    size: M
+    commits: [576fc4e, 6ff7ea6]
+    status: in_progress
+    title: "Hollow signed records — completion reads document checkpoints, stamping reads version anchors; guard, upload reporting, vocabulary, hash carry-forward"
+    notes: >
+      PHASE 0 CLOSED 2026-08-14. PHASE 1 BUILT 2026-08-14 ("576fc4e") — FIVE OF
+      SIX ITEMS; 2f IS HELD, see below. Audit: docs/prompts/HR-11d_AUDIT.md —
+      634 lines, and the diagnosis of record. Phase 0 audit preserved at
+      "7fbf618".
+
+      NO `commits:` FIELD UNTIL PHASE 1. The audit SHA above is prose
+      deliberately: `commits:` means WORK commits everywhere else in this file,
+      and seeding it with a docs commit would have quietly made it mean two
+      things the moment Phase 1 appended to it. The field arrives with the
+      first work commit — and now has, carrying the two Phase 1 WORK commits
+      and nothing else: "576fc4e" (2a-2e) and "6ff7ea6" (2f). The audit SHA
+      stays in prose above, where it has always been.
+
+      HANDOFF POINTER — Phase 1 must be handed BOTH
+      docs/prompts/HR-11d-phase1-build.md ("2212a1e") AND
+      docs/prompts/HR-11d-phase1-build-addendum.md ("82713ea"). The original
+      alone reproduces the R3(ii) omission recorded below.
+
+      THIS IS NOT A REGRESSION, and the audit's opening premise was withdrawn
+      mid-session. The audit began on a 7-24 artifact stamped correctly and an
+      8-12 artifact stamped not at all. Gary's confirmation: "I have never
+      formalized a document in production. The 7-24 record is a dev/staging
+      observation. This is NOT a regression — inline stamping has never run in
+      production." There is no 7-24 to 8-12 production delta to explain. Both
+      artifacts are non-production observations of the same system in two
+      configurations — one where an admin had confirmed the version's field
+      anchors, one where nobody had.
+
+      THE DATING CONFIRMS IT INDEPENDENTLY. Two proofs put the 7-24 artifact
+      before 07:50 PDT on 7-24: its certificate labels the name row "Signer",
+      predating the dual name rows introduced by "232d568" at 12:29 PDT; and
+      its signature sub-lines stack DOWNWARD, predating the reader-up stacking
+      for Above placements introduced by "01c5ed9" at 07:50 PDT. The
+      HR-11b/HR-11c production merge "59a6cdc" landed at 21:07 PDT the same
+      day. The artifact was produced by pre-HR-11c code roughly FOURTEEN HOURS
+      before HR existed in production. A third proof drawn from the
+      certificate's "Organization: Microsoft" line was drafted and WITHDRAWN —
+      that field is a known-suspect open HR-11c verification item and cannot be
+      used to identify an org (corrected by Gary, 2026-08-14).
+
+      THE CODE DID NOT CHANGE. git diff "59a6cdc"..HEAD across the two stamping
+      libraries: src/lib/hr-anchors.ts is byte-identical — detector, vocabulary,
+      line reassembly, fill-gate and placement resolver all untouched.
+      src/lib/hr-signed-pdf.ts carries two changes, neither on the
+      acknowledgment path: "89c70f7", a let-to-const lint fix with no
+      behaviour, and "4adcb13" (DEBT-9), inside ensureTrainingCertPdf — a
+      different exported function that ensureSignedRecord does not call. The
+      three surrounding HR document routes (versions, anchors, anchors/rescan)
+      are byte-identical too. The diff is behaviourally empty on this path. The
+      cause is configuration that was never established, not a change in code
+      or data.
+
+      THE STRUCTURAL CAUSE. ensureSignedRecord judges COMPLETION from
+      DOCUMENT-LEVEL checkpoints and drives STAMPING from VERSION-LEVEL
+      confirmed anchors. Two predicates, two sources, two lifetimes, never
+      reconciled — so they never have to agree. When the confirmed-anchor set
+      is empty the function mints a record claiming completion, draws the
+      page-1 banner, appends the full Certificate of Acknowledgment, and stamps
+      nothing — silently, with no signal at any point in the chain. The defect
+      is therefore not "what broke"; it is what the system does when nobody has
+      confirmed anchors. Observed on staging 2026-08-14: the Keva Employee
+      Handbook shows "Detected fields (41 across 28 pages)" with a live
+      "Confirm & generate (41)" button — 41 proposals, zero confirmed — while
+      Checkpoints (37) are fully populated. Completion machinery intact,
+      stamping machinery empty.
+
+      RULINGS — RATIFIED BY GARY 2026-08-14, FILED VERBATIM.
+
+      R1 — MOOT. No production signed records exist. Nothing to void, re-issue,
+      or explain to Keva. Closing it here so nobody reopens it later assuming
+      damage was done.
+
+      R2 — RATIFIED. The upload route reports its scan result. Same rule I made
+      on 7-23 for rescan: a scan states which of three things happened — it
+      errored, there was no text layer, or it found N fields on M pages. Never
+      a bare zero standing in for all three. The upload dialog ends by telling
+      the operator what is left to do, not by declaring success.
+
+      R3(i) — RATIFIED. Three layers: flag at upload, refuse to start the
+      ceremony, throw in ensureSignedRecord. The backstop is non-negotiable.
+      Refusing before the ceremony rather than at mint-time is the point — I am
+      not failing a signer after they have typed 27 sets of initials.
+      Signer-facing copy is exactly "This document isn't available yet — ask
+      your manager," with a download and print option so nobody is stuck
+      mid-shift.
+
+      R3(i-a) — RATIFIED, and this CORRECTS the audit. The audit proposed
+      firing when a prior version had confirmed anchors and the current one
+      does not. That test only works on a document with history; a brand-new
+      document whose first version was never confirmed sails through it, and
+      new documents are most of what we will upload. The trip-wire is:
+      detection matched fields and zero are confirmed. A version that matched
+      nothing — image-only, or predating anchoring — is legitimately
+      certificate-only and stays signable. This ruling is the only definition
+      of R3(i-a) anywhere; it does not appear in the audit or the build prompt.
+
+      R3(ii) — RATIFIED. The Certificate of Acknowledgment states whether marks
+      were applied to the document body, and the field count when they were.
+      Language stays neutral — no "failed," no "error" — because once R3(i)
+      ships, a document with nothing to stamp is a valid document, not a broken
+      one. Phase 1 proposes the final copy for both states and I approve it
+      before it ships. I am not putting wording on an executed legal artifact
+      that I have not read.
+
+      2d — RATIFIED. "Manager Signature:" enters the vocabulary with a discard
+      flag: it claims its span so bare "Signature:" cannot steal it, emits no
+      candidate, writes no row, and never enters the matched count — so the
+      R3(i-a) guard needs no carve-out. It is recognized and left alone, not
+      stamped. Manager countersignature is its own row (HR-11h), not this one.
+      "Employee:" defaults to SignatureStamp and is fill-gated; page 13 is a
+      signature line, and if the default is ever wrong the admin unchecks it at
+      confirm in thirty seconds, whereas the reverse error puts a typed name on
+      a signature line with no signer act at all.
+
+      2e — RATIFIED. When a new version's file hash matches the version it
+      replaces, confirmed anchors carry forward as confirmed, and the upload
+      warns that the file is identical. Nine versions of the handbook all carry
+      hash 7d60912ccf4b — identical bytes cannot have different coordinates, so
+      there is no admin judgment left to exercise. Confirmed anchors only;
+      unconfirmed proposals do not carry forward. This moves stamp coordinates
+      and nothing else — signed records stay bound to the version signed, and a
+      new version still requires new acknowledgment. HR-11f is untouched.
+
+      R3(i-a) CORRECTS THE AUDIT — THE TWO DO NOT AGREE AND MUST NOT BE READ AS
+      AGREEING. The audit (§10.1) proposed the trip-wire "prior version had
+      anchors and current has none". The ratified condition is "detection
+      matched fields and zero are confirmed". The audit is a claim wholesale
+      and is not edited; this row is the correction of record. A reader who
+      opens the audit alone will find the superseded condition stated as the
+      proposal, with nothing in that file marking it as overtaken.
+
+      R3(ii) WAS OMITTED FROM THE PHASE 1 BUILD PROMPT IN ERROR, and is now IN
+      SCOPE. It was ruled and then left out of
+      docs/prompts/HR-11d-phase1-build.md — present in neither §2 (scope) nor
+      §4 (out of scope). Carried instead by
+      docs/prompts/HR-11d-phase1-build-addendum.md as §2f ("82713ea"). The
+      omission is recorded rather than tidied away: the original prompt is
+      unedited, and two of its lines are stale as a result — §2 is headed
+      "Scope — five items, no more" (it is now six) and §3 lists "the
+      certificate writer" among the things not to disturb (§2f changes it).
+      Both stale lines fail in the direction of SKIPPING §2f, which is why the
+      handoff pointer above names both files.
+
+      COMMENT — HrAnchorMarkType is a Prisma enum (schema.prisma:1742), not a
+      TS union — any future "mark type that stamps nothing" is a migration, not
+      a vocabulary edit. The discard flag avoids this entirely. (Filed inside
+      notes because `comment:` is not a field on the phase type — see the
+      Phase interface in src/lib/roadmap.ts.)
+
+      ──────────────────────────────────────────────────────────────────────
+
+      PHASE 1 BUILT 2026-08-14 — ALL SIX ITEMS. 2a, 2b, 2c, 2d and 2e in
+      "576fc4e"; 2f in "6ff7ea6" after Gary ruled the copy. NOT PUSHED.
+
+      2f WAS HELD MID-SESSION AND THEN RULED, which is the shape the addendum
+      asks for and not a delay. The copy was presented before anything was
+      written into the certificate writer; Gary ruled Option A, FIELD COUNT ONLY
+      WITH NO PAGE COUNT, and MARKS ACTUALLY DRAWN rather than anchors
+      confirmed. The stamped line reads "Stamped - 41 field marks applied to the
+      document body."; the certificate-only line reads "Certificate-only - no
+      field marks were applied to the document body. This certificate is the
+      complete record of acknowledgment."
+
+      MARKS-DRAWN WAS THE SECOND DECISION HIDING INSIDE THE FIRST, and it is
+      what makes the line worth having: the certificate describes THE ARTIFACT
+      IN THE READER'S HANDS, not the intent behind it. Its one visible
+      consequence is correct rather than incidental — a version whose anchors
+      are all confirmed but whose values resolve to null (an all-attested
+      initial set, a "Store:" with no store on file) draws nothing and
+      truthfully says certificate-only. A signature block counts as ONE mark,
+      not three lines.
+
+      Position: a labeled() row under Source SHA-256, with the facts about the
+      file and above the signer-identity block, same 8pt/9pt weight as every
+      other row. The LABEL IS CONSTANT across both modes so two certificates
+      line up when read side by side — that comparison is the entire reason the
+      line exists, and a label that changed with the mode would hide the
+      difference from anyone skimming a stack. Both modes are legitimate once 2b
+      ships, so the fixture asserts neither string contains failure language
+      ("failed", "error", "missing", "unable", "skipped", "could not",
+      "problem", "invalid") and that the certificate-only line closes on what
+      the certificate IS rather than trailing off after what is absent.
+
+      2f is the ONE item on §3's do-not-disturb list that the addendum
+      deliberately changes. Everything else on that line is untouched. It
+      applies FORWARD ONLY — no certificate already generated is re-issued or
+      amended, and R1 is moot because no production signed records exist.
+
+      THE GUARD IS THE PREDICATE, AND IT LIVES IN ONE PLACE. isSigningBlocked
+      (src/lib/hr-anchors.ts) is pure and exported, so the fixture asserts the
+      shipped function rather than a copy of it, and the ceremony page, the mint
+      and the fixture cannot drift. getVersionAnchorReadiness is the one query
+      that feeds it.
+
+      TWO PLACES THE PHASE WENT BEYOND THE PROMPT'S LETTER, BOTH FLAGGED FOR
+      CHEAP REVERSAL. (1) R2's reporting was applied to POST /api/hr/documents
+      as well as the versions route §2a names — that route is what creates the
+      brand-new document R3(i-a) was ratified to catch, so reporting only on
+      re-upload would leave the flag-at-upload layer silent for exactly that
+      population. (2) The attested entry point gets an admin-facing refusal
+      instead of the ruled signer copy, because "ask your manager" is addressed
+      to a person who, on that path, is the manager. The ruled copy is verbatim
+      and untouched on the signer path.
+
+      LAYER (c)'S REFUSAL IS NOW ADMITTED RATHER THAN SWALLOWED. The capture
+      route already caught every generator failure and returned complete:true
+      with signedRecordId:null — so a bypassed layer (b) would have told the
+      signer "executed" while no record existed, which is this row's own defect
+      wearing a different coat. It now returns signingUnavailable and both
+      clients render the refusal. This is NOT a fourth guard and deliberately
+      not a refusal on the write: the ceremony saves progressively, so refusing
+      at the write would strand a signer mid-document — the exact failure layer
+      (b) is at the door to prevent.
+
+      FIXTURE 55/55 AT "576fc4e", THEN 64/64 WITH 2f — up from 35/35 at the
+      pre-phase HEAD. THE PROMPT'S "current 28/28" IS STALE AND CAME FROM
+      docs/DECISIONS.md:1142, where it was the HR-11b-era count for
+      scripts/verify-hr-anchors.ts; HR-11c's dedup work added seven more checks
+      and neither number was revisited. Recorded because the gap reads like a
+      regression to anyone comparing 28 against 35 — 35 check() calls are in the
+      file at the pre-phase HEAD (git show HEAD:… | grep -c) and all 35 still
+      pass. THE 2b REGRESSION ASSERTION NEEDED NEITHER A REAL PDF FIXTURE NOR A
+      SECOND HARNESS, which was §5's question: the trip-wire is a pure function
+      of two counts, so the synthetic PDFs already in the file supply the real
+      `matched` and `confirmed` is 0 by construction (detection writes every
+      proposal unconfirmed). Asserting that ensureSignedRecord itself throws
+      needs a database, a blob store, a StaffMember and acknowledgment rows —
+      a second harness, and it is the Phase 2 staging walk, which already
+      requires an authenticated session. 2f's two assertions land the same way:
+      the copy is exported pure (certificateModeLine) and asserted against the
+      SHIPPED strings, while "a certificate generated for a version with
+      confirmed anchors states the stamped mode" is that same Phase 2 walk.
+
+      THE ROADMAP COMMIT'S MESSAGE WAS AMENDED; THE WORK COMMIT WAS NOT. The
+      first attempt at the recording commit wrote `commits:` in backticks inside
+      a double-quoted zsh -m argument, which command-substituted and swallowed
+      the word; the message was amended to restore it. "576fc4e" was never
+      touched, so the SHA this row records is still the SHA that was committed —
+      the only property the two-commit pattern exists to protect. Amending the
+      RECORDER is outside that hazard; amending the RECORDED is the thing the
+      pattern forbids. Written down because the history now shows an amend on an
+      HR-11d commit, and the next reader should not have to work out which one.
+      The reusable half: heredoc every commit message with quoted EOF — a
+      backtick in -m is a live command substitution, and it fails SILENTLY, with
+      a message that is merely missing a word rather than obviously broken.
+
+      NOT VERIFIED BY THIS SESSION, AND BOTH BELONG TO PHASE 2. The
+      non-regression check §3 asks for — that the DOC-1 audience modal still
+      saves — needs an authenticated ADMIN session this session may not create.
+      What IS evidence: assign-audience-dialog.tsx, api/hr/documents/[id]/audience,
+      hr-document-audience.ts and hr-documents-access.ts are BYTE-UNTOUCHED by
+      the work commit, and the guard is at the ceremony page and the mint, never
+      on a grant path. And no browser observation was taken at all, per the
+      staging-SHA precondition: this work is not on staging at commit time.
+
+      SCHEMA: NONE. MIGRATION: NONE. No `shipped:` date yet; that lands at
+      promotion.
+    open:
+      - >
+        The anchor rows behind the 8-12 artifact were never read. Close in
+        Phase 2 with Q2/Q3a/Q3b/Q4a from the audit's query pack re-pointed at
+        staging, branch literal corrected off br-sparkling-block.
+      - >
+        No production document has ever had its anchors confirmed, so once the
+        guard ships Keva cannot sign until someone walks the confirm screen on
+        the production handbook — org ID and Clerk instance recorded before the
+        click.
+      - >
+        anchors/route.ts deletes a keep:false anchor with no guard on
+        confirmed — hypothesis B representable. File its own row.
+      - >
+        THE ERRORED-SCAN GAP IS HR-11i, RULED OUT OF THIS ROW (Gary,
+        2026-08-14): it needs a column and a migration, and HR-11d is not
+        growing one at the end. §2a's loud failure at upload holds the line
+        meanwhile. Nothing about it is built here.
+      - >
+        The §3 non-regression check — that the DOC-1 audience modal still saves
+        — was not observed. It needs an authenticated ADMIN session. The
+        audience files are byte-untouched by "576fc4e" and the guard is nowhere
+        near a grant path, but that is an argument, not the observation the
+        prompt asked for. Fold it into the Phase 2 browser pass.
+
+  - id: HR-11j
+    track: hr
+    size: L
+    status: verified
+    title: "Signed truth & assignability — R1 completion from the record, R4 assignability gate"
+    commits:
+      - "32205a4"
+      - "2afcf0f"
+    notes: >
+      SESSION 2026-08-15. Prompt: docs/prompts/2026-08-15-signed-truth-and-assignability.md
+      ("887ee14"). Item 1 audit: docs/prompts/2026-08-15_COMPLETION_INVENTORY_AUDIT.md
+      (same commit). Reproduction fixtures: docs/test_docs/ ("72e4adc").
+
+
+      FOUR RULINGS AND TWO SUPERSESSIONS, ALL MADE 2026-08-15 AFTER A FULL
+      REPRODUCTION ON STAGING (br-square-feather-a63z92vz / neondb, document
+      "Test - Handbook Regression" cmstv3r1s000004jxdcyhkbui). They are recorded
+      here as RULINGS — what is true from now on — not as a summary of what was
+      changed. The changes are in the commits.
+
+
+      R1 — SIGNED MEANS THE SIGNED RECORD EXISTS. A document is signed when an
+      HrSignedRecord row exists for that version, that staff member, and that
+      signing cycle. Not before. Completed checkpoints are PROGRESS, not
+      COMPLETION. Every surface that reports completion status reads the record.
+      Checkpoint counts may still drive a progress display ("2 of 7
+      checkpoints"); they may never produce a "Signed" or "Completed" state. A
+      signer holding acknowledgments and no record is IN PROGRESS, not done, and
+      the document stays in their TO SIGN list.
+
+
+      R2 — TWO UPLOAD PATHS, AND THEY MEAN DIFFERENT THINGS. A NEW FILE is a new
+      document: everyone signs it. A NEW VERSION is the same document: existing
+      signers KEEP their record and are NOT re-prompted, and a read-only notice
+      tells them an update is available. FILED, NOT BUILT IN THIS SESSION —
+      it needs its own design pass and will likely add a column to
+      HrDocumentVersion.
+
+
+      R2 SUPERSEDES HR-11f (2026-08-14), WHICH REQUIRED UNIVERSAL
+      RE-ACKNOWLEDGMENT. Marked here rather than edited there; the HR-11f text
+      stands as written and is preserved beneath this marker:
+
+
+      [SUPERSEDED 2026-08-15 BY R2] HR-11f, ruled 2026-08-14 — a new version of
+      a document requires new acknowledgment from everyone; signed records stay
+      bound to the version signed, and a version bump re-prompts every signer.
+      That is now the NEW FILE path only. The NEW VERSION path no longer
+      re-prompts an existing signer.
+
+
+      R3 — COMPLIANCE SHOWS SIGNED, WITH THE VERSION NOTED. No warning, no flag,
+      no amber state for a signature executed against an older version. A
+      separate report — "who has acknowledged the current text" — is FILED FOR
+      LATER and is the right home for that question. Not built in this session.
+
+
+      R4 — A DOCUMENT IS NOT ASSIGNABLE UNTIL ITS FIELDS ARE CONFIRMED. The
+      guard moves UPSTREAM, from the ceremony to the grant. A document whose
+      current version has detected fields and none confirmed cannot be granted
+      to anyone.
+
+
+      R4 SUPERSEDES THE HR-11d §2b CARVE-OUT (2026-08-14), WHICH DELIBERATELY
+      LEFT THE GRANT/AUDIENCE PATH UNTOUCHED. The carve-out's own words are
+      preserved beneath this marker, and are corrected at their code site the
+      same way:
+
+
+      [SUPERSEDED 2026-08-15 BY R4] "THE GUARD IS AT THE CEREMONY, NEVER AT THE
+      GRANT. Assigning an unconfirmed document to the whole company still works
+      exactly as before (DOC-1 audience modal, untouched by this phase) — what
+      an admin cannot do is have someone sign it."
+
+
+      Q1 — IMAGE-ONLY PDFs WARN, THEY NEVER BLOCK. isSigningBlocked is
+      `matched > 0 && confirmed == 0`, so a PDF with no text layer produces
+      matched 0 and is not blocked. That stands. matched == 0 means fields were
+      not DETECTED, which is a WARNING condition, not a block condition.
+      BLOCKING WOULD CREATE A DEAD END WITH NO ACTION THAT CLEARS IT — there
+      would be no fields to confirm — and would silently overturn R3(i-a),
+      ratified the day before. One predicate, two outcomes.
+
+
+      Q2 — ADMIN-FACING COPY DIFFERS FROM SIGNER-FACING COPY, ON EVERY SURFACE
+      AND IN THE SIGNED-RECORD ROUTE. "Ask your manager" is nonsense read by the
+      manager who is standing there. The three ruled strings, verbatim:
+      employee "In progress — ask your manager."; admin "Not signed — ceremony
+      incomplete, no record"; assignment refusal "Confirm this document's fields
+      before assigning it." The signed-record route's 409 branches on whether
+      the caller is acting on their own record or someone else's.
+
+
+      INVARIANT — THE GRANT GATE BLOCKS GRANTING, NEVER REVOKING. No readiness
+      state may trap a document in its current audience. Withdrawing a document
+      is exactly what an admin needs when a version goes unconfirmed underneath
+      a live grant, and blocking the grant while forbidding the retreat would be
+      worse than not blocking at all — the same dead-end shape Q1 rejects.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      ITEM 2 BUILT 2026-08-15 ("32205a4") — R1 ACROSS ALL SIX SURFACES.
+
+
+      THE DEFECT WAS SIX EXPRESSIONS OF ONE PREDICATE. Six separately written
+      derivations of "this document is signed" — hr-compliance.ts, the /my
+      documents data layer, /staff/[id], the capture route, and both ceremony
+      clients — had to agree by discipline and were not required to agree by
+      construction. All six treated a full required-checkpoint set as
+      completion, so all six were wrong at the same time; the reproduction
+      exercised only two of them. The predicate now lives once, in
+      src/lib/hr-completion.ts, as an exported PURE function on the
+      isSigningBlocked pattern. It imports nothing, which is load-bearing rather
+      than tidy: two of the six sites are CLIENT components, and a predicate
+      they cannot import is a predicate they will reimplement.
+
+
+      THE CAPTURE ROUTE WAS THE ORIGIN. POST .../acknowledgments computed
+      `complete` from checkpoints BEFORE attempting the mint and never revised
+      it, so the five display surfaces were faithfully reporting what the API
+      told them. `complete` is now the mint result. THIS CLOSED A FAILURE
+      signingUnavailable NEVER COVERED: that flag narrows one cause, and every
+      other generator failure returned complete:true with signedRecordId:null —
+      the same lie with a different cause, undetectable by any client.
+
+
+      PRECEDENCE IS THE PRE-R1 CHAIN ARM FOR ARM, and the first draft got this
+      wrong. Deleting the allAcked arm lets that case fall through to
+      needs-current whenever the member also holds an older-version record, so a
+      row could be BOTH "needs current version" AND record-missing and each
+      surface would invent its own rule for which to show. The arm is KEPT and
+      only its CLAIM changed. recordMissing therefore always implies
+      in-progress and no caller has to choose.
+
+
+      EXPECT COMPLIANCE PERCENTAGES TO FALL, AND EXPECT IT TO BE FILED AS A
+      REGRESSION. Anyone whose checkpoints are all in but whose record was never
+      minted moves from complete to in-progress, and their store's pct drops
+      with them. Written into hr-compliance.ts in advance, the same as the R3
+      corporate-exclusion and archive notes DOC-1 C left there.
+
+
+      VERIFIED: next build green, eslint clean over 13 files, 23/23 assertions
+      against the SHIPPED predicate imported from src/ — the exact reproduction
+      shape, the R1 positive, the ambiguous v1-signed/v2-acked case, the vacuous
+      zero-required-checkpoint guard, both copy strings verbatim, and a
+      96-combination sweep. NO SCHEMA CHANGE, NO MIGRATION.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      ITEMS 3 AND 4 BUILT 2026-08-15 ("2afcf0f") — R4's GATE, THE THIRD
+      CEREMONY ENTRY POINT, AND Q2 IN THE SIGNED-RECORD ROUTE.
+
+
+      THE R4 GATE IS ON THE WRITE. PUT /api/hr/documents/[id]/audience asks
+      getVersionAnchorReadiness on the current version and returns 409, after
+      the org-scoped lookup so an unknown id still 404s rather than leaking a
+      readiness answer, and before BOTH write branches. ONE WRITER, ESTABLISHED
+      BY SWEEP: HrDocument.appliesTo and HrDocumentGrant have exactly one writer
+      in src/ — every other appliesTo hit is TrainingModule or ChecklistTemplate.
+      The dialog's disabled Save is an AFFORDANCE, not the gate, and asks the
+      same exported audienceWouldGrant() rather than restating it: two LAYERS
+      are intended, two RULES are not, and a mirror that drifts by one condition
+      either disables Save on a withdrawal or offers it on a refusal.
+
+
+      ITEM 4 — LAYER (b) WAS NOT BYPASSED. IT WAS NEVER PRESENT ON THAT ROUTE.
+      Three ceremony entry points exist: /hr/acknowledge/[documentId] in self
+      mode, the same route in attested mode, and /my/documents/[documentId] in
+      the staff portal. HR-11d built the guard on the first file and its comment
+      claimed it "covers BOTH entry points" — TRUE OF THE TWO MODES OF THAT
+      FILE, FALSE OF THE THIRD ROUTE, which imports SigningClient across the
+      (my)/(app) route-group boundary. That is the route the reproduction's
+      signer walked in through. All three now call the predicate; the stale
+      comment is corrected at its own site under a dated marker with the
+      original preserved.
+
+
+      Q2 ONE LAYER DOWN. POST .../signed-record returned the SIGNER copy to
+      every caller, and the only surface rendering it is the admin-facing
+      Generate-record button — so "ask your manager" was told to the manager,
+      with no remedy named and no link to the screen that clears it. It now
+      branches on actingForSelf, named at the permission check that already
+      establishes it, and the admin path carries confirmHref — the field name
+      SigningUnavailable already uses, rather than a second affordance.
+
+
+      Q1's WARNING HALF ALREADY SHIPPED AND WAS RE-MEASURED RATHER THAN REBUILT.
+      hrScanMessage covers noTextLayer and noFieldsMatched on both upload routes
+      (HR-11d 2a), and AnchorsCard renders a persistent "No fields detected yet"
+      panel on the document. A third would have duplicated shipped copy.
+
+
+      VERIFIED: next build green, eslint clean over 7 files, 17/17 assertions
+      against the SHIPPED functions — the reproduction refused for both
+      all-company and per-store, the WITHDRAWAL permitted at every readiness
+      state, image-only permitted per Q1, and a before/after pair proving that
+      confirming anchors makes the document assignable. NO SCHEMA CHANGE, NO
+      MIGRATION.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      NOTE 1 — THE V1 HASH IN THE SESSION PROMPT IDENTIFIES A BLOB, NOT THE
+      LOCAL FILE. The prompt cites 1539cd866058 for v1. That hash came off
+      TOMMY'S CERTIFICATE and identifies the v1 in the STAGING BLOB STORE. The
+      file committed at docs/test_docs/V1_Test_Employee_Handbook.pdf ("72e4adc")
+      measures bec90ef31b1b — a different file. fileHash is plain sha256 of the
+      bytes (lib/hr-files.ts), so the two are directly comparable and genuinely
+      differ. RECORDED SO A LATER READER DOES NOT REPEAT THE ERROR: anyone
+      verifying the R1 positive against the local V1 would be checking the wrong
+      bytes and would get a fileHash that matches no version row. Verify against
+      the DB row's fileHash, not the committed file. V2 MATCHES (1685fc241b1c)
+      and is unaffected — it is the unconfirmed version both R1 and R4 turn on.
+
+
+      NOTE 2 — YOU CANNOT GREP FOR A MISSING CALL SITE. Grepping isSigningBlocked
+      returned a CLEAN result — one definition, correct callers, nothing out of
+      place — because the route missing the call had nothing to match on. Note
+      the direction: the search produces a PASS, so the session stops looking.
+      What found it was enumerating every RENDERER of the shared ceremony client
+      and checking each renderer. SAME SHAPE AS THE DEBT-22 MISS, which swept for
+      unordered storeAssignments loads and missed a STORE load keyed by
+      assignment ids — second time this shape has cost a session, which is why
+      it is now a rule rather than a note: CLAUDE.md § Verifying a guard covers
+      every path, added in "2afcf0f".
+
+
+      ──────────────────────────────────────────────────────────────────────
+      NOT DONE, AND IT IS THE WHOLE REMAINING RISK ON THIS ROW. EVERYTHING
+      ABOVE IS UNIT ASSERTIONS AND A GREEN BUILD. THE 2026-08-14/15
+      REPRODUCTION HAS NOT BEEN RE-RUN AGAINST THE FIXED CODE. Predicate tests
+      passing is not the same as the bug being gone (Gary, 2026-08-15). Status
+      stays in_progress until the acceptance pass lands.
+
+
+      ACCEPTANCE — run after "2afcf0f" reaches staging, and re-run the
+      staging-SHA precondition first or the entire pass is void. PRE-CHECK: the
+      test document cmstv3r1s000004jxdcyhkbui must still be on v2 with anchors
+      UNCONFIRMED, and Gdogg must still hold his 7 acknowledgment rows and no
+      HrSignedRecord — if anyone has confirmed v2's anchors since 8-15 the R1
+      and R4 tests both evaporate and the state has to be rebuilt. (1) R1
+      REGRESSION — Gdogg's /my/documents shows the document under TO SIGN
+      reading "In progress — ask your manager.", not under Completed as "Signed
+      v2"; confirmed BY QUERY, signed-record count 0 for (v2, Gdogg, current
+      cycle) while the surface reports in progress. (2) R1 POSITIVE — Tommy's v1
+      record still reads signed (against the DB row's fileHash, per NOTE 1).
+      (3) R4 — the assign dialog refuses with "Confirm this document's fields
+      before assigning it."; confirming v2's anchors makes it assignable; and
+      WITHDRAWAL was available throughout. (4) ITEM 4 — opening
+      /my/documents/cmstv3r1s000004jxdcyhkbui on unconfirmed v2 lands on the
+      refusal screen, not the reader. Every DB result carries neon.branch_id and
+      current_database() in the same output; every browser observation names the
+      org ID and the Clerk instance.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      PUSHED AND DEPLOYED 2026-08-15 09:45 PDT. Gary pushed; the
+      staging-SHA precondition was then confirmed independently rather than
+      transcribed. Local HEAD and origin/staging both
+      717f37bb432778c22c5671edb486a4af1f3ec88b; the alias
+      froot-git-staging-indianathomas-2483s-projects.vercel.app serves
+      dpl_8dqx2ay7Hx3rWAFxqkXgSvTTmUJj (froot-gthvkp3w8, created 09:45:13 PDT),
+      and `vercel ls --meta githubCommitSha=<full 40-char>` returns THAT SAME
+      DEPLOYMENT. Matched by deployment id, not by URL similarity, and with the
+      full sha — the short form returns "No deployments found", which is
+      indistinguishable from a genuine mismatch.
+
+
+      ACCEPTANCE PRE-CHECK, MEASURED 2026-08-15 ON preview/staging
+      (branch_id br-square-feather-a63z92vz, database neondb, both selected in
+      the same query as the rows). Read-only SELECTs run by Gary in the Neon
+      console — CLAUDE.md § Environment Variables forbids pulling deployed
+      credentials, and read-only is explicitly not an exception. Document
+      cmstv3r1s000004jxdcyhkbui:
+
+
+      v1 — isCurrent false, anchors 10 confirmed / 0 unconfirmed, 7
+      acknowledgments, 1 signed record. v2 — isCurrent TRUE, anchors 0 confirmed
+      / 10 UNCONFIRMED, 7 acknowledgments, 0 signed records. Exactly one
+      isCurrent row. Checkpoints: 7 required of 7 total. Per-staff on v2: one
+      row only — Gdogg Thomas cmsugvzfn000104l1fl8jcgi3, signingCycle 1, 7 acks,
+      0 records; so v1's 7 acks and its 1 record are Tommy's.
+
+
+      WHAT THE PRE-CHECK ESTABLISHES. isSigningBlocked(10, 0) is TRUE, so R1 and
+      R4 are both live and neither test has evaporated. v1's TEN CONFIRMED
+      ANCHORS independently corroborate the session prompt's "stamped correctly,
+      10 field marks". And 7 required checkpoints against Gdogg's 7 acks makes
+      allRequiredAcked TRUE BY MEASUREMENT rather than by inference from the old
+      defect having fired — that number was the one input not in the original
+      pull, and it is the difference between the ruled copy and an ordinary
+      "In progress 7/8" badge.
+
+
+      PREDICTED SURFACE OUTPUT, computed by feeding those measured numbers
+      through the SHIPPED functions. Gdogg: status in-progress, isSigned false,
+      recordMissing TRUE — "In progress — ask your manager." on /my, "Not signed
+      — ceremony incomplete, no record" on the admin surfaces, Generate record
+      offered and the ceremony link withheld. THAT RESULT HOLDS WHETHER OR NOT
+      v1'S RECORD IS HIS, which the measured set does not say and does not need
+      to: recordMissing implies in-progress, so no surface has to choose between
+      two labels. That is the Item 2 arm-ordering decision paying for itself
+      against real data. R4: assign-to-all refused, assign-to-store refused,
+      WITHDRAWAL PERMITTED.
+
+
+      TOMMY WILL READ "NEW VERSION TO SIGN", AND THAT IS CORRECT — FLAGGED IN
+      ADVANCE SO IT IS NOT FILED AS A REGRESSION. v2 is current and he has no
+      acknowledgments on it, so the DOCUMENT ROW is needs-current. His V1 RECORD
+      IS INTACT and still renders as signed, in the Signed records section of
+      his portal and as a downloadable "Signed record for v1" on /staff/[id].
+      Acceptance check (2) is about the RECORD surviving, not about a green
+      badge on the document row. This behaviour predates R1 and no arm of the
+      chain touching it was changed.
+
+
+      STILL OUTSTANDING: the four acceptance checks themselves. The pre-check
+      establishes only that they are RUNNABLE. Status stays in_progress.
+
+
+      ──────────────────────────────────────────────────────────────────────
+      ACCEPTANCE PASSED 2026-08-15. All four checks verified by Gary on
+      staging, deployment dpl_8dqx2ay7Hx3rWAFxqkXgSvTTmUJj (created 09:45 PDT),
+      matched by HEAD SHA. Org org_3G02wO4QlVVSWppi8aqlnSZnsDa on Clerk instance
+      verified-snapper-7; database branch br-square-feather-a63z92vz / neondb.
+      Status moves in_progress -> verified.
+
+
+      (1) R1 REGRESSION — PASS. Gdogg's /my/documents shows the document under
+      TO SIGN reading "In progress — ask your manager." THE DAY BEFORE, THE SAME
+      SCREEN SHOWED IT UNDER COMPLETED AS "Signed v2" IN GREEN. That before/after
+      on one screen is the closest thing this row has to a direct measurement of
+      the defect, and it is why the check was specified as a comparison rather
+      than as a lone screenshot.
+
+
+      (2) A3 GUARD — PASS. Opening the document lands on the refusal screen, not
+      the reader. This is the entry point that had no readiness call at all, and
+      the one the original signer walked in through.
+
+
+      (3) R4 GATE — PASS. The assign dialog shows the amber panel with "Confirm
+      this document's fields before assigning it.", states that 10 fields are
+      detected and none confirmed, links to the confirm screen, and disables
+      Save. WITHDRAWAL CONFIRMED AVAILABLE — the invariant held in the browser,
+      not only in the unit sweep.
+
+
+      (4) R1 POSITIVE — PASS. Tommy's v1 signed record is intact and
+      downloadable. Nothing in R1 reached backwards into a record already made.
+
+
+      EVERY PREDICTION IN THE PRE-CHECK ABOVE WAS BORNE OUT, including the one
+      flagged in advance as correct-but-surprising: Tommy's row reads "Needs
+      current version". See the finding filed on HR-11k — that behaviour is
+      right under HR-11f and WRONG under R2, which supersedes it.
+
+  - id: HR-11k
+    track: hr
+    size: M
+    status: in_progress
+    title: "R2 — two upload paths: new file re-signs, new version does not"
+    commits:
+      - "457a57f"
+      - "6b2054f"
+      - "bf7cd28"
+      - "4363e3b"
+    notes: >
+      CASE A VERIFICATION PASS 2026-08-16 ("4363e3b"), TIER 2. Two items were
+      asked for. THE FIRST COULD NOT BE REPRODUCED; the second is STILL OWED.
+      Two different defects were found on the way and fixed.
+
+
+      ── (1) THE REPORTED CHECKBOX BUG DID NOT REPRODUCE ──────────────────────
+      Reported: on /hr/documents/[id], v7's "Requires everyone to sign again"
+      renders UNTICKED while Neon says requiresReacknowledgment = true. Checked
+      at every layer named in the brief, and every layer is correct:
+
+
+      SERVER QUERY — the page's exact query, run against dev
+      (br-broad-wave-a6vpjdw0/neondb), returns requiresReacknowledgment=true.
+      MAPPING — the page's exact map produces VersionRow with reack=true.
+      CLIENT BINDING — the REAL DocumentDetailClient, rendered through a
+      temporary public /menu probe page (deleted before commit) so no admin
+      session was needed, on a fixture built to mirror v7 exactly (current
+      version, flag true, ZERO acknowledgments): the box renders
+      aria-checked="true", data-state="checked", enabled, orange with a white
+      tick, computed opacity 1. Screenshot taken. A second fixture matching the
+      FROZEN case (flag true, 4 acknowledgments) renders checked and disabled.
+
+
+      DEPLOYMENT WAS NOT THE EXPLANATION EITHER, which is the usual one and was
+      checked because of it: the staging alias serves
+      dpl_4KPgS2HjS9vE4U88PiAK8jwtegBV, built from a4a87d2, which contains
+      bf7cd28. The feature was deployed when the observation was made.
+
+
+      SO THE OBSERVATION IS UNEXPLAINED AND THE ROW SAYS SO rather than closing
+      it. Two candidates worth checking before anyone hunts further, both cheap:
+      (a) THE UPLOAD DIALOG'S checkbox, which lives in the versions card header
+      (ReuploadButton is rendered there) and ALWAYS defaults unticked by design —
+      if that is the box that was read, there is no defect at all; (b) the
+      round-trip window in (2) below, which is the only state in this code where
+      the box genuinely disagrees with the database. What would settle it: which
+      row the box was on, and whether a reload changed it.
+
+
+      ── (2) TWO REAL DEFECTS FOUND AND FIXED ────────────────────────────────
+      THE BOX DID NOT MOVE WHEN CLICKED. It was fully server-controlled, so it
+      only changed once the RSC refresh landed — correct on load, correct after,
+      and wrong for the entire round trip between. An admin clicks, sees
+      nothing, concludes the setting did not take. This is the closest thing in
+      the code to the reported symptom. Now optimistic, seeded from the prop and
+      re-synced to it IN RENDER (react-hooks/set-state-in-effect refuses the
+      effect form, correctly), snapping back on any refusal.
+
+
+      A LOST SESSION READ AS A SUCCESSFUL SAVE — and the unauthenticated probe
+      built for item (1) found it by accident, which is the argument for
+      building such probes. With an expired Clerk session the proxy answers this
+      PATCH with a 307 to /sign-in; a DEFAULT FETCH FOLLOWS THE REDIRECT, lands
+      on the sign-in page, and returns 200 with an HTML body. res.ok is
+      therefore TRUE: the save is reported as having worked and the box sits
+      there over a database that was never written. Fixed with redirect:
+      "manual" — a redirect is never a successful write. SAME DEFECT CLASS AS
+      THE FALSE-ASSERTION COPY this row keeps producing, the screen stating the
+      opposite of what the app did, arriving through the error path instead of
+      through a string. Worth checking wherever else a fetch writes.
+
+
+      ── (3) THE 409 IS STILL OWED. THIRD SESSION. ───────────────────────────
+      Step 6 was skipped in the Phase B session and could not be run in this one
+      either, and the reason is structural rather than an oversight: THE ROUTE IS
+      SESSION-PROTECTED AND CLAUDE CANNOT CREATE A SESSION. An unauthenticated
+      PATCH to /api/hr/documents/[id]/versions/[versionId] returns 307 to
+      /sign-in — proof the route is wired and the guard order is right, and proof
+      the 409 branch is unreachable without a signed-in admin. Entering
+      credentials is not something Claude does. The freeze code is 6 lines and
+      re-reads the acknowledgment count inside the write, but IT HAS NEVER BEEN
+      EXERCISED, and this row should keep saying so until it has been. Either
+      Gary runs the two console commands in the session report, or the project
+      decides on a test path for authenticated routes — that second option is
+      the one that stops this recurring.
+
+
+      ── (4) DEBT SWEEP OF THE SIGNING SURFACES, requested, nothing changed ───
+      Nothing new found beyond what is already filed. The stale-copy set is
+      still the six needs-current surfaces enumerated on this row (awaiting
+      Gary's ruling) plus the hr/compliance tile subtitle "Signed an older
+      document version", which is FALSE FOR BOTH REHIRE CASES and predates R2.
+      Version numbers rendered elsewhere — the ceremony pages, the signed-record
+      pages, the form surfaces — all name the version actually being signed or
+      the record's own version, and are correct. No other surface was found
+      rendering a stored value it does not read.
+
+
+      PHASE B / CASE A BUILT 2026-08-16 ("bf7cd28"), TIER 2, NOT VERIFIED ON
+      STAGING. The per-version re-verification toggle: an admin marks one upload
+      as requiring everyone to sign again, and R2 stops applying to that version
+      only. THE PHASE'S ONLY SCHEMA CHANGE — migration
+      20260816120000_hr_document_version_requires_reacknowledgment, one ADD
+      COLUMN, `requiresReacknowledgment` Boolean @default(false) on
+      HrDocumentVersion. Purely additive: on dev (br-broad-wave-a6vpjdw0/neondb)
+      all 4 existing version rows defaulted false, and HrSignedRecord (1) and
+      HrDocumentAcknowledgment (4) were unchanged across it.
+
+
+      THE DESIGN DOC WAS WRONG AND GARY CORRECTED IT BEFORE ANY CODE WAS
+      WRITTEN. DESIGN §10 says that when the flag is set, row 4 is "SKIPPED".
+      Implementing that literally is a defect: skipping the arm falls through to
+      the acknowledgment arms, so a member who signed v5 and has touched nothing
+      on v6 reads NOT-STARTED — the surface telling an admin they had never
+      signed anything. THE RECORD DOES NOT STOP EXISTING BECAUSE A RE-SIGNATURE
+      WAS DEMANDED. The arm RETURNS needs-current itself, which keeps
+      signedVersionNumber populated and lets the row name both facts. Recorded
+      here because the design doc is preserved unedited and a future reader will
+      meet its wording before this correction.
+
+
+      THE FLAG IS READ OFF THE VERSION IN FORCE, NEVER OFF THE VERSION SIGNED.
+      It is a property of the demand being made now, not of the paper somebody
+      signed months ago. And it NEVER REACHES ARM 1 OR ARM 2 (Gary, ruled): a
+      member holding a current-version record, or one who has fully acknowledged
+      the current version, is untouched by it — they did the newer work on the
+      very version demanding it.
+
+
+      A FIXTURE CAUGHT A REAL DEFECT MID-BUILD, and it is worth the sentence
+      because the defect was invisible to the build and to the eye.
+      `reacknowledgmentRequired` was first derived from its two inputs alone, so
+      it read TRUE whenever the flag was set and an older record existed —
+      INCLUDING when arm 1 or arm 2 had already won, which is exactly when Case
+      A does not apply. It would have suppressed the version subtitle on rows
+      that still needed it. It is now gated on the status that actually
+      resulted, derived like its sibling `signedOnEarlierVersion`. A FLAG THAT
+      OUTLIVES ITS OWN BRANCH is how a surface renders one state's reason under
+      another state's name — the same family as the two-facts-in-one-field
+      defect this whole row exists to fix.
+
+
+      THE DIALOG'S COPY AND COLOUR ARE BOTH CONDITIONAL, ruled by Gary and not a
+      nicety. THIS EXACT PARAGRAPH HAS NOW BEEN WRONG TWICE: it asserted the
+      HR-11f rule until "6b2054f", and a STATIC version of it under a checkbox
+      would be wrong again the instant the box is ticked — telling an admin
+      nobody will be re-prompted while they are in the act of re-prompting
+      everybody. Muted unticked (nothing is going wrong); amber ticked (people
+      who were told they were finished will be asked again). Static text beside
+      a control that changes what the text describes is the defect this codebase
+      has produced three times.
+
+
+      THE FREEZE IS ENFORCED SERVER-SIDE, ON A NEW ROUTE. PATCH
+      /api/hr/documents/[id]/versions/[versionId] — the one mutable field on an
+      otherwise immutable snapshot. Editable while the version has ZERO
+      acknowledgments, frozen after the first, REFUSED IN BOTH DIRECTIONS:
+      unticking cannot un-collect a signature already given, and ticking late
+      demands one from people already told they were finished. The count is
+      re-read inside the same request that writes, so what the UI believed when
+      it rendered cannot decide what the server allows now — A DISABLED CHECKBOX
+      IS NOT ENFORCEMENT (Gary). 409 rather than 403: the caller is permitted,
+      the version's state refuses. The control on /hr/documents/[id] surfaces
+      that 409 rather than swallowing it.
+
+
+      /my/documents NEEDED NO CODE. needs-current is already bucketed into TO
+      SIGN and already wrapped in the ceremony link, so the move out of COMPLETED
+      and the replacement of the read-only notice with a real signing affordance
+      are the existing machinery working — the cheapest available proof that
+      Case A landed in the predicate rather than in the labels, the same test
+      /my/page.tsx served for Phase A. The ceremony itself is untouched: a
+      re-verification signer walks the path a new signer walks.
+
+
+      THE `needs-current` NAMING PROBLEM IS NOW THREE MEANINGS AND IS GARY'S TO
+      RULE — REPORTED, NOTHING REWORDED. After Case A the status covers: (a) a
+      REHIRE, who may be facing the very same version they already signed; (b)
+      RE-VERIFICATION DEMANDED, where the version changed and an admin insisted;
+      (c) NEVER SIGNED THE CURRENT VERSION at all. Six surfaces render it and
+      most say something false for at least one case:
+      staff-documents.tsx:73 "Needs current version" (now conditional — Case A
+      gets "Needs v6 · signed v5", the two others unchanged);
+      staff-compliance.tsx:19 badge "Needs re-sign" and :75 detail "Signed v5 —
+      v6 is now current"; my/page.tsx:182 "New version to sign";
+      my/documents/page.tsx:27 "New version to sign"; and the org rollup tile
+      hr/compliance/page.tsx:71 "Needs Re-sign" with the subtitle "Signed an
+      older document version" — WHICH IS FALSE FOR BOTH REHIRE CASES, since a
+      rehire's record can sit on the CURRENT version. The employee strings are
+      the worst of it: "New version to sign" is simply untrue for a rehire. The
+      admin twin was ruled NOT REWORDED on this row, which is why nothing has
+      been touched piecemeal — one decision covering all three, not six edits.
+      Proposals are in the session report.
+
+
+      VERIFICATION OF PHASE B: build passes; a 12-case Case A matrix and a
+      12-case R2 regression both pass, including the rehire regression exercised
+      under BOTH flag states. STAGING IS OWED, and so is Phase A's own browser
+      check — "6b2054f" has still never been confirmed in a browser, because the
+      deployment predated it. Nothing in Phase B was observed on staging; these
+      commits are not deployed.
+
+
+      DISPLAY FOLLOW-UPS 2026-08-16 ("6b2054f"), TIER 2, on top of Phase A. Four
+      items Gary found on staging once R2 was live; three fixed, one filed as a
+      row. All display or copy — hr-completion.ts and the precedence table
+      untouched, no schema, no writes.
+
+
+      (1) THE UPLOAD DIALOG CARRIED A THIRD INSTANCE OF THE HR-11f ASSERTION.
+      "Everyone will need to acknowledge this new version" — false under R2, and
+      THE ONE THAT MATTERED MOST of the three: the two in versions/route.ts are
+      comments read by us, this was the last thing an admin read before
+      committing to an upload, so it was actively deterring the revision R2
+      exists to make safe. Replaced with what happens to both audiences. Also
+      dropped from amber to muted — the sentence now describes nothing going
+      wrong, and warning colour on reassurance is the same false claim in a
+      different channel. Flagged as a call, not assumed.
+
+
+      (2) THE DATE IS BACK ON AN R2 ROW, sourced from the record they actually
+      signed. Phase A left it null and reported it as an open question; Gary
+      ruled 2026-08-16 that DESIGN §6's dateless string was abbreviation, not
+      intent. completedAt now resolves from the SAME record object the version
+      number and the download link resolve from, at all three sites, so the
+      three fields name ONE record and cannot disagree. Only the R2 branch was
+      added — the rehire path stays null exactly as before, because no surface
+      renders a date on needs-resign and widening it further would have been an
+      unruled change wearing a display fix's clothes.
+
+
+      (3) DUPLICATED VERSION TEXT, BOTH SURFACES, AND BOTH WERE PHASE A'S OWN
+      DOING. On /my/documents the notice shipped as a SECOND paragraph beneath
+      the existing copy instead of replacing it, so an R2 row said "Signed v5"
+      twice in stacked lines. On the staff page the badge gained "· current is
+      v6" while the subtitle kept "Current version v6". Both are the same
+      mistake — new copy added ALONGSIDE old copy that already said it — and
+      neither showed up in a build. Collapsed to one statement each; the badge
+      keeps the comparison because it is the half that names both numbers, and
+      the subtitle drops out on R2 rows only, since every other status still
+      needs it.
+
+
+      (4) NOT FIXED, FILED AS DEBT-70. The Aug 15 / Aug 16 disagreement Gary saw
+      between the staff page and /my/documents is a CLIENT-VS-SERVER TIMEZONE
+      SPLIT, not an R2 defect: client components print the viewer's local day,
+      server components print Vercel's UTC day, and an evening record falls on
+      two different calendar days. R2 only made it visible by putting a date on
+      a row that reaches both surfaces. It reaches 11 server components across
+      22 call sites — checklists, users, HR, training — so per Gary's own
+      instruction it became a row rather than a fix. A partial fix would be
+      worse than none: correcting /my/documents alone would make it agree with
+      the staff Documents tab and still disagree with the staff Compliance tab
+      one scroll away.
+
+
+      COPY SWEEP for the HR-11f claim, requested with item 1: two more found.
+      document-detail-client.tsx:149 ("signed records stay bound to the version
+      they were signed against") is TRUE under R2 and more relevant than before
+      — kept. The identical-hash guard's comment claimed a duplicate upload
+      "makes everyone re-acknowledge for nothing" — corrected, with the reason
+      the guard survives R2 recorded on it. REPORTED AND DELIBERATELY NOT
+      CHANGED: /my/documents renders "New version to sign" on needs-current,
+      which under R2 means a REHIRE who may be facing the very same version. Its
+      admin twin "Needs current version" was ruled NOT REWORDED on this row, so
+      rewording only the employee side would break that ruling from the other
+      end. Both need one decision, not two edits.
+
+
+      VERIFICATION OF THE FOLLOW-UPS: build passes; documentCompletion exercised
+      across all 12 arms of the R2 matrix including the rehire regression,
+      deliberately rather than incidentally — all pass. THE LIVE FIXTURE WAS NOT
+      EXERCISED and that is the gap: local dev (br-broad-wave-a6vpjdw0/neondb)
+      holds 1 signed record and 0 in the R2 state, so there was nothing to drive
+      locally, and these commits are not deployed. A screen that reads green for
+      a member who was never in the R2 state is a completion screen, not
+      evidence — so no screenshot was taken. Gdogg Thomas's row on staging still
+      owes the check.
+
+
+      PHASE A BUILT 2026-08-16 ("457a57f"), NOT VERIFIED. Status is in_progress,
+      not verified, and the gap is deliberate: not one observation has been taken
+      on staging. Local staging and origin/staging are still DIVERGED (ahead 1,
+      behind 1 — local 614dc8d, remote 6e3b9eb, common 7198f77; both carry the
+      same HR-11o roadmap record with different messages), so the staging-SHA
+      precondition cannot pass and verification may not begin. Gary reconciles
+      that by hand — ROADMAP.yaml is append-only and will conflict, and
+      origin/staging is what is deployed. Phase A does not close on a build.
+
+
+      DOCUMENTS. Design spec: docs/prompts/R2-HR11k-DESIGN.md. Step 1 audit:
+      docs/prompts/R2-HR11k-PHASE-A_AUDIT.md. Gary's rulings on that audit:
+      docs/prompts/R2-HR11k-phase-a-addendum-01.md — WHERE IT DISAGREES WITH THE
+      SPEC, THE ADDENDUM WINS. All three committed with the work ("457a57f").
+      The base session prompt (suggested path docs/prompts/R2-HR11k-phase-a.md)
+      WAS NEVER SAVED TO THE REPO — the audit recorded that at the time and it
+      is still true; it is absent from every branch and from git history. The
+      spec, the audit and the addendum together reconstruct it, but the
+      instruction of record for Phase A is missing and cannot be recovered from
+      here.
+
+
+      WHAT WAS BUILT, AND THE ONE THING THAT DECIDED THE SHAPE. The spec's file
+      list was written against main, which does not have R1. Following its §7
+      literally would have written the R2 rule into three files and reversed R1
+      one day after it shipped. The audit caught it; the addendum ruled the
+      corrected shape. THE PRECEDENCE TABLE CHANGES ONCE, IN THE PREDICATE —
+      documentCompletion (src/lib/hr-completion.ts) — and the three call sites
+      (lib/hr-compliance.ts, staff/[id]/page.tsx, my/documents/data.ts) change
+      only in which facts they gather and how they label the result. This is the
+      standing trap firing exactly as documented: project knowledge indexes main
+      only, so staging-only work is invisible at planning time. The spec said to
+      confirm against staging. Doing so is what saved the phase.
+
+
+      THE SPLIT IS THE WHOLE CORRECTNESS RISK. hasRecordOnEarlierVersion asked
+      "did they ever sign an older version, in ANY tenure" — one question
+      standing in for two that R2 answers oppositely. It is now
+      hasCurrentCycleRecordOnEarlierVersion (signed) and
+      hasPriorCycleRecordOnEarlierVersion (rehire, needs-current). The old field
+      was REMOVED rather than kept alongside the pair, so every call site is a
+      type error until it has answered the cycle question — a caller cannot keep
+      the old meaning by accident. Resolved against an any-cycle lookup instead,
+      a rehired employee's previous-tenure signature reads compliant and HR-15
+      Policy B is destroyed WITH NOTHING FAILING.
+
+
+      THE TWO ORDERINGS, RULED IN OPPOSITE DIRECTIONS (addendum §2.1). A FULL
+      current-version acknowledgment set BEATS the prior-version record — they
+      did the newer work, and the fix for their missing record is to mint it. A
+      PARTIAL set does NOT: someone who signed v4 and then initialled two pages
+      of v6 reads signed at v4, and their partial v6 rows are preserved untouched
+      as evidence. Both are recorded in docs/DECISIONS.md under the HR-8 block,
+      preserve-and-mark, with the 2026-07-22 text intact beneath.
+
+
+      A FOURTH DISPLAY SITE, NOT ENUMERATED BY THE ADDENDUM.
+      staff/[id]/staff-compliance.tsx:59 hardcoded currentVersionNumber into its
+      "Signed vN" string on the COMPLETE path, and carried a comment asserting
+      completedAt is non-null whenever status is complete. R2 breaks both: an R2
+      signer is complete on an older version, and completedAt upstream carries
+      only the CURRENT version's record. It was found by sweeping the RENDERERS
+      of currentVersionNumber rather than the callers of the predicate — the
+      same lesson as CLAUDE.md § Verifying a guard covers every path, one layer
+      out: the addendum's grep was on documentCompletion, and this file consumes
+      a TYPE downstream of a call site, so no search for the predicate's name
+      could ever have reached it. Fixed in the same commit.
+
+
+      THE NOTICE LINKS THE DOWNLOAD, NEVER THE CEREMONY (addendum §2.2).
+      /my/documents/[documentId] IS the ceremony and computes hasSignedRecord
+      against the CURRENT version, which an R2 signer does not have — so linking
+      it would open a signing ceremony for the exact person the ruling says must
+      never be prompted: the defect R2 exists to remove, reintroduced through the
+      notice announcing it. It links /api/hr/documents/[id]/download, the
+      audience-aware route the Library already uses on that same page. NOTE: the
+      audit transcribed that call site as carrying "?stream=1"; the Library's
+      actual href has no query string, which is why the addendum said to confirm
+      it from the call site rather than from the audit. Rule 5 is untouched — the
+      source document, never a signed PDF.
+
+
+      NO SCHEMA CHANGE, no migration, no writes to HrSignedRecord or
+      HrDocumentAcknowledgment, no touch to signingCycle semantics, retired
+      checkpoints, audience logic, the upload dialog, HR_MODULE_AVAILABLE, or the
+      ceremony route. Read side only. The "will likely add a column to
+      HrDocumentVersion" line in the original row below is superseded for Phase
+      A: that column is Case A and waits for Phase B.
+
+
+      EXPECT PERCENTAGES TO RISE, and expect it to be reported as a bug — the
+      mirror image of R1's warning, one day later, in the same file. Anyone
+      holding a current-tenure signature on a superseded version moves from
+      needs-resign to complete. Account for the movement before accepting it; a
+      rise for any OTHER reason is a defect.
+
+
+      OPEN, FOR GARY, BEFORE VERIFICATION. (1) THE DATE IS OMITTED on an R2 row.
+      completedAt upstream is the CURRENT version's record, which an R2 signer
+      does not have, so the label renders "Signed v4 · current is v6" with no
+      date — exactly the string ruled in DESIGN §6, which shows a date on the
+      current-version row and none on the R2 row. Built to the ruled string
+      rather than guessed at; if that asymmetry was abbreviation rather than
+      intent, the prior record's completedAt is available at all three sites and
+      is a small change. (2) THE FIXTURE IS UNMEASURED. Per addendum §2.3,
+      verification step 3 does not run against a named person until staging has
+      been read in the NEON CONSOLE to find whoever actually holds a completed
+      signed record on a NON-CURRENT version in their CURRENT signing cycle. If
+      that is nobody, the fixture must be built before verification means
+      anything. A screen that reads green for a member who was never in that
+      state is a completion screen, not evidence.
+
+
+      VERIFICATION STILL OWED (addendum §5, spec §9): build passes — done. The
+      measured fixture reads green on /staff/[id] and on /my/documents with the
+      notice and no signing affordance. THE REHIRE REGRESSION, which is now one
+      test against one predicate — that is R1's dividend, but it also means one
+      wrong lookup breaks every surface at once, so exercise it deliberately; if
+      it appears to pass without being exercised, treat it as unverified. The
+      row-4 member has dropped off /my with NO edit to my/page.tsx (the cheapest
+      proof the change landed in the predicate rather than in the labels). The
+      notice's link opens read-only and no ceremony route is reachable from that
+      row. Compliance percentage movement accounted for. Neon counts of
+      HrSignedRecord and HrDocumentAcknowledgment unchanged before and after,
+      with neon.branch_id and current_database() in the same result.
+
+
+      HR-11j WAS CHECKED AND DOES NOT MEET THIS (addendum §1). Repo-wide grep on
+      documentCompletion: one definition (hr-completion.ts:107) and exactly three
+      call sites, matching the audit's enumeration with nothing missed. All four
+      HR-11j layers — the R4 assignability gate (api/hr/documents/[id]/audience),
+      both ceremony pages, and the mint (lib/hr-signed-pdf.ts) — reach signing
+      readiness through getVersionAnchorReadiness / isSigningBlocked in
+      lib/hr-anchors.ts, and NONE of them imports hr-completion, hr-compliance or
+      my/documents/data. Nothing downstream of the predicate reaches them either:
+      every consumer is a display surface (/hr/compliance, /staff, /staff/[id],
+      /my, /my/documents). The two ceremony CLIENTS do import from hr-completion,
+      but only the recordMissing copy constants — the module boundary is crossed,
+      the predicate is not. R2 changes what satisfies the current version for
+      DISPLAY; HR-11j's "signed" for grant-blocking is unreached by it.
+
+
+      IN PLAIN TERMS. Fixing a typo in a handbook currently drags every person
+      who already signed it back through the whole signing ceremony. It should
+      not. Uploading a NEW FILE means a new document and everyone signs; a NEW
+      VERSION of the same document leaves existing signers' records intact and
+      just tells them an update is available. Until this is built, no document
+      can be revised without re-prompting its entire audience. (Lead paragraph
+      added 2026-08-15 for legibility; everything below is the original row,
+      unchanged.)
+
+
+      RULED 2026-08-15 (Gary), in the HR-11j session. FILED, NOT BUILT — it
+      needs its own design pass and will likely add a column to
+      HrDocumentVersion. The ruling itself is recorded on HR-11j alongside R1,
+      R3 and R4; this row is the work.
+
+
+      THE RULING. A NEW FILE is a new document: everyone signs it. A NEW VERSION
+      is the same document: existing signers KEEP their record and are NOT
+      re-prompted, and a read-only notice tells them an update is available.
+
+
+      R2 SUPERSEDES HR-11f (2026-08-14), WHICH REQUIRED UNIVERSAL
+      RE-ACKNOWLEDGMENT. HR-11f has never had a row of its own — it exists as a
+      ruling cited inside HR-11d — so the marker lives here and on HR-11j rather
+      than at a row that could be edited. The superseded text, preserved:
+
+
+      [SUPERSEDED 2026-08-15 BY R2] HR-11f, ruled 2026-08-14 — a new version of
+      a document requires new acknowledgment from everyone; signed records stay
+      bound to the version signed, and a version bump re-prompts every signer.
+
+
+      GARY'S POSITION, WHICH IS THE DESIGN CONSTRAINT: THE VERSION ORIGINALLY
+      SIGNED IS THE MASTER DOCUMENT FOR THAT SIGNER. A minor revision does not
+      re-prompt someone who has already signed.
+
+
+      ── THE CONCRETE SURFACE WHERE R2'S ABSENCE IS VISIBLE ──────────────────
+      Observed 2026-08-15 during the HR-11j acceptance pass, on staging
+      dpl_8dqx2ay7Hx3rWAFxqkXgSvTTmUJj, org org_3G02wO4QlVVSWppi8aqlnSZnsDa
+      (Clerk verified-snapper-7), document cmstv3r1s000004jxdcyhkbui.
+
+
+      TOMMY'S ROW READS "NEEDS CURRENT VERSION". He holds a signed record on v1;
+      v2 is current and he has no acknowledgments on it. That is CORRECT under
+      HR-11f and INCORRECT under R2. NOT REWORDED (Gary's instruction) — the copy
+      is accurate for the rule the code still implements, and changing the words
+      without changing the rule would hide the gap rather than close it.
+
+
+      THE STRUCTURAL STATEMENT OF THE DEFECT. "The current version" and "the
+      version this signer is bound to" ARE TWO DISTINCT FACTS, AND ONLY ONE IS
+      CURRENTLY SHOWN. Every surface collapses them into a single status, so a
+      signer who is fully covered by the document they actually signed is
+      rendered as owing something. The fix is not a copy change; it is teaching
+      the surfaces to carry both facts, which is why this needs a column and a
+      design pass rather than an edit.
+
+
+      NOTE THE FAMILY RESEMBLANCE TO HR-11j'S OWN DEFECT, which is why it is
+      worth writing down here: that one was two predicates reading different
+      sources with different lifetimes and never required to agree. This one is
+      two facts collapsed into one field. Both are shapes where a surface
+      answers a question nobody asked it precisely enough.
+
+
+      SCOPE NOTE: R3 (compliance shows "signed, version noted", plus a separate
+      "who has acknowledged the current text" report) is adjacent and was ruled
+      the same day. It is not this row — but whoever builds R2 should read it,
+      because the two together decide what a version bump means to a reader.
+
+  - id: HR-11m
+    track: hr
+    size: S
+    status: verified
+    title: "Signature checkpoints duplicated on every version — reuse by pageRef + ordinal"
+    commits:
+      - "974bf49"
+      - "eab6254"
+    notes: >
+      SESSION 2026-08-15. Prompt:
+      docs/prompts/2026-08-15-signature-checkpoint-duplication.md ("974bf49").
+      Item 1 audit:
+      docs/prompts/2026-08-15-signature-checkpoint-duplication_AUDIT.md (same
+      commit). Reproduction fixtures V3/V4: docs/test_docs/ ("eab6254").
+
+
+      ID NOTE: the series skips HR-11l on purpose. A lowercase l reads as a 1 in
+      an id that gets typed by hand. Nothing is missing between HR-11k and here.
+
+
+      THE DEFECT. syncCheckpointsForConfirmedAnchors minted a FRESH Signature
+      checkpoint on every version confirmation. The reuse key was the anchor's
+      own generatedCheckpointId — and DocumentAnchor is VERSION-scoped (HR-11b
+      ruling a) while HrDocumentCheckpoint is DOCUMENT-scoped. A new version's
+      anchors are fresh rows with that field null, so the lookup always missed
+      and the document grew two ceremony steps per version. Initial never had it:
+      its key (pageRef) is document-scoped on BOTH sides.
+
+
+      SAME DEFECT FAMILY AS HR-11j — two objects with different lifetimes, and
+      the reuse key sitting on the one that dies. That is the third time this
+      shape has cost a session and it is worth recognising on sight.
+
+
+      WHAT IT DID TO SIGNERS. Each orphaned Signature checkpoint is a ceremony
+      step with no anchor behind it: the signer is prompted to sign and the
+      capture has nowhere to be stamped on the document body, so the affordance
+      renders at a fallback position over the prose. Gdogg Thomas's v3
+      certificate listed SIX Signature checkpoints for TWO signature lines. R2
+      (HR-11k) does not fix this — checkpoints are minted at ANCHOR CONFIRMATION,
+      an admin action independent of who signs.
+
+
+      ── THE RULING (Gary, 2026-08-15) ────────────────────────────────────────
+      REUSE KEY IS pageRef PLUS ORDINAL. The k-th Signature checkpoint on the
+      page, by orderIndex, belongs to the k-th signature anchor on that page, by
+      y-descending. When a page carries several, the OLDEST orderIndex wins —
+      deterministic, fixed regardless of version history, and what Initial
+      already does.
+
+
+      pageRef ALONE WAS REJECTED. It mirrors Initial and fixes the measured case,
+      but it collapses two signature lines on ONE page onto a single checkpoint —
+      one signer act and one timestamp for two attestations, which is precisely
+      the behavior HR-11j removed.
+
+
+      THE EMPIRICAL INPUT, and it is worth keeping because the question was open
+      when the session started. Running the shipped detectAnchors() against the
+      PDFs on disk: the real 2026 Employee Handbook has FOUR signature lines on
+      FOUR DISTINCT pages (11, 22, 24, 28) and 27 Initial anchors on 27 distinct
+      pages — NO same-page pairs anywhere. The test handbook has two, on pp. 3
+      and 4. So on today's data pageRef-alone and pageRef+ordinal are identical;
+      the ordinal is only different where pageRef alone is wrong. It was chosen
+      for four lines of cost, not because anything currently needs it.
+
+
+      NOTE WHAT THAT MEANS ABOUT INITIAL: its pageRef key has never been
+      STRESSED, only never contradicted. One Initial per page in every document
+      in play is why it has held.
+
+
+      THE MATCH IS POSITIONAL, NOT IDENTITY-BASED, and that is the known
+      weakness. A future version that inserts a signature line ABOVE an existing
+      one on the same page shifts every ordinal on that page and anchors adopt
+      each other's checkpoints. That is a wrong reuse, not a duplicate, and it
+      stays inside one page. The identity-based alternative (inherit the pointer
+      from the previous version's anchors, matched on page + anchorText +
+      ordinal) was weighed and set aside as several times the code for
+      robustness nothing currently needs.
+
+
+      ALSO FIXED: the checkpoint read had no orderBy — a latent bug independent
+      of the key. It matters more now, because the Signature lookup indexes into
+      that list positionally, so an unordered read would make adoption depend on
+      whatever order Postgres happened to return.
+
+
+      G1 HELD. Nothing in this path deletes or modifies a checkpoint. Existing
+      orphans stay: growth stops, the backlog does not clear itself. One orphan
+      per page per version is adopted on the next confirm and the rest remain.
+      THE ORPHANS HAVE NO REMOVAL PATH — see HR-11n, which is the measured
+      consequence and is FILED, NOT BUILT.
+
+
+      ── VERIFICATION ─────────────────────────────────────────────────────────
+      UNIT ASSERTIONS ON ONE VERSION CANNOT SEE THIS DEFECT, which is exactly
+      what the earlier fixture missed. Asserted directly against the shipped
+      function across four versions on dev (br-broad-wave-a6vpjdw0 / neondb):
+      totals held at 2 Signature + 3 Initial from v1 through v4, re-confirm was
+      idempotent, every anchor linked to a DISTINCT checkpoint, and a synthetic
+      same-page pair kept two checkpoints across three versions. Fixtures tagged
+      sigdup-2026-08-15, deleted on the way out.
+
+
+      NEGATIVE CONTROL, and it is the half that makes the rest mean anything: the
+      same assertions run against the PRE-FIX code reproduced the defect exactly
+      — 5 / 7 / 9 / 11, +2 per version. A test that cannot fail proves nothing.
+
+
+      LIVE ACCEPTANCE PASSED on staging (br-square-feather-a63z92vz / neondb),
+      deployment built from 974bf494ca06c010759bfdebb7290e18f86e326f, document
+      "Test - Handbook Regression" cmstv3r1s000004jxdcyhkbui. V4 uploaded with
+      DIFFERENT BYTES (sha256 7d0911b46725 vs V3's aac6a74bc9e4, so the
+      hash-match carry-forward never fired and could not mask the result) and its
+      anchors confirmed. Checkpoint composition BEFORE and AFTER that confirm was
+      IDENTICAL: total 11, Signature 6, Initial 4, Acknowledgment 1. Pass was 11;
+      fail would have been 13. Gdogg's v4 signed record stamped 10 field marks
+      and the certificate lists 11 checkpoints, 6 Signature.
+
+  - id: HR-11n
+    track: hr
+    size: M
+    status: in_progress
+    title: "Orphaned Signature checkpoints cannot be removed — DELETE refuses anything acked"
+    commits:
+      - "72df99a"
+    notes: >
+      IN PLAIN TERMS. The test handbook shows SIX "Sign here" prompts for TWO
+      signature lines, four of them landing on top of body text where no
+      signature line exists, and an admin currently has no way to delete the
+      four extras. They cannot be removed because people have already signed
+      them, and the only delete path refuses anything signed. HR-11m stopped
+      this getting worse; nothing yet makes it better. Until this is built, any
+      document that accumulated duplicates before HR-11m stays visibly wrong to
+      every signer who opens it. (Lead paragraph added 2026-08-15 for
+      legibility; everything below is the original row, unchanged.)
+
+
+      FILED 2026-08-15 (Gary's instruction, in the HR-11m session), NOT BUILT.
+      Surfaced while auditing HR-11m and CONFIRMED BY MEASUREMENT before filing —
+      the original session prompt had framed orphan removal as "a separate admin
+      action requiring its own ruling", which assumed a working path exists. It
+      does not.
+
+
+      THE GAP. DELETE /api/hr/documents/[id]/checkpoints/[checkpointId] returns
+      409 for any checkpoint with acknowledgments — correct on its own terms,
+      since acknowledgment rows are append-only records and the FK is RESTRICT.
+      But the signing ceremony selects ALL of a document's checkpoints with NO
+      filter against anchors (src/app/(app)/hr/acknowledge/[documentId]/page.tsx),
+      so orphans are presented as required steps and ACCUMULATE ACKNOWLEDGMENTS.
+      Every orphan therefore becomes undeletable by the only path that exists.
+
+
+      THE MEASUREMENT (br-square-feather-a63z92vz / neondb, document
+      cmstv3r1s000004jxdcyhkbui, 2026-08-15). Six Signature checkpoints for two
+      signature lines, EVERY ONE carrying acknowledgments:
+
+
+      orderIndex 5 "Page 3 signature" acks 4; orderIndex 6 "Page 4 signature"
+      acks 4; orderIndex 7 "Page 3 signature" acks 3; orderIndex 8 "Page 4
+      signature" acks 3; orderIndex 9 "Page 3 signature" acks 2; orderIndex 10
+      "Page 4 signature" acks 2.
+
+
+      Four of the six are orphans — no confirmed anchor on the current version
+      points at them — and all four are refused by the DELETE path. THE FINDING
+      IS CONFIRMED, NOT THEORETICAL.
+
+
+      WHY THIS IS NOT JUST HR-11m'S LEFTOVERS. HR-11m stopped the growth; it
+      could not clear the backlog, because G1 forbids that path deleting or
+      modifying a checkpoint and the ruling deliberately kept it that way. So the
+      test document is stuck at six prompts for two signature lines, and the
+      misplaced "Sign here" affordances sitting over body text stay visible to
+      signers until something removes the rows. "The fix landed" and "the screen
+      is right" are separated by exactly this missing path.
+
+
+      WHAT IT NEEDS, AND WHY IT IS NOT A ONE-LINER. Its own G1 ruling on what
+      removing a SIGNED-but-anchorless checkpoint means for the defensible
+      record: the acknowledgments are real signer acts against a step that should
+      never have existed. Deleting the checkpoint either orphans or destroys
+      them, and neither is obviously right. Decide that before writing any code.
+
+
+      ────────────────────────────────────────────────────────────── PHASE A
+      BUILT 2026-08-15 ("72df99a") — THE CAPABILITY. NOTHING RETIRED.
+
+
+      THE RULING (Gary, 2026-08-15, verbatim):
+
+
+      I ruled that we hide these, not delete them. Four leftover signature lines
+      got stapled onto the test document by the old version bug, and people
+      already signed them, so the delete button refuses. That's the whole problem
+      — there was no way to get rid of them.
+
+
+      Retiring a checkpoint means it stops showing up for anybody signing from
+      that point on. It doesn't come off the board. Every signature already
+      collected on it stays exactly where it is. I'm not throwing away something
+      an employee typed their name into just because I set the document up wrong.
+
+
+      Certificates already issued don't change and don't get reissued. What a
+      certificate says is what the ceremony was on the day that person signed.
+      That stays true.
+
+
+      Retired checkpoints don't get stamped on the page either. If the
+      certificate doesn't list a step, there shouldn't be ink on the page for it.
+
+
+      No script does this. I retire them by hand, one at a time, with a confirm
+      that tells me how many signatures are on it. ADMIN only. Managers don't
+      touch document setup. And I can un-retire if I get one wrong.
+
+
+      Anybody in the middle of signing when I retire something doesn't get an
+      error and doesn't get their entry quietly recorded against a step I just
+      retired. They just finish.
+
+
+      The test for what to retire is: it's a Signature checkpoint AND no anchor
+      backs it. Not just unbacked on its own. Initials checkpoints get made one
+      per page at upload, so an unbacked initials line is normal — Page 1
+      initials has four real signatures on it and stays.
+
+
+      [END OF RULING. Everything below is a record of what was BUILT and
+      MEASURED, not a statement of what is ruled.]
+
+
+      Prompt: docs/prompts/hr-11n-phase-a-retire-checkpoints.md ("72df99a").
+      Audit: docs/prompts/hr-11n-phase-a-retire-checkpoints_AUDIT.md (same
+      commit). Migration ledger entry: docs/MIGRATIONS.md.
+
+
+      WHAT SHIPPED. Retirement — additive nullable columns retiredAt /
+      retiredByUserId / retiredReason on HrDocumentCheckpoint
+      ("20260815150000_hr11n_checkpoint_retirement", applied to DEV ONLY at time
+      of writing), ADMIN-only retire and unretire routes, and the retire action +
+      collapsed Retired section on the document-configuration screen. A retired
+      checkpoint is excluded FROM THAT MOMENT FORWARD from the ceremony step
+      list, the required-completion denominator at every call site, and the
+      checkpoint table, initials grid and INLINE STAMPS of any certificate
+      generated after retirement. Its acknowledgments are never deleted or
+      modified. No auto-retire anywhere; no backfill migration; THIS SESSION
+      RETIRED NOTHING.
+
+
+      TEN FILTERED SITES, FOUND BY ENUMERATING LOADS RATHER THAN FILTERS. A
+      missing filter has nothing to grep for (CLAUDE.md § Verifying a guard
+      covers every path), so the audit swept every read of the checkpoint
+      relation and checked each consumer individually. The prompt's known list
+      named four and was wrong about two more: there is NO checkpoint list API
+      (POST/PATCH/DELETE only — the admin list is server-rendered), and the
+      HR-11j "staff-portal readiness check" counts ANCHORS, not checkpoints, so
+      filtering it would have been a defect rather than an adoption.
+
+
+      STAMPING IS FILTERED TOO (Gary's ruling, 2026-08-15): a stamp is a claim on
+      the page body and must not appear for a step the certificate does not list.
+      That path resolves an ack through the ANCHOR's generatedCheckpointId and
+      never through doc.checkpoints, so hr-signed-pdf.ts filters ackByCheckpoint
+      itself rather than the checkpoint load — one filter covering all five
+      consumers. FILTERING THE LOAD WOULD HAVE LEFT THE STAMPS, which is the
+      whole reason this is written down.
+
+
+      THE MID-CEREMONY DROP HAD TO BE WRITTEN, NOT INHERITED, AND THE PROMPT'S
+      REASON FOR IT WAS THE WRONG WAY ROUND. §4 asked for a drop instead of a
+      400. The 400 could never have fired: the capture route loads checkpoints
+      unfiltered, so a retired checkpoint is still in the map and the entry would
+      have been INSERTED as an acknowledgment against a retired step. The
+      exposure was a silent write, not a spurious refusal. An emptied entry array
+      now returns the live-set completion result rather than an error.
+
+
+      EMPTY-REDUCE GUARD. orderedAcks.reduce has no seed and throws on an empty
+      array; retirement makes empty reachable, because `missing` passes vacuously
+      when every acknowledged checkpoint has been retired. Refuses now, and the
+      completedAt Math.max is seeded (it returns -Infinity rather than throwing —
+      a silently wrong date, the worse failure of the two).
+
+
+      SCOPE CUT MID-SESSION (Gary): THE ANCHOR COLUMN IS WITHDRAWN TO PHASE B,
+      and hr-anchors.ts was not touched. §2.3 assumed HR-11m left a reusable
+      helper resolving the pageRef + ordinal reuse key. It did not — the key is
+      inline in syncCheckpointsForConfirmedAnchors and interleaved with creates
+      and updates, so a display-only column cannot call it without refactoring
+      the G1-critical file. A SECOND, INDEPENDENT REASON came out of real data:
+      an unbacked INITIAL is normal (initials are minted one per page at upload;
+      anchors only link to them), so a bare boolean would have rendered "false"
+      beside a live initials line carrying four signatures, next to a Retire
+      action. RULED: the retire criterion is type = 'Signature' AND
+      anchor_backed = false; the anchor flag alone is never the criterion for any
+      row type, and Phase B's column must be TYPE-AWARE.
+
+
+      HR-11m WAS RE-OPENED AND CONFIRMED CLOSED BEFORE ANY FILTER WAS WRITTEN.
+      The document held 7 checkpoints at the HR-11k pre-check and 11 now, and
+      four Signature checkpoints minted after HR-11m shipped would have meant
+      this cleanup tool was being built against a running leak. Dated by proxy
+      (HrDocumentCheckpoint has no createdAt) on br-square-feather-a63z92vz /
+      neondb: every orphan's FIRST acknowledgment predates deployment
+      dpl_3UP4Hu4tHAHQXvgF7a8fYjWp3uH2 (created 2026-08-15 12:46:58 PDT, built
+      from 974bf494ca06c010759bfdebb7290e18f86e326f), and acknowledgment
+      documentVersionNumber sets are {1,2,3,4} / {2,3,4} / {3,4} with NO
+      checkpoint acked on {4} alone — +2 at v2, +2 at v3, 0 at v4. HR-11m holds.
+
+
+      THE TIMESTAMP COMPARISON NEEDS A TIMEZONE CONVERSION AND READS THE OPPOSITE
+      WAY WITHOUT IT. signedAt is TIMESTAMP(3) with no zone (Prisma stores UTC);
+      Vercel reports deploy times in PDT. Compared naively, an orphan first
+      signed at 19:02 against a 12:46 deploy looks like it appeared six hours
+      AFTER the fix — which would have convicted HR-11m and stopped the phase on
+      a false finding. The column type was checked only because the answer looked
+      wrong. Record the clock alongside any timestamp used as evidence.
+
+
+      WHERE THE FOUR ORPHANS CAME FROM, since the row above could not say. The v2
+      pair was first signed at 12:02 PDT, after the HR-11k pre-check measured 7
+      checkpoints at ~09:45 the same morning; the event between them was
+      confirming v2's anchors, WHICH WAS HR-11k'S OWN R4 ACCEPTANCE TEST. The
+      HR-11k acceptance session minted two of these orphans while verifying
+      something else, under pre-fix code, hours before HR-11m was written that
+      afternoon. The v3 pair followed nine minutes later in the HR-11m
+      reproduction.
+
+
+      CORRECTION TO THE PROMPT'S §9, made in the audit and NOT in the prompt
+      (a saved prompt is a claim wholesale): "page 28" is the real Employee
+      Handbook, whose signature lines are pp. 11/22/24/28. THIS TEST DOCUMENT'S
+      signature lines are on PAGES 3 AND 4, each currently rendering three
+      stacked "Sign here" buttons (orderIndex 5/7/9 on p3, 6/8/10 on p4). The
+      rest of §9 stands: the required signature-step count falls from six to two
+      and no existing signed record changes state.
+
+
+      VERIFIED: next build green, eslint clean over 11 files, both new routes
+      registered in the build output. Migration applied to DEV ONLY —
+      br-square-feather-a63z92vz and production get it via migrate deploy on
+      Gary's push. NOT PUSHED.
+
+
+      NOT DONE, AND IT IS THE WHOLE REMAINING RISK ON THIS ROW. NOTHING HAS BEEN
+      EXERCISED IN A BROWSER. Every claim above is a green build, a clean lint,
+      and unit-level reasoning over measured data. Status stays in_progress until
+      a verification session retires the four orphans by hand and confirms the
+      three observable consequences: pages 3 and 4 each render ONE "Sign here"
+      button instead of three, the required signature-step count for the document
+      falls from six to two, and NO existing signed record changes state. Re-run
+      the staging-SHA precondition first or the entire pass is void.
+
+  - id: HR-11o
+    track: hr
+    size: S
+    status: verified
+    commits:
+      - "7456565"
+    title: "Certificate table sorted by ceremony order, Sign here over body text, struck-through date"
+    notes: >
+      TIER 2, BUILT 2026-08-15 ("7456565"). RENDER LAYER ONLY — no schema, no
+      migration, no change to what is recorded. Three display defects found by
+      Gary during HR-11n Phase A verification on staging (26aa21d, org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance verified-snapper-7).
+      Evidence: Tommy Thomas's v4 certificate for "Test - Handbook Regression",
+      completed 2026-08-16 01:25:58 UTC.
+
+
+      THE RULING (Gary, 2026-08-15, verbatim):
+
+
+      Three display bugs found while verifying HR-11n. The certificate was
+      sorting by ceremony order instead of by when things were actually signed,
+      so it looked like people acknowledged the document before they signed it.
+      The Sign here button was covering the acknowledgment sentence, and the date
+      had a line through it.
+
+
+      All three are fixed. The certificate now reports what actually happened, in
+      the order it happened. Nothing about what gets recorded changed — this was
+      display only.
+
+
+      Verified on Gdogg's v5 certificate, Aug 15 2026.
+
+
+      [END OF RULING. Everything below is a record of what was BUILT and
+      MEASURED, not a statement of what is ruled.]
+
+
+      D1 — THE CERTIFICATE TABLE SORTED BY CEREMONY ORDER AND READ AS A FALSE
+      SEQUENCE. orderIndex is the order a signer is ASKED for steps. It is not
+      the order the steps happened in, and on Tommy's certificate the two
+      diverged: the Final acknowledgment (orderIndex 4, signed 01:25:58) sorted
+      ABOVE both signatures (01:25:43 and 01:25:41), so the document asserted
+      that he acknowledged it BEFORE he signed it. NOT A COSMETIC COMPLAINT ON A
+      LEGAL RECORD — the certificate is the defensible artifact, and it was
+      stating an order of events that did not occur. Now sorted by signedAt
+      ascending with the # column numbering that order. Nothing stored changed;
+      orderIndex still drives the ceremony.
+
+
+      SORTED INTO A SEPARATE ARRAY, AND THAT IS THE LOAD-BEARING PART.
+      orderedAcks stays in orderIndex order because the signature-block lookup
+      further down takes the FIRST Signature/Acknowledgment row and means
+      "earliest CEREMONY step of that kind". Re-sorting in place would have
+      silently repointed it at whichever step was signed first — a second,
+      quieter defect shipped under cover of fixing the first. orderIndex is the
+      tie-break, because one submit stamps a single signedAt across all its rows
+      and an unstable sort would otherwise scramble them arbitrarily.
+
+
+      THE PER-PAGE INITIALS GRID IS DELIBERATELY NOT SORTED BY TIME. Asked to
+      check whether it had the same defect; it does not, and the reason is worth
+      keeping. Every cell carries its own page label ("p3: GT"), so the block is
+      a page-indexed REFERENCE, not a narrative — it asserts no sequence and
+      therefore cannot misstate one. Sorted by time it would read p3, p1, p4, p2
+      and be materially harder to scan against the document. It IS now sorted by
+      pageRef explicitly rather than inheriting orderIndex order: the two
+      coincide only while the set is auto-generated (Initials are minted p1..pN
+      at upload), and an admin who reorders or inserts a checkpoint breaks the
+      correspondence.
+
+
+      D2 — THE "Sign here" BUTTON COVERED THE SENTENCE BEING SIGNED. Affordances
+      were lifted above their anchor (translate(0,-118%)) to clear the signature
+      line and its caption. On page 3 of the test document that placed the button
+      on the acknowledgment paragraph — "By accepting employment with Keva Juice,
+      you acknowledge you have fully read and understand..." — so the signer
+      could not read what they were signing under.
+
+
+      NO VERTICAL OFFSET COULD HAVE FIXED IT, which is why the fix changes the
+      axis rather than the number. Prose sits directly above a signature line BY
+      CONSTRUCTION — that is what a signature line is — so every upward placement
+      collides with text, and downward is the parked Initials-vs-footer
+      collision. Affordances now move SIDEWAYS ONLY: placed on the fill line to
+      the right of the anchor token, which is an underscore run the document
+      itself reserves for a mark and where nothing readable sits, and vertically
+      centred on the baseline rather than lifted. This is the rule the identity
+      chips already used; signatures and initials now share it. The collision
+      nudge goes RIGHT — the old `top -= 46` walked stacked affordances further
+      into body text with every step. Overflowing the page width falls back to
+      the corner dock that already handles anchorless checkpoints.
+
+
+      THE PARKED FOOTER COLLISION IS FIXED BY THE SAME CHANGE, and both were done
+      rather than one. Nothing moves vertically any more, so an Initials control
+      can no longer be pushed down into the page footer.
+
+
+      D3 — THE STAMPED DATE RENDERED STRUCK THROUGH. The identity chip was
+      bg-[var(--color-primary)]/10 — TEN PERCENT ALPHA — and by design it sits on
+      the fill line, whose underscores are drawn on the PDF canvas underneath.
+      Those underscores read straight through the translucent chip and crossed
+      the text, so the date showed as "Aug 15, 2026" struck out. On a signed
+      document a struck-through date reads as an alteration. Background is now
+      opaque; border and text colour unchanged.
+
+
+      READER ONLY — CHECKED, NOT ASSUMED. The stamped PDF is unaffected. The
+      stamping loop calls page.drawText and nothing else; every drawLine and
+      drawRectangle in hr-signed-pdf.ts belongs to the appended certificate pages
+      or the first-page banner, none of them near a stamp. Drawn glyphs are
+      opaque, so a fill line beneath a stamped date shows as a line UNDER the
+      text — which is what a filled-in form is supposed to look like.
+
+
+      VERIFIED: next build green, eslint clean over both files.
+
+
+      NOT VERIFIED IN A BROWSER, and that is the whole remaining risk. D2 in
+      particular is a geometry change reasoned from the code, not observed. The
+      test document and its confirmed anchors live on staging, and standing up an
+      equivalent local fixture was disproportionate for a render fix Gary is
+      about to verify directly. Status stays in_progress until that pass lands:
+      re-sign the test document as a second signer and confirm the certificate
+      table reads in true time order, the acknowledgment sentence on page 3 is
+      fully readable with the "Sign here" button present, and the stamped date
+      has no line through it. Re-run the staging-SHA precondition first.
+
+
+      ────────────────────────────────────────────────────────────── CORRECTION
+      2026-08-15, AFTER A VERIFICATION PASS THAT DID NOT EXERCISE THIS ROW.
+      D1, D2 AND D3 REMAIN UNVERIFIED, and the paragraph above understated it:
+      it said "not verified in a browser" as a general caution, when the specific
+      fact is that BOTH certificates examined in the pass were generated by
+      deployments that do not contain these fixes.
+
+
+      THE TIMELINE, ALL LOCAL (PDT). "7456565" and "68c5a2d" were committed
+      18:54:33 and 18:55:52; "68c5a2d" DEPLOYED TO STAGING 18:59:39.
+
+
+      TOMMY THOMAS's v4 record was minted 18:25:58 PDT — THIRTY-FOUR MINUTES
+      BEFORE THAT DEPLOYMENT. His certificate therefore came from "26aa21d",
+      which carries HR-11n Phase A's retiredAt filters and NONE of HR-11o. His
+      7-checkpoint list is real evidence and it validates PHASE A, not this row.
+      If his checkpoint table read in ceremony order rather than time order, that
+      is EXPECTED — the D1 sort was not deployed — and must not be filed as a
+      regression.
+
+
+      GDOGG THOMAS's v4 record was minted 13:05:58 PDT, pre-dating "72df99a"
+      itself, so his stamped page 3 and his certificate are pre-fix by a wider
+      margin still. Signed records are never regenerated, so neither certificate
+      can acquire these fixes retroactively; only a NEW signing exercises them.
+
+
+      SO NOTHING IN THAT PASS TOUCHED D1, D2 OR D3. The three checks named above
+      still stand, unrun, and now carry a precondition of their own: the
+      certificate must be minted by a deployment built from "68c5a2d" OR LATER,
+      confirmed by the staging-SHA precondition BEFORE the signature is given —
+      not after, because a signed record cannot be re-made to correct the test.
+
+
+      The pass was not wasted: it produced
+      docs/prompts/hr-11n-ceremony-route-audit.md, which enumerated every
+      ceremony route (exactly two renderers, both filtered, no third route),
+      confirmed the HR-11n entry-drop intact with one writer in the codebase, and
+      established that HR-11n does NOT reopen. It also produced the timezone
+      precondition now in CLAUDE.md § Database Evidence, after the UTC/local trap
+      fired three times in one day on these same rows.
+
+
+      ────────────────────────────────────────────────────────────── VERIFIED
+      2026-08-15 BY GARY ON STAGING. All three defects confirmed fixed in the
+      browser. Status in_progress -> verified.
+
+
+      EVIDENCE. Gdogg Thomas, v5 of "Test - Handbook Regression", record
+      completed 2026-08-16 04:06:52 UTC (= 2026-08-15 21:06:52 PDT — both stated,
+      per CLAUDE.md § Database Evidence). Staging deployment built from
+      "68c5a2d", org org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance
+      verified-snapper-7. THE PRECONDITION THIS ROW ADDED WAS MET: the record was
+      minted by a deployment carrying the fixes, and a NEW signing was used
+      rather than an existing certificate, which was the only way to exercise
+      them — signed records are never regenerated.
+
+
+      D1 — PASS. The certificate checkpoint table sorts by signedAt. The column
+      reads 04:06:35, :38, :40, :42, :44, :47, :52 with no row out of sequence,
+      and the Final acknowledgment is row 7, at the bottom. On Tommy's pre-fix
+      certificate the same checkpoint was row 5, ABOVE two signatures signed
+      fifteen seconds earlier. The before/after on one document is the direct
+      measurement of the defect.
+
+
+      AND THE FIX SURFACED SOMETHING THE OLD SORT WAS HIDING, WHICH IS THE PART
+      WORTH KEEPING. In true time order the signer completed PAGE 3'S SIGNATURE
+      BEFORE PAGE 3'S INITIALS, and page 4's signature before page 4's initials —
+      out of ceremony order. The orderIndex sort concealed it completely, because
+      it rendered every certificate in the order the steps were DEFINED rather
+      than the order they were taken. The table now reports what happened instead
+      of what was expected, and the first thing it reported was a sequence nobody
+      knew was occurring.
+
+
+      NOT FILED AS A DEFECT, AND DELIBERATELY NOT RULED ON HERE. Whether a signer
+      may sign a page before initialing it is a question about the ceremony, not
+      about this row's render fix; per-page initialing is gated sequentially
+      (nextRequiredInitial) but signatures are not gated on the page's initials.
+      Recorded so the observation is not lost — it exists only because D1 shipped.
+
+
+      D2 — PASS. The acknowledgment text on pages 3 and 4 is fully legible with
+      the "Sign here" affordance beside it. Verified in the reader.
+
+
+      D3 — PASS. The stamped date renders clean, with no line through it.
+      Verified in the reader.
+
+
+      Per-page initials read p1 through p4 in page order, as designed — the
+      block that was deliberately NOT time-sorted (see D1 above) behaves as
+      argued.
+
+
+      THE PARKED FOOTER-COLLISION FINDING IS CLOSED BY "7456565". It was parked
+      in the HR-11m session prompt's out-of-scope list —
+      docs/prompts/2026-08-15-signature-checkpoint-duplication.md line 149,
+      "Initials button colliding with the page footer in the reader" — and never
+      had a row of its own, which is why it is closed here rather than there (a
+      saved prompt is a claim wholesale and is never edited). D2's change removes
+      it by construction: affordances no longer move vertically at all, so an
+      Initials control cannot be pushed down into the footer. One fix, both
+      defects, as intended when the change was made.
+
+
+      STILL OPEN FROM THAT SAME PARKED LIST: "Initials input hardening" (line
+      148). D1 closed the "certificate table sorting by signedAt" half of that
+      line; the hardening half is untouched by this row and has no row of its
+      own.
+
+  - id: HR-11i
+    track: hr
+    size: S
+    status: planned
+    title: "Errored scan is indistinguishable from image-only — per-version scan state"
+    notes: >
+      Surfaced during HR-11d Phase 1 and ruled OUT of it (Gary, 2026-08-14):
+      it needs a column and a migration, and HR-11d was not growing one at the
+      end. NOT STARTED. Nothing about it is built.
+
+      IT REACHES HR-11d'S DEFECT THROUGH THE ERROR PATH, AND R3(i-a)'S
+      CONDITION DOES NOT COVER IT. The ratified trip-wire fires on
+      `matched > 0 && confirmed == 0`. When detection THROWS,
+      detectAndStoreVersionAnchors returns matched 0 (src/lib/hr-anchors.ts) —
+      so the version presents as `matched == 0`, which R3(i-a) defines as
+      LEGITIMATELY certificate-only and therefore signable. A record then mints
+      claiming completion with nothing stamped on the body: HR-11d's exact
+      defect, arrived at from the other side.
+
+      The two states are not the same and the schema cannot currently tell them
+      apart. "No anchors because this PDF has no text layer" is a fact about
+      the document. "No anchors because pdfjs threw" is an absence of
+      knowledge. Both persist as zero rows on HrDocumentVersion, and the
+      ceremony has nothing to ask.
+
+      THE MITIGATION THAT EXISTS, AND WHY IT IS NOT THE FIX. HR-11d 2a (R2)
+      makes the failure loud to the operator standing at the upload — the
+      dialog says field scanning failed and to scan again before anyone signs,
+      instead of a bare zero standing in for three outcomes. That is a human
+      holding the line, at one moment, on one screen. It does not survive the
+      operator closing the dialog, and the ceremony never learns.
+
+      THE FIX IS PER-VERSION SCAN STATE: record on HrDocumentVersion whether a
+      scan has ever SUCCEEDED (and when), so the guard can distinguish "scanned,
+      genuinely no fields" from "never successfully scanned" and refuse the
+      second. Additive column, its own migration, and its own ruling on what the
+      guard does with the third state — refuse, or warn the admin and let the
+      document stay signable. Do not fold it into an HR-11d follow-up.
+
+  - id: HR-11h
+    track: hr
+    size: M
+    status: planned
+    title: "Manager countersignature — two-party documents where a manager signs after the employee"
+    notes: >
+      Surfaced during HR-11d. The 2023 handbook's Keva Pay Agreement (p. 9)
+      carries a "Manager Signature:" line that HR-11d deliberately recognizes
+      and leaves unstamped. Needs: routing to a manager after the employee
+      completes, a second signing ceremony, completion semantics while awaiting
+      the countersignature, and notification. Not started; HR-11d only keeps
+      the line clean for it.
 
   # ---- Labor ----
   # Old Phase 0–4 numbering retired 2026-07-20 (Reset Brief); L- prefix current.
@@ -7691,9 +9536,140 @@ bugs:
 
   - id: BUG-7
     title: "Concurrent syncs raced on the sales caches — P2002, and the older fetch could win"
-    status: in_progress
+    status: verified
     commits: [00881dc]
     notes: >
+      VERIFIED IN PRODUCTION 2026-08-16, NEVER VERIFIED ON STAGING. Status
+      in_progress -> verified. Prepended per preserve-and-mark; nothing below is
+      edited. In particular "FIXED IN CODE 2026-08-13, NOT YET VERIFIED ON
+      STAGING" still stands below and was true when written — it was OVERTAKEN,
+      not corrected. Session:
+      docs/prompts/BUG-7_CLOSURE_AND_DEPLOY_LOG_RECONCILIATION.md and its
+      Addendum A. WORK COMMIT 165bcb8 — one docs-only commit carrying all six of
+      that session's tasks: this block, F-4's resolved blocker, the five
+      retroactive docs/DEPLOY_LOG.md entries and their standing-note discharge,
+      DEBT-38's second recurrence, DEBT-69's measured rate, DEBT-72's
+      placeholder, and the docs/DECISIONS.md mechanism entry. `commits:` on this
+      row still names 00881dc alone, deliberately — that is the FIX; 165bcb8 is
+      the RECORD of its verification and does not belong in the same field.
+      THE ROW CLOSES ON THE CRITERION IT SET FOR ITSELF, which is worth saying
+      before the evidence rather than after. The closure condition written on
+      this row 2026-08-13 and still standing below reads: deploy 00881dc, then
+      EITHER observe the `[sales-sync] ... discarded N superseded by a newer
+      fetch` line OR observe sustained concurrent load with no P2002. The first
+      disjunct is satisfied, ~55 times over. That is not an after-the-fact
+      justification assembled to fit what was found; it is the test this row
+      specified three days before the evidence existed.
+      WHY A PRODUCTION-ONLY VERIFICATION IS SUFFICIENT HERE, STATED PLAINLY
+      BECAUSE IT IS UNUSUAL AND SHOULD NOT BECOME A PRECEDENT. Staging never ran
+      this code under contention and still has not. What closed the row is that
+      production exercised the guard against REAL concurrency — nine distinct
+      stores, live webhook load, collisions 70 ms and 270 ms apart — which the
+      staging fixture can only simulate. The fixture DID simulate it (24/24, see
+      below) and that is what made shipping defensible; simulation is not the
+      same evidence as a race that actually happened on real money. The order
+      this arrived in was the inverse of what this row recommended, which is
+      recorded below as fact rather than objection. It came out right. It was not
+      made right by coming out right.
+      EVIDENCE 1 — THE GUARD FIRES UNDER REAL CONTENTION. This is the direct
+      proof and the only one; everything else is corroboration. Vercel PRODUCTION
+      function logs, 2026-08-16, ~11:53-14:11 PT (18:53-21:11 UTC), filtered on
+      `discarded`: approximately 55 occurrences of `[sales-sync] store=<id> wrote
+      0/1 day(s); discarded 1 superseded by a newer fetch: 2026-08-16`, all on
+      POST /api/webhooks/square, across at least nine distinct store ids
+      (cmqvygqz2..., cmqvygq1m..., cmqvygque..., cmqvygqx9..., cmqvygr1l...,
+      cmqvygqxb...000004l45ajpg1la, cmqvygqxb...000004l4v0im0byu, cmqvygpze...,
+      cmqvygr36...). Two collisions are tight enough to name, because they are
+      the exact shape that used to throw P2002: 12:52:27.19 and 12:52:27.26 PT,
+      same store, 70 ms apart; and 13:22:58.94 and 13:22:59.21 PT, same store,
+      270 ms apart. That line can only be emitted by the post-fix code, and it
+      means a race was caught and RESOLVED CORRECTLY rather than avoided by luck.
+      HOW TO READ "0/1", AND THIS IS THE SINGLE MOST IMPORTANT SENTENCE ON THIS
+      ROW FOR ANYONE WHO FINDS THAT LOG FILTER LATER. The log statement is
+      wrapped in `if (discarded.length > 0)`, so A FULLY SUCCESSFUL WRITE EMITS
+      NO LOG LINE AT ALL. Filtering on `discarded` can therefore only ever return
+      losers. The winners are invisible BY CONSTRUCTION — not missing, not
+      failing, just not logged — and their existence is proven by Evidence 3
+      below, where every store's syncedAt is minutes fresh. A reader who finds
+      this filter and reads a 100% discard rate as a defect will be wrong, and
+      this paragraph exists to stop them.
+      WHY P2002 IS NOT THE PROOF, and why looking for it was looking for
+      something that could only return zero. ON CONFLICT makes P2002
+      STRUCTURALLY IMPOSSIBLE in the post-fix code. An empty P2002 search is
+      therefore confirmation that the OLD PATH IS GONE — which is worth knowing —
+      and is not, and can never be, evidence that the guard works. Only the
+      discard line proves the guard.
+      EVIDENCE 2 — THE WEBHOOK IS DELIVERING. Square Developer Console,
+      PRODUCTION application sq0idp-UdjqLfkxl0hlbw7b30IiLA ("Froot"): 34,914
+      delivery results, ALL 200, to https://www.usefroot.com/api/webhooks/square,
+      most recent 2026-08-16 13:18 PT. Square retains webhook logs 28 days, so
+      that window is not the whole history — it is the whole RETAINED history.
+      A 200 DOES NOT PROVE THE SYNC RAN: the handler ACKs before processing
+      (route.ts:89-94), so a 200 proves signature verification and acceptance
+      only. This row already said that about F-4's test event and it is still
+      true at 34,914 deliveries. What follows the ACK is proven separately, by
+      Evidence 1 and Evidence 3.
+      EVIDENCE 3 — EVERY PRODUCTION STORE IS SYNCING LIVE. Neon console,
+      PRODUCTION branch br-sparkling-block-a620qvg4 (endpoint ep-green-smoke),
+      2026-08-16 ~21:10 UTC (2:10 PM PT). Nine linked stores — Spanish Springs,
+      South Reno, Meadowood Mall, Carson, Las Brisas, UNR, Sparks, University
+      Village, Southgate — all with last_sync inside the previous ten minutes and
+      latest_day = 2026-08-16. Keva Kiosk (17:12 UTC) and Cafe De Keva Cart
+      (11:01 UTC) lag, consistent with lower volume or closure rather than
+      failure. Rohan's Restaurant is unlinked (squareLocationId null). This is
+      what makes the invisible winners of Evidence 1 real: a store whose writes
+      were all being discarded could not have a syncedAt ten minutes old.
+      EVIDENCE 4 — THE ID-FORMAT BOUNDARY, AND WHAT IT BRACKETS. Same production
+      branch br-sparkling-block-a620qvg4, 2026-08-16. SalesPeriodCache rows carry
+      two id formats: Prisma generates cuids client-side, and the post-BUG-7 raw
+      INSERT supplies its own randomUUID(). ON CONFLICT DO UPDATE does not
+      rewrite id, so a row BORN under the old code keeps its cuid forever even
+      after the new code rewrites its numbers. THE BOUNDARY THEREFORE FALLS ON
+      BUSINESS DATE, NOT ON syncedAt — syncedAt is overwritten on every write and
+      was never a creation time. By business date: 2026-08-16 uuid, 11 rows;
+      2026-08-15 uuid, 11 rows; 2026-08-14 cuid, 11 rows; 2026-08-13 cuid, 11
+      rows; 2026-08-12 cuid, 11 rows. BUSINESS DATE 2026-08-15 IS THE FIRST UUID
+      DAY. Eleven rows on every date with no gaps is a second reading of
+      Evidence 3: every linked store is syncing, none silently missing. This is
+      the fingerprint the fix predicted in advance (the comment at the `values`
+      map in src/lib/sales-sync.ts, and the RAW SQL paragraph below) showing up
+      exactly where it was predicted to.
+      THE ROLLOUT WINDOW IS A BRACKET AND IS LABELLED AS ONE. Two independent
+      bounds, neither of them a deploy instant: (a) the id-format boundary above
+      puts the rollout between the creation of business date 2026-08-14's rows
+      and 2026-08-15's; (b) `git reflog show main --date=iso` shows main moving
+      to 06dc830 — the promotion carrying 00881dc — at 2026-08-14 08:05:16 PT =
+      2026-08-14 15:05:16 UTC, so THE FIX CANNOT HAVE BEEN SERVING PRODUCTION
+      TRAFFIC BEFORE THAT INSTANT. Bound (b) is a LOWER BOUND ONLY: the reflog
+      records a local merge on Gary's machine, not the push and not the Vercel
+      build, both of which follow it. The two agree — Aug 14's rows were created
+      before 15:05:16 UTC and kept their cuids — and neither is the exact moment.
+      The Vercel production deployment timestamp for 00881dc would replace the
+      bracket with an instant; it was not supplied to this session, so the
+      bracket stands as a bracket. Stating it tighter than that would be
+      inventing precision the evidence does not carry.
+      NO BACKFILL, NO CLEANUP — RULED. The mixed cuid/uuid ids are not a defect
+      to repair. `id` on these three tables is a bare primary key: no foreign key
+      references it, no response exposes it, and nothing reads it. Rewriting a
+      column nothing reads would be churn against the additive-only rule, and it
+      would destroy the only artifact that dates the rollout (Evidence 4). Leave
+      them.
+      THE GAP IN THE RECORD, STATED PLAINLY, BECAUSE IT IS THE REASON THIS ROW
+      NEEDED A BRACKET AT ALL. 801dceb records 00881dc's commit SHA, because the
+      two-commit pattern captures commit SHAs and it worked. NOTHING CAPTURED
+      WHEN THAT COMMIT REACHED PRODUCTION, because the promotion that carried it
+      was a fast-forward with no docs/DEPLOY_LOG.md entry — one of five. So the
+      row can say exactly when the fix was WRITTEN and had to reconstruct, from
+      row ids and a reflog, when it was RUN. Same root cause as DEBT-38; the five
+      retroactive DEPLOY_LOG entries written in this session close the hole for
+      these five promotions and not for the next one.
+      CROSS-REFS ADDED BY THIS SESSION: F-4's first blocker closes on the same
+      Evidence 2 and 3 (its own remaining requirement was one real transaction
+      moving "Today so far", and nine stores did it); DEBT-69 gains the measured
+      discard rate this evidence produced; DEBT-38 gains this promotion as one of
+      its five; docs/DECISIONS.md 2026-08-16 records the mechanism that let
+      00881dc ship past this row's own gate.
+      ── EVERYTHING BELOW IS THE PRE-VERIFICATION RECORD, UNEDITED ──
       Observed by Gary on staging, preview env, branch 92de25f, org
       cf888f2d-f234-48c7-8097-fd5b44b5b3dd, 2026-08-13 18:48:50 UTC:
       prisma.salesPeriodCache.createMany() — P2002 on ("storeId", date),
@@ -7912,6 +9888,48 @@ debt:
     status: planned
     title: "Coalesce concurrent sales syncs per store-day — Square quota, not correctness"
     notes: >
+      MEASURED 2026-08-16 — THE PRECONDITION THIS ROW SET FOR ITSELF IS
+      DISCHARGED. Prepended per preserve-and-mark; nothing below is edited. The
+      entry below says "REVISIT WHEN WEBHOOKS ARE LIVE ... until then there is
+      nothing to measure." Webhooks are live — production Square application
+      sq0idp-UdjqLfkxl0hlbw7b30IiLA ("Froot"), 34,914 delivery results all 200 to
+      https://www.usefroot.com/api/webhooks/square — and there is now something to
+      measure. THE REVISIT IS NOT A BUILD DECISION; it is this measurement. The
+      row stays `planned`.
+      THE NUMBER. Vercel PRODUCTION function logs, 2026-08-16, ~11:53-14:11 PT
+      (18:53-21:11 UTC), filtered on `discarded`: approximately 55 discarded
+      syncs across at least nine distinct store ids, all on POST
+      /api/webhooks/square. That is roughly ONE DISCARDED SYNC EVERY 2-3 MINUTES,
+      sustained, across the nine-store production estate during a normal
+      afternoon.
+      WHAT EACH ONE COST. Every discarded sync completed a FULL PAGINATED Square
+      orders/search before losing at the write — the round trip is already spent
+      by the time the guard discards it, which is the entry below's own
+      "WHY IT IS WORTH ANYTHING AT ALL" argument with a number attached. So this
+      is ~55 complete Square API read cycles and ~55 lambda invocations held for
+      their full duration in 2.5 hours, thrown away. Square publishes no rate
+      limits, so it remains unquantified spend against an unknown ceiling — but
+      the SPEND is no longer unquantified, only the ceiling is.
+      THIS IS THE AUDIT'S ESTIMATE, MEASURED RATHER THAN PREDICTED.
+      docs/prompts/BUG-7_AUDIT.md § 1d predicted 3-5 events per order against
+      76-144 paid orders per store per day, and reasoned from there to "a
+      continuous stream of writers where today there are none". The ~55 figure is
+      that multiplier observed. Recorded as corroboration of the audit's method,
+      not as a new argument.
+      NOTHING HERE CHANGES THE RULING BELOW, AND THE MEASUREMENT SHOULD NOT BE
+      READ AS RE-OPENING IT. Option 4 was rejected as a FIX because in-process
+      coalescing is per-lambda-instance and therefore cannot help across
+      concurrent instances or across users — that is a property of the mechanism,
+      and no volume of measured waste makes it false. BUG-7's guarded upsert
+      remains THE correctness fix and is now verified in production; coalescing
+      remains a COST AND QUOTA optimisation. A bigger number makes this row more
+      worth building and no more of a race fix than it was on 2026-08-13.
+      READ THE ~55 CORRECTLY — it is a floor, not a total. The log line is
+      wrapped in `if (discarded.length > 0)`, so successful syncs emit nothing
+      and the filter can only return losers. ~55 is the count of DISCARDED syncs
+      in that window, not the discard RATE; the denominator is invisible by
+      construction. Anyone sizing this work should not divide by anything.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       FILED 2026-08-13 BY GARY'S RULING, DELIBERATELY NOT BUILT. It was Option 4
       in the BUG-7 audit (docs/prompts/BUG-7_AUDIT.md § 1c) and was rejected as a
       FIX because it is per-lambda-instance and therefore closes nothing: it
@@ -7936,6 +9954,613 @@ debt:
       writer at transaction rate, which is when the wasted-call volume starts to
       matter; until then there is nothing to measure. Do NOT build it as a race
       fix — that question is settled and belongs to BUG-7.
+
+  - id: DEBT-70
+    status: planned
+    title: "Server-rendered dates print UTC calendar days — two surfaces disagree about one signature"
+    notes: >
+      SERVER HALF CLOSED 2026-08-16, CLIENT HALF STILL OPEN — THIS ROW IS NOW
+      THE 42 CLIENT SITES. Prepended per preserve-and-mark; nothing below is
+      edited, including the line below that says this row is "NOW THE 22 SERVER
+      DISPLAY SITES ONLY", which was true when written and has been overtaken:
+      that scope was built as DEBT-70b ("cc144dc") and verified on staging the
+      same day, alongside the PDF half DEBT-70a ("623acb6").
+
+
+      WHAT IS DONE. The 22 server-rendered date displays now resolve
+      store-local through displayTimeZone (lib/hr.ts) with no bare-UTC arm, and
+      the one civil date moved to formatCivilDate, which takes no zone argument
+      at all. Verified in a browser on branch br-square-feather-a63z92vz /
+      neondb, org org_3G02wO4QlVVSWppi8aqlnSZnsDa: the two staff tabs that
+      filed this row now agree on Aug 15, and /checklists still reads Sun,
+      Aug 16 unmoved. Evidence is on the DEBT-70b row.
+
+
+      WHAT IS NOT DONE, AND IT IS THE HALF THAT MAKES THIS STRUCTURAL. THE 42
+      CLIENT SITES REMAIN VIEWER-ANCHORED while the converted server surfaces
+      are now STORE-anchored. They agree whenever the viewer sits in the store's
+      timezone — which is the normal case, was the acceptance case, and is
+      therefore the case that CANNOT DETECT THE REMAINING GAP. A manager reading
+      from another zone can still see one signature carry two calendar days.
+      CONVERGENCE IS NOT STRUCTURAL UNTIL THE CLIENT SITES MOVE.
+
+
+      SO THE ROW STAYS OPEN, AND THE REASON IS WORTH STATING PLAINLY: the
+      original complaint — two surfaces disagreeing about one signature — is
+      no longer reproducible for a same-zone viewer, and is STILL REACHABLE for
+      a cross-zone one. Closing this row on tonight's pass would record a
+      same-zone observation as proof of a cross-zone property. The remaining
+      decision is the one the WHAT THE FIX PROBABLY IS paragraph below already
+      names and DEBT-70a/70b have now half-answered: the server half chose the
+      STORE's day, so the client half is no longer an open design question but
+      a conformance job — move the 42 to the same resolver, or rule explicitly
+      that viewer-anchored is correct for non-signature dates and write down
+      where the line falls.
+
+
+      NOT URGENT, UNCHANGED, AND FOR THE SAME REASON AS BEFORE: no record is
+      wrong, no compliance state is wrong, nothing is miscounted. The residue is
+      a cross-zone display disagreement on evening records.
+
+
+      FILED 2026-08-16 BY GARY'S INSTRUCTION, during the HR-11k Phase A display
+      follow-ups ("6b2054f"). Observed by Gary on staging: the SAME signed record
+      renders "Aug 15" on the staff profile's Documents tab and "Aug 16" on
+      /my/documents. Two compliance surfaces telling different stories about one
+      signature. Not an R2 defect — R2 only made it visible by putting a date on
+      a row that reaches both surfaces.
+
+
+      THE MECHANISM, MEASURED. Every DateTime column is TIMESTAMP(3) with no
+      time zone, so Prisma returns UTC. `format()` from date-fns renders in the
+      TZ OF WHATEVER RUNS IT. A "use client" component runs in the browser and
+      prints the viewer's local day; a server component runs on Vercel, where
+      TZ is UTC, and prints the UTC day. Same instant, two calendar days,
+      whenever the record falls in the evening:
+
+
+        record 2026-08-16 04:06 UTC = 2026-08-15 21:06 PDT
+        TZ=America/Los_Angeles -> "Aug 15, 2026"    (staff-documents.tsx, client)
+        TZ=UTC                 -> "Aug 16, 2026"    (my/documents/page.tsx, server)
+
+
+      Reproduced locally against the shipped formatter, both zones, 2026-08-16.
+
+
+      IT IS ALSO WITHIN ONE PAGE. The staff profile's Documents tab is a client
+      component and reads Aug 15; its Compliance tab (staff-compliance.tsx) is a
+      server component and reads Aug 16. Same profile, same record, one scroll
+      apart.
+
+
+      SCOPE, AND WHY IT WAS NOT FIXED IN THAT SESSION. 11 server components
+      render dates across 22 call sites — checklists, users, hr/compliance,
+      hr/signed-records, staff/[id], staff-compliance, my, my/training,
+      my/documents, my/documents/records/[recordId], training-module-view — set
+      against 20 client components doing it correctly by accident. Gary's
+      instruction was explicit: contained, fix it; reaches beyond those files,
+      file a row. It reaches. A PARTIAL FIX IS WORSE THAN NONE HERE: correcting
+      only /my/documents would make it agree with the staff Documents tab and
+      still disagree with the staff Compliance tab, trading one visible
+      disagreement for a subtler one.
+
+
+      THIS IS CLAUDE.md § Database Evidence's UTC/local precondition ONE LAYER
+      OUT. That precondition governs what WE compare while investigating; this
+      is the same offset reaching the PRODUCT, where the reader has no way to
+      know which zone they are looking at and no suffix tells them. The
+      precondition was written after the offset fired three times in one day on
+      four rows. Same failure, rendered for a customer.
+
+
+      WHAT THE FIX PROBABLY IS, not ruled: one shared formatter, and a decision
+      about WHOSE day is authoritative — the viewer's browser, or the store's.
+      They are different questions and the second may need a timezone on Store
+      or Organization (schema, so TIER 3). The viewer's-browser answer is
+      additive and needs no column. Note that a SIGNATURE arguably belongs to
+      the store's day rather than the reader's, which is the argument for the
+      harder option; a signed certificate is a legal artifact and its date
+      should not change depending on who opens it.
+
+
+      SURFACE LIST EXTENDED 2026-08-16, BY GARY'S INSTRUCTION, AFTER IT SURFACED
+      AGAIN ON THE VERSIONS CARD of /hr/documents/[id]: v6 and v7 are 15:02 and
+      17:02 UTC in the database and render as 8:02 AM and 10:02 AM — UTC-7, PDT.
+      AND THAT CARD IS ON THE CORRECT SIDE OF THIS BUG, which is the thing to
+      understand before anyone "fixes" it: document-detail-client.tsx is a
+      client component, so it renders the VIEWER'S day, which is the day a human
+      means. It looks wrong only when read against a raw UTC value in the Neon
+      console. The defect is the ELEVEN SERVER components that print Vercel's
+      UTC day at a reader who is not in UTC.
+
+
+      FULL COUNT, re-measured 2026-08-16 across src/app and src/components:
+      31 files render dates, 64 format() calls. 20 files / 42 calls are CLIENT
+      (viewer-local — correct today, correct by accident). 11 files / 22 calls
+      are SERVER (Vercel UTC — the defect). The "22" recorded above is the
+      server half only; the denominator it should be read against is 64, and any
+      fix has to decide what the other 42 do, not just repair the 22. That is
+      most of why this is TIER 3 rather than a sweep.
+
+
+      SPLIT 2026-08-16: DEBT-70a CARRIES THE PDF HALF AND IS BUILT ("623acb6").
+      The audit (docs/prompts/DEBT-70_AUDIT.md §5.2) found an instance this row's
+      own sweep could not see — hr-signed-pdf.ts does not import date-fns, so the
+      `format(` search missed a bare `toISOString().slice(0,10)` stamped into the
+      document BODY as the `Date:` line. Gary split it off and took it first
+      because it is the only part producing PERMANENT artifacts: a screen
+      re-renders after a fix, a minted PDF never does. THIS ROW IS NOW THE 22
+      SERVER DISPLAY SITES ONLY, and DEBT-70a settled two things it inherits —
+      Organization.timezone exists as of migration
+      20260816180000_organization_timezone, and primaryStoreTimeZone (lib/hr.ts)
+      is the ruled resolver. Neither needs re-deciding here.
+
+
+      NOT URGENT, AND SAY WHY: no record is wrong, no compliance state is wrong,
+      nothing is miscounted. It is a display disagreement, visible only on
+      evening records, and it has been there since the first server-rendered
+      date. It becomes urgent if anyone ever reads a date off a screen into a
+      legal or HR process.
+
+  - id: DEBT-70b
+    status: verified
+    title: "The 22 server-side date displays now render the store-local day"
+    commits:
+      - "cc144dc"
+    notes: >
+      VERIFIED ON STAGING 2026-08-16 IN A BROWSER. Status in_progress ->
+      verified. Prepended per preserve-and-mark; nothing below is edited,
+      including the "NOT YET VERIFIED ON STAGING" line, which was true when
+      written. Verified in the same pass as DEBT-70a ("623acb6").
+
+
+      THE ANCHOR CASE, WHICH IS THE ONE THAT MATTERS. Gdogg Thomas's v5 record
+      reads AUG 15 on all four surfaces: the staff profile's Documents tab, the
+      staff profile's Compliance tab, /my/documents, and /hr/signed-records.
+      Branch br-square-feather-a63z92vz / neondb, org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance verified-snapper-7.
+
+
+      THE TWO STAFF TABS PREVIOUSLY DISAGREED BY A DAY, ONE SCROLL APART — the
+      Documents tab (client) read Aug 15 and the Compliance tab (server) read
+      Aug 16. THAT WAS THE DEFECT AND IT IS CLOSED. This is the exact
+      observation that filed DEBT-70, re-taken on the same record after the fix,
+      which is why it is the acceptance rather than a spot check.
+
+
+      THE CIVIL-DATE REGRESSION PASSED. /checklists reads "Sun, Aug 16",
+      UNMOVED. That is the trap this row handled before any edit — a civil date
+      is a store-local day already stored at UTC midnight, so converting it to
+      Pacific would have moved it a day BACKWARD, silently, with no screen
+      showing it. formatCivilDate takes no zone argument and the browser
+      confirms what the six-boundary-day fixture asserted.
+
+
+      SCOPE OF THE PASS, STATED SO IT IS NOT READ AS MORE THAN IT IS: four
+      surfaces on one anchor record, plus the civil-date regression. Not all 22
+      call sites were individually exercised in the browser. The 72/72
+      byte-for-byte fixture below is what covers the rest, and the four surfaces
+      here are the ones the defect was reported on.
+
+
+      CONVERGENCE IS STILL NOT STRUCTURAL, and this pass is precisely the case
+      that cannot show it. The verified viewer was in the store's timezone, so
+      the STORE-anchored server sites and the VIEWER-anchored client sites
+      agreed — they agree whenever those two zones match. A manager reading from
+      another zone can still see the split. The client half is open on DEBT-70;
+      this row's own "argument for the client row" paragraph below is unchanged
+      by tonight's pass and is if anything strengthened, since the pass could
+      not have detected the remaining gap.
+
+
+      BUILT 2026-08-16 ("cc144dc"), TIER 2, NOT YET VERIFIED ON STAGING. The
+      display half of DEBT-70; the PDF half shipped as DEBT-70a ("623acb6").
+      Audit of record: docs/prompts/DEBT-70_AUDIT.md.
+
+
+      THE RULING (Gary, 2026-08-16): THE CLIENT WAS RIGHT. Gdogg's record is
+      2026-08-16 04:06 UTC = 2026-08-15 21:06 PDT; the staff profile's Documents
+      tab (client) read Aug 15 and its Compliance tab (server) read Aug 16, one
+      scroll apart. The signature happened at 9:06 PM on August 15 and the server
+      printed a day nobody lived, so the 22 server sites move to store-local.
+
+
+      THE TRAP, AND IT WAS HANDLED BEFORE ANY EDIT. Two kinds of DateTime pull in
+      OPPOSITE directions. A CIVIL DATE — Checklist.date, written through
+      dbDate() — is a store-local day already stored at UTC midnight: rendering
+      it in UTC is CORRECT and converting it to Pacific moves it A DAY BACKWARD,
+      silently, with no screen showing it. An INSTANT is a real moment and
+      rendering it in UTC is wrong. All 22 were classified against their WRITE
+      PATHS first: 21 instants, 1 civil date (checklists/page.tsx:191), and zero
+      of the other 21 columns are written through dbDate(). terminatedAt,
+      rehiredAt, certifiedAt and publishedAt are all `new Date()`; dueDate is
+      `new Date("<day>T12:00:00")`, an instant whose NOON PIN is what keeps it
+      drift-proof either way.
+
+
+      THE CIVIL DATE WAS NOT LEFT ALONE — it moved to formatCivilDate, WHICH
+      TAKES NO ZONE ARGUMENT AT ALL. Behaviour is byte-identical; what changed is
+      that being right became STATED rather than accidental, and the one function
+      that could break it can no longer be handed a store zone by a future edit.
+      Exercised deliberately on six boundary days: all unmoved, and the test
+      prints what each WOULD have become if converted (Aug 15 -> Aug 14, Jan 1 ->
+      Dec 31) so the regression is visible rather than asserted.
+
+
+      ONE MECHANISM. lib/display-time.ts is Intl.DateTimeFormat with an explicit
+      timeZone — the same primitive localDateStr (reports.ts:51),
+      businessDayWindow (:71) and formatWindowTime (checklist-status-display.ts
+      :141) already are, given a shared home so 22 call sites do not each
+      hand-roll options. STYLES ARE NAMED RATHER THAN FORMAT STRINGS, and a
+      fixture asserts that with the zone forced to UTC all nine reproduce their
+      date-fns pattern BYTE-FOR-BYTE across eight awkward instants — 72/72 pass.
+      That property is what makes the diff reviewable: the only behavioural
+      change in the whole phase is which zone is asked for.
+
+
+      @date-fns/tz WAS CONSIDERED AND REJECTED. It would have preserved every
+      format string with a one-token edit per site, but it is present only
+      TRANSITIVELY via react-day-picker — an undeclared dependency that an
+      unrelated upgrade could remove — and the brief's "use the existing
+      mechanism" points at Intl regardless.
+
+
+      THE ZONE comes from displayTimeZone (lib/hr.ts): subject's primary store ->
+      Organization.timezone -> the schema default. DEBT-70a established that
+      chain and spelled it out inline at its single mint site; this row FACTORS
+      IT OUT rather than copying it 22 times, because 22 copies of a fallback
+      chain is how a fallback becomes three different chains. THERE IS NO
+      BARE-UTC ARM and `org` is REQUIRED, not optional — a site that cannot
+      supply one has not loaded enough to render a date, and a silent UTC
+      fallback would reproduce this bug while looking fixed. /users legitimately
+      has no staff subject (Clerk identities, not StaffMembers) and enters at the
+      org step; that is the same chain, not a second one.
+
+
+      StaffComplianceDetail and PendingCountersign now CARRY `timeZone`, on the
+      object the timestamps already travel on, so a surface cannot render one
+      without the other — four of the 22 needed no new query because of it.
+
+
+      SCOPE HELD: server sites only, 42 client sites untouched (verified by
+      count, still 42). AND THE CONSEQUENCE IS WORTH WRITING DOWN: the three
+      converted signature surfaces are now STORE-anchored while the staff
+      Documents tab remains VIEWER-anchored. They agree for a viewer in the
+      store's zone — the normal case, and the acceptance case — but CONVERGENCE
+      IS NOT STRUCTURAL until the client sites move too. A manager reading from
+      another zone can still see the split. That is the argument for the client
+      row, and it should be made with this sentence.
+
+
+      LOGIC SITES UNTOUCHED per the brief. hr-compliance.ts:564 (dueDate < now)
+      is instant-vs-instant and safe; dueDate's noon pin is the guard against
+      exactly this bug and was left alone. No logic site was found beyond the
+      audit's.
+
+
+      STILL OWED ON STAGING: the anchor case on all four surfaces using a record
+      whose UTC and local dates actually DIFFER (3 of 10 qualify); the
+      civil-date regression exercised deliberately on /checklists; HrSignedRecord
+      and HrDocumentAcknowledgment counts unchanged. Nothing was observed on
+      staging — these commits are not deployed.
+
+  - id: DEBT-70a
+    status: verified
+    title: "Inline Date: stamp on minted PDFs rendered a bare UTC day — now store-local"
+    commits:
+      - "623acb6"
+    notes: >
+      VERIFIED ON STAGING 2026-08-16 IN A BROWSER, IN THE WINDOW WHERE THE TWO
+      DATES DIFFER — which is the only window that can prove anything here.
+      Status in_progress -> verified. Prepended per preserve-and-mark; nothing
+      below is edited, including the "NOT YET VERIFIED ON STAGING" line, which
+      was true when written. RECORDER COMMIT f7723fe carries this block and
+      DEBT-70b's, DEBT-70's server-half closure, and DEBT-73. `commits:` still
+      names 623acb6 alone — that is the FIX; f7723fe is the record of its
+      verification and does not belong in the same field.
+
+
+      THE EVIDENCE. Tommy Thomas, v7 of "Test - Handbook Regression". Completed
+      2026-08-17 02:05:01 UTC = 2026-08-16 19:05:01 PDT — both stated, per
+      CLAUDE.md § Database Evidence. Branch br-square-feather-a63z92vz / neondb,
+      org org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance verified-snapper-7.
+      The body "Date:" line on page 1 reads 2026-08-16 — THE DAY THE SIGNER WAS
+      AT WORK. The certificate's "Completed at" and the SIGNED AT (UTC) column
+      read 2026-08-17 ... UTC, still labelled, unchanged.
+
+
+      THAT IS THE WHOLE RULING DEMONSTRATED IN ONE RECORD: the certificate is
+      EVIDENCE and stays UTC; the body stamp is a FIELD A PERSON READS and now
+      names their day. The two disagreeing by a calendar day is not a defect
+      here — it is the design, and this record is the case that shows both
+      halves behaving as ruled at the same instant. Note that the mint happened
+      after 7 PM Pacific, which is exactly the post-5-PM condition this row's
+      STILL OWED list below asked for; the owed item is discharged, not waived.
+
+
+      WHAT CANNOT BE FIXED, AND THE NUMBER IS AN UPPER BOUND. 3 of 10 signed
+      records on staging carry a stamp minted before the fix. UPPER BOUND
+      because it was measured as records whose UTC and store-local dates DIFFER
+      — the true count can only be SMALLER, since a record only carries a wrong
+      stamp if a DateStamp anchor was actually confirmed on it. All three are
+      staging test records. Signed records are frozen and NONE WAS REGENERATED;
+      this row could not repair them and did not try.
+
+
+      PRODUCTION IS NOT AFFECTED — MEASURED, NOT ASSUMED. HR is LIVE in
+      production, not dark: HR_MODULE_AVAILABLE=true was added to the Vercel
+      Production scope 2026-07-24 (docs/DEPLOY_LOG.md, the "HR LAUNCH" entry),
+      and org cf888f2d-f234-48c7-8097-fd5b44b5b3dd carries activeModules =
+      {inventory,labor,hr} with 5 STORE / 1 MANAGER / 3 ADMIN / 1 STAFF. ANY
+      NOTE ON THIS ROW OR ELSEWHERE CLAIMING HR IS DARK IN PRODUCTION IS STALE
+      BY NINETEEN DAYS AND MUST NOT BE RELIED ON.
+
+
+      Production nonetheless carries ZERO wrongly-stamped records. Branch
+      br-sparkling-block-a620qvg4, measured 2026-08-16: three HrSignedRecord
+      rows exist — 2026-07-13 21:47:43.527 UTC (14:47 PDT), 2026-08-03
+      19:24:48.709 UTC (12:24 PDT), 2026-08-03 21:51:06.908 UTC (14:51 PDT).
+      All three completed in the early afternoon Pacific, so UTC and store-local
+      calendar dates agree on every one and dates_differ is false across the
+      board. THE STAGING COUNT OF 3-OF-10 DOES NOT TRANSFER TO PRODUCTION.
+
+
+      DEBT-70b VERIFIED IN THE SAME PASS ("cc144dc") — recorded on its own row;
+      noted here because the two shipped as one thought and a reader arriving at
+      either should know the other passed.
+
+
+      DEBT-70 IS NOT FULLY CLOSED BY THIS. The converted server surfaces are
+      STORE-anchored; the 42 client sites remain VIEWER-anchored. They agree for
+      a viewer in the store's timezone — the case verified tonight — but
+      CONVERGENCE IS NOT STRUCTURAL UNTIL THE CLIENT SITES MOVE. The server half
+      is closed; the client half is open, and is on DEBT-70.
+
+
+      ONE LOOSE END FILED, NOT CHANGED: the page-1 banner ("Completed by ... on
+      2026-08-17 02:05:01 UTC") is a body element a person reads, rendered in
+      UTC. Consistent with the certificate and arguably correct, but it sits on
+      the same page as the stamp that now reads local. Filed as DEBT-73 for a
+      ruling. DELIBERATELY NOT TOUCHED by this session.
+
+
+      BUILT 2026-08-16 ("623acb6"), TIER 2, NOT YET VERIFIED ON STAGING. Split
+      out of DEBT-70 by Gary because it is THE ONLY PART THAT PRODUCES PERMANENT
+      ARTIFACTS. Audit of record: docs/prompts/DEBT-70_AUDIT.md (same commit),
+      which is DEBT-70's Step 1 audit — this row is §5.2 of it.
+
+
+      THE DEFECT. formatDateStamp's `dateOnly` branch — the ORG DEFAULT — was
+      `d.toISOString().slice(0, 10)`: a bare UTC calendar date, no zone marker,
+      stamped into the document BODY on the `Date:` line a person reads as the
+      day they signed. Gdogg signed at 21:06 PDT on 2026-08-15 and his handbook
+      says 2026-08-16 — a day he was not at work, on his own signature line.
+
+
+      WHY IT WENT AHEAD OF DEBT-70'S 22 SCREENS. A screen re-renders after a fix.
+      A MINTED PDF NEVER DOES: records are append-only and ensureSignedRecord
+      returns the existing row rather than regenerating. Every certificate
+      produced before this landed keeps its wrong date permanently, so this
+      defect's cost grew every day it stayed open, which no display bug does.
+
+
+      IT WAS INVISIBLE TO THE SWEEP THAT FOUND DEBT-70'S 64 SITES, and that is
+      the transferable lesson. hr-signed-pdf.ts does not import date-fns, so a
+      `format(` search could not see it; it was found by reading the mint path
+      instead. CLAUDE.md § Verifying a guard covers every path, one layer out —
+      a sweep is only as complete as the shape it searches for, and the shape is
+      chosen from what you already know exists.
+
+
+      BOTH BRANCHES WERE WRONG, which Gary asked to have confirmed either way.
+      `dateOnly`: wrong day AND unlabelled. `dateTime`: `utc(d)`, so labelled and
+      technically honest — but still the WRONG DAY on a body field, which is the
+      whole complaint. Same function, same mint path, so in scope. It now renders
+      store-local date+time carrying its zone ("2026-08-15 21:06:00 PDT"),
+      keeping the label that made it defensible without lying about the day.
+
+
+      NO SECOND MECHANISM WAS INVENTED (Gary's constraint). The zone comes from
+      the app's settled Store.timezone convention and its EXISTING helper —
+      localDateStr in lib/reports.ts, the same primitive checklists, forecasting,
+      labor and reports already trust. The resolver, primaryStoreTimeZone in
+      lib/hr.ts, is deliberately a SIBLING of primaryStoreName rather than a
+      second sort: that function sorts INTERNALLY because its value is frozen
+      into a legal record and one caller forgetting the orderBy would make a
+      signed document depend on row order. The identical argument holds for the
+      zone, which decides a DATE on the same document, so it gets the identical
+      internal sort. The two must always pick the same assignment.
+
+
+      IT RETURNS NULL FOR CORPORATE STAFF rather than a constant — the one place
+      the siblings legitimately diverge. "Corporate" is a true, printable answer
+      to "where do they work"; there is no equivalent for a zone, so null hands
+      the question up to the org column instead of burying a fallback where
+      callers cannot see it.
+
+
+      SCHEMA — ONE ADDITIVE COLUMN. Organization.timezone String
+      @default("America/Los_Angeles"), migration
+      20260816180000_organization_timezone. SAME DEFAULT AS Store.timezone
+      DELIBERATELY: the two are read in one chain, so a different default here
+      would make the fallback silently CHANGE the answer rather than preserve it.
+      Follows hrDateStampFormat's precedent on that model.
+
+
+      MOST-COMMON-STORE-ZONE WAS REJECTED BY GARY as the no-schema alternative,
+      and the reason belongs on the row: it changes what day an ALREADY-SIGNED
+      signature displays as soon as a store is added in another zone. An explicit
+      column cannot drift under a record that is supposed to be frozen.
+
+
+      RESOLUTION CHAIN, WITH NO BARE-UTC ARM ANYWHERE: signer's primary store ->
+      Organization.timezone -> the default Store.timezone already carries.
+
+
+      THE CERTIFICATE IS UNTOUCHED, per Gary's item 3. `utc()` (hr-signed-pdf.ts
+      :66) and every caller of it — the page-1 banner :381, the signature
+      validation line :474, "SIGNED AT (UTC)" :570, the capture rows :628, and
+      every certificate field — stay exactly as they are. CONFIRMED BY READING
+      THE WHOLE MINT PATH RATHER THAN ASSUMING: formatDateStamp's dateOnly branch
+      was the ONLY unlabelled date rendering in the file; all 15 others go
+      through utc() and carry the label.
+
+
+      VERIFIED AGAINST THE SHIPPED RESOLVER AND PRIMITIVES: Nevada and New Mexico
+      stores both read 2026-08-15 with correct distinct clock times (21:06 PDT /
+      22:06 MDT) — the multi-tenant case, which is the one a single org zone
+      would have broken; a multi-store member with UNSORTED assignments picks the
+      primary; corporate falls to the org column, not UTC; DST handled both ways
+      (PDT/MDT in August, PST/MST in January); output is ASCII-safe for pdf-lib's
+      WinAnsi fonts. Dev (br-broad-wave-a6vpjdw0/neondb): migration applied, 1
+      HrSignedRecord, 0 in the affected window, 0 wrongly stamped.
+
+
+      STILL OWED ON STAGING: mint a fresh PDF after 5 PM Pacific (when UTC has
+      rolled over) and read the body Date: line against the certificate's SIGNED
+      AT; confirm a corporate member resolves through the org column; confirm
+      HrSignedRecord and HrDocumentAcknowledgment counts unchanged. AND THE COUNT
+      OF WHAT CANNOT BE FIXED — how many already-minted records carry a wrong
+      stamp. Dev answers 0; staging holds Gdogg and needs the Neon console. The
+      query is in the session report and runs safely BEFORE the migration
+      deploys, since it uses the literal default rather than the new column.
+
+
+      NOTHING ALREADY MINTED WAS TOUCHED, and nothing here can touch it: this row
+      changes only what FUTURE mints stamp. Signed records are frozen.
+
+  - id: DEBT-71
+    status: planned
+    title: "Name-mismatch banner fires on correct initials — compares Initial checkpoints to fullName"
+    notes: >
+      FILED 2026-08-16 BY GARY'S INSTRUCTION, observed by him on staging during
+      the HR-11k Phase A follow-ups. NOT FIXED — explicitly out of scope for that
+      session ("Real defect, pre-existing, needs its own row. Do not fix here"),
+      and untouched by it.
+
+
+      THE DEFECT AS OBSERVED. The name-mismatch banner fires on the value "GT".
+      It compares Initial-type checkpoints against the staff member's `fullName`,
+      so a correctly-executed INITIAL — which is by definition not the full name —
+      trips a warning that says the signer typed the wrong name. The certificate
+      confirms name-as-executed matches exactly, so the artifact is right and the
+      banner is wrong.
+
+
+      WHY IT MATTERS MORE THAN IT LOOKS. The banner is a fraud/identity signal.
+      One that fires on the correct value trains every reader to dismiss it, and
+      the whole worth of the check is that it is rare. A warning nobody believes
+      is worse than no warning, because it still costs a look.
+
+
+      PRE-EXISTING, NOT R2. R2 changed nothing on this path; it was visible in
+      the same pass only because that pass was looking at a signed record.
+
+
+      WHAT TO CHECK FIRST, not ruled: whether the comparison should be
+      checkpoint-KIND aware (Initial checkpoints compared against derived
+      initials, Signature checkpoints against fullName), and what "derived
+      initials" means for names the app has not seen — middle names, particles,
+      single-word legal names, non-Latin scripts. That last question is the
+      reason this is its own row rather than a one-line fix: the naive
+      first-letters rule is wrong for a large minority of real names, and a
+      banner that fires on THOSE is the same defect with a worse blast radius.
+
+  - id: DEBT-72
+    status: planned
+    title: "PLACEHOLDER — the promotion procedure never reads the roadmap, so a roadmap gate cannot stop a promotion"
+    notes: >
+      PLACEHOLDER ROW, FILED 2026-08-16. THE REMEDY IS DELIBERATELY NOT DRAFTED
+      HERE. Gary reserved the WORKFLOW.md promotion gate as his own ruling, to be
+      written and ratified in his own words — "a recommendation is not a ruling
+      until I have written and ratified it" (session prompt
+      docs/prompts/BUG-7_CLOSURE_AND_DEPLOY_LOG_RECONCILIATION.md § 3). This row
+      exists so the finding is not lost while it waits, and it holds the problem
+      statement ONLY. DO NOT ADD A PROPOSED MECHANISM TO IT.
+      THE FINDING, which is the whole content of this row. 00881dc (BUG-7's
+      guarded upsert) reached production while its own ROADMAP row read
+      `in_progress` and carried "NOT YET VERIFIED ON STAGING", and while the same
+      file recorded an explicit ordering gate — verify BUG-6 on staging -> verify
+      BUG-7 on staging -> register the Square subscriptions. BUG-6 was verified.
+      BUG-7 was not. The subscriptions were registered about two hours later
+      anyway. One missing step in a three-step chain, and NOTHING FAILED: no
+      check was bypassed, no warning was dismissed, no rule was overruled.
+      Promotion is `git merge staging` plus a push, and neither command has ever
+      read docs/ROADMAP.yaml. A gate written in a file nothing in the procedure
+      opens is a note, not a gate.
+      SCOPE, so this does not grow into a general CI proposal: this row is about
+      the ROADMAP-to-PROMOTION seam specifically. The adjacent failure — five
+      promotions that skipped WORKFLOW.md §2 entirely and so left no DEPLOY_LOG
+      entry and no merge commit — is DEBT-38's second recurrence and stays there.
+      Same shape, different document, and they may well share one remedy; that is
+      for the ruling to decide, not for this row to assume.
+      COST OF DOING NOTHING: LATENT (trigger: the next promotion carrying a row
+      whose own status or ordering gate says it is not ready — which is every
+      promotion, since staging is currently 42 commits ahead of production and
+      carries rows in every state). NOT LIVE: the one time this fired, the code
+      that shipped early turned out to be correct and is now verified in
+      production. That is luck, and the row exists because the next one may not
+      be.
+      CROSS-REFS: BUG-7 (the row that shipped past its own gate, now verified),
+      DEBT-38 (the DEPLOY_LOG half of the same seam), docs/DECISIONS.md
+      2026-08-16 (the mechanism entry this row is the backlog counterpart of).
+
+  - id: DEBT-73
+    status: planned
+    title: "The minted PDF's page-1 banner reads UTC on the same page as a Date: stamp that now reads store-local"
+    notes: >
+      FILED 2026-08-16 BY GARY'S INSTRUCTION, during the DEBT-70a/70b staging
+      verification. AWAITING A RULING. DELIBERATELY NOT CHANGED — Gary's
+      instruction was to file it, and the whole question is whether it should
+      move at all.
+
+
+      WHAT IT IS. The page-1 banner on a minted signed PDF —
+      "Completed by ... on 2026-08-17 02:05:01 UTC" (hr-signed-pdf.ts:381, one
+      of the utc() callers) — is a BODY ELEMENT A PERSON READS, rendered in UTC
+      and labelled as such. Observed on Tommy Thomas's v7 of "Test - Handbook
+      Regression", branch br-square-feather-a63z92vz / neondb, org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa.
+
+
+      WHY IT IS A QUESTION RATHER THAN A DEFECT. It is consistent with the
+      certificate and it carries its zone label, so it is arguably correct on
+      both of the tests DEBT-70a applied. It was also explicitly left alone by
+      that row, on Gary's item 3 — "THE CERTIFICATE IS UNTOUCHED" — and that
+      decision was made by reading the whole mint path, not by missing this
+      line.
+
+
+      WHY IT IS WORTH A ROW ANYWAY. It now sits ON THE SAME PAGE as the Date:
+      stamp that DEBT-70a moved to store-local. So page 1 of a signed handbook
+      can show 2026-08-16 on the signature line and 2026-08-17 in the banner
+      above it, both correct under their own rules, both unexplained to the
+      person holding the document. The tension is not that either value is
+      wrong; it is that one page now answers "when was this signed" twice, in
+      two zones, for a reader with no reason to expect that.
+
+
+      THE RULING NEEDED, and it is genuinely open in both directions: whether
+      the EVIDENCE/FIELD line DEBT-70a drew — certificate is evidence and stays
+      UTC, body fields name the signer's day — puts this banner on the body side
+      because it is on page 1 in prose, or on the evidence side because it is a
+      completion attestation. The same argument decides it either way; nobody
+      has picked which side the banner is on.
+
+
+      COST OF DOING NOTHING: LATENT (trigger: anyone reading a minted PDF whose
+      completion instant falls after 5 PM Pacific, when the two dates diverge —
+      the same window DEBT-70a was verified in). No record is wrong and nothing
+      is miscounted. NOTE THE ASYMMETRY THAT ARGUES FOR DECIDING SOONER RATHER
+      THAN LATER: a minted PDF is never regenerated, so every document produced
+      while this sits open keeps whatever the banner says permanently. That is
+      the same argument that made DEBT-70a jump ahead of DEBT-70's 22 screens,
+      and it applies here at lower severity — the value is labelled, so a reader
+      can at least tell which zone they are in.
+
+
+      CROSS-REFS: DEBT-70a (moved the Date: stamp; left this deliberately),
+      DEBT-70b (the 22 server displays), DEBT-70 (the open client half).
 
   - id: DEBT-1
     status: verified
@@ -11183,6 +13808,72 @@ debt:
     commits: ["7d984be"]
     title: "CLOSED — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
     notes: >
+      SECOND GENUINE RECURRENCE, 2026-08-16 — FIVE CONSECUTIVE UNLOGGED
+      FAST-FORWARD PROMOTIONS. Prepended per preserve-and-mark; nothing below is
+      edited. Session:
+      docs/prompts/BUG-7_CLOSURE_AND_DEPLOY_LOG_RECONCILIATION.md + Addendum A.
+      The five retroactive docs/DEPLOY_LOG.md entries were written in that
+      session; this row records the mechanism.
+      THE FIVE, from `git reflog show main --date=iso`, given as the instant MAIN
+      MOVED (Pacific) with the tip commit's own authored time beside it, because
+      the difference between those two columns is this row's own finding:
+        882d6c3  main moved 2026-08-11 10:24:36 PT  ·  tip authored 09:26:53 PT
+        ec42265  main moved 2026-08-11 16:27:24 PT  ·  tip authored 16:11:02 PT
+        b853787  main moved 2026-08-12 12:33:26 PT  ·  tip authored 11:58:03 PT
+        ce036f9  main moved 2026-08-12 21:50:11 PT  ·  tip authored 21:01:07 PT
+        06dc830  main moved 2026-08-14 08:05:16 PT  ·  tip authored 2026-08-13
+                                                       21:20:08 PT
+      main@{0} through main@{4} are all "merge staging: Fast-forward"; the last
+      real merge is f318d2e at main@{5}. Forty-three commits reached production
+      across the five, in ranges 11 + 2 + 13 + 7 + 10.
+      THE MECHANISM IS END-OF-WORK-BLOCK PUSHING, NOT A LOGGING LAPSE, and
+      filing it as a logging lapse would put the remedy in the wrong place. Four
+      of the five promotions moved main within an hour of their own last commit —
+      finish the block, promote, stop. That is a working RHYTHM, and a rhythm
+      does not get fixed by resolving to remember something. A fast-forward
+      leaves no merge commit, so nothing in the flow ever pauses to prompt an
+      entry: there is no artifact, on the platform or in git, between "push" and
+      "the next session".
+      FOUR-PLUS-ONE, NOT FIVE — AND THE CORRECTION MATTERS MORE THAN THE FACT.
+      The fifth promotion is the exception to the rhythm: 06dc830 was authored
+      2026-08-13 21:20:08 PT and sat overnight, reaching main 2026-08-14
+      08:05:16 PT, about 10 h 45 m later. The session prompt that commissioned
+      this entry asserted all five were end-of-block and dated the fifth "Aug 13
+      evening". IT HAD READ A COMMIT TIME AS A PROMOTION TIME. That is the
+      CLAUDE.md § Database Evidence timestamp trap in a form that section does
+      not name — not UTC-versus-local this time, but authored-versus-applied,
+      two Pacific timestamps that are both real, both correctly transcribed, and
+      ten hours apart. It produced a tidier story than the truth (five identical
+      end-of-block pushes) and nothing about it looked wrong. Caught by running
+      `git reflog show main --date=iso` rather than inferring promotion times
+      from `git log`. THE REFLOG IS THE AUTHORITY ON WHEN MAIN MOVED; a commit
+      time is the authority on nothing but itself.
+      FIVE CONSECUTIVE VIOLATIONS OF THE --no-ff RULE THIS ROW ITSELF ADDED IN
+      7d984be, and therefore five production states with no one-line rollback.
+      Each of the five DEPLOY_LOG entries written this session has to carry
+      "FAST-FORWARD, not a merge — `git revert -m 1` does not apply" over a
+      hand-assembled reverse-order revert list of 11, 2, 13, 7 and 10 commits —
+      which is precisely the artefact this row's LATENT cost line below predicted
+      ("exactly what you do not want to be assembling under pressure"), now
+      produced five times.
+      THE ROW STAYS `shipped`, AND THE REASON IS THE FINDING. 7d984be is in
+      production and WORKFLOW.md §2 still says `git merge staging --no-ff
+      --no-edit` with the DEPLOY_LOG add+commit inside the command block. The
+      mechanism is present, correct, and was not defeated — IT WAS NOT RUN. A
+      fast-forward is only possible if `--no-ff` was not passed, so these five
+      promotions did not go through §2 at all. Reopening this row would imply the
+      remedy is wrong; it is not. What is missing is a step that makes the
+      promotion procedure READ the document, which is the same shape as the
+      failure recorded in docs/DECISIONS.md 2026-08-16 and is filed as DEBT-72
+      rather than absorbed here — one contained change per row.
+      NOT A THIRD OCCURRENCE OF DEBT-23'S REASONING, which stays withdrawn and
+      stays false. As with the first recurrence below, this was established from
+      the reflog, independently, and the DEPLOY_LOG heading order was read with
+      `grep -n "^## "` rather than with `tail` — the file is
+      reverse-chronological and its newest heading is a STAGING entry newer than
+      all five of these promotions, which is exactly the trap that produced
+      DEBT-23 and would have put five Aug-11-to-14 entries above an Aug-15 one.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207" — AND ITS FIRST
       EXERCISE FOUND A GAP IN ITSELF, NOW FIXED. The same promotion that
       carried this fix was the first run under it, and it worked: "fad9207" is

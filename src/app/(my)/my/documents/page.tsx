@@ -1,9 +1,11 @@
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
+import { displayTimeZone } from "@/lib/hr"
 import { BookOpen, CheckCircle2, ChevronRight, FileText, ShieldCheck } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
+import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
 import { Badge } from "@/components/ui/badge"
 import { MyShell } from "../my-shell"
 import { MyDenied } from "../denied"
@@ -14,10 +16,14 @@ import { requiredDocumentRows, type MyDocumentRow } from "./data"
 // acknowledgment flow, completed ones show status. No signed-PDF download
 // exists here (rule 5) — a manager provides a copy on request.
 
+// R1 (Gary, 2026-08-15): only a signed record earns the green Signed badge.
+// `recordMissing` is tested BEFORE the switch, because the state it names has a
+// status of "in-progress" and must not be rendered as an ordinary N/M progress
+// count — this signer has nothing left to do and cannot fix it themselves.
 function statusBadge(row: MyDocumentRow) {
+  if (row.recordMissing) return <Badge variant="warning">{HR_RECORD_MISSING_SIGNER_COPY}</Badge>
   switch (row.status) {
     case "signed":
-    case "pending-record":
       return <Badge variant="success">Signed</Badge>
     case "needs-current":
       return <Badge variant="warning">New version to sign</Badge>
@@ -32,6 +38,9 @@ export default async function MyDocumentsPage() {
   const self = await getActiveStaffSelf()
   if (!self.ok) return <MyDenied reason={self.reason} />
   const { staffMember, org } = self
+  // DEBT-70b: the day THIS person lived — their primary store's zone, else
+  // the org's. Resolved once per render through the one shared chain.
+  const zone = displayTimeZone(staffMember, org)
 
   const [rows, signedRecords, referenceDocs, sharedDocs] = await Promise.all([
     requiredDocumentRows(staffMember),
@@ -72,8 +81,13 @@ export default async function MyDocumentsPage() {
     }),
   ])
 
-  const pending = rows.filter((r) => r.status !== "signed" && r.status !== "pending-record")
-  const done = rows.filter((r) => r.status === "signed" || r.status === "pending-record")
+  // R1: ONE PREDICATE DECIDES BOTH BUCKETS, and it is the record. The old pair
+  // tested two statuses each and drifted the moment "pending-record" was added
+  // to both sides — which is how a document with no signature reached Completed
+  // AND cleared the TO SIGN list, so the signer was told they were finished and
+  // would never be prompted again.
+  const pending = rows.filter((r) => r.status !== "signed")
+  const done = rows.filter((r) => r.status === "signed")
 
   return (
     <MyShell showInstagram={!!org.instagramEnabled && !!org.instagramAccessToken}>
@@ -122,10 +136,47 @@ export default async function MyDocumentsPage() {
                 <FileText className="h-5 w-5 shrink-0 text-[var(--color-muted-foreground)]" />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-[var(--color-foreground)] truncate">{row.title}</p>
+                  {/* ── R2: ONE STATEMENT, BOTH FACTS, ONE LINK ───────────────
+                      Ruled 2026-08-15; collapsed 2026-08-16. The notice shipped
+                      as a SECOND paragraph beneath this one, so an R2 row said
+                      "Signed v5" twice in stacked lines — the notice was added
+                      alongside the existing copy instead of replacing it.
+
+                      signedVersionNumber, NOT currentVersionNumber: this was
+                      hardcoded to the current version, harmless while only a
+                      current-version record could reach this section and a lie
+                      the moment R2 lets a v5 signer land here.
+
+                      THE LINK IS THE AUDIENCE-AWARE DOWNLOAD ROUTE, exactly as
+                      the Library below uses it, and that is the whole point of
+                      the choice. The only per-document route in this portal is
+                      /my/documents/[documentId], which IS the ceremony: it
+                      renders SigningClient and computes hasSignedRecord against
+                      the CURRENT version — which a signer in this state does not
+                      have — so that link would open a signing ceremony for the
+                      exact person the ruling says must never be prompted. The
+                      defect R2 exists to remove, reintroduced by the notice
+                      announcing it. No button, no badge change, no ceremony. */}
                   <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                    Signed v{row.currentVersionNumber}
-                    {row.completedAt && ` · ${format(new Date(row.completedAt), "MMM d, yyyy")}`} — need a
-                    copy? Ask your manager.
+                    Signed v{row.signedVersionNumber ?? row.currentVersionNumber}
+                    {row.completedAt && ` · ${formatInstant(row.completedAt, zone, "medium")}`}
+                    {row.signedOnEarlierVersion ? (
+                      <>
+                        {" "}
+                        — an updated version is available to read.{" "}
+                        <a
+                          href={`/api/hr/documents/${row.documentId}/download`}
+                          target="_blank"
+                          rel="noopener"
+                          className="font-medium text-[var(--color-primary)] underline"
+                        >
+                          View v{row.currentVersionNumber}
+                        </a>{" "}
+                        · Need a copy? Ask your manager.
+                      </>
+                    ) : (
+                      <> — need a copy? Ask your manager.</>
+                    )}
                   </p>
                 </div>
                 {statusBadge(row)}
@@ -153,7 +204,7 @@ export default async function MyDocumentsPage() {
                     {r.version.hrDocument.title}
                   </p>
                   <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                    Version {r.version.versionNumber} · signed {format(r.completedAt, "MMM d, yyyy · h:mm a")}
+                    Version {r.version.versionNumber} · signed {formatInstant(r.completedAt, zone, "mediumDot")}
                   </p>
                 </div>
                 <span className="text-xs font-medium text-[var(--color-primary)] shrink-0">View</span>
@@ -183,7 +234,7 @@ export default async function MyDocumentsPage() {
                   <p className="font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
                   <p className="text-xs text-[var(--color-muted-foreground)]">
                     {doc.category ? `${doc.category} · ` : ""}
-                    {format(new Date(doc.createdAt), "MMM d, yyyy")}
+                    {formatInstant(doc.createdAt, zone, "medium")}
                   </p>
                 </div>
               </a>

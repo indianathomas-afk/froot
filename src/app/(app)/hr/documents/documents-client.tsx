@@ -37,6 +37,7 @@ import {
   HR_KIND_LABELS,
   hrAudienceChipStyle,
   hrAudienceLabel,
+  hrScanMessage,
   type HrDocumentCategory,
   type HrDocumentKind,
 } from "@/lib/hr-documents"
@@ -332,6 +333,10 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
   const [title, setTitle] = useState("")
   const [category, setCategory] = useState<HrDocumentCategory>("Handbook")
   const [kind, setKind] = useState<HrDocumentKind>("Reference")
+  // HR-11d 2a: the scan result, and the document it belongs to, held so the
+  // dialog can end on the operator's to-do instead of on a redirect.
+  const [scanNotice, setScanNotice] = useState("")
+  const [createdId, setCreatedId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
@@ -368,16 +373,23 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
         setError(data.error ?? "Failed to save the document")
         return
       }
-      setOpen(false)
       setTitle("")
       setCategory("Handbook")
       setKind("Reference")
       if (fileRef.current) fileRef.current.value = ""
       // A new signature document lands on its checkpoint editor so the admin
       // can review the auto-generated defaults right away.
-      if (data.kind === "Acknowledgment") {
-        router.push(`/hr/documents/${data.id}`)
+      //
+      // HR-11d 2a: BUT NOT BEFORE IT SAYS WHAT THE SCAN DID. Landing straight
+      // on the editor shows the detected-fields list, which cannot distinguish
+      // "no fields in this document" from "the scan threw" — the exact collapse
+      // R2 forbids. The sentence goes to the operator first; the button behind
+      // it still takes them to the screen that clears the to-do.
+      if (data.kind === "Acknowledgment" && data.scan) {
+        setCreatedId(data.id)
+        setScanNotice(hrScanMessage(data.scan))
       } else {
+        setOpen(false)
         router.refresh()
       }
     } finally {
@@ -391,11 +403,38 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
         <Plus className="h-4 w-4" />
         {label}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v)
+          if (!v) {
+            setScanNotice("")
+            setCreatedId(null)
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Document</DialogTitle>
+            <DialogTitle>{scanNotice ? "Document added" : "Add Document"}</DialogTitle>
           </DialogHeader>
+          {scanNotice ? (
+            <div className="space-y-4">
+              <p className="text-sm text-[var(--color-foreground)]">{scanNotice}</p>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    setScanNotice("")
+                    if (createdId) router.push(`/hr/documents/${createdId}`)
+                    setCreatedId(null)
+                  }}
+                >
+                  Review fields
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label>Title *</Label>
@@ -455,6 +494,7 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
               <Button type="submit" disabled={saving}>{saving ? "Uploading..." : "Upload"}</Button>
             </DialogFooter>
           </form>
+          )}
         </DialogContent>
       </Dialog>
     </>

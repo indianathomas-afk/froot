@@ -11,11 +11,31 @@
  *   - reassembles a label split across text runs ("Employee" + "Name");
  *   - carries page /Rotate and non-zero MediaBox origin through (D2);
  *   - returns [] for an image-only PDF (no text layer) → certificate-only.
+ *
+ * HR-11d adds:
+ *   - the 2d vocabulary (bare "Signature:", "Store Location:",
+ *     "Acceptance (PRINT):", fill-gated "Employee:");
+ *   - the "Manager Signature:" DISCARD — it claims its span so bare
+ *     "Signature:" cannot stamp the employee on the manager's line, and then
+ *     emits nothing at all;
+ *   - the 2b signing guard (R3(i-a)): matched > 0 && confirmed == 0 refuses.
+ *     The guard is a pure function of two counts, so it is asserted here
+ *     rather than in a second, database-backed harness — see the ROADMAP row;
+ *   - the 2f certificate mode line (R3(ii)) — stamped vs certificate-only, the
+ *     field count, and that NEITHER mode reads as a failure.
+ *
  * Nothing is persisted.
  */
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib"
-import { detectAnchors, assembleLines, matchLine, dedupeAnchors, type AnchorCandidate } from "../src/lib/hr-anchors"
-import { computeStampPlacement } from "../src/lib/hr-signed-pdf"
+import {
+  detectAnchors,
+  assembleLines,
+  matchLine,
+  dedupeAnchors,
+  isSigningBlocked,
+  type AnchorCandidate,
+} from "../src/lib/hr-anchors"
+import { computeStampPlacement, certificateModeLine } from "../src/lib/hr-signed-pdf"
 
 let pass = 0
 let fail = 0
@@ -211,6 +231,145 @@ async function main() {
   const none = await detectAnchors(await imageOnlyPdf())
   check("zero anchors → certificate-only fallback", none.anchors.length === 0, `got ${none.anchors.length}`)
   check("image-only: textItemCount == 0 (no text layer)", none.textItemCount === 0, `items=${none.textItemCount}`)
+
+  // ── HR-11d 2d: the 2023 Keva handbook vocabulary ─────────────────────────────
+  console.log("\nHR-11d 2d — new vocabulary tokens:")
+  {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const p = doc.addPage([612, 792])
+    p.drawText("Signature: ____________________", { x: 72, y: 700, size: 12, font }) // bare, pp. 9/19
+    p.drawText("Store Location: _______________", { x: 72, y: 660, size: 12, font })
+    p.drawText("Acceptance (PRINT): ___________", { x: 72, y: 620, size: 12, font })
+    p.drawText("Employee: _____________________", { x: 72, y: 580, size: 12, font }) // p.13 signature line
+    const res = await detectAnchors(await doc.save())
+    const byText = (t: string) => res.anchors.find((a) => a.anchorText.toLowerCase().startsWith(t))
+
+    check("bare 'Signature:' → SignatureStamp", byText("signature:")?.markType === "SignatureStamp", byText("signature:")?.markType)
+    check("'Store Location:' → Store", byText("store location:")?.markType === "Store", byText("store location:")?.markType)
+    check(
+      "'Store Location:' is ONE anchor, not also a 'Store:' hit",
+      res.anchors.filter((a) => a.markType === "Store").length === 1,
+      `${res.anchors.filter((a) => a.markType === "Store").length}`
+    )
+    check("'Acceptance (PRINT):' → PrintedName", byText("acceptance (print):")?.markType === "PrintedName", byText("acceptance (print):")?.markType)
+    check("'Employee:' → SignatureStamp (fill-gated, ruled default)", byText("employee:")?.markType === "SignatureStamp", byText("employee:")?.markType)
+    check("four labels → four anchors, no strays", res.anchors.length === 4, `got ${res.anchors.length}: ${res.anchors.map((a) => a.anchorText).join(" | ")}`)
+  }
+
+  console.log("\nHR-11d 2d — 'Employee:' is fill-gated:")
+  {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const p = doc.addPage([612, 792])
+    // Prose, no fill line anywhere near it.
+    p.drawText("The Employee: as used in this policy means any team member.", { x: 72, y: 400, size: 10, font })
+    const res = await detectAnchors(await doc.save())
+    check("prose 'Employee:' with no fill line is NOT matched", res.anchors.length === 0, `got ${res.anchors.map((a) => a.anchorText).join(" | ")}`)
+  }
+
+  // ── HR-11d 2d: the discard flag ──────────────────────────────────────────────
+  // The whole point: "Manager Signature:" must CLAIM ITS SPAN so bare
+  // "Signature:" cannot reach the substring and stamp the EMPLOYEE's signature
+  // on the MANAGER's line — and must then produce nothing at all.
+  console.log("\nHR-11d 2d — 'Manager Signature:' claims its span and emits nothing:")
+  {
+    const line = assembleLines([{ str: "Manager Signature: ____________", x: 72, y: 300, width: 220 }])[0]
+    const m = matchLine(line)
+    check("exactly one match on the manager line", m.length === 1, `got ${m.length}: ${m.map((x) => x.anchorText).join(" | ")}`)
+    check("that match is the discard token", m[0]?.discard === true && m[0]?.anchorText.toLowerCase() === "manager signature:", m[0]?.anchorText)
+    check(
+      "bare 'Signature:' did NOT also match inside it",
+      m.filter((x) => x.anchorText.toLowerCase() === "signature:").length === 0
+    )
+
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const p = doc.addPage([612, 792])
+    p.drawText("Employee Signature: ___________", { x: 72, y: 200, size: 12, font })
+    p.drawText("Manager Signature: ____________", { x: 72, y: 160, size: 12, font })
+    const res = await detectAnchors(await doc.save())
+    check("manager line writes NO candidate", res.anchors.length === 1, `got ${res.anchors.length}: ${res.anchors.map((a) => a.anchorText).join(" | ")}`)
+    check("the surviving anchor is the EMPLOYEE signature", res.anchors[0]?.anchorText.toLowerCase().startsWith("employee signature:"), res.anchors[0]?.anchorText)
+  }
+
+  // A document whose ONLY signature line is the manager's: the discard means it
+  // reports matched == 0, so the 2b guard needs no carve-out for it — it is
+  // certificate-only by design and stays signable.
+  console.log("\nHR-11d 2d — manager-only document reports matched == 0:")
+  {
+    const doc = await PDFDocument.create()
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    doc.addPage([612, 792]).drawText("Manager Signature: ____________", { x: 72, y: 160, size: 12, font })
+    const res = await detectAnchors(await doc.save())
+    check("no anchors at all", res.anchors.length === 0, `got ${res.anchors.length}`)
+    check("text layer WAS present (not confused with image-only)", res.textItemCount > 0)
+  }
+
+  // ── HR-11d 2b: THE REGRESSION ASSERTION ──────────────────────────────────────
+  // "A version with matched-but-unconfirmed anchors must not mint a signed
+  // record." The trip-wire is a pure function of two counts, so the assertion
+  // lands in THIS harness against the synthetic PDFs already here — no second
+  // harness, no real-PDF fixture. detectAnchors gives the real `matched` a fresh
+  // upload produces; `confirmed` is 0 by construction, because
+  // detectAndStoreVersionAnchors writes every proposal unconfirmed.
+  console.log("\nHR-11d 2b — signing guard (R3(i-a)):")
+  {
+    const matched = detected.anchors.length
+    check("the text PDF really does match fields", matched > 0, `matched=${matched}`)
+    check(
+      "freshly uploaded, nothing confirmed → BLOCKED (this is the defect)",
+      isSigningBlocked(matched, 0) === true
+    )
+    check("one anchor confirmed → not blocked", isSigningBlocked(matched, 1) === false)
+    check("all confirmed → not blocked", isSigningBlocked(matched, matched) === false)
+    check(
+      "image-only PDF (matched 0) stays signable, certificate-only",
+      isSigningBlocked(none.anchors.length, 0) === false
+    )
+    check(
+      "admin discarded every proposal (0 rows, 0 confirmed) stays signable",
+      isSigningBlocked(0, 0) === false
+    )
+  }
+
+  // ── HR-11d 2f: the certificate states which mode produced it ─────────────────
+  // The addendum puts these assertions with the §5 fixtures rather than in a
+  // second harness. Generating a real certificate needs a database, a blob
+  // store, a StaffMember and acknowledgment rows — so the COPY is exported pure
+  // and asserted here against the shipped strings, and the end-to-end
+  // "certificate for a confirmed version says stamped" is the Phase 2 walk.
+  console.log("\nHR-11d 2f — certificate mode line (R3(ii)):")
+  {
+    const stamped = certificateModeLine(41)
+    const one = certificateModeLine(1)
+    const certOnly = certificateModeLine(0)
+
+    check("marks drawn → stamped mode named first", stamped.startsWith("Stamped"), stamped)
+    check("stamped line carries the field count", stamped.includes("41 field marks"), stamped)
+    check("count of 1 is singular", one.includes("1 field mark applied"), one)
+    check("no page count in the stamped line (ruled)", !/page/i.test(stamped), stamped)
+
+    check("zero marks → certificate-only mode named first", certOnly.startsWith("Certificate-only"), certOnly)
+    check(
+      "certificate-only closes rather than trailing off",
+      certOnly.includes("complete record of acknowledgment"),
+      certOnly
+    )
+    // Both modes are legitimate once 2b ships, so neither line may read as a
+    // defect notice. This is the assertion that keeps a future edit honest.
+    for (const [name, line] of [["stamped", stamped], ["certificate-only", certOnly]] as const) {
+      check(
+        `${name} line uses no failure language`,
+        !/\b(fail(ed|ure)?|error|missing|unable|skipped|could not|problem|invalid)\b/i.test(line),
+        line
+      )
+    }
+    check(
+      "the two modes are distinguishable at a glance",
+      stamped.split(" ")[0] !== certOnly.split(" ")[0]
+    )
+  }
 
   console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass} passed, ${fail} failed`)
   process.exit(fail === 0 ? 0 : 1)

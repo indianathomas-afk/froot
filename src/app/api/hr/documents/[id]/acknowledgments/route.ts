@@ -8,7 +8,7 @@ import {
   HR_ESIGN_CONSENT_TEXT,
   HR_ESIGN_CONSENT_VERSION,
 } from "@/lib/hr-documents"
-import { ensureSignedRecord } from "@/lib/hr-signed-pdf"
+import { ensureSignedRecord, UnconfirmedAnchorsError } from "@/lib/hr-signed-pdf"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
@@ -152,9 +152,35 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  // ── Validate entries against the document's checkpoints ──────────────────
-  const checkpointById = new Map(doc.checkpoints.map((c) => [c.id, c]))
-  for (const entry of entries) {
+  // ── HR-11n: DROP entries for checkpoints retired since the page loaded ────
+  // A signer who opened the ceremony before an admin retired a step submits
+  // entries for it. Those entries are DROPPED and the submission proceeds; a
+  // signer mid-signature must be able to finish, so this is never a 400.
+  //
+  // THE RISK HERE IS THE OPPOSITE OF THE ONE IT LOOKS LIKE. The "Unknown
+  // checkpoint" 400 below could never have fired for a retired checkpoint —
+  // `checkpoints: true` above is unfiltered, so the row is present in the map
+  // and the entry would have sailed through validation and been INSERTED as an
+  // acknowledgment against a retired step. The drop has to be written; it does
+  // not fall out of any filter applied to the completion gate.
+  //
+  // The load stays UNFILTERED on purpose: retired and unknown are different
+  // answers (drop vs 400) and a filtered load would collapse them into one.
+  const liveCheckpoints = doc.checkpoints.filter((c) => c.retiredAt == null)
+  const retiredCheckpointIds = new Set(
+    doc.checkpoints.filter((c) => c.retiredAt != null).map((c) => c.id)
+  )
+  const liveEntries = entries.filter((e) => !retiredCheckpointIds.has(e.checkpointId))
+  if (liveEntries.length < entries.length) {
+    console.info(
+      `[hr-11n] dropped ${entries.length - liveEntries.length} entr(ies) for retired checkpoints ` +
+        `on document ${doc.id} (staff ${staffMemberId}) — retired mid-ceremony`
+    )
+  }
+
+  // ── Validate entries against the document's LIVE checkpoints ─────────────
+  const checkpointById = new Map(liveCheckpoints.map((c) => [c.id, c]))
+  for (const entry of liveEntries) {
     const checkpoint = checkpointById.get(entry.checkpointId)
     if (!checkpoint) {
       return NextResponse.json({ error: "Unknown checkpoint" }, { status: 400 })
@@ -239,7 +265,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const userAgent = req.headers.get("user-agent")
   const signedAt = new Date()
 
-  const rows = entries.map((entry) => {
+  const rows = liveEntries.map((entry) => {
     const checkpoint = checkpointById.get(entry.checkpointId)!
     return {
       checkpointId: checkpoint.id,
@@ -275,10 +301,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // staffMemberId, signingCycle]) constraint — a re-submitted checkpoint is
   // silently skipped within a cycle, so the original record (and its
   // evidence) is never replaced; a rehire's new cycle inserts cleanly.
-  await prisma.hrDocumentAcknowledgment.createMany({
-    data: rows,
-    skipDuplicates: true,
-  })
+  // HR-11n: `rows` is empty when EVERY submitted entry was for a checkpoint
+  // retired mid-ceremony. That is not an error — the signer has nothing left to
+  // do — so completion is computed against the live set below and returned
+  // normally. createMany([]) is a no-op, but the guard says why rather than
+  // relying on the reader knowing that.
+  if (rows.length > 0) {
+    // skipDuplicates rides the @@unique([checkpointId, hrDocumentVersionId,
+    // staffMemberId, signingCycle]) constraint — a re-submitted checkpoint is
+    // silently skipped within a cycle, so the original record (and its
+    // evidence) is never replaced; a rehire's new cycle inserts cleanly.
+    await prisma.hrDocumentAcknowledgment.createMany({
+      data: rows,
+      skipDuplicates: true,
+    })
+  }
 
   // ── Completion check for the CURRENT version, current cycle ───────────────
   const acked = await prisma.hrDocumentAcknowledgment.findMany({
@@ -286,23 +323,79 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     select: { checkpointId: true },
   })
   const ackedIds = new Set(acked.map((a) => a.checkpointId))
-  const complete = doc.checkpoints.filter((c) => c.required).every((c) => ackedIds.has(c.id))
+  // R1 (Gary, 2026-08-15): this is CHECKPOINTS COMPLETE — the ceremony's own
+  // progress, and nothing more. It used to be called `complete` and be returned
+  // under that name, which made this line THE ORIGIN OF THE FALSE STATE: the six
+  // display surfaces were faithfully reporting what this route told them.
+  // `complete` is now derived from the mint below and means one thing only —
+  // a record exists.
+  // HR-11n: computed against the LIVE set. A retired step is no longer required
+  // of anyone, so it cannot hold a signer short of completion — which is the
+  // whole point of the mid-ceremony drop above: entries went away, and the steps
+  // they belonged to went away with them.
+  const checkpointsComplete = liveCheckpoints.filter((c) => c.required).every((c) => ackedIds.has(c.id))
 
   // All required checkpoints in: produce the executed artifact synchronously
   // (handbook-size PDFs finish well within the function timeout). A generator
   // failure must not lose the acknowledgments we just wrote — the download
   // path retries ensureSignedRecord lazily, so report and move on.
   let signedRecordId: string | null = null
-  if (complete) {
+  // HR-11d 2b: set when layer (c) refused — the version has detected fields and
+  // none confirmed. THE CAPTURES ABOVE ARE KEPT: acknowledgments are
+  // append-only, carry their own hrDocumentVersionId, and are what the record
+  // will be built from once an admin confirms the anchors. Reported rather than
+  // swallowed, because the alternative is telling the signer "executed" while
+  // no record exists — the same silence this phase exists to remove.
+  //
+  // NOT A FOURTH GUARD, AND DELIBERATELY NOT A REFUSAL ON THE WRITE. The
+  // ceremony saves progressively (signing-client postEntries), so refusing here
+  // would strand a signer mid-document — the exact failure R3(i) put layer (b)
+  // at the door to avoid. This only changes what the response ADMITS after
+  // layer (c) has already declined to mint.
+  let signingUnavailable = false
+  if (checkpointsComplete) {
     try {
       signedRecordId = (await ensureSignedRecord(version.id, staff.id)).id
     } catch (err) {
-      console.error("HR-4 signed-PDF generation failed", err)
+      if (err instanceof UnconfirmedAnchorsError) {
+        signingUnavailable = true
+        console.error(
+          `HR-11d: layer (b) was bypassed — ${err.message} (version ${version.id}, staff ${staff.id})`
+        )
+      } else {
+        console.error("HR-4 signed-PDF generation failed", err)
+      }
     }
   }
 
+  // ── R1: `complete` IS THE MINT RESULT ────────────────────────────────────────
+  // Ruled by Gary 2026-08-15. The flag no longer reports what the signer did; it
+  // reports whether a record exists. If ensureSignedRecord throws — for ANY
+  // reason — the response says not complete.
+  //
+  // NOTE WHICH FAILURE THIS CLOSES THAT signingUnavailable DID NOT. That flag
+  // narrows exactly one cause, UnconfirmedAnchorsError. Every other generator
+  // failure took the `else` branch above, which logs and continues, and then
+  // returned complete:true with signedRecordId:null — the same lie with a
+  // different cause, and one no client could detect. Deriving from the mint
+  // covers both without either client having to enumerate failure modes.
+  //
+  // signingUnavailable STAYS, and is not now redundant: it distinguishes "no
+  // record, and an admin must confirm anchors" from "no record, retry may
+  // work", which is what picks the refusal screen over the in-progress screen.
+  const complete = signedRecordId !== null
+
   return NextResponse.json(
-    { complete, signedCheckpoints: ackedIds.size, signedRecordId },
+    {
+      complete,
+      // The ceremony still needs its own progress, and this is the honest name
+      // for it. A client showing "4 of 7 initialed" reads this; a client
+      // claiming a signature reads `complete`.
+      checkpointsComplete,
+      signedCheckpoints: ackedIds.size,
+      signedRecordId,
+      signingUnavailable,
+    },
     { status: 201 }
   )
 }

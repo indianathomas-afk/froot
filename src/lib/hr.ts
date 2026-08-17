@@ -101,3 +101,81 @@ export function primaryStoreName(
   )
   return best?.store.name ?? null
 }
+
+// ─── DEBT-70a: the same rule, answering for the ZONE instead of the name ─────
+//
+// Gary, 2026-08-16. An inline `Date:` stamp on a minted PDF must name the day
+// the signer was actually working, and "which day was it" is a question only a
+// timezone can answer. `Store.timezone` is the app's settled answer to that
+// (checklists, forecasting, labor and reports all read it) and this row does not
+// get to invent a second one.
+//
+// DELIBERATELY A SIBLING OF primaryStoreName RATHER THAN A SECOND SORT. The
+// paragraph above that function explains why the ordering lives INSIDE it: the
+// value is frozen into a legal record, and one caller forgetting the `orderBy`
+// would make a signed document depend on row order. Everything in that argument
+// is true of the zone too — it decides a DATE on the same document — so it gets
+// the same internal sort rather than a copy of the rule at the call site. The
+// two functions must always pick the SAME assignment; that is why they are here
+// together, sorted identically, and why neither should be reimplemented inline.
+//
+// NULL FOR CORPORATE, NOT A CONSTANT — and that is the one place the two
+// functions legitimately diverge. primaryStoreName returns CORPORATE_STORE_LABEL
+// because "Corporate" is a true and printable answer to "where do they work".
+// There is no equivalent for a zone: a corporate member is homed at no location
+// (DEBT-9), so there is no store zone to report, and inventing one here would
+// bury the fallback inside a function whose callers cannot see it. Null hands
+// the question up to Organization.timezone, which is exactly where Gary ruled it
+// belongs.
+export function primaryStoreTimeZone(
+  staff: {
+    isCorporate: boolean
+    storeAssignments: { isPrimary: boolean; store: { timezone: string; name: string } }[]
+  }
+): string | null {
+  if (staff.isCorporate) return null
+  const [best] = [...staff.storeAssignments].sort(
+    (a, b) =>
+      Number(b.isPrimary) - Number(a.isPrimary) || a.store.name.localeCompare(b.store.name)
+  )
+  return best?.store.timezone ?? null
+}
+
+/**
+ * The default every zone in this app falls back to. Same literal as
+ * `Store.timezone` and `Organization.timezone` carry in the schema — stated
+ * once here so the three cannot drift apart.
+ */
+export const DEFAULT_TIME_ZONE = "America/Los_Angeles"
+
+// ─── DEBT-70b: the ruled chain, written once ─────────────────────────────────
+//
+// signer's primary store -> Organization.timezone -> the schema default.
+//
+// DEBT-70a (623acb6) established this chain and spelled it out inline at the
+// single mint site. DEBT-70b needs it at twenty-two more, and twenty-two copies
+// of a fallback chain is how the fallback quietly becomes three different
+// chains. So it lives here, beside the resolver it wraps.
+//
+// THERE IS NO BARE-UTC ARM, AND THAT IS THE POINT. UTC is the wrong answer this
+// row exists to remove; if it were reachable as a fallback, every site that
+// failed to load a store would silently reproduce the defect while looking
+// fixed. `org` is therefore required, not optional — a caller that cannot
+// supply one has not loaded enough to render a date, and should say so rather
+// than be handed a plausible wrong answer.
+//
+// `staff` IS optional, because some surfaces legitimately have none: /users
+// lists Clerk identities, not StaffMembers, and there is no store to ask. Those
+// enter the chain at the org step, which is the same chain, not a second one.
+export function displayTimeZone(
+  staff:
+    | {
+        isCorporate: boolean
+        storeAssignments: { isPrimary: boolean; store: { timezone: string; name: string } }[]
+      }
+    | null
+    | undefined,
+  org: { timezone: string }
+): string {
+  return (staff ? primaryStoreTimeZone(staff) : null) ?? org.timezone ?? DEFAULT_TIME_ZONE
+}

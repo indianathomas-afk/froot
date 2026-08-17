@@ -525,6 +525,62 @@ report what they touched — `RETURNING`, and a row count you assert against an
 expected number — so a right-shaped result on the wrong branch is at least
 *visible* afterwards.
 
+**A DATABASE TIMESTAMP IS UTC. EVERYTHING YOU READ OFF YOUR OWN MACHINE IS
+LOCAL. Never compare one to the other until both are converted, and state the
+conversion in the same output as the comparison.** Recorded 2026-08-15 after
+this fired THREE TIMES IN ONE DAY.
+
+Every `DateTime` column in `prisma/schema.prisma` is `TIMESTAMP(3)` **with no
+time zone** — there is not one `@db.Timestamptz` in the file — so Prisma writes
+and returns UTC. Vercel deployment times, `git log` commit times, and anything
+`date` prints on a dev machine are **local**. The two sources are seven hours
+apart in PDT and eight in PST, and nothing in either output says which it is.
+
+Note what that offset does to a comparison. It is large enough to move an event
+across a deployment boundary, across a commit, and across midnight into the
+wrong DAY — and it does so *silently*, because both numbers are real, correctly
+transcribed, and printed without a suffix.
+
+**The failure mode is the branch-label mode exactly, and this is the third
+section of this document to describe it: the naive comparison produces a
+coherent, urgent, entirely wrong conclusion, and every observation supporting it
+is real. It does not look like an error.** It looks like a finding, and it argues
+back.
+
+The three occurrences, all 2026-08-15, all on the same handful of rows:
+
+1. **HR-11n Phase A** dated four orphaned checkpoints by their first
+   acknowledgment against the HR-11m deploy time. Raw, `19:02` read as six hours
+   AFTER a `12:46` deployment — which would have convicted a fix that was
+   working, declared a live leak, and stopped the phase. Converted (`19:02 UTC`
+   = `12:02 PDT`), it is 44 minutes BEFORE. The column type was checked only
+   because the answer looked wrong.
+2. **The same rows, a second time**, after that correction was written down —
+   `20:05 UTC` read as an hour after an `18:59` local deployment when it is five
+   hours and fifty-four minutes before it.
+3. **The ceremony-route investigation that produced this rule**
+   (`docs/prompts/hr-11n-ceremony-route-audit.md`), which spent a session
+   hunting an unfiltered ceremony route that did not exist. The
+   acknowledgments in question predated the retirement feature's first commit by
+   2 h 18 m. There was no defect to find.
+
+**The correction did not stop it from happening again**, which is why this is a
+precondition and not a note. Writing down "I got the timezone wrong" fixes one
+comparison; the habit that fixes all of them is converting BEFORE the comparison
+looks surprising, rather than after.
+
+Two cheap checks, in order:
+
+- **State the zone on every timestamp you write down**, the way § Database
+  Evidence already demands a branch label on every row. `20:05:58 UTC
+  (13:05:58 PDT)` cannot be misread; `20:05:58` invites it.
+- **When a timestamp implies a defect, check whether the artifact predates the
+  code being blamed.** `git log --format="%h %ad %s" --date=format:"%Y-%m-%d
+  %H:%M:%S" <sha>` is one command and ends the question. An artifact cannot have
+  been produced by code that did not exist when it was made — and a signed record
+  is never regenerated, so the certificate you are looking at may be hours older
+  than the deployment you are testing.
+
 ## Browser Evidence — Precondition
 
 **Every observation taken in a browser must name the ORGANIZATION ID it was
@@ -590,6 +646,54 @@ its name** — store count, a known member, anything the duplicate does not shar
 Two rows answering to "Keva Juice" make the name worthless as a check, and the
 app offers no in-app switcher to confirm against (see the org-switcher row in
 `docs/ROADMAP.yaml`).
+
+## Verifying a guard covers every path
+
+**YOU CANNOT GREP FOR A MISSING CALL SITE. To verify that a guard covers every
+path, enumerate every RENDERER of the shared component — or every CALLER of the
+shared route — and check each one. Never conclude coverage from a search for the
+guard's own name.**
+
+Recorded 2026-08-15 (HR-11j Item 4). `isSigningBlocked` refuses to start a
+signing ceremony on a document version whose detected fields are unconfirmed.
+Grepping it returned a **clean** result: one definition, one readiness helper,
+callers at the ceremony page and at the mint, all correct. Nothing was out of
+place, because the route that was missing the call had nothing to match on.
+
+The uncovered path was `/my/documents/[documentId]`, which imports
+`SigningClient` from `(app)/hr/acknowledge/[documentId]/` **across a route-group
+boundary**. A signer walked into the ceremony on an unconfirmed version through
+that route, initialed four pages and signed two; only the mint-time backstop
+stopped a hollow record. The guard had been built on the page that OWNS the
+client and was believed to be complete.
+
+**The belief was recorded in a comment, and the comment was true.** It said the
+guard "covers BOTH entry points" — meaning the self and attested modes of that
+file. It was read as meaning both ceremonies. **A count of entry points taken
+from inside one file cannot see the importers outside it**, and a shared client
+in a different route group is exactly the importer that does not come to mind.
+
+Note the direction of the failure, which is what makes it expensive: the search
+produces a PASS. A grep that finds nothing wrong reads as coverage confirmed, so
+the session stops looking. Compare § Staging Verification, where an empty grep
+reads as a FAIL and merely wastes an hour — a check that cannot produce a false
+pass is a different class of tool from one that can.
+
+**Second time this shape has cost a session.** DEBT-22 swept for unordered
+`storeAssignments` loads and correctly reported it had fixed the last one; it
+missed a STORE load keyed by assignment ids, because that is not a
+`storeAssignments` load and the pattern could not match it (the note lives in
+`src/app/(my)/my/documents/[documentId]/page.tsx`). Same lesson at a different
+layer: **a sweep is only as complete as the shape it searches for, and the shape
+you are searching for is chosen from what you already know exists.**
+
+The reliable procedure, in order:
+
+1. Find every file that renders the shared component or calls the shared route —
+   search the COMPONENT'S name, not the guard's.
+2. Include importers from other route groups, other directories, and re-exports.
+3. Check each one individually for the guard.
+4. Only then claim coverage, and say how many paths were checked.
 
 ## Git Rules
 

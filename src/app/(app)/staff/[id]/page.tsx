@@ -2,9 +2,10 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatInstant } from "@/lib/display-time"
 import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
+import { displayTimeZone } from "@/lib/hr"
 import { can } from "@/lib/permissions"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +20,7 @@ import { StaffEditActions } from "./staff-edit-actions"
 import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
 import { StaffCompliance } from "./staff-compliance"
 import { getStaffComplianceDetail, type StaffComplianceDetail } from "@/lib/hr-compliance"
+import { documentCompletion } from "@/lib/hr-completion"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -33,6 +35,10 @@ async function getStaffMember(id: string, clerkOrgId: string) {
         include: { store: true },
         orderBy: [{ isPrimary: "desc" }, { store: { name: "asc" } }],
       },
+      // DEBT-70b: the org half of the display-zone chain, for corporate members
+      // and anyone with no store assignment. `store: true` above already carries
+      // `timezone`, so the store half needed no change.
+      organization: { select: { timezone: true } },
     },
   })
   if (!member) return null
@@ -128,6 +134,10 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // regardless of assignments. `noPrimary` names a fix that must not be applied
   // to them: setting a primary would write a store name that is not true, which
   // is the whole reason the designation exists.
+  // DEBT-70b: this profile's display zone — the member's primary store, else
+  // the org. Every date on the page renders through it, so the Overview and
+  // Compliance tabs cannot disagree about the same instant again.
+  const zone = displayTimeZone(member, member.organization)
   const noStore = !member.isCorporate && member.storeAssignments.length === 0
   const noPrimary =
     !member.isCorporate &&
@@ -180,11 +190,21 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         ...staffAudienceWhere(member),
       },
       include: {
-        checkpoints: { where: { required: true }, select: { id: true } },
+        // HR-11n: retired checkpoints leave the denominator (see hr-compliance.ts).
+        checkpoints: { where: { required: true, retiredAt: null }, select: { id: true } },
         versions: {
           orderBy: { versionNumber: "desc" },
           include: {
-            signedRecords: { where: { staffMemberId: member.id } },
+            // R2: ORDERING ADDED, AND IT IS NOW LOAD-BEARING. This was
+            // unordered and read as `[0]`, which was nearly harmless while the
+            // value only fed a boolean and a download link. R2 makes a record
+            // SELECT a version to display, and a rehire holds two records on one
+            // version across two cycles, so `[0]` was about to become "whatever
+            // Postgres returned". Newest tenure first, newest record first.
+            signedRecords: {
+              where: { staffMemberId: member.id },
+              orderBy: [{ signingCycle: "desc" }, { completedAt: "desc" }],
+            },
             acknowledgments: {
               where: { staffMemberId: member.id },
               select: { checkpointId: true, signingCycle: true },
@@ -212,14 +232,35 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       )
       const requiredCount = d.checkpoints.length
       const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
-      const priorSigned = d.versions.find((v) => !v.isCurrent && v.signedRecords.length > 0)
+      // ── R2 (HR-11k Phase A, Gary 2026-08-15) ──────────────────────────────
+      // `v.signedRecords.length > 0` asked "did they ever sign this older
+      // version, in any tenure" — one question standing in for two, and R2
+      // answers them oppositely. Split by CYCLE, not by version: versions are
+      // already ordered versionNumber DESC above, so each find returns the
+      // highest match, and for R2 that is this signer's master document.
+      const priorSignedThisCycle = d.versions.find(
+        (v) =>
+          !v.isCurrent && v.signedRecords.some((r) => r.signingCycle === member.signingCycle)
+      )
+      const priorSignedPriorCycle = d.versions.find(
+        (v) =>
+          !v.isCurrent && v.signedRecords.some((r) => r.signingCycle !== member.signingCycle)
+      )
 
-      let status: StaffDocumentRow["status"]
-      if (currentRecord) status = "signed"
-      else if (allAcked) status = "pending-record"
-      else if (priorCycleRecord || priorSigned) status = "needs-current"
-      else if (ackedIds.size > 0) status = "in-progress"
-      else status = "not-started"
+      // R1: asked, not restated — the same predicate /my/documents and the
+      // compliance rollup use, so this tab and the portal cannot disagree about
+      // one person and one document by being edited apart.
+      const completion = documentCompletion({
+        hasCurrentCycleRecord: !!currentRecord,
+        hasPriorCycleRecordOnCurrentVersion: !!priorCycleRecord,
+        hasCurrentCycleRecordOnEarlierVersion: !!priorSignedThisCycle,
+        hasPriorCycleRecordOnEarlierVersion: !!priorSignedPriorCycle,
+        // Case A: read off the version IN FORCE, never off the version signed.
+        currentVersionRequiresReacknowledgment: current.requiresReacknowledgment,
+        requiredCount,
+        ackedCount: ackedIds.size,
+        allRequiredAcked: allAcked,
+      })
 
       return [
         {
@@ -227,19 +268,51 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           title: d.title,
           category: d.category,
           currentVersionNumber: current.versionNumber,
-          status,
+          status: completion.status,
+          recordMissing: completion.recordMissing,
+          signedOnEarlierVersion: completion.signedOnEarlierVersion,
+          reacknowledgmentRequired: completion.reacknowledgmentRequired,
+          // ── R1 (Gary, 2026-08-15): A VERSION NUMBER ONLY EVER COMES FROM A
+          // RECORD. The `allAcked` arm removed here returned
+          // current.versionNumber when NO record existed, so the admin surface
+          // printed "Signed v2" for a signature that was never executed — worse
+          // than printing nothing, because a version number reads as having been
+          // looked up rather than assumed. Each remaining branch names a record
+          // that exists: this cycle's, a prior cycle's on the current version, or
+          // one on an older version.
+          //
+          // R2 (2026-08-15) SPLITS THE LAST BRANCH IN TWO and preserves the
+          // invariant unchanged — both new branches still name a record. This
+          // cycle's older-version record is tried first because it is the one
+          // that produces a GREEN label, and picking the rehire's number there
+          // would print the wrong version under the right status.
           signedVersionNumber: currentRecord
             ? current.versionNumber
-            : allAcked
+            : priorCycleRecord
               ? current.versionNumber
-              : priorCycleRecord
-                ? current.versionNumber
-                : priorSigned?.versionNumber ?? null,
-          completedAt: currentRecord?.completedAt.toISOString() ?? null,
+              : (priorSignedThisCycle?.versionNumber ??
+                priorSignedPriorCycle?.versionNumber ??
+                null),
+          // Ruled 2026-08-16: the date comes from the record they actually
+          // signed. Resolved from the SAME record object the version number and
+          // the download link below resolve from, so all three name one record.
+          completedAt:
+            (
+              currentRecord ??
+              priorSignedThisCycle?.signedRecords.find(
+                (r) => r.signingCycle === member.signingCycle
+              )
+            )?.completedAt.toISOString() ?? null,
+          // The record behind the label, in the same precedence as the number
+          // above — so the download link and the version it claims can never
+          // name two different records.
           signedRecordId:
             currentRecord?.id ??
             priorCycleRecord?.id ??
-            priorSigned?.signedRecords[0]?.id ??
+            priorSignedThisCycle?.signedRecords.find(
+              (r) => r.signingCycle === member.signingCycle
+            )?.id ??
+            priorSignedPriorCycle?.signedRecords[0]?.id ??
             null,
           ackedCount: ackedIds.size,
           requiredCount,
@@ -529,7 +602,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
             )}
           </div>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
-            {member.fullName ?? member.displayName} · Member since {format(member.createdAt, "MMMM d, yyyy")}
+            {member.fullName ?? member.displayName} · Member since {formatInstant(member.createdAt, zone, "long")}
           </p>
           {member.storeAssignments.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
@@ -551,12 +624,12 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           )}
           {member.status === "TERMINATED" && member.terminatedAt && (
             <p className="text-sm text-[var(--color-destructive)] mt-2">
-              Terminated {format(member.terminatedAt, "MMMM d, yyyy")} — records retained
+              Terminated {formatInstant(member.terminatedAt, zone, "long")} — records retained
             </p>
           )}
           {member.status === "ACTIVE" && member.rehiredAt && (
             <p className="text-sm text-[var(--color-muted-foreground)] mt-2">
-              Rehired {format(member.rehiredAt, "MMMM d, yyyy")} — required documents need re-signing
+              Rehired {formatInstant(member.rehiredAt, zone, "long")} — required documents need re-signing
             </p>
           )}
           {canManage && noStore && (
@@ -644,7 +717,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               </div>
               <div>
                 <dt className="text-[var(--color-muted-foreground)]">Member Since</dt>
-                <dd className="text-[var(--color-foreground)] font-medium">{format(member.createdAt, "MMMM d, yyyy")}</dd>
+                <dd className="text-[var(--color-foreground)] font-medium">{formatInstant(member.createdAt, zone, "long")}</dd>
               </div>
               <div>
                 <dt className="text-[var(--color-muted-foreground)]">Source</dt>
