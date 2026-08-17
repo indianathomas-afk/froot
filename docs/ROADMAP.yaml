@@ -9545,7 +9545,13 @@ bugs:
       STAGING" still stands below and was true when written — it was OVERTAKEN,
       not corrected. Session:
       docs/prompts/BUG-7_CLOSURE_AND_DEPLOY_LOG_RECONCILIATION.md and its
-      Addendum A.
+      Addendum A. WORK COMMIT 165bcb8 — one docs-only commit carrying all six of
+      that session's tasks: this block, F-4's resolved blocker, the five
+      retroactive docs/DEPLOY_LOG.md entries and their standing-note discharge,
+      DEBT-38's second recurrence, DEBT-69's measured rate, DEBT-72's
+      placeholder, and the docs/DECISIONS.md mechanism entry. `commits:` on this
+      row still names 00881dc alone, deliberately — that is the FIX; 165bcb8 is
+      the RECORD of its verification and does not belong in the same field.
       THE ROW CLOSES ON THE CRITERION IT SET FOR ITSELF, which is worth saying
       before the evidence rather than after. The closure condition written on
       this row 2026-08-13 and still standing below reads: deploy 00881dc, then
