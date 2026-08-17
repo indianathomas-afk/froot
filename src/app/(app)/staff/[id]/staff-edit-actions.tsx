@@ -198,7 +198,7 @@ export function StaffEditActions({
                     className="flex items-center gap-2 p-2 rounded hover:bg-[var(--color-accent)] cursor-pointer text-sm"
                   >
                     <input type="checkbox" checked={selectedStores.has(s.id)} onChange={() => toggleStore(s.id)} />
-                    {s.storeNumber ? `#${s.storeNumber} - ` : ""}
+                    {s.storeNumber ? `#${s.storeNumber} — ` : ""}
                     {s.name}
                   </label>
                 ))}

@@ -224,7 +224,7 @@ export default async function StoresPage() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-[var(--color-foreground)]">
-                        {store.storeNumber ? `Store #${store.storeNumber} - ` : ""}{store.name}
+                        {store.storeNumber ? `#${store.storeNumber} — ` : ""}{store.name}
                       </h3>
                       {store.city && store.state && (
                         <p className="text-sm text-[var(--color-muted-foreground)]">{store.city}, {store.state}</p>

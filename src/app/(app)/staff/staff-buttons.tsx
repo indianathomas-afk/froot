@@ -113,7 +113,7 @@ export function AddStaffButton({ stores }: { stores: Store[] }) {
                 {stores.map((s) => (
                   <label key={s.id} className="flex items-center gap-2 p-2 rounded hover:bg-[var(--color-accent)] cursor-pointer text-sm">
                     <input type="checkbox" checked={selectedStores.has(s.id)} onChange={() => toggleStore(s.id)} />
-                    {s.storeNumber ? `#${s.storeNumber} - ` : ""}{s.name}
+                    {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
                   </label>
                 ))}
                 {stores.length === 0 && <p className="text-xs text-[var(--color-muted-foreground)] p-2">No stores yet. Add stores first.</p>}
