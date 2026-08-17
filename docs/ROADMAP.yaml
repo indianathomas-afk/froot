@@ -9959,6 +9959,50 @@ debt:
     status: planned
     title: "Server-rendered dates print UTC calendar days — two surfaces disagree about one signature"
     notes: >
+      SERVER HALF CLOSED 2026-08-16, CLIENT HALF STILL OPEN — THIS ROW IS NOW
+      THE 42 CLIENT SITES. Prepended per preserve-and-mark; nothing below is
+      edited, including the line below that says this row is "NOW THE 22 SERVER
+      DISPLAY SITES ONLY", which was true when written and has been overtaken:
+      that scope was built as DEBT-70b ("cc144dc") and verified on staging the
+      same day, alongside the PDF half DEBT-70a ("623acb6").
+
+
+      WHAT IS DONE. The 22 server-rendered date displays now resolve
+      store-local through displayTimeZone (lib/hr.ts) with no bare-UTC arm, and
+      the one civil date moved to formatCivilDate, which takes no zone argument
+      at all. Verified in a browser on branch br-square-feather-a63z92vz /
+      neondb, org org_3G02wO4QlVVSWppi8aqlnSZnsDa: the two staff tabs that
+      filed this row now agree on Aug 15, and /checklists still reads Sun,
+      Aug 16 unmoved. Evidence is on the DEBT-70b row.
+
+
+      WHAT IS NOT DONE, AND IT IS THE HALF THAT MAKES THIS STRUCTURAL. THE 42
+      CLIENT SITES REMAIN VIEWER-ANCHORED while the converted server surfaces
+      are now STORE-anchored. They agree whenever the viewer sits in the store's
+      timezone — which is the normal case, was the acceptance case, and is
+      therefore the case that CANNOT DETECT THE REMAINING GAP. A manager reading
+      from another zone can still see one signature carry two calendar days.
+      CONVERGENCE IS NOT STRUCTURAL UNTIL THE CLIENT SITES MOVE.
+
+
+      SO THE ROW STAYS OPEN, AND THE REASON IS WORTH STATING PLAINLY: the
+      original complaint — two surfaces disagreeing about one signature — is
+      no longer reproducible for a same-zone viewer, and is STILL REACHABLE for
+      a cross-zone one. Closing this row on tonight's pass would record a
+      same-zone observation as proof of a cross-zone property. The remaining
+      decision is the one the WHAT THE FIX PROBABLY IS paragraph below already
+      names and DEBT-70a/70b have now half-answered: the server half chose the
+      STORE's day, so the client half is no longer an open design question but
+      a conformance job — move the 42 to the same resolver, or rule explicitly
+      that viewer-anchored is correct for non-signature dates and write down
+      where the line falls.
+
+
+      NOT URGENT, UNCHANGED, AND FOR THE SAME REASON AS BEFORE: no record is
+      wrong, no compliance state is wrong, nothing is miscounted. The residue is
+      a cross-zone display disagreement on evening records.
+
+
       FILED 2026-08-16 BY GARY'S INSTRUCTION, during the HR-11k Phase A display
       follow-ups ("6b2054f"). Observed by Gary on staging: the SAME signed record
       renders "Aug 15" on the staff profile's Documents tab and "Aug 16" on
@@ -10059,11 +10103,56 @@ debt:
       legal or HR process.
 
   - id: DEBT-70b
-    status: in_progress
+    status: verified
     title: "The 22 server-side date displays now render the store-local day"
     commits:
       - "cc144dc"
     notes: >
+      VERIFIED ON STAGING 2026-08-16 IN A BROWSER. Status in_progress ->
+      verified. Prepended per preserve-and-mark; nothing below is edited,
+      including the "NOT YET VERIFIED ON STAGING" line, which was true when
+      written. Verified in the same pass as DEBT-70a ("623acb6").
+
+
+      THE ANCHOR CASE, WHICH IS THE ONE THAT MATTERS. Gdogg Thomas's v5 record
+      reads AUG 15 on all four surfaces: the staff profile's Documents tab, the
+      staff profile's Compliance tab, /my/documents, and /hr/signed-records.
+      Branch br-square-feather-a63z92vz / neondb, org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance verified-snapper-7.
+
+
+      THE TWO STAFF TABS PREVIOUSLY DISAGREED BY A DAY, ONE SCROLL APART — the
+      Documents tab (client) read Aug 15 and the Compliance tab (server) read
+      Aug 16. THAT WAS THE DEFECT AND IT IS CLOSED. This is the exact
+      observation that filed DEBT-70, re-taken on the same record after the fix,
+      which is why it is the acceptance rather than a spot check.
+
+
+      THE CIVIL-DATE REGRESSION PASSED. /checklists reads "Sun, Aug 16",
+      UNMOVED. That is the trap this row handled before any edit — a civil date
+      is a store-local day already stored at UTC midnight, so converting it to
+      Pacific would have moved it a day BACKWARD, silently, with no screen
+      showing it. formatCivilDate takes no zone argument and the browser
+      confirms what the six-boundary-day fixture asserted.
+
+
+      SCOPE OF THE PASS, STATED SO IT IS NOT READ AS MORE THAN IT IS: four
+      surfaces on one anchor record, plus the civil-date regression. Not all 22
+      call sites were individually exercised in the browser. The 72/72
+      byte-for-byte fixture below is what covers the rest, and the four surfaces
+      here are the ones the defect was reported on.
+
+
+      CONVERGENCE IS STILL NOT STRUCTURAL, and this pass is precisely the case
+      that cannot show it. The verified viewer was in the store's timezone, so
+      the STORE-anchored server sites and the VIEWER-anchored client sites
+      agreed — they agree whenever those two zones match. A manager reading from
+      another zone can still see the split. The client half is open on DEBT-70;
+      this row's own "argument for the client row" paragraph below is unchanged
+      by tonight's pass and is if anything strengthened, since the pass could
+      not have detected the remaining gap.
+
+
       BUILT 2026-08-16 ("cc144dc"), TIER 2, NOT YET VERIFIED ON STAGING. The
       display half of DEBT-70; the PDF half shipped as DEBT-70a ("623acb6").
       Audit of record: docs/prompts/DEBT-70_AUDIT.md.
@@ -10156,11 +10245,82 @@ debt:
       staging — these commits are not deployed.
 
   - id: DEBT-70a
-    status: in_progress
+    status: verified
     title: "Inline Date: stamp on minted PDFs rendered a bare UTC day — now store-local"
     commits:
       - "623acb6"
     notes: >
+      VERIFIED ON STAGING 2026-08-16 IN A BROWSER, IN THE WINDOW WHERE THE TWO
+      DATES DIFFER — which is the only window that can prove anything here.
+      Status in_progress -> verified. Prepended per preserve-and-mark; nothing
+      below is edited, including the "NOT YET VERIFIED ON STAGING" line, which
+      was true when written.
+
+
+      THE EVIDENCE. Tommy Thomas, v7 of "Test - Handbook Regression". Completed
+      2026-08-17 02:05:01 UTC = 2026-08-16 19:05:01 PDT — both stated, per
+      CLAUDE.md § Database Evidence. Branch br-square-feather-a63z92vz / neondb,
+      org org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance verified-snapper-7.
+      The body "Date:" line on page 1 reads 2026-08-16 — THE DAY THE SIGNER WAS
+      AT WORK. The certificate's "Completed at" and the SIGNED AT (UTC) column
+      read 2026-08-17 ... UTC, still labelled, unchanged.
+
+
+      THAT IS THE WHOLE RULING DEMONSTRATED IN ONE RECORD: the certificate is
+      EVIDENCE and stays UTC; the body stamp is a FIELD A PERSON READS and now
+      names their day. The two disagreeing by a calendar day is not a defect
+      here — it is the design, and this record is the case that shows both
+      halves behaving as ruled at the same instant. Note that the mint happened
+      after 7 PM Pacific, which is exactly the post-5-PM condition this row's
+      STILL OWED list below asked for; the owed item is discharged, not waived.
+
+
+      WHAT CANNOT BE FIXED, AND THE NUMBER IS AN UPPER BOUND. 3 of 10 signed
+      records on staging carry a stamp minted before the fix. UPPER BOUND
+      because it was measured as records whose UTC and store-local dates DIFFER
+      — the true count can only be SMALLER, since a record only carries a wrong
+      stamp if a DateStamp anchor was actually confirmed on it. All three are
+      staging test records. Signed records are frozen and NONE WAS REGENERATED;
+      this row could not repair them and did not try.
+
+
+      PRODUCTION IS NOT AFFECTED — MEASURED, NOT ASSUMED. HR is LIVE in
+      production, not dark: HR_MODULE_AVAILABLE=true was added to the Vercel
+      Production scope 2026-07-24 (docs/DEPLOY_LOG.md, the "HR LAUNCH" entry),
+      and org cf888f2d-f234-48c7-8097-fd5b44b5b3dd carries activeModules =
+      {inventory,labor,hr} with 5 STORE / 1 MANAGER / 3 ADMIN / 1 STAFF. ANY
+      NOTE ON THIS ROW OR ELSEWHERE CLAIMING HR IS DARK IN PRODUCTION IS STALE
+      BY NINETEEN DAYS AND MUST NOT BE RELIED ON.
+
+
+      Production nonetheless carries ZERO wrongly-stamped records. Branch
+      br-sparkling-block-a620qvg4, measured 2026-08-16: three HrSignedRecord
+      rows exist — 2026-07-13 21:47:43.527 UTC (14:47 PDT), 2026-08-03
+      19:24:48.709 UTC (12:24 PDT), 2026-08-03 21:51:06.908 UTC (14:51 PDT).
+      All three completed in the early afternoon Pacific, so UTC and store-local
+      calendar dates agree on every one and dates_differ is false across the
+      board. THE STAGING COUNT OF 3-OF-10 DOES NOT TRANSFER TO PRODUCTION.
+
+
+      DEBT-70b VERIFIED IN THE SAME PASS ("cc144dc") — recorded on its own row;
+      noted here because the two shipped as one thought and a reader arriving at
+      either should know the other passed.
+
+
+      DEBT-70 IS NOT FULLY CLOSED BY THIS. The converted server surfaces are
+      STORE-anchored; the 42 client sites remain VIEWER-anchored. They agree for
+      a viewer in the store's timezone — the case verified tonight — but
+      CONVERGENCE IS NOT STRUCTURAL UNTIL THE CLIENT SITES MOVE. The server half
+      is closed; the client half is open, and is on DEBT-70.
+
+
+      ONE LOOSE END FILED, NOT CHANGED: the page-1 banner ("Completed by ... on
+      2026-08-17 02:05:01 UTC") is a body element a person reads, rendered in
+      UTC. Consistent with the certificate and arguably correct, but it sits on
+      the same page as the stamp that now reads local. Filed as DEBT-73 for a
+      ruling. DELIBERATELY NOT TOUCHED by this session.
+
+
       BUILT 2026-08-16 ("623acb6"), TIER 2, NOT YET VERIFIED ON STAGING. Split
       out of DEBT-70 by Gary because it is THE ONLY PART THAT PRODUCES PERMANENT
       ARTIFACTS. Audit of record: docs/prompts/DEBT-70_AUDIT.md (same commit),
@@ -10341,6 +10501,63 @@ debt:
       CROSS-REFS: BUG-7 (the row that shipped past its own gate, now verified),
       DEBT-38 (the DEPLOY_LOG half of the same seam), docs/DECISIONS.md
       2026-08-16 (the mechanism entry this row is the backlog counterpart of).
+
+  - id: DEBT-73
+    status: planned
+    title: "The minted PDF's page-1 banner reads UTC on the same page as a Date: stamp that now reads store-local"
+    notes: >
+      FILED 2026-08-16 BY GARY'S INSTRUCTION, during the DEBT-70a/70b staging
+      verification. AWAITING A RULING. DELIBERATELY NOT CHANGED — Gary's
+      instruction was to file it, and the whole question is whether it should
+      move at all.
+
+
+      WHAT IT IS. The page-1 banner on a minted signed PDF —
+      "Completed by ... on 2026-08-17 02:05:01 UTC" (hr-signed-pdf.ts:381, one
+      of the utc() callers) — is a BODY ELEMENT A PERSON READS, rendered in UTC
+      and labelled as such. Observed on Tommy Thomas's v7 of "Test - Handbook
+      Regression", branch br-square-feather-a63z92vz / neondb, org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa.
+
+
+      WHY IT IS A QUESTION RATHER THAN A DEFECT. It is consistent with the
+      certificate and it carries its zone label, so it is arguably correct on
+      both of the tests DEBT-70a applied. It was also explicitly left alone by
+      that row, on Gary's item 3 — "THE CERTIFICATE IS UNTOUCHED" — and that
+      decision was made by reading the whole mint path, not by missing this
+      line.
+
+
+      WHY IT IS WORTH A ROW ANYWAY. It now sits ON THE SAME PAGE as the Date:
+      stamp that DEBT-70a moved to store-local. So page 1 of a signed handbook
+      can show 2026-08-16 on the signature line and 2026-08-17 in the banner
+      above it, both correct under their own rules, both unexplained to the
+      person holding the document. The tension is not that either value is
+      wrong; it is that one page now answers "when was this signed" twice, in
+      two zones, for a reader with no reason to expect that.
+
+
+      THE RULING NEEDED, and it is genuinely open in both directions: whether
+      the EVIDENCE/FIELD line DEBT-70a drew — certificate is evidence and stays
+      UTC, body fields name the signer's day — puts this banner on the body side
+      because it is on page 1 in prose, or on the evidence side because it is a
+      completion attestation. The same argument decides it either way; nobody
+      has picked which side the banner is on.
+
+
+      COST OF DOING NOTHING: LATENT (trigger: anyone reading a minted PDF whose
+      completion instant falls after 5 PM Pacific, when the two dates diverge —
+      the same window DEBT-70a was verified in). No record is wrong and nothing
+      is miscounted. NOTE THE ASYMMETRY THAT ARGUES FOR DECIDING SOONER RATHER
+      THAN LATER: a minted PDF is never regenerated, so every document produced
+      while this sits open keeps whatever the banner says permanently. That is
+      the same argument that made DEBT-70a jump ahead of DEBT-70's 22 screens,
+      and it applies here at lower severity — the value is labelled, so a reader
+      can at least tell which zone they are in.
+
+
+      CROSS-REFS: DEBT-70a (moved the Date: stamp; left this deliberately),
+      DEBT-70b (the 22 server displays), DEBT-70 (the open client half).
 
   - id: DEBT-1
     status: verified
