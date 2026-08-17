@@ -2667,6 +2667,60 @@ phases:
       remains deferred.
     blockers:
       - >
+        RESOLVED 2026-08-16 — THE BLOCKER BELOW IS DISCHARGED ON ITS OWN TERMS.
+        Prepended per preserve-and-mark; nothing below is edited. The entry below
+        ends "WHAT REMAINS ON THIS ROW, and it is the whole of it: ONE REAL
+        TRANSACTION ON A KEVA STORE, IN PRODUCTION, CONFIRMING 'Today so far'
+        MOVES WITHOUT A MANUAL PAGE REFRESH. Nothing else closes it." It needed a
+        store to be open. NINE WERE.
+        THE EVIDENCE, and it is production on both halves. Neon console,
+        PRODUCTION branch br-sparkling-block-a620qvg4 (endpoint ep-green-smoke),
+        2026-08-16 ~21:10 UTC (2:10 PM PT): nine linked stores — Spanish Springs,
+        South Reno, Meadowood Mall, Carson, Las Brisas, UNR, Sparks, University
+        Village, Southgate — ALL with last_sync inside the previous ten minutes
+        and latest_day = 2026-08-16. Keva Kiosk (17:12 UTC) and Cafe De Keva Cart
+        (11:01 UTC) lag, consistent with lower volume or closure. Rohan's
+        Restaurant is unlinked (squareLocationId null). Square Developer Console,
+        PRODUCTION application sq0idp-UdjqLfkxl0hlbw7b30IiLA ("Froot"): 34,914
+        delivery results, ALL 200, to
+        https://www.usefroot.com/api/webhooks/square, most recent 2026-08-16
+        13:18 PT.
+        THE 200s ARE NOT THE PROOF AND THIS ROW ALREADY KNEW THAT — the handler
+        ACKs before processing (route.ts:89-94), so a 200 proves acceptance only,
+        exactly as the entry below says of the F-4 test event. What proves the
+        resync path RAN is the sales caches themselves: nine stores whose
+        syncedAt is minutes old on a live business date could not have got that
+        way without the webhook, because the 15-minute lazy sync requires a
+        request and the cron runs once at 11:00 UTC. Corroborated a third time by
+        BUG-7's ~55 `discarded ... superseded by a newer fetch` lines in the same
+        afternoon's production logs, every one of them on POST
+        /api/webhooks/square — a line that can only be emitted by a sync the
+        webhook triggered.
+        THE FORM OF THE EVIDENCE, SAID PRECISELY so nobody has to guess later.
+        This is server-side evidence — database freshness, delivery logs, and
+        function logs — of the mechanism that makes "Today so far" move, taken
+        continuously across nine stores over an afternoon. It is not a
+        screenshot of the number changing in a browser. Gary ruled it closing,
+        and it is stronger than the single-transaction observation the sentence
+        below asked for; recording which kind of evidence it is costs nothing and
+        stops a future reader inferring a browser pass that was not taken.
+        TWO SQUARE PORTALS, DELIBERATELY — recorded here because the docs
+        elsewhere carry a "staging Square app points at the production domain"
+        gap that this arrangement is the resolution of, not an instance of.
+        sq0idp-UdjqLfkxl0hlbw7b30IiLA ("Froot") is PRODUCTION;
+        sq0idp-YPgmfGap_oYDRTyYIFG3zw ("Froot Staging") is STAGING. Two separate
+        Square applications against the same real merchant account, so staging
+        exercises real live data without sharing production's webhook
+        subscription, signature key, or notification URL. Anything that reads as
+        one app misconfigured is two apps working as designed; check the
+        application id before filing it.
+        WHAT THIS DOES NOT CLOSE. The entry below also records "PREVIEW IS NOT
+        DONE" — Preview's NEXT_PUBLIC_APP_URL unconfirmed, and no subscription on
+        the staging Square app, so the staging half still hits the identical 401.
+        NONE of that is touched by the evidence above, which is entirely
+        production. That half of the entry below stays open and this resolution
+        does not reach it.
+      - >
         PRODUCTION CONFIGURED 2026-08-13 BY GARY — STILL OPEN, AND WHAT REMAINS
         IS ONE SENTENCE LONG. Prepended; nothing below is edited. The two-part
         fix this row has demanded since 2026-07-27 is DONE for production. What
@@ -9482,9 +9536,134 @@ bugs:
 
   - id: BUG-7
     title: "Concurrent syncs raced on the sales caches — P2002, and the older fetch could win"
-    status: in_progress
+    status: verified
     commits: [00881dc]
     notes: >
+      VERIFIED IN PRODUCTION 2026-08-16, NEVER VERIFIED ON STAGING. Status
+      in_progress -> verified. Prepended per preserve-and-mark; nothing below is
+      edited. In particular "FIXED IN CODE 2026-08-13, NOT YET VERIFIED ON
+      STAGING" still stands below and was true when written — it was OVERTAKEN,
+      not corrected. Session:
+      docs/prompts/BUG-7_CLOSURE_AND_DEPLOY_LOG_RECONCILIATION.md and its
+      Addendum A.
+      THE ROW CLOSES ON THE CRITERION IT SET FOR ITSELF, which is worth saying
+      before the evidence rather than after. The closure condition written on
+      this row 2026-08-13 and still standing below reads: deploy 00881dc, then
+      EITHER observe the `[sales-sync] ... discarded N superseded by a newer
+      fetch` line OR observe sustained concurrent load with no P2002. The first
+      disjunct is satisfied, ~55 times over. That is not an after-the-fact
+      justification assembled to fit what was found; it is the test this row
+      specified three days before the evidence existed.
+      WHY A PRODUCTION-ONLY VERIFICATION IS SUFFICIENT HERE, STATED PLAINLY
+      BECAUSE IT IS UNUSUAL AND SHOULD NOT BECOME A PRECEDENT. Staging never ran
+      this code under contention and still has not. What closed the row is that
+      production exercised the guard against REAL concurrency — nine distinct
+      stores, live webhook load, collisions 70 ms and 270 ms apart — which the
+      staging fixture can only simulate. The fixture DID simulate it (24/24, see
+      below) and that is what made shipping defensible; simulation is not the
+      same evidence as a race that actually happened on real money. The order
+      this arrived in was the inverse of what this row recommended, which is
+      recorded below as fact rather than objection. It came out right. It was not
+      made right by coming out right.
+      EVIDENCE 1 — THE GUARD FIRES UNDER REAL CONTENTION. This is the direct
+      proof and the only one; everything else is corroboration. Vercel PRODUCTION
+      function logs, 2026-08-16, ~11:53-14:11 PT (18:53-21:11 UTC), filtered on
+      `discarded`: approximately 55 occurrences of `[sales-sync] store=<id> wrote
+      0/1 day(s); discarded 1 superseded by a newer fetch: 2026-08-16`, all on
+      POST /api/webhooks/square, across at least nine distinct store ids
+      (cmqvygqz2..., cmqvygq1m..., cmqvygque..., cmqvygqx9..., cmqvygr1l...,
+      cmqvygqxb...000004l45ajpg1la, cmqvygqxb...000004l4v0im0byu, cmqvygpze...,
+      cmqvygr36...). Two collisions are tight enough to name, because they are
+      the exact shape that used to throw P2002: 12:52:27.19 and 12:52:27.26 PT,
+      same store, 70 ms apart; and 13:22:58.94 and 13:22:59.21 PT, same store,
+      270 ms apart. That line can only be emitted by the post-fix code, and it
+      means a race was caught and RESOLVED CORRECTLY rather than avoided by luck.
+      HOW TO READ "0/1", AND THIS IS THE SINGLE MOST IMPORTANT SENTENCE ON THIS
+      ROW FOR ANYONE WHO FINDS THAT LOG FILTER LATER. The log statement is
+      wrapped in `if (discarded.length > 0)`, so A FULLY SUCCESSFUL WRITE EMITS
+      NO LOG LINE AT ALL. Filtering on `discarded` can therefore only ever return
+      losers. The winners are invisible BY CONSTRUCTION — not missing, not
+      failing, just not logged — and their existence is proven by Evidence 3
+      below, where every store's syncedAt is minutes fresh. A reader who finds
+      this filter and reads a 100% discard rate as a defect will be wrong, and
+      this paragraph exists to stop them.
+      WHY P2002 IS NOT THE PROOF, and why looking for it was looking for
+      something that could only return zero. ON CONFLICT makes P2002
+      STRUCTURALLY IMPOSSIBLE in the post-fix code. An empty P2002 search is
+      therefore confirmation that the OLD PATH IS GONE — which is worth knowing —
+      and is not, and can never be, evidence that the guard works. Only the
+      discard line proves the guard.
+      EVIDENCE 2 — THE WEBHOOK IS DELIVERING. Square Developer Console,
+      PRODUCTION application sq0idp-UdjqLfkxl0hlbw7b30IiLA ("Froot"): 34,914
+      delivery results, ALL 200, to https://www.usefroot.com/api/webhooks/square,
+      most recent 2026-08-16 13:18 PT. Square retains webhook logs 28 days, so
+      that window is not the whole history — it is the whole RETAINED history.
+      A 200 DOES NOT PROVE THE SYNC RAN: the handler ACKs before processing
+      (route.ts:89-94), so a 200 proves signature verification and acceptance
+      only. This row already said that about F-4's test event and it is still
+      true at 34,914 deliveries. What follows the ACK is proven separately, by
+      Evidence 1 and Evidence 3.
+      EVIDENCE 3 — EVERY PRODUCTION STORE IS SYNCING LIVE. Neon console,
+      PRODUCTION branch br-sparkling-block-a620qvg4 (endpoint ep-green-smoke),
+      2026-08-16 ~21:10 UTC (2:10 PM PT). Nine linked stores — Spanish Springs,
+      South Reno, Meadowood Mall, Carson, Las Brisas, UNR, Sparks, University
+      Village, Southgate — all with last_sync inside the previous ten minutes and
+      latest_day = 2026-08-16. Keva Kiosk (17:12 UTC) and Cafe De Keva Cart
+      (11:01 UTC) lag, consistent with lower volume or closure rather than
+      failure. Rohan's Restaurant is unlinked (squareLocationId null). This is
+      what makes the invisible winners of Evidence 1 real: a store whose writes
+      were all being discarded could not have a syncedAt ten minutes old.
+      EVIDENCE 4 — THE ID-FORMAT BOUNDARY, AND WHAT IT BRACKETS. Same production
+      branch br-sparkling-block-a620qvg4, 2026-08-16. SalesPeriodCache rows carry
+      two id formats: Prisma generates cuids client-side, and the post-BUG-7 raw
+      INSERT supplies its own randomUUID(). ON CONFLICT DO UPDATE does not
+      rewrite id, so a row BORN under the old code keeps its cuid forever even
+      after the new code rewrites its numbers. THE BOUNDARY THEREFORE FALLS ON
+      BUSINESS DATE, NOT ON syncedAt — syncedAt is overwritten on every write and
+      was never a creation time. By business date: 2026-08-16 uuid, 11 rows;
+      2026-08-15 uuid, 11 rows; 2026-08-14 cuid, 11 rows; 2026-08-13 cuid, 11
+      rows; 2026-08-12 cuid, 11 rows. BUSINESS DATE 2026-08-15 IS THE FIRST UUID
+      DAY. Eleven rows on every date with no gaps is a second reading of
+      Evidence 3: every linked store is syncing, none silently missing. This is
+      the fingerprint the fix predicted in advance (the comment at the `values`
+      map in src/lib/sales-sync.ts, and the RAW SQL paragraph below) showing up
+      exactly where it was predicted to.
+      THE ROLLOUT WINDOW IS A BRACKET AND IS LABELLED AS ONE. Two independent
+      bounds, neither of them a deploy instant: (a) the id-format boundary above
+      puts the rollout between the creation of business date 2026-08-14's rows
+      and 2026-08-15's; (b) `git reflog show main --date=iso` shows main moving
+      to 06dc830 — the promotion carrying 00881dc — at 2026-08-14 08:05:16 PT =
+      2026-08-14 15:05:16 UTC, so THE FIX CANNOT HAVE BEEN SERVING PRODUCTION
+      TRAFFIC BEFORE THAT INSTANT. Bound (b) is a LOWER BOUND ONLY: the reflog
+      records a local merge on Gary's machine, not the push and not the Vercel
+      build, both of which follow it. The two agree — Aug 14's rows were created
+      before 15:05:16 UTC and kept their cuids — and neither is the exact moment.
+      The Vercel production deployment timestamp for 00881dc would replace the
+      bracket with an instant; it was not supplied to this session, so the
+      bracket stands as a bracket. Stating it tighter than that would be
+      inventing precision the evidence does not carry.
+      NO BACKFILL, NO CLEANUP — RULED. The mixed cuid/uuid ids are not a defect
+      to repair. `id` on these three tables is a bare primary key: no foreign key
+      references it, no response exposes it, and nothing reads it. Rewriting a
+      column nothing reads would be churn against the additive-only rule, and it
+      would destroy the only artifact that dates the rollout (Evidence 4). Leave
+      them.
+      THE GAP IN THE RECORD, STATED PLAINLY, BECAUSE IT IS THE REASON THIS ROW
+      NEEDED A BRACKET AT ALL. 801dceb records 00881dc's commit SHA, because the
+      two-commit pattern captures commit SHAs and it worked. NOTHING CAPTURED
+      WHEN THAT COMMIT REACHED PRODUCTION, because the promotion that carried it
+      was a fast-forward with no docs/DEPLOY_LOG.md entry — one of five. So the
+      row can say exactly when the fix was WRITTEN and had to reconstruct, from
+      row ids and a reflog, when it was RUN. Same root cause as DEBT-38; the five
+      retroactive DEPLOY_LOG entries written in this session close the hole for
+      these five promotions and not for the next one.
+      CROSS-REFS ADDED BY THIS SESSION: F-4's first blocker closes on the same
+      Evidence 2 and 3 (its own remaining requirement was one real transaction
+      moving "Today so far", and nine stores did it); DEBT-69 gains the measured
+      discard rate this evidence produced; DEBT-38 gains this promotion as one of
+      its five; docs/DECISIONS.md 2026-08-16 records the mechanism that let
+      00881dc ship past this row's own gate.
+      ── EVERYTHING BELOW IS THE PRE-VERIFICATION RECORD, UNEDITED ──
       Observed by Gary on staging, preview env, branch 92de25f, org
       cf888f2d-f234-48c7-8097-fd5b44b5b3dd, 2026-08-13 18:48:50 UTC:
       prisma.salesPeriodCache.createMany() — P2002 on ("storeId", date),
@@ -9703,6 +9882,48 @@ debt:
     status: planned
     title: "Coalesce concurrent sales syncs per store-day — Square quota, not correctness"
     notes: >
+      MEASURED 2026-08-16 — THE PRECONDITION THIS ROW SET FOR ITSELF IS
+      DISCHARGED. Prepended per preserve-and-mark; nothing below is edited. The
+      entry below says "REVISIT WHEN WEBHOOKS ARE LIVE ... until then there is
+      nothing to measure." Webhooks are live — production Square application
+      sq0idp-UdjqLfkxl0hlbw7b30IiLA ("Froot"), 34,914 delivery results all 200 to
+      https://www.usefroot.com/api/webhooks/square — and there is now something to
+      measure. THE REVISIT IS NOT A BUILD DECISION; it is this measurement. The
+      row stays `planned`.
+      THE NUMBER. Vercel PRODUCTION function logs, 2026-08-16, ~11:53-14:11 PT
+      (18:53-21:11 UTC), filtered on `discarded`: approximately 55 discarded
+      syncs across at least nine distinct store ids, all on POST
+      /api/webhooks/square. That is roughly ONE DISCARDED SYNC EVERY 2-3 MINUTES,
+      sustained, across the nine-store production estate during a normal
+      afternoon.
+      WHAT EACH ONE COST. Every discarded sync completed a FULL PAGINATED Square
+      orders/search before losing at the write — the round trip is already spent
+      by the time the guard discards it, which is the entry below's own
+      "WHY IT IS WORTH ANYTHING AT ALL" argument with a number attached. So this
+      is ~55 complete Square API read cycles and ~55 lambda invocations held for
+      their full duration in 2.5 hours, thrown away. Square publishes no rate
+      limits, so it remains unquantified spend against an unknown ceiling — but
+      the SPEND is no longer unquantified, only the ceiling is.
+      THIS IS THE AUDIT'S ESTIMATE, MEASURED RATHER THAN PREDICTED.
+      docs/prompts/BUG-7_AUDIT.md § 1d predicted 3-5 events per order against
+      76-144 paid orders per store per day, and reasoned from there to "a
+      continuous stream of writers where today there are none". The ~55 figure is
+      that multiplier observed. Recorded as corroboration of the audit's method,
+      not as a new argument.
+      NOTHING HERE CHANGES THE RULING BELOW, AND THE MEASUREMENT SHOULD NOT BE
+      READ AS RE-OPENING IT. Option 4 was rejected as a FIX because in-process
+      coalescing is per-lambda-instance and therefore cannot help across
+      concurrent instances or across users — that is a property of the mechanism,
+      and no volume of measured waste makes it false. BUG-7's guarded upsert
+      remains THE correctness fix and is now verified in production; coalescing
+      remains a COST AND QUOTA optimisation. A bigger number makes this row more
+      worth building and no more of a race fix than it was on 2026-08-13.
+      READ THE ~55 CORRECTLY — it is a floor, not a total. The log line is
+      wrapped in `if (discarded.length > 0)`, so successful syncs emit nothing
+      and the filter can only return losers. ~55 is the count of DISCARDED syncs
+      in that window, not the discard RATE; the denominator is invisible by
+      construction. Anyone sizing this work should not divide by anything.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       FILED 2026-08-13 BY GARY'S RULING, DELIBERATELY NOT BUILT. It was Option 4
       in the BUG-7 audit (docs/prompts/BUG-7_AUDIT.md § 1c) and was rejected as a
       FIX because it is per-lambda-instance and therefore closes nothing: it
@@ -10075,6 +10296,45 @@ debt:
       reason this is its own row rather than a one-line fix: the naive
       first-letters rule is wrong for a large minority of real names, and a
       banner that fires on THOSE is the same defect with a worse blast radius.
+
+  - id: DEBT-72
+    status: planned
+    title: "PLACEHOLDER — the promotion procedure never reads the roadmap, so a roadmap gate cannot stop a promotion"
+    notes: >
+      PLACEHOLDER ROW, FILED 2026-08-16. THE REMEDY IS DELIBERATELY NOT DRAFTED
+      HERE. Gary reserved the WORKFLOW.md promotion gate as his own ruling, to be
+      written and ratified in his own words — "a recommendation is not a ruling
+      until I have written and ratified it" (session prompt
+      docs/prompts/BUG-7_CLOSURE_AND_DEPLOY_LOG_RECONCILIATION.md § 3). This row
+      exists so the finding is not lost while it waits, and it holds the problem
+      statement ONLY. DO NOT ADD A PROPOSED MECHANISM TO IT.
+      THE FINDING, which is the whole content of this row. 00881dc (BUG-7's
+      guarded upsert) reached production while its own ROADMAP row read
+      `in_progress` and carried "NOT YET VERIFIED ON STAGING", and while the same
+      file recorded an explicit ordering gate — verify BUG-6 on staging -> verify
+      BUG-7 on staging -> register the Square subscriptions. BUG-6 was verified.
+      BUG-7 was not. The subscriptions were registered about two hours later
+      anyway. One missing step in a three-step chain, and NOTHING FAILED: no
+      check was bypassed, no warning was dismissed, no rule was overruled.
+      Promotion is `git merge staging` plus a push, and neither command has ever
+      read docs/ROADMAP.yaml. A gate written in a file nothing in the procedure
+      opens is a note, not a gate.
+      SCOPE, so this does not grow into a general CI proposal: this row is about
+      the ROADMAP-to-PROMOTION seam specifically. The adjacent failure — five
+      promotions that skipped WORKFLOW.md §2 entirely and so left no DEPLOY_LOG
+      entry and no merge commit — is DEBT-38's second recurrence and stays there.
+      Same shape, different document, and they may well share one remedy; that is
+      for the ruling to decide, not for this row to assume.
+      COST OF DOING NOTHING: LATENT (trigger: the next promotion carrying a row
+      whose own status or ordering gate says it is not ready — which is every
+      promotion, since staging is currently 42 commits ahead of production and
+      carries rows in every state). NOT LIVE: the one time this fired, the code
+      that shipped early turned out to be correct and is now verified in
+      production. That is luck, and the row exists because the next one may not
+      be.
+      CROSS-REFS: BUG-7 (the row that shipped past its own gate, now verified),
+      DEBT-38 (the DEPLOY_LOG half of the same seam), docs/DECISIONS.md
+      2026-08-16 (the mechanism entry this row is the backlog counterpart of).
 
   - id: DEBT-1
     status: verified
@@ -13322,6 +13582,72 @@ debt:
     commits: ["7d984be"]
     title: "CLOSED — A code-carrying production promotion went unlogged for three days — fast-forward promotions leave no artifact that prompts a DEPLOY_LOG entry"
     notes: >
+      SECOND GENUINE RECURRENCE, 2026-08-16 — FIVE CONSECUTIVE UNLOGGED
+      FAST-FORWARD PROMOTIONS. Prepended per preserve-and-mark; nothing below is
+      edited. Session:
+      docs/prompts/BUG-7_CLOSURE_AND_DEPLOY_LOG_RECONCILIATION.md + Addendum A.
+      The five retroactive docs/DEPLOY_LOG.md entries were written in that
+      session; this row records the mechanism.
+      THE FIVE, from `git reflog show main --date=iso`, given as the instant MAIN
+      MOVED (Pacific) with the tip commit's own authored time beside it, because
+      the difference between those two columns is this row's own finding:
+        882d6c3  main moved 2026-08-11 10:24:36 PT  ·  tip authored 09:26:53 PT
+        ec42265  main moved 2026-08-11 16:27:24 PT  ·  tip authored 16:11:02 PT
+        b853787  main moved 2026-08-12 12:33:26 PT  ·  tip authored 11:58:03 PT
+        ce036f9  main moved 2026-08-12 21:50:11 PT  ·  tip authored 21:01:07 PT
+        06dc830  main moved 2026-08-14 08:05:16 PT  ·  tip authored 2026-08-13
+                                                       21:20:08 PT
+      main@{0} through main@{4} are all "merge staging: Fast-forward"; the last
+      real merge is f318d2e at main@{5}. Forty-three commits reached production
+      across the five, in ranges 11 + 2 + 13 + 7 + 10.
+      THE MECHANISM IS END-OF-WORK-BLOCK PUSHING, NOT A LOGGING LAPSE, and
+      filing it as a logging lapse would put the remedy in the wrong place. Four
+      of the five promotions moved main within an hour of their own last commit —
+      finish the block, promote, stop. That is a working RHYTHM, and a rhythm
+      does not get fixed by resolving to remember something. A fast-forward
+      leaves no merge commit, so nothing in the flow ever pauses to prompt an
+      entry: there is no artifact, on the platform or in git, between "push" and
+      "the next session".
+      FOUR-PLUS-ONE, NOT FIVE — AND THE CORRECTION MATTERS MORE THAN THE FACT.
+      The fifth promotion is the exception to the rhythm: 06dc830 was authored
+      2026-08-13 21:20:08 PT and sat overnight, reaching main 2026-08-14
+      08:05:16 PT, about 10 h 45 m later. The session prompt that commissioned
+      this entry asserted all five were end-of-block and dated the fifth "Aug 13
+      evening". IT HAD READ A COMMIT TIME AS A PROMOTION TIME. That is the
+      CLAUDE.md § Database Evidence timestamp trap in a form that section does
+      not name — not UTC-versus-local this time, but authored-versus-applied,
+      two Pacific timestamps that are both real, both correctly transcribed, and
+      ten hours apart. It produced a tidier story than the truth (five identical
+      end-of-block pushes) and nothing about it looked wrong. Caught by running
+      `git reflog show main --date=iso` rather than inferring promotion times
+      from `git log`. THE REFLOG IS THE AUTHORITY ON WHEN MAIN MOVED; a commit
+      time is the authority on nothing but itself.
+      FIVE CONSECUTIVE VIOLATIONS OF THE --no-ff RULE THIS ROW ITSELF ADDED IN
+      7d984be, and therefore five production states with no one-line rollback.
+      Each of the five DEPLOY_LOG entries written this session has to carry
+      "FAST-FORWARD, not a merge — `git revert -m 1` does not apply" over a
+      hand-assembled reverse-order revert list of 11, 2, 13, 7 and 10 commits —
+      which is precisely the artefact this row's LATENT cost line below predicted
+      ("exactly what you do not want to be assembling under pressure"), now
+      produced five times.
+      THE ROW STAYS `shipped`, AND THE REASON IS THE FINDING. 7d984be is in
+      production and WORKFLOW.md §2 still says `git merge staging --no-ff
+      --no-edit` with the DEPLOY_LOG add+commit inside the command block. The
+      mechanism is present, correct, and was not defeated — IT WAS NOT RUN. A
+      fast-forward is only possible if `--no-ff` was not passed, so these five
+      promotions did not go through §2 at all. Reopening this row would imply the
+      remedy is wrong; it is not. What is missing is a step that makes the
+      promotion procedure READ the document, which is the same shape as the
+      failure recorded in docs/DECISIONS.md 2026-08-16 and is filed as DEBT-72
+      rather than absorbed here — one contained change per row.
+      NOT A THIRD OCCURRENCE OF DEBT-23'S REASONING, which stays withdrawn and
+      stays false. As with the first recurrence below, this was established from
+      the reflog, independently, and the DEPLOY_LOG heading order was read with
+      `grep -n "^## "` rather than with `tail` — the file is
+      reverse-chronological and its newest heading is a STAGING entry newer than
+      all five of these promotions, which is exactly the trap that produced
+      DEBT-23 and would have put five Aug-11-to-14 entries above an Aug-15 one.
+      ── ORIGINAL NOTES BELOW, UNEDITED ──
       SHIPPED TO PRODUCTION 2026-08-07 in merge "fad9207" — AND ITS FIRST
       EXERCISE FOUND A GAP IN ITSELF, NOW FIXED. The same promotion that
       carried this fix was the first run under it, and it worked: "fad9207" is

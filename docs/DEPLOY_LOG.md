@@ -140,6 +140,51 @@ Deploy verification: 2026-07-02T22:00:05Z
   four HR-11j recorder commits), and the commit that adds THIS LINE, which
   cannot carry its own SHA and resolves as
   `git log --oneline -- docs/DEPLOY_LOG.md`.
+- **DISCHARGE, added 2026-08-16 (BUG-7 closure + DEPLOY_LOG reconciliation
+  session).** Extending the list by dated line per the preserve-and-mark bullet
+  above; **nothing above is edited or deleted.** Every obligation this section
+  carried is marked below against the retroactive entry that now names it. The
+  promotions were all fast-forwards and all five entries were written on
+  2026-08-16, three to five days after the fact.
+  - **Discharged by the *2026-08-11 (morning)* entry, promotion `882d6c3`:**
+    `65abb74` and `f318d2e` (the two 2026-08-10 docs-only `--no-ff` merges —
+    named by the first real promotion to follow them, which is what the
+    obligation asked for); `35a25c6` (training audit + session prompt);
+    `683d33a` (the 2026-08-10 training-filing docs commit, which could not
+    carry its own SHA); `0a745c3` + `bf42bae` (HR-20 work + docs);
+    `a56c905` + `a369107` (HR-21 work + docs); `bd63da7` + `0273c98` (HR-22
+    work + docs).
+  - **Discharged UNMET, same entry:** the HR-20 bullet asked the promotion entry
+    to *confirm the `20260810194426_hr20_training_category_entity` applying-line
+    in the production build log*. It was not confirmed at the time and cannot be
+    reconstructed retroactively. **Marked discharged-as-unmet rather than
+    quietly dropped** — the obligation was real, it was missed, and recording it
+    as met would be false.
+  - **Discharged by the *2026-08-12 (midday)* entry, promotion `b853787`:**
+    `cc75949` (training access audit, docs-only); `f5d2883` + `5c01807` (HR-25
+    work + docs); `0b1cf51` + `0ec4f20` (HR-24 work + docs); `7048504` +
+    `1892b3a` (HR-26 work + docs). **The promotion-order constraint those three
+    bullets carried — HR-24 not ahead of HR-25, transitively HR-26 — HELD:** all
+    three rode one promotion and HR-25 is the oldest commit in it. All three
+    were named as access-control changes on a confidential-content surface, as
+    instructed.
+  - **`HR_MODULE_AVAILABLE` — READ THE *2026-08-12 (midday)* ENTRY BEFORE
+    REPEATING THE CLAIM THAT HR IS DARK IN PRODUCTION.** It is not, and has not
+    been since 2026-07-24. That correction is recorded on that entry.
+  - **STILL OPEN — the 2026-08-15 HR-11j bullet is NOT discharged.** All eight
+    of its commits (`32205a4`, `2afcf0f`, `887ee14`, `72e4adc`, `c15b54d`,
+    `717f37b`, `17524c0`, `523a35a`) were checked against `origin/main` on
+    2026-08-16 with `git merge-base --is-ancestor`: **none is on production.**
+    They remain on staging awaiting a promotion, and that obligation carries
+    forward to whichever entry records it.
+  - **WHAT THIS SECTION DID NOT CATCH, which is worth more than what it did.**
+    Two of the five promotions — `ce036f9` (DOC-1 A/B/C, including a migration
+    and an access-control change) and `06dc830` (BUG-6, BUG-7, F-4's production
+    webhook) — carried **no standing-note obligation at all**, because the
+    sessions that produced them never added a bullet here. This list only ever
+    contains what someone remembered to write into it, so **it cannot be read as
+    a complete inventory of what is awaiting promotion.** `git log
+    origin/main..staging` can; this section cannot.
 
 ## 2026-08-15 — STAGING deploy + HR-11j acceptance pass — NOT a promotion
 
@@ -205,6 +250,234 @@ Deploy verification: 2026-07-02T22:00:05Z
   `523a35a`, both HR-11j recorders — plus the commit carrying this entry.
   Gary pushes them together with it; the acceptance above was run against
   `717f37b`, and the three that follow it are docs-only.
+
+---
+
+> **THE FIVE ENTRIES BELOW WERE WRITTEN RETROACTIVELY ON 2026-08-16**, in the
+> BUG-7 closure session (`docs/prompts/BUG-7_CLOSURE_AND_DEPLOY_LOG_RECONCILIATION.md`
+> + Addendum A). They record five consecutive fast-forward promotions — 43
+> commits, 2026-08-11 to 2026-08-14 — that reached production with **no entry
+> between them**. Reconstructed from `git reflog show main --date=iso` and
+> `git log f318d2e..06dc830`, not from memory. This is DEBT-38's **second
+> genuine recurrence**; the mechanism is on that row.
+>
+> **They sit here, below the 2026-08-15 staging entry, because this file is
+> reverse-chronological and all five predate it.** The session prompt said to
+> put them "at the top of the file"; that instruction was wrong and Addendum A
+> § A3 corrected it. Following it literally would have placed Aug-11-to-14
+> entries above an Aug-15 one — the same ordering misreading that produced the
+> withdrawn DEBT-23.
+>
+> **Every heading below is dated by the instant `main` MOVED, not by when its
+> tip commit was authored.** For four of the five those fall on the same day;
+> for `06dc830` they do not, and reading the commit time as the promotion time
+> is what put the wrong date in the session prompt. Both times are given on
+> every entry.
+
+## 2026-08-14 — PRODUCTION promotion (BUG-6's two fixes + BUG-7's guarded upsert + F-4's production webhook — the sales-sync concurrency system changed in three directions in one push) — RETROACTIVE ENTRY
+
+- **Promotion SHA:** `06dc830` — full:
+  `06dc830805254d5225b61ec8cac819366b5d4846`. **`main` moved 2026-08-14
+  08:05:16 PT = 2026-08-14 15:05:16 UTC** (PDT = UTC−7; conversion stated per
+  CLAUDE.md § Database Evidence). **Its tip commit was authored 2026-08-13
+  21:20:08 PT** — the work was finished one evening and promoted the next
+  morning, ~10 h 45 m later. This is the one promotion of the five where those
+  two timestamps fall on different days.
+- **FAST-FORWARD, not a merge.** `ce036f9` is an ancestor of `06dc830` and the
+  set is contiguous; no merge commit exists, so **`git revert -m 1` does not
+  apply.** Fifth of five consecutive `--no-ff` violations — see DEBT-38.
+- **TEN commits**, `ce036f9..06dc830`. Oldest `37361ba`, newest `06dc830`.
+- **Rollback = revert all 10 in reverse order**, then push main:
+  `06dc830 9021caa 728638d 801dceb 00881dc 588206c 92de25f b77082e cc58ff7
+  37361ba`
+- **THIS SINGLE PUSH CHANGED THE SALES-SYNC CONCURRENCY SYSTEM IN THREE
+  DIRECTIONS AT ONCE**, and that is the fact this entry exists to record:
+  - **More racers** — `37361ba` and `b77082e`, BUG-6's two fixes. The poll they
+    introduced means one store switch can schedule up to **8** syncs for a
+    single store-day where it previously scheduled 2.
+  - **A new guard** — `00881dc`, BUG-7's `INSERT ... ON CONFLICT DO UPDATE ...
+    WHERE stored.syncedAt < EXCLUDED.syncedAt`.
+  - **A new continuous writer** — `06dc830` itself, F-4's production webhook
+    subscription, which adds a writer at transaction rate.
+  Each was individually reasoned; the combination was not promoted as a
+  combination, because nothing in a fast-forward promotion pauses to ask what
+  the set does together.
+- **`00881dc` WENT TO PRODUCTION WHILE ITS OWN ROADMAP ROW READ `in_progress`
+  AND "NOT YET VERIFIED ON STAGING".** Stated as fact, not as objection.
+- **THE ORDERING FACT, RECORDED WITHOUT SOFTENING IT.** The `ORDERING:` line on
+  the BUG-7 row read: *verify BUG-6 on staging → verify BUG-7 on staging →
+  register the Square subscriptions → verify F-4.* BUG-6 **was** verified on
+  staging — `728638d` says so and it stands. **BUG-7 was not.** The webhook was
+  registered about two hours later anyway (`728638d` 20:25 PT, `06dc830`
+  21:20 PT). One missing step in a three-step chain. Nothing was overruled and
+  no check was bypassed: the promotion procedure has never read
+  `docs/ROADMAP.yaml`, so the gate was never consulted. That mechanism is
+  `docs/DECISIONS.md` 2026-08-16 and DEBT-72.
+- **HOW IT TURNED OUT, since this entry is written with three days' hindsight
+  and hiding that would be its own distortion:** BUG-7 was **verified in
+  production 2026-08-16** — ~55 `discarded ... superseded by a newer fetch`
+  lines across nine stores, including collisions 70 ms and 270 ms apart — and
+  F-4's remaining blocker closed on the same afternoon's evidence. **The
+  unverified thing shipped and was right.** That is the outcome, not a
+  vindication of the order; the guard could as easily have been wrong, and the
+  webhook had by then made the race frequent instead of rare.
+- **MIGRATION: NONE.** No schema change in any of the ten commits. BUG-7's fix
+  relied entirely on constraints that already existed.
+- **Also carried:** `588206c` (the BUG-7 audit, `docs/prompts/BUG-7_AUDIT.md`),
+  `801dceb` (the BUG-7 row + `syncedAt` reader audit, recording `00881dc`),
+  `92de25f` and `cc58ff7` (BUG-6 recorders), `9021caa` (BUG-6 closure recorder),
+  `728638d` (BUG-6 verified and closed, BUG-8 filed).
+
+## 2026-08-12 (evening) — PRODUCTION promotion (DOC-1 A/B/C — document audience grants, the assign dialog, and audience-scoped compliance) — RETROACTIVE ENTRY
+
+- **Promotion SHA:** `ce036f9` — full:
+  `ce036f9ba27d3b6a3771f6984d12dbba5b349772`. **`main` moved 2026-08-12
+  21:50:11 PT = 2026-08-13 04:50:11 UTC.** Note the date change across the
+  conversion: this is an Aug 12 promotion in Pacific and an Aug 13 one in UTC,
+  which is exactly the midnight-crossing CLAUDE.md § Database Evidence warns
+  about. Tip commit authored 2026-08-12 21:01:07 PT.
+- **FAST-FORWARD, not a merge.** `b853787` is an ancestor of `ce036f9`, contiguous,
+  no merge commit — **`git revert -m 1` does not apply.** Fourth of five.
+- **SEVEN commits**, `b853787..ce036f9`. Oldest `d728da4`, newest `ce036f9`.
+- **Rollback = revert all 7 in reverse order**, then push main:
+  `ce036f9 bb95ed7 9133dcf 0ebe4d4 e18dd54 3222188 d728da4`
+- **What shipped**, by theme:
+  - **DOC-1 A** (`d728da4`) — document audience grants and an audience-aware
+    read policy. **This is an access-control change on HR documents**, not a UI
+    addition, and it is the reason this promotion is not a routine one.
+  - **DOC-1 B** (`e18dd54`) — the document assign dialog, visibility toggle and
+    audience chips.
+  - **DOC-1 C** (`9133dcf`) — audience-scoped compliance denominators.
+  - **Docs** (`3222188`, `0ebe4d4`, `bb95ed7`, `ce036f9`) — the three DOC-1
+    audits, roadmap rows, permissions rows, the migration entry, and the DOC-1
+    session prompts and working drafts.
+- **MIGRATION — one, applied on this promotion:**
+  `20260812171500_doc1a_document_audience_grants`. Additive. Applied to
+  production by `prisma migrate deploy` during the Vercel build. **The build
+  log's applying-line was NOT confirmed at the time** — this entry is
+  retroactive and that confirmation is not reconstructable after the fact.
+  Recorded as a gap rather than asserted. **On rollback: do NOT drop the
+  table/columns** — reverting the code leaves additive schema unread, which is
+  harmless.
+
+## 2026-08-12 (midday) — PRODUCTION promotion (the HR-24/25/26 training access-control chain + HR-28 rich text) — RETROACTIVE ENTRY
+
+- **Promotion SHA:** `b853787` — full:
+  `b8537876aa0ce787de53d31aa2feeb44c5bb8fa7`. **`main` moved 2026-08-12
+  12:33:26 PT = 2026-08-12 19:33:26 UTC.** Tip commit authored 11:58:03 PT.
+- **FAST-FORWARD, not a merge.** `ec42265` is an ancestor of `b853787`,
+  contiguous, no merge commit — **`git revert -m 1` does not apply.** Third of
+  five.
+- **THIRTEEN commits**, `ec42265..b853787`. Oldest `cc75949`, newest `b853787`.
+- **Rollback = revert all 13 in reverse order**, then push main:
+  `b853787 e9a717c 985507f 340f99b 964b906 142e858 1892b3a 7048504 0ec4f20
+  0b1cf51 5c01807 f5d2883 cc75949`
+- **THREE ACCESS-CONTROL CHANGES ON A CONFIDENTIAL-CONTENT SURFACE**, which the
+  standing note above insisted the promotion entry say rather than listing them
+  as training tweaks:
+  - **HR-25** (`f5d2883`) — completed training **stops** being served its
+    attached files. A narrowing.
+  - **HR-24** (`0b1cf51`) — **STORE** admitted to the training library as a
+    reader: `requireHrTrainingReadAccess`, a new trimmed `GET
+    /api/hr/training/library`, authoring affordances suppressed behind
+    `canManage`. A widening.
+  - **HR-26** (`7048504`) — **MANAGER** admitted as reader and assigner. A
+    second widening, extending HR-24's guard and route.
+- **THE PROMOTION-ORDER CONSTRAINT WAS SATISFIED.** The standing note required
+  that HR-24 not reach production ahead of HR-25, transitively including HR-26,
+  and that "one promotion carrying all of them, or HR-25 first" were the only
+  correct orders. **All three rode this single promotion, and within it HR-25 is
+  the oldest commit.** Both conditions hold. Recorded explicitly because it was
+  satisfied by the build order rather than by anyone checking at promotion time —
+  no fast-forward promotion in this set consulted a constraint written in a
+  document.
+- **CORRECTION TO A CLAIM MADE ABOUT THIS PROMOTION, and it is the reason this
+  entry is longer than its siblings.** The session prompt that commissioned
+  these entries stated that the HR access-control work reaching production
+  unlogged was "a **governance failure, not a live exposure**", because "HR is
+  dark in production (`HR_MODULE_AVAILABLE` unset)". **THAT PREMISE IS FALSE.**
+  `HR_MODULE_AVAILABLE=true` was added to the Vercel **Production** scope on
+  **2026-07-24** — nineteen days before this promotion — and the fact is
+  recorded in this very file, in the *2026-07-24 — PRODUCTION promotion (HR-11b
+  + HR-11c) + HR LAUNCH* entry below, under the heading **HR LAUNCH**. So these
+  two widenings reached a **LIVE production HR module**, gated only by each
+  org's `activeModules` "hr" toggle.
+  **What this entry does NOT claim:** that anyone was actually over-served. That
+  depends on which production orgs have `hr` active, which STORE and MANAGER
+  principals exist on them, and what training content is attached — none of
+  which this docs-only session measured, and production reads are Gary's to run
+  in the Neon console. **The governance-vs-exposure question is therefore OPEN,
+  not answered in the reassuring direction.** It is flagged for a ruling rather
+  than resolved here.
+- **Also shipped:** **HR-28** (`142e858`) — rich text editor for training module
+  descriptions — plus two same-day follow-ups: `340f99b` (keep
+  `isomorphic-dompurify` external to the server bundle) and `e9a717c` (replace
+  it with `sanitize-html` outright). `964b906` carries the HR-28 row and audit
+  artifact; `b853787` corrects the HR-28 fix claim. `cc75949` is the training
+  access audit (`docs/prompts/2026-08-11_TRAINING_ACCESS_AUDIT.md`), docs-only.
+- **MIGRATION: NONE.** HR-24, HR-25, HR-26 and HR-28 were all code-and-UI only;
+  HR-20's entity, unique constraint and `dueDate` already existed.
+
+## 2026-08-11 (afternoon) — PRODUCTION promotion (bulk-assign dialog scroll fix + the CLAUDE.md Session Tiers section) — RETROACTIVE ENTRY
+
+- **Promotion SHA:** `ec42265` — full:
+  `ec422654591f3e7b7ec793e1d5b46adbf1e1bd7d`. **`main` moved 2026-08-11
+  16:27:24 PT = 2026-08-11 23:27:24 UTC.** Tip commit authored 16:11:02 PT.
+- **FAST-FORWARD, not a merge.** `882d6c3` is an ancestor of `ec42265`,
+  contiguous, no merge commit — **`git revert -m 1` does not apply.** Second of
+  five.
+- **TWO commits**, `882d6c3..ec42265`. Oldest `4836912`, newest `ec42265`.
+- **Rollback = revert both in reverse order**, then push main:
+  `ec42265 4836912`
+- **What shipped:** `ec42265` — the HR-22 Bulk Assign dialog no longer scrolls
+  past the viewport. `4836912` — the **Session Tiers** section added to the top
+  of `CLAUDE.md` (TIER 1/2/3, the what-does-NOT-tier-down list, and the
+  one-way-escalation rule). The second is process documentation with no runtime
+  effect; it is named because it reached production unlogged like the rest.
+- **MIGRATION: NONE.**
+- **The smallest promotion of the five**, and worth noting as such: a two-commit
+  fast-forward is exactly the size that feels too small to log, and it is
+  logged here on the same terms as the thirteen-commit one.
+
+## 2026-08-11 (morning) — PRODUCTION promotion (the HR-20/21/22 training trilogy + the training pre-phase audit) — RETROACTIVE ENTRY
+
+- **Promotion SHA:** `882d6c3` — full:
+  `882d6c3e1e36f5b472347ce08020f9c25a41d48f`. **`main` moved 2026-08-11
+  10:24:36 PT = 2026-08-11 17:24:36 UTC.** Tip commit authored 09:26:53 PT.
+- **FAST-FORWARD, not a merge.** The previous production tip `f318d2e` (full:
+  `f318d2e58fe7613802e5af090df1342459fe4622`, `main@{5}`, the last **real**
+  merge on this branch) is an ancestor of `882d6c3` and the set is contiguous;
+  no merge commit exists, so **`git revert -m 1` does not apply.** **First of
+  five** — and the first promotion after `7d984be` made `--no-ff` the rule,
+  which is what makes DEBT-38's recurrence a violation rather than a gap.
+- **ELEVEN commits**, `f318d2e..882d6c3`. Oldest `35a25c6`, newest `882d6c3`.
+  The exclusive range is correct here — `f318d2e` was itself already on
+  production.
+- **Rollback = revert all 11 in reverse order**, then push main:
+  `882d6c3 a4d2637 0273c98 bd63da7 4207be0 a369107 a56c905 bf42bae 0a745c3
+  683d33a 35a25c6`
+- **What shipped**, by theme:
+  - **HR-20** (`0a745c3`) — the `TrainingCategory` entity and its additive
+    migration.
+  - **HR-21** (`a56c905`, `4207be0`) — Category management UI, badges, filter
+    chips, card/list toggle, the three-tab Active/Inactive/Archived partition
+    on `/hr/training`, and the Category picker coloured with its badge preset.
+  - **HR-22** (`bd63da7`) — bulk training assignment with due-date
+    carry-through: the bulk assign route and recipients endpoint, the Bulk
+    Assign dialog, and `skipDuplicates: true` on the single-assign POST.
+  - **Docs** (`35a25c6`, `683d33a`, `bf42bae`, `a369107`, `0273c98`, `a4d2637`,
+    `882d6c3`) — the training pre-phase audit and its session prompt, the
+    training filing (rulings R-a..R-f, DEBT-68 filed, HR-23 filed), the three
+    board amendments, and the HR-22 follow-up audit that found `skipDuplicates`
+    load-bearing and voided its own Phase 2.
+- **MIGRATION — one, applied on this promotion:**
+  `20260810194426_hr20_training_category_entity`. Additive. Applied to
+  production by `prisma migrate deploy` during the Vercel build. **The build
+  log's applying-line was NOT confirmed at the time**; this entry is
+  retroactive and that confirmation cannot be reconstructed. The standing note
+  above explicitly asked the promotion entry to confirm it, and **that
+  obligation is discharged as UNMET, not as met.** **On rollback: do NOT drop
+  the table** — additive schema left unread is harmless.
 
 ## 2026-08-10 (evening) — PRODUCTION promotion (the CHK phase's two surfaces: CHK-4 lifecycle visible + CHK-5 operations report + CHK-3's defect trilogy + DEBT-63/65 closed)
 
