@@ -10254,7 +10254,10 @@ debt:
       DATES DIFFER — which is the only window that can prove anything here.
       Status in_progress -> verified. Prepended per preserve-and-mark; nothing
       below is edited, including the "NOT YET VERIFIED ON STAGING" line, which
-      was true when written.
+      was true when written. RECORDER COMMIT f7723fe carries this block and
+      DEBT-70b's, DEBT-70's server-half closure, and DEBT-73. `commits:` still
+      names 623acb6 alone — that is the FIX; f7723fe is the record of its
+      verification and does not belong in the same field.
 
 
       THE EVIDENCE. Tommy Thomas, v7 of "Test - Handbook Regression". Completed
