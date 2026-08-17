@@ -10470,6 +10470,44 @@ debt:
     status: planned
     title: "PLACEHOLDER — the promotion procedure never reads the roadmap, so a roadmap gate cannot stop a promotion"
     notes: >
+      AUDITED 2026-08-17 — THE RULED GATE WAS NOT BUILT. §3a'S OWN STOP CONDITION
+      FIRED. Prepended per preserve-and-mark; nothing below is edited, and NO
+      MECHANISM IS PROPOSED HERE — the four open decisions are Gary's and are
+      listed in the audit, not in this row. Full evidence:
+      docs/prompts/DEBT-72_AUDIT.md, committed as b809e03 — the audit SHA is
+      carried here as prose rather than in commits:, per the convention 5ecceb3
+      set on HR-11d, because nothing shipped and commits: would imply it did.
+      WHAT WAS MEASURED. The prompt's row-ID regex is anchored to the start of the
+      commit subject, and the repo completed a move to Conventional Commits on
+      2026-08-15 — so on 06dc830..7e77ea6 it recognised ONE row ID across 47
+      commits (43 subjects, 91.5%, matched nothing), and on the 21-commit range
+      493175e..63407be it recognised NONE AND RETURNED PASS. A gate that passes by
+      not looking is the false-PASS class CLAUDE.md § Verifying a guard covers
+      every path already warns about, and it is worse than no gate. Unanchored,
+      81% of subjects resolve. Two further defects the prompt did not anticipate:
+      28 of 75 debt rows carry NO status: field (which §2.3 fails closed on, so
+      37% of the debt board becomes an automatic blocker), and ROADMAP.yaml has a
+      FOURTH collection — rulings, R1..R6, all status "ruled" — which §4 does not
+      resolve against, whose IDs appear in real commit subjects, and for which no
+      reading of the ruling lets a commit naming R2 pass.
+      WHAT PASSED. The §5 acceptance criterion was MET: replayed against
+      ce036f9..06dc830 with the board as it stood at that moment, the gate BLOCKS
+      on "BUG-7 — in_progress", using the spec's own anchored regex. The thing
+      DEBT-72 exists to catch, it catches. The §5 criterion that a clean older
+      range must PASS could NOT be met — eleven ranges swept, and PASS appears
+      only where the regex found zero IDs.
+      CONTRADICTS §1 OF THE PROMPT. WORKFLOW.md §2 does NOT read "git merge
+      staging --no-edit". It has read "--no-ff --no-edit" since 2026-08-07, with a
+      "Why --no-ff" paragraph citing DEBT-38 and the DEPLOY_LOG add/commit steps
+      inside the copyable block. Ruling §2.2 is therefore already satisfied in
+      prose, and DEBT-38's candidate (a) with it. The genuinely new thing this row
+      buys is the STATUS GATE, which exists nowhere. DEBT-38 was NOT closed and
+      NOT annotated this session — its open question is not yet answered, because
+      the half that would answer it was not built. Also: the promoted range is 47
+      commits, not the 48 the prompt states.
+      STATUS STAYS "planned". §8 asked for "staging" once the work was on staging;
+      there is no work. Nothing was written to scripts/, package.json or
+      WORKFLOW.md. The row remains an accurate description of an open problem.
       PLACEHOLDER ROW, FILED 2026-08-16. THE REMEDY IS DELIBERATELY NOT DRAFTED
       HERE. Gary reserved the WORKFLOW.md promotion gate as his own ruling, to be
       written and ratified in his own words — "a recommendation is not a ruling
