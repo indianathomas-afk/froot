@@ -740,6 +740,54 @@ checkout (ten errors at time of writing), so any gate containing it can never
 reach the commit. **Scoped eslint over the files this commit touches** is the
 interim rule. Docs-only commits skip eslint and gate on `npm run build` alone.
 
+## Display-Only Changes — the gate is the test
+
+A **display-only** change is one that cannot alter what any code branches on.
+Copy, labels, headings, typos; a separator glyph; a comment or a doc sentence;
+spacing, colour, radius or a Tailwind class moving toward § Design System;
+spinner → skeleton; an empty-state CTA; an unused import; an auto-fixable lint
+rule. Its correctness is visible in the diff and nowhere else.
+
+**For a display-only change, a green commit gate plus the diff read back
+against a stated intent is the complete verification. Do not ask Gary to test
+one** — not to open a page, not to click through a surface, not to confirm a
+choice already made in the row's own notes or in § Design System. State the
+choice you made and move on.
+
+**Why this is a bounded exception and not a shortcut.** The verification
+protocol in this file — the staging SHA precondition, the named-branch rule for
+database evidence, the browser-instance rule — exists because *claims about
+deployed behaviour* were built on unlabelled or stale inputs and produced five
+coherent, confident, wrong causal chains in one evening (2026-07-28,
+`DECISIONS.md`). Every one of those was a claim about a running system. A
+display-only change makes no such claim: it is verifiable by reading, and
+`next build` typechecks the whole graph before anything commits.
+
+**The boundary, which is the part that keeps this safe.** The protocol binds in
+full again the instant a change starts making a claim about a deployed
+environment, a database, or what a role may do. If a "cosmetic" change turns
+out to need a schema column, an env var, a migration, a Square/Clerk call, or a
+product decision about what the right value *is* — it was never display-only.
+Stop, revert it, and file or amend the row saying which of those it turned out
+to need. Widening this rule to avoid that is the failure mode it is most
+exposed to; the escalation is not a defeat, it is the rule working.
+
+**Two adjacent rules survive unchanged and are worth naming here, because a
+display-only change is exactly where someone would reach past them.** A text
+change inside `docs/prompts/` is still forbidden — a saved prompt is a claim
+wholesale (§ Where documents live). And a wording change to a decision record
+is display-only in mechanism but not in consequence: reword the *premise* that
+was false, never the *ruling*, and say in the commit message which you touched.
+
+**Batch the human check.** Where a display-only change does leave something a
+human eye should confirm, it goes into a single list at the end of the run —
+route plus the one thing to look at — not a question per change. Changes with
+nothing to look at are named as such and left off the list. A padded list
+trains the reader to skim it, which costs more than it buys.
+
+Recorded 2026-08-17. The prior habit was per-change confirmation on cosmetic
+work, most of which established only that the tree was in sync.
+
 ## Module Gating
 
 Modules are gated per-org via `activeModules` on the `Organization` record.
