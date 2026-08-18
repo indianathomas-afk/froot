@@ -7174,6 +7174,80 @@ phases:
         src/lib/square.ts:4 pins SQUARE_VERSION = "2024-01-17". The two move
         together — a scope grant against a too-old version buys nothing.
       - >
+        LABOR-0 IS NOW FULLY RUN — BOTH OWED TASKS COMPLETE, 2026-08-18
+        (dd7b8603890b47b39287f19234f22da30705468e, results in
+        docs/prompts/LABOR-0B_RESULTS.md). Prepended; nothing below is edited.
+        Task 1c (construction-site count) and Task 5 (webhook inventory) are
+        DONE, so this blocker's own condition is met and the "RUN IT BEFORE ANY
+        BUILD" sentence below is discharged. The same session ran two riders:
+        the exact OAuth scope strings for the consent batch, and the changelog
+        delta for the SQUARE_VERSION bump. WHAT THE SURVEY CHANGES FOR THIS ROW,
+        four things. (1) THE CONSENT BATCH IS TWO STRINGS, NOT THREE OR FOUR:
+        TIMECARDS_READ and TIMECARDS_SETTINGS_READ. Scheduled-shift READS share
+        TIMECARDS_READ (Square documents both under the same permission), and
+        team wage / job / pay-rate reads are ALREADY COVERED by the held
+        EMPLOYEES_READ — the wage half needs no new scope at all. Neither of the
+        prompt's RULING NOW triggers fired: no read capability requires a WRITE
+        scope, and scheduled-shift reads are NOT gated by a Shifts Plus
+        subscription (only certain updates are, which bites L-4's prohibited
+        push half, not this row). EMPLOYEES_READ is NOT deprecated — the
+        Employees API is, the scope is the live one governing Team API reads,
+        and there is no TEAM_READ to migrate to. (2) THE VERSION BUMP IS
+        LOW-RISK BUT IT IS A THREE-LINE EDIT, NOT ONE. Eleven changelog dates
+        2024-01-17 -> 2026-01-22 were surveyed and NOTHING breaks a Froot call
+        site; all four breaking changes miss the surface (Webhooks management
+        400 — Froot creates no subscriptions by API; RenewToken retired — Froot
+        uses the refresh_token grant; Location address validation — write-side,
+        Froot only reads; Shift deprecation — zero surface). BUT the pin is not
+        one constant with seven call sites as the prose above says: there are
+        EIGHT version-bearing header sites and only SIX reach the version
+        through src/lib/square.ts:4. src/app/api/square/callback/route.ts:43 and
+        src/app/api/square/locations/route.ts:44 HARDCODE "2024-01-17" and never
+        import the constant. Editing line 4 alone would have Froot calling POST
+        /oauth2/token at two different API versions from two different files
+        inside the same OAuth flow. No changelog surfaces this; only the grep
+        does. (3) THE SHIFT RETIREMENT ALREADY HAPPENED AND THIS ROW SURVIVED
+        IT. Retirement was 2026-05-21, 89 days before the survey ran — LABOR-0
+        was written 2026-08-02 to get ahead of a deadline that was already
+        behind it. Zero labor hits re-verified 2026-08-18 (Shift endpoints,
+        labor.shift.*, Timecard, SearchTimecards, BreakType, WorkweekConfig,
+        TeamMemberWage), so the surface is still clean and no Shift-migration
+        row is warranted. (4) THE WEBHOOK HANDLER SWALLOWS UNKNOWN EVENT TYPES.
+        src/app/api/webhooks/square/route.ts:71-73 returns HTTP 200 with NO log
+        line for any type outside the four it handles. This row's leading ingest
+        option is webhook-driven: add labor.timecard.created/updated to the
+        subscription before the handler learns them and every delivery is
+        200-ACKed and dropped with no trace, and Square does not retry a 200.
+        Whoever builds the ingest owns that. THREE THINGS THE SURVEY SURFACED
+        AND DELIBERATELY DID NOT RESOLVE, all Gary's: (a) FROOT DOES WRITE TO
+        SQUARE TODAY — updateSquareTeamMemberName (src/lib/square.ts:227-254)
+        issues PUT /v2/team-members/{id}, live via
+        src/app/api/staff/[id]/square-writeback/route.ts:46, and it is not OAuth
+        machinery, so the pending "Froot never writes to Square" ruling must
+        either carve it out by name or the route is in breach. (b) That write
+        cannot be authorized by Froot's OAuth token — EMPLOYEES_WRITE is not
+        requested — so on the code path as written it can only land via the
+        SQUARE_ACCESS_TOKEN personal-token fallback (src/lib/square.ts:236),
+        a credential not constrained by the merchant's consent grant. FLAGGED,
+        NOT DIAGNOSED; not executed at runtime. (c) REPORTING_READ MAY NOT
+        EXIST: the Reporting API overview mandates it, while the OAuth
+        Permissions Reference and the OAuthPermission enum both omit it
+        entirely. A string absent from the enum cannot go in a consent URL and
+        may hard-fail the whole authorize request for every merchant, so this
+        must be settled BEFORE the batch if Reporting is in scope at all. Also
+        unresolved: Square documents the scope/Square-Version relationship in
+        NEITHER direction, so the planning lean that grants are version-
+        independent is neither confirmed nor refuted at source — the survey
+        declined to assert it. What IS documented is that timecard and
+        scheduled-shift endpoints require 2025-05-21 or later regardless, so
+        both remain necessary. NOTE FOR THE NEXT SESSION: LABOR-0B's own summary
+        of Task 1c ("sites where the word shift is spent") CONTRADICTED the
+        LABOR-0 file, whose Task 1c is the Square CLIENT construction-site
+        count. The file won, per its own Task 0, and this row's wording at the
+        prose above is the one that matched. NONE OF THIS LIFTS THE BUILD
+        DEFERRAL, which is a separate ruling recorded in its own blocker below,
+        and none of it is acted on — the survey was read-only by mandate.
+        ORIGINAL ENTRY, PRESERVED VERBATIM:
         LABOR-0 HAS NEVER FULLY RUN (docs/prompts/LABOR-0_shift_surface_grep.md)
         — an unexecuted prompt filed in 2e75029. The 2026-08-05 partial covered
         Tasks 2-4 only and answered two load-bearing questions in this row's
