@@ -5,6 +5,15 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## Froot is read-only toward Square; the name write-back dies — 2026-08-18 (Gary)
+
+Square owns its own data. Froot reads it, never writes it. No write permission
+will ever be requested from a merchant. The only exception is the OAuth
+connect/disconnect plumbing. The team-member name write-back found by LABOR-0B
+is removed — it wrote to Square using my personal token, outside what any
+merchant agreed to. If we ever want to write schedules someday, that gets its
+own ruling, its own consent event, and a real feature behind it.
+
 ## A gate written in a document the procedure never opens is not a gate — 2026-08-16 (Gary's framing; Claude's corollary)
 
 Recorded as a **mechanism**, not a mea culpa. Nothing here reverses a decision;
