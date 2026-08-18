@@ -1,7 +1,16 @@
 import { prisma } from "@/lib/prisma"
 import type { Organization } from "@prisma/client"
 
-const SQUARE_VERSION = "2024-01-17"
+// SQ-VER-1 (2026-08-18): 2024-01-17 -> 2026-01-22. Clears the 2025-05-21 floor
+// the Labor/Timecard endpoints require; LABOR-0B Task 4 surveyed all eleven
+// dated versions in the window and found nothing breaking on a Froot call site.
+// EXPORTED because two routes used to hardcode the date and sat outside this
+// constant's reach (callback/route.ts, locations/route.ts) — they import it now,
+// so a fourth version string can never drift into existence.
+// NOT the same dial as the webhook SUBSCRIPTION version, which is set per-app in
+// Square's dashboard and governs the events Square sends US. Different direction,
+// independently versioned; they do not have to match and this does not change it.
+export const SQUARE_VERSION = "2026-01-22"
 
 // SEC-1: the OAuth state nonce travels as a double-submit httpOnly cookie —
 // set by /api/square/auth, required and cleared by /api/square/callback.

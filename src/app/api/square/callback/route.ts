@@ -2,7 +2,12 @@ import { auth } from "@clerk/nextjs/server"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { squareBaseUrl, SQUARE_OAUTH_STATE_COOKIE, SQUARE_OAUTH_STATE_COOKIE_OPTIONS } from "@/lib/square"
+import {
+  squareBaseUrl,
+  SQUARE_VERSION,
+  SQUARE_OAUTH_STATE_COOKIE,
+  SQUARE_OAUTH_STATE_COOKIE_OPTIONS,
+} from "@/lib/square"
 
 // SEC-1: the state cookie is single-use — it dies on EVERY callback hit,
 // success or failure, so a nonce can never be presented twice.
@@ -40,7 +45,7 @@ export async function GET(req: Request) {
 
   const tokenRes = await fetch(`${baseUrl}/oauth2/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Square-Version": "2024-01-17" },
+    headers: { "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
     body: JSON.stringify({
       client_id: process.env.SQUARE_APPLICATION_ID,
       client_secret: process.env.SQUARE_APPLICATION_SECRET,
