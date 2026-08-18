@@ -7200,6 +7200,90 @@ phases:
           without a second admin action."
     blockers:
       - >
+        THE VERSION BUMP IS DONE AT ALL THREE SITES — 2026-08-18 (SQ-VER-1, work
+        commit b846e32). Prepended; nothing below is edited. This closes item (3)
+        of the GATE STATUS block in the entry below, which recorded the bump as
+        STILL OWED, and it is the last of this row's three gates to close in
+        code. STAGED, NOT PROMOTED: it sits on staging and production still calls
+        Square at 2024-01-17 until the next promotion.
+
+        `SQUARE_VERSION` is `2026-01-22`, eight months clear of the 2025-05-21
+        floor the Timecard endpoints require. THE EDIT WAS THREE LINES BECAUSE
+        TWO ROUTES HELD THEIR OWN LITERAL — src/app/api/square/callback/route.ts
+        and src/app/api/square/locations/route.ts hardcoded "2024-01-17" and
+        never imported the constant, so editing src/lib/square.ts:4 alone would
+        have called POST /oauth2/token at two different API versions from two
+        different files inside one OAuth flow. BOTH STRAYS NOW IMPORT THE
+        CONSTANT rather than carrying a fresh literal, which is the part that
+        matters beyond this session: a fourth version string can no longer drift
+        into existence, because there is no longer anywhere for one to live.
+        Neither import creates a cycle — both files already imported
+        squareBaseUrl from the same module.
+
+        SEVEN version-bearing header sites, confirmed by grep at execution:
+        square.ts:70 (POST /oauth2/token, refresh_token grant), :141
+        (team-members/search), :175 (team-members/{id}), :212 (locations/{id}),
+        :251 (getSquareClient headers — the shared client every product call
+        uses), plus the two former literals. Five reach the version through the
+        constant; site :251 alone carries orders sync, day-report, catalog sync
+        and sales-items sync. LABOR-0B counted eight/six before SQ-WB-1 deleted
+        the write-back.
+
+        SAFETY RESTS ON LABOR-0B TASK 4, NOT ON THIS SESSION RE-DERIVING IT. All
+        eleven dated versions in the window were surveyed against the six APIs
+        Froot calls; nothing breaks a call site. The four breaking changes all
+        miss the surface: Webhooks management 400 (Froot creates no subscriptions
+        by API), RenewToken retired (Froot uses the refresh_token grant it was
+        retired in favour of), Location address validation (write-side; both
+        Locations sites are reads), Shift deprecation (zero labor surface).
+        MERCHANT_PROFILE_READ is held but unexercised — there is no /v2/merchants
+        call site in the tree at all.
+
+        THE WEBHOOK SUBSCRIPTION VERSION WAS NOT TOUCHED and is not this row's to
+        touch. Separate dial, set per-app in Square's dashboard, governing the
+        events Square sends US; production is believed 2024-01-18. Two dials, one
+        at a time.
+
+        FIRST L-2 CODE SHIPPED WITH IT: GET /api/square/labor/verify, legitimate
+        because the build deferral lifted the same day (see the entry below).
+        SearchTimecards, no filter, limit 1, ADMIN-only, returns
+        `{ ok, httpStatus, hasData }` and NOTHING else — no timecard fields, no
+        names, no wages, which is DEBT-10 territory and stays gated behind
+        labor.costs.view when the wage half is built. THE ROUTE MUST NEVER GROW A
+        BODY; whoever needs real timecard data builds the ingest behind seam (b),
+        with its own toggle and its own failure posture.
+
+        WHAT THE PROBE IS FOR, AND WHY IT IS THE DESIGNED VERIFICATION. A live
+        grant's permissions are NOT observable in Square's merchant dashboard, so
+        the 2026-08-18 re-consent cannot be confirmed by looking — only by
+        calling. One request proves version, scope AND grant together. A 403 from
+        Square means the re-consent did not carry the new scopes: re-run the
+        consent URL. THAT IS THE FIX, NOT A CODE BUG. Three choices are
+        documented at the site and are load-bearing for reading its result: it
+        uses the ORG OAUTH TOKEN ONLY via getSquareClient (the
+        fetchSquareTeamMembers-style fallback to SQUARE_ACCESS_TOKEN would let
+        the probe pass on a personal token and prove nothing about the merchant's
+        grant); it gates on square.manage rather than the stores.manage
+        /api/square/locations uses, because stores.manage is in
+        ENFORCED_CAPABILITIES and deniable per-user, so an unrelated store
+        override could 403 the probe and be misread as a missing scope, whereas
+        square.manage is ADMIN_ONLY and not deniable; and `hasData` is REPORTED,
+        NEVER JUDGED — an authorized empty result is a full pass, `ok` is the
+        only criterion (Gary, 2026-08-18).
+
+        GATE STATUS FOR THIS ROW AFTER THIS SESSION — all three code gates
+        cleared, two human steps outstanding, in this order: (1) LABOR-0 COMPLETE
+        (2026-08-18); (2) SCOPES ADDED AND CONSENTED on staging (SQ-SCOPE-1 plus
+        Gary's 2026-08-18 re-consent, still unproven until the probe returns
+        ok:true); (3) VERSION BUMPED, this session. OUTSTANDING: Gary's staging
+        pass (dashboard sales, Stores → Edit Store location picker — the route
+        that held a literal, Staff → Import from Square, then
+        /api/square/labor/verify as ADMIN), and the PRODUCTION CONSENT CLICK at
+        promotion followed by the same four checks there. Note the callback
+        literal's replacement is exercised only by a FRESH OAUTH CONSENT, not by
+        the four checks — it gets its real test at the next connect.
+
+      - >
         THE TWO LABOR SCOPES ARE IN THE AUTHORIZE URL — 2026-08-18 (SQ-SCOPE-1,
         work commit 20b4e70). Prepended; nothing below is edited, and the
         "SQUARE OAUTH CARRIES NO LABOR SCOPES" entry below is now true only of
@@ -7341,13 +7425,43 @@ phases:
         Scheduling by SEPTEMBER 2026. That argues for scoping the work, not for
         starting it — the build is deferred by ruling, not by the clock.
       - >
-        BUILD IS DEFERRED BY RULING (Gary, 2026-08-05, DECISIONS.md top entry),
-        which is a DIFFERENT thing from the three gates above and is recorded
-        here so the two are never conflated. Even with every gate cleared this
-        row does not start until the deferral lifts: the Square labor
-        integration is strictly optional and can never become a floor under
-        forecast-driven labor. This row is the seam design, written so a future
-        build slots in without tearing anything down.
+        THE BUILD DEFERRAL IS LIFTED — 2026-08-18 (Gary, DECISIONS.md "The L-2
+        deferral is lifted — Advanced Labor is the build", recorded in commit
+        8410023). Prepended; the original entry is preserved verbatim below and
+        is now HISTORY, not a live blocker. Gary's words: the 2026-08-05 deferral
+        did its job — the seam got designed, the survey ran, the scopes were
+        batched and consented, and the app went read-only before any merchant was
+        promised that. THE ADVANCED LABOR FORECASTING VISION IS WHAT L-2 BUILDS.
+
+        THE LIFT CHANGES WHAT MAY BE BUILT, NOT THE ORDER. The gates Gary
+        restated with it still stand and are sequenced: version bump FIRST (done
+        2026-08-18, SQ-VER-1 work commit b846e32, staged not promoted),
+        PRODUCTION CONSENT at promotion, then BUILD SESSIONS ONE PHASE AT A TIME.
+        A lifted deferral is not a licence to build the row in one pass.
+
+        WHAT DOES NOT CHANGE WITH THE LIFT: the strictly-optional ruling of
+        2026-08-05 stands untouched — Square labor is an OVERLAY and can never
+        become a floor under forecast-driven labor, seam (b)'s boundary test
+        still has to pass, and the seam design below is still the design. The
+        lift removed the "do not start" clause and nothing else. Note also that
+        the original entry's pointer to "DECISIONS.md top entry" now resolves to
+        the WRONG entry — the 2026-08-05 ruling has three newer entries above it,
+        of which the lift is one; read it by title, not by position.
+
+        NO ADVANCED LABOR FORECASTING DOCUMENT EXISTS IN THE REPO. `grep -rli
+        "advanced labor"` over docs/ and froot_docs/ returned nothing on
+        2026-08-18, so the vision the lift names is not written down anywhere a
+        build session can read. Filing it was outside SQ-VER-1's scope; whoever
+        opens the first build phase needs it to exist, or the phase will be
+        scoped from chat memory.
+
+        ORIGINAL ENTRY, PRESERVED VERBATIM: "BUILD IS DEFERRED BY RULING (Gary,
+        2026-08-05, DECISIONS.md top entry), which is a DIFFERENT thing from the
+        three gates above and is recorded here so the two are never conflated.
+        Even with every gate cleared this row does not start until the deferral
+        lifts: the Square labor integration is strictly optional and can never
+        become a floor under forecast-driven labor. This row is the seam design,
+        written so a future build slots in without tearing anything down."
 
   - id: L-3
     track: labor
