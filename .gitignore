@@ -45,3 +45,6 @@ next-env.d.ts
 # generated from docs/ROADMAP.yaml by scripts/generate-roadmap.mjs on every
 # build/dev start — see src/app/(app)/internal/roadmap
 /src/generated/roadmap.ts
+
+# large binary test fixtures — recoverable from history at 72e4adc / eab6254
+docs/test_docs/*.pdf
