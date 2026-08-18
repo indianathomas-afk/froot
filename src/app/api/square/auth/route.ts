@@ -6,7 +6,7 @@ import { squareBaseUrl, SQUARE_OAUTH_STATE_COOKIE, SQUARE_OAUTH_STATE_COOKIE_OPT
 
 // ORDERS_READ: sales sync (dashboard + inventory reports)
 // EMPLOYEES_READ: team member import (removes the personal-token fallback)
-const SCOPES = "MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ"
+const SCOPES = "MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ TIMECARDS_READ TIMECARDS_SETTINGS_READ"
 
 export async function GET() {
   const { orgId } = await auth()
