@@ -195,7 +195,7 @@ referenced by the capability registry in §5.
 | PL-14 | `users` GET/POST; `users/[id]` PATCH/DELETE; `users/invitations/[id]` DELETE | User management + invites | ADMIN (+ server-side self-role-change, last-admin, self-removal, STAFF-link guards — UM-1) | handler |
 | PL-15 | `staff` GET | Staff directory list | **Any member** (scoped for non-admin) | data-scope (no role floor) |
 | PL-16 | `staff` POST | Staff member creation | **Any member — no role check at all** | handler (org only) |
-| PL-17 | `staff/[id]` GET/PATCH; `terminate`; `reactivate`; `resync-square`; `square-writeback`; `invite` | Staff record lifecycle | ADMIN org-wide; MANAGER in-scope | handler + data-scope |
+| PL-17 | `staff/[id]` GET/PATCH; `terminate`; `reactivate`; `resync-square`; ~~`square-writeback`~~ (REMOVED — see note below); `invite` | Staff record lifecycle | ADMIN org-wide; MANAGER in-scope | handler + data-scope |
 | PL-18 | `staff/sync-square` POST | Bulk Square staff sync | ADMIN | handler |
 | PL-19 | `staff/[id]/documents*` (list/upload-url/create/[docId] PATCH/DELETE) | Manager-uploaded staff docs | ADMIN/MANAGER in-scope (`requireManageableStaff`, HR gates) | handler + data-scope |
 | PL-20 | `staff/[id]/documents/[docId]/download` | Staff doc download | Manage tier; OR the staff member themself when `teamVisible` | handler + data-scope |
@@ -206,6 +206,32 @@ referenced by the capability registry in §5.
 | PL-25 | `cron/pace-alerts`, `cron/sales-reconcile` | Cron jobs | `CRON_SECRET` bearer (no session) | handler (secret) |
 | PL-26 | `webhooks/clerk`, `webhooks/square` | Webhooks | Svix / Square signature (no session) | handler (signature) |
 | PL-27 | `../accept-invite/route.ts` | Invite landing router | Public (forwards Clerk ticket) | — |
+
+**PL-17 — `staff/[id]/square-writeback` is REMOVED, 2026-08-18 (SQ-WB-1, work
+commit `0fd414a`).** The row above is preserved as surveyed and the route name
+struck rather than deleted, because the row records what was enforced on
+2026-07-25 and that reading stays true for that date. The rest of PL-17 —
+`GET`/`PATCH`, `terminate`, `reactivate`, `resync-square`, `invite` — is
+unchanged, and the gate this row records (`staff.manage`, ADMIN org-wide /
+MANAGER in-scope) was correct for the write-back while it existed.
+
+The route was deleted for a reason no permission row could have caught, which is
+worth recording HERE rather than only in the decision log: **its gate was sound
+and its authorization was not.** `POST /api/staff/[id]/square-writeback` checked
+`staff.manage` correctly, then called `PUT /v2/team-members/{id}` against Square
+using a credential the merchant never granted — the OAuth scope set requests
+`EMPLOYEES_READ` and not `EMPLOYEES_WRITE`, so the write could only ever land via
+the `SQUARE_ACCESS_TOKEN` personal-token fallback. A caller who passed every
+check in this document still caused a write outside the consent grant. **This
+inventory audits Froot's gates on Froot's callers; it says nothing about what
+credential a route presents to a third party downstream.** That is a distinct
+question and this document has never asked it.
+
+Ruled by Gary 2026-08-18 (`docs/DECISIONS.md`, "Froot is read-only toward Square;
+the name write-back dies"): Froot reads Square and never writes it, OAuth
+connect/disconnect plumbing excepted, and no write permission will ever be
+requested from a merchant. Found by LABOR-0B (`dd7b860`,
+`docs/prompts/LABOR-0B_RESULTS.md` findings 1 and 2).
 
 ### 1e. Inventory APIs (all behind `requireModule("inventory")`)
 

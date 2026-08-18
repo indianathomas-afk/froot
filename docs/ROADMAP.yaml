@@ -6993,6 +6993,41 @@ phases:
       OPTIONAL Square labor integration — schedules and timecards as an overlay
       on forecast-driven labor, per-org toggle, off by default
     notes: >
+      FROOT IS NOW READ-ONLY TOWARD SQUARE IN FACT, NOT JUST IN INTENT —
+      2026-08-18 (SQ-WB-1, work commit 0fd414a, ruling in DECISIONS.md "Froot is
+      read-only toward Square; the name write-back dies"). Prepended; nothing
+      below is edited. This closes the first of the three things LABOR-0B
+      surfaced and left to Gary, recorded on this row's LABOR-0 blocker as (a).
+
+      THE BREACH IS GONE. updateSquareTeamMemberName and
+      staff/[id]/square-writeback are deleted whole — no carve-out, which is the
+      half of the ruling that matters for this row, because the pending wording
+      could have gone either way and a carve-out would have left L-2 arguing from
+      a codebase that contradicted its own consent story. src/lib/square.ts now
+      issues no write to Square business data; the two remaining POSTs are
+      /oauth2/token (OAuth machinery, excepted) and /v2/team-members/search, a
+      POST-shaped read.
+
+      WHAT THIS BUYS THE SCOPE-ADDITION SESSION. The consent event for
+      TIMECARDS_READ and TIMECARDS_SETTINGS_READ can now tell merchants Froot
+      reads Square and never writes it, and the codebase backs the sentence. It
+      did not on 2026-08-17. That is the whole point of doing the removal BEFORE
+      the batch rather than after: a read-only claim made on a consent screen
+      while a live PUT sits in the tree is the kind of thing that is only ever
+      discovered by someone who is not on our side.
+
+      AND IT HARDENS THE FIFTH DON'T. This row's standing DON'Ts already say never
+      add an OAuth scope opportunistically. The ruling goes further and closes the
+      category: no _WRITE scope is EVER added to src/app/api/square/auth/route.ts,
+      for any feature, because no write permission will ever be requested from a
+      merchant. L-4's prohibited push half is therefore not merely deferred — it
+      is ruled out unless Gary reopens it with its own ruling, its own consent
+      event, and a real feature behind it. Same treatment landed on the two dead
+      Phase 2 inventory write routes in CLAUDE.md § Square Integration.
+
+      UNCHANGED BY THIS: the build deferral (its own blocker below), the scope
+      strings, and SQUARE_VERSION. SQ-WB-1 touched none of them by mandate.
+
       RE-SCOPED 2026-08-05 (Gary's ruling — DECISIONS.md, top entry). Was
       "Team/Labor API — actual worked hours + wages, actual-vs-budget, Nevada OT
       warning". Same work; the ruling changes its STATUS from an upgrade path to
@@ -9171,6 +9206,38 @@ phases:
     commits: [f93b906, 9bd61c7, 056943f, 06b1561]
     title: "Audit — Square OAuth access-token refresh (read-only)"
     notes: >
+      SQ-1'S OPEN QUESTION IS ANSWERED AND THE ANSWER IS "NOT ZERO" — 2026-08-18
+      (SQ-WB-1, work commit 0fd414a). Prepended; nothing below is edited. This
+      row asked whether anything still READS the static SQUARE_ACCESS_TOKEN. The
+      2026-08-06 bookkeeping sweep answered it at five sites; SQ-WB-1 removed one
+      of them and re-counted at HEAD.
+
+      FOUR READERS REMAIN, all in src/lib/square.ts, and the count did not fall to
+      zero: :51 (the redactSquareSecrets redaction list), :130
+      (fetchSquareTeamMembers), :169 (fetchSquareTeamMember) and :206
+      (fetchSquareLocation). The fifth, :236 inside updateSquareTeamMemberName, is
+      GONE with the write-back. Each of the three live ones is the same
+      const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN]
+      pattern — a fallback to the static credential when the per-org OAuth token
+      is absent or empty.
+
+      SO THE ENV VAR IS NOT A DELETION CANDIDATE, and SQ-WB-1 deliberately did not
+      touch it (flag only, by its own scope). Deleting it today would break three
+      READ helpers for any org relying on the fallback. The prerequisite is
+      unchanged and is SQ-3's item (b): route the bypassing helpers through
+      getSquareClient first, THEN the variable can go. What DID change is the
+      severity, and it changed in the direction of lower: the three survivors all
+      read, so the static credential no longer backstops any WRITE. The specific
+      exposure LABOR-0B flagged — a PUT executing outside the merchant's consent
+      grant on a credential they never granted — is closed at the source rather
+      than at the credential.
+
+      NOTE ON THE COUNT ITSELF: :51 is a redaction list, not a request path. It
+      reads the value only to keep it out of logs, so a reader count of four is
+      three call sites plus one safety net, and whoever finally deletes the
+      variable must update :51 too or the redaction silently stops covering a name
+      that no longer exists.
+
       Refresh EXISTS and is wired: refreshTokenIfNeeded() at src/lib/square.ts:37,
       called only from getSquareClient() (src/lib/square.ts:202), which refreshes
       when squareTokenExpiresAt is inside 7 days. Lazy only — no refresh cron.

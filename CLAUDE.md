@@ -817,12 +817,66 @@ One OAuth connection per org. Tokens stored encrypted on `Organization.squareAcc
 - `locations/route.ts` — GET Square locations list
 - `team-members/route.ts` — GET Square team members list
 
+**FROOT IS READ-ONLY TOWARD SQUARE — ruled by Gary 2026-08-18
+(`docs/DECISIONS.md`, "Froot is read-only toward Square; the name write-back
+dies"). Froot reads Square and never writes it. The ONLY exception is the OAuth
+connect/disconnect plumbing. No write permission will ever be requested from a
+merchant, which means an OAuth scope ending in `_WRITE` is never added to
+`src/app/api/square/auth/route.ts` — a write scope and a read-only promise
+cannot both be true, and the consent screen is where a merchant reads the
+promise.**
+
+The ruling has already been enforced once, in the same session that recorded it:
+`staff/[id]/square-writeback` and `updateSquareTeamMemberName` were removed
+(SQ-WB-1, work commit `0fd414a`). That was the only path in the codebase that
+wrote Square business data. `src/lib/square.ts` now issues no such write — the
+two `POST`s left in it are `POST /oauth2/token` (OAuth machinery, excepted) and
+`POST /v2/team-members/search`, which is a POST-shaped READ. **If you are about
+to add a third non-GET Square call, that is the thing this paragraph exists to
+stop.** A name that disagrees with Square is a Froot-side preference stored in
+Froot; it is never a push.
+
+**The census is APP-WIDE, not just `src/lib/square.ts`** — taken at `0fd414a`,
+because a rule that only holds in the client library invites the next write to
+be added in a route file instead. Every outbound Square call in `src/` at that
+commit, by method:
+
+- `POST /oauth2/token` — `square.ts:70` (refresh), `square/callback/route.ts:42`
+  (code exchange). **OAuth machinery — the excepted case.**
+- `POST /v2/team-members/search` (`square.ts:138`), `POST /v2/orders/search`
+  (`forecasting/day-report/route.ts:77`, `lib/sales-sync.ts:292`) — **reads.**
+  Square's search endpoints take a POST body; the method is not the test, the
+  effect is.
+- `GET` — `/v2/catalog/list` (`square/catalog/sync`, `square/sales-items/sync`),
+  `/v2/locations` (`square/locations/route.ts`, `square.ts:209`),
+  `/v2/team-members/{id}` (`square.ts:172`).
+- `square/disconnect/route.ts` makes **no outbound call at all** — it clears the
+  stored tokens locally.
+- `webhooks/square/route.ts` is inbound only.
+
+Nothing writes. To keep that true the question to ask of a new Square call is
+not "is it a POST" but **"does it change state on Square's side"** — the two
+`/search` endpoints above are exactly why.
+
 **Phase 2 Square routes to add:**
 - `square/catalog/sync` — sync catalog items → `ItemMetadata`
 - `square/inventory/counts` — fetch current IN_STOCK quantities
-- `square/inventory/submit` — submit physical count via `batch-create`
-- `square/inventory/adjust` — submit loss/transfer/prep adjustment
+- ~~`square/inventory/submit`~~ — **DEAD, 2026-08-18.** Submitting a physical
+  count writes inventory to Square. Never built; now never to be built.
+- ~~`square/inventory/adjust`~~ — **DEAD, 2026-08-18.** Submitting a
+  loss/transfer/prep adjustment writes inventory to Square. Never built; now
+  never to be built.
 - `square/webhooks` — handle `catalog.version.updated`, `oauth.authorization.revoked`
+
+The two dead entries are struck rather than deleted so that the next person to
+plan Phase 2 inventory finds the RULING instead of a gap, and does not re-derive
+them from the same reasoning that put them here. **The read half of Phase 2
+inventory is untouched and still on:** `catalog/sync` and `inventory/counts`
+both only read, so Square-sourced counts can still feed variance. What dies is
+Froot submitting the corrected count back — a physical count stays a Froot
+record, and Square's inventory is corrected in Square. If that ever needs
+revisiting it gets its own ruling, its own consent event, and a real feature
+behind it (Gary, same entry).
 
 **Shipped (F-4):** `webhooks/square` — order/payment events keep the current day's
 sales caches fresh (signature-verified; see `docs/FORECASTING.md` § Square order webhooks).
