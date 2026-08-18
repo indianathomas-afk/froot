@@ -5,6 +5,14 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+
+## The L-2 deferral is lifted — Advanced Labor is the build — 2026-08-18 (Gary)
+
+The 2026-08-05 deferral did its job: the seam got designed, the survey ran,
+the scopes were batched and consented, and the app went read-only before any
+merchant was promised that. I'm lifting the deferral. The Advanced Labor
+Forecasting vision is what L-2 builds. Gates still stand: version bump first,
+production consent at promotion, then build sessions one phase at a time.
 ## Froot is read-only toward Square; the name write-back dies — 2026-08-18 (Gary)
 
 Square owns its own data. Froot reads it, never writes it. No write permission
