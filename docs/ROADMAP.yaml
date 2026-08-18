@@ -8816,6 +8816,39 @@ phases:
     commits: [ecee728]
     title: "Square OAuth callback org binding + state nonce; ADMIN gate on connect/disconnect"
     notes: >
+      VERIFIED IN PRODUCTION 2026-08-17, 20:01 Pacific. As kyla@keva.com —
+      MANAGER, non-ADMIN — in org cf888f2d-f234-48c7-8097-fd5b44b5b3dd (Keva
+      Juice), production Clerk instance ins_3FhV0TLHXvctLIxrPW0fjJe0uYw, app
+      footer showing deployed commit 7e77ea6~main:
+      fetch('/api/square/auth', {redirect:'manual'}) returned 403 Forbidden,
+      logged as 403 'basic'. This closes the half that had been untestable since
+      2026-07-26 — no non-ADMIN account existed in the production Clerk instance
+      until the HR launch put six there. The ADMIN half was verified 2026-07-27
+      (0 opaqueredirect, legitimate connect path unaffected).
+      /api/square/disconnect was deliberately NOT tested — pressing it revokes
+      Keva Juice's live Square token. It carries the same gate and is covered by
+      inspection, not observation; that distinction is recorded rather than
+      papered over. Affordance gating also held (no Settings link in her nav),
+      but that is supporting evidence only — PERM-2 established a hidden link is
+      not a guard. Session obtained via a Clerk actor token pasted onto
+      /sign-in; see the impersonation row.
+      (Gary's ruling, prepended verbatim per preserve-and-mark; NOTHING BELOW IS
+      EDITED. Status deliberately untouched — whether this row moves to
+      `verified` is Gary's call, not the recording session's.)
+
+      TWO MEASURED RIDERS ON THE RULING ABOVE, added by the recording session
+      2026-08-17 and kept separate from Gary's words rather than folded into
+      them. (1) THE TIMESTAMP CROSSES MIDNIGHT: 2026-08-17 20:01 Pacific =
+      2026-08-18 03:01 UTC. Recorded both ways per CLAUDE.md § Database
+      Evidence — this is an 08-17 observation in Pacific and an 08-18 one in
+      UTC, and the two dates do not reconcile if only one is written down.
+      (2) THE DISCONNECT INSPECTION WAS RE-RUN AT HEAD rather than cited from
+      memory: src/app/api/square/auth/route.ts and
+      src/app/api/square/disconnect/route.ts carry the IDENTICAL gate — the same
+      `await requireAdmin()` in the same try/catch returning the same
+      { error: "Admin access required" } at status 403, under a comment naming
+      SEC-1 Part C on both. Same gate, same shape, one of the two observed.
+
       Closes PERMISSIONS_INVENTORY.md §2 items 2 and 3 (found by PERM-1).
       Part A: callback resolves the token-write org from the SESSION — state
       is never a write address (beyond-spec improvement, kept by Gary; see
@@ -8837,6 +8870,31 @@ phases:
       is false. SEC-1 did NOT ride the 2026-07-25 HR-17 promotion; the
       2026-07-26 date below stands.
     open:
+      - >
+        RESOLVED 2026-08-17 — THE NEGATIVE HALF IS DONE, WHICH CLOSES THE FIRST
+        ENTRY BELOW IN FULL. Their text is untouched: `open:` takes bare strings
+        only and carries no resolved flag (DEBT-42), so a closure arrives as an
+        entry prepended ABOVE the one it closes — the mechanism PERM-6's two
+        closed entries already use. Read this entry first.
+        (1) CLOSED. kyla@keva.com, MANAGER and non-ADMIN, org
+        cf888f2d-f234-48c7-8097-fd5b44b5b3dd, production Clerk instance
+        ins_3FhV0TLHXvctLIxrPW0fjJe0uYw, deployed commit 7e77ea6~main read off
+        the app footer on the same screen: fetch('/api/square/auth',
+        {redirect:'manual'}) returned 403 Forbidden, logged as 403 'basic'.
+        2026-08-17 20:01 Pacific = 2026-08-18 03:01 UTC. Both halves of Part C
+        are now observed in production.
+        (2) THE SECOND ENTRY BELOW IS NOT CLOSED BY THIS, AND SAYING SO IS THE
+        POINT. Its capability half IS delivered — the HR launch put six
+        non-ADMIN principals into the production Clerk instance, so a production
+        test identity now exists. Its stated purpose is broader: the STAFF-role
+        coverage gap on PERM-2 and the outstanding prod smoke tests on STAFF-1,
+        HR-8, HR-11b/c and HR-15 are all still owed and are untouched by this
+        entry. A capability is not a result; that entry stays open on the work,
+        not on the account.
+        STILL TRUE AND CLOSED BY NEITHER: the prohibition on exercising
+        /api/square/disconnect in production. It revokes Keva Juice's live
+        Square token. It is covered by inspection — the identical requireAdmin()
+        gate, re-read at HEAD in both routes — and NOT by observation.
       - >
         HALF-CLOSED 2026-07-27. Part C's ADMIN gate was partially smoke-tested
         in production.
@@ -8958,6 +9016,25 @@ phases:
       cleaning is the right order — cleanup without rotation leaves a live
       credential in any copy already made.
       Related: DEBT-7 (same source file).
+
+  - id: SEC-5
+    track: security
+    size: S
+    status: planned
+    title: "Clerk impersonation redirects to / which has no SignIn component, so the actor token is never consumed"
+    notes: >
+      Found 2026-08-17 while obtaining a non-ADMIN session for SEC-1. Clerk's
+      "Impersonate user" redirects to
+      https://www.usefroot.com/?__clerk_ticket=<jwt> — the public marketing
+      page, which renders and ignores the param. The token is NOT stripped; it
+      survives in the URL. Pasting the same ticket onto
+      /sign-in?__clerk_ticket=… signs in correctly on the first try, which is
+      the documented workaround. Likely fix is one setting: point Clerk's
+      impersonation redirect at /sign-in.
+      MATTERS BEYOND TESTING — "sign in as this merchant to see what they see"
+      is table stakes for supporting other Square merchants.
+      This is the row SEC-1's 2026-08-17 verification note points at for the
+      method it used to get a non-ADMIN production session.
 
   # ---- Migration / nutrition ----
 
