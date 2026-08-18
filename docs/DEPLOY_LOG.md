@@ -185,6 +185,182 @@ Deploy verification: 2026-07-02T22:00:05Z
     contains what someone remembered to write into it, so **it cannot be read as
     a complete inventory of what is awaiting promotion.** `git log
     origin/main..staging` can; this section cannot.
+- **DISCHARGE, added 2026-08-17 (DEBT-72a board-currency session).** Extending
+  the list by dated line per the preserve-and-mark bullet above; **nothing above
+  is edited or deleted.**
+  - **The 2026-08-15 HR-11j bullet — the one item left STILL OPEN by the
+    2026-08-16 pass — is DISCHARGED by the *2026-08-17* entry, promotion
+    `7e77ea6`.** All eight commits (`32205a4`, `2afcf0f`, `887ee14`, `72e4adc`,
+    `c15b54d`, `717f37b`, `17524c0`, `523a35a`) were re-checked against
+    `origin/main` on 2026-08-17 with `git merge-base --is-ancestor`: **all eight
+    are now on production**, and all eight sit inside `06dc830..7e77ea6`.
+  - **This section now carries no open obligation.** It also carries no bullet
+    from any session between 2026-08-15 and today, which is the same gap the
+    2026-08-16 pass named at the end of its own discharge: the list contains
+    only what someone remembered to write into it, so an empty list is not
+    evidence that nothing is awaiting promotion. `git log origin/main..staging`
+    is.
+
+## 2026-08-17 — PRODUCTION promotion (HR-11d Phase 1 + HR-11j's R1/R4/A3 + HR-11m + HR-11n Phase A + HR-11o + HR-11k Phase A/B and Case A + DEBT-70a/70b) — RETROACTIVE ENTRY, written 2026-08-17 by the DEBT-72a session
+
+- **Merge SHA:** `7e77ea6` — full:
+  `7e77ea6ad213832760685315861b5e1ea13d3fa8`. **A REAL `--no-ff` MERGE, TWO
+  PARENTS, DERIVED NOT ASSUMED** (`git rev-list --parents -n 1 7e77ea6`):
+  parent 1 `06dc830805254d5225b61ec8cac819366b5d4846` (the previous production
+  tip — the 2026-08-14 promotion) and parent 2
+  `d65e941b77d6fce666c9098615d4a2c45e8cf74c` (the staging tip).
+- **FIRST PROMOTION SINCE `d19cca6` (2026-08-10 evening) TO LEAVE A REVERTABLE
+  MERGE ARTIFACT.** The five promotions in between — `882d6c3`, `ec42265`,
+  `b853787`, `ce036f9`, `06dc830` — were all fast-forwards and are recorded in
+  their own retroactive entries below as "first of five" through "fifth of
+  five". Counting every push to `main` in that window rather than every
+  promotion gives seven, since the two 2026-08-10 docs-only merges `65abb74`
+  and `f318d2e` also sit in it. **`git revert -m 1` applies to this promotion
+  again**, for the first time in a week.
+- **NO PRE-MERGE TAG WAS CREATED.** `git tag --list "pre-staging-merge-*"`
+  returns exactly two tags, `pre-staging-merge-20260724-2107` and
+  `pre-staging-merge-20260727-1427`, neither from this promotion. The
+  convention is not being followed; recorded rather than asserted either way.
+  Parent 1 above is the equivalent anchor.
+- **FORTY-SEVEN commits**, `06dc830..7e77ea6` (`git rev-list --count`), oldest
+  `7fbf618`, newest `7e77ea6` itself. **Not 48** — the `DEBT-72_promotion_gate`
+  prompt said 48 and its audit corrected it; re-measured here and it is 47.
+  The range contains one internal merge, `c22ecd8`
+  ("merge(staging): reconcile duplicate HR-11o record, local supersedes").
+- **THREE TIMES, THREE DIFFERENT EVENTS. All UTC.**
+  - **Merge commit written:** 2026-08-17 **02:47:13 UTC** (author and committer
+    dates identical; `--date=format-local` with `TZ=UTC`).
+  - **Push:** **NOT RECORDED.** Git stores no push time and no reflog entry
+    survives for it. It is bounded by the two events either side — after
+    02:47:13 UTC and before 02:50:05 UTC — and is deliberately left unstated
+    rather than conflated with either.
+  - **Deploy — the only one of the three that touched production:**
+    2026-08-17 **02:50:05.387 / 02:50:05.776 / 02:50:06.152 UTC**, read from
+    `_prisma_migrations` on the Neon `production` branch. The three stamps sit
+    inside **765 ms**, which is the batch signature of one `migrate deploy`
+    rather than three separate events.
+- **ROLLBACK — the three-line recipe, not one line** (WORKFLOW.md §2;
+  `git revert -m 1` alone conflicts on `docs/DEPLOY_LOG.md` every time,
+  structurally):
+
+  ```bash
+  git checkout main
+  git revert -m 1 --no-commit 7e77ea6ad213832760685315861b5e1ea13d3fa8
+  git checkout HEAD -- docs/DEPLOY_LOG.md   # KEEP the log
+  git commit -m "Revert the 2026-08-17 promotion"
+  git push origin main
+  ```
+
+  Faster posture if the site is actively broken: Vercel → promote the `06dc830`
+  production deployment back to current, then revert at leisure. **The three
+  migrations stay either way** — reverting the code leaves three unread columns,
+  which is harmless; dropping them is a destructive migration against production
+  for no benefit.
+- **THREE MIGRATIONS, ALL APPLIED TO PRODUCTION**, folder names computed from
+  `git diff --name-only 06dc830..7e77ea6 -- prisma/migrations/`:
+  - `20260815150000_hr11n_checkpoint_retirement` (introduced by `72df99a`,
+    HR-11n Phase A) — `ALTER TABLE "HrDocumentCheckpoint" ADD COLUMN
+    "retiredAt" / "retiredByUserId" / "retiredReason"`. Three **nullable**
+    columns, no default and none needed.
+  - `20260816120000_hr_document_version_requires_reacknowledgment` (introduced
+    by `bf7cd28`, HR-11k Phase B / Case A) — `ADD COLUMN
+    "requiresReacknowledgment" BOOLEAN NOT NULL DEFAULT false`.
+  - `20260816180000_organization_timezone` (introduced by `623acb6`, DEBT-70a)
+    — `ADD COLUMN "timezone" TEXT NOT NULL DEFAULT 'America/Los_Angeles'`.
+
+  All three are `ADD COLUMN` and nothing else — **additive, no drop, no rename,
+  no data movement.** The two NOT NULL columns carry defaults; the SQL was read,
+  not assumed.
+- **A MIGRATION THIS PROMOTION DID *NOT* CARRY, worth recording because it makes
+  a point about DOC-1.** `20260812171500_doc1a_document_audience_grants` has
+  been on the production database since **2026-08-13 04:50:22 UTC** — it rode
+  the `ce036f9` promotion. So DOC-1's schema and parts of the code that use it
+  reached production in **different** promotions. Additive; nothing broke.
+- **THIS PROMOTION CARRIED SIGNING-BEHAVIOUR AND ACCESS-CONTROL CHANGES ONTO A
+  LIVE HR MODULE, and that is the fact this entry exists to record.** HR is
+  **not** dark in production and has not been since 2026-07-24, when
+  `HR_MODULE_AVAILABLE=true` was added to the Vercel **Production** scope. Org
+  `cf888f2d-f234-48c7-8097-fd5b44b5b3dd` (Keva Juice) runs
+  `activeModules = {inventory, labor, hr}` with six non-admin principals.
+  **Any note claiming HR is dark in production is stale** — this is the second
+  entry to have to say so; see the 2026-08-12 (midday) entry.
+- **POST-PROMOTION CHECK, ALREADY RUN AND CLEAN.** Production `HrSignedRecord`
+  holds **five rows, five distinct `staffMemberId` values, all
+  `signingCycle: 1`.** Two were signed 2026-08-17, after the deploy — **first-time
+  signings by two different people, not re-acknowledgments.** Nobody was sent
+  back to re-sign by the `requiresReacknowledgment` column landing at
+  `DEFAULT false`, which is the one production consequence this promotion's
+  schema could have had.
+- **STANDING-NOTE OBLIGATION DISCHARGED — the 2026-08-15 HR-11j bullet.** It was
+  the only item left open by the 2026-08-16 discharge pass. All eight of its
+  commits are now on `origin/main`, each checked with
+  `git merge-base --is-ancestor`, and all eight are inside this promotion's
+  range: `32205a4` (R1 work), `2afcf0f` (R4 gate + A3 guard + Q2 copy + the
+  CLAUDE.md rule), `887ee14` (session prompt + Item 1 audit), `72e4adc` (the
+  R1/R4 reproduction fixture PDFs), and the four HR-11j recorder commits
+  `c15b54d`, `717f37b`, `17524c0`, `523a35a`. **The standing-note list is now
+  empty of open obligations.**
+- **What shipped**, by theme — read off the 47 commit subjects, not from memory:
+  - **HR-11d Phase 1 — hollow signed records** (`576fc4e` items 2a–2e,
+    `6ff7ea6` item 2f, plus `7fbf618`, `2212a1e`, `82713ea`, `a79047a`,
+    `5ecceb3`, `9c85651`, `ba1f38b`). The signing path refuses to mint a signed
+    record that no checkpoint backs, and the certificate now states which mode
+    produced it (R3(ii)). **Phase 2 — the staging browser walk — is not done**,
+    and the row says so.
+  - **HR-11j — the four rulings** (`32205a4` R1: completion derives from the
+    signed record, not checkpoints; `2afcf0f` R4 assignability gate + A3
+    ceremony guard + admin-facing refusal copy; docs `887ee14`, `72e4adc`,
+    `c15b54d`, `717f37b`, `17524c0`, `523a35a`, `78a045b`). **R1 changes what
+    "complete" means on a signing surface** — an access-and-truth change, not a
+    display one.
+  - **HR-11m — Signature checkpoint duplication** (`974bf49`, `eab6254`,
+    `7ee53f5`). Checkpoints are reused across versions by `pageRef` + ordinal
+    instead of re-minted.
+  - **HR-11n Phase A — checkpoint retirement** (`72df99a`, `26aa21d`,
+    `0e49bdb`), with the migration above. Forward-only and reversible; the
+    anchor column was withdrawn to Phase B and Phase B is not built.
+  - **HR-11o — three certificate/reader display defects** (`7456565`,
+    `68c5a2d`, `7198f77`, `6e3b9eb`, `614dc8d`), verified on staging before
+    the promotion.
+  - **HR-11k / R2 — a prior version's signature satisfies the current one**
+    (`457a57f` Phase A, `6b2054f` display follow-ups, `bf7cd28` Phase B /
+    Case A with the migration above, `4363e3b` the Case A toggle fix; docs
+    `f17010c`, `6abe2f6`, `a4a87d2`, `4d92fe7`; and the internal merge
+    `c22ecd8`). **This changes who is asked to sign again**, which is why the
+    `HrSignedRecord` check above was run. The row records that the 409 is still
+    owed and that Phase B was never observed on staging.
+  - **DEBT-70a / DEBT-70b — dates render the store-local day** (`623acb6` the
+    inline `Date:` stamp with the `Organization.timezone` migration, `cc144dc`
+    the 22 server date displays; docs `b2f6b44`, `71e12ce`, `f7723fe`,
+    `d65e941`). Both verified on staging before the promotion.
+  - **BUG-7 closed and F-4's blocker resolved** (`165bcb8`, `cecd218`) — the
+    same commit that wrote the **five retroactive DEPLOY_LOG entries** for the
+    2026-08-11 and 2026-08-12 and 2026-08-14 fast-forward promotions.
+- **WHAT THIS ENTRY IS NOT.** It was **not** written between the merge and the
+  push, which is what WORKFLOW.md §2 asks for. The promotion ran on 2026-08-17
+  at 02:47 UTC and this entry was written later the same day by a different
+  session. **Recorded as a gap rather than presented as compliance** — that is
+  DEBT-38's exact mechanism, and this is its recurrence in a promotion that
+  otherwise did everything right.
+- **BOARD CURRENCY AT THE TIME OF THIS PROMOTION — the reason DEBT-72a exists.**
+  Three rows this promotion carried (HR-11d, HR-11k, HR-11n) read `in_progress`
+  on the board while their code was live in production. Backfilled to `shipped`
+  by the same session that wrote this entry; evidence in
+  `docs/prompts/DEBT-72a_BACKFILL.md`. Eight further rows were found stale from
+  the three promotions *before* this one.
+- **TODO: production verification.** No smoke pass against production is
+  recorded for this promotion. The `HrSignedRecord` count above is a data check,
+  not a walk of the signing ceremony, the certificate, the retirement control or
+  the store-local dates on a real production login. Gary's to run and to write.
+- **TODO: what the promotion means in Gary's words.** The theme list above is
+  computed from commit subjects. The judgement — whether the R1/R2 signing
+  changes behaved as intended for the six live principals, and whether anything
+  needs watching — is not derivable from git and is deliberately left blank
+  rather than guessed.
+- **TODO: ruling — whether the missing pre-merge tag matters.** The convention
+  has now been skipped on every promotion since 2026-07-27. Either it is dead
+  and should be struck from the record, or it should be revived; a convention
+  observed twice in three weeks is neither.
 
 ## 2026-08-15 — STAGING deploy + HR-11j acceptance pass — NOT a promotion
 

@@ -177,3 +177,35 @@ A session is not done until all are true:
      commit date, falling back to "unknown" by design.
 3. Bugs noticed but not fixed go in the `debt:` (or `bugs:`) block in
    ROADMAP.yaml as text — not fixed inline.
+4. **A row whose code was pushed to `staging` during this session has its
+   status set to `staging` IN THE SAME SESSION, before the session ends.** A
+   row left at `planned` or `in_progress` after its code is on staging is a
+   defect, not a pending decision. Rule 2 already says `status` reflects
+   reality; this says WHEN — the session that moved the code is the only
+   session that has a reason to look, so a row not updated then is a row
+   nobody updates until someone is misled by it.
+
+   **A debt row being shipped gains `status: staging` EXPLICITLY.** A missing
+   status on a debt row means OPEN by design — `DebtItem` in
+   `src/lib/roadmap.ts:135` makes the field optional, and `isResolvedDebt` in
+   `roadmap-client.tsx:71` is the single definition that reads it — and 27 of
+   the 75 debt rows still rely on that convention (28 before DEBT-72a's own
+   backfill flipped DEBT-28 today; see below). It is DEBT-14's *"a missing
+   status means OPEN"*, recorded in `docs/ROADMAP.yaml`'s own header. So a debt
+   row that is shipping must DECLARE itself. Omission is not neutral on a debt row: it
+   already says the opposite of what a shipping row needs to say.
+
+   **Why this rule exists.** Nothing in the promotion procedure reads
+   `docs/ROADMAP.yaml` — that is DEBT-72, and the gate that would fix it is
+   DEBT-72b and is not built. But the gate was never the whole problem.
+   DEBT-72's audit (`docs/prompts/DEBT-72_AUDIT.md`, `b809e03`) measured the
+   half a gate cannot catch: **the board goes stale after work lands, and then
+   a decision gets made from it.** Twice in four days — a session that opened
+   on "BUG-7 needs promoting" when BUG-7 had been in production since
+   2026-08-14, and a session prompt whose own §1 quoted a `WORKFLOW.md` §2 line
+   that had read differently since 2026-08-07. Neither is a promotion failure;
+   both are a row not updated by the session that moved its code. DEBT-72a
+   (2026-08-17) is the backfill that proved the scale: **eleven rows read
+   `in_progress` while their code was live in production**, eight of them for
+   five to six days. Evidence:
+   `docs/prompts/DEBT-72a_BACKFILL.md`.
