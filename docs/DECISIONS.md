@@ -14,6 +14,60 @@ is removed — it wrote to Square using my personal token, outside what any
 merchant agreed to. If we ever want to write schedules someday, that gets its
 own ruling, its own consent event, and a real feature behind it.
 
+## Evidence is pinned to a commit, not to a path — 2026-08-18 (Gary's call; Claude's corollary)
+
+The decision is small; the reasoning is the part worth keeping.
+
+`docs/test_docs/*.pdf` is untracked as of this commit — five ~15 MB fixtures
+(`V1`, `V2`, `V3`, `V4`, `V6` `_Test_Employee_Handbook.pdf`), 74 MB, roughly 92%
+of every byte in the repo. They were already deleted in the working tree; this
+only stages what had been sitting unstaged.
+
+The trigger was external to the repo. Claude project knowledge syncs from `main`
+against a fixed budget of about 6.1 MB of source bytes, and `docs/test_docs`
+alone scores **1,229%** of it. The sync had been silently failing — "some of your
+content could not be loaded" — because the filter admitted a folder an order of
+magnitude past the ceiling.
+
+**The corollary, which is the actual content of this entry: the fixtures are
+cited, and the citations survive deletion, because they name commits rather than
+paths.** `docs/ROADMAP.yaml:5202` and `:6055` cite the BUG-7 reproduction
+fixtures at `72e4adc` and `eab6254`; `:5396` names
+`docs/test_docs/V1_Test_Employee_Handbook.pdf` at `72e4adc`;
+`docs/prompts/BUG-7_CLOSURE_ADDENDUM_A.md:99` refers to the same set. Every one
+of those retrievals still works after the file leaves `HEAD` —
+`git show 72e4adc:docs/test_docs/V1_Test_Employee_Handbook.pdf` is unaffected by
+what `main` currently contains. Deleting a file does not delete the evidence. It
+only removes it from the working tree.
+
+**No history rewrite. This is the ruling, not a preference.** `git filter-repo`
+would reclaim the 74 MB from `.git` and would also rewrite every SHA in the
+repository — invalidating `72e4adc`, `eab6254`, `f7723fe`, `e18dd54`, `22b8f26`
+and every other commit reference recorded across `DECISIONS.md`,
+`DEPLOY_LOG.md`, and `ROADMAP.yaml`. The documentation discipline that makes
+this repo auditable is the same thing a rewrite would destroy. Disk we are not
+paying for is not worth a citation graph. If the `.git` weight ever becomes a
+real constraint, the answer is a fresh repo with the old one archived intact —
+never a rewrite in place.
+
+Scope note on the ignore rule: `.gitignore` takes `docs/test_docs/*.pdf`, not
+the directory. A future small repro fixture can still be committed there. Only
+the 15 MB handbooks are blocked, and blocked loudly rather than silently.
+
+Two things this entry deliberately does **not** settle:
+
+- **It does not fix the project-knowledge overflow.** `test_docs` was already
+  excluded from the sync filter, so untracking it changes the sync by exactly
+  zero. The remaining overage is ordinary repo content that has no business in a
+  knowledge base — `public/logo.png` (4.3%), `src/app/icon.png` (4.3%),
+  `src/app/favicon.ico` (1.5%), `package-lock.json` (6.8%) — about 17%, which is
+  the difference between failing at 102% and sitting at 85% with headroom. That
+  is a separate change to the sync filter, not to the repo.
+- **The version chain skips V5.** The fixtures run V1, V2, V3, V4, V6. Whether
+  that gap is deliberate — a deletion case for the HR-11k version-verification
+  work — or an artifact of how they were produced is unresolved and belongs to
+  whoever next touches stamping verification.
+
 ## A gate written in a document the procedure never opens is not a gate — 2026-08-16 (Gary's framing; Claude's corollary)
 
 Recorded as a **mechanism**, not a mea culpa. Nothing here reverses a decision;
