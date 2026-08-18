@@ -10753,7 +10753,11 @@ debt:
       OPEN — and it backfilled the board: TWELVE rows corrected, ELEVEN of them
       reading in_progress while their code was live in production, eight of
       those stale for five to six days. Evidence and the full measured table:
-      docs/prompts/DEBT-72a_BACKFILL.md.
+      docs/prompts/DEBT-72a_BACKFILL.md. DEBT-72a's work commit is "5c6419f",
+      carried here as prose rather than in commits: — the same convention 5ecceb3
+      set on HR-11d, since commits: means WORK commits for THIS row and DEBT-72
+      itself still has none. NOT PUSHED at the time of writing: 5c6419f is on
+      local staging only, which is why this row does not read staging either.
       WHAT THAT DOES AND DOES NOT DO TO THIS ROW. It does not build the gate and
       does not answer any of the four open decisions listed below; they are
       still Gary's. What it does is remove the precondition that made the gate
