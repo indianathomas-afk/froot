@@ -708,7 +708,6 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 fullName={member.fullName}
                 fullNameLocked={member.fullNameLocked}
                 squareFullName={member.squareFullName}
-                squareLinked={!!member.squareTeamMemberId}
                 canManage={canManage}
               />
               <div>

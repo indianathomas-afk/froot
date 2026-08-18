@@ -220,39 +220,6 @@ export async function fetchSquareLocation(
   return null
 }
 
-// Writes a corrected LEGAL name back to Square (PUT /v2/team-members/{id}).
-// Splits "First Rest" → given_name / family_name (naive; multi-part surnames or
-// mononyms land in family_name / given_name respectively). Returns the updated
-// member, or null on any failure. Tries the org OAuth token, then the personal.
-export async function updateSquareTeamMemberName(
-  org: Organization,
-  teamMemberId: string,
-  fullName: string
-): Promise<SquareTeamMember | null> {
-  const parts = fullName.trim().split(/\s+/)
-  const given = parts.length > 1 ? parts[0] : ""
-  const family = parts.length > 1 ? parts.slice(1).join(" ") : parts[0] ?? ""
-  const body = JSON.stringify({ team_member: { given_name: given, family_name: family } })
-  const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]
-
-  for (const token of tokens) {
-    const res = await fetch(`${getBaseUrl()}/v2/team-members/${teamMemberId}`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Square-Version": SQUARE_VERSION,
-        "Content-Type": "application/json",
-      },
-      body,
-    })
-    if (res.ok) {
-      const data = await res.json()
-      return (data.team_member as SquareTeamMember) ?? null
-    }
-  }
-  return null
-}
-
 // Maps a Square team member's assigned locations onto the org's stores.
 // Square has no primary/home-location concept — location_ids come back in
 // arbitrary (alphabetical) order — so a primary is only inferred when the
