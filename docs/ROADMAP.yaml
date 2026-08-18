@@ -8848,6 +8848,9 @@ phases:
       `await requireAdmin()` in the same try/catch returning the same
       { error: "Admin access required" } at status 403, under a comment naming
       SEC-1 Part C on both. Same gate, same shape, one of the two observed.
+      RECORDED IN "22b8f26" — carried here as prose, not in commits:, because
+      commits: means WORK commits on this row and the only one is ecee728
+      (the 5ecceb3 convention from HR-11d). NOT PUSHED at the time of writing.
 
       Closes PERMISSIONS_INVENTORY.md §2 items 2 and 3 (found by PERM-1).
       Part A: callback resolves the token-write org from the SESSION — state
@@ -9035,6 +9038,8 @@ phases:
       is table stakes for supporting other Square merchants.
       This is the row SEC-1's 2026-08-17 verification note points at for the
       method it used to get a non-ADMIN production session.
+      FILED IN "22b8f26". No commits: field — nothing is built, and commits:
+      would imply it was. NOT PUSHED at the time of writing.
 
   # ---- Migration / nutrition ----
 
