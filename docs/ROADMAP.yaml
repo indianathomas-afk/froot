@@ -7200,6 +7200,48 @@ phases:
           without a second admin action."
     blockers:
       - >
+        THE TWO LABOR SCOPES ARE IN THE AUTHORIZE URL — 2026-08-18 (SQ-SCOPE-1,
+        work commit 20b4e70). Prepended; nothing below is edited, and the
+        "SQUARE OAUTH CARRIES NO LABOR SCOPES" entry below is now true only of
+        the GRANT, not of the REQUEST. src/app/api/square/auth/route.ts:9 now
+        requests six strings: `MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ
+        EMPLOYEES_READ TIMECARDS_READ TIMECARDS_SETTINGS_READ`. The original
+        four are preserved in order; two were appended; nothing was removed or
+        reordered. REPORTING_READ stays PARKED (the enum/overview contradiction
+        recorded as (c) below is unresolved, and a string absent from the enum
+        cannot go in a consent URL). No _WRITE scope was added and none ever
+        will be, per the 2026-08-18 read-only ruling.
+
+        GATE STATUS FOR THIS ROW, three items, one closed this session.
+        (1) LABOR-0: COMPLETE — both owed tasks run 2026-08-18, per the blocker
+        below. (2) SCOPES: ADDED, NOT YET GRANTED — this is the seam that
+        matters. The edit changes the AUTHORIZE URL only. The connected token
+        still carries its original four permissions and every current sync keeps
+        working unchanged; nothing about live behavior moves until Gary
+        re-consents on /settings. Whoever reads this row mid-build must check
+        whether the re-consent actually happened before assuming a labor read
+        will authorize. (3) VERSION BUMP: STILL OWED — its own TIER 3 session,
+        next on the track, and it is the THREE-line edit described below
+        (src/lib/square.ts:4 plus the two hardcoded "2024-01-17" literals at
+        callback/route.ts:43 and locations/route.ts:44), not one.
+
+        WHY THE NEW SCOPES ARE DORMANT ON PURPOSE. No code reads either one, and
+        none should until the version bump lands: the Timecard endpoints they
+        unlock require Square-Version >= 2025-05-21 and the pin is still
+        2024-01-17. So a granted scope alone proves nothing here — this
+        session's success criteria are only (a) the authorize URL carries six
+        scopes and (b) existing reads still work after re-consent. THE FIRST
+        SUCCESSFUL LABOR READ HAPPENS AFTER THE VERSION-BUMP SESSION, and that
+        is the moment the grant is fully proven, not before.
+
+        THE REASON IT SHIPPED AHEAD OF THE BUILD IS CONSENT ECONOMICS, NOT
+        READINESS (Gary's ruling, 2026-08-18). Adding scopes while exactly one
+        merchant — Gary — is connected freezes the re-consent batch at one
+        person forever. Every merchant who connects after this commit consents
+        to the full six-string list on first connect and never sees a re-consent
+        prompt for them. Waiting until the build was ready would have made the
+        same batch as large as the merchant list.
+      - >
         SQUARE OAUTH CARRIES NO LABOR SCOPES — promoted from this row's prose to
         a blocker entry 2026-08-06 so the board can tell this row from a ready
         one; re-verified at source the same day. src/app/api/square/auth/route.ts:9
@@ -9402,6 +9444,50 @@ phases:
       Related: CHK-2 (the editor this fills), CHK-3/CHK-5 (the midnight fallback
       this reduces), and S2's COMMENT 4 on timezone overwrite — the same
       "imported field vs operator field" question one column over.
+
+  - id: SQ-ACK-1
+    track: staff
+    size: S
+    status: planned
+    title: >
+      Acknowledgeable name divergence — let an admin mark a Froot/Square name
+      difference as intentional, quieting the banner to a note
+    notes: >
+      FILED 2026-08-18 BY SQ-SCOPE-1 AS A RIDER, authorized by Gary in the same
+      breath as the scope addition. Not built, not scheduled — filed. Gary's
+      words on it: file, do not rush.
+      SURFACED BY SQ-WB-1's REMOVAL OF THE WRITE-BACK (work commit 0fd414a,
+      ruling in DECISIONS.md "Froot is read-only toward Square; the name
+      write-back dies"). While the write-back existed, a name difference had an
+      obvious resolution — push Froot's name to Square and the banner cleared
+      itself. With the write-back gone and Froot read-only toward Square by
+      ruling, that escape hatch is closed on purpose, and the banner has no
+      terminating state.
+      THE PROBLEM: the divergence banner is a PERMANENT NAG WHENEVER THE
+      DIFFERENCE IS DELIBERATE. A staff member who goes by a different name in
+      Froot than the legal or payroll name Square holds is a normal, correct
+      state — not a data error. Today nothing distinguishes "these disagree and
+      someone should look" from "these disagree and that is the point", so the
+      second case is indistinguishable from an unresolved problem forever, and a
+      warning that never clears is a warning people stop reading. That erosion
+      is the actual cost, because the banner still has a real job in the first
+      case.
+      SHAPE (sketch, not a spec — the build session designs it): an admin marks
+      a given divergence as intentional; the banner degrades from a warning to a
+      quiet note that the names differ by choice; the note still shows both
+      values so the difference stays visible rather than hidden. Worth settling
+      at build time: whether the acknowledgement is pinned to the pair of values
+      it was made against, so that a LATER change on either side re-raises the
+      banner instead of staying silently acknowledged against names nobody
+      approved.
+      NOT A SCOPE QUESTION AND NOT A WRITE. Nothing in this row asks Square for
+      anything or sends Square anything — the acknowledgement is Froot-side
+      state about a Froot-side display decision. It is consistent with the
+      read-only ruling and needs no new OAuth permission.
+      TRACK NOTE: `staff` is a NEW track value as of this row — no other row
+      carries it. Filed under the Square integration section because the SQ-
+      id and the surfacing session both live here, and because the divergence
+      it describes only exists where the two systems meet.
 
   # ---- Build / tooling ----
 

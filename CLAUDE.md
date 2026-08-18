@@ -817,6 +817,36 @@ One OAuth connection per org. Tokens stored encrypted on `Organization.squareAcc
 - `locations/route.ts` — GET Square locations list
 - `team-members/route.ts` — GET Square team members list
 
+**The requested scopes — six, all reads** (`src/app/api/square/auth/route.ts:9`,
+as of SQ-SCOPE-1, 2026-08-18):
+
+`MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ TIMECARDS_READ TIMECARDS_SETTINGS_READ`
+
+The last two were added by SQ-SCOPE-1 for the deferred L-2 labor build, pinned
+at source by the LABOR-0B survey (`docs/prompts/LABOR-0B_RESULTS.md` Task 3).
+Three things to know before you reason about them:
+
+- **This list is what Froot ASKS FOR, not what any token HOLDS.** Adding a
+  string changes the authorize URL only. An already-connected merchant keeps the
+  permissions they granted until they re-consent, so a scope can sit in this
+  line for weeks while every live call still runs on the older, smaller grant.
+  Check the grant, not this line, when a call 403s.
+- **`TIMECARDS_READ` and `TIMECARDS_SETTINGS_READ` are deliberately DORMANT.**
+  No code reads them. The Timecard endpoints they unlock require
+  `Square-Version` >= 2025-05-21 and `SQUARE_VERSION` is still pinned at
+  `2024-01-17`, so they cannot be used until the version-bump session lands.
+  Dormancy is by design, not an oversight: scopes were added while exactly one
+  merchant was connected, which freezes the re-consent batch at one person
+  forever (consent economics, Gary 2026-08-18).
+- **`REPORTING_READ` is PARKED and must not be added.** Square's Reporting API
+  overview mandates it while the OAuth Permissions Reference and the
+  `OAuthPermission` enum both omit it; a string absent from the enum cannot go
+  in a consent URL. Unresolved — see the L-2 blockers.
+
+Scheduled-shift reads need no extra string (Square documents them under
+`TIMECARDS_READ`), and wage / job / pay-rate reads are already covered by the
+held `EMPLOYEES_READ`.
+
 **FROOT IS READ-ONLY TOWARD SQUARE — ruled by Gary 2026-08-18
 (`docs/DECISIONS.md`, "Froot is read-only toward Square; the name write-back
 dies"). Froot reads Square and never writes it. The ONLY exception is the OAuth
