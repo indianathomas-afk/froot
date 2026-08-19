@@ -4,6 +4,18 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 90a8eca — 2026-08-18 — Square read-only + labor scopes + version 2026-01-22
+Promotes the full Square track: read-only ruling enforced (write-back removed),
+TIMECARDS_READ + TIMECARDS_SETTINGS_READ added to the OAuth request,
+SQUARE_VERSION bumped to 2026-01-22 at all three sites (two hardcoded literals
+replaced with the shared constant), and the /api/square/labor/verify probe.
+All four staging checks passed 2026-08-18, including the first successful
+labor read ({"ok":true,"httpStatus":200,"hasData":true}).
+Post-deploy: production re-consent required (six permissions), then the same
+four checks on usefroot.com.
+Per the standing note below: this promotion also reconciles the docs-only
+merges 65abb74 and f318d2e (2026-08-10) and the staging docs commits they
+carried, which had no entries of their own.
 ## STANDING NOTE — docs-only commits the next real promotion's entry must name
 
 - **Added 2026-08-10 (training filing session).** The next real PRODUCTION
