@@ -101,6 +101,7 @@ export type Capability =
   | "inventory.analytics.view"
   | "labor.view"
   | "labor.actuals.view"
+  | "labor.costs.view"
   | "labor.manage"
   | "labor.toggle"
   | "hr.access"
@@ -264,6 +265,25 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // Dollars are NOT governed here — laborCost never enters a dashboard payload
   // (see the MANAGE-gated split in src/lib/labor-judgment.ts and the routes).
   "labor.actuals.view": OPERATIONAL,
+  // AL-3 (Gary, 2026-08-19): the capability AL-1 deferred and PERM-4 (c) promised,
+  // arriving with the first surfaces that actually need it — per-person PAY on
+  // /staff and on the Positions roster, and the per-store tips figure.
+  //
+  // MANAGE, and the tier is the whole point. STORE accounts are SHARED iPAD
+  // LOGINS; a roster of names beside wages on one is DEBT-10's exposure repeated
+  // deliberately rather than by accident. Q-V already put the PERCENTAGE at
+  // OPERATIONAL and kept the DOLLARS at MANAGE — this is that same line drawn
+  // one step further, over the most sensitive dollars in the product.
+  //
+  // NO PRIOR CALL SITES, so no role's baseline moved: before this commit nothing
+  // rendered a wage anywhere, so nobody loses a surface they had.
+  //
+  // NOT labor.manage, which would have worked on tier alone. labor.manage gates
+  // /settings/labor itself and is HELD OUT of the override grid by PERM-5C
+  // ("Labor governance is its own ruling"), so denying wages through it would
+  // take the Labor config page with them. This capability is deniable and removes
+  // exactly the wages — see ENFORCED_CAPABILITIES below.
+  "labor.costs.view": MANAGE,
   "labor.manage": MANAGE,
   "labor.toggle": ADMIN_ONLY,
   "hr.access": ALL, // HR availability + org-toggle gates stay at the call site
@@ -578,6 +598,16 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "See actual labor %",
     removes:
       "The labor % readouts on the Dashboard (Sales Performance, Monthly Goal, All Locations). The Labor module, the weekly budget card and its target % are unaffected.",
+  },
+  // AL-3 append — the second Labor row, and the one that carries the wages.
+  // Denying it removes the pay data SERVER-SIDE: the fields are absent from the
+  // payload, never hidden in the markup (Gary's hard rule, 2026-08-19).
+  {
+    capability: "labor.costs.view",
+    area: "Labor",
+    label: "See pay rates and tips",
+    removes:
+      "Pay rates on Staff and on the Positions team roster, and the Tips column on All Locations. The labor % readouts, the Labor module and the weekly budget are unaffected.",
   },
 ]
 

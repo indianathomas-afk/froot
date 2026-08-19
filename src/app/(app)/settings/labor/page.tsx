@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, laborModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
+import { canSeeWages } from "@/lib/labor-dashboard"
 import { LaborSettingsClient } from "./labor-settings-client"
 
 // Labor configuration hub (ADMIN + MANAGER). Both feature gates first: where
@@ -45,6 +46,22 @@ export default async function LaborSettingsPage() {
   }
 
   const isAdmin = dbUser?.role === "ADMIN"
+
+  // AL-3 vision item 10 — the Square team roster on the Positions card.
+  //
+  // THE DISABLED-STATE GUARANTEE IS STRUCTURAL, NOT A RENDER DIFF: false here
+  // means LaborSettingsClient receives showRoster={false}, the segmented control
+  // is not mounted, no roster fetch is ever issued, and PositionsCard is the same
+  // unmodified component it was before AL-3. With the Advanced Labor toggle off,
+  // this page is byte-identical to Phase 2.
+  //
+  // Gary's Q5 ruling (2026-08-19): a MANAGE viewer denied labor.costs.view sees
+  // the roster HIDDEN ENTIRELY rather than name-and-position with the pay column
+  // stripped — a roster whose only new information was the pay is not worth
+  // rendering without it, and a half-rendered wage table invites "add the pay
+  // back" from someone who does not know why it was removed.
+  const showRoster = canSeeWages(org, actor)
+
   const [positions, stores] = await Promise.all([
     prisma.laborPosition.findMany({
       where: { organizationId: org.id },
@@ -75,6 +92,7 @@ export default async function LaborSettingsPage() {
 
       <LaborSettingsClient
         stores={stores}
+        showRoster={showRoster}
         initialPositions={positions.map((p) => ({
           id: p.id,
           name: p.name,

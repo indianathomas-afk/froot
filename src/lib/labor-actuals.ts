@@ -144,16 +144,8 @@ export function computeLaborActuals({
     const isOpen = tc.endAt === null
     if (isOpen) openCount++
 
-    const endMs = isOpen ? ceiling : tc.endAt!.getTime()
-    const grossMinutes = (endMs - tc.startAt.getTime()) / 60000
-    // A negative span is a clock skew or a bad row, never negative work. Clamp
-    // rather than subtract from the total — a corrupt row must not make the
-    // estate's labor look cheaper than it is.
-    if (grossMinutes <= 0) continue
-
-    // Paid breaks are compensable and stay inside gross; unpaid breaks come out.
-    // Clamped at zero for the same reason.
-    const minutes = Math.max(0, grossMinutes - tc.breakUnpaidMinutes)
+    const minutes = paidMinutesOf(tc, ceiling)
+    if (minutes === null) continue
     paidMinutes += minutes
 
     if (tc.wageHourlyRate === null) {
@@ -202,6 +194,30 @@ export function computeHealth(
   if (syncState.lastError && ageMinutes > staleAfterMinutes) return "error"
   if (ageMinutes > staleAfterMinutes) return "stale"
   return "fresh"
+}
+
+/// AL-3 — THE PAID-MINUTES RULE, EXTRACTED SO TWO CALCULATIONS CANNOT DRIFT.
+///
+/// computeLaborActuals divides labor cost by sales; computeTipPayout divides
+/// tips by hours. They must agree on what an HOUR is, exactly, or the two
+/// percentages on one dashboard describe different denominators. Returns null
+/// for a row that contributes no work at all, so both callers skip on the same
+/// condition rather than each inventing one.
+///
+/// The rule itself is unchanged from Phase 1: an OPEN timecard is costed to the
+/// ceiling (the earlier of `now` and the window end — a card left open on Tuesday
+/// must not accrue into Thursday's query); a non-positive span is clock skew or a
+/// bad row and is dropped rather than subtracted, because a corrupt row must not
+/// make labor look cheaper than it is; paid breaks are compensable and stay
+/// inside the span while unpaid breaks come out of it.
+function paidMinutesOf(
+  tc: { startAt: Date; endAt: Date | null; breakUnpaidMinutes: number },
+  ceilingMs: number
+): number | null {
+  const endMs = tc.endAt === null ? ceilingMs : tc.endAt.getTime()
+  const grossMinutes = (endMs - tc.startAt.getTime()) / 60000
+  if (grossMinutes <= 0) return null
+  return Math.max(0, grossMinutes - tc.breakUnpaidMinutes)
 }
 
 // ─── THE READ (DB) ────────────────────────────────────────────────────────────
@@ -364,6 +380,216 @@ export async function getLaborActualsForStores(
         windowEnd: bounds.get(st.id)!.end,
         syncState: syncByStore.get(st.id) ?? null,
         daysCovered: covered.length,
+        daysInWindow: windowDays,
+      })
+    )
+  }
+  return out
+}
+
+// ─── TIPS (AL-3, VISION ITEM 5) ───────────────────────────────────────────────
+
+/// A timecard, seen by the tip calculation rather than the cost calculation.
+/// Deliberately a separate type: the cost side must never gain a tips field, and
+/// AL-1 Q6's ruling — tips are employee income, not employer labor cost — is
+/// easier to keep true when the two shapes cannot be passed to each other.
+export type TipTimecard = {
+  startAt: Date
+  endAt: Date | null
+  breakUnpaidMinutes: number
+  /// Square's declared_cash_tip_money. NULL IS NOT ZERO: null means Square never
+  /// carried a figure, 0 means somebody declared nothing.
+  declaredCashTips: number | null
+  /// Square's wage.tip_eligible. Null = Square did not say.
+  wageTipEligible: boolean | null
+}
+
+export type TipPayoutResult = {
+  /// Dollars per hour, or null. NULL WHEN THERE ARE NO ELIGIBLE HOURS — "nobody
+  /// worked" is not "$0.00 an hour", the same law laborPct follows for sales.
+  avgHourlyTips: number | null
+  /// Dollars. The two halves are returned separately as well as summed, so the
+  /// label on the card can name them and so Q4's double-count question stays
+  /// answerable from data rather than from argument.
+  tipsTotal: number
+  posTips: number
+  declaredCashTips: number
+  eligibleHours: number
+  /// Hours from timecards whose tip_eligible Square did not state. They ARE in
+  /// eligibleHours (Gary's Q7 ruling: null counts as eligible) and this count is
+  /// what the footnote reports — excluding maybe-eligible staff would overstate
+  /// the per-hour payout, and overstating what a job pays is the worse error.
+  unknownEligibilityHours: number
+  daysCovered: number
+  daysInWindow: number
+}
+
+/// avgHourlyTips = all tips ÷ tip-eligible paid hours, over the covered days.
+/// PURE — no DB, no network — so scripts/verify-labor-actuals.ts can pin it.
+///
+/// THE NUMERATOR IS BOTH HALVES (Gary's Q4 ruling, 2026-08-19), summed and
+/// labelled "Square-recorded tips + declared cash":
+///   - posTips — SalesPeriodCache.tipTotal, already synced from
+///     order.total_tip_money by sales-sync.ts for the same store-local business
+///     day this window uses. NOT a new ingest and NOT a new Square call: it has
+///     been in the database for 573 days on the oldest stores, measured
+///     2026-08-19 at 2.4%-7.1% of net sales across the nine-store estate.
+///   - declaredCashTips — the timecard field AL-1 already stores.
+///
+/// A "declared cash only" column was the design's expected answer and was
+/// REVERSED BY THAT MEASUREMENT: at a card-dominant juice bar it would have
+/// reported a fraction of the real payout, and it would have been wrong in the
+/// reassuring direction.
+///
+/// KNOWN AND UNRESOLVABLE FROM DATA WE HOLD: a cash tip rung into the POS lands
+/// in total_tip_money and could ALSO be declared on a timecard, so the sum can
+/// double-count. Gary asked for the declared-cash total from staging precisely
+/// to size it — if staff do not declare cash, the two halves cannot overlap and
+/// the question is moot. Reported, never silently assumed away.
+///
+/// TIPS NEVER ENTER laborCost. This function shares no return value with
+/// computeLaborActuals and nothing here is added to a cost anywhere.
+export function computeTipPayout({
+  timecards,
+  posTips,
+  now,
+  windowEnd,
+  daysCovered = 1,
+  daysInWindow = 1,
+}: {
+  timecards: TipTimecard[]
+  /// Dollars — Σ SalesPeriodCache.tipTotal ON THE COVERED DAYS. The caller
+  /// restricts it, exactly as it restricts net sales for laborPct, so the
+  /// numerator and denominator always describe the same days.
+  posTips: number
+  now: Date
+  windowEnd: Date
+  daysCovered?: number
+  daysInWindow?: number
+}): TipPayoutResult {
+  const ceiling = Math.min(now.getTime(), windowEnd.getTime())
+
+  let eligibleMinutes = 0
+  let unknownMinutes = 0
+  let cashCents = 0
+
+  for (const tc of timecards) {
+    // Cash tips count wherever they were declared, INDEPENDENT of eligibility:
+    // a declared dollar was received, and dropping it because Square left a flag
+    // unset would understate the numerator while the denominator kept the hours.
+    if (tc.declaredCashTips !== null) cashCents += toCents(tc.declaredCashTips)
+
+    // The denominator excludes only an EXPLICIT false. Dividing by hours worked
+    // by staff who cannot receive tips would make the average meaningless, which
+    // is why AL-1 stored the flag at all.
+    if (tc.wageTipEligible === false) continue
+
+    const minutes = paidMinutesOf(tc, ceiling)
+    if (minutes === null) continue
+    eligibleMinutes += minutes
+    if (tc.wageTipEligible === null) unknownMinutes += minutes
+  }
+
+  const tipsCents = toCents(posTips) + cashCents
+  const eligibleHours = eligibleMinutes / 60
+
+  return {
+    avgHourlyTips: eligibleHours > 0 ? toDollars(tipsCents) / eligibleHours : null,
+    tipsTotal: toDollars(tipsCents),
+    posTips: toDollars(toCents(posTips)),
+    declaredCashTips: toDollars(cashCents),
+    eligibleHours,
+    unknownEligibilityHours: unknownMinutes / 60,
+    daysCovered,
+    daysInWindow,
+  }
+}
+
+/// Every store's tip payout for one window, in THREE queries regardless of how
+/// many stores are passed — the same shape and the same reasoning as
+/// getLaborActualsForStores, and the same per-store timezone handling: two
+/// stores in different zones do not share a business day.
+export async function getTipPayoutForStores(
+  org: Organization,
+  stores: Store[],
+  startDate: string,
+  endDate: string,
+  now = new Date()
+): Promise<Map<string, TipPayoutResult>> {
+  const out = new Map<string, TipPayoutResult>()
+  if (stores.length === 0) return out
+
+  const bounds = new Map(
+    stores.map((st) => [
+      st.id,
+      { start: localMidnightUtc(startDate, st.timezone), end: localMidnightUtc(nextDay(endDate), st.timezone) },
+    ])
+  )
+  const widestStart = new Date(Math.min(...[...bounds.values()].map((b) => b.start.getTime())))
+  const widestEnd = new Date(Math.max(...[...bounds.values()].map((b) => b.end.getTime())))
+
+  const rows = await prisma.squareTimecard.findMany({
+    where: {
+      organizationId: org.id,
+      storeId: { in: stores.map((st) => st.id) },
+      startAt: { gte: widestStart, lt: widestEnd },
+    },
+    // NO squareTeamMemberId, NO wage rate. Item 5 is a per-STORE average and
+    // needs neither, so the per-person payload does not exist to leak — AL-1's
+    // answer to DEBT-10, unchanged.
+    select: {
+      storeId: true,
+      startAt: true,
+      endAt: true,
+      breakUnpaidMinutes: true,
+      declaredCashTips: true,
+      wageTipEligible: true,
+    },
+  })
+
+  const rowsByStore = new Map<string, typeof rows>()
+  for (const r of rows) {
+    const b = bounds.get(r.storeId)
+    // The widest-span query can hand a store rows from outside its own window.
+    if (!b || r.startAt < b.start || r.startAt >= b.end) continue
+    const list = rowsByStore.get(r.storeId)
+    if (list) list.push(r)
+    else rowsByStore.set(r.storeId, [r])
+  }
+
+  const coveredByStore = new Map<string, string[]>()
+  for (const st of stores) {
+    const list = rowsByStore.get(st.id) ?? []
+    coveredByStore.set(st.id, [...new Set(list.map((r) => localDateStr(r.startAt, st.timezone)))].sort())
+  }
+
+  // POS tips for every (store, covered day) pair at once — one round trip.
+  const pairs = stores
+    .filter((st) => (coveredByStore.get(st.id) ?? []).length > 0)
+    .map((st) => ({ storeId: st.id, date: { in: (coveredByStore.get(st.id) ?? []).map(dbDate) } }))
+  const tipRows =
+    pairs.length > 0
+      ? await prisma.salesPeriodCache.groupBy({ by: ["storeId"], where: { OR: pairs }, _sum: { tipTotal: true } })
+      : []
+  const posByStore = new Map(tipRows.map((r) => [r.storeId, r._sum.tipTotal ?? 0]))
+
+  const windowDays = daysInclusive(startDate, endDate)
+  for (const st of stores) {
+    const list = rowsByStore.get(st.id) ?? []
+    out.set(
+      st.id,
+      computeTipPayout({
+        timecards: list.map((r) => ({
+          startAt: r.startAt,
+          endAt: r.endAt,
+          breakUnpaidMinutes: r.breakUnpaidMinutes,
+          declaredCashTips: r.declaredCashTips === null ? null : Number(r.declaredCashTips),
+          wageTipEligible: r.wageTipEligible,
+        })),
+        posTips: posByStore.get(st.id) ?? 0,
+        now,
+        windowEnd: bounds.get(st.id)!.end,
+        daysCovered: (coveredByStore.get(st.id) ?? []).length,
         daysInWindow: windowDays,
       })
     )

@@ -9,9 +9,11 @@ import {
   laborOverlayOn,
   loadEstateLabor,
   loadLaborBlocks,
+  loadTipBlocks,
   scheduleLaborRefresh,
 } from "@/lib/labor-dashboard"
 import type { EstateLaborBlock, LaborBlock } from "@/lib/labor-judgment"
+import type { TipBlock } from "@/lib/labor-costs"
 
 // GET /api/dashboard/rollup — the Dashboard's "All locations" mode: per-store
 // pacing rows plus company-wide totals with the same goal-weighted month-end
@@ -86,6 +88,9 @@ export async function GET(req: Request) {
     projected: number | null
     pctToGoal: number | null
     labor?: LaborBlock
+    /// AL-3 vision item 5. ABSENT — not null, not zeroed — for any viewer without
+    /// labor.costs.view, and for any org without the Advanced Labor overlay.
+    tips?: TipBlock
   }[] = []
 
   // Serial on purpose (same reasoning as the reconcile cron — stay polite to
@@ -173,6 +178,25 @@ export async function GET(req: Request) {
     for (const row of rows) {
       const block = laborByStore.get(row.storeId)
       if (block) row.labor = block
+    }
+  }
+
+  // ── AL-3: tips ──
+  // THE SAME RANGE AS THE LABOR % COLUMN (Gary's Q6 ruling, 2026-08-19). Vision
+  // item 5 says MTD; the column lives in the ranking table beside
+  // "Labor % · <range>", and two adjacent columns that silently meant different
+  // windows would be worse than a column whose header names its own. The header
+  // names the range on both.
+  //
+  // MANAGE-gated in ITS OWN right, not by proximity: loadTipBlocks returns null
+  // for a viewer without labor.costs.view, and null adds no key. A STORE account
+  // that can see the labor PERCENTAGE (Q-V made that OPERATIONAL) still receives
+  // no `tips` field at all.
+  const tipsByStore = await loadTipBlocks(org, stores, actor, rangeStart, rangeEnd)
+  if (tipsByStore) {
+    for (const row of rows) {
+      const block = tipsByStore.get(row.storeId)
+      if (block) row.tips = block
     }
   }
   // Freshness for the whole estate, bounded and deferred — see

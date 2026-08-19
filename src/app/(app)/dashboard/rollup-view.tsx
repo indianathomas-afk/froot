@@ -10,6 +10,7 @@ import { fetchCard } from "./card-fetch"
 import { DatePicker, PRESETS, rangeLabel, resolvePreset, type Preset } from "./date-range-picker"
 import { LaborNotes, LaborPctCell, LaborPctLine } from "./labor-pct"
 import { formatLaborPct, judgeLaborPct, laborVerdictClass, type EstateLaborBlock, type LaborBlock } from "@/lib/labor-judgment"
+import { formatTipsPerHour, tipFootnotes, type TipBlock } from "@/lib/labor-costs"
 
 // ─── All-locations rollup (Phase F-4) ─────────────────────────────────────────
 // Company-wide totals + a store ranking table, backed by /api/dashboard/rollup.
@@ -34,6 +35,11 @@ type RollupRow = {
   // AL-2 feature 7 — absent when the overlay is off or the viewer lacks
   // labor.actuals.view, so the column disappears rather than rendering dashes.
   labor?: LaborBlock
+  // AL-3 feature 5 — average hourly tip payout. GATED SEPARATELY FROM `labor`
+  // and one tier higher: the percentage is OPERATIONAL (Q-V), tips are MANAGE
+  // (Gary's Q8, 2026-08-19). A STORE account receiving `labor` still receives no
+  // `tips` key at all.
+  tips?: TipBlock
 }
 
 type Rollup = {
@@ -103,7 +109,38 @@ const usd = (n: number | null | undefined, digits = 0) =>
 
 const pct = (n: number | null) => (n === null ? "—" : `${n.toFixed(1)}%`)
 
-type SortKey = "name" | "todayNet" | "mtdActual" | "rangeNet" | "laborPct" | "pace" | "projected" | "pctToGoal"
+type SortKey = "name" | "todayNet" | "mtdActual" | "rangeNet" | "laborPct" | "tipsPerHour" | "pace" | "projected" | "pctToGoal"
+
+/// AL-3 feature 5 — one store's average hourly tip payout.
+///
+/// The caveats ride in the TITLE rather than as a footnote stack, because this
+/// is one cell in a dense ranking table and laborFootnotes' stacked-sentence
+/// treatment belongs to a card. The sentences themselves come from
+/// tipFootnotes, so the wording cannot drift from wherever else it is shown.
+///
+/// NULL IS AN EM DASH, NEVER $0.00 — no tip-eligible hours in the range is "not
+/// yet a rate", which is a different sentence from "this store tips nothing".
+function TipsCell({ block }: { block?: TipBlock }) {
+  if (!block) return <span className="text-[var(--color-muted-foreground)]">—</span>
+  const notes = tipFootnotes(block)
+  return (
+    <span
+      className={
+        block.avgHourlyTips === null
+          ? "text-[var(--color-muted-foreground)] cursor-help"
+          : "text-[var(--color-foreground)] cursor-help"
+      }
+      title={notes.map((n) => n.text).join("\n")}
+    >
+      {formatTipsPerHour(block.avgHourlyTips)}
+      {/* The asterisk is the visible hook for the title text. Without it a
+          possibly-double-counted upper bound looks exact. */}
+      {block.avgHourlyTips !== null && block.declaredCashTips > 0 && (
+        <span className="text-[var(--color-muted-foreground)]">*</span>
+      )}
+    </span>
+  )
+}
 
 // canViewForecasting: PERM-3 — the Store Ranking header's "Forecasting →" link
 // rendered for every role before this, including STORE/STAFF who cannot open
@@ -145,6 +182,15 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
     load()
   }
 
+  // Both optional blocks live one level down. A store with no labor or no tip
+  // data sorts as null and sinks, by the same rule as every other column — an
+  // absent figure must never sort as a zero.
+  const nested = (r: RollupRow, key: SortKey): number | null => {
+    if (key === "laborPct") return r.labor?.laborPct ?? null
+    if (key === "tipsPerHour") return r.tips?.avgHourlyTips ?? null
+    return r[key] as number | null
+  }
+
   const sorted = useMemo(() => {
     if (!data) return []
     return [...data.stores].sort((a, b) => {
@@ -152,8 +198,8 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
       // laborPct lives one level down, inside the optional block. A store with no
       // labor data sorts as null and sinks, by the same rule as every other
       // column below — an absent percentage must never sort as a zero.
-      const av = sortKey === "laborPct" ? (a.labor?.laborPct ?? null) : a[sortKey]
-      const bv = sortKey === "laborPct" ? (b.labor?.laborPct ?? null) : b[sortKey]
+      const av = nested(a, sortKey)
+      const bv = nested(b, sortKey)
       // Stores with no value for the column always sink to the bottom.
       if (av === null && bv === null) return 0
       if (av === null) return 1
@@ -196,6 +242,9 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
   // gates off means no `labor` key on any row, and therefore no column at all
   // rather than a column of dashes.
   const hasLabor = data.stores.some((s) => s.labor)
+  // Same rule, its own gate: the server sends no `tips` key to a viewer below
+  // MANAGE, so the column disappears rather than rendering a column of dashes.
+  const hasTips = data.stores.some((s) => s.tips)
   const paceTotal = totals.mtdGoal !== null && totals.mtdGoal > 0 ? (totals.mtdActual / totals.mtdGoal) * 100 : null
   const onTrack = totals.pctToGoal !== null && totals.pctToGoal >= 100
 
@@ -354,6 +403,10 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
                       moves and which are month-anchored by definition. */}
                   {header("rangeNet", `Net · ${rangeLbl}`)}
                   {hasLabor && header("laborPct", `Labor % · ${rangeLbl}`)}
+                  {/* Follows the picker, and the header says so (Gary's Q6) —
+                      two range-driven columns side by side must not silently
+                      mean different windows. */}
+                  {hasTips && header("tipsPerHour", `Tips/hr · ${rangeLbl}`)}
                   {header("pace", "% to MTD goal")}
                   {header("projected", "Projected")}
                   {header("pctToGoal", "vs goal")}
@@ -377,6 +430,11 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
                     {hasLabor && (
                       <td className="py-2 text-right">
                         <LaborPctCell block={s.labor} />
+                      </td>
+                    )}
+                    {hasTips && (
+                      <td className="py-2 text-right">
+                        <TipsCell block={s.tips} />
                       </td>
                     )}
                     <td className="py-2 text-right" title={s.goalSource === "manual" ? "Manual goal, prorated by days elapsed" : undefined}>
@@ -403,7 +461,7 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
                 ))}
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={hasLabor ? 9 : 8} className="py-6 text-center text-[var(--color-muted-foreground)]">
+                    <td colSpan={8 + (hasLabor ? 1 : 0) + (hasTips ? 1 : 0)} className="py-6 text-center text-[var(--color-muted-foreground)]">
                       No stores assigned to you yet.
                     </td>
                   </tr>

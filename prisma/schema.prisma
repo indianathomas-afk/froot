@@ -118,6 +118,7 @@ model Organization {
   weeklyDayHours                WeeklyDayHours[]
   squareTimecards               SquareTimecard[]
   squareLaborSyncStates         SquareLaborSyncState[]
+  squareTeamMemberWages         SquareTeamMemberWage[]
 }
 
 model User {
@@ -2514,4 +2515,105 @@ model SquareLaborSyncState {
   store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+/// AL-3 — ADVANCED LABOR PHASE 3. Design record: docs/ADVANCED_LABOR.md § Phase 3.
+///
+/// THE CURRENT WAGE SETTING PER SQUARE TEAM MEMBER, and it is a DIFFERENT FACT
+/// from SquareTimecard.wageHourlyRate. That column is a per-shift SNAPSHOT and
+/// answers "what did this shift cost"; this table answers "what do we pay this
+/// person now". Both are correct for their own question and NEITHER may be
+/// substituted for the other — collapsing them would silently re-cost history at
+/// today's rates. Costing keeps reading the timecard; /staff and the Positions
+/// roster read this.
+///
+/// NO NAME. NO EMAIL. EVER. (Gary, 2026-08-19 — approved as designed.) The row is
+/// a join key plus money. Names come from StaffMember.squareTeamMemberId, which
+/// is already the roster of record. The reason is structural rather than
+/// tasteful: GET /api/staff spreads the whole StaffMember row with no `select`
+/// (src/app/api/staff/route.ts), so a wage column ON THAT MODEL would ship to
+/// every staff.view holder the day it was added. A separate table makes that leak
+/// unrepresentable instead of merely avoided — DEBT-10's lesson applied to the
+/// schema rather than to a route.
+///
+/// HEALTH NEEDS NO SECOND TABLE HERE, and this is NOT a reversal of AL-1's Q3.
+/// SquareLaborSyncState exists because "synced, nobody worked" and "never synced"
+/// are both ZERO TIMECARD ROWS. An org with zero team members is degenerate, not
+/// a normal Tuesday, so max(syncedAt) over this table IS a valid freshness
+/// signal. Stated so the difference reads as a distinction rather than as
+/// forgetting the rule.
+model SquareTeamMemberWage {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  /// The join key, to StaffMember.squareTeamMemberId and to
+  /// SquareTimecard.squareTeamMemberId. Also half the upsert key.
+  squareTeamMemberId String
+  /// Square's ACTIVE | INACTIVE. Square offboards by flipping this, never by
+  /// deleting, so an INACTIVE row is a leaver and not a data error.
+  status             String
+  isOwner            Boolean   @default(false)
+  /// ALL_CURRENT_AND_FUTURE_LOCATIONS. Measured 2026-08-19: 6 of 99 members.
+  /// Such a member appears under EVERY store, which is why per-store roster
+  /// counts legitimately sum past the org total.
+  allLocations       Boolean   @default(false)
+  /// Square location ids, verbatim. Resolved to stores at read time rather than
+  /// at write time so a store linked later needs no backfill — and so an id with
+  /// no Store row stays visible as an unmapped location instead of vanishing.
+  locationIds        String[]
+  /// Square's wage_setting.job_assignments[0]. THE API IS PLURAL AND TODAY'S DATA
+  /// IS NOT: measured 2026-08-19, all 99 members carry exactly one assignment.
+  /// jobAssignmentCount is stored so a member who ever carries two is a VISIBLE
+  /// count rather than a silent truncation.
+  jobTitle           String?
+  jobId              String?
+  /// Square's HOURLY | SALARY | NONE. Not the Froot LaborPayType enum: this is
+  /// Square's vocabulary and must not be coerced into ours.
+  payType            String?
+  jobAssignmentCount Int       @default(0)
+  /// Dollars, per docs/LABOR.md § Money convention. NULL MEANS "not set in
+  /// Square" AND MUST RENDER AS THAT SENTENCE, NEVER AS $0 (Gary, 2026-08-19).
+  hourlyRate         Decimal?  @db.Decimal(10, 2)
+  /// Salaried members carry an annual figure instead. Measured: 5 of 99, all five
+  /// carrying both annual_rate and weekly_hours. Decimal(12,2) because an annual
+  /// figure needs the two extra digits an hourly rate does not.
+  annualRate         Decimal?  @db.Decimal(12, 2)
+  /// Square's own weekly_hours. Present for the salaried five, absent for hourly.
+  /// The DEFAULT for the card's WK HRS column; weeklyHoursOverride wins.
+  squareWeeklyHours  Int?
+  /// Available since 2026-08-19's measurement (6 of 99 true) and DELIBERATELY
+  /// UNUSED: overtime stays deferred by ruling. Stored so the day OT lands, the
+  /// input is already here and nothing has to guess.
+  isOvertimeExempt   Boolean?
+  /// wage_setting.version — Square's own monotonic counter, the same idempotency
+  /// guard SquareTimecard.squareVersion is. Null where Square omits it.
+  wageVersion        Int?
+  squareUpdatedAt    DateTime?
+
+  /// ── FROOT-OWNED. THE SYNC'S DO UPDATE NEVER TOUCHES THESE TWO. ──
+  /// Same discipline StaffMember.fullNameLocked already encodes: a resync must
+  /// not clobber a value a human set. WK HRS and SUP are Froot concepts (vision
+  /// item 10) and Square has no opinion about either.
+  ///
+  /// KNOWN AND LABELLED: NOTHING READS THEM YET. L-2 seam (b) holds — no core
+  /// labor engine gains a Square-sourced input, and the weekly budget still runs
+  /// on LaborPosition. These persist and render, inert, until a later phase gives
+  /// them a consumer (Gary, 2026-08-19, Q9).
+  weeklyHoursOverride Int?
+  /// Froot-only. NOT derivable from Square: measured 2026-08-19, "Manager" is 7
+  /// people of whom 3 are salaried, "Administrator" 4 of whom 2 are, and "Owner"
+  /// is HOURLY. Any title-based guess is wrong for someone, so the default is
+  /// false and a human sets it.
+  isSupervisory       Boolean?
+
+  /// Freshness for the whole roster — see the health note above.
+  syncedAt  DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  /// Org-scoped, matching SquareTimecard's key: the same real Square employee can
+  /// be read by more than one tenant.
+  @@unique([organizationId, squareTeamMemberId])
+  @@index([organizationId, syncedAt])
 }

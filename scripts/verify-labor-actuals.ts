@@ -22,6 +22,19 @@
  *      refusal to judge a number that is not fresh.
  *   9. The estate roll-up: dollars summed then divided, never a mean of ratios,
  *      with a sales-weighted target and worst-health-wins.
+ *
+ * AL-3 (Phase 3) appends the tip payout, vision item 5:
+ *  10. Both halves of the numerator — Square-recorded tips (SalesPeriodCache
+ *      .tipTotal, already synced) PLUS declared cash — because a declared-cash-
+ *      only column would have reported a fraction of the real payout at a
+ *      card-dominant store (measured 2.4%-7.1% of net across nine stores).
+ *  11. The denominator excludes an EXPLICIT tip_eligible false and INCLUDES a
+ *      null (Gary's Q7 ruling), with the null hours reported separately.
+ *  12. No eligible hours yields avgHourlyTips === null, NEVER 0 — the same law
+ *      case 5 pins for laborPct.
+ *  13. The paid-minutes rule is SHARED with the cost calculation: unpaid breaks
+ *      out, paid breaks in, open cards clamped to the window. If the two ever
+ *      diverge, one dashboard divides by two different notions of an hour.
  */
 import {
   computeLaborActuals,
@@ -29,6 +42,7 @@ import {
   type LaborActualsResult,
   type LaborActualsTimecard,
 } from "../src/lib/labor-actuals"
+import { computeTipPayout, type TipTimecard } from "../src/lib/labor-actuals"
 import { aggregateLaborActuals, formatLaborPct, judgeLaborPct } from "../src/lib/labor-judgment"
 
 let failures = 0
@@ -275,6 +289,124 @@ console.log("\n9. AL-2 — the estate roll-up")
   // roll-up as well as the single-store read.
   const silent = aggregateLaborActuals([{ laborCost: 0, sales: 0, result: mk({}) }], [20])
   check("estate with no sales → pct null", silent.laborPct, null)
+}
+
+// ─── 10-13. THE TIP PAYOUT (AL-3, vision item 5) ─────────────────────────────
+{
+  console.log("\nAL-3 — tip payout")
+
+  const D = (iso: string) => new Date(iso)
+  const tc = (o: Partial<TipTimecard>): TipTimecard => ({
+    startAt: D("2026-08-19T16:00:00.000Z"),
+    endAt: D("2026-08-19T24:00:00.000Z"),
+    breakUnpaidMinutes: 0,
+    declaredCashTips: null,
+    wageTipEligible: true,
+    ...o,
+  })
+  const NOW = D("2026-08-20T00:00:00.000Z")
+  const WINDOW_END = D("2026-08-20T07:00:00.000Z")
+
+  // BOTH HALVES OF THE NUMERATOR. Two 8-hour eligible shifts = 16 hours; $80 of
+  // Square-recorded tips plus $20 declared cash = $100; $100 / 16 = $6.25/hr.
+  const both = computeTipPayout({
+    timecards: [tc({ declaredCashTips: 20 }), tc({})],
+    posTips: 80,
+    now: NOW,
+    windowEnd: WINDOW_END,
+  })
+  check("eligible hours", both.eligibleHours, 16)
+  check("tips summed from both sources", both.tipsTotal, 100)
+  check("Square-recorded half kept separate", both.posTips, 80)
+  check("declared-cash half kept separate", both.declaredCashTips, 20)
+  check("avgHourlyTips = all tips / eligible hours", both.avgHourlyTips, 6.25)
+  // THE COLUMN THIS PHASE ALMOST SHIPPED. Declared cash alone would have read
+  // $1.25/hr against a real $6.25 — a fifth of the payout, presented as the
+  // payout. The measurement that reversed the lean is pinned here so a later
+  // "simplify to declared cash only" fails on this line.
+  check("declared-cash-only would have read", 20 / 16, 1.25)
+
+  // AN EXPLICIT FALSE IS EXCLUDED FROM THE DENOMINATOR — dividing by hours
+  // worked by staff who cannot receive tips is what wageTipEligible exists to
+  // prevent. The ineligible shift's own declared cash still counts in the
+  // numerator: a declared dollar was received.
+  const withIneligible = computeTipPayout({
+    timecards: [tc({}), tc({ wageTipEligible: false, declaredCashTips: 10 })],
+    posTips: 80,
+    now: NOW,
+    windowEnd: WINDOW_END,
+  })
+  check("tip_eligible false is out of the denominator", withIneligible.eligibleHours, 8)
+  check("but its declared cash stays in the numerator", withIneligible.tipsTotal, 90)
+
+  // NULL COUNTS AS ELIGIBLE (Gary's Q7): excluding maybe-eligible staff would
+  // overstate the per-hour payout, and overstating what a job pays is the worse
+  // error. The hours are reported so the footnote can say how many.
+  const withNull = computeTipPayout({
+    timecards: [tc({}), tc({ wageTipEligible: null })],
+    posTips: 80,
+    now: NOW,
+    windowEnd: WINDOW_END,
+  })
+  check("null tip-eligibility counts as eligible", withNull.eligibleHours, 16)
+  check("and the unknown hours are reported", withNull.unknownEligibilityHours, 8)
+
+  // NO ELIGIBLE HOURS → null, NEVER 0. Tips with nobody eligible is "not yet a
+  // rate", which is a different sentence from "$0.00 an hour" — seam (c)'s rule
+  // applied to the tip denominator exactly as case 5 applies it to sales.
+  const noHours = computeTipPayout({
+    timecards: [tc({ wageTipEligible: false })],
+    posTips: 80,
+    now: NOW,
+    windowEnd: WINDOW_END,
+  })
+  check("no eligible hours → avgHourlyTips null", noHours.avgHourlyTips, null)
+  check("and it is not zero", noHours.avgHourlyTips === 0, false)
+
+  // THE PAID-MINUTES RULE IS THE COST CALCULATION'S, SHARED. A 30-minute unpaid
+  // break comes out (8h → 7.5h) and a paid one would not; an OPEN card is
+  // clamped to the earlier of `now` and the window end. These assertions are
+  // what fail if paidMinutesOf is ever inlined back into one of the two callers.
+  const unpaidBreak = computeTipPayout({
+    timecards: [tc({ breakUnpaidMinutes: 30 })],
+    posTips: 15,
+    now: NOW,
+    windowEnd: WINDOW_END,
+  })
+  check("unpaid break comes out of eligible hours", unpaidBreak.eligibleHours, 7.5)
+  check("and the rate uses the reduced hours", unpaidBreak.avgHourlyTips, 2)
+
+  const open = computeTipPayout({
+    // Clocked in at 16:00Z and still on the clock; `now` is 00:00Z → 8 hours.
+    timecards: [tc({ endAt: null })],
+    posTips: 16,
+    now: NOW,
+    windowEnd: WINDOW_END,
+  })
+  check("an open card costs to now", open.eligibleHours, 8)
+
+  const openPastWindow = computeTipPayout({
+    timecards: [tc({ endAt: null })],
+    posTips: 16,
+    // `now` is two days later; the WINDOW END is the ceiling, so a card left
+    // open on Tuesday must not accrue tips-hours into Thursday.
+    now: D("2026-08-22T00:00:00.000Z"),
+    windowEnd: D("2026-08-19T23:00:00.000Z"),
+  })
+  check("an open card is clamped by the window end", openPastWindow.eligibleHours, 7)
+
+  // The coverage pair rides through unchanged, so the card can say "N of M days
+  // synced" about the tip rate as well as the labor percentage.
+  const covered = computeTipPayout({
+    timecards: [tc({})],
+    posTips: 8,
+    now: NOW,
+    windowEnd: WINDOW_END,
+    daysCovered: 3,
+    daysInWindow: 19,
+  })
+  check("daysCovered rides through", covered.daysCovered, 3)
+  check("daysInWindow rides through", covered.daysInWindow, 19)
 }
 
 console.log(`\n${failures === 0 ? "PASS" : `FAIL — ${failures} check(s)`}\n`)

@@ -4,16 +4,24 @@ import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
+import { canSeeWages } from "@/lib/labor-dashboard"
+import { formatPay } from "@/lib/labor-costs"
+import { getPayForStaff } from "@/lib/labor-roster"
 import { getStaffComplianceSummaries, type StaffComplianceSummary } from "@/lib/hr-compliance"
 import { Badge } from "@/components/ui/badge"
 
 const NO_SUMMARIES = new Map<string, StaffComplianceSummary>()
+/// AL-3. The SHARED EMPTY MAP for a viewer who may not see pay — and the reason
+/// it is a constant rather than a fresh Map() is the same reason NO_SUMMARIES is:
+/// an empty map is the only value this page ever holds for a denied viewer, so
+/// allocating one per request would only make the two paths look different.
+const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null }>()
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES }
+  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
@@ -55,7 +63,24 @@ async function getStaffData() {
   const canManage = isAdmin && can(actor, "staff.manage")
   const canSync = isAdmin && can(actor, "staff.sync.square")
 
-  return { staff, stores, isAdmin, canManage, canSync, hrActive, summaries }
+  // AL-3 vision item 2 — PAY RATES, MANAGER/ADMIN ONLY (Gary's words).
+  //
+  // THE GATE DECIDES WHETHER TO RUN THE QUERY, not whether to render the cell.
+  // A viewer without canSeeWages never causes a wage to be selected, so no pay
+  // reaches this component's props, the RSC flight payload, or anything
+  // downstream — Gary's hard rule: "ABSENT from the response", not hidden.
+  //
+  // Two gates are already upstream of this one and neither is redundant:
+  // staff/layout.tsx redirects anyone without staff.view (MANAGE) before the
+  // page renders at all, and canSeeWages additionally requires the Advanced
+  // Labor overlay, so an org with HR but no Square labor sees this page exactly
+  // as it looked before AL-3 (Gary's Q2 ruling, 2026-08-19).
+  const showPay = canSeeWages(org, actor)
+  const pay = showPay
+    ? await getPayForStaff(org, staff.map((s) => ({ id: s.id, squareTeamMemberId: s.squareTeamMemberId })))
+    : NO_PAY
+
+  return { staff, stores, isAdmin, canManage, canSync, hrActive, summaries, pay, showPay }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -76,6 +101,53 @@ function CompliancePct({ pct }: { pct: number | null }) {
   return <span className="text-sm font-medium text-[var(--color-foreground)]">{pct}%</span>
 }
 
+// AL-3 pay cell. THREE OUTCOMES, ALL DIFFERENT SENTENCES, and keeping them apart
+// is the whole job:
+//   - a rate            — Square carries a wage setting for this person
+//   - "Not set in Square" — they are in Square and no wage is configured
+//   - "—" with a reason   — they are not linked to Square at all, so Froot has
+//                           nothing to read and is not claiming they are unpaid
+// A single "$0.00" would say all three at once, and would say the one thing that
+// is never true. Same law AL-1 wrote into wageMissingCount and moneyToDollars.
+function PayCell({
+  pay,
+  isSquareLinked,
+}: {
+  pay?: { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null }
+  isSquareLinked: boolean
+}) {
+  if (!pay) {
+    return (
+      <span
+        className="text-[var(--color-muted-foreground)] cursor-help"
+        title={
+          isSquareLinked
+            ? "This person is linked to Square but is not on the synced roster yet — run Sync from Square."
+            : "Added manually, with no Square team member linked — Froot has no wage to read."
+        }
+      >
+        —
+      </span>
+    )
+  }
+  const text = formatPay(pay)
+  if (text === "Not set in Square") {
+    return (
+      <span
+        className="text-[var(--color-warning,#efa201)] cursor-help"
+        title="Square has no wage configured for this team member. Set it in Square; Froot never writes it."
+      >
+        Not set in Square
+      </span>
+    )
+  }
+  return (
+    <span className="font-medium text-[var(--color-foreground)]" title={pay.jobTitle ?? undefined}>
+      {text}
+    </span>
+  )
+}
+
 // One roster row, shared by all three places a member is listed: a store's own
 // roster, the "Also works here" block (DEBT-13), and Unassigned. Extracted so
 // the three cannot drift — the markup was previously duplicated for Unassigned.
@@ -87,12 +159,19 @@ function StaffRow({
   canEdit,
   pct,
   homeStoreName,
+  showPay,
+  pay,
 }: {
   member: RosterMember
   hrActive: boolean
   canEdit: boolean
   pct: number | null
   homeStoreName?: string
+  /// AL-3. False for every viewer without labor.costs.view AND for every org
+  /// without the Advanced Labor overlay — in both cases `pay` is undefined
+  /// because the query never ran.
+  showPay: boolean
+  pay?: { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null }
 }) {
   return (
     <tr className="border-b border-[var(--color-border)] last:border-0">
@@ -138,6 +217,11 @@ function StaffRow({
           />
         )}
       </td>
+      {showPay && (
+        <td className="px-6 py-3 text-sm text-right whitespace-nowrap">
+          <PayCell pay={pay} isSquareLinked={!!member.squareTeamMemberId} />
+        </td>
+      )}
       {hrActive && (
         <td className="px-6 py-3 text-right">
           <CompliancePct pct={pct} />
@@ -151,7 +235,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, canManage, canSync, hrActive, summaries } = await getStaffData()
+  const { staff, stores, isAdmin, canManage, canSync, hrActive, summaries, pay, showPay } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -251,7 +335,8 @@ export default async function StaffPage() {
           {stores.filter((s) => byStore.has(s.id) || visitingByStore.has(s.id)).map((store) => {
             const members = byStore.get(store.id) ?? []
             const visiting = visitingByStore.get(store.id) ?? []
-            const colSpan = hrActive ? 5 : 4
+            // Base four columns, plus Pay and Compliance when each is shown.
+            const colSpan = 4 + (showPay ? 1 : 0) + (hrActive ? 1 : 0)
             return (
               <div key={store.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
                 <div className="px-6 py-4 border-b border-[var(--color-border)]">
@@ -276,6 +361,9 @@ export default async function StaffPage() {
                       <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
                       <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
                       <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
+                      {showPay && (
+                        <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
+                      )}
                       {hrActive && (
                         <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
                       )}
@@ -290,6 +378,8 @@ export default async function StaffPage() {
                         hrActive={hrActive}
                         canEdit={canManage}
                         pct={summaries.get(member.id)?.pct ?? null}
+                        showPay={showPay}
+                        pay={pay.get(member.id)}
                       />
                     ))}
                     {visiting.length > 0 && (
@@ -308,6 +398,8 @@ export default async function StaffPage() {
                         hrActive={hrActive}
                         canEdit={canManage}
                         pct={summaries.get(member.id)?.pct ?? null}
+                        showPay={showPay}
+                        pay={pay.get(member.id)}
                         homeStoreName={member.storeAssignments[0].store.name}
                       />
                     ))}
@@ -336,6 +428,9 @@ export default async function StaffPage() {
                     <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
                     <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
                     <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
+                    {showPay && (
+                      <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
+                    )}
                     {hrActive && (
                       <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
                     )}
@@ -350,6 +445,8 @@ export default async function StaffPage() {
                       hrActive={hrActive}
                       canEdit={canManage}
                       pct={summaries.get(member.id)?.pct ?? null}
+                      showPay={showPay}
+                      pay={pay.get(member.id)}
                     />
                   ))}
                 </tbody>
@@ -371,6 +468,8 @@ export default async function StaffPage() {
                       hrActive={hrActive}
                       canEdit={canManage}
                       pct={summaries.get(member.id)?.pct ?? null}
+                      showPay={showPay}
+                      pay={pay.get(member.id)}
                     />
                   ))}
                 </tbody>

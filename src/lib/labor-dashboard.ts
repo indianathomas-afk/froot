@@ -4,11 +4,26 @@ import { prisma } from "@/lib/prisma"
 import { can, type PermissionUser } from "@/lib/permissions"
 import { laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
 import { localDateStr } from "@/lib/reports"
-import { getLaborActuals, getLaborActualsForStores, syncTimecardsForStore } from "@/lib/labor-actuals"
+import {
+  getLaborActuals,
+  getLaborActualsForStores,
+  getTipPayoutForStores,
+  syncTimecardsForStore,
+  type TipPayoutResult,
+} from "@/lib/labor-actuals"
 import { aggregateLaborActuals, toLaborBlock, type EstateLaborBlock, type LaborBlock } from "@/lib/labor-judgment"
+import type { TipBlock } from "@/lib/labor-costs"
 
 // AL-2 — THE DASHBOARD'S ONE DOOR TO SQUARE LABOR. Design record:
 // docs/ADVANCED_LABOR.md § Phase 2.
+//
+// AL-3 WIDENED IT PAST THE DASHBOARD, and the name is now slightly smaller than
+// the file. canSeeWages below is asked by /staff, /staff/[id] and the Positions
+// card as well as by the All Locations table. Keeping it here rather than
+// starting a fifth labor module is deliberate: this file already owns
+// laborOverlayOn and laborDollarsVisible, and a wage gate that did not sit beside
+// them would be a second answer to "which gates are on" waiting to disagree with
+// the first.
 //
 // Three dashboard routes (sales, summary, rollup) need the same four gates, the
 // same target lookup and the same freshness policy. They get them here rather
@@ -60,6 +75,35 @@ export function laborOverlayOn(org: Organization): boolean {
 export function laborVisible(org: Organization, actor: PermissionUser): boolean {
   return laborOverlayOn(org) && can(actor, "labor.actuals.view")
 }
+
+/// AL-3 — THE WAGE GATE. Gates 1-4 (laborOverlayOn) PLUS labor.costs.view.
+///
+/// THE RULE IT ENFORCES, in Gary's words (2026-08-19): "the payload for a
+/// non-MANAGE viewer must never contain wage fields — not hidden in the UI,
+/// ABSENT from the response." Every caller uses this to decide whether to RUN THE
+/// QUERY, not whether to render the cell. A wage that is never selected cannot
+/// leak through a payload, a props tree, an RSC flight payload, or a future JSON
+/// route that forgets to re-check.
+///
+/// WHY STORE ACCOUNTS ARE THE MOTIVATING CASE. They are shared iPad logins. A
+/// roster of names-with-wages on one is DEBT-10's exposure (138 employees'
+/// emails readable by any authenticated account) repeated on purpose rather than
+/// by accident — and unlike an email, a wage cannot be rotated afterwards.
+///
+/// GATE ORDER IS DELIBERATE: overlay first, capability second. With the overlay
+/// off there is no wage data in this environment at all, so the answer is "no"
+/// for an ADMIN too — which keeps the toggle-off render byte-identical to Phase 2
+/// rather than merely permission-shaped.
+export function canSeeWages(org: Organization, actor: PermissionUser): boolean {
+  return laborOverlayOn(org) && can(actor, "labor.costs.view")
+}
+
+/// The Tips column rides the SAME capability as wages (Gary's Q8 ruling,
+/// 2026-08-19). It is a store average rather than one person's pay, so an
+/// OPERATIONAL tier was arguable — the tie went to the stricter option for this
+/// phase, and it is reversible later without a migration because nothing about
+/// the stored data depends on it.
+export const canSeeTips = canSeeWages
 
 /// Gary's Q-V ruling: the PERCENTAGE is OPERATIONAL (ADMIN, MANAGER, STORE),
 /// the DOLLARS are MANAGE. labor.manage is the existing MANAGE-tier labor
@@ -254,5 +298,44 @@ export async function loadEstateLabor(
     ),
     laborCost: rows.reduce((sum, r) => sum + r.result.laborCost, 0),
     sales: rows.reduce((sum, r) => sum + r.result.sales, 0),
+  }
+}
+
+// ─── THE TIPS READ (AL-3) ─────────────────────────────────────────────────────
+
+/// Every store's tips for one window, or NULL when the viewer may not see them —
+/// and null means the caller adds NO KEY AT ALL, never a null field. Same
+/// discipline loadLaborBlocks follows for the labor block.
+export async function loadTipBlocks(
+  org: Organization,
+  stores: Store[],
+  actor: PermissionUser,
+  startDate: string,
+  endDate: string
+): Promise<Map<string, TipBlock> | null> {
+  if (!canSeeTips(org, actor)) return null
+  const results = await getTipPayoutForStores(org, stores, startDate, endDate)
+  const out = new Map<string, TipBlock>()
+  for (const store of stores) {
+    const r = results.get(store.id)
+    if (r) out.set(store.id, toTipBlock(r))
+  }
+  return out
+}
+
+/// Narrows a TipPayoutResult to what a dashboard may carry. Today it is a
+/// straight field copy — the narrowing exists so a field added to the
+/// CALCULATION does not reach a payload by default, which is the same discipline
+/// toLaborBlock enforces for labor.
+function toTipBlock(r: TipPayoutResult): TipBlock {
+  return {
+    avgHourlyTips: r.avgHourlyTips,
+    tipsTotal: r.tipsTotal,
+    posTips: r.posTips,
+    declaredCashTips: r.declaredCashTips,
+    eligibleHours: r.eligibleHours,
+    unknownEligibilityHours: r.unknownEligibilityHours,
+    daysCovered: r.daysCovered,
+    daysInWindow: r.daysInWindow,
   }
 }
