@@ -1,5 +1,198 @@
 # Advanced Labor
 
+**Status: PHASE 3 BUILT — 2026-08-19 (AL-3 Phase B, work commit `fa86bae`),
+staged, NOT promoted.** Prepended per preserve-and-mark; nothing below this block
+is edited. Vision items 2, 5 and 10 are built: pay rates on `/staff` and
+`/staff/[id]`, the Square team roster on the Positions card, and a Tips column on
+All Locations. **This is the first phase where per-person labor data reaches a
+page**, so DEBT-10 governed ahead of feature completeness throughout.
+
+**What Phase 3 added.** Migration `20260819210000_al3_team_member_wage` (additive:
+one table, `SquareTeamMemberWage`), `src/lib/labor-roster.ts` (the Square roster
+read and the per-store/per-staff reads), `src/lib/labor-costs.ts` (the wage and
+tip payload — PURE, so a client component can import it), `canSeeWages` /
+`canSeeTips` / `loadTipBlocks` in `labor-dashboard.ts`, `computeTipPayout` and
+`getTipPayoutForStores` in `labor-actuals.ts`, three routes under
+`/api/square/labor/roster/`, and one new capability, `labor.costs.view`. **No
+cron registration, no webhook change, no write to Square.**
+
+**The gate decides whether to RUN THE QUERY, never whether to render the cell.**
+Gary's hard rule was that a non-MANAGE viewer's payload must not contain wage
+fields — "not hidden in the UI, ABSENT from the response". Every surface honours
+it by not assembling the data: `/staff` does not build the id list, the Positions
+card does not mount the roster component, and `/api/dashboard/rollup` adds no
+`tips` key. A wage that is never selected cannot leak through a payload, a props
+tree, an RSC flight payload, or a future JSON route that forgets to re-check.
+
+**`labor.costs.view` — MANAGE, deniable, no baseline moved.** The capability AL-1
+deferred and PERM-4 (c) promised. It has no prior call sites, so before this
+commit nothing rendered a wage anywhere and nobody loses a surface they had. It
+is NOT `labor.manage`, which matched on tier but is held out of the override grid
+by PERM-5C and would have taken `/settings/labor` with it. Grid row: "See pay
+rates and tips".
+
+**THE SOURCE IS ONE CALL AND NEEDS NO NEW SCOPE — the finding that made this
+phase cheap.** `SearchTeamMembers` returns `wage_setting` INLINE (Square's own
+docs recommend it over `RetrieveWageSetting`), under `EMPLOYEES_READ`, which every
+connected merchant consented to long before the labor work. No consent batch, no
+merchant re-auth — the opposite of the `TIMECARDS_READ` story AL-1 had to wait on.
+Verified live against the Keva account at `SQUARE_VERSION = 2026-01-22`:
+
+| Measured 2026-08-19 | |
+|---|---|
+| ACTIVE team members | 99 |
+| carrying `wage_setting` | **99** (absent: 0) |
+| job assignments per member | 1, for all 99 |
+| pay types | HOURLY 94, SALARY 5 |
+| HOURLY with an `hourly_rate` | 94 of 94 |
+| SALARY with `annual_rate` AND `weekly_hours` | 5 of 5 |
+| `is_overtime_exempt` true | 6 |
+| distinct job titles | 7 |
+
+`wage_setting` is still tagged **Beta** on Square's `TeamMember` reference, so
+`ListTeamMemberWages` (GA, `EMPLOYEES_READ`, hourly only) is wired as a
+**conditional** second tier — it runs only for members that came back without a
+wage setting, which measured zero, so it costs no round trip. The third tier is
+not code: costing never read this table, so a total roster failure degrades the
+ROSTER and leaves labor % exactly as it was.
+
+**THE SALARIED GAP AL-1 DEFERRED IS MEASURED: 5 people org-wide, not 5 per
+store.** Six members are `ALL_CURRENT_AND_FUTURE_LOCATIONS` and therefore appear
+under every store, which is why the per-store column below legitimately sums past
+99. Counts only — no cost math, no allocation invented.
+
+| Store | roster | salaried | hourly |
+|---|---|---|---|
+| Sparks | 27 | 3 | 24 |
+| South Reno | 25 | 4 | 21 |
+| Meadowood Mall | 23 | 4 | 19 |
+| Spanish Springs | 23 | 3 | 20 |
+| Las Brisas | 22 | 4 | 18 |
+| Carson | 19 | 3 | 16 |
+| UNR | 18 | 4 | 14 |
+| University Village | 18 | 3 | 15 |
+| Southgate | 16 | 3 | 13 |
+
+**ITEM 10's "REPLACES" IS REJECTED AS LITERAL, and this is the load-bearing
+finding of the phase.** `LaborPosition` is not a legend — it is the weekly budget
+engine's rate table. `labor-plan.ts:165` loads active positions straight into
+`computeWeeklyLaborBudget`, where the salaried floor is `payType SALARIED` ×
+`impliedWeeklyHours` and **the blended hourly rate is the unweighted mean of
+active hourly rates** (`labor-budget.ts:88-91`). Measured: the legend's mean is
+**$14.50** across 4 archetype rows; the Square roster's is **$12.36** across 94
+real people. Swapping the roster in would drop the blended rate ~15% and inflate
+schedulable hours ~17% at the same budget — and would feed a Square-sourced input
+into a core engine, which L-2 seam (b) forbids outright.
+
+Gary ruled a **segmented control** (Q3): the Square roster is the default view
+when the overlay is on, and the legend survives one click away, labelled "Rate
+legend — drives the budget". The label carries the ruling, so anyone who wonders
+why both views exist reads the answer on the control rather than discovering it by
+editing the wrong table. **Seam (b) re-verified by grep over all eight core
+engines** — none imports `labor-actuals`, `labor-judgment`, `labor-dashboard`,
+`labor-roster` or `labor-costs`.
+
+**TIPS: THE EXPECTED ANSWER WAS REVERSED BY MEASUREMENT.** The prompt anticipated
+"declared cash only, and file card tips as a follow-up". **Card tips are already
+in the database.** `SalesPeriodCache.tipTotal` is populated from
+`order.total_tip_money` on every sales sync (`sales-sync.ts:346`), on the same
+store-local business day the labor % already uses, with 573 days of history on the
+oldest four stores:
+
+| Store | days | tips | net | tips/net |
+|---|---|---|---|---|
+| South Reno | 573 | $80,378.77 | $1,140,562.35 | 7.05% |
+| Las Brisas | 573 | $78,044.06 | $1,184,946.06 | 6.59% |
+| Carson | 573 | $63,262.03 | $963,290.43 | 6.57% |
+| Meadowood Mall | 572 | $55,758.18 | $995,448.86 | 5.60% |
+| *(five partial stores)* | 21–40 | — | — | 2.44–6.92% |
+
+So the column is **Square-recorded tips + declared cash, over tip-eligible paid
+hours** (Gary's Q4), and **no card-tips ingest row is filed, because there is
+nothing to build**. A declared-cash-only column would have reported a fraction of
+the real payout — the fixture pins that it would have read $1.25/hr where the true
+figure is $6.25/hr — and it would have been wrong in the reassuring direction,
+which is the failure mode this file exists to keep findable.
+
+**The residual double-count is named on the card rather than assumed away.** A
+cash tip rung into the POS lands in `total_tip_money` and can also be declared on
+a timecard; the two cannot be separated from data Froot holds. The cell carries an
+asterisk and its tooltip says the rate is an **upper bound**.
+
+**Gary's rulings at the AL-3 hard stop, 2026-08-19** — all ten, each enforced at
+its site in `fa86bae`:
+
+| # | Ruling |
+|---|---|
+| **Q1** | Use `wage_setting` with the three-tier fallback. A missing rate reads **"Not set in Square"**, never $0. |
+| **Q2** | `/staff` pay gates on the **overlay plus `labor.costs.view`** — an org with HR but no Square labor sees `/staff` exactly as before. |
+| **Q3** | **Segmented control.** The legend survives and keeps driving the budget; literal replacement rejected. |
+| **Q4** | **Sum both halves**, labelled "Square-recorded tips + declared cash". |
+| **Q5** | A costs-denied viewer sees the roster **hidden entirely**, not stripped of its pay column. |
+| **Q6** | The Tips column **follows the picker**; the header names the range. |
+| **Q7** | Null tip-eligibility **counts as eligible**; the footnote carries the hours. |
+| **Q8** | Tips are **MANAGE** this phase. |
+| **Q9** | **Build the WK HRS/SUP editors**, labelled inert. |
+| **Q10** | Render the counted **"unmapped locations"** line; file nothing. |
+
+**WK HRS AND SUP PERSIST AND NOTHING READS THEM, and the card says so on its
+face.** They are Froot-owned columns that the roster sync's `ON CONFLICT DO
+UPDATE` deliberately omits — the discipline `StaffMember.fullNameLocked` already
+encodes for the legal name. **If a later edit adds them to that list, every
+supervisory flag in the org is erased by the next sync, silently.**
+
+**SUP is not derivable from Square, and the data says why:** "Manager" is 7 people
+of whom 3 are salaried, "Administrator" 4 of whom 2 are, and **"Owner" is
+HOURLY**. Square's 7 titles do not map onto Froot's 5 archetypes at all — there is
+no "General Manager" or "Assistant Store Manager" in Square. Any title-based guess
+is wrong for someone, so the default is `false` and a human sets it.
+
+**Two wage sources, two purposes, and they must never be unified.**
+`SquareTimecard.wageHourlyRate` is a per-shift snapshot answering *what did this
+shift cost*; `SquareTeamMemberWage.hourlyRate` is the current setting answering
+*what do we pay this person now*. Costing keeps the first; `/staff` and the roster
+read the second. A later "simplification" that collapses them would silently
+re-cost history at today's rates.
+
+**`paidMinutesOf` is EXTRACTED and shared.** The cost calculation and the tip
+calculation must agree exactly on what an hour is, or two percentages on one
+dashboard divide by different denominators. The fixture pins the rule from the tip
+side as well as the cost side, so inlining it back into either caller fails there.
+
+**The pure/server split is AL-2's, and the build enforced it.** The All Locations
+table is a client component, so `labor-costs.ts` holds only types and wording
+while the gate lives in `labor-dashboard.ts` beside `laborOverlayOn` — pulling
+Clerk's server auth into the browser bundle is a build error, which is how this
+split came to be written down rather than assumed. `labor-dashboard.ts` is now
+wider than its name and says so in its header.
+
+**Read-only toward Square, and SQ-3 stays owed.** `labor-roster.ts` goes through
+`getSquareClient(org)` only and **deliberately does not call**
+`fetchSquareTeamMembers`, which still carries the personal-token fallback
+(`square.ts:139`). Routing those five legacy call sites through the org client is
+SQ-3 item (b); this phase adds no sixth.
+
+**NOT DONE, and it needs staging — the declared-cash total Gary asked for.** It
+could not be measured here: the dev org's Square grant predates SQ-SCOPE-1 and
+`SearchTimecards` returns `INSUFFICIENT_SCOPES`, so there are no timecards to
+total. The Tips cell prints the declared-cash half in its tooltip for exactly this
+reason. If it is ~$0 on staging, the double-count question is moot and the sum
+equals the Square-recorded half.
+
+**Known limits carried forward, all unchanged:** overtime still deferred and
+labelled (`is_overtime_exempt` is now stored, unused, so the input exists when it
+lands); salaried allocation still not invented, though the gap is now measured; a
+timecard deleted in Square still persists as a stale row; the cron is still
+unregistered; and the roster has no scheduled refresh at all — a wage setting
+moves when somebody gets a raise, so freshness is the explicit "Sync roster"
+action.
+
+**Five Square location ids carry 11 assignments and map to no Froot `Store`**
+(`13KAHQ…`, `2K1XTK…`, `779FNA…`, `7W133C…`, `CD2APE…`). Rendered as a counted
+line on the card; Gary is identifying them separately (Q10).
+
+---
+
 The build that L-2 became. Gary lifted the L-2 deferral on 2026-08-18
 (`DECISIONS.md` § "The L-2 deferral is lifted — Advanced Labor is the build")
 and the lift named a vision that **did not exist anywhere in the repo** — the

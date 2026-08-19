@@ -6993,6 +6993,138 @@ phases:
       OPTIONAL Square labor integration — schedules and timecards as an overlay
       on forecast-driven labor, per-org toggle, off by default
     notes: >
+      PHASE 3 IS BUILT — 2026-08-19 (AL-3, work commit fa86bae). Prepended;
+      nothing below is edited. STATUS STAYS in_progress — every vision item now
+      has a build, but nothing is promoted and production stays dark regardless:
+      SQUARE_LABOR_AVAILABLE is Preview-only and its activation is its own future
+      decision. STAGED, NOT PROMOTED.
+      VISION ITEMS 2, 5 AND 10 SHIPPED: pay rates on /staff and /staff/[id], the
+      Square team roster on the Positions card, and a Tips column on All
+      Locations. New: migration 20260819210000_al3_team_member_wage (additive —
+      one table, SquareTeamMemberWage), src/lib/labor-roster.ts,
+      src/lib/labor-costs.ts, canSeeWages/canSeeTips/loadTipBlocks in
+      labor-dashboard.ts, computeTipPayout + getTipPayoutForStores in
+      labor-actuals.ts, three routes under /api/square/labor/roster/, and one new
+      capability, labor.costs.view. NO CRON REGISTRATION, no webhook change, no
+      write to Square.
+      THIS IS THE FIRST PHASE WHERE PER-PERSON LABOR DATA REACHES A PAGE, so
+      DEBT-10 governed ahead of feature completeness. THE GATE DECIDES WHETHER TO
+      RUN THE QUERY, NEVER WHETHER TO RENDER THE CELL — Gary's rule was that a
+      non-MANAGE viewer's payload must not CONTAIN wage fields, "not hidden in the
+      UI, ABSENT from the response". /staff does not build the id list, the
+      Positions card does not mount the roster component, and /api/dashboard/rollup
+      adds no `tips` key. A wage that is never selected cannot leak through a
+      payload, a props tree, an RSC flight payload, or a future JSON route that
+      forgets to re-check. STORE accounts were ALREADY structurally safe and stay
+      so: /staff redirects without staff.view and /settings/labor redirects without
+      labor.manage, so both wage surfaces are unreachable to a shared iPad login.
+      labor.costs.view — MANAGE, in ENFORCED_CAPABILITIES, grid row "See pay rates
+      and tips". The capability AL-1 deferred and PERM-4 (c) promised. NO PRIOR
+      CALL SITES, so no role's baseline moved: before this commit nothing rendered
+      a wage anywhere. Deliberately not labor.manage, which matched on tier but is
+      held out of the grid by PERM-5C and would have taken /settings/labor with it.
+      THE SOURCE IS ONE CALL AND NEEDS NO NEW OAUTH SCOPE, which is what made this
+      phase cheap and is the thing to remember. SearchTeamMembers returns
+      wage_setting INLINE (Square's own docs recommend it over RetrieveWageSetting)
+      under EMPLOYEES_READ — held and consented since long before the labor work,
+      so no consent batch and no merchant re-auth, the opposite of the
+      TIMECARDS_READ story AL-1 waited on. VERIFIED LIVE against the Keva account
+      at Square-Version 2026-01-22: 99 of 99 ACTIVE members carried a wage_setting,
+      every one with exactly ONE job assignment, 94 HOURLY all with an hourly_rate,
+      5 SALARY all with BOTH annual_rate and weekly_hours, 6 is_overtime_exempt, 7
+      distinct job titles. wage_setting is still tagged Beta, so ListTeamMemberWages
+      (GA, hourly only) is wired as a CONDITIONAL second tier — zero members needed
+      it, so it costs no round trip. The third tier is not code: costing never read
+      this table, so a total roster failure degrades the ROSTER and leaves labor %
+      untouched.
+      THE SALARIED GAP AL-1 DEFERRED IS NOW MEASURED — 5 people ORG-WIDE, not 5 per
+      store. Six members are ALL_CURRENT_AND_FUTURE_LOCATIONS and appear under every
+      store, which is why per-store roster counts legitimately sum past 99: Sparks
+      27/3 salaried, South Reno 25/4, Meadowood Mall 23/4, Spanish Springs 23/3,
+      Las Brisas 22/4, Carson 19/3, UNR 18/4, University Village 18/3, Southgate
+      16/3. COUNTS ONLY — no cost math, no allocation invented. That discharges the
+      second of this row's two long-standing open questions ("whether owner/admin
+      accounts who never clock in should appear in labor surfaces") as far as
+      MEASUREMENT goes; the allocation decision is still Gary's and still unmade.
+      ITEM 10's "REPLACES" IS REJECTED AS LITERAL, and this is the load-bearing
+      finding of the phase. LaborPosition is NOT a legend — it is the weekly budget
+      engine's rate table: labor-plan.ts:165 feeds active positions into
+      computeWeeklyLaborBudget, where the blended hourly rate is the UNWEIGHTED MEAN
+      of active hourly rates (labor-budget.ts:88-91). MEASURED: the legend's 4
+      archetype hourly rows average $14.50; the Square roster's 94 real people
+      average $12.36. Swapping the roster in would drop the blended rate ~15% and
+      INFLATE SCHEDULABLE HOURS ~17% at the same budget — and would feed a
+      Square-sourced input into a core engine, which seam (b) forbids outright.
+      Gary ruled a SEGMENTED CONTROL: the roster is the default view when the
+      overlay is on, the legend sits one click away labelled "Rate legend — drives
+      the budget", and the label carries the ruling so the next person reads it on
+      the control rather than discovering it by editing the wrong table. SEAM (b)
+      RE-VERIFIED by grep over all eight core engines — none imports labor-actuals,
+      labor-judgment, labor-dashboard, labor-roster or labor-costs.
+      TIPS: THE EXPECTED ANSWER WAS REVERSED BY MEASUREMENT. The prompt anticipated
+      "declared cash only, file card tips as a follow-up". CARD TIPS ARE ALREADY IN
+      THE DATABASE — SalesPeriodCache.tipTotal, populated from order.total_tip_money
+      on every sales sync since F-4 (sales-sync.ts:346), on the same store-local
+      business day the labor % already uses. Measured 2.4%-7.1% of net across nine
+      stores with 573 days of history on the oldest four ($80,378 at South Reno
+      alone). So the column is Square-recorded tips PLUS declared cash over
+      tip-eligible paid hours, and NO CARD-TIPS INGEST ROW IS FILED because there is
+      nothing to build. The fixture pins that declared-cash-only would have read
+      $1.25/hr where the true figure is $6.25/hr — wrong in the reassuring
+      direction, which is the failure mode this file exists to keep findable.
+      THE RESIDUAL DOUBLE-COUNT IS NAMED ON THE CARD rather than assumed away: a
+      cash tip rung into the POS lands in total_tip_money and can also be declared
+      on a timecard, and the two cannot be separated from data Froot holds, so the
+      cell carries an asterisk and its tooltip says the rate is an UPPER BOUND.
+      TEN RULINGS, all Gary 2026-08-19, all enforced at their sites and recorded in
+      DECISIONS.md: Q1 wage_setting with the three-tier fallback, a missing rate
+      reading "Not set in Square" and never $0; Q2 /staff pay gates on the overlay
+      PLUS labor.costs.view, so an org with HR but no Square labor sees /staff
+      exactly as before; Q3 the segmented control; Q4 sum both tip halves; Q5 a
+      costs-denied viewer sees the roster HIDDEN ENTIRELY rather than stripped of
+      its pay column; Q6 the Tips column follows the picker and the header names the
+      range (diverging from item 5's "MTD" on purpose — it sits beside
+      "Labor % · <range>" and two adjacent columns must not silently mean different
+      windows); Q7 null tip-eligibility counts as ELIGIBLE with the hours in the
+      footnote, since excluding maybe-eligible staff would overstate what a job
+      pays; Q8 Tips are MANAGE this phase; Q9 build the WK HRS/SUP editors, labelled
+      inert; Q10 render the counted unmapped-locations line and file nothing.
+      WK HRS AND SUP PERSIST AND NOTHING READS THEM, and the card says so on its
+      face. They are Froot-owned columns the roster sync's ON CONFLICT DO UPDATE
+      DELIBERATELY OMITS — the discipline StaffMember.fullNameLocked already
+      encodes. IF A LATER EDIT ADDS THEM TO THAT LIST, EVERY SUPERVISORY FLAG IN THE
+      ORG IS ERASED BY THE NEXT SYNC, SILENTLY. SUP is not derivable from Square and
+      the data says why: "Manager" is 7 people of whom 3 are salaried,
+      "Administrator" 4 of whom 2 are, and "Owner" is HOURLY.
+      TWO WAGE SOURCES, TWO PURPOSES, NEVER TO BE UNIFIED.
+      SquareTimecard.wageHourlyRate is a per-shift SNAPSHOT answering "what did this
+      shift cost"; SquareTeamMemberWage.hourlyRate is the CURRENT setting answering
+      "what do we pay this person now". A later simplification that collapses them
+      would silently re-cost history at today's rates.
+      THE NEW TABLE HOLDS NO NAME AND NO EMAIL, EVER, and the reason is structural
+      rather than tasteful: GET /api/staff spreads the whole StaffMember row with no
+      `select`, so a wage column ON THAT MODEL would ship to every staff.view holder
+      the day it was added. Names join from StaffMember.squareTeamMemberId. ~100
+      rows/org at ~350 bytes is ~35 KB — not a storage question at all.
+      paidMinutesOf is EXTRACTED from computeLaborActuals and SHARED with
+      computeTipPayout, so the cost calculation and the tip calculation cannot drift
+      on what an hour is; the fixture pins the rule from both sides.
+      READ-ONLY TOWARD SQUARE, AND SQ-3 STAYS OWED. labor-roster.ts goes through
+      getSquareClient(org) only and DELIBERATELY DOES NOT CALL
+      fetchSquareTeamMembers, which still carries the personal-token fallback at
+      square.ts:139. Routing those five legacy call sites through the org client is
+      SQ-3 item (b); this phase adds no sixth.
+      NOT DONE, AND IT NEEDS STAGING: the declared-cash total Gary asked for could
+      not be measured here — the dev org's Square grant PREDATES SQ-SCOPE-1 and
+      SearchTimecards returns INSUFFICIENT_SCOPES, so there are no timecards to
+      total. The Tips cell prints the declared-cash half in its tooltip for exactly
+      this reason. Worth keeping: that 403 is also positive evidence that the ROSTER
+      half needs no re-consent, since the same token read 99 wage settings fine.
+      npm run build green; scripts/verify-labor-actuals.ts 55 -> 73 checks (18 new),
+      PASS. Four react-hooks/set-state-in-effect lint errors remain in
+      labor-settings-client.tsx — three pre-existing, the fourth the same false
+      positive on an async loader the rule cannot see through an await (DEBT-33
+      baseline; the build is the gate).
       PHASE 2 IS BUILT — 2026-08-19 (AL-2, work commits 8a28f61 and f47e3bd).
       Prepended;
       nothing below is edited. STATUS STAYS in_progress — Phase 3 (items 2, 5,

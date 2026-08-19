@@ -6,6 +6,112 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Per-person pay is MANAGE-gated by ABSENCE, not by hiding — 2026-08-19 (Gary)
+
+The governing ruling for AL-3, and the one the rest of the phase is arranged
+around. Phase 3 is the first time names sit beside wages on a Froot page, so
+DEBT-10 outranked feature completeness for the whole session.
+
+**The rule: the payload for a non-MANAGE viewer must never contain wage fields —
+not hidden in the UI, ABSENT from the response.** Every surface honours it by not
+assembling the data rather than by filtering it afterwards: `/staff` does not
+build the id list, the Positions card does not mount the roster component, and
+`/api/dashboard/rollup` adds no `tips` key. A wage that is never selected cannot
+leak through a payload, a props tree, an RSC flight payload, or a future JSON
+route that forgets to re-check.
+
+**STORE accounts are the motivating case and they were already structurally
+safe.** They are shared iPad logins, and a roster of names-with-wages on one is
+DEBT-10's exposure repeated on purpose. As it happens `/staff` has redirected
+anyone without `staff.view` since PERM-5C, and `/settings/labor` has redirected
+anyone without `labor.manage` — so both wage surfaces were unreachable to STORE
+before this phase and remain so. The new capability governs the residual case: a
+MANAGE viewer who should not see pay.
+
+**`labor.costs.view` — MANAGE, in `ENFORCED_CAPABILITIES`, grid row "See pay
+rates and tips".** The capability AL-1 deferred and PERM-4 (c) promised, arriving
+with the first surfaces that need it. No prior call sites, so **no role's
+baseline moved**. It is deliberately not `labor.manage`, which matched on tier
+but is held out of the override grid by PERM-5C and would have taken the Labor
+config page with it.
+
+**A missing rate reads "Not set in Square", never $0** — the same law AL-1 wrote
+into `wageMissingCount`. Three ways a pay figure can be absent (no Square link,
+no wage configured, no tip-eligible hours) are three different sentences, and a
+single $0.00 would say all three at once while saying the one thing that is never
+true.
+
+## The Positions roster does NOT replace the rate legend — 2026-08-19 (Gary)
+
+Vision item 10 says the Square roster "replaces the predefined rate legend".
+**Literal replacement is rejected**, and the reason is a measurement rather than a
+preference.
+
+`LaborPosition` is not a legend. It is the weekly budget engine's rate table:
+`labor-plan.ts:165` feeds active positions into `computeWeeklyLaborBudget`, where
+the blended hourly rate is **the unweighted mean of active hourly rates**
+(`labor-budget.ts:88-91`). The legend holds 4 archetype hourly rows averaging
+**$14.50**; the real Square roster holds 94 people averaging **$12.36**. Swapping
+one for the other drops the blended rate ~15% and inflates schedulable hours ~17%
+at the same budget — and does it by feeding a Square-sourced input into a core
+engine, which L-2 seam (b) forbids outright.
+
+**The ruling is a segmented control.** The Square roster is the default view when
+Advanced Labor is on; the legend sits one click away, labelled "Rate legend —
+drives the budget". Item 10's intent — open the card, see your actual team — is
+served, and the engine's input is untouched. The label carries the ruling so the
+next person reads it on the control instead of discovering it by editing the wrong
+table.
+
+**WK HRS and SUP are built and inert, and the card says so.** They are
+Froot-owned columns the roster sync deliberately never overwrites (the
+`fullNameLocked` discipline). Nothing reads them yet; they are the storage a later
+salaried-allocation phase needs. Labelling the inertness is what stops an operator
+concluding their edits did nothing — or worse, that they did something.
+
+**SUP is not derivable from Square and the data is why:** "Manager" is 7 people of
+whom 3 are salaried, "Administrator" 4 of whom 2 are, and "Owner" is HOURLY.
+Square's 7 job titles do not map onto Froot's 5 archetypes at all. Any title-based
+guess is wrong for someone.
+
+## The Tips column carries card tips, because Froot already has them — 2026-08-19 (Gary)
+
+**The expected answer was reversed by measurement, which is the part worth
+keeping.** The AL-3 prompt anticipated that card tips would be expensive —
+"card/electronic tips ride payments, NOT timecards" — and pre-authorised shipping
+a declared-cash-only column with a follow-up row for the rest.
+
+`SalesPeriodCache.tipTotal` has been populated from `order.total_tip_money` on
+every sales sync since F-4 (`sales-sync.ts:346`), on the same store-local business
+day the labor % already uses. Measured across the nine-store estate: **2.4%–7.1%
+of net sales, with 573 days of history on the oldest four stores** ($80,378 at
+South Reno alone). A declared-cash-only column would have reported a fraction of
+the real payout and would have been wrong in the reassuring direction.
+
+**Ruled: sum both halves**, labelled "Square-recorded tips + declared cash", over
+tip-eligible paid hours. **No card-tips ingest row is filed — there is nothing to
+build.**
+
+**The residual double-count is named, not assumed away.** A cash tip rung into the
+POS lands in `total_tip_money` and can also be declared on a timecard; the two
+cannot be separated from data Froot holds, so the cell carries an asterisk and
+says the rate is an upper bound. Sizing it needs the declared-cash total from
+staging, which the dev grant could not produce — `SearchTimecards` returns
+`INSUFFICIENT_SCOPES` there because that grant predates SQ-SCOPE-1. The Tips
+tooltip prints the declared-cash half for exactly this reason.
+
+**Null tip-eligibility counts as ELIGIBLE**, with the hours reported in the
+footnote. Excluding maybe-eligible staff would overstate the per-hour payout, and
+overstating what a job pays is the worse error. An explicit `false` is excluded
+from the denominator, but that person's declared cash still counts in the
+numerator — a declared dollar was received. **Tips still never enter `laborCost`**
+(AL-1 Q6, untouched).
+
+**The column follows the date picker**, header naming the range, rather than being
+month-anchored as vision item 5 says. It sits directly beside `Labor % · <range>`
+in the ranking table, and two adjacent columns silently meaning different windows
+would be a worse defect than a column whose header names its own.
+
 ## Labor budgets are NET-sales-based, and the comparison is like-for-like — 2026-08-19 (Gary)
 
 Recorded because AL-1 Q4 left it owed. The labor % from `labor-actuals.ts` uses
