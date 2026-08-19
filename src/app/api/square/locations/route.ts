@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
-import { squareBaseUrl } from "@/lib/square"
+import { squareBaseUrl, SQUARE_VERSION } from "@/lib/square"
 
 // Fields the callers actually consume — the store import dialog
 // (stores/import-square-button.tsx:59-67) and the Edit Store location picker
@@ -41,7 +41,7 @@ export async function GET() {
   const baseUrl = squareBaseUrl()
 
   const res = await fetch(`${baseUrl}/v2/locations`, {
-    headers: { Authorization: `Bearer ${org.squareAccessToken}`, "Square-Version": "2024-01-17" },
+    headers: { Authorization: `Bearer ${org.squareAccessToken}`, "Square-Version": SQUARE_VERSION },
   })
 
   if (!res.ok) return NextResponse.json({ error: "Square API error" }, { status: 500 })

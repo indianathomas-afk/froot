@@ -6,7 +6,13 @@ import { squareBaseUrl, SQUARE_OAUTH_STATE_COOKIE, SQUARE_OAUTH_STATE_COOKIE_OPT
 
 // ORDERS_READ: sales sync (dashboard + inventory reports)
 // EMPLOYEES_READ: team member import (removes the personal-token fallback)
-const SCOPES = "MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ"
+// TIMECARDS_READ: timecard reads AND scheduled-shift reads — Square documents
+//   both under this one permission, so the batch is two strings, not three
+// TIMECARDS_SETTINGS_READ: break types + workweek config
+// Both added 2026-08-18 (SQ-SCOPE-1) under the ruling in DECISIONS.md, "Froot
+// is read-only toward Square" — every scope here is a READ scope and no _WRITE
+// scope is ever added to this string, for any feature.
+const SCOPES = "MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ TIMECARDS_READ TIMECARDS_SETTINGS_READ"
 
 export async function GET() {
   const { orgId } = await auth()

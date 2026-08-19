@@ -708,7 +708,6 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 fullName={member.fullName}
                 fullNameLocked={member.fullNameLocked}
                 squareFullName={member.squareFullName}
-                squareLinked={!!member.squareTeamMemberId}
                 canManage={canManage}
               />
               <div>
@@ -739,7 +738,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 {member.storeAssignments.map((a) => (
                   <li key={a.id} className="flex items-center gap-2 text-sm text-[var(--color-foreground)]">
                     <Store className="h-4 w-4 text-[var(--color-muted-foreground)]" />
-                    {a.store.storeNumber ? `#${a.store.storeNumber} - ` : ""}
+                    {a.store.storeNumber ? `#${a.store.storeNumber} — ` : ""}
                     {a.store.name}
                     {a.isPrimary && (
                       <span className="text-xs font-medium text-[var(--color-primary)]">★ Primary</span>

@@ -740,6 +740,54 @@ checkout (ten errors at time of writing), so any gate containing it can never
 reach the commit. **Scoped eslint over the files this commit touches** is the
 interim rule. Docs-only commits skip eslint and gate on `npm run build` alone.
 
+## Display-Only Changes — the gate is the test
+
+A **display-only** change is one that cannot alter what any code branches on.
+Copy, labels, headings, typos; a separator glyph; a comment or a doc sentence;
+spacing, colour, radius or a Tailwind class moving toward § Design System;
+spinner → skeleton; an empty-state CTA; an unused import; an auto-fixable lint
+rule. Its correctness is visible in the diff and nowhere else.
+
+**For a display-only change, a green commit gate plus the diff read back
+against a stated intent is the complete verification. Do not ask Gary to test
+one** — not to open a page, not to click through a surface, not to confirm a
+choice already made in the row's own notes or in § Design System. State the
+choice you made and move on.
+
+**Why this is a bounded exception and not a shortcut.** The verification
+protocol in this file — the staging SHA precondition, the named-branch rule for
+database evidence, the browser-instance rule — exists because *claims about
+deployed behaviour* were built on unlabelled or stale inputs and produced five
+coherent, confident, wrong causal chains in one evening (2026-07-28,
+`DECISIONS.md`). Every one of those was a claim about a running system. A
+display-only change makes no such claim: it is verifiable by reading, and
+`next build` typechecks the whole graph before anything commits.
+
+**The boundary, which is the part that keeps this safe.** The protocol binds in
+full again the instant a change starts making a claim about a deployed
+environment, a database, or what a role may do. If a "cosmetic" change turns
+out to need a schema column, an env var, a migration, a Square/Clerk call, or a
+product decision about what the right value *is* — it was never display-only.
+Stop, revert it, and file or amend the row saying which of those it turned out
+to need. Widening this rule to avoid that is the failure mode it is most
+exposed to; the escalation is not a defeat, it is the rule working.
+
+**Two adjacent rules survive unchanged and are worth naming here, because a
+display-only change is exactly where someone would reach past them.** A text
+change inside `docs/prompts/` is still forbidden — a saved prompt is a claim
+wholesale (§ Where documents live). And a wording change to a decision record
+is display-only in mechanism but not in consequence: reword the *premise* that
+was false, never the *ruling*, and say in the commit message which you touched.
+
+**Batch the human check.** Where a display-only change does leave something a
+human eye should confirm, it goes into a single list at the end of the run —
+route plus the one thing to look at — not a question per change. Changes with
+nothing to look at are named as such and left off the list. A padded list
+trains the reader to skim it, which costs more than it buys.
+
+Recorded 2026-08-17. The prior habit was per-change confirmation on cosmetic
+work, most of which established only that the tree was in sync.
+
 ## Module Gating
 
 Modules are gated per-org via `activeModules` on the `Organization` record.
@@ -769,12 +817,96 @@ One OAuth connection per org. Tokens stored encrypted on `Organization.squareAcc
 - `locations/route.ts` — GET Square locations list
 - `team-members/route.ts` — GET Square team members list
 
+**The requested scopes — six, all reads** (`src/app/api/square/auth/route.ts:9`,
+as of SQ-SCOPE-1, 2026-08-18):
+
+`MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ EMPLOYEES_READ TIMECARDS_READ TIMECARDS_SETTINGS_READ`
+
+The last two were added by SQ-SCOPE-1 for the deferred L-2 labor build, pinned
+at source by the LABOR-0B survey (`docs/prompts/LABOR-0B_RESULTS.md` Task 3).
+Three things to know before you reason about them:
+
+- **This list is what Froot ASKS FOR, not what any token HOLDS.** Adding a
+  string changes the authorize URL only. An already-connected merchant keeps the
+  permissions they granted until they re-consent, so a scope can sit in this
+  line for weeks while every live call still runs on the older, smaller grant.
+  Check the grant, not this line, when a call 403s.
+- **`TIMECARDS_READ` and `TIMECARDS_SETTINGS_READ` are deliberately DORMANT.**
+  No code reads them. The Timecard endpoints they unlock require
+  `Square-Version` >= 2025-05-21 and `SQUARE_VERSION` is still pinned at
+  `2024-01-17`, so they cannot be used until the version-bump session lands.
+  Dormancy is by design, not an oversight: scopes were added while exactly one
+  merchant was connected, which freezes the re-consent batch at one person
+  forever (consent economics, Gary 2026-08-18).
+- **`REPORTING_READ` is PARKED and must not be added.** Square's Reporting API
+  overview mandates it while the OAuth Permissions Reference and the
+  `OAuthPermission` enum both omit it; a string absent from the enum cannot go
+  in a consent URL. Unresolved — see the L-2 blockers.
+
+Scheduled-shift reads need no extra string (Square documents them under
+`TIMECARDS_READ`), and wage / job / pay-rate reads are already covered by the
+held `EMPLOYEES_READ`.
+
+**FROOT IS READ-ONLY TOWARD SQUARE — ruled by Gary 2026-08-18
+(`docs/DECISIONS.md`, "Froot is read-only toward Square; the name write-back
+dies"). Froot reads Square and never writes it. The ONLY exception is the OAuth
+connect/disconnect plumbing. No write permission will ever be requested from a
+merchant, which means an OAuth scope ending in `_WRITE` is never added to
+`src/app/api/square/auth/route.ts` — a write scope and a read-only promise
+cannot both be true, and the consent screen is where a merchant reads the
+promise.**
+
+The ruling has already been enforced once, in the same session that recorded it:
+`staff/[id]/square-writeback` and `updateSquareTeamMemberName` were removed
+(SQ-WB-1, work commit `0fd414a`). That was the only path in the codebase that
+wrote Square business data. `src/lib/square.ts` now issues no such write — the
+two `POST`s left in it are `POST /oauth2/token` (OAuth machinery, excepted) and
+`POST /v2/team-members/search`, which is a POST-shaped READ. **If you are about
+to add a third non-GET Square call, that is the thing this paragraph exists to
+stop.** A name that disagrees with Square is a Froot-side preference stored in
+Froot; it is never a push.
+
+**The census is APP-WIDE, not just `src/lib/square.ts`** — taken at `0fd414a`,
+because a rule that only holds in the client library invites the next write to
+be added in a route file instead. Every outbound Square call in `src/` at that
+commit, by method:
+
+- `POST /oauth2/token` — `square.ts:70` (refresh), `square/callback/route.ts:42`
+  (code exchange). **OAuth machinery — the excepted case.**
+- `POST /v2/team-members/search` (`square.ts:138`), `POST /v2/orders/search`
+  (`forecasting/day-report/route.ts:77`, `lib/sales-sync.ts:292`) — **reads.**
+  Square's search endpoints take a POST body; the method is not the test, the
+  effect is.
+- `GET` — `/v2/catalog/list` (`square/catalog/sync`, `square/sales-items/sync`),
+  `/v2/locations` (`square/locations/route.ts`, `square.ts:209`),
+  `/v2/team-members/{id}` (`square.ts:172`).
+- `square/disconnect/route.ts` makes **no outbound call at all** — it clears the
+  stored tokens locally.
+- `webhooks/square/route.ts` is inbound only.
+
+Nothing writes. To keep that true the question to ask of a new Square call is
+not "is it a POST" but **"does it change state on Square's side"** — the two
+`/search` endpoints above are exactly why.
+
 **Phase 2 Square routes to add:**
 - `square/catalog/sync` — sync catalog items → `ItemMetadata`
 - `square/inventory/counts` — fetch current IN_STOCK quantities
-- `square/inventory/submit` — submit physical count via `batch-create`
-- `square/inventory/adjust` — submit loss/transfer/prep adjustment
+- ~~`square/inventory/submit`~~ — **DEAD, 2026-08-18.** Submitting a physical
+  count writes inventory to Square. Never built; now never to be built.
+- ~~`square/inventory/adjust`~~ — **DEAD, 2026-08-18.** Submitting a
+  loss/transfer/prep adjustment writes inventory to Square. Never built; now
+  never to be built.
 - `square/webhooks` — handle `catalog.version.updated`, `oauth.authorization.revoked`
+
+The two dead entries are struck rather than deleted so that the next person to
+plan Phase 2 inventory finds the RULING instead of a gap, and does not re-derive
+them from the same reasoning that put them here. **The read half of Phase 2
+inventory is untouched and still on:** `catalog/sync` and `inventory/counts`
+both only read, so Square-sourced counts can still feed variance. What dies is
+Froot submitting the corrected count back — a physical count stays a Froot
+record, and Square's inventory is corrected in Square. If that ever needs
+revisiting it gets its own ruling, its own consent event, and a real feature
+behind it (Gary, same entry).
 
 **Shipped (F-4):** `webhooks/square` — order/payment events keep the current day's
 sales caches fresh (signature-verified; see `docs/FORECASTING.md` § Square order webhooks).

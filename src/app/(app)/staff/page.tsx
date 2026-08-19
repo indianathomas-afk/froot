@@ -259,7 +259,7 @@ export default async function StaffPage() {
                     <span className="text-lg">🏪</span>
                     <div>
                       <h3 className="font-semibold text-[var(--color-foreground)]">
-                        {store.storeNumber ? `#${store.storeNumber} - ` : ""}{store.name}
+                        {store.storeNumber ? `#${store.storeNumber} — ` : ""}{store.name}
                       </h3>
                       {/* Two counts, never one merged number: a member listed here
                           but based elsewhere is not part of this store's roster. */}

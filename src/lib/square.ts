@@ -1,7 +1,16 @@
 import { prisma } from "@/lib/prisma"
 import type { Organization } from "@prisma/client"
 
-const SQUARE_VERSION = "2024-01-17"
+// SQ-VER-1 (2026-08-18): 2024-01-17 -> 2026-01-22. Clears the 2025-05-21 floor
+// the Labor/Timecard endpoints require; LABOR-0B Task 4 surveyed all eleven
+// dated versions in the window and found nothing breaking on a Froot call site.
+// EXPORTED because two routes used to hardcode the date and sat outside this
+// constant's reach (callback/route.ts, locations/route.ts) — they import it now,
+// so a fourth version string can never drift into existence.
+// NOT the same dial as the webhook SUBSCRIPTION version, which is set per-app in
+// Square's dashboard and governs the events Square sends US. Different direction,
+// independently versioned; they do not have to match and this does not change it.
+export const SQUARE_VERSION = "2026-01-22"
 
 // SEC-1: the OAuth state nonce travels as a double-submit httpOnly cookie —
 // set by /api/square/auth, required and cleared by /api/square/callback.
@@ -215,39 +224,6 @@ export async function fetchSquareLocation(
     if (res.ok) {
       const data = await res.json()
       return (data.location as SquareLocationRecord) ?? null
-    }
-  }
-  return null
-}
-
-// Writes a corrected LEGAL name back to Square (PUT /v2/team-members/{id}).
-// Splits "First Rest" → given_name / family_name (naive; multi-part surnames or
-// mononyms land in family_name / given_name respectively). Returns the updated
-// member, or null on any failure. Tries the org OAuth token, then the personal.
-export async function updateSquareTeamMemberName(
-  org: Organization,
-  teamMemberId: string,
-  fullName: string
-): Promise<SquareTeamMember | null> {
-  const parts = fullName.trim().split(/\s+/)
-  const given = parts.length > 1 ? parts[0] : ""
-  const family = parts.length > 1 ? parts.slice(1).join(" ") : parts[0] ?? ""
-  const body = JSON.stringify({ team_member: { given_name: given, family_name: family } })
-  const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN].filter(Boolean) as string[]
-
-  for (const token of tokens) {
-    const res = await fetch(`${getBaseUrl()}/v2/team-members/${teamMemberId}`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Square-Version": SQUARE_VERSION,
-        "Content-Type": "application/json",
-      },
-      body,
-    })
-    if (res.ok) {
-      const data = await res.json()
-      return (data.team_member as SquareTeamMember) ?? null
     }
   }
   return null

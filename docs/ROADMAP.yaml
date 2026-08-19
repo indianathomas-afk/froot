@@ -3403,9 +3403,37 @@ phases:
   - id: HR-20
     track: hr
     size: M
-    status: in_progress
+    status: shipped
     title: "TrainingCategory entity + additive migration"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      THIS ROW HAS BEEN STALE FOR SIX DAYS, AND IT SAID SO ITSELF. The amendment
+      below reads "status stays in_progress until the push reaches Vercel". The push
+      reached Vercel on 2026-08-11. Nothing moved the row.
+
+      EVIDENCE. This row carries no `commits:`, so the ID was resolved from commit
+      subjects unanchored: work commit "0a745c3" ("HR-20: TrainingCategory entity +
+      additive migration (dev-applied)"). `git merge-base --is-ancestor 0a745c3
+      origin/main` returns TRUE, and so does the same test against "882d6c3" — the
+      2026-08-11 MORNING promotion (docs/DEPLOY_LOG.md). It did NOT ship in
+      "7e77ea6", whose merge subject names "HR-20..HR-28" but whose 47-commit range
+      contains none of these commits; the subject names board rows, not its contents.
+
+      ONE OBLIGATION STAYS OPEN AND IS NOT CLEARED BY THIS FLIP. The DEPLOY_LOG
+      standing note asked the promotion entry to confirm the applying-line for
+      20260810194426_hr20_training_category_entity in the PRODUCTION build log. It
+      was not confirmed at the time and is recorded there as DISCHARGED-AS-UNMET.
+      NOT `verified` — that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       ── AMENDMENT 2026-08-10 (HR-20 build session; work commit "0a745c3";
       preserve-and-mark — the filed text below stands) ── BUILT this date.
       Migration 20260810194426_hr20_training_category_entity applied to DEV
@@ -3526,9 +3554,32 @@ phases:
   - id: HR-21
     track: hr
     size: M
-    status: in_progress
+    status: shipped
     title: "Training category management UI + badges + filter chips + card/list toggle on /hr/training"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      THIS ROW HAS BEEN STALE FOR SIX DAYS, AND IT SAID SO ITSELF — the amendment
+      below reads "Status in_progress until the push reaches Vercel", and the push
+      reached Vercel on 2026-08-11.
+
+      EVIDENCE. No `commits:` on this row; IDs resolved from commit subjects
+      unanchored. TWO work commits: "a56c905" ("HR-21: Category management UI +
+      badges + filter chips + card/list toggle") and "4207be0" ("HR-21: colour the
+      Category picker's options with their badge preset"). Both return TRUE for
+      `git merge-base --is-ancestor <sha> origin/main`. "a56c905" rode promotion
+      "882d6c3" (2026-08-11 morning) and "4207be0" rode "ec42265" (2026-08-11
+      afternoon) — both tested with --is-ancestor, not inferred from dates. NOT
+      `verified`; that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       ── AMENDMENT 2026-08-11 (HR-21 build session; work commit "a56c905";
       preserve-and-mark — the filed text below stands) ── BUILT this date.
       Status in_progress until the push reaches Vercel (the CHK-4 "in_progress
@@ -3615,9 +3666,29 @@ phases:
   - id: HR-22
     track: hr
     size: M
-    status: in_progress
+    status: shipped
     title: "Bulk training assignment + due date carry-through"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      THIS ROW HAS BEEN STALE FOR SIX DAYS, AND IT SAID SO ITSELF — the amendment
+      below reads "Status in_progress until the push reaches Vercel", and the push
+      reached Vercel on 2026-08-11.
+
+      EVIDENCE. No `commits:` on this row; ID resolved from commit subjects
+      unanchored. Work commit "bd63da7" ("HR-22: bulk training assignment + due date
+      carry-through") returns TRUE for `git merge-base --is-ancestor bd63da7
+      origin/main` and TRUE against promotion "882d6c3", the 2026-08-11 morning
+      promotion. NOT `verified`; that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       ── AMENDMENT 2026-08-11 (HR-22 build session; work commit "bd63da7";
       preserve-and-mark — the filed text below stands) ── BUILT this date.
       Status in_progress until the push reaches Vercel (the CHK-4 "in_progress
@@ -3796,9 +3867,36 @@ phases:
   - id: HR-24
     track: hr
     size: M
-    status: in_progress
+    status: shipped
     title: "STORE read access to the training library — read-only, no attachments, all 27 guards untouched"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      THIS ROW HAS BEEN STALE FOR FIVE DAYS. It reads "Status in_progress until the
+      push reaches Vercel"; the push reached Vercel on 2026-08-12.
+
+      CORRECTION TO A STALE SENTENCE BELOW, which is the reason this row mattered
+      more than the others: the PROMOTION ORDER paragraph states "Both are on staging
+      and neither is on production". That has been false since 2026-08-12 — and THE
+      CONSTRAINT ITSELF HELD, which is checked here rather than assumed. Work commit
+      "0b1cf51" (HR-24) and "f5d2883" (HR-25) both return TRUE for
+      `git merge-base --is-ancestor <sha> b853787`, the single 2026-08-12 MIDDAY
+      promotion, and "f5d2883" is the older of the two inside it. One promotion
+      carried both, HR-25 first. The wider door did not open ahead of the narrower
+      one.
+
+      EVIDENCE. No `commits:` on this row; ID resolved from commit subjects
+      unanchored. "0b1cf51" ("HR-24: STORE reads the training library") is an
+      ancestor of origin/main. NOT `verified`; that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       BUILT 2026-08-11 (work commit "0b1cf51"). Status in_progress until the
       push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
       HR-20/21/22/25). No schema change and no database queries by the session.
@@ -3955,9 +4053,30 @@ phases:
   - id: HR-25
     track: hr
     size: S-M
-    status: in_progress
+    status: shipped
     title: "Completed training stops serving files — content stays readable, attachments stop"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      THIS ROW HAS BEEN STALE FOR SIX DAYS. It reads "Status in_progress until the
+      push reaches Vercel"; the push reached Vercel on 2026-08-12.
+
+      EVIDENCE. No `commits:` on this row; ID resolved from commit subjects
+      unanchored. Work commit "f5d2883" ("HR-25: completed training stops serving
+      files (R-m option iii)") returns TRUE for `git merge-base --is-ancestor
+      f5d2883 origin/main` and TRUE against promotion "b853787", the 2026-08-12
+      MIDDAY promotion. It was the OLDEST of the three access-control commits in that
+      promotion, which is what satisfied HR-24's ordering constraint. NOT `verified`;
+      that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       BUILT 2026-08-11 (work commit "f5d2883"). Status in_progress until the
       push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
       HR-20/21/22). No schema change and no database queries.
@@ -4051,9 +4170,33 @@ phases:
   - id: HR-26
     track: hr
     size: M
-    status: in_progress
+    status: shipped
     title: "MANAGER reads the training library and assigns from it — store-scoped, no authoring, all 27 guards untouched"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      THIS ROW HAS BEEN STALE FOR FIVE DAYS. It reads "Status in_progress until the
+      push reaches Vercel"; the push reached Vercel on 2026-08-12.
+
+      CORRECTION TO A STALE SENTENCE BELOW: the PROMOTION ORDER paragraph states
+      "All four commits are on staging and none is on production". False since
+      2026-08-12. THE TRANSITIVE CONSTRAINT HELD: "f5d2883" (HR-25), "0b1cf51"
+      (HR-24) and "7048504" (HR-26) all return TRUE for
+      `git merge-base --is-ancestor <sha> b853787` — one promotion carried all
+      three, with HR-25 oldest.
+
+      EVIDENCE. No `commits:` on this row; ID resolved from commit subjects
+      unanchored. "7048504" ("HR-26: MANAGER reads the training library and assigns
+      from it") is an ancestor of origin/main. NOT `verified`; that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       BUILT 2026-08-12 (work commit "7048504"). Status in_progress until the
       push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
       HR-20/21/22/24/25). No schema change and no database queries by the
@@ -4176,9 +4319,39 @@ phases:
   - id: DOC-1
     track: hr
     size: L
-    status: in_progress
+    status: shipped
     title: "Document audience grants — a document is visible to its assigned audience, not to the whole org"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      THIS ROW HAS BEEN STALE FOR FIVE DAYS, AND ALL THREE PHASES ARE IN PRODUCTION,
+      not just Phase A. The text below reads "PHASE A BUILT ... Status in_progress
+      until the push reaches Vercel"; A, B and C all reached production on
+      2026-08-12.
+
+      EVIDENCE. No `commits:` on this row; IDs resolved from commit subjects
+      unanchored. "d728da4" (A: audience grants + audience-aware read policy),
+      "e18dd54" (B: assign dialog, visibility toggle, audience chips) and "9133dcf"
+      (C: audience-scoped compliance denominators) all return TRUE for
+      `git merge-base --is-ancestor <sha> origin/main`, and all three return TRUE
+      against promotion "ce036f9", the 2026-08-12 EVENING promotion. Its migration
+      20260812171500_doc1a_document_audience_grants has been on the production
+      database since 2026-08-13 04:50:22 UTC — so DOC-1's schema and some of the code
+      that reads it reached production in DIFFERENT promotions. Additive; nothing
+      broke.
+
+      It did NOT ship in "7e77ea6", whose merge subject names "DOC-1" but whose
+      47-commit range contains none of these three commits. NOT `verified`; that call
+      is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       PHASE A BUILT 2026-08-12 (work commit "d728da4"). Status in_progress until
       the push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
       HR-20/21/22/24/25/26). THREE PHASES: A is the grant table + the policy
@@ -4730,10 +4903,29 @@ phases:
   - id: HR-28
     track: hr
     size: S
-    status: in_progress
+    status: shipped
     commits: ["142e858", "340f99b", "e9a717c"]
     title: "Training module descriptions are rich text — Tiptap editor, one sanitizer allowlist, three write paths"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      THIS ROW HAS BEEN STALE FOR FIVE DAYS. It reads "Status in_progress until the
+      push reaches Vercel"; the push reached Vercel on 2026-08-12.
+
+      EVIDENCE. All three recorded work commits — "142e858" (the editor),
+      "340f99b" (the bundle follow-up) and "e9a717c" (the sanitize-html swap) —
+      return TRUE for `git merge-base --is-ancestor <sha> origin/main`, and all three
+      return TRUE against promotion "b853787", the 2026-08-12 MIDDAY promotion. NOT
+      `verified`; that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       BUILT 2026-08-12 (work commit "142e858"). Status in_progress until the
       push reaches Vercel (the CHK-4 "in_progress at SHA" convention, as on
       HR-20/21/22/24/25/26). NO SCHEMA CHANGE — TrainingModule.description is
@@ -4903,9 +5095,33 @@ phases:
     track: hr
     size: M
     commits: [576fc4e, 6ff7ea6]
-    status: in_progress
+    status: shipped
     title: "Hollow signed records — completion reads document checkpoints, stamping reads version anchors; guard, upload reporting, vocabulary, hash carry-forward"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      EVIDENCE. Both recorded work commits "576fc4e" (2a-2e) and "6ff7ea6" (2f)
+      return TRUE for `git merge-base --is-ancestor <sha> origin/main`. They first
+      appear on main in the merge "7e77ea6" (2026-08-17 02:47:13 UTC); that
+      promotion's three migrations applied to the PRODUCTION database at
+      02:50:05-02:50:06 UTC. Measured against origin/main and origin/staging, never
+      local refs.
+
+      RESIDUAL WORK IS NOT CLOSED BY THIS FLIP, and the flip does not claim it is.
+      `shipped` means "merged to main, live in prod" (this file's own header) — it
+      is a statement about where the code is, not that the row is finished. PHASE 2
+      IS STILL NOT DONE: the staging browser walk, and the §3 DOC-1 audience-modal
+      non-regression check. Everything below about Phase 2 stands unchanged. This row
+      is also NOT `verified` — no verification is recorded and that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       PHASE 0 CLOSED 2026-08-14. PHASE 1 BUILT 2026-08-14 ("576fc4e") — FIVE OF
       SIX ITEMS; 2f IS HELD, see below. Audit: docs/prompts/HR-11d_AUDIT.md —
       634 lines, and the diagnosis of record. Phase 0 audit preserved at
@@ -5548,7 +5764,7 @@ phases:
   - id: HR-11k
     track: hr
     size: M
-    status: in_progress
+    status: shipped
     title: "R2 — two upload paths: new file re-signs, new version does not"
     commits:
       - "457a57f"
@@ -5556,6 +5772,28 @@ phases:
       - "bf7cd28"
       - "4363e3b"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      EVIDENCE. All four recorded work commits — "457a57f" (Phase A), "6b2054f"
+      (display follow-ups), "bf7cd28" (Phase B / Case A) and "4363e3b" (the Case A
+      toggle fix) — return TRUE for `git merge-base --is-ancestor <sha> origin/main`.
+      All four first appear on main in the merge "7e77ea6" (2026-08-17 02:47:13 UTC).
+
+      RESIDUAL WORK IS NOT CLOSED BY THIS FLIP. `shipped` states where the code is,
+      not that the row is finished. TWO THINGS BELOW STAND UNCHANGED: the 409 is
+      STILL OWED (third session), and Phase B / Case A was never observed on staging
+      — the code reached production without the staging pass its own text asks for.
+      NOT `verified`, deliberately: no verification is recorded and that call is
+      Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       CASE A VERIFICATION PASS 2026-08-16 ("4363e3b"), TIER 2. Two items were
       asked for. THE FIRST COULD NOT BE REPRODUCED; the second is STILL OWED.
       Two different defects were found on the way and fixed.
@@ -6162,11 +6400,33 @@ phases:
   - id: HR-11n
     track: hr
     size: M
-    status: in_progress
+    status: shipped
     title: "Orphaned Signature checkpoints cannot be removed — DELETE refuses anything acked"
     commits:
       - "72df99a"
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS in_progress -> shipped.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      EVIDENCE. The recorded work commit "72df99a" (Phase A) returns TRUE for
+      `git merge-base --is-ancestor 72df99a origin/main`, first appearing on main in
+      the merge "7e77ea6" (2026-08-17 02:47:13 UTC). That promotion also carried the
+      row's own migration, 20260815150000_hr11n_checkpoint_retirement, which applied
+      to the PRODUCTION database at 2026-08-17 02:50:05 UTC — additive, with a
+      default.
+
+      RESIDUAL WORK IS NOT CLOSED BY THIS FLIP. PHASE A ONLY. The anchor column was
+      withdrawn to Phase B by Gary's mid-session scope cut, and Phase B is not built;
+      the paragraph below naming that as the whole remaining risk on this row stands.
+      NOT `verified` — that call is Gary's.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
       IN PLAIN TERMS. The test handbook shows SIX "Sign here" prompts for TWO
       signature lines, four of them landing on top of body text where no
       signature line exists, and an admin currently has no way to delete the
@@ -6733,6 +6993,41 @@ phases:
       OPTIONAL Square labor integration — schedules and timecards as an overlay
       on forecast-driven labor, per-org toggle, off by default
     notes: >
+      FROOT IS NOW READ-ONLY TOWARD SQUARE IN FACT, NOT JUST IN INTENT —
+      2026-08-18 (SQ-WB-1, work commit 0fd414a, ruling in DECISIONS.md "Froot is
+      read-only toward Square; the name write-back dies"). Prepended; nothing
+      below is edited. This closes the first of the three things LABOR-0B
+      surfaced and left to Gary, recorded on this row's LABOR-0 blocker as (a).
+
+      THE BREACH IS GONE. updateSquareTeamMemberName and
+      staff/[id]/square-writeback are deleted whole — no carve-out, which is the
+      half of the ruling that matters for this row, because the pending wording
+      could have gone either way and a carve-out would have left L-2 arguing from
+      a codebase that contradicted its own consent story. src/lib/square.ts now
+      issues no write to Square business data; the two remaining POSTs are
+      /oauth2/token (OAuth machinery, excepted) and /v2/team-members/search, a
+      POST-shaped read.
+
+      WHAT THIS BUYS THE SCOPE-ADDITION SESSION. The consent event for
+      TIMECARDS_READ and TIMECARDS_SETTINGS_READ can now tell merchants Froot
+      reads Square and never writes it, and the codebase backs the sentence. It
+      did not on 2026-08-17. That is the whole point of doing the removal BEFORE
+      the batch rather than after: a read-only claim made on a consent screen
+      while a live PUT sits in the tree is the kind of thing that is only ever
+      discovered by someone who is not on our side.
+
+      AND IT HARDENS THE FIFTH DON'T. This row's standing DON'Ts already say never
+      add an OAuth scope opportunistically. The ruling goes further and closes the
+      category: no _WRITE scope is EVER added to src/app/api/square/auth/route.ts,
+      for any feature, because no write permission will ever be requested from a
+      merchant. L-4's prohibited push half is therefore not merely deferred — it
+      is ruled out unless Gary reopens it with its own ruling, its own consent
+      event, and a real feature behind it. Same treatment landed on the two dead
+      Phase 2 inventory write routes in CLAUDE.md § Square Integration.
+
+      UNCHANGED BY THIS: the build deferral (its own blocker below), the scope
+      strings, and SQUARE_VERSION. SQ-WB-1 touched none of them by mandate.
+
       RE-SCOPED 2026-08-05 (Gary's ruling — DECISIONS.md, top entry). Was
       "Team/Labor API — actual worked hours + wages, actual-vs-budget, Nevada OT
       warning". Same work; the ruling changes its STATUS from an upgrade path to
@@ -6905,6 +7200,132 @@ phases:
           without a second admin action."
     blockers:
       - >
+        THE VERSION BUMP IS DONE AT ALL THREE SITES — 2026-08-18 (SQ-VER-1, work
+        commit b846e32). Prepended; nothing below is edited. This closes item (3)
+        of the GATE STATUS block in the entry below, which recorded the bump as
+        STILL OWED, and it is the last of this row's three gates to close in
+        code. STAGED, NOT PROMOTED: it sits on staging and production still calls
+        Square at 2024-01-17 until the next promotion.
+
+        `SQUARE_VERSION` is `2026-01-22`, eight months clear of the 2025-05-21
+        floor the Timecard endpoints require. THE EDIT WAS THREE LINES BECAUSE
+        TWO ROUTES HELD THEIR OWN LITERAL — src/app/api/square/callback/route.ts
+        and src/app/api/square/locations/route.ts hardcoded "2024-01-17" and
+        never imported the constant, so editing src/lib/square.ts:4 alone would
+        have called POST /oauth2/token at two different API versions from two
+        different files inside one OAuth flow. BOTH STRAYS NOW IMPORT THE
+        CONSTANT rather than carrying a fresh literal, which is the part that
+        matters beyond this session: a fourth version string can no longer drift
+        into existence, because there is no longer anywhere for one to live.
+        Neither import creates a cycle — both files already imported
+        squareBaseUrl from the same module.
+
+        SEVEN version-bearing header sites, confirmed by grep at execution:
+        square.ts:70 (POST /oauth2/token, refresh_token grant), :141
+        (team-members/search), :175 (team-members/{id}), :212 (locations/{id}),
+        :251 (getSquareClient headers — the shared client every product call
+        uses), plus the two former literals. Five reach the version through the
+        constant; site :251 alone carries orders sync, day-report, catalog sync
+        and sales-items sync. LABOR-0B counted eight/six before SQ-WB-1 deleted
+        the write-back.
+
+        SAFETY RESTS ON LABOR-0B TASK 4, NOT ON THIS SESSION RE-DERIVING IT. All
+        eleven dated versions in the window were surveyed against the six APIs
+        Froot calls; nothing breaks a call site. The four breaking changes all
+        miss the surface: Webhooks management 400 (Froot creates no subscriptions
+        by API), RenewToken retired (Froot uses the refresh_token grant it was
+        retired in favour of), Location address validation (write-side; both
+        Locations sites are reads), Shift deprecation (zero labor surface).
+        MERCHANT_PROFILE_READ is held but unexercised — there is no /v2/merchants
+        call site in the tree at all.
+
+        THE WEBHOOK SUBSCRIPTION VERSION WAS NOT TOUCHED and is not this row's to
+        touch. Separate dial, set per-app in Square's dashboard, governing the
+        events Square sends US; production is believed 2024-01-18. Two dials, one
+        at a time.
+
+        FIRST L-2 CODE SHIPPED WITH IT: GET /api/square/labor/verify, legitimate
+        because the build deferral lifted the same day (see the entry below).
+        SearchTimecards, no filter, limit 1, ADMIN-only, returns
+        `{ ok, httpStatus, hasData }` and NOTHING else — no timecard fields, no
+        names, no wages, which is DEBT-10 territory and stays gated behind
+        labor.costs.view when the wage half is built. THE ROUTE MUST NEVER GROW A
+        BODY; whoever needs real timecard data builds the ingest behind seam (b),
+        with its own toggle and its own failure posture.
+
+        WHAT THE PROBE IS FOR, AND WHY IT IS THE DESIGNED VERIFICATION. A live
+        grant's permissions are NOT observable in Square's merchant dashboard, so
+        the 2026-08-18 re-consent cannot be confirmed by looking — only by
+        calling. One request proves version, scope AND grant together. A 403 from
+        Square means the re-consent did not carry the new scopes: re-run the
+        consent URL. THAT IS THE FIX, NOT A CODE BUG. Three choices are
+        documented at the site and are load-bearing for reading its result: it
+        uses the ORG OAUTH TOKEN ONLY via getSquareClient (the
+        fetchSquareTeamMembers-style fallback to SQUARE_ACCESS_TOKEN would let
+        the probe pass on a personal token and prove nothing about the merchant's
+        grant); it gates on square.manage rather than the stores.manage
+        /api/square/locations uses, because stores.manage is in
+        ENFORCED_CAPABILITIES and deniable per-user, so an unrelated store
+        override could 403 the probe and be misread as a missing scope, whereas
+        square.manage is ADMIN_ONLY and not deniable; and `hasData` is REPORTED,
+        NEVER JUDGED — an authorized empty result is a full pass, `ok` is the
+        only criterion (Gary, 2026-08-18).
+
+        GATE STATUS FOR THIS ROW AFTER THIS SESSION — all three code gates
+        cleared, two human steps outstanding, in this order: (1) LABOR-0 COMPLETE
+        (2026-08-18); (2) SCOPES ADDED AND CONSENTED on staging (SQ-SCOPE-1 plus
+        Gary's 2026-08-18 re-consent, still unproven until the probe returns
+        ok:true); (3) VERSION BUMPED, this session. OUTSTANDING: Gary's staging
+        pass (dashboard sales, Stores → Edit Store location picker — the route
+        that held a literal, Staff → Import from Square, then
+        /api/square/labor/verify as ADMIN), and the PRODUCTION CONSENT CLICK at
+        promotion followed by the same four checks there. Note the callback
+        literal's replacement is exercised only by a FRESH OAUTH CONSENT, not by
+        the four checks — it gets its real test at the next connect.
+
+      - >
+        THE TWO LABOR SCOPES ARE IN THE AUTHORIZE URL — 2026-08-18 (SQ-SCOPE-1,
+        work commit 20b4e70). Prepended; nothing below is edited, and the
+        "SQUARE OAUTH CARRIES NO LABOR SCOPES" entry below is now true only of
+        the GRANT, not of the REQUEST. src/app/api/square/auth/route.ts:9 now
+        requests six strings: `MERCHANT_PROFILE_READ ITEMS_READ ORDERS_READ
+        EMPLOYEES_READ TIMECARDS_READ TIMECARDS_SETTINGS_READ`. The original
+        four are preserved in order; two were appended; nothing was removed or
+        reordered. REPORTING_READ stays PARKED (the enum/overview contradiction
+        recorded as (c) below is unresolved, and a string absent from the enum
+        cannot go in a consent URL). No _WRITE scope was added and none ever
+        will be, per the 2026-08-18 read-only ruling.
+
+        GATE STATUS FOR THIS ROW, three items, one closed this session.
+        (1) LABOR-0: COMPLETE — both owed tasks run 2026-08-18, per the blocker
+        below. (2) SCOPES: ADDED, NOT YET GRANTED — this is the seam that
+        matters. The edit changes the AUTHORIZE URL only. The connected token
+        still carries its original four permissions and every current sync keeps
+        working unchanged; nothing about live behavior moves until Gary
+        re-consents on /settings. Whoever reads this row mid-build must check
+        whether the re-consent actually happened before assuming a labor read
+        will authorize. (3) VERSION BUMP: STILL OWED — its own TIER 3 session,
+        next on the track, and it is the THREE-line edit described below
+        (src/lib/square.ts:4 plus the two hardcoded "2024-01-17" literals at
+        callback/route.ts:43 and locations/route.ts:44), not one.
+
+        WHY THE NEW SCOPES ARE DORMANT ON PURPOSE. No code reads either one, and
+        none should until the version bump lands: the Timecard endpoints they
+        unlock require Square-Version >= 2025-05-21 and the pin is still
+        2024-01-17. So a granted scope alone proves nothing here — this
+        session's success criteria are only (a) the authorize URL carries six
+        scopes and (b) existing reads still work after re-consent. THE FIRST
+        SUCCESSFUL LABOR READ HAPPENS AFTER THE VERSION-BUMP SESSION, and that
+        is the moment the grant is fully proven, not before.
+
+        THE REASON IT SHIPPED AHEAD OF THE BUILD IS CONSENT ECONOMICS, NOT
+        READINESS (Gary's ruling, 2026-08-18). Adding scopes while exactly one
+        merchant — Gary — is connected freezes the re-consent batch at one
+        person forever. Every merchant who connects after this commit consents
+        to the full six-string list on first connect and never sees a re-consent
+        prompt for them. Waiting until the build was ready would have made the
+        same batch as large as the merchant list.
+      - >
         SQUARE OAUTH CARRIES NO LABOR SCOPES — promoted from this row's prose to
         a blocker entry 2026-08-06 so the board can tell this row from a ready
         one; re-verified at source the same day. src/app/api/square/auth/route.ts:9
@@ -6914,6 +7335,80 @@ phases:
         src/lib/square.ts:4 pins SQUARE_VERSION = "2024-01-17". The two move
         together — a scope grant against a too-old version buys nothing.
       - >
+        LABOR-0 IS NOW FULLY RUN — BOTH OWED TASKS COMPLETE, 2026-08-18
+        (dd7b8603890b47b39287f19234f22da30705468e, results in
+        docs/prompts/LABOR-0B_RESULTS.md). Prepended; nothing below is edited.
+        Task 1c (construction-site count) and Task 5 (webhook inventory) are
+        DONE, so this blocker's own condition is met and the "RUN IT BEFORE ANY
+        BUILD" sentence below is discharged. The same session ran two riders:
+        the exact OAuth scope strings for the consent batch, and the changelog
+        delta for the SQUARE_VERSION bump. WHAT THE SURVEY CHANGES FOR THIS ROW,
+        four things. (1) THE CONSENT BATCH IS TWO STRINGS, NOT THREE OR FOUR:
+        TIMECARDS_READ and TIMECARDS_SETTINGS_READ. Scheduled-shift READS share
+        TIMECARDS_READ (Square documents both under the same permission), and
+        team wage / job / pay-rate reads are ALREADY COVERED by the held
+        EMPLOYEES_READ — the wage half needs no new scope at all. Neither of the
+        prompt's RULING NOW triggers fired: no read capability requires a WRITE
+        scope, and scheduled-shift reads are NOT gated by a Shifts Plus
+        subscription (only certain updates are, which bites L-4's prohibited
+        push half, not this row). EMPLOYEES_READ is NOT deprecated — the
+        Employees API is, the scope is the live one governing Team API reads,
+        and there is no TEAM_READ to migrate to. (2) THE VERSION BUMP IS
+        LOW-RISK BUT IT IS A THREE-LINE EDIT, NOT ONE. Eleven changelog dates
+        2024-01-17 -> 2026-01-22 were surveyed and NOTHING breaks a Froot call
+        site; all four breaking changes miss the surface (Webhooks management
+        400 — Froot creates no subscriptions by API; RenewToken retired — Froot
+        uses the refresh_token grant; Location address validation — write-side,
+        Froot only reads; Shift deprecation — zero surface). BUT the pin is not
+        one constant with seven call sites as the prose above says: there are
+        EIGHT version-bearing header sites and only SIX reach the version
+        through src/lib/square.ts:4. src/app/api/square/callback/route.ts:43 and
+        src/app/api/square/locations/route.ts:44 HARDCODE "2024-01-17" and never
+        import the constant. Editing line 4 alone would have Froot calling POST
+        /oauth2/token at two different API versions from two different files
+        inside the same OAuth flow. No changelog surfaces this; only the grep
+        does. (3) THE SHIFT RETIREMENT ALREADY HAPPENED AND THIS ROW SURVIVED
+        IT. Retirement was 2026-05-21, 89 days before the survey ran — LABOR-0
+        was written 2026-08-02 to get ahead of a deadline that was already
+        behind it. Zero labor hits re-verified 2026-08-18 (Shift endpoints,
+        labor.shift.*, Timecard, SearchTimecards, BreakType, WorkweekConfig,
+        TeamMemberWage), so the surface is still clean and no Shift-migration
+        row is warranted. (4) THE WEBHOOK HANDLER SWALLOWS UNKNOWN EVENT TYPES.
+        src/app/api/webhooks/square/route.ts:71-73 returns HTTP 200 with NO log
+        line for any type outside the four it handles. This row's leading ingest
+        option is webhook-driven: add labor.timecard.created/updated to the
+        subscription before the handler learns them and every delivery is
+        200-ACKed and dropped with no trace, and Square does not retry a 200.
+        Whoever builds the ingest owns that. THREE THINGS THE SURVEY SURFACED
+        AND DELIBERATELY DID NOT RESOLVE, all Gary's: (a) FROOT DOES WRITE TO
+        SQUARE TODAY — updateSquareTeamMemberName (src/lib/square.ts:227-254)
+        issues PUT /v2/team-members/{id}, live via
+        src/app/api/staff/[id]/square-writeback/route.ts:46, and it is not OAuth
+        machinery, so the pending "Froot never writes to Square" ruling must
+        either carve it out by name or the route is in breach. (b) That write
+        cannot be authorized by Froot's OAuth token — EMPLOYEES_WRITE is not
+        requested — so on the code path as written it can only land via the
+        SQUARE_ACCESS_TOKEN personal-token fallback (src/lib/square.ts:236),
+        a credential not constrained by the merchant's consent grant. FLAGGED,
+        NOT DIAGNOSED; not executed at runtime. (c) REPORTING_READ MAY NOT
+        EXIST: the Reporting API overview mandates it, while the OAuth
+        Permissions Reference and the OAuthPermission enum both omit it
+        entirely. A string absent from the enum cannot go in a consent URL and
+        may hard-fail the whole authorize request for every merchant, so this
+        must be settled BEFORE the batch if Reporting is in scope at all. Also
+        unresolved: Square documents the scope/Square-Version relationship in
+        NEITHER direction, so the planning lean that grants are version-
+        independent is neither confirmed nor refuted at source — the survey
+        declined to assert it. What IS documented is that timecard and
+        scheduled-shift endpoints require 2025-05-21 or later regardless, so
+        both remain necessary. NOTE FOR THE NEXT SESSION: LABOR-0B's own summary
+        of Task 1c ("sites where the word shift is spent") CONTRADICTED the
+        LABOR-0 file, whose Task 1c is the Square CLIENT construction-site
+        count. The file won, per its own Task 0, and this row's wording at the
+        prose above is the one that matched. NONE OF THIS LIFTS THE BUILD
+        DEFERRAL, which is a separate ruling recorded in its own blocker below,
+        and none of it is acted on — the survey was read-only by mandate.
+        ORIGINAL ENTRY, PRESERVED VERBATIM:
         LABOR-0 HAS NEVER FULLY RUN (docs/prompts/LABOR-0_shift_surface_grep.md)
         — an unexecuted prompt filed in 2e75029. The 2026-08-05 partial covered
         Tasks 2-4 only and answered two load-bearing questions in this row's
@@ -6930,13 +7425,43 @@ phases:
         Scheduling by SEPTEMBER 2026. That argues for scoping the work, not for
         starting it — the build is deferred by ruling, not by the clock.
       - >
-        BUILD IS DEFERRED BY RULING (Gary, 2026-08-05, DECISIONS.md top entry),
-        which is a DIFFERENT thing from the three gates above and is recorded
-        here so the two are never conflated. Even with every gate cleared this
-        row does not start until the deferral lifts: the Square labor
-        integration is strictly optional and can never become a floor under
-        forecast-driven labor. This row is the seam design, written so a future
-        build slots in without tearing anything down.
+        THE BUILD DEFERRAL IS LIFTED — 2026-08-18 (Gary, DECISIONS.md "The L-2
+        deferral is lifted — Advanced Labor is the build", recorded in commit
+        8410023). Prepended; the original entry is preserved verbatim below and
+        is now HISTORY, not a live blocker. Gary's words: the 2026-08-05 deferral
+        did its job — the seam got designed, the survey ran, the scopes were
+        batched and consented, and the app went read-only before any merchant was
+        promised that. THE ADVANCED LABOR FORECASTING VISION IS WHAT L-2 BUILDS.
+
+        THE LIFT CHANGES WHAT MAY BE BUILT, NOT THE ORDER. The gates Gary
+        restated with it still stand and are sequenced: version bump FIRST (done
+        2026-08-18, SQ-VER-1 work commit b846e32, staged not promoted),
+        PRODUCTION CONSENT at promotion, then BUILD SESSIONS ONE PHASE AT A TIME.
+        A lifted deferral is not a licence to build the row in one pass.
+
+        WHAT DOES NOT CHANGE WITH THE LIFT: the strictly-optional ruling of
+        2026-08-05 stands untouched — Square labor is an OVERLAY and can never
+        become a floor under forecast-driven labor, seam (b)'s boundary test
+        still has to pass, and the seam design below is still the design. The
+        lift removed the "do not start" clause and nothing else. Note also that
+        the original entry's pointer to "DECISIONS.md top entry" now resolves to
+        the WRONG entry — the 2026-08-05 ruling has three newer entries above it,
+        of which the lift is one; read it by title, not by position.
+
+        NO ADVANCED LABOR FORECASTING DOCUMENT EXISTS IN THE REPO. `grep -rli
+        "advanced labor"` over docs/ and froot_docs/ returned nothing on
+        2026-08-18, so the vision the lift names is not written down anywhere a
+        build session can read. Filing it was outside SQ-VER-1's scope; whoever
+        opens the first build phase needs it to exist, or the phase will be
+        scoped from chat memory.
+
+        ORIGINAL ENTRY, PRESERVED VERBATIM: "BUILD IS DEFERRED BY RULING (Gary,
+        2026-08-05, DECISIONS.md top entry), which is a DIFFERENT thing from the
+        three gates above and is recorded here so the two are never conflated.
+        Even with every gate cleared this row does not start until the deferral
+        lifts: the Square labor integration is strictly optional and can never
+        become a floor under forecast-driven labor. This row is the seam design,
+        written so a future build slots in without tearing anything down."
 
   - id: L-3
     track: labor
@@ -8556,6 +9081,42 @@ phases:
     commits: [ecee728]
     title: "Square OAuth callback org binding + state nonce; ADMIN gate on connect/disconnect"
     notes: >
+      VERIFIED IN PRODUCTION 2026-08-17, 20:01 Pacific. As kyla@keva.com —
+      MANAGER, non-ADMIN — in org cf888f2d-f234-48c7-8097-fd5b44b5b3dd (Keva
+      Juice), production Clerk instance ins_3FhV0TLHXvctLIxrPW0fjJe0uYw, app
+      footer showing deployed commit 7e77ea6~main:
+      fetch('/api/square/auth', {redirect:'manual'}) returned 403 Forbidden,
+      logged as 403 'basic'. This closes the half that had been untestable since
+      2026-07-26 — no non-ADMIN account existed in the production Clerk instance
+      until the HR launch put six there. The ADMIN half was verified 2026-07-27
+      (0 opaqueredirect, legitimate connect path unaffected).
+      /api/square/disconnect was deliberately NOT tested — pressing it revokes
+      Keva Juice's live Square token. It carries the same gate and is covered by
+      inspection, not observation; that distinction is recorded rather than
+      papered over. Affordance gating also held (no Settings link in her nav),
+      but that is supporting evidence only — PERM-2 established a hidden link is
+      not a guard. Session obtained via a Clerk actor token pasted onto
+      /sign-in; see the impersonation row.
+      (Gary's ruling, prepended verbatim per preserve-and-mark; NOTHING BELOW IS
+      EDITED. Status deliberately untouched — whether this row moves to
+      `verified` is Gary's call, not the recording session's.)
+
+      TWO MEASURED RIDERS ON THE RULING ABOVE, added by the recording session
+      2026-08-17 and kept separate from Gary's words rather than folded into
+      them. (1) THE TIMESTAMP CROSSES MIDNIGHT: 2026-08-17 20:01 Pacific =
+      2026-08-18 03:01 UTC. Recorded both ways per CLAUDE.md § Database
+      Evidence — this is an 08-17 observation in Pacific and an 08-18 one in
+      UTC, and the two dates do not reconcile if only one is written down.
+      (2) THE DISCONNECT INSPECTION WAS RE-RUN AT HEAD rather than cited from
+      memory: src/app/api/square/auth/route.ts and
+      src/app/api/square/disconnect/route.ts carry the IDENTICAL gate — the same
+      `await requireAdmin()` in the same try/catch returning the same
+      { error: "Admin access required" } at status 403, under a comment naming
+      SEC-1 Part C on both. Same gate, same shape, one of the two observed.
+      RECORDED IN "22b8f26" — carried here as prose, not in commits:, because
+      commits: means WORK commits on this row and the only one is ecee728
+      (the 5ecceb3 convention from HR-11d). NOT PUSHED at the time of writing.
+
       Closes PERMISSIONS_INVENTORY.md §2 items 2 and 3 (found by PERM-1).
       Part A: callback resolves the token-write org from the SESSION — state
       is never a write address (beyond-spec improvement, kept by Gary; see
@@ -8577,6 +9138,31 @@ phases:
       is false. SEC-1 did NOT ride the 2026-07-25 HR-17 promotion; the
       2026-07-26 date below stands.
     open:
+      - >
+        RESOLVED 2026-08-17 — THE NEGATIVE HALF IS DONE, WHICH CLOSES THE FIRST
+        ENTRY BELOW IN FULL. Their text is untouched: `open:` takes bare strings
+        only and carries no resolved flag (DEBT-42), so a closure arrives as an
+        entry prepended ABOVE the one it closes — the mechanism PERM-6's two
+        closed entries already use. Read this entry first.
+        (1) CLOSED. kyla@keva.com, MANAGER and non-ADMIN, org
+        cf888f2d-f234-48c7-8097-fd5b44b5b3dd, production Clerk instance
+        ins_3FhV0TLHXvctLIxrPW0fjJe0uYw, deployed commit 7e77ea6~main read off
+        the app footer on the same screen: fetch('/api/square/auth',
+        {redirect:'manual'}) returned 403 Forbidden, logged as 403 'basic'.
+        2026-08-17 20:01 Pacific = 2026-08-18 03:01 UTC. Both halves of Part C
+        are now observed in production.
+        (2) THE SECOND ENTRY BELOW IS NOT CLOSED BY THIS, AND SAYING SO IS THE
+        POINT. Its capability half IS delivered — the HR launch put six
+        non-ADMIN principals into the production Clerk instance, so a production
+        test identity now exists. Its stated purpose is broader: the STAFF-role
+        coverage gap on PERM-2 and the outstanding prod smoke tests on STAFF-1,
+        HR-8, HR-11b/c and HR-15 are all still owed and are untouched by this
+        entry. A capability is not a result; that entry stays open on the work,
+        not on the account.
+        STILL TRUE AND CLOSED BY NEITHER: the prohibition on exercising
+        /api/square/disconnect in production. It revokes Keva Juice's live
+        Square token. It is covered by inspection — the identical requireAdmin()
+        gate, re-read at HEAD in both routes — and NOT by observation.
       - >
         HALF-CLOSED 2026-07-27. Part C's ADMIN gate was partially smoke-tested
         in production.
@@ -8699,6 +9285,27 @@ phases:
       credential in any copy already made.
       Related: DEBT-7 (same source file).
 
+  - id: SEC-5
+    track: security
+    size: S
+    status: planned
+    title: "Clerk impersonation redirects to / which has no SignIn component, so the actor token is never consumed"
+    notes: >
+      Found 2026-08-17 while obtaining a non-ADMIN session for SEC-1. Clerk's
+      "Impersonate user" redirects to
+      https://www.usefroot.com/?__clerk_ticket=<jwt> — the public marketing
+      page, which renders and ignores the param. The token is NOT stripped; it
+      survives in the URL. Pasting the same ticket onto
+      /sign-in?__clerk_ticket=… signs in correctly on the first try, which is
+      the documented workaround. Likely fix is one setting: point Clerk's
+      impersonation redirect at /sign-in.
+      MATTERS BEYOND TESTING — "sign in as this merchant to see what they see"
+      is table stakes for supporting other Square merchants.
+      This is the row SEC-1's 2026-08-17 verification note points at for the
+      method it used to get a non-ADMIN production session.
+      FILED IN "22b8f26". No commits: field — nothing is built, and commits:
+      would imply it was. NOT PUSHED at the time of writing.
+
   # ---- Migration / nutrition ----
 
   - id: M-1
@@ -8755,6 +9362,38 @@ phases:
     commits: [f93b906, 9bd61c7, 056943f, 06b1561]
     title: "Audit — Square OAuth access-token refresh (read-only)"
     notes: >
+      SQ-1'S OPEN QUESTION IS ANSWERED AND THE ANSWER IS "NOT ZERO" — 2026-08-18
+      (SQ-WB-1, work commit 0fd414a). Prepended; nothing below is edited. This
+      row asked whether anything still READS the static SQUARE_ACCESS_TOKEN. The
+      2026-08-06 bookkeeping sweep answered it at five sites; SQ-WB-1 removed one
+      of them and re-counted at HEAD.
+
+      FOUR READERS REMAIN, all in src/lib/square.ts, and the count did not fall to
+      zero: :51 (the redactSquareSecrets redaction list), :130
+      (fetchSquareTeamMembers), :169 (fetchSquareTeamMember) and :206
+      (fetchSquareLocation). The fifth, :236 inside updateSquareTeamMemberName, is
+      GONE with the write-back. Each of the three live ones is the same
+      const tokens = [org.squareAccessToken, process.env.SQUARE_ACCESS_TOKEN]
+      pattern — a fallback to the static credential when the per-org OAuth token
+      is absent or empty.
+
+      SO THE ENV VAR IS NOT A DELETION CANDIDATE, and SQ-WB-1 deliberately did not
+      touch it (flag only, by its own scope). Deleting it today would break three
+      READ helpers for any org relying on the fallback. The prerequisite is
+      unchanged and is SQ-3's item (b): route the bypassing helpers through
+      getSquareClient first, THEN the variable can go. What DID change is the
+      severity, and it changed in the direction of lower: the three survivors all
+      read, so the static credential no longer backstops any WRITE. The specific
+      exposure LABOR-0B flagged — a PUT executing outside the merchant's consent
+      grant on a credential they never granted — is closed at the source rather
+      than at the credential.
+
+      NOTE ON THE COUNT ITSELF: :51 is a redaction list, not a request path. It
+      reads the value only to keep it out of logs, so a reader count of four is
+      three call sites plus one safety net, and whoever finally deletes the
+      variable must update :51 too or the redaction silently stops covering a name
+      that no longer exists.
+
       Refresh EXISTS and is wired: refreshTokenIfNeeded() at src/lib/square.ts:37,
       called only from getSquareClient() (src/lib/square.ts:202), which refreshes
       when squareTokenExpiresAt is inside 7 days. Lazy only — no refresh cron.
@@ -8920,6 +9559,50 @@ phases:
       this reduces), and S2's COMMENT 4 on timezone overwrite — the same
       "imported field vs operator field" question one column over.
 
+  - id: SQ-ACK-1
+    track: staff
+    size: S
+    status: planned
+    title: >
+      Acknowledgeable name divergence — let an admin mark a Froot/Square name
+      difference as intentional, quieting the banner to a note
+    notes: >
+      FILED 2026-08-18 BY SQ-SCOPE-1 AS A RIDER, authorized by Gary in the same
+      breath as the scope addition. Not built, not scheduled — filed. Gary's
+      words on it: file, do not rush.
+      SURFACED BY SQ-WB-1's REMOVAL OF THE WRITE-BACK (work commit 0fd414a,
+      ruling in DECISIONS.md "Froot is read-only toward Square; the name
+      write-back dies"). While the write-back existed, a name difference had an
+      obvious resolution — push Froot's name to Square and the banner cleared
+      itself. With the write-back gone and Froot read-only toward Square by
+      ruling, that escape hatch is closed on purpose, and the banner has no
+      terminating state.
+      THE PROBLEM: the divergence banner is a PERMANENT NAG WHENEVER THE
+      DIFFERENCE IS DELIBERATE. A staff member who goes by a different name in
+      Froot than the legal or payroll name Square holds is a normal, correct
+      state — not a data error. Today nothing distinguishes "these disagree and
+      someone should look" from "these disagree and that is the point", so the
+      second case is indistinguishable from an unresolved problem forever, and a
+      warning that never clears is a warning people stop reading. That erosion
+      is the actual cost, because the banner still has a real job in the first
+      case.
+      SHAPE (sketch, not a spec — the build session designs it): an admin marks
+      a given divergence as intentional; the banner degrades from a warning to a
+      quiet note that the names differ by choice; the note still shows both
+      values so the difference stays visible rather than hidden. Worth settling
+      at build time: whether the acknowledgement is pinned to the pair of values
+      it was made against, so that a LATER change on either side re-raises the
+      banner instead of staying silently acknowledged against names nobody
+      approved.
+      NOT A SCOPE QUESTION AND NOT A WRITE. Nothing in this row asks Square for
+      anything or sends Square anything — the acknowledgement is Froot-side
+      state about a Froot-side display decision. It is consistent with the
+      read-only ruling and needs no new OAuth permission.
+      TRACK NOTE: `staff` is a NEW track value as of this row — no other row
+      carries it. Filed under the Square integration section because the SQ-
+      id and the surfacing session both live here, and because the divergence
+      it describes only exists where the two systems meet.
+
   # ---- Build / tooling ----
 
   - id: BUILD-1
@@ -9022,6 +9705,15 @@ phases:
           UNTOUCHED: the staging branch-scoped override still exists and still
           wins for `staging`, which is why the 13:14 staging build resolved to
           ep-odd-rain rather than failing.
+
+          ADDED 2026-08-17 (DEBT-72a) — WHICH NEON BRANCH THE THROWAWAY IS
+          FORKED FROM, so this reasoning does not have to be rediscovered.
+          Nothing above is edited. Fix when a second developer's first PR is
+          expected. The Preview database must NOT be `preview/staging` — an
+          unreviewed PR migration would apply to the branch used for promotion
+          verification. Prefer a throwaway Neon branch forked from `dev`, not
+          from `production`, so preview deploys never hold a copy of real
+          customer data.
 
   - id: BUILD-2
     track: build
@@ -10470,6 +11162,77 @@ debt:
     status: planned
     title: "PLACEHOLDER — the promotion procedure never reads the roadmap, so a roadmap gate cannot stop a promotion"
     notes: >
+      ── DEBT-72a SPLIT OUT AND DONE 2026-08-17 — THIS ROW IS UNCHANGED AND
+      STILL planned. Prepended per preserve-and-mark; NOTHING BELOW IS EDITED,
+      AND NO MECHANISM IS PROPOSED HERE EITHER.
+      The audit below found something the ruling had not: the failure mode is
+      not promotion, it is THE BOARD GOING STALE AFTER WORK LANDS, and then a
+      decision being made from it. That half needs no gate and was ruled and
+      executed separately as DEBT-72a on 2026-08-17
+      (docs/prompts/DEBT-72a_board_currency.md). It added item 4 to
+      docs/WORKFLOW.md § Session completion rules — a row whose code was pushed
+      to staging in a session has its status set IN THAT SESSION, with an
+      explicit corollary for debt rows, where a missing status already means
+      OPEN — and it backfilled the board: TWELVE rows corrected, ELEVEN of them
+      reading in_progress while their code was live in production, eight of
+      those stale for five to six days. Evidence and the full measured table:
+      docs/prompts/DEBT-72a_BACKFILL.md. DEBT-72a's work commit is "5c6419f",
+      carried here as prose rather than in commits: — the same convention 5ecceb3
+      set on HR-11d, since commits: means WORK commits for THIS row and DEBT-72
+      itself still has none. NOT PUSHED at the time of writing: 5c6419f is on
+      local staging only, which is why this row does not read staging either.
+      WHAT THAT DOES AND DOES NOT DO TO THIS ROW. It does not build the gate and
+      does not answer any of the four open decisions listed below; they are
+      still Gary's. What it does is remove the precondition that made the gate
+      unshippable — a gate built against the board as it stood on 2026-08-16
+      would have refused every promotion on day one, which is what the audit's
+      §3b replay measured. THE GATE IS DEBT-72b, sequenced after this row and
+      deliberately after Gary has lived with the new rule through two or three
+      promotions.
+      DEBT-72's OWN STATUS STAYS planned, and that is measured rather than
+      assumed: its only commits, "b809e03" (the audit) and "039e7a2" (that
+      audit's recorder), are on LOCAL staging and are NOT on origin/staging.
+      Tested against the remote refs, this row's code is nowhere. planned is
+      what the board should say.
+
+      AUDITED 2026-08-17 — THE RULED GATE WAS NOT BUILT. §3a'S OWN STOP CONDITION
+      FIRED. Prepended per preserve-and-mark; nothing below is edited, and NO
+      MECHANISM IS PROPOSED HERE — the four open decisions are Gary's and are
+      listed in the audit, not in this row. Full evidence:
+      docs/prompts/DEBT-72_AUDIT.md, committed as b809e03 — the audit SHA is
+      carried here as prose rather than in commits:, per the convention 5ecceb3
+      set on HR-11d, because nothing shipped and commits: would imply it did.
+      WHAT WAS MEASURED. The prompt's row-ID regex is anchored to the start of the
+      commit subject, and the repo completed a move to Conventional Commits on
+      2026-08-15 — so on 06dc830..7e77ea6 it recognised ONE row ID across 47
+      commits (43 subjects, 91.5%, matched nothing), and on the 21-commit range
+      493175e..63407be it recognised NONE AND RETURNED PASS. A gate that passes by
+      not looking is the false-PASS class CLAUDE.md § Verifying a guard covers
+      every path already warns about, and it is worse than no gate. Unanchored,
+      81% of subjects resolve. Two further defects the prompt did not anticipate:
+      28 of 75 debt rows carry NO status: field (which §2.3 fails closed on, so
+      37% of the debt board becomes an automatic blocker), and ROADMAP.yaml has a
+      FOURTH collection — rulings, R1..R6, all status "ruled" — which §4 does not
+      resolve against, whose IDs appear in real commit subjects, and for which no
+      reading of the ruling lets a commit naming R2 pass.
+      WHAT PASSED. The §5 acceptance criterion was MET: replayed against
+      ce036f9..06dc830 with the board as it stood at that moment, the gate BLOCKS
+      on "BUG-7 — in_progress", using the spec's own anchored regex. The thing
+      DEBT-72 exists to catch, it catches. The §5 criterion that a clean older
+      range must PASS could NOT be met — eleven ranges swept, and PASS appears
+      only where the regex found zero IDs.
+      CONTRADICTS §1 OF THE PROMPT. WORKFLOW.md §2 does NOT read "git merge
+      staging --no-edit". It has read "--no-ff --no-edit" since 2026-08-07, with a
+      "Why --no-ff" paragraph citing DEBT-38 and the DEPLOY_LOG add/commit steps
+      inside the copyable block. Ruling §2.2 is therefore already satisfied in
+      prose, and DEBT-38's candidate (a) with it. The genuinely new thing this row
+      buys is the STATUS GATE, which exists nowhere. DEBT-38 was NOT closed and
+      NOT annotated this session — its open question is not yet answered, because
+      the half that would answer it was not built. Also: the promoted range is 47
+      commits, not the 48 the prompt states.
+      STATUS STAYS "planned". §8 asked for "staging" once the work was on staging;
+      there is no work. Nothing was written to scripts/, package.json or
+      WORKFLOW.md. The row remains an accurate description of an open problem.
       PLACEHOLDER ROW, FILED 2026-08-16. THE REMEDY IS DELIBERATELY NOT DRAFTED
       HERE. Gary reserved the WORKFLOW.md promotion gate as his own ruling, to be
       written and ratified in his own words — "a recommendation is not a ruling
@@ -12890,7 +13653,105 @@ debt:
 
   - id: DEBT-28
     title: "The `#0034 — Carson` store label idiom has three variants across fourteen sites"
+    status: staging
     notes: >
+      ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS ABSENT -> staging.
+      Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      A DEBT ROW THAT IS SHIPPING MUST DECLARE ITSELF. This row previously carried NO
+      `status:` field. On a debt row that means OPEN by design (`DebtItem` in
+      src/lib/roadmap.ts:135, read by `isResolvedDebt` in roadmap-client.tsx:71;
+      DEBT-14's "a missing status means OPEN", recorded in this file's header) — and
+      27 of the 75 debt rows still rely on it, 28 before this flip. Omission is
+      therefore not neutral
+      here: it says OPEN, and this row's code is on staging. It now says so
+      explicitly. This is the first live case of the debt corollary added today to
+      docs/WORKFLOW.md § Session completion rules item 4.
+
+      EVIDENCE. Work commit "893d91d" ("stores/staff: one em-dash label form across
+      the five hyphen sites") returns TRUE for `git merge-base --is-ancestor 893d91d
+      origin/staging` and FALSE for the same test against origin/main. It is the
+      current tip of origin/staging. Per the backfill's §3c rule — on staging, not on
+      main — the status is `staging`, and it becomes `shipped` on the promotion that
+      carries it, like every other debt row (debt rows have no `shipped:` field).
+
+      MEASUREMENT NOTE WORTH KEEPING. A subject-only search does NOT find this
+      commit: the ID "DEBT-28" is the last line of its commit BODY and appears
+      nowhere in the subject. The DEBT-72 audit predicted exactly this row as the
+      case that would be missed, and the subject-only probe reproduced its blindness.
+      Whoever builds DEBT-72b's gate should read this before ruling on the regex.
+      Full measurement, method and the whole table:
+      docs/prompts/DEBT-72a_BACKFILL.md. The rule this backfill accompanies is
+      docs/WORKFLOW.md § Session completion rules item 4 — a row whose code was
+      pushed to staging in a session has its status set in that session.
+      Cross-refs: DEBT-72 (the promotion gate, still planned, still unbuilt),
+      DEBT-72_AUDIT.md "b809e03" (which found this class), DEBT-72b (the gate
+      itself, sequenced after this and deliberately not designed here).
+
+      RULED 2026-08-17 (Gary) — THE TWO SITES THAT NEEDED A DECISION ARE
+      DECIDED, AND THE ROW IS NOW PURELY MECHANICAL. Prepended per
+      preserve-and-mark; nothing below is edited. The row's own HAZARD paragraph
+      named two sites that "are not pure separator swaps, they are different
+      sentences, so they need a decision rather than a find-and-replace". Both
+      are now ruled and neither needs re-deriving.
+
+      (1) stores/page.tsx:162 — DROP THE "Store " PREFIX. It becomes
+      `#0034 — Carson`, matching the other thirteen label sites. It was the only
+      site carrying the prefix, which makes it drift rather than intent. This is
+      a real edit, not an exemption.
+
+      (2) store-view-client.tsx:100 — LEAVE `Carson (#0034)` AS IT IS, and the
+      reason is the durable half of this ruling: THE EM DASH FORM IS THE HOUSE
+      RULE FOR LABELS, AND HEADERS ARE EXEMPT. A label sits in a list or a chip,
+      where the number leads so a column scans; a header answers "which store am
+      I in", where the name is what the reader came for and the number is a
+      qualifier. Two different jobs, correctly rendered two ways. Recorded as an
+      exemption rather than left as an outlier so the next sweep does not re-file
+      it as drift — which is exactly what happened here, and cost this row three
+      glyph variants when there were only ever two.
+
+      WHAT REMAINS: five hyphen-minus sites to convert, one of which also drops
+      the prefix per (1). Eight sites already carry the em dash and are
+      untouched. That is five files, five edits, no decisions left in it.
+
+      THE SEQUENCING ADVICE BELOW STILL STANDS AND IS NOT OVERRULED. This row
+      says fold into DEBT-27 because only two stores currently carry a
+      storeNumber, so twelve of the fourteen sites do not render the separator at
+      all today and the change is invisible until the backfill lands. Doing it
+      standalone is five files for no visible effect. Doing it as part of any
+      session that is already open in staff/ or stores/ is free. Neither is
+      wrong; what would be wrong is a dedicated session for it.
+
+      POINTERS REPAIRED AGAIN 2026-08-17, originals preserved and nothing above
+      or below rewritten. Re-measured by codepoint at HEAD 5bfda2b BEFORE any
+      edit, because the ruling above cites the pre-drift numbers and would
+      otherwise have pointed a find-and-replace at the wrong lines.
+      FOUR CITATIONS HAD MOVED, INCLUDING BOTH SITES THE RULING DECIDES ON:
+      src/app/(app)/stores/page.tsx:162 → :227;
+      src/app/(app)/staff/page.tsx:127 → :262;
+      src/app/(app)/staff/[id]/page.tsx:623 → :742; and
+      store-view-client.tsx:100 → :113, whose path is also wrong everywhere it
+      appears in this row — it is src/app/(app)/store-view/store-view-client.tsx,
+      not stores/. STILL EXACT: staff-buttons.tsx:116 and
+      staff-edit-actions.tsx:201.
+      THE EIGHT EM-DASH CITATIONS HAD ALL DRIFTED TOO and are repaired here even
+      though nothing touches them, so the next reader is not misled twice:
+      user-actions.tsx:112,244,271 → :119,315,342; template-form.tsx:1014 →
+      :1571; training-form.tsx:813 → :866; users/page.tsx:252,301 → :334,384;
+      create-device-login-button.tsx:103 unchanged. The fifteenth reference,
+      webhooks/clerk/route.ts:134 → :178.
+      THE COUNTS ARE UNCHANGED — 8 em dash, 5 hyphen-minus, 1 inverted, fourteen
+      label sites plus the derived-name site. Only line numbers moved, so the
+      2026-08-02 correction below is still right about everything except where
+      the code sits.
+      THIS IS THE SECOND WHOLESALE POINTER REPAIR ON THIS ROW; the first was
+      2026-08-02 at cc1fffc and repaired two. Line numbers are the least durable
+      thing in this row and a third repair should be assumed, not discovered —
+      re-measure by codepoint before trusting any citation here.
+      THE FIVE EDITS THEN LANDED at the repaired locations, converting U+002D to
+      U+2014 and dropping the lone "Store " prefix. The exemption at
+      store-view-client.tsx:113 was left alone as ruled.
+      ── PRIOR NOTES BELOW, UNEDITED ──
       COST OF DOING NOTHING: Three separator glyphs render the same information
       across fourteen sites and nothing misbehaves — NONE. Said plainly rather
       than inflated: this row is the clearest NONE in the list, and the row's own
