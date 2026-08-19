@@ -4,6 +4,10 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 5e2f4d7 — 2026-08-19 — Advanced Labor Phases 1–3
+
+Promotes the full Advanced Labor build: AL-1 (be705a2), AL-2 (8a28f61, f47e3bd), AL-3 (fa86bae). Staging verified 2026-08-19: roster renders real names/pay post staff-import, seam holds toggle-off, STORE privacy check passed (tommy@keva.com saw no wage/tips). Post-deploy: SQUARE_LABOR_AVAILABLE=true on Production, enable Advanced Labor, staff import + roster/timecard syncs per store, repeat STORE privacy check on production.
+
 ## 90a8eca — 2026-08-18 — Square read-only + labor scopes + version 2026-01-22
 Promotes the full Square track: read-only ruling enforced (write-back removed),
 TIMECARDS_READ + TIMECARDS_SETTINGS_READ added to the OAuth request,
