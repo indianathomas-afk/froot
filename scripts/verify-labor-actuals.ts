@@ -17,8 +17,9 @@
  * AL-2 (Phase 2) appends the cases the dashboard cards rest on:
  *   7. The coverage pair — a partly-synced window measures the covered days on
  *      BOTH sides, and the surface can say how many.
- *   8. The judgment: target as set (not the floored rate), the three zones, and
- *      the refusal to judge a number that is not fresh.
+ *   8. The judgment: target as set (not the floored rate), the three zones — at
+ *      or under target GREEN, up to a point over AMBER, beyond that RED — and the
+ *      refusal to judge a number that is not fresh.
  *   9. The estate roll-up: dollars summed then divided, never a mean of ratios,
  *      with a sales-weighted target and worst-health-wins.
  */
@@ -197,17 +198,24 @@ console.log("\n8. AL-2 — the judgment")
   // Target AS SET (Gary's R2): 20, never the tier-floored 18.8 that
   // computeWeeklyLaborBudget reports as projectedLaborPctAtForecast.
   check("under target → within", judgeLaborPct(18.0, 20, "fresh"), "within")
-  check("inside the 1-point band → near", judgeLaborPct(19.5, 20, "fresh"), "near")
-  // EXACTLY ON TARGET IS AMBER, NOT GREEN, and that is the existing scale rather
-  // than a new opinion: zone() in labor-budget-card.tsx has always put "within one
-  // point of target" in the warning band, and R3 (Gary, 2026-08-19) said to reuse
-  // it so the planned % and the actual % on one dashboard are judged by one rule.
-  // Vision item 3's wording ("green if meets/exceeds") reads a hair differently at
-  // this single boundary; the consistency ruling wins, and the difference is
-  // visible only at a percentage exactly equal to target. Flagged for Gary rather
-  // than resolved silently in either direction.
-  check("exactly on target → near (the existing scale's edge band)", judgeLaborPct(20, 20, "fresh"), "near")
-  check("over target → over", judgeLaborPct(20.1, 20, "fresh"), "over")
+
+  // THE BOUNDARY, FLIPPED (Gary, 2026-08-19, superseding his own R3 the same day).
+  // Amber is now a GRACE BAND ABOVE target, not a caution band below it, so
+  // meeting budget reads as the win it is — vision item 3's "green if
+  // meets/exceeds", made literal. The four checks below fence both edges of the
+  // new band, because an off-by-one here is invisible on screen and changes what
+  // a manager is told about their week.
+  check("just under target → within (was amber before the flip)", judgeLaborPct(19.5, 20, "fresh"), "within")
+  check("EXACTLY on target → within", judgeLaborPct(20, 20, "fresh"), "within")
+  check("a hair over → near, not over", judgeLaborPct(20.1, 20, "fresh"), "near")
+  check("the top of the grace band → still near", judgeLaborPct(21.0, 20, "fresh"), "near")
+  check("past the grace band → over", judgeLaborPct(21.1, 20, "fresh"), "over")
+
+  // THE DIVERGENCE FROM zone(), ASSERTED so it stays deliberate. The Labor Budget
+  // card judges the PLANNED percentage on the opposite convention (amber below
+  // target), so one dashboard shows amber-planned beside green-actual at 19.5%.
+  // If a later session "harmonises" the two scales, this check is what fails.
+  check("19.5% is GREEN as an actual, while zone() calls it amber as a plan", judgeLaborPct(19.5, 20, "fresh"), "within")
   // 19% would be OVER against the floored 18.8% rate and is WITHIN against the
   // target the operator actually set. This check is the ruling, in code.
   check("19% against a 20% target is within, not over", judgeLaborPct(19, 20, "fresh"), "within")

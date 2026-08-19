@@ -21,11 +21,23 @@ import type { LaborActualsResult, LaborHealth } from "@/lib/labor-actuals"
 ///   the value.
 export type LaborVerdict = "within" | "near" | "over" | "unjudged"
 
-/// One point below target is the amber band. NOT a new invention: it is the
-/// existing dashboard scale, lifted verbatim from zone() in
-/// src/app/(app)/dashboard/labor-budget-card.tsx so the planned labor % and the
-/// ACTUAL labor % on the same page are judged by one rule (Gary's R3, 2026-08-19).
-export const LABOR_WARN_BAND_POINTS = 1
+/// The amber band sits ONE POINT ABOVE TARGET — a grace band on the over-budget
+/// side, not a caution band on the under-budget side.
+///
+/// THIS DELIBERATELY DIVERGES FROM zone() (Gary, 2026-08-19, superseding his own
+/// R3 of the same day). zone() in labor-budget-card.tsx puts amber BELOW target
+/// (`projected > target - 1`), warning a planner who is cutting it fine while
+/// still inside budget; R3 originally said to reuse that scale verbatim. Gary
+/// flipped it for ACTUALS, and the two are different questions: a PLAN that lands
+/// a hair under target is worth a nudge, whereas an ACTUAL that lands at or under
+/// target is simply a win and must read as one. Meeting budget is green, full
+/// stop — vision item 3's "green if meets/exceeds", now literal.
+///
+/// THE VISIBLE CONSEQUENCE, so nobody rediscovers it as a bug: on one dashboard a
+/// store at 19.5% against a 20% target shows AMBER on the Labor Budget card
+/// (planned) and GREEN on every labor % readout (actual). Intended asymmetry, not
+/// drift.
+export const LABOR_OVER_BAND_POINTS = 1
 
 /// Judged against laborTargetPct AS THE OPERATOR SET IT (Gary's R2, 2026-08-19) —
 /// never against computeWeeklyLaborBudget's projectedLaborPctAtForecast, which is
@@ -40,9 +52,14 @@ export function judgeLaborPct(pct: number | null, target: number, health: LaborH
   // and "error" have a real number that describes a moment that has passed, and
   // the surface says so with a last-synced stamp instead of a colour.
   if (health !== "fresh") return "unjudged"
-  if (pct > target) return "over"
-  if (pct > target - LABOR_WARN_BAND_POINTS) return "near"
-  return "within"
+  // AT OR UNDER TARGET IS GREEN. The `<=` is the ruling: meeting budget exactly is
+  // meeting budget, and an operator who hits 20.0% against a 20% target must not
+  // be shown a warning colour for succeeding.
+  if (pct <= target) return "within"
+  // Over, but inside the grace band — over budget and worth seeing, not yet worth
+  // alarm.
+  if (pct <= target + LABOR_OVER_BAND_POINTS) return "near"
+  return "over"
 }
 
 /// Tailwind/CSS classes per verdict, matching the tokens the dashboard already
