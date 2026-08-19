@@ -27,6 +27,21 @@ model Organization {
   instagramUsername       String?
   instagramEnabled        Boolean   @default(false)
   instagramConnectedAt    DateTime?
+  // L-2 seam (a) / AL-1 (Advanced Labor Phase 1). The per-org switch for the
+  // OPTIONAL Square labor overlay. A DEDICATED COLUMN, like instagramEnabled
+  // above and deliberately NOT a fifth entry in activeModules: activeModules is
+  // the BILLABLE ADD-ON list driving the module cards on /settings, and "Weekly
+  // Labor Model" is the product an org buys — a Square connection is a DATA
+  // SOURCE for a module they already pay for. An activeModules entry would
+  // advertise it as a separate purchase AND would permit the incoherent state
+  // square-labor-without-labor.
+  //
+  // A SQUARE DISCONNECT DOES NOT TURN THIS OFF (Gary, 2026-08-05). The org keeps
+  // the feature and the overlay drops to seam (c)'s ON BUT UNHEALTHY state; a
+  // reconnect restores it with no second admin action. /api/square/disconnect
+  // nulls the three token columns and touches nothing else — staleness is a
+  // badge, not a delete.
+  squareLaborEnabled      Boolean   @default(false)
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
   // HR-11b: governs inline `Date:` field stamps ONLY ("dateOnly" | "dateTime").
@@ -101,6 +116,8 @@ model Organization {
   laborDayparts                 LaborDaypart[]
   laborDayAdjustments           LaborDayAdjustment[]
   weeklyDayHours                WeeklyDayHours[]
+  squareTimecards               SquareTimecard[]
+  squareLaborSyncStates         SquareLaborSyncState[]
 }
 
 model User {
@@ -196,6 +213,8 @@ model Store {
   laborDayparts             LaborDaypart[]
   laborDayAdjustments       LaborDayAdjustment[]
   weeklyDayHours            WeeklyDayHours[]
+  squareTimecards           SquareTimecard[]
+  squareLaborSyncState      SquareLaborSyncState?
 }
 
 // CHK-2 (S2) gave this table its first writer; CHK-3 (S3) gives it the key that
@@ -2358,4 +2377,141 @@ model LaborDayAdjustment {
 
   @@unique([storeId, date])
   @@index([organizationId, storeId])
+}
+
+// ─── AL-1: ADVANCED LABOR PHASE 1 (L-2 seam (b)) ─────────────────────────────
+// Square-sourced labor lives in clearly-separated, PREFIXED storage that no core
+// labor engine reads. labor-budget.ts / labor-plan.ts / labor-coverage.ts /
+// labor-forecast.ts never gain a Square-sourced input; they keep reading
+// SalesForecast / DailyGoal. The comparison layer lives in labor-actuals.ts,
+// which the core never imports.
+//
+// THE BOUNDARY TEST, and it is a real test, not a note: DROP BOTH TABLES BELOW
+// AND EVERY EXISTING LABOR SURFACE MUST RENDER BYTE-IDENTICALLY. If anything
+// moves, the boundary leaked.
+//
+// PER-ENVIRONMENT DATA. Mirrored Square rows do not migrate between Neon
+// branches, exactly like GoalPlan (DECISIONS.md § L-3 (c)). Each branch syncs
+// independently; promoting code moves none of it.
+//
+// Design record, including the field-by-field justification and the storage
+// estimate: docs/ADVANCED_LABOR.md.
+
+/// One Square timecard, mirrored. Read-only toward Square, always.
+///
+/// ALL DateTime COLUMNS ARE UTC — TIMESTAMP(3) with no time zone, like every
+/// other DateTime in this file. Square sends `start_at` / `end_at` as RFC 3339
+/// ALREADY SHIFTED TO THE LOCATION'S OFFSET; the sync parses that offset and
+/// stores the UTC instant. DISPLAY-LOCAL CONVERSION IS THE READER'S JOB and
+/// uses Store.timezone, falling back to Organization.timezone (DEBT-70a's
+/// chain). `timezone` below is Square's own answer for the location, kept so a
+/// stored instant can be re-rendered local without trusting Froot's copy of the
+/// store record. See CLAUDE.md § "A DATABASE TIMESTAMP IS UTC" — that trap has
+/// already cost three sessions in one day.
+model SquareTimecard {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  /// Resolved from squareLocationId via Store.squareLocationId at sync time.
+  /// NOT a DEBT-9 attribution: per-store labor comes from Square's own
+  /// location_id, never from StaffMember.primaryStore (confirmed 2026-08-02).
+  storeId            String
+  /// Square's UUID for the timecard. Half the upsert key — poll-based ingest
+  /// re-reads windows, so without this the sync is not idempotent.
+  squareTimecardId   String
+  /// Per-person hours feed the Phase-3 Positions roster and tip payout. DEBT-10
+  /// territory: this column NEVER leaves the server in Phase 1 — the Phase-1
+  /// route assembles no per-person payload at all.
+  squareTeamMemberId String
+  /// Kept beside storeId so an unmapped or re-mapped Square location is
+  /// auditable rather than silently mis-attributed.
+  squareLocationId   String
+  startAt            DateTime
+  /// NULLABLE ON PURPOSE — an OPEN timecard is someone currently on the clock,
+  /// and the Phase-2 Sales Performance card wants a REAL-TIME labor %.
+  endAt              DateTime?
+  /// Square's OPEN / CLOSED. Distinguishes "still on the clock" (cost is
+  /// projected and will grow) from "never clocked out" (a data problem). Without
+  /// it a null endAt means both.
+  status             String
+  /// THE IDEMPOTENCY GUARD. Square increments this on every update, so it is the
+  /// SOURCE's monotonic counter rather than our read clock: a slow sync that read
+  /// version 3 cannot clobber a fast sync that read version 4 regardless of
+  /// commit order. sales-sync.ts guards on syncedAt only because Square's orders
+  /// carry no version worth trusting; timecards do.
+  squareVersion      Int
+  squareCreatedAt    DateTime
+  /// The manager-correction signal — timecards are edited after the fact, which
+  /// is why the ingest is polled rather than webhook-driven.
+  squareUpdatedAt    DateTime
+  /// Summed from Square's breaks[] by is_paid. Paid breaks are compensable time
+  /// and stay in the cost; unpaid breaks come out of it. Getting this wrong
+  /// misstates labor % on every store, every day.
+  breakPaidMinutes   Int       @default(0)
+  breakUnpaidMinutes Int       @default(0)
+  /// Square's wage.title / wage.job_id — the Phase-3 Positions roster ("positions
+  /// may vary per Square"). job_id is the stable key; title is what a person
+  /// retypes.
+  wageTitle          String?
+  wageJobId          String?
+  /// Dollars as Decimal(10,2), per docs/LABOR.md § Money convention.
+  /// NULLABLE, AND THE NULL IS LOAD-BEARING: Square carries a rate only where
+  /// team-member wage settings are configured. The calculation must WARN on that
+  /// gap (costComplete=false) rather than render a silent zero.
+  wageHourlyRate     Decimal?  @db.Decimal(10, 2)
+  /// An average hourly tip payout is meaningless if it divides by hours worked
+  /// by staff who cannot receive tips.
+  wageTipEligible    Boolean?
+  /// Reported as its own figure, NEVER added to laborCost (Gary, 2026-08-18):
+  /// declared cash tips are employee income, not employer labor cost.
+  declaredCashTips   Decimal?  @db.Decimal(10, 2)
+  /// Square's own zone for the location — a second opinion on Store.timezone.
+  timezone           String?
+  /// Row-level provenance. NOT the health signal: a store that synced fine and
+  /// had nobody clocked in has NO ROWS here to stamp. SquareLaborSyncState is
+  /// what makes "not synced" and "synced, nobody worked" different sentences.
+  syncedAt           DateTime
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  /// The upsert key. Org-scoped rather than global so a cross-tenant id
+  /// collision is unrepresentable rather than merely unlikely.
+  @@unique([organizationId, squareTimecardId])
+  /// Every Phase-1 and Phase-2 read is store + date range.
+  @@index([storeId, startAt])
+  @@index([organizationId, syncedAt])
+}
+
+/// Per-store sync provenance. SEPARATE FROM SquareTimecard.syncedAt ON PURPOSE.
+///
+/// Seam (c) forbids rendering absent data as a measurement: "absent data reads
+/// 'not synced', which is a different sentence from '0 hours'". Row-level
+/// syncedAt cannot express that sentence. A store that synced perfectly and had
+/// nobody clocked in has NO ROWS, so max(syncedAt) over an empty set is null and
+/// is indistinguishable from "never synced" — and a store whose timecards simply
+/// have not been edited would read stale even though the sync ran minutes ago.
+/// This table records the ATTEMPT, which is the fact the health badge is about.
+model SquareLaborSyncState {
+  id                String    @id @default(cuid())
+  organizationId    String
+  storeId           String    @unique
+  lastSyncStartedAt DateTime?
+  /// The health input. Null with a row present means every attempt has failed.
+  lastSyncOkAt      DateTime?
+  /// The workday window the last successful sync covered, store-local.
+  lastWindowStart   DateTime? @db.Date
+  lastWindowEnd     DateTime? @db.Date
+  lastTimecardCount Int       @default(0)
+  /// Truncated. A sync failure writes here and returns; it NEVER throws into a
+  /// labor surface and never wears an auth failure's clothes (BUG-1, DON'T #5).
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }

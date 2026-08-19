@@ -187,10 +187,14 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // up, so the two disagreed and PERM-5's Session C deliberately left the
   // routes unmigrated rather than resolve it unilaterally.
   //
-  // NO BEHAVIOUR CHANGES WITH THIS EDIT. Nothing calls can(_, "square.manage")
-  // — it is not in ENFORCED_CAPABILITIES either, so it is not deniable from the
-  // /users grid. The value was documentation that lied. The point of fixing it
-  // is that the Square routes are now migratable onto the registry in a future
+  // NO BEHAVIOUR CHANGES WITH THIS EDIT. Nothing called can(_, "square.manage")
+  // WHEN THIS WAS WRITTEN (2026-08-06) — corrected by AL-1, 2026-08-18: the
+  // Square labor routes now do, starting with /api/square/labor/verify (b846e32)
+  // and joined by labor/toggle, labor/sync and labor/actuals. It is still not in
+  // ENFORCED_CAPABILITIES, so it is still not deniable from the /users grid,
+  // which is what those routes rely on: a 403 from them can only mean "not an
+  // admin". The value was documentation that lied. The point of fixing it is
+  // that the Square routes are now migratable onto the registry in a future
   // sweep with ZERO baseline change; migrating against ALL would have handed
   // every member the org's Square connection.
   //

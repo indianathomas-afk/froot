@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
-import { getCurrentUser, hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
+import { getCurrentUser, hrModuleAvailable, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
 import { can, type PermissionUser } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 import { getInstagramTokenStatus } from "@/lib/instagram"
 import { InstagramActions, InstagramConnectButton } from "./instagram-actions"
 import { HrModuleToggle } from "./hr-actions"
 import { LaborModuleToggle } from "./labor-actions"
+import { SquareLaborToggle } from "./square-labor-actions"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -58,6 +59,13 @@ export default async function SettingsPage() {
   // Same availability gate for Labor — hidden entirely while unavailable.
   const laborAvailable = laborModuleAvailable(org?.clerkOrgId)
   const laborActive = !!org?.activeModules.includes("labor")
+  // AL-1 / L-2 seam (a). THREE conditions, all required, and the Labor ones come
+  // FIRST so the incoherent state square-labor-without-labor is not renderable:
+  // the Labor module must exist here and be bought, and the Square overlay must
+  // exist here. Note what is NOT in this list — whether Square is connected. A
+  // disconnect does not turn the overlay off (Gary, 2026-08-05), so hiding the
+  // control while disconnected would strand an admin who wants it back.
+  const showSquareLabor = laborAvailable && laborActive && squareLaborAvailable(org?.clerkOrgId)
 
   const addOns = [
     { name: "Inventory Management", desc: "Physical counts, COGS tracking, storage areas, and adjustments", module: "inventory" },
@@ -126,6 +134,24 @@ export default async function SettingsPage() {
                   </Link>
                 )}
               </div>
+
+              {showSquareLabor && (
+                <div className="flex items-start justify-between p-4 mt-3 border border-[var(--color-border)] rounded-lg">
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Advanced Labor</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">
+                      Sync worked hours from Square to measure actual labor % against your budget. Read
+                      only — Froot never writes to Square.
+                    </p>
+                    {!isSquareConnected && (
+                      <p className="text-sm text-[var(--color-muted-foreground)] mt-1.5">
+                        Square is not connected — synced data will show as out of date until you reconnect.
+                      </p>
+                    )}
+                  </div>
+                  <SquareLaborToggle enabled={!!org?.squareLaborEnabled} />
+                </div>
+              )}
             </CardContent>
           </Card>
 
