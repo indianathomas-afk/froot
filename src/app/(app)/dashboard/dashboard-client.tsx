@@ -15,6 +15,8 @@ import { SalesPerformanceCard } from "./sales-performance-card"
 import { LaborBudgetCard } from "./labor-budget-card"
 import { LaborCoverageCard } from "./labor-coverage-card"
 import { RollupView } from "./rollup-view"
+import { LaborNotes, LaborPctLine } from "./labor-pct"
+import type { LaborBlock } from "@/lib/labor-judgment"
 
 // ─── Types (mirror /api/dashboard/summary) ────────────────────────────────────
 
@@ -50,6 +52,9 @@ type Summary = {
     items: { id: string; checklistId: string; label: string; checked: boolean }[]
     firstChecklistId: string | null
   }
+  // AL-2 feature 3 — MTD labor % for the Monthly Goal card. ABSENT (not null)
+  // when the overlay is off or the viewer lacks labor.actuals.view.
+  labor?: LaborBlock
 }
 
 // ─── Comms (mirror /api/dashboard/comms — Phase I-14) ─────────────────────────
@@ -525,6 +530,14 @@ function MonthlyGoalCard({
               No goal set for {monthName} yet — ask your manager to set one.
             </p>
           )}
+          {/* The LABOR budget is a different budget from the SALES goal, so an
+              unset sales goal must not hide the labor judgment. */}
+          {summary.labor && (
+            <div className="border-t border-[var(--color-border)] mt-3 pt-3">
+              <LaborPctLine block={summary.labor} label={`${monthName} labor %`} />
+              <LaborNotes block={summary.labor} timeZone={summary.store.timezone} />
+            </div>
+          )}
         </CardContent>
       </Card>
     )
@@ -617,6 +630,16 @@ function MonthlyGoalCard({
             {pctToGoal.toFixed(1)}% to goal, based on trend
           </p>
         </div>
+
+        {/* AL-2 feature 3 — MTD labor % with budget judgment: green within, bold
+            red over (the "over" verdict carries the bold, in laborVerdictClass).
+            Month-to-date by definition, so it takes no date picker. */}
+        {summary.labor && (
+          <div className="border-t border-[var(--color-border)] mt-3 pt-3">
+            <LaborPctLine block={summary.labor} label={`${monthName} labor %`} />
+            <LaborNotes block={summary.labor} timeZone={summary.store.timezone} />
+          </div>
+        )}
 
         <p className="text-[11.5px] text-[var(--color-muted-foreground)] mt-auto pt-3">
           {daysLeft} day{daysLeft === 1 ? "" : "s"} left in {monthName}

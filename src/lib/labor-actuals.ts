@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client"
 import type { Organization, Store } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { getSquareClient } from "@/lib/square"
-import { dbDate } from "@/lib/reports"
+import { dbDate, localDateStr } from "@/lib/reports"
 
 // AL-1 — ADVANCED LABOR PHASE 1. Design record: docs/ADVANCED_LABOR.md.
 //
@@ -46,12 +46,28 @@ export type LaborActualsSyncState = {
 export type LaborActualsResult = {
   /// null when sales are zero — cost with no sales is "no sales yet", which is
   /// not the same statement as "0% labor". NEVER render this as a 0.
+  ///
+  /// AL-2: MEASURED OVER THE COVERED DAYS ONLY (see daysCovered below), so the
+  /// numerator and the denominator always describe the same days.
   laborPct: number | null
   /// Dollars. A FLOOR, not a total, whenever costComplete is false.
   laborCost: number
   laborHours: number
   /// Dollars. Net sales (gross − tax − tips) — Gary's ruling, 2026-08-18.
+  /// AL-2: net sales ON THE COVERED DAYS, which is laborPct's actual denominator.
   sales: number
+  /// AL-2 — THE COVERAGE PAIR, and the reason laborPct can be trusted over a
+  /// partly-synced window.
+  ///
+  /// Store-local days in the requested window that carry at least one timecard,
+  /// against the number of days the window spans. A month with timecards for
+  /// three days and sales for nineteen is the defect this pair exists to prevent:
+  /// three days of cost over nineteen days of sales renders ~5% against a 20%
+  /// target — a confident, wrong, REASSURING number, which is the worst kind.
+  /// Both sides are therefore restricted to the covered days, and the surface
+  /// says "N of M days synced" whenever they differ (Gary, 2026-08-19).
+  daysCovered: number
+  daysInWindow: number
   health: LaborHealth
   timecardCount: number
   /// People currently on the clock. Their cost is projected to `now` and will
@@ -96,9 +112,13 @@ export function computeLaborActuals({
   now,
   windowEnd,
   syncState,
+  daysCovered = 1,
+  daysInWindow = 1,
   staleAfterMinutes = DEFAULT_STALE_AFTER_MINUTES,
 }: {
   timecards: LaborActualsTimecard[]
+  /// Net sales ON THE COVERED DAYS. The caller restricts this — see
+  /// getLaborActuals — so this function never divides days by other days.
   netSales: number
   now: Date
   /// The end of the requested window. An OPEN timecard is costed to whichever
@@ -106,6 +126,11 @@ export function computeLaborActuals({
   /// accrue cost into Thursday's query.
   windowEnd: Date
   syncState: LaborActualsSyncState
+  /// AL-2 coverage pair. Both default to 1 so the single-day call this function
+  /// was born with — where covered and window are the same day by construction —
+  /// keeps its old meaning without every caller restating it.
+  daysCovered?: number
+  daysInWindow?: number
   staleAfterMinutes?: number
 }): LaborActualsResult {
   let paidMinutes = 0
@@ -151,6 +176,8 @@ export function computeLaborActuals({
     laborCost,
     laborHours: paidMinutes / 60,
     sales: toDollars(salesCents),
+    daysCovered,
+    daysInWindow,
     health: computeHealth(syncState, now, staleAfterMinutes),
     timecardCount: timecards.length,
     openTimecardCount: openCount,
@@ -193,20 +220,32 @@ export async function getLaborActuals(
   const rangeStart = localMidnightUtc(startDate, store.timezone)
   const rangeEnd = localMidnightUtc(nextDay(endDate), store.timezone)
 
-  const [rows, sales, syncState] = await Promise.all([
+  const [rows, syncState] = await Promise.all([
     prisma.squareTimecard.findMany({
       where: { storeId: store.id, organizationId: org.id, startAt: { gte: rangeStart, lt: rangeEnd } },
       select: { startAt: true, endAt: true, breakUnpaidMinutes: true, wageHourlyRate: true },
-    }),
-    prisma.salesPeriodCache.aggregate({
-      where: { storeId: store.id, date: { gte: dbDate(startDate), lte: dbDate(endDate) } },
-      _sum: { netSales: true },
     }),
     prisma.squareLaborSyncState.findUnique({
       where: { storeId: store.id },
       select: { lastSyncOkAt: true, lastError: true },
     }),
   ])
+
+  // AL-2 — THE COVERED DAYS, derived from rows ALREADY LOADED. No second query,
+  // and no per-person field is read to get it: a timecard's own startAt rendered
+  // in the store's zone is the business day it belongs to, which is the same
+  // notion of "a day" the sync's `workday` filter and SalesPeriodCache.date use.
+  const coveredDates = [...new Set(rows.map((r) => localDateStr(r.startAt, store.timezone)))].sort()
+
+  // THE DENOMINATOR IS RESTRICTED TO THOSE DAYS. `date: { in: … }` rather than a
+  // range, so a month with three synced days divides three days of cost by three
+  // days of sales instead of by nineteen. An empty set means no timecards at all,
+  // and Prisma's `in: []` correctly sums nothing — laborPct then goes null via
+  // the sales > 0 test, which reads "no sales yet" and never 0%.
+  const sales = await prisma.salesPeriodCache.aggregate({
+    where: { storeId: store.id, date: { in: coveredDates.map(dbDate) } },
+    _sum: { netSales: true },
+  })
 
   return computeLaborActuals({
     timecards: rows.map((r) => ({
@@ -219,7 +258,117 @@ export async function getLaborActuals(
     now,
     windowEnd: rangeEnd,
     syncState,
-  })
+    daysCovered: coveredDates.length,
+    daysInWindow: daysInclusive(startDate, endDate),
+    })
+}
+
+/// AL-2 — THE SAME READ FOR MANY STORES IN A FIXED NUMBER OF QUERIES.
+///
+/// The All Locations view asks for every store at once. Looping getLaborActuals
+/// over nine stores is 27 round trips; this is THREE, regardless of how many
+/// stores are passed. Still aggregates only — the select list is identical to the
+/// single-store read plus `storeId`, so there is no per-person field to leak here
+/// either, and there is no per-person field for a caller to ask for.
+///
+/// Each store keeps its OWN timezone and its OWN covered-day set: the window is
+/// given as store-local yyyy-mm-dd and resolved per store, because two stores in
+/// different zones do not share a business day.
+export async function getLaborActualsForStores(
+  org: Organization,
+  stores: Store[],
+  startDate: string,
+  endDate: string,
+  now = new Date()
+): Promise<Map<string, LaborActualsResult>> {
+  const out = new Map<string, LaborActualsResult>()
+  if (stores.length === 0) return out
+
+  // One window per store, then the widest span of them all for the single
+  // timecard query — the per-store bounds are re-applied in memory below, so a
+  // store never sees another store's zone shift.
+  const bounds = new Map(
+    stores.map((st) => [
+      st.id,
+      { start: localMidnightUtc(startDate, st.timezone), end: localMidnightUtc(nextDay(endDate), st.timezone) },
+    ])
+  )
+  const widestStart = new Date(Math.min(...[...bounds.values()].map((b) => b.start.getTime())))
+  const widestEnd = new Date(Math.max(...[...bounds.values()].map((b) => b.end.getTime())))
+
+  const storeIds = stores.map((st) => st.id)
+  const [rows, syncStates] = await Promise.all([
+    prisma.squareTimecard.findMany({
+      where: {
+        organizationId: org.id,
+        storeId: { in: storeIds },
+        startAt: { gte: widestStart, lt: widestEnd },
+      },
+      select: { storeId: true, startAt: true, endAt: true, breakUnpaidMinutes: true, wageHourlyRate: true },
+    }),
+    prisma.squareLaborSyncState.findMany({
+      where: { storeId: { in: storeIds } },
+      select: { storeId: true, lastSyncOkAt: true, lastError: true },
+    }),
+  ])
+
+  const syncByStore = new Map(syncStates.map((r) => [r.storeId, { lastSyncOkAt: r.lastSyncOkAt, lastError: r.lastError }]))
+  const rowsByStore = new Map<string, typeof rows>()
+  for (const r of rows) {
+    const b = bounds.get(r.storeId)
+    // The widest-span query can hand a store rows from outside ITS OWN window.
+    // Drop them here rather than letting a zone shift smuggle an extra evening
+    // shift into one store's day.
+    if (!b || r.startAt < b.start || r.startAt >= b.end) continue
+    const list = rowsByStore.get(r.storeId)
+    if (list) list.push(r)
+    else rowsByStore.set(r.storeId, [r])
+  }
+
+  const coveredByStore = new Map<string, string[]>()
+  for (const st of stores) {
+    const list = rowsByStore.get(st.id) ?? []
+    coveredByStore.set(st.id, [...new Set(list.map((r) => localDateStr(r.startAt, st.timezone)))].sort())
+  }
+
+  // The third query: net sales for every (store, covered day) pair at once. An OR
+  // of per-store day sets, grouped by store — one round trip for the whole estate.
+  const salesPairs = stores
+    .filter((st) => (coveredByStore.get(st.id) ?? []).length > 0)
+    .map((st) => ({ storeId: st.id, date: { in: (coveredByStore.get(st.id) ?? []).map(dbDate) } }))
+  const salesRows =
+    salesPairs.length > 0
+      ? await prisma.salesPeriodCache.groupBy({
+          by: ["storeId"],
+          where: { OR: salesPairs },
+          _sum: { netSales: true },
+        })
+      : []
+  const salesByStore = new Map(salesRows.map((r) => [r.storeId, r._sum.netSales ?? 0]))
+
+  const windowDays = daysInclusive(startDate, endDate)
+  for (const st of stores) {
+    const list = rowsByStore.get(st.id) ?? []
+    const covered = coveredByStore.get(st.id) ?? []
+    out.set(
+      st.id,
+      computeLaborActuals({
+        timecards: list.map((r) => ({
+          startAt: r.startAt,
+          endAt: r.endAt,
+          breakUnpaidMinutes: r.breakUnpaidMinutes,
+          wageHourlyRate: r.wageHourlyRate === null ? null : Number(r.wageHourlyRate),
+        })),
+        netSales: salesByStore.get(st.id) ?? 0,
+        now,
+        windowEnd: bounds.get(st.id)!.end,
+        syncState: syncByStore.get(st.id) ?? null,
+        daysCovered: covered.length,
+        daysInWindow: windowDays,
+      })
+    )
+  }
+  return out
 }
 
 // ─── THE SYNC (POLL, NOT WEBHOOK) ─────────────────────────────────────────────
@@ -537,6 +686,13 @@ function localMidnightUtc(dateStr: string, timeZone: string): Date {
     Number(p.second)
   )
   return new Date(guess.getTime() - (asUtc - guess.getTime()))
+}
+
+/// Inclusive day span of a yyyy-mm-dd range. Calendar arithmetic on UTC midnights,
+/// which is safe here because both ends are date STRINGS, not instants.
+function daysInclusive(startDate: string, endDate: string): number {
+  const ms = Date.parse(`${endDate}T00:00:00.000Z`) - Date.parse(`${startDate}T00:00:00.000Z`)
+  return Math.max(1, Math.round(ms / 86400000) + 1)
 }
 
 function nextDay(dateStr: string): string {

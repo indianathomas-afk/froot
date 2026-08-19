@@ -100,6 +100,7 @@ export type Capability =
   | "inventory.adjustments.record"
   | "inventory.analytics.view"
   | "labor.view"
+  | "labor.actuals.view"
   | "labor.manage"
   | "labor.toggle"
   | "hr.access"
@@ -243,6 +244,26 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // (labor.manage below is unchanged, and §3 #7 stays deliberately
   // unharmonized).
   "labor.view": ALL,
+  // AL-2 (Gary's Q-V ruling, 2026-08-19): actual labor % on the dashboard is
+  // visible to ADMIN, MANAGER and STORE alike — the same tier that already sees
+  // the weekly labor BUDGET in dollars on the same page — and must be DENIABLE
+  // PER USER from the /users grid.
+  //
+  // WHY A NEW CAPABILITY RATHER THAN WIRING IT TO labor.view. The ruling said to
+  // use labor.view if it supports per-user overrides. It does not: overrides are
+  // only expressible for capabilities in ENFORCED_CAPABILITIES, and labor.view
+  // is not one — nor can it be added cheaply, because it gates the Labor nav
+  // entry, the /labor page and every /api/labor route, so denying it to hide one
+  // percentage would take the whole module with it. labor.manage is held out of
+  // the grid for a related reason PERM-5C recorded ("Labor governance is its own
+  // ruling"). This entry is the smallest change that puts the PERCENTAGE — and
+  // only the percentage — in the grid: a new capability with no prior call sites,
+  // so no existing surface can regress, and ZERO baseline change for every role.
+  //
+  // OPERATIONAL, not ALL: STAFF is excluded because the ruling named three roles.
+  // Dollars are NOT governed here — laborCost never enters a dashboard payload
+  // (see the MANAGE-gated split in src/lib/labor-judgment.ts and the routes).
+  "labor.actuals.view": OPERATIONAL,
   "labor.manage": MANAGE,
   "labor.toggle": ADMIN_ONLY,
   "hr.access": ALL, // HR availability + org-toggle gates stay at the call site
@@ -547,6 +568,16 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     area: "Inventory",
     label: "Raise and edit purchase orders",
     removes: "Creating, editing, submitting and cancelling POs, and invoice uploads. Viewing and receiving are unaffected.",
+  },
+  // AL-2 append — the first Labor row in the grid, and deliberately the ONLY
+  // one. labor.view and labor.manage stay out (see the note at
+  // "labor.actuals.view" in GRANTS, and PERM-5C's held-out list).
+  {
+    capability: "labor.actuals.view",
+    area: "Labor",
+    label: "See actual labor %",
+    removes:
+      "The labor % readouts on the Dashboard (Sales Performance, Monthly Goal, All Locations). The Labor module, the weekly budget card and its target % are unaffected.",
   },
 ]
 

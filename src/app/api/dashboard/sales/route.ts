@@ -4,6 +4,7 @@ import { z } from "zod"
 import { getCurrentUser } from "@/lib/auth"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
+import { loadLaborBlock, laborOverlayOn, scheduleLaborRefresh } from "@/lib/labor-dashboard"
 
 // GET /api/dashboard/sales?storeId=&start=&end=&compare= — sales data for the
 // Dashboard's Sales Performance card. The selection may be a single day
@@ -123,7 +124,7 @@ export async function GET(req: Request) {
     console.error("[api/dashboard/sales] auth/context error:", err)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const { org, dbUser } = ctx
+  const { org, dbUser, actor } = ctx
   const isAdmin = dbUser?.role === "ADMIN"
   const scopedStoreIds = dbUser?.storeAssignments.map((a) => a.storeId) ?? []
 
@@ -165,6 +166,17 @@ export async function GET(req: Request) {
   const salesAvailable =
     org.activeModules.includes("inventory") && !!store.squareLocationId && !!org.squareAccessToken
 
+  // AL-2 — the labor block for the SELECTED window, so the labor % follows the
+  // card's own date picker rather than inventing a second one. `null` when any
+  // of the five gates is off, and it is spread, so an org without the overlay
+  // gets a payload with no `labor` key at all — byte-identical to Phase 1.
+  const labor = await loadLaborBlock(org, store, actor, start, end)
+  // R1 (Gary, 2026-08-19): freshness is attempted whenever the OVERLAY is on,
+  // independent of whether sales are available — a store whose Square token is
+  // gone still serves its mirrored rows, and scheduleLaborRefresh no-ops without
+  // a token rather than hiding anything.
+  if (labor && laborOverlayOn(org) && end === today) scheduleLaborRefresh(org, [store])
+
   if (!salesAvailable) {
     return NextResponse.json({
       store: { id: store.id, name: store.name, timezone: tz },
@@ -177,6 +189,10 @@ export async function GET(req: Request) {
       granularity: start === end ? "hourly" : "daily",
       selected: null,
       compareData: null,
+      // Carried into the disconnected branch ON PURPOSE (R1): the overlay staying
+      // on through a disconnect is the 2026-08-05 ruling, and the card renders the
+      // last-synced stamp here rather than pretending the feature is gone.
+      ...(labor ? { labor } : {}),
     })
   }
 
@@ -254,5 +270,6 @@ export async function GET(req: Request) {
     granularity: hourly ? "hourly" : "daily",
     selected,
     compareData,
+    ...(labor ? { labor } : {}),
   })
 }

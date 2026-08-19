@@ -87,7 +87,15 @@ const STATUS: Record<PlanDay["status"], { dot: string; label: string; text: stri
   closed: { dot: "var(--color-muted-foreground)", label: "Closed", text: "text-[var(--color-muted-foreground)]" },
 }
 
-export function WeeklyPlanClient({ stores }: { stores: { id: string; name: string }[] }) {
+export function WeeklyPlanClient({
+  stores,
+  advancedLabor = null,
+}: {
+  stores: { id: string; name: string }[]
+  /// null = the Square-labor overlay does not exist in this environment (no
+  /// badge at all). true/false = it exists and is on/off for this org.
+  advancedLabor?: boolean | null
+}) {
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "")
   const [weekStart, setWeekStart] = useState(() => mondayOf(todayStr()))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -139,6 +147,18 @@ export function WeeklyPlanClient({ stores }: { stores: { id: string; name: strin
           <div className="flex items-center gap-2">
             <CalendarRange className="h-5 w-5 text-[var(--color-primary)]" />
             <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Weekly Plan</h1>
+            {advancedLabor !== null && (
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                  advancedLabor
+                    ? "bg-[#25ba3b]/10 text-[var(--color-success-text,#1d7c2e)]"
+                    : "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"
+                }`}
+                title="Advanced Labor mirrors Square timecards to show ACTUAL labor % on the dashboard. Turn it on or off in Settings → Square Integration."
+              >
+                Advanced Labor: {advancedLabor ? "On" : "Off"}
+              </span>
+            )}
           </div>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
             Everything you need to write the week&apos;s schedule — forecast, hours, and recommended coverage in one view.

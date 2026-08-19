@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
-import { getUserStoreScope, laborModuleAvailable } from "@/lib/auth"
+import { getUserStoreScope, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
 import { WeeklyPlanClient } from "./weekly-plan-client"
 
 // Weekly Plan (L-3) — the digital successor to the "Chief Schedule Strategy"
@@ -26,5 +26,12 @@ export default async function LaborWeeklyPlanPage() {
     select: { id: true, name: true },
   })
 
-  return <WeeklyPlanClient stores={stores} />
+  // AL-2 (Gary's Q2 ruling from AL-1, delivered in Phase 2): a READ-ONLY
+  // indication that the Advanced Labor overlay is on. The FLIP still lives in the
+  // Square Integration card on /settings per seam (a) — this is a label, not a
+  // control, and deliberately renders nothing where the overlay does not exist in
+  // this environment at all.
+  const advancedLabor = squareLaborAvailable(orgId) ? org.squareLaborEnabled : null
+
+  return <WeeklyPlanClient stores={stores} advancedLabor={advancedLabor} />
 }

@@ -13,12 +13,22 @@
  *   5. Zero sales yields laborPct === null, NEVER 0. ("no sales yet" is not "0%")
  *   6. Health: never / fresh / stale / error, including the case that motivates
  *      the separate sync-state table — synced fine, zero timecards.
+ *
+ * AL-2 (Phase 2) appends the cases the dashboard cards rest on:
+ *   7. The coverage pair — a partly-synced window measures the covered days on
+ *      BOTH sides, and the surface can say how many.
+ *   8. The judgment: target as set (not the floored rate), the three zones, and
+ *      the refusal to judge a number that is not fresh.
+ *   9. The estate roll-up: dollars summed then divided, never a mean of ratios,
+ *      with a sales-weighted target and worst-health-wins.
  */
 import {
   computeLaborActuals,
   computeHealth,
+  type LaborActualsResult,
   type LaborActualsTimecard,
 } from "../src/lib/labor-actuals"
+import { aggregateLaborActuals, formatLaborPct, judgeLaborPct } from "../src/lib/labor-judgment"
 
 let failures = 0
 function check(label: string, actual: unknown, expected: unknown) {
@@ -135,6 +145,128 @@ console.log("\n6. Health, including the case the sync-state table exists for")
   check("empty + fresh sync → hours", empty.laborHours, 0)
   check("empty + fresh sync → pct", empty.laborPct, null)
   check("empty + fresh sync → costComplete", empty.costComplete, true)
+}
+
+// ─── AL-2 ─────────────────────────────────────────────────────────────────────
+
+console.log("\n7. AL-2 — the coverage pair")
+{
+  // 10h at $20 = $200 of cost. The CALLER restricts netSales to the covered days
+  // (getLaborActuals does this with `date: { in: coveredDates }`), so the fixture
+  // asserts the contract that matters: whatever days the caller says are covered,
+  // laborPct is computed against the sales for exactly those days.
+  const tc: LaborActualsTimecard[] = [
+    { startAt: utc("2026-08-18T16:00:00.000"), endAt: utc("2026-08-19T02:00:00.000"), breakUnpaidMinutes: 0, wageHourlyRate: 20 },
+  ]
+  const partial = computeLaborActuals({
+    timecards: tc,
+    netSales: 1000, // three synced days' sales, NOT the whole month's
+    now: NOW,
+    windowEnd: WINDOW_END,
+    syncState: FRESH_SYNC,
+    daysCovered: 3,
+    daysInWindow: 19,
+  })
+  check("partial window → pct over the covered days", partial.laborPct, 20)
+  check("partial window → daysCovered carried", partial.daysCovered, 3)
+  check("partial window → daysInWindow carried", partial.daysInWindow, 19)
+
+  // THE DEFECT THIS EXISTS TO PREVENT, stated as a number: the same cost divided
+  // by the WHOLE month's sales reads 3.2% against a 20% target — green, precise
+  // and wrong. Asserted so a future edit that "simplifies" the denominator back
+  // to the full range fails here instead of on the dashboard.
+  const wrong = computeLaborActuals({
+    timecards: tc,
+    netSales: 6333.34, // nineteen days of sales
+    now: NOW,
+    windowEnd: WINDOW_END,
+    syncState: FRESH_SYNC,
+    daysCovered: 3,
+    daysInWindow: 19,
+  })
+  check("the wrong denominator would have read", Number(wrong.laborPct!.toFixed(1)), 3.2)
+
+  // Defaults keep the single-day call AL-1 shipped meaning exactly what it did.
+  const singleDay = computeLaborActuals({ timecards: tc, netSales: 1000, now: NOW, windowEnd: WINDOW_END, syncState: FRESH_SYNC })
+  check("defaults → daysCovered", singleDay.daysCovered, 1)
+  check("defaults → daysInWindow", singleDay.daysInWindow, 1)
+}
+
+console.log("\n8. AL-2 — the judgment")
+{
+  // Target AS SET (Gary's R2): 20, never the tier-floored 18.8 that
+  // computeWeeklyLaborBudget reports as projectedLaborPctAtForecast.
+  check("under target → within", judgeLaborPct(18.0, 20, "fresh"), "within")
+  check("inside the 1-point band → near", judgeLaborPct(19.5, 20, "fresh"), "near")
+  // EXACTLY ON TARGET IS AMBER, NOT GREEN, and that is the existing scale rather
+  // than a new opinion: zone() in labor-budget-card.tsx has always put "within one
+  // point of target" in the warning band, and R3 (Gary, 2026-08-19) said to reuse
+  // it so the planned % and the actual % on one dashboard are judged by one rule.
+  // Vision item 3's wording ("green if meets/exceeds") reads a hair differently at
+  // this single boundary; the consistency ruling wins, and the difference is
+  // visible only at a percentage exactly equal to target. Flagged for Gary rather
+  // than resolved silently in either direction.
+  check("exactly on target → near (the existing scale's edge band)", judgeLaborPct(20, 20, "fresh"), "near")
+  check("over target → over", judgeLaborPct(20.1, 20, "fresh"), "over")
+  // 19% would be OVER against the floored 18.8% rate and is WITHIN against the
+  // target the operator actually set. This check is the ruling, in code.
+  check("19% against a 20% target is within, not over", judgeLaborPct(19, 20, "fresh"), "within")
+
+  // NEVER JUDGE DATA THAT IS NOT CURRENT — a stale number painted green is a
+  // false reassurance, which is worse than no colour at all.
+  check("stale is not judged", judgeLaborPct(12, 20, "stale"), "unjudged")
+  check("error is not judged", judgeLaborPct(12, 20, "error"), "unjudged")
+  check("never is not judged", judgeLaborPct(12, 20, "never"), "unjudged")
+  check("null pct is not judged", judgeLaborPct(null, 20, "fresh"), "unjudged")
+
+  // The formatter is the last line of defence on seam (c)'s rule.
+  check("null renders an em-dash, never 0%", formatLaborPct(null), "—")
+  check("a real value renders one decimal", formatLaborPct(33.66), "33.7%")
+}
+
+console.log("\n9. AL-2 — the estate roll-up")
+{
+  const mk = (over: Partial<LaborActualsResult>): LaborActualsResult => ({
+    laborPct: null, laborCost: 0, laborHours: 0, sales: 0, daysCovered: 1, daysInWindow: 1,
+    health: "fresh", timecardCount: 0, openTimecardCount: 0, wageMissingCount: 0,
+    costComplete: true, otApplied: false, lastSyncOkAt: "2026-08-18T19:45:00.000Z", ...over,
+  })
+
+  // A small store at 40% on $1,000 and a big store at 10% on $9,000. The MEAN OF
+  // THE RATIOS is 25%; the true estate figure is $1,300 / $10,000 = 13%. Summing
+  // dollars is the only roll-up that produces a number any store recognises.
+  const small = mk({ laborCost: 400, sales: 1000, laborPct: 40 })
+  const big = mk({ laborCost: 900, sales: 9000, laborPct: 10 })
+  const estate = aggregateLaborActuals(
+    [
+      { laborCost: small.laborCost, sales: small.sales, result: small },
+      { laborCost: big.laborCost, sales: big.sales, result: big },
+    ],
+    [25, 15]
+  )
+  check("dollars summed then divided, not a mean of ratios", estate.laborPct, 13)
+  check("the mean of ratios would have read", (40 + 10) / 2, 25)
+  // Sales-weighted target: (1000×25 + 9000×15) / 10000 = 16.
+  check("estate target is sales-weighted", estate.target, 16)
+  check("estate verdict against that target", judgeLaborPct(estate.laborPct, estate.target, estate.health), "within")
+
+  // WORST HEALTH WINS — one never-synced store makes the company number
+  // incomplete, and an "average freshness" would measure nothing.
+  const mixed = aggregateLaborActuals(
+    [
+      { laborCost: 400, sales: 1000, result: mk({ laborCost: 400, sales: 1000 }) },
+      { laborCost: 0, sales: 0, result: mk({ health: "never", daysCovered: 0, lastSyncOkAt: null }) },
+    ],
+    [20, 20]
+  )
+  check("worst health wins", mixed.health, "never")
+  check("stores reporting counts only those with covered days", mixed.storesReporting, 1)
+  check("stores total counts them all", mixed.storesTotal, 2)
+
+  // No sales anywhere is still "no sales yet", never 0% — seam (c) survives the
+  // roll-up as well as the single-store read.
+  const silent = aggregateLaborActuals([{ laborCost: 0, sales: 0, result: mk({}) }], [20])
+  check("estate with no sales → pct null", silent.laborPct, null)
 }
 
 console.log(`\n${failures === 0 ? "PASS" : `FAIL — ${failures} check(s)`}\n`)

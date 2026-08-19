@@ -1,15 +1,30 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { ChevronDown, CircleAlert } from "lucide-react"
-import type { DateRange } from "react-day-picker"
+import { CircleAlert } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Line, LineChart, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer } from "recharts"
+// AL-2: the picker and its calendar arithmetic now live in one place, shared with
+// the All Locations view — see date-range-picker.tsx.
+import {
+  DatePicker,
+  PickerPill,
+  PRESETS,
+  daysInclusive,
+  fmtDay,
+  fromDateStr,
+  rangeLabel,
+  resolvePreset,
+  shiftDateStr,
+  toDateStr,
+  type Preset,
+} from "./date-range-picker"
 import { fetchCard, POLL_ATTEMPTS, POLL_INTERVAL_MS } from "./card-fetch"
+import { LaborNotes, LaborPctMetric } from "./labor-pct"
+import type { LaborBlock } from "@/lib/labor-judgment"
 
 // Sales Performance card (Dashboard) — date navigation + comparison baseline.
 // The selection may be a single day (hourly pace chart) or a range (daily
@@ -42,6 +57,10 @@ type SalesResponse = {
   granularity: "hourly" | "daily"
   selected: WindowData | null
   compareData: WindowData | null
+  // AL-2 — ABSENT, not null, when the Advanced Labor overlay is off or the viewer
+  // lacks labor.actuals.view. An org without the overlay gets a payload with no
+  // `labor` key at all, so this card renders byte-identically to Phase 1.
+  labor?: LaborBlock
 }
 
 const COMPARE_MODES = [
@@ -53,92 +72,11 @@ const COMPARE_MODES = [
 ] as const
 type CompareMode = (typeof COMPARE_MODES)[number]
 
-const PRESETS = [
-  "today",
-  "yesterday",
-  "this_week",
-  "last_week",
-  "this_month",
-  "last_month",
-  "this_year",
-  "last_year",
-  "custom",
-] as const
-type Preset = (typeof PRESETS)[number]
-
-const PRESET_LABELS: Record<Preset, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  this_week: "This week",
-  last_week: "Last week",
-  this_month: "This month",
-  last_month: "Last month",
-  this_year: "This year",
-  last_year: "Last year",
-  custom: "Custom",
-}
-
-// ─── Local-date helpers (yyyy-mm-dd strings, browser-local calendar) ─────────
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-}
-
-function fromDateStr(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number)
-  return new Date(y, m - 1, d)
-}
-
-function shiftDateStr(dateStr: string, days: number): string {
-  const d = fromDateStr(dateStr)
-  d.setDate(d.getDate() + days)
-  return toDateStr(d)
-}
-
 function priorCalendarYear(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number)
   const dt = new Date(y - 1, m - 1, d)
   if (dt.getMonth() !== m - 1) dt.setDate(0) // Feb 29 → Feb 28
   return toDateStr(dt)
-}
-
-function daysInclusive(start: string, end: string): number {
-  return Math.round((fromDateStr(end).getTime() - fromDateStr(start).getTime()) / 86400000) + 1
-}
-
-// Weeks start Sunday (matches the Square calendar the design mirrors).
-function resolvePreset(preset: Exclude<Preset, "custom">): { start: string; end: string } {
-  const now = new Date()
-  const t = toDateStr(now)
-  switch (preset) {
-    case "today":
-      return { start: t, end: t }
-    case "yesterday": {
-      const y = shiftDateStr(t, -1)
-      return { start: y, end: y }
-    }
-    case "this_week": {
-      const start = shiftDateStr(t, -now.getDay())
-      return { start, end: t }
-    }
-    case "last_week": {
-      const thisWeekStart = shiftDateStr(t, -now.getDay())
-      return { start: shiftDateStr(thisWeekStart, -7), end: shiftDateStr(thisWeekStart, -1) }
-    }
-    case "this_month":
-      return { start: `${t.slice(0, 7)}-01`, end: t }
-    case "last_month": {
-      const firstOfThis = fromDateStr(`${t.slice(0, 7)}-01`)
-      const lastOfPrev = new Date(firstOfThis.getFullYear(), firstOfThis.getMonth(), 0)
-      return { start: `${toDateStr(lastOfPrev).slice(0, 7)}-01`, end: toDateStr(lastOfPrev) }
-    }
-    case "this_year":
-      return { start: `${t.slice(0, 4)}-01-01`, end: t }
-    case "last_year": {
-      const y = Number(t.slice(0, 4)) - 1
-      return { start: `${y}-01-01`, end: `${y}-12-31` }
-    }
-  }
 }
 
 // Comparison window (same math as the API route) for the dropdown labels.
@@ -169,26 +107,8 @@ function hourLabel(h: number): string {
   return `${h - 12}p`
 }
 
-function fmtDay(dateStr: string, withYear = false): string {
-  return fromDateStr(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    ...(withYear ? { year: "numeric" } : {}),
-  })
-}
-
 function weekdayShort(dateStr: string): string {
   return fromDateStr(dateStr).toLocaleDateString("en-US", { weekday: "short" })
-}
-
-function rangeLabel(start: string, end: string): string {
-  const thisYear = String(new Date().getFullYear())
-  const withYear = start.slice(0, 4) !== thisYear || end.slice(0, 4) !== thisYear
-  if (start === end) return fmtDay(start, withYear)
-  if (start.slice(0, 7) === end.slice(0, 7)) {
-    return `${fmtDay(start)}–${Number(end.slice(8, 10))}${withYear ? `, ${end.slice(0, 4)}` : ""}`
-  }
-  return `${fmtDay(start, withYear)} – ${fmtDay(end, withYear)}`
 }
 
 function compareModeLabel(mode: CompareMode, start: string, end: string): string {
@@ -427,6 +347,16 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
             <p className="text-sm text-[var(--color-muted-foreground)]">
               Link this store to a Square location (and activate the Inventory module) to light up live sales.
             </p>
+            {/* R1 (Gary, 2026-08-19): a disconnect degrades the overlay, it never
+                removes it. The mirrored timecards Froot already holds still
+                render here, stale and stamped, rather than vanishing with the
+                sales block. */}
+            {data.labor && (
+              <div className="mt-4 w-full max-w-[220px] text-left">
+                <LaborPctMetric block={data.labor} />
+                <LaborNotes block={data.labor} timeZone={data.store.timezone} />
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -493,7 +423,9 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
               </p>
             )}
 
-            <div className="grid grid-cols-3 gap-3 border-t border-[var(--color-border)] mt-3 pt-3">
+            <div
+              className={`grid ${data.labor ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"} gap-3 border-t border-[var(--color-border)] mt-3 pt-3`}
+            >
               <MiniMetric
                 label="Gross sales"
                 value={usd(selected?.gross ?? 0)}
@@ -512,7 +444,14 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
                 current={selected?.avgSale ?? 0}
                 baseline={hasCompare ? compareData!.avgSale : null}
               />
+              {/* AL-2 feature 1 — labor % beside gross sales / transactions /
+                  average sale, over the SAME window the picker above selected.
+                  No comparison pill: a labor % is judged against BUDGET, not
+                  against last year, and a delta arrow beside a verdict colour
+                  would be two judgments of one number. */}
+              {data.labor && <LaborPctMetric block={data.labor} />}
             </div>
+            {data.labor && <LaborNotes block={data.labor} timeZone={data.store.timezone} />}
           </>
         )}
       </CardContent>
@@ -521,101 +460,6 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
 }
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
-
-function PickerPill({ prefix, label }: { prefix: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5 rounded-md border border-[var(--color-input)] px-2.5 h-8 text-[13px] hover:bg-[var(--color-accent)] cursor-pointer">
-      <span className="text-[var(--color-muted-foreground)]">{prefix}</span>
-      <span className="font-semibold text-[var(--color-foreground)]">{label}</span>
-      <ChevronDown className="h-3.5 w-3.5 text-[var(--color-muted-foreground)]" />
-    </span>
-  )
-}
-
-function DatePicker({
-  preset,
-  range,
-  onApply,
-}: {
-  preset: Preset
-  range: { start: string; end: string }
-  onApply: (preset: Preset, range: { start: string; end: string }) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<DateRange | undefined>()
-
-  const pillLabel =
-    preset === "today" || preset === "yesterday" ? PRESET_LABELS[preset] : rangeLabel(range.start, range.end)
-
-  const openChange = (o: boolean) => {
-    setOpen(o)
-    if (o) setDraft({ from: fromDateStr(range.start), to: fromDateStr(range.end) })
-  }
-
-  const applyDraft = () => {
-    if (!draft?.from) return
-    const from = draft.from
-    const to = draft.to ?? draft.from
-    onApply("custom", { start: toDateStr(from), end: toDateStr(to) })
-    setOpen(false)
-  }
-
-  return (
-    <Popover open={open} onOpenChange={openChange}>
-      <PopoverTrigger asChild>
-        <button type="button" aria-label="Change date range">
-          <PickerPill prefix="Date" label={pillLabel} />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="p-0 w-auto">
-        <div className="flex">
-          <div className="flex flex-col border-r border-[var(--color-border)] p-2 min-w-[120px]">
-            {(PRESETS.filter((p) => p !== "custom") as Exclude<Preset, "custom">[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => {
-                  onApply(p, resolvePreset(p))
-                  setOpen(false)
-                }}
-                className={`text-left text-[13px] rounded-md px-2.5 py-1.5 hover:bg-[var(--color-accent)] ${
-                  preset === p ? "font-semibold text-[var(--color-primary)]" : "text-[var(--color-foreground)]"
-                }`}
-              >
-                {PRESET_LABELS[p]}
-              </button>
-            ))}
-            <span className={`text-left text-[13px] px-2.5 py-1.5 ${preset === "custom" ? "font-semibold text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]"}`}>
-              Custom
-            </span>
-          </div>
-          <div className="p-2">
-            <Calendar
-              mode="range"
-              selected={draft}
-              onSelect={setDraft}
-              defaultMonth={fromDateStr(range.start)}
-              disabled={{ after: new Date() }}
-            />
-            <div className="flex items-center justify-between gap-2 px-2 pb-2">
-              <p className="text-xs text-[var(--color-muted-foreground)]">
-                {draft?.from ? rangeLabel(toDateStr(draft.from), toDateStr(draft.to ?? draft.from)) : "Pick a day or range"}
-              </p>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={applyDraft} disabled={!draft?.from}>
-                  Apply
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 function ComparePicker({
   range,

@@ -1,12 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fetchCard } from "./card-fetch"
+import { DatePicker, PRESETS, rangeLabel, resolvePreset, type Preset } from "./date-range-picker"
+import { LaborNotes, LaborPctCell, LaborPctLine } from "./labor-pct"
+import { formatLaborPct, judgeLaborPct, laborVerdictClass, type EstateLaborBlock, type LaborBlock } from "@/lib/labor-judgment"
 
 // ─── All-locations rollup (Phase F-4) ─────────────────────────────────────────
 // Company-wide totals + a store ranking table, backed by /api/dashboard/rollup.
@@ -20,15 +23,22 @@ type RollupRow = {
   goalSource: "plan" | "manual" | null
   todayNet: number
   mtdActual: number
+  // AL-2 feature 6 — net sales over the SELECTED RANGE, beside the labor % so the
+  // percentage is checkable against the sales it divides by.
+  rangeNet: number
   mtdGoal: number | null
   monthGoal: number | null
   pace: number | null
   projected: number | null
   pctToGoal: number | null
+  // AL-2 feature 7 — absent when the overlay is off or the viewer lacks
+  // labor.actuals.view, so the column disappears rather than rendering dashes.
+  labor?: LaborBlock
 }
 
 type Rollup = {
   month: string
+  range: { start: string; end: string }
   totals: {
     todayNet: number
     mtdActual: number
@@ -38,6 +48,52 @@ type Rollup = {
     pctToGoal: number | null
   }
   stores: RollupRow[]
+  // AL-2 feature 4 — the company-wide labor card. Month-anchored: the range
+  // picker drives the ranking table only (Gary's R6, 2026-08-19).
+  laborTotals?: {
+    today: EstateLaborBlock
+    mtd: EstateLaborBlock
+    projectedPct: number | null
+    projectionDaysCovered: number
+  }
+}
+
+// ─── Range selection (session-scoped, same external-store pattern as the Sales
+// Performance card's — a separate key, because the two views are navigated
+// independently and a range chosen for one store is rarely the one wanted for
+// the estate) ────────────────────────────────────────────────────────────────
+
+const RANGE_KEY = "froot.dashboard.rollupRange"
+const RANGE_EVENT = "froot-dashboard-rollup-range"
+
+type SavedRange = { preset: Preset; start: string; end: string }
+
+function subscribeRange(callback: () => void) {
+  window.addEventListener("storage", callback)
+  window.addEventListener(RANGE_EVENT, callback)
+  return () => {
+    window.removeEventListener("storage", callback)
+    window.removeEventListener(RANGE_EVENT, callback)
+  }
+}
+
+function saveRange(r: SavedRange) {
+  sessionStorage.setItem(RANGE_KEY, JSON.stringify(r))
+  window.dispatchEvent(new Event(RANGE_EVENT))
+}
+
+function parseSavedRange(raw: string | null): SavedRange | null {
+  if (!raw) return null
+  try {
+    const r = JSON.parse(raw) as SavedRange
+    if (!PRESETS.includes(r.preset)) return null
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.start) || !/^\d{4}-\d{2}-\d{2}$/.test(r.end)) return null
+    // Named presets stay semantic across midnight — re-resolve to today.
+    if (r.preset !== "custom") return { ...r, ...resolvePreset(r.preset) }
+    return r
+  } catch {
+    return null
+  }
 }
 
 const usd = (n: number | null | undefined, digits = 0) =>
@@ -47,7 +103,7 @@ const usd = (n: number | null | undefined, digits = 0) =>
 
 const pct = (n: number | null) => (n === null ? "—" : `${n.toFixed(1)}%`)
 
-type SortKey = "name" | "todayNet" | "mtdActual" | "pace" | "projected" | "pctToGoal"
+type SortKey = "name" | "todayNet" | "mtdActual" | "rangeNet" | "laborPct" | "pace" | "projected" | "pctToGoal"
 
 // canViewForecasting: PERM-3 — the Store Ranking header's "Forecasting →" link
 // rendered for every role before this, including STORE/STAFF who cannot open
@@ -58,9 +114,25 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
   const [sortKey, setSortKey] = useState<SortKey>("mtdActual")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
+  const savedRaw = useSyncExternalStore(
+    subscribeRange,
+    () => sessionStorage.getItem(RANGE_KEY),
+    () => null
+  )
+  // Defaults to the current month, which is what this view showed before AL-2 —
+  // so a first visit with no saved selection renders the pre-AL-2 table.
+  const { preset, range } = useMemo(() => {
+    const r = parseSavedRange(savedRaw)
+    return r
+      ? { preset: r.preset, range: { start: r.start, end: r.end } }
+      : { preset: "this_month" as Preset, range: resolvePreset("this_month") }
+  }, [savedRaw])
+
   const load = useCallback(() => {
-    fetchCard<Rollup>("rollup", "/api/dashboard/rollup").then((d) => (d ? setData(d) : setFailed(true)))
-  }, [])
+    fetchCard<Rollup>("rollup", `/api/dashboard/rollup?start=${range.start}&end=${range.end}`).then((d) =>
+      d ? setData(d) : setFailed(true)
+    )
+  }, [range.start, range.end])
 
   useEffect(() => {
     load()
@@ -77,8 +149,11 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
     if (!data) return []
     return [...data.stores].sort((a, b) => {
       if (sortKey === "name") return sortDir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
-      const av = a[sortKey]
-      const bv = b[sortKey]
+      // laborPct lives one level down, inside the optional block. A store with no
+      // labor data sorts as null and sinks, by the same rule as every other
+      // column below — an absent percentage must never sort as a zero.
+      const av = sortKey === "laborPct" ? (a.labor?.laborPct ?? null) : a[sortKey]
+      const bv = sortKey === "laborPct" ? (b.labor?.laborPct ?? null) : b[sortKey]
       // Stores with no value for the column always sink to the bottom.
       if (av === null && bv === null) return 0
       if (av === null) return 1
@@ -116,6 +191,11 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
 
   const { totals } = data
   const monthName = new Date(`${data.month}T12:00:00Z`).toLocaleDateString("en-US", { month: "long" })
+  const rangeLbl = rangeLabel(data.range.start, data.range.end)
+  // The column appears only when the server actually sent labor for someone —
+  // gates off means no `labor` key on any row, and therefore no column at all
+  // rather than a column of dashes.
+  const hasLabor = data.stores.some((s) => s.labor)
   const paceTotal = totals.mtdGoal !== null && totals.mtdGoal > 0 ? (totals.mtdActual / totals.mtdGoal) * 100 : null
   const onTrack = totals.pctToGoal !== null && totals.pctToGoal >= 100
 
@@ -188,13 +268,74 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
             )}
           </CardContent>
         </Card>
+
+        {/* AL-2 feature 4 — company-wide labor %, month-anchored beside the three
+            sales cards it belongs with. Absent entirely when the overlay is off
+            or the viewer lacks labor.actuals.view. */}
+        {data.laborTotals && (
+          <Card className="flex-1 min-w-[240px]">
+            <CardContent className="pt-5 pb-4">
+              <p className="text-[15px] font-bold text-[var(--color-foreground)] mb-1">Labor %</p>
+              <p
+                className={`text-[28px] leading-tight font-extrabold ${laborVerdictClass(
+                  judgeLaborPct(data.laborTotals.mtd.laborPct, data.laborTotals.mtd.target, data.laborTotals.mtd.health)
+                )}`}
+              >
+                {formatLaborPct(data.laborTotals.mtd.laborPct)}
+                {data.laborTotals.mtd.laborPct !== null && <span className="text-base font-normal">*</span>}
+              </p>
+              <p className="text-[12.5px] text-[var(--color-muted-foreground)] mb-2">
+                {monthName} to date · target {data.laborTotals.mtd.target.toFixed(1)}%
+              </p>
+              <div className="space-y-1">
+                <LaborPctLine block={data.laborTotals.today} label="Today · all locations" />
+                {/* THE PROJECTION IS LABELLED AS ONE (Gary's R4). Its denominator
+                    is the goal-weighted Projected Month End sales figure printed
+                    on the card to the left — one month-end sales number on this
+                    page, not two — and its numerator is a run-rate over the days
+                    that actually carry timecards. Mixed bases, said out loud. */}
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[12.5px] text-[var(--color-muted-foreground)]">Projected month end</span>
+                  <span
+                    className={`text-[13px] font-bold ${laborVerdictClass(
+                      // Judgment withheld below a week of synced days: a run-rate
+                      // built on one or two days is noise, and painting noise green
+                      // is the false reassurance this phase exists to avoid.
+                      data.laborTotals.projectionDaysCovered >= 7
+                        ? judgeLaborPct(data.laborTotals.projectedPct, data.laborTotals.mtd.target, data.laborTotals.mtd.health)
+                        : "unjudged"
+                    )}`}
+                  >
+                    {formatLaborPct(data.laborTotals.projectedPct)}
+                    {data.laborTotals.projectionDaysCovered < 7 && data.laborTotals.projectedPct !== null && (
+                      <span className="ml-1 text-[11px] font-normal text-[var(--color-muted-foreground)]">
+                        too early to judge
+                      </span>
+                    )}
+                  </span>
+                </div>
+              </div>
+              <LaborNotes block={data.laborTotals.mtd} />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Store ranking */}
       <Card>
         <CardContent className="pt-5 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[15px] font-bold text-[var(--color-foreground)]">Store Ranking</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[15px] font-bold text-[var(--color-foreground)]">Store Ranking</p>
+              {/* AL-2 feature 6 — the same control the Sales Performance card
+                  uses, imported rather than reimplemented. It drives THIS TABLE;
+                  the three cards above stay month-anchored (R6). */}
+              <DatePicker
+                preset={preset}
+                range={range}
+                onApply={(p, r) => saveRange({ preset: p, start: r.start, end: r.end })}
+              />
+            </div>
             {canViewForecasting && (
               <Link href="/forecasting" className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]">
                 Forecasting →
@@ -208,6 +349,11 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
                   {header("name", "Store", "left")}
                   {header("todayNet", "Today")}
                   {header("mtdActual", "MTD")}
+                  {/* The two range-driven columns sit together, labelled with the
+                      selection, so it is never ambiguous which columns the picker
+                      moves and which are month-anchored by definition. */}
+                  {header("rangeNet", `Net · ${rangeLbl}`)}
+                  {hasLabor && header("laborPct", `Labor % · ${rangeLbl}`)}
                   {header("pace", "% to MTD goal")}
                   {header("projected", "Projected")}
                   {header("pctToGoal", "vs goal")}
@@ -227,6 +373,12 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
                     </td>
                     <td className="py-2 text-right">{s.salesAvailable ? usd(s.todayNet) : "—"}</td>
                     <td className="py-2 text-right">{s.salesAvailable ? usd(s.mtdActual) : "—"}</td>
+                    <td className="py-2 text-right">{s.salesAvailable ? usd(s.rangeNet) : "—"}</td>
+                    {hasLabor && (
+                      <td className="py-2 text-right">
+                        <LaborPctCell block={s.labor} />
+                      </td>
+                    )}
                     <td className="py-2 text-right" title={s.goalSource === "manual" ? "Manual goal, prorated by days elapsed" : undefined}>
                       {pct(s.pace)}
                     </td>
@@ -251,7 +403,7 @@ export function RollupView({ canViewForecasting }: { canViewForecasting: boolean
                 ))}
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-[var(--color-muted-foreground)]">
+                    <td colSpan={hasLabor ? 9 : 8} className="py-6 text-center text-[var(--color-muted-foreground)]">
                       No stores assigned to you yet.
                     </td>
                   </tr>
