@@ -6,6 +6,93 @@ and the lift named a vision that **did not exist anywhere in the repo** — the
 SQ-VER-1 session recorded that `grep -rli "advanced labor"` over `docs/` and
 `froot_docs/` returned nothing the same day. This file is that gap closed.
 
+**Status: PHASE 2 BUILT — 2026-08-19 (AL-2 Phase B, work commits `8a28f61` and
+`f47e3bd`), staged, NOT promoted.** Prepended per preserve-and-mark; nothing below this
+block is edited. The dashboard now renders the number Phase 1 made trustworthy:
+labor % on the Sales Performance card, MTD labor % on the Monthly Goal card, and
+a labor % card, a per-store column and a date-range picker on All Locations
+(vision items 1, 3, 4, 6, 7). Phase 3 — items 2, 5 and 10 — has not started.
+
+**What Phase 2 added.** `src/lib/labor-judgment.ts` (the comparator, the payload
+shape and the honesty lines), `src/lib/labor-dashboard.ts` (the five gates, the
+target lookup and the freshness policy, written once for three routes),
+`src/app/(app)/dashboard/labor-pct.tsx` (every render rule in one component) and
+`src/app/(app)/dashboard/date-range-picker.tsx` (the Sales Performance card's
+picker, EXTRACTED so All Locations can share it rather than copy it). Labor
+blocks on `/api/dashboard/sales`, `/summary` and `/rollup`; range parameters on
+`/rollup`; one new capability, `labor.actuals.view`. **No migration, no schema
+change, no cron registration, no webhook change, no write to Square.**
+
+**The coverage fix is the load-bearing change, not the cards.** MTD labor % over
+a partly-synced month divided N days of cost by M days of sales — three synced
+days in a nineteen-day month read ~3.2% against a 20% target, which is green,
+precise and wrong. `getLaborActuals` now derives the store-local days that carry
+timecards from rows it has already loaded and restricts **both** sides to them,
+returning `daysCovered` / `daysInWindow` so every surface can say "N of M days
+synced". AL-1's verified 33.7% was a single-day query, where covered and window
+are the same day by construction, so the defect could not surface there.
+
+**Gary's rulings at the AL-2 hard stop, 2026-08-19** — all seven, each enforced
+at its site in `8a28f61`:
+
+| # | Ruling |
+|---|---|
+| **Q-V** | Labor % visible to ADMIN, MANAGER and STORE alike, and **deniable per user from the /users grid**. Dollars stay MANAGE. No wages, no per-person data, anywhere. |
+| **R1** | The 2026-08-05 ruling wins: a disconnect renders **stale with a last-synced stamp, never absent**. "Renders exactly as today" binds the toggle and env gates only. |
+| **R2** | Judged against `laborTargetPct` **as set**, never the tier-floored effective rate. |
+| **R3** | Reuse the existing three-zone scale (`zone()` in `labor-budget-card.tsx`). **SUPERSEDED the same day — see the boundary ruling below.** |
+| **R4** | The projection divides by the **existing goal-weighted month-end sales figure**, labelled. |
+| **R5** | No graph recolour; a slim labor meter in the metric row. |
+| **R6** | The picker drives the **ranking table**; the three summary cards stay month-anchored. |
+| **Q2 rider** | The one-line "Advanced Labor: On/Off" badge on `/labor` ships with this phase, discharging AL-1 Q2's promise. |
+
+**The Q-V ruling could not be wired to `labor.view`, and the reason is recorded
+rather than worked around.** Gary asked for `labor.view` *if that capability
+supports per-user overrides*. It does not: an override is only expressible for a
+capability in `ENFORCED_CAPABILITIES`, `labor.view` is not one, and it cannot be
+added cheaply because it gates the Labor nav entry, the `/labor` page and every
+`/api/labor` route — denying it to hide one percentage would take the whole
+module with it. (`labor.manage` is held out of the grid for the related reason
+PERM-5C recorded: "Labor governance is its own ruling.") The smallest change that
+puts the **percentage, and only the percentage**, in the grid is a new
+capability: `labor.actuals.view`, tier OPERATIONAL, with a grid row. It has no
+prior call sites, so **no role's baseline moved**. This is the presented
+alternative the ruling asked for; it is live in `8a28f61` and Gary's staging pass
+is where it is confirmed or reversed.
+
+**The boundary ruling — meeting budget is GREEN (Gary, 2026-08-19, work commit
+`f47e3bd`).** R3 originally said to reuse `zone()`'s scale verbatim, which put
+amber one point *below* target and therefore showed a warning colour to an
+operator who came in at 19.5% against a 20% target — and again at exactly 20.0%.
+Gary flipped it for actuals:
+
+| Actual | Verdict |
+|---|---|
+| `pct <= target` | **green** |
+| `target < pct <= target + 1` | **amber** — over budget, inside the grace band |
+| `pct > target + 1` | **red** |
+
+Amber moved sides rather than disappearing: a store a tenth of a point over is not
+in the same condition as one three points over, and collapsing both to red would
+throw away the only signal between them. Vision item 3's "green if meets/exceeds"
+is now literal.
+
+**This diverges from `zone()` on purpose, and the divergence is fenced by a
+fixture check.** The Labor Budget card still judges the PLANNED percentage on the
+old convention, because a plan cutting it fine is worth a nudge while an actual
+landing under target is not. The visible consequence: on one dashboard a store at
+19.5% against a 20% target shows **amber on the Labor Budget card and green on
+every labor % readout**. If a later session "harmonises" the two scales, the named
+check in `scripts/verify-labor-actuals.ts` is what fails.
+
+**Known limits carried forward, all unchanged by this phase:** overtime is still
+deferred and labelled (`otApplied: false`); the salaried GM who never clocks in
+is still unmeasured (Phase 3's roster work); a timecard deleted in Square still
+persists as a stale row; and the cron is still unregistered, so freshness rests on
+the debounced sync-on-load this phase added.
+
+---
+
 **Status: PHASE 1 BUILT — 2026-08-18 (AL-1 Phase B), staged, NOT promoted.**
 Gary ruled on every open question at the AL-1 hard stop and the build followed
 those rulings; each is recorded inline in § Open questions below, marked
@@ -64,7 +151,7 @@ sentence was superseded by the read-only ruling of the same day.
 | Phase | Scope | Vision items |
 |---|---|---|
 | **Phase 1** (AL-1, this design) | Toggle + timecard ingest + labor % foundation. **No dashboard UI.** Makes the labor number exist and be trustworthy. | 8 (the toggle half) |
-| **Phase 2** | Dashboard cards. | 1, 3, 4, 6, 7 |
+| **Phase 2** (AL-2, BUILT 2026-08-19, `8a28f61`, **staging**) | Dashboard cards. | 1, 3, 4, 6, 7 |
 | **Phase 3** | /staff pay rates, Positions roster from Square, tips. | 2, 5, 10 |
 | **Explicit non-changes** | Budget settings, weekly→daily split, shift blocks. Named here so a later session cannot read silence as permission. | 9, 11, 12 |
 

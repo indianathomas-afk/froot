@@ -6,6 +6,110 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Labor budgets are NET-sales-based, and the comparison is like-for-like — 2026-08-19 (Gary)
+
+Recorded because AL-1 Q4 left it owed. The labor % from `labor-actuals.ts` uses
+**net sales** as its denominator (ruled 2026-08-18); Gary confirmed his budget
+targets are set against net sales too, so actual-vs-budget compares two things
+that are the same thing. `LaborSettings.laborTargetPct` is therefore a net-sales
+rate, and nothing stored anywhere is gross-derived — no conversion exists, and
+none should be invented later.
+
+**What this does NOT settle.** `SalesForecast.projectedStoreSales` is still a
+hand-entered figure whose gross/net meaning is defined nowhere; AL-1 flagged it
+and it is still open. Phase 2 does not trip over it, because none of the five
+features divides labor cost by a forecast figure — the one place it touches is
+the All Locations month-end projection, whose denominator is the goal-weighted
+sales projection the card already prints, and that mix is labelled on the card
+rather than hidden (see R4 below).
+
+## Labor % is operational, deniable per user, and dollars are not — 2026-08-19 (Gary)
+
+**THE Q-V RULING**, and the anchor for who sees the Advanced Labor overlay.
+Actual labor % on the dashboard is visible to **ADMIN, MANAGER and STORE alike**
+— the same tier that already sees the weekly labor BUDGET in dollars on the same
+page, which is what made "MANAGER and up" incoherent: a store lead could see what
+they were allowed to spend but not what they were spending.
+
+**But visibility is a per-user deniable capability**, appearing in the /users
+Capability overrides grid, so one shared iPad can be dialled down without
+touching another. That is PERM-5's restrict-only override doing exactly the job
+PERM-7 device accounts were the motivating case for.
+
+**Dollars stay MANAGE-gated. No wages and no per-person data anywhere** — which
+Phase 1 already answered structurally by never assembling any.
+
+**The capability could not be `labor.view`, and the substitute is recorded rather
+than assumed.** Gary's ruling said to use `labor.view` *if it supports per-user
+overrides*, and to present the smallest alternative otherwise. It does not: an
+override is only expressible for a capability in `ENFORCED_CAPABILITIES`, and
+`labor.view` gates the Labor nav, the `/labor` page and every `/api/labor` route
+— denying it to hide a percentage would remove the module. The build introduced
+`labor.actuals.view` (OPERATIONAL) with a grid row, a capability with no prior
+call sites so **no role's baseline moved**. Gary's staging pass confirms or
+reverses it.
+
+## Meeting labor budget is GREEN — the amber band moves above target — 2026-08-19 (Gary)
+
+Supersedes R3 below, same day, once the consequence was visible. R3 said to reuse
+`zone()`'s scale for actual labor % so one dashboard judged planned and actual
+alike. `zone()` puts amber one point **below** target, which meant an operator who
+came in at 19.5% against a 20% target — under budget — was shown a warning
+colour, and so was one who landed at exactly 20.0%. That is a warning for
+succeeding. The scale for ACTUALS is now:
+
+- `pct <= target` → **green**
+- `target < pct <= target + 1` → **amber**, over budget but inside a grace band
+- `pct > target + 1` → **red**
+
+**Amber moved sides; it did not disappear.** A store a tenth of a point over is
+not in the same condition as one three points over, and collapsing both to red
+would discard the only signal between them.
+
+**The Labor Budget card is deliberately NOT changed, so the two now differ.** A
+PLAN that lands a hair under target is worth a nudge; an ACTUAL that lands under
+target is a win. The visible result is that a store at 19.5% shows amber on the
+Labor Budget card and green on every labor % readout, on the same page. That
+asymmetry is the decision, not drift, and a fixture check names it so a later
+"harmonisation" fails loudly.
+
+## The six AL-2 design rulings — 2026-08-19 (Gary)
+
+Ruled at the AL-2 Phase A hard stop and enforced at their sites in `8a28f61`.
+Kept together because each one is small and none is self-evident later.
+
+- **R1 — a Square disconnect degrades the overlay, it never removes it.** The
+  AL-2 prompt's hard rule 3 said a disconnect should render "exactly as today";
+  that contradicted the standing 2026-08-05 ruling and seam (c). **The
+  2026-08-05 ruling wins**: the card renders stale with a last-synced stamp.
+  "Renders exactly as today" binds the **toggle and the env gates only**.
+- **R2 — judge against `laborTargetPct` as the operator set it**, never against
+  `computeWeeklyLaborBudget`'s `projectedLaborPctAtForecast`. That figure is
+  lower because the sales basis is floored to the rounding tier, and the flooring
+  is scheduling conservatism, not a judgment threshold. Judging actuals against
+  it would mark a store "over" at 19% when the target is 20%.
+- **R3 — reuse the existing three-zone scale** (`zone()` in
+  `labor-budget-card.tsx`: red over target, amber within one point below, green
+  under that) so the planned % and the actual % are judged by one rule.
+  **SUPERSEDED THE SAME DAY — see the entry above this one.** Reusing `zone()`
+  verbatim meant a warning colour at 19.5% and at exactly 20.0% against a 20%
+  target, and Gary flipped the boundary once he saw it. The reasoning is kept
+  because it explains why the two cards still differ.
+- **R4 — the month-end labor projection divides by the month-end sales figure
+  the card already prints** (the goal-weighted `projectMonthEnd`), not by a
+  second, differently-derived sales projection. Two different month-end sales
+  numbers on one card is a worse defect than one mixed basis, and the mixed basis
+  is labelled. Its numerator is a run-rate over the days that carry timecards —
+  never over days elapsed, which would understate.
+- **R5 — no recolouring of the sales graph.** Vision item 1 asks for a "green bar
+  in the sales graph"; the graph is a cumulative line chart with no bars, and
+  recolouring the sales line would make the sales colour mean labor. A slim
+  labor meter sits in the metric row beside the number it describes.
+- **R6 — the All Locations date picker drives the ranking table**; [Today · All
+  Locations], [to Date] and [Projected Month End] stay month-anchored, because
+  re-pointing them at "last week" would leave three cards whose titles no longer
+  described their contents.
+
 ## The L-2 deferral is lifted — Advanced Labor is the build — 2026-08-18 (Gary)
 
 The 2026-08-05 deferral did its job: the seam got designed, the survey ran,

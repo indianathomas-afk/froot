@@ -6993,6 +6993,108 @@ phases:
       OPTIONAL Square labor integration — schedules and timecards as an overlay
       on forecast-driven labor, per-org toggle, off by default
     notes: >
+      PHASE 2 IS BUILT — 2026-08-19 (AL-2, work commits 8a28f61 and f47e3bd).
+      Prepended;
+      nothing below is edited. STATUS STAYS in_progress — Phase 3 (items 2, 5,
+      10) has not started. STAGED, NOT PROMOTED, and production stays dark
+      regardless: SQUARE_LABOR_AVAILABLE is Preview-only and its activation is
+      its own future decision.
+
+      THE DASHBOARD NOW RENDERS THE NUMBER PHASE 1 MADE TRUSTWORTHY. Vision items
+      1, 3, 4, 6 and 7: labor % on the Sales Performance card, MTD labor % on the
+      Monthly Goal card, and a labor % card, a per-store column and a date-range
+      picker on All Locations. New: src/lib/labor-judgment.ts,
+      src/lib/labor-dashboard.ts, dashboard/labor-pct.tsx and
+      dashboard/date-range-picker.tsx. Labor blocks on /api/dashboard/sales,
+      /summary and /rollup; range params on /rollup. NO MIGRATION, no schema
+      change, no cron registration, no webhook change, no write to Square.
+
+      THE COVERAGE FIX IS THE LOAD-BEARING CHANGE, NOT THE CARDS, and it is the
+      kind of defect this file exists to keep findable. MTD labor % over a
+      partly-synced month divided N days of cost by M days of sales: three synced
+      days in a nineteen-day month read ~3.2% against a 20% target — GREEN,
+      PRECISE AND WRONG, which is the failure mode the seam's honesty rules are
+      arranged against. getLaborActuals now derives the store-local days that
+      carry timecards from rows it has already loaded and restricts BOTH sides to
+      them, returning daysCovered/daysInWindow so every surface says "N of M days
+      synced". AL-1's verified 33.7% was a SINGLE-DAY query, where covered and
+      window are the same day by construction, so the defect could not have
+      surfaced at Phase 1's verification. The fixture asserts what the old
+      denominator would have printed, so a later "simplification" back to the
+      full range fails there rather than on a card.
+
+      Q-V RULED AND IT COULD NOT BE WIRED WHERE THE RULING FIRST POINTED. Gary
+      ruled labor % visible to ADMIN, MANAGER and STORE alike — the tier that
+      ALREADY sees the weekly labor BUDGET in dollars on the same page via
+      /api/labor/budget's requireLaborView — and DENIABLE PER USER from the
+      /users grid, with dollars staying MANAGE. The ruling said to use labor.view
+      if it supports overrides and to present the smallest alternative otherwise.
+      It does not: an override is only expressible for an ENFORCED_CAPABILITIES
+      entry, and labor.view gates the Labor nav, the /labor page and every
+      /api/labor route, so denying it to hide one percentage would take the
+      module with it — the same shape as labor.manage, which PERM-5C held out of
+      the grid saying "Labor governance is its own ruling". The build introduced
+      labor.actuals.view (OPERATIONAL) with a grid row: NO PRIOR CALL SITES, so
+      no role's baseline moved. Gary's staging pass confirms or reverses it.
+
+      SIX MORE RULINGS, all Gary 2026-08-19, all enforced at their sites and all
+      recorded in DECISIONS.md: R1 a disconnect degrades and never removes (the
+      2026-08-05 ruling beat the AL-2 prompt's hard rule 3, which contradicted
+      it); R2 judge against laborTargetPct AS SET, not the tier-floored effective
+      rate; R3 reuse zone()'s three-zone scale; R4 the month-end labor projection
+      divides by the goal-weighted sales projection the card already prints, so
+      the page carries ONE month-end sales number rather than two, mixed basis
+      labelled; R5 no graph recolour (the "green bar" of item 1 is a slim meter
+      in the metric row — the chart is a line chart and has no bars); R6 the
+      picker drives the ranking table while the three summary cards stay
+      month-anchored.
+
+      R3 WAS SUPERSEDED THE SAME DAY, once its consequence was visible (f47e3bd).
+      Reusing zone() verbatim put amber ONE POINT BELOW target, so an operator who
+      came in at 19.5% against a 20% target — under budget — was shown a warning
+      colour, and so was one who landed at exactly 20.0%. A warning for
+      succeeding. THE ACTUALS SCALE IS NOW: pct <= target GREEN; target < pct <=
+      target+1 AMBER (over budget, inside a grace band); beyond that RED. Vision
+      item 3's "green if meets/exceeds" is literal.
+
+      AMBER MOVED SIDES RATHER THAN DISAPPEARING — a store a tenth of a point over
+      is not in the same condition as one three points over, and collapsing both to
+      red would discard the only signal between them.
+
+      THE LABOR BUDGET CARD IS DELIBERATELY UNCHANGED, SO THE TWO NOW DIFFER, and
+      this is the line to find later: a PLAN cutting it fine is worth a nudge, an
+      ACTUAL landing under target is a win. On one dashboard a store at 19.5%
+      against a 20% target shows AMBER on the Labor Budget card and GREEN on every
+      labor % readout. A fixture check names the divergence, so a later
+      "harmonisation" of the two scales fails there rather than silently changing
+      what managers are told about their week.
+
+      AL-1 Q2's PROMISE IS DISCHARGED: /labor carries the read-only "Advanced
+      Labor: On/Off" badge. The FLIP still lives in the Square Integration card
+      per seam (a) — this is a label, not a control.
+
+      FRESHNESS WITH THE CRON STILL UNREGISTERED. A database claim on
+      SquareLaborSyncState.lastSyncStartedAt — one conditional updateMany, never
+      check-then-act, BUG-7's shape — with a 15-minute cooldown matching the sales
+      cache, deferred past the response with after(), capped at 3 stores per load
+      with THE DROP LOGGED rather than silent. Ceiling is one Square request per
+      store per 15 minutes, strictly less than what sales already spends from the
+      same surfaces and far less than the ~55 discarded syncs per 2.5 hours
+      DEBT-69 measured. A failing store holds its claim and retries once per
+      cooldown instead of on every dashboard load.
+
+      SEAM (b) STILL HOLDS, verified by grep over all eight core engines: none
+      imports labor-actuals, labor-judgment or labor-dashboard. With the toggle or
+      either env gate off, NO `labor` KEY EXISTS on any dashboard payload, so the
+      boundary test is structural rather than a render diff. npm run build green;
+      scripts/verify-labor-actuals.ts extended 27 -> 55 checks (28 new: the
+      coverage pair, the judgment including R2's boundary and BOTH EDGES of the
+      flipped band, and the estate roll-up's sum-then-divide against the
+      mean-of-ratios it replaces), PASS. NOTE ON TWO STALE COUNTS IN THE COMMIT
+      MESSAGES, since a work commit cited by SHA is not amendable: 8a28f61 says
+      "27 -> 54" (it was 52 at that commit) and f47e3bd says "52 -> 55" (correct).
+      THIS LINE IS THE AUTHORITATIVE FIGURE: 55.
+
       PHASE 1 IS BUILT — 2026-08-18 (AL-1, work commit be705a2). Prepended;
       nothing below is edited. STATUS MOVES planned -> in_progress, and it is the
       first time this row has been anything but planned. STAGED, NOT PROMOTED.
