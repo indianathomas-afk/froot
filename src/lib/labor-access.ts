@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type { Store, User } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { getCurrentUser, laborModuleAvailable } from "@/lib/auth"
+import { getCurrentUser, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
 
 type Organization = NonNullable<Awaited<ReturnType<typeof prisma.organization.findUnique>>>
 
@@ -61,6 +61,35 @@ export async function requireLaborContext(
   // write === read for Labor (ADMIN + MANAGER both allowed); opts.write is kept
   // for symmetry with requireForecastContext and future tightening.
   void opts.write
+  return ctx
+}
+
+// AL-1 / L-2 seam (a). The Square-labor overlay's gate, LAYERED OVER
+// requireLaborView(): both labor gates first, then the two Square gates. Each
+// failure is a 404 rather than a 403, so an org without the overlay cannot probe
+// whether it exists — the /api/hr/toggle posture, applied one level in.
+//
+// ORDER IS LOAD-BEARING. Labor first means the incoherent state
+// square-labor-without-labor is unreachable from every route that uses this,
+// not merely discouraged by the toggle UI.
+//
+// NOTE WHAT IS *NOT* CHECKED HERE: whether Square is currently connected. A
+// disconnect does NOT turn the overlay off (Gary, 2026-08-05) — the org keeps
+// the feature and the reads degrade to seam (c)'s ON BUT UNHEALTHY, showing
+// their last-synced stamp. A reconnect restores it with no second admin action.
+// Routes that must actually CALL Square check org.squareAccessToken themselves
+// and say so in their own response; routes that only READ mirrored rows must
+// not, or a disconnect would 404 data Froot still holds.
+export async function requireSquareLabor(): Promise<LaborContext | { error: NextResponse }> {
+  const ctx = await requireLaborView()
+  if ("error" in ctx) return ctx
+
+  if (!squareLaborAvailable(ctx.org.clerkOrgId)) {
+    return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) }
+  }
+  if (!ctx.org.squareLaborEnabled) {
+    return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) }
+  }
   return ctx
 }
 

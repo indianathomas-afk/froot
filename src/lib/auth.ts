@@ -61,6 +61,28 @@ export function laborModuleAvailable(clerkOrgId?: string): boolean {
   return false
 }
 
+// Square-labor availability gate — L-2 seam (a), same shape as
+// laborModuleAvailable() and hrModuleAvailable() above. Does the OPTIONAL Square
+// labor overlay EXIST in this environment at all? Off = no control on the Square
+// card, no sync, no actuals route (404s), and every existing labor surface
+// unchanged. SQUARE_LABOR_INTERNAL_ORG_IDS (comma-separated Clerk org IDs) lets
+// us dogfood in production before global launch. Server-side only — never
+// expose as NEXT_PUBLIC_.
+//
+// THE THIRD GATE, not a replacement for the first two. requireSquareLabor()
+// checks both labor gates FIRST and then these; the Square overlay can never be
+// on for an org that does not have the Labor module (see labor-access.ts).
+export function squareLaborAvailable(clerkOrgId?: string): boolean {
+  if (process.env.SQUARE_LABOR_AVAILABLE === "true") return true
+  if (clerkOrgId && process.env.SQUARE_LABOR_INTERNAL_ORG_IDS) {
+    return process.env.SQUARE_LABOR_INTERNAL_ORG_IDS.split(",")
+      .map((id) => id.trim())
+      .filter(Boolean)
+      .includes(clerkOrgId)
+  }
+  return false
+}
+
 export async function getCurrentUser() {
   const { userId } = await auth()
   if (!userId) throw new Error("Unauthorized")

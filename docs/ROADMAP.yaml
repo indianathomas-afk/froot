@@ -6988,11 +6988,313 @@ phases:
   - id: L-2
     track: labor
     size: L
-    status: planned
+    status: in_progress
     title: >
       OPTIONAL Square labor integration — schedules and timecards as an overlay
       on forecast-driven labor, per-org toggle, off by default
     notes: >
+      PHASE 3 IS BUILT — 2026-08-19 (AL-3, work commit fa86bae). Prepended;
+      nothing below is edited. STATUS STAYS in_progress — every vision item now
+      has a build, but nothing is promoted and production stays dark regardless:
+      SQUARE_LABOR_AVAILABLE is Preview-only and its activation is its own future
+      decision. STAGED, NOT PROMOTED.
+      VISION ITEMS 2, 5 AND 10 SHIPPED: pay rates on /staff and /staff/[id], the
+      Square team roster on the Positions card, and a Tips column on All
+      Locations. New: migration 20260819210000_al3_team_member_wage (additive —
+      one table, SquareTeamMemberWage), src/lib/labor-roster.ts,
+      src/lib/labor-costs.ts, canSeeWages/canSeeTips/loadTipBlocks in
+      labor-dashboard.ts, computeTipPayout + getTipPayoutForStores in
+      labor-actuals.ts, three routes under /api/square/labor/roster/, and one new
+      capability, labor.costs.view. NO CRON REGISTRATION, no webhook change, no
+      write to Square.
+      THIS IS THE FIRST PHASE WHERE PER-PERSON LABOR DATA REACHES A PAGE, so
+      DEBT-10 governed ahead of feature completeness. THE GATE DECIDES WHETHER TO
+      RUN THE QUERY, NEVER WHETHER TO RENDER THE CELL — Gary's rule was that a
+      non-MANAGE viewer's payload must not CONTAIN wage fields, "not hidden in the
+      UI, ABSENT from the response". /staff does not build the id list, the
+      Positions card does not mount the roster component, and /api/dashboard/rollup
+      adds no `tips` key. A wage that is never selected cannot leak through a
+      payload, a props tree, an RSC flight payload, or a future JSON route that
+      forgets to re-check. STORE accounts were ALREADY structurally safe and stay
+      so: /staff redirects without staff.view and /settings/labor redirects without
+      labor.manage, so both wage surfaces are unreachable to a shared iPad login.
+      labor.costs.view — MANAGE, in ENFORCED_CAPABILITIES, grid row "See pay rates
+      and tips". The capability AL-1 deferred and PERM-4 (c) promised. NO PRIOR
+      CALL SITES, so no role's baseline moved: before this commit nothing rendered
+      a wage anywhere. Deliberately not labor.manage, which matched on tier but is
+      held out of the grid by PERM-5C and would have taken /settings/labor with it.
+      THE SOURCE IS ONE CALL AND NEEDS NO NEW OAUTH SCOPE, which is what made this
+      phase cheap and is the thing to remember. SearchTeamMembers returns
+      wage_setting INLINE (Square's own docs recommend it over RetrieveWageSetting)
+      under EMPLOYEES_READ — held and consented since long before the labor work,
+      so no consent batch and no merchant re-auth, the opposite of the
+      TIMECARDS_READ story AL-1 waited on. VERIFIED LIVE against the Keva account
+      at Square-Version 2026-01-22: 99 of 99 ACTIVE members carried a wage_setting,
+      every one with exactly ONE job assignment, 94 HOURLY all with an hourly_rate,
+      5 SALARY all with BOTH annual_rate and weekly_hours, 6 is_overtime_exempt, 7
+      distinct job titles. wage_setting is still tagged Beta, so ListTeamMemberWages
+      (GA, hourly only) is wired as a CONDITIONAL second tier — zero members needed
+      it, so it costs no round trip. The third tier is not code: costing never read
+      this table, so a total roster failure degrades the ROSTER and leaves labor %
+      untouched.
+      THE SALARIED GAP AL-1 DEFERRED IS NOW MEASURED — 5 people ORG-WIDE, not 5 per
+      store. Six members are ALL_CURRENT_AND_FUTURE_LOCATIONS and appear under every
+      store, which is why per-store roster counts legitimately sum past 99: Sparks
+      27/3 salaried, South Reno 25/4, Meadowood Mall 23/4, Spanish Springs 23/3,
+      Las Brisas 22/4, Carson 19/3, UNR 18/4, University Village 18/3, Southgate
+      16/3. COUNTS ONLY — no cost math, no allocation invented. That discharges the
+      second of this row's two long-standing open questions ("whether owner/admin
+      accounts who never clock in should appear in labor surfaces") as far as
+      MEASUREMENT goes; the allocation decision is still Gary's and still unmade.
+      ITEM 10's "REPLACES" IS REJECTED AS LITERAL, and this is the load-bearing
+      finding of the phase. LaborPosition is NOT a legend — it is the weekly budget
+      engine's rate table: labor-plan.ts:165 feeds active positions into
+      computeWeeklyLaborBudget, where the blended hourly rate is the UNWEIGHTED MEAN
+      of active hourly rates (labor-budget.ts:88-91). MEASURED: the legend's 4
+      archetype hourly rows average $14.50; the Square roster's 94 real people
+      average $12.36. Swapping the roster in would drop the blended rate ~15% and
+      INFLATE SCHEDULABLE HOURS ~17% at the same budget — and would feed a
+      Square-sourced input into a core engine, which seam (b) forbids outright.
+      Gary ruled a SEGMENTED CONTROL: the roster is the default view when the
+      overlay is on, the legend sits one click away labelled "Rate legend — drives
+      the budget", and the label carries the ruling so the next person reads it on
+      the control rather than discovering it by editing the wrong table. SEAM (b)
+      RE-VERIFIED by grep over all eight core engines — none imports labor-actuals,
+      labor-judgment, labor-dashboard, labor-roster or labor-costs.
+      TIPS: THE EXPECTED ANSWER WAS REVERSED BY MEASUREMENT. The prompt anticipated
+      "declared cash only, file card tips as a follow-up". CARD TIPS ARE ALREADY IN
+      THE DATABASE — SalesPeriodCache.tipTotal, populated from order.total_tip_money
+      on every sales sync since F-4 (sales-sync.ts:346), on the same store-local
+      business day the labor % already uses. Measured 2.4%-7.1% of net across nine
+      stores with 573 days of history on the oldest four ($80,378 at South Reno
+      alone). So the column is Square-recorded tips PLUS declared cash over
+      tip-eligible paid hours, and NO CARD-TIPS INGEST ROW IS FILED because there is
+      nothing to build. The fixture pins that declared-cash-only would have read
+      $1.25/hr where the true figure is $6.25/hr — wrong in the reassuring
+      direction, which is the failure mode this file exists to keep findable.
+      THE RESIDUAL DOUBLE-COUNT IS NAMED ON THE CARD rather than assumed away: a
+      cash tip rung into the POS lands in total_tip_money and can also be declared
+      on a timecard, and the two cannot be separated from data Froot holds, so the
+      cell carries an asterisk and its tooltip says the rate is an UPPER BOUND.
+      TEN RULINGS, all Gary 2026-08-19, all enforced at their sites and recorded in
+      DECISIONS.md: Q1 wage_setting with the three-tier fallback, a missing rate
+      reading "Not set in Square" and never $0; Q2 /staff pay gates on the overlay
+      PLUS labor.costs.view, so an org with HR but no Square labor sees /staff
+      exactly as before; Q3 the segmented control; Q4 sum both tip halves; Q5 a
+      costs-denied viewer sees the roster HIDDEN ENTIRELY rather than stripped of
+      its pay column; Q6 the Tips column follows the picker and the header names the
+      range (diverging from item 5's "MTD" on purpose — it sits beside
+      "Labor % · <range>" and two adjacent columns must not silently mean different
+      windows); Q7 null tip-eligibility counts as ELIGIBLE with the hours in the
+      footnote, since excluding maybe-eligible staff would overstate what a job
+      pays; Q8 Tips are MANAGE this phase; Q9 build the WK HRS/SUP editors, labelled
+      inert; Q10 render the counted unmapped-locations line and file nothing.
+      WK HRS AND SUP PERSIST AND NOTHING READS THEM, and the card says so on its
+      face. They are Froot-owned columns the roster sync's ON CONFLICT DO UPDATE
+      DELIBERATELY OMITS — the discipline StaffMember.fullNameLocked already
+      encodes. IF A LATER EDIT ADDS THEM TO THAT LIST, EVERY SUPERVISORY FLAG IN THE
+      ORG IS ERASED BY THE NEXT SYNC, SILENTLY. SUP is not derivable from Square and
+      the data says why: "Manager" is 7 people of whom 3 are salaried,
+      "Administrator" 4 of whom 2 are, and "Owner" is HOURLY.
+      TWO WAGE SOURCES, TWO PURPOSES, NEVER TO BE UNIFIED.
+      SquareTimecard.wageHourlyRate is a per-shift SNAPSHOT answering "what did this
+      shift cost"; SquareTeamMemberWage.hourlyRate is the CURRENT setting answering
+      "what do we pay this person now". A later simplification that collapses them
+      would silently re-cost history at today's rates.
+      THE NEW TABLE HOLDS NO NAME AND NO EMAIL, EVER, and the reason is structural
+      rather than tasteful: GET /api/staff spreads the whole StaffMember row with no
+      `select`, so a wage column ON THAT MODEL would ship to every staff.view holder
+      the day it was added. Names join from StaffMember.squareTeamMemberId. ~100
+      rows/org at ~350 bytes is ~35 KB — not a storage question at all.
+      paidMinutesOf is EXTRACTED from computeLaborActuals and SHARED with
+      computeTipPayout, so the cost calculation and the tip calculation cannot drift
+      on what an hour is; the fixture pins the rule from both sides.
+      READ-ONLY TOWARD SQUARE, AND SQ-3 STAYS OWED. labor-roster.ts goes through
+      getSquareClient(org) only and DELIBERATELY DOES NOT CALL
+      fetchSquareTeamMembers, which still carries the personal-token fallback at
+      square.ts:139. Routing those five legacy call sites through the org client is
+      SQ-3 item (b); this phase adds no sixth.
+      NOT DONE, AND IT NEEDS STAGING: the declared-cash total Gary asked for could
+      not be measured here — the dev org's Square grant PREDATES SQ-SCOPE-1 and
+      SearchTimecards returns INSUFFICIENT_SCOPES, so there are no timecards to
+      total. The Tips cell prints the declared-cash half in its tooltip for exactly
+      this reason. Worth keeping: that 403 is also positive evidence that the ROSTER
+      half needs no re-consent, since the same token read 99 wage settings fine.
+      npm run build green; scripts/verify-labor-actuals.ts 55 -> 73 checks (18 new),
+      PASS. Four react-hooks/set-state-in-effect lint errors remain in
+      labor-settings-client.tsx — three pre-existing, the fourth the same false
+      positive on an async loader the rule cannot see through an await (DEBT-33
+      baseline; the build is the gate).
+      PHASE 2 IS BUILT — 2026-08-19 (AL-2, work commits 8a28f61 and f47e3bd).
+      Prepended;
+      nothing below is edited. STATUS STAYS in_progress — Phase 3 (items 2, 5,
+      10) has not started. STAGED, NOT PROMOTED, and production stays dark
+      regardless: SQUARE_LABOR_AVAILABLE is Preview-only and its activation is
+      its own future decision.
+
+      THE DASHBOARD NOW RENDERS THE NUMBER PHASE 1 MADE TRUSTWORTHY. Vision items
+      1, 3, 4, 6 and 7: labor % on the Sales Performance card, MTD labor % on the
+      Monthly Goal card, and a labor % card, a per-store column and a date-range
+      picker on All Locations. New: src/lib/labor-judgment.ts,
+      src/lib/labor-dashboard.ts, dashboard/labor-pct.tsx and
+      dashboard/date-range-picker.tsx. Labor blocks on /api/dashboard/sales,
+      /summary and /rollup; range params on /rollup. NO MIGRATION, no schema
+      change, no cron registration, no webhook change, no write to Square.
+
+      THE COVERAGE FIX IS THE LOAD-BEARING CHANGE, NOT THE CARDS, and it is the
+      kind of defect this file exists to keep findable. MTD labor % over a
+      partly-synced month divided N days of cost by M days of sales: three synced
+      days in a nineteen-day month read ~3.2% against a 20% target — GREEN,
+      PRECISE AND WRONG, which is the failure mode the seam's honesty rules are
+      arranged against. getLaborActuals now derives the store-local days that
+      carry timecards from rows it has already loaded and restricts BOTH sides to
+      them, returning daysCovered/daysInWindow so every surface says "N of M days
+      synced". AL-1's verified 33.7% was a SINGLE-DAY query, where covered and
+      window are the same day by construction, so the defect could not have
+      surfaced at Phase 1's verification. The fixture asserts what the old
+      denominator would have printed, so a later "simplification" back to the
+      full range fails there rather than on a card.
+
+      Q-V RULED AND IT COULD NOT BE WIRED WHERE THE RULING FIRST POINTED. Gary
+      ruled labor % visible to ADMIN, MANAGER and STORE alike — the tier that
+      ALREADY sees the weekly labor BUDGET in dollars on the same page via
+      /api/labor/budget's requireLaborView — and DENIABLE PER USER from the
+      /users grid, with dollars staying MANAGE. The ruling said to use labor.view
+      if it supports overrides and to present the smallest alternative otherwise.
+      It does not: an override is only expressible for an ENFORCED_CAPABILITIES
+      entry, and labor.view gates the Labor nav, the /labor page and every
+      /api/labor route, so denying it to hide one percentage would take the
+      module with it — the same shape as labor.manage, which PERM-5C held out of
+      the grid saying "Labor governance is its own ruling". The build introduced
+      labor.actuals.view (OPERATIONAL) with a grid row: NO PRIOR CALL SITES, so
+      no role's baseline moved. Gary's staging pass confirms or reverses it.
+
+      SIX MORE RULINGS, all Gary 2026-08-19, all enforced at their sites and all
+      recorded in DECISIONS.md: R1 a disconnect degrades and never removes (the
+      2026-08-05 ruling beat the AL-2 prompt's hard rule 3, which contradicted
+      it); R2 judge against laborTargetPct AS SET, not the tier-floored effective
+      rate; R3 reuse zone()'s three-zone scale; R4 the month-end labor projection
+      divides by the goal-weighted sales projection the card already prints, so
+      the page carries ONE month-end sales number rather than two, mixed basis
+      labelled; R5 no graph recolour (the "green bar" of item 1 is a slim meter
+      in the metric row — the chart is a line chart and has no bars); R6 the
+      picker drives the ranking table while the three summary cards stay
+      month-anchored.
+
+      R3 WAS SUPERSEDED THE SAME DAY, once its consequence was visible (f47e3bd).
+      Reusing zone() verbatim put amber ONE POINT BELOW target, so an operator who
+      came in at 19.5% against a 20% target — under budget — was shown a warning
+      colour, and so was one who landed at exactly 20.0%. A warning for
+      succeeding. THE ACTUALS SCALE IS NOW: pct <= target GREEN; target < pct <=
+      target+1 AMBER (over budget, inside a grace band); beyond that RED. Vision
+      item 3's "green if meets/exceeds" is literal.
+
+      AMBER MOVED SIDES RATHER THAN DISAPPEARING — a store a tenth of a point over
+      is not in the same condition as one three points over, and collapsing both to
+      red would discard the only signal between them.
+
+      THE LABOR BUDGET CARD IS DELIBERATELY UNCHANGED, SO THE TWO NOW DIFFER, and
+      this is the line to find later: a PLAN cutting it fine is worth a nudge, an
+      ACTUAL landing under target is a win. On one dashboard a store at 19.5%
+      against a 20% target shows AMBER on the Labor Budget card and GREEN on every
+      labor % readout. A fixture check names the divergence, so a later
+      "harmonisation" of the two scales fails there rather than silently changing
+      what managers are told about their week.
+
+      AL-1 Q2's PROMISE IS DISCHARGED: /labor carries the read-only "Advanced
+      Labor: On/Off" badge. The FLIP still lives in the Square Integration card
+      per seam (a) — this is a label, not a control.
+
+      FRESHNESS WITH THE CRON STILL UNREGISTERED. A database claim on
+      SquareLaborSyncState.lastSyncStartedAt — one conditional updateMany, never
+      check-then-act, BUG-7's shape — with a 15-minute cooldown matching the sales
+      cache, deferred past the response with after(), capped at 3 stores per load
+      with THE DROP LOGGED rather than silent. Ceiling is one Square request per
+      store per 15 minutes, strictly less than what sales already spends from the
+      same surfaces and far less than the ~55 discarded syncs per 2.5 hours
+      DEBT-69 measured. A failing store holds its claim and retries once per
+      cooldown instead of on every dashboard load.
+
+      SEAM (b) STILL HOLDS, verified by grep over all eight core engines: none
+      imports labor-actuals, labor-judgment or labor-dashboard. With the toggle or
+      either env gate off, NO `labor` KEY EXISTS on any dashboard payload, so the
+      boundary test is structural rather than a render diff. npm run build green;
+      scripts/verify-labor-actuals.ts extended 27 -> 55 checks (28 new: the
+      coverage pair, the judgment including R2's boundary and BOTH EDGES of the
+      flipped band, and the estate roll-up's sum-then-divide against the
+      mean-of-ratios it replaces), PASS. NOTE ON TWO STALE COUNTS IN THE COMMIT
+      MESSAGES, since a work commit cited by SHA is not amendable: 8a28f61 says
+      "27 -> 54" (it was 52 at that commit) and f47e3bd says "52 -> 55" (correct).
+      THIS LINE IS THE AUTHORITATIVE FIGURE: 55.
+
+      PHASE 1 IS BUILT — 2026-08-18 (AL-1, work commit be705a2). Prepended;
+      nothing below is edited. STATUS MOVES planned -> in_progress, and it is the
+      first time this row has been anything but planned. STAGED, NOT PROMOTED.
+
+      THE VISION EXISTS IN THE REPO NOW. docs/ADVANCED_LABOR.md carries Gary's
+      twelve-item feature list VERBATIM plus the phase map. That closes the gap
+      the deferral-lift blocker below recorded in its own words — "NO ADVANCED
+      LABOR FORECASTING DOCUMENT EXISTS IN THE REPO ... the vision the lift names
+      is not written down anywhere a build session can read". Phase 2 = dashboard
+      cards (items 1, 3, 4, 6, 7); Phase 3 = /staff pay, the Positions roster and
+      tips (2, 5, 10); items 9, 11 and 12 are explicit NON-CHANGES, named so a
+      later session cannot read silence as permission.
+
+      WHAT PHASE 1 SHIPPED. Migration 20260818223900_al1_advanced_labor_phase1,
+      additive only — Organization.squareLaborEnabled plus SquareTimecard and
+      SquareLaborSyncState. src/lib/labor-actuals.ts (sync + a pure calculation).
+      The toggle inside the EXISTING Square Integration card per seam (a). Three
+      ADMIN routes under /api/square/labor/ — toggle, sync, actuals — and an
+      UNREGISTERED cron at /api/cron/labor-timecards. Fixture
+      scripts/verify-labor-actuals.ts, 27 checks. NO DASHBOARD CARD: Phase 1
+      makes the number exist and be trustworthy, Phase 2 renders it.
+
+      THE SEAM WAS FOLLOWED, NOT REINTERPRETED, AND ONE NAME WAS DEFENDED. The
+      AL-1 prompt specified the column as `advancedLaborEnabled`; seam (a) says
+      `squareLaborEnabled`, and that name was already load-bearing in
+      DECISIONS.md:149, four places on this file including L-4's row, and
+      docs/prompts/L-2_square_labor_seam.md:59. Gary ruled for the seam. Same for
+      placement: the control sits in the Square card, not on the labor settings
+      page the prompt suggested.
+
+      SEAM (b)'s BOUNDARY TEST PASSES BY CONSTRUCTION, which is stronger than the
+      render diff the seam asks for. No core engine imports labor-actuals.ts —
+      verified by grep over labor-budget, labor-plan, labor-coverage,
+      labor-forecast, labor-daily, labor-week, labor-settings, labor-positions —
+      and the only readers of the two new tables are that module and its own
+      routes. A module nothing imports cannot move a render.
+
+      ONE OF THE THREE OPEN QUESTIONS BELOW IS NOW ANSWERED. "Ingest shape:
+      webhook-driven, polled via SearchTimecards, or both" — RULED POLLED, and
+      not only by AL-1's mandate: the LABOR-0B blocker's finding (4) is the
+      argument, since the webhook handler 200-ACKs an unknown type with no log
+      line and Square does not retry a 200, so a labor.timecard.* subscription
+      added before the handler learns the type would be swallowed without trace.
+      The webhook dial was not touched. THE SECOND QUESTION IS STILL OPEN and
+      resurfaced in a new place: a salaried GM who never clocks in contributes
+      zero labor cost, so "whether owner/admin accounts who never clock in should
+      appear in labor surfaces" is now a number problem as well as a display one.
+      Phase 1 does NOT measure that gap — establishing the denominator needs a
+      Square team-member read, which is Phase 3's roster work.
+
+      DEFERRED WITH A RULING BEHIND EACH, all Gary, 2026-08-18: overtime (Phase 1
+      is straight time and RETURNS otApplied:false rather than assuming it, so a
+      Phase-2 card cannot render it as if OT were handled); salaried allocation
+      (Square's effective hourly rate as-is, nothing allocated); tips excluded
+      from labor cost (employee income, not employer cost — and item 5 wants them
+      as their own column anyway); net sales as the denominator. ONE COMPLICATION
+      SURFACED AND LEFT FOR PHASE 2: SalesForecast.projectedStoreSales is a
+      hand-entered figure whose gross/net meaning is defined NOWHERE, so
+      actual-vs-budget will compare two things that may not be the same thing.
+      Settle it before Phase 2 renders them side by side.
+
+      STORAGE WAS ESTIMATED BEFORE BUILDING, per the prompt's requirement, and
+      the estimate found something else. SquareTimecard projects at ~19 MB/year
+      (~86 rows/day at nine stores, ~600 bytes/row) against ~90 MB of Neon Free
+      headroom — not material. SalesLineCache is 116 MB TODAY, 84% of the
+      database, growing ~72 MB/year. Filed as DEBT-74 by Gary's ruling with the
+      measurement attached; not this row's problem.
+
       FROOT IS NOW READ-ONLY TOWARD SQUARE IN FACT, NOT JUST IN INTENT —
       2026-08-18 (SQ-WB-1, work commit 0fd414a, ruling in DECISIONS.md "Froot is
       read-only toward Square; the name write-back dies"). Prepended; nothing
@@ -11324,6 +11626,57 @@ debt:
 
       CROSS-REFS: DEBT-70a (moved the Date: stamp; left this deliberately),
       DEBT-70b (the 22 server displays), DEBT-70 (the open client half).
+
+  - id: DEBT-74
+    status: planned
+    title: "SalesLineCache is 84% of the database and grows ~72 MB/year — the Neon Free headroom is its conversation, not Advanced Labor's"
+    notes: >
+      FILED 2026-08-18 BY GARY'S RULING at the AL-1 hard stop (docs/ADVANCED_LABOR.md
+      § Open questions Q8). AL-1 was required to estimate its own new table's
+      growth before building it; the measurement taken to produce that estimate
+      found something four times larger already running, and Gary's instruction
+      was to file it citing the measurement rather than to fold it into the
+      labor phase. NOT ACTED ON — a retention policy and a Neon plan are both
+      his, and neither was AL-1's to decide.
+
+      THE MEASUREMENT, all taken 2026-08-18 against the LOCAL DEV DATABASE
+      (endpoint ep-late-water-a6k53nv2, the one DATABASE_URL points at — branch
+      label per CLAUDE.md § Database Evidence). Production was NOT queried;
+      production reads go through the Neon console and no deployed credential
+      was pulled.
+
+        table               rows       total bytes    bytes/row
+        SalesLineCache      254,087    115,990,528    456
+        SalesHourlyCache     31,894     12,648,448    397
+        SalesPeriodCache      2,440      1,302,528    534
+        database total                145,547,264    (138.8 MB)
+
+      SalesLineCache is 116 MB of a 138.8 MB database — 84% of every byte. Its
+      date range runs 2025-01-01 to 2026-08-13, 590 days, which puts it at ~431
+      rows/day across nine stores (~48 per store per day) and therefore
+      ~72 MB/YEAR at the current estate.
+
+      THE CONTEXT THAT MAKES IT A ROW. Neon's Free plan is 0.5 GB per project
+      (neon.com/docs/introduction/plans, read 2026-08-18), the project was at
+      ~82% on 2026-08-17 (docs/prompts/FROOT_SESSION_HANDOFF_2026-08-17.md), and
+      that leaves roughly 90 MB of headroom. One year of SalesLineCache at the
+      measured rate is 80% of what remains. Child branches are billed on the
+      minimum of their accumulated delta or their logical size, so staging and
+      dev — both forked from production — pay for divergence rather than for a
+      full copy; the root branch is where this lands.
+
+      WHY IT IS FILED AGAINST THIS TABLE AND NOT AGAINST THE PLAN. AL-1's own
+      new table, SquareTimecard, projects at ~19 MB/year (~86 rows/day at nine
+      stores, ~600 bytes/row) — roughly a quarter of SalesLineCache's rate, and
+      the estimate Gary asked for. Ruling the plan upgrade on the smaller of the
+      two would have been answering the wrong question. If the headroom is worth
+      money, the first thing to look at is the table that is 84% of the problem.
+
+      WHAT THIS ROW DOES NOT DECIDE, deliberately, because all three are Gary's:
+      whether to upgrade the Neon plan; whether SalesLineCache needs a retention
+      window at all (it feeds the Item Sales report now and theoretical usage /
+      variance in I-6, so old rows are not obviously disposable); and if it does,
+      how far back. The measurement is the contribution here, not the remedy.
 
   - id: DEBT-1
     status: verified

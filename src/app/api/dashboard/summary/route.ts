@@ -6,6 +6,7 @@ import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
 import { monthStart } from "@/lib/pacing"
 import { getMonthGoal } from "@/lib/month-goal"
+import { loadLaborBlock, laborOverlayOn, scheduleLaborRefresh } from "@/lib/labor-dashboard"
 
 // GET /api/dashboard/summary?storeId= — everything the Dashboard needs in one
 // call. NOT module-gated (the Dashboard is the landing page); the sales block
@@ -146,6 +147,13 @@ export async function GET(req: Request) {
     }
   }
 
+  // ── AL-2: MTD labor % ──
+  // The Monthly Goal card is month-to-date, so this window is month start →
+  // today, resolved in the store's own zone by the same localDateStr the sales
+  // block above uses. Absent entirely when any gate is off.
+  const labor = await loadLaborBlock(org, store, actor, mStart, today)
+  if (labor && laborOverlayOn(org)) scheduleLaborRefresh(org, [store])
+
   // ── Monthly goal ──
   // Shared with the all-locations rollup (src/lib/month-goal.ts): a
   // Forecasting plan beats the legacy manual StoreMonthlyGoal, and its MTD
@@ -188,6 +196,7 @@ export async function GET(req: Request) {
       ...monthGoal,
       monthToDate: sales?.monthToDate ?? null,
     },
+    ...(labor ? { labor } : {}),
     checklist: {
       total: checklistItems.length,
       completed: checklistItems.filter((i) => i.checked).length,

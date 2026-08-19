@@ -7,6 +7,9 @@ import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
 import { displayTimeZone } from "@/lib/hr"
 import { can } from "@/lib/permissions"
+import { canSeeWages } from "@/lib/labor-dashboard"
+import { formatPay } from "@/lib/labor-costs"
+import { getPayForStaff } from "@/lib/labor-roster"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -97,7 +100,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // check replaced was ADMIN||MANAGER, so NO ROLE GAINS OR LOSES ANYTHING —
   // what changes is that four independent denials now exist where there was
   // one undifferentiated tier.
-  const { dbUser, actor } = await getCurrentUser()
+  const { org, dbUser, actor } = await getCurrentUser()
 
   // Writes: the edit dialog, the self-service invite, the legal-name
   // resolutions, and the integrity warnings that exist to prompt a fix.
@@ -112,6 +115,22 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // Migrating them onto hr.* capabilities here would start that phase in the
   // one file least likely to be reviewed as part of it.
   const canSeeHrTabs = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+
+  // AL-3 vision item 2 — pay on the profile, Manager/Admin only.
+  //
+  // THE GATE DECIDES WHETHER TO QUERY. `pay` is undefined for every viewer
+  // without labor.costs.view and for every org without the Advanced Labor
+  // overlay, because getPayForStaff is never called — the field is absent from
+  // the render tree rather than hidden inside it (Gary's hard rule 1).
+  //
+  // NOTE WHAT ALREADY GATES THIS PAGE: /staff/layout.tsx redirects anyone
+  // without staff.view, and this page additionally 404s where HR is off. So the
+  // pay row is reachable only by a MANAGE viewer, in an HR org, with the Square
+  // labor overlay on, holding labor.costs.view — four gates, none of them
+  // redundant with another.
+  const pay = canSeeWages(org, actor)
+    ? (await getPayForStaff(org, [{ id: member.id, squareTeamMemberId: member.squareTeamMemberId }])).get(member.id)
+    : undefined
 
   // HR-7 self-service state: linked login / invite still pending. Gated with
   // the write tier — it exists to drive the invite button.
@@ -724,6 +743,30 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                   {member.squareTeamMemberId ? "Synced from Square" : "Added manually"}
                 </dd>
               </div>
+              {/* AL-3. Rendered only when the four gates above passed — a viewer
+                  who may not see pay gets no <div>, not an empty one. The
+                  position line is Square's job_title and is shown beside the
+                  rate because "what do they earn" and "for what job" are the
+                  same question to a manager. */}
+              {pay && (
+                <div>
+                  <dt className="text-[var(--color-muted-foreground)]">Pay</dt>
+                  <dd
+                    className={
+                      formatPay(pay) === "Not set in Square"
+                        ? "text-[var(--color-warning,#efa201)] font-medium"
+                        : "text-[var(--color-foreground)] font-medium"
+                    }
+                  >
+                    {formatPay(pay)}
+                    {pay.jobTitle && (
+                      <span className="block text-xs font-normal text-[var(--color-muted-foreground)]">
+                        {pay.jobTitle} · current wage setting in Square
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              )}
             </dl>
           </div>
 

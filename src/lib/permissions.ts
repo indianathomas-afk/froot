@@ -100,6 +100,8 @@ export type Capability =
   | "inventory.adjustments.record"
   | "inventory.analytics.view"
   | "labor.view"
+  | "labor.actuals.view"
+  | "labor.costs.view"
   | "labor.manage"
   | "labor.toggle"
   | "hr.access"
@@ -187,10 +189,14 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // up, so the two disagreed and PERM-5's Session C deliberately left the
   // routes unmigrated rather than resolve it unilaterally.
   //
-  // NO BEHAVIOUR CHANGES WITH THIS EDIT. Nothing calls can(_, "square.manage")
-  // — it is not in ENFORCED_CAPABILITIES either, so it is not deniable from the
-  // /users grid. The value was documentation that lied. The point of fixing it
-  // is that the Square routes are now migratable onto the registry in a future
+  // NO BEHAVIOUR CHANGES WITH THIS EDIT. Nothing called can(_, "square.manage")
+  // WHEN THIS WAS WRITTEN (2026-08-06) — corrected by AL-1, 2026-08-18: the
+  // Square labor routes now do, starting with /api/square/labor/verify (b846e32)
+  // and joined by labor/toggle, labor/sync and labor/actuals. It is still not in
+  // ENFORCED_CAPABILITIES, so it is still not deniable from the /users grid,
+  // which is what those routes rely on: a 403 from them can only mean "not an
+  // admin". The value was documentation that lied. The point of fixing it is
+  // that the Square routes are now migratable onto the registry in a future
   // sweep with ZERO baseline change; migrating against ALL would have handed
   // every member the org's Square connection.
   //
@@ -239,6 +245,45 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // (labor.manage below is unchanged, and §3 #7 stays deliberately
   // unharmonized).
   "labor.view": ALL,
+  // AL-2 (Gary's Q-V ruling, 2026-08-19): actual labor % on the dashboard is
+  // visible to ADMIN, MANAGER and STORE alike — the same tier that already sees
+  // the weekly labor BUDGET in dollars on the same page — and must be DENIABLE
+  // PER USER from the /users grid.
+  //
+  // WHY A NEW CAPABILITY RATHER THAN WIRING IT TO labor.view. The ruling said to
+  // use labor.view if it supports per-user overrides. It does not: overrides are
+  // only expressible for capabilities in ENFORCED_CAPABILITIES, and labor.view
+  // is not one — nor can it be added cheaply, because it gates the Labor nav
+  // entry, the /labor page and every /api/labor route, so denying it to hide one
+  // percentage would take the whole module with it. labor.manage is held out of
+  // the grid for a related reason PERM-5C recorded ("Labor governance is its own
+  // ruling"). This entry is the smallest change that puts the PERCENTAGE — and
+  // only the percentage — in the grid: a new capability with no prior call sites,
+  // so no existing surface can regress, and ZERO baseline change for every role.
+  //
+  // OPERATIONAL, not ALL: STAFF is excluded because the ruling named three roles.
+  // Dollars are NOT governed here — laborCost never enters a dashboard payload
+  // (see the MANAGE-gated split in src/lib/labor-judgment.ts and the routes).
+  "labor.actuals.view": OPERATIONAL,
+  // AL-3 (Gary, 2026-08-19): the capability AL-1 deferred and PERM-4 (c) promised,
+  // arriving with the first surfaces that actually need it — per-person PAY on
+  // /staff and on the Positions roster, and the per-store tips figure.
+  //
+  // MANAGE, and the tier is the whole point. STORE accounts are SHARED iPAD
+  // LOGINS; a roster of names beside wages on one is DEBT-10's exposure repeated
+  // deliberately rather than by accident. Q-V already put the PERCENTAGE at
+  // OPERATIONAL and kept the DOLLARS at MANAGE — this is that same line drawn
+  // one step further, over the most sensitive dollars in the product.
+  //
+  // NO PRIOR CALL SITES, so no role's baseline moved: before this commit nothing
+  // rendered a wage anywhere, so nobody loses a surface they had.
+  //
+  // NOT labor.manage, which would have worked on tier alone. labor.manage gates
+  // /settings/labor itself and is HELD OUT of the override grid by PERM-5C
+  // ("Labor governance is its own ruling"), so denying wages through it would
+  // take the Labor config page with them. This capability is deniable and removes
+  // exactly the wages — see ENFORCED_CAPABILITIES below.
+  "labor.costs.view": MANAGE,
   "labor.manage": MANAGE,
   "labor.toggle": ADMIN_ONLY,
   "hr.access": ALL, // HR availability + org-toggle gates stay at the call site
@@ -543,6 +588,26 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     area: "Inventory",
     label: "Raise and edit purchase orders",
     removes: "Creating, editing, submitting and cancelling POs, and invoice uploads. Viewing and receiving are unaffected.",
+  },
+  // AL-2 append — the first Labor row in the grid, and deliberately the ONLY
+  // one. labor.view and labor.manage stay out (see the note at
+  // "labor.actuals.view" in GRANTS, and PERM-5C's held-out list).
+  {
+    capability: "labor.actuals.view",
+    area: "Labor",
+    label: "See actual labor %",
+    removes:
+      "The labor % readouts on the Dashboard (Sales Performance, Monthly Goal, All Locations). The Labor module, the weekly budget card and its target % are unaffected.",
+  },
+  // AL-3 append — the second Labor row, and the one that carries the wages.
+  // Denying it removes the pay data SERVER-SIDE: the fields are absent from the
+  // payload, never hidden in the markup (Gary's hard rule, 2026-08-19).
+  {
+    capability: "labor.costs.view",
+    area: "Labor",
+    label: "See pay rates and tips",
+    removes:
+      "Pay rates on Staff and on the Positions team roster, and the Tips column on All Locations. The labor % readouts, the Labor module and the weekly budget are unaffected.",
   },
 ]
 

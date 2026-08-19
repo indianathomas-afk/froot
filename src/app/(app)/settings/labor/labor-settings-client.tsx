@@ -50,14 +50,19 @@ const usd = (n: number) =>
 export function LaborSettingsClient({
   initialPositions,
   stores,
+  showRoster = false,
 }: {
   initialPositions: Position[]
   stores: { id: string; name: string }[]
+  /// AL-3. True only when the Advanced Labor overlay is on AND the viewer holds
+  /// labor.costs.view. False makes PositionsCard render exactly as it did before
+  /// AL-3 — the segmented control is not mounted and no roster fetch is issued.
+  showRoster?: boolean
 }) {
   return (
     <div className="space-y-6 max-w-3xl">
       <SettingsCard stores={stores} />
-      <PositionsCard initial={initialPositions} />
+      <PositionsCard initial={initialPositions} stores={stores} showRoster={showRoster} />
       <DaySplitCard stores={stores} />
       <DaypartsCard />
     </div>
@@ -365,10 +370,29 @@ const BLANK_POSITION: Omit<Position, "id"> = {
   active: true,
 }
 
-function PositionsCard({ initial }: { initial: Position[] }) {
+function PositionsCard({
+  initial,
+  stores,
+  showRoster,
+}: {
+  initial: Position[]
+  stores: { id: string; name: string }[]
+  showRoster: boolean
+}) {
   const [positions, setPositions] = useState<Position[]>(initial)
   const [editing, setEditing] = useState<Position | Omit<Position, "id"> | null>(null)
   const [deleting, setDeleting] = useState<Position | null>(null)
+  // AL-3, Gary's Q3 ruling: the Square roster is the DEFAULT VIEW when the
+  // overlay is on, and the legend survives one click away. Vision item 10 says
+  // the roster "replaces" the legend; LITERAL REPLACEMENT WAS REJECTED because
+  // LaborPosition is not a legend at all — it is the weekly budget engine's rate
+  // table (labor-plan.ts:165 → computeWeeklyLaborBudget), whose blended rate is
+  // the unweighted mean of active hourly rates. Measured 2026-08-19: the legend's
+  // mean is $14.50 and the Square roster's is $12.36 across 94 hourly members, so
+  // swapping the roster in would drop the blended rate ~15% and inflate
+  // schedulable hours ~17% at the same budget — and would feed a Square-sourced
+  // input into a core engine, which L-2 seam (b) forbids outright.
+  const [tab, setTab] = useState<"roster" | "legend">(showRoster ? "roster" : "legend")
 
   function upsertLocal(p: Position) {
     setPositions((prev) => {
@@ -381,16 +405,53 @@ function PositionsCard({ initial }: { initial: Position[] }) {
     <Card>
       <CardContent className="pt-5 pb-5">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-[15px] font-bold text-[var(--color-foreground)]">Positions (rate legend)</h2>
-          <Button size="sm" onClick={() => setEditing({ ...BLANK_POSITION, sortOrder: positions.length })}>
-            <Plus className="h-4 w-4 mr-1" /> Add position
-          </Button>
+          <h2 className="text-[15px] font-bold text-[var(--color-foreground)]">
+            {showRoster ? "Positions" : "Positions (rate legend)"}
+          </h2>
+          {tab === "legend" && (
+            <Button size="sm" onClick={() => setEditing({ ...BLANK_POSITION, sortOrder: positions.length })}>
+              <Plus className="h-4 w-4 mr-1" /> Add position
+            </Button>
+          )}
         </div>
-        <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
-          Default rates by role. Salaried positions carry implied weekly hours; hourly positions leave it blank.
-        </p>
 
-        {positions.length === 0 ? (
+        {showRoster && (
+          <div className="inline-flex rounded-md border border-[var(--color-border)] p-0.5 mb-3 mt-2">
+            {(
+              [
+                ["roster", "Team from Square"],
+                // THE LABEL CARRIES THE RULING. Anyone who wonders why both views
+                // exist reads the answer on the control itself, rather than
+                // discovering it by editing the wrong table.
+                ["legend", "Rate legend — drives the budget"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={
+                  tab === key
+                    ? "px-3 py-1 text-xs font-semibold rounded bg-[var(--color-primary)] text-white"
+                    : "px-3 py-1 text-xs font-medium rounded text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)]"
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === "legend" && (
+          <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+            Default rates by role. Salaried positions carry implied weekly hours; hourly positions leave it blank.
+            {showRoster && " These rows — not the Square roster — are what the weekly labor budget is built from."}
+          </p>
+        )}
+
+        {tab === "roster" && <TeamRosterView stores={stores} />}
+
+        {tab === "legend" &&
+          (positions.length === 0 ? (
           <p className="text-sm text-[var(--color-muted-foreground)] py-6 text-center">
             No positions yet — add your first role to build the rate legend.
           </p>
@@ -453,7 +514,7 @@ function PositionsCard({ initial }: { initial: Position[] }) {
               </tbody>
             </table>
           </div>
-        )}
+        ))}
       </CardContent>
 
       {editing && (
@@ -478,6 +539,291 @@ function PositionsCard({ initial }: { initial: Position[] }) {
         />
       )}
     </Card>
+  )
+}
+
+// ─── AL-3: the Square team roster ─────────────────────────────────────────────
+//
+// Vision item 10: "lists the store's team members from Square with pay and
+// current positions; positions may vary per Square; WK HRS and SUP stay
+// Froot-adjustable."
+//
+// PER STORE, because the roster is. LaborPosition has no storeId and is org-wide;
+// Square's assigned_locations are per location, so this view carries its own
+// store picker. A member flagged for ALL locations appears under every store,
+// which is why per-store counts can sum past the org total.
+//
+// MOUNTED ONLY WHEN showRoster IS TRUE, so a viewer without labor.costs.view
+// never issues this fetch and the route would 403 them anyway.
+
+type RosterRow = {
+  squareTeamMemberId: string
+  staffMemberId: string | null
+  displayName: string | null
+  jobTitle: string | null
+  payType: string | null
+  hourlyRate: number | null
+  annualRate: number | null
+  squareWeeklyHours: number | null
+  weeklyHoursOverride: number | null
+  isSupervisory: boolean | null
+  jobAssignmentCount: number
+}
+
+type RosterPayload = {
+  storeLinked: boolean
+  rows: RosterRow[]
+  unmatchedCount: number
+  unmappedLocationCount: number
+  syncedAt: string | null
+}
+
+/// Mirrors formatPay in src/lib/labor-costs.ts. NULL IS A SENTENCE, NEVER $0 —
+/// the two must agree, because /staff and this card show the same person's pay.
+function payText(r: RosterRow): string {
+  if (r.payType === "SALARY" && r.annualRate !== null) {
+    return r.annualRate.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) + "/yr"
+  }
+  if (r.hourlyRate !== null) return usd(r.hourlyRate) + "/hr"
+  return "Not set in Square"
+}
+
+function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) {
+  const [storeId, setStoreId] = useState(stores[0]?.id ?? "")
+  const [data, setData] = useState<RosterPayload | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!storeId) return
+      // THE FETCH IS THE FIRST STATEMENT, and no state is set before it awaits.
+      // A synchronous setState from an effect body triggers a cascading render,
+      // so "loading" is DERIVED below (no data and no error yet) rather than
+      // stored — one fewer state, and the effect stays a pure side effect.
+      try {
+        const res = await fetch(`/api/square/labor/roster?storeId=${encodeURIComponent(storeId)}`, { signal })
+        setErr(null)
+        if (!res.ok) throw new Error(`Roster unavailable (${res.status})`)
+        setData(await res.json())
+      } catch (e) {
+        // An aborted request is a store switch, not a failure — writing an error
+        // for it would flash "Roster unavailable" every time the picker moves.
+        if (e instanceof DOMException && e.name === "AbortError") return
+        // SEAM (c): the overlay degrades, it never crashes the page. The rest of
+        // the Labor settings — target %, rounding, the rate legend, day splits —
+        // is untouched by a failure here.
+        setErr(e instanceof Error ? e.message : "Roster unavailable")
+        setData(null)
+      }
+    },
+    [storeId]
+  )
+
+  // The effect fires a fetch and nothing else — every set* happens in a promise
+  // callback after the request resolves, never synchronously in the body.
+  //
+  // THE ABORT IS THE STORE-SWITCH RACE, not tidiness: switch from Carson to
+  // Sparks quickly and Carson's slower response would otherwise land last and
+  // paint Carson's roster under Sparks' name.
+  useEffect(() => {
+    const ac = new AbortController()
+    void load(ac.signal)
+    return () => ac.abort()
+  }, [load])
+
+  async function syncRoster() {
+    setSyncing(true)
+    setErr(null)
+    try {
+      const res = await fetch("/api/square/labor/roster/sync", { method: "POST" })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.detail ?? body?.error ?? `Sync failed (${res.status})`)
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Sync failed")
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  async function patchRow(id: string, patch: { weeklyHoursOverride?: number | null; isSupervisory?: boolean | null }) {
+    // Optimistic, then reconciled by the response — a two-field edit that has to
+    // wait for a round trip to show a tick reads as broken.
+    setData((prev) =>
+      prev
+        ? { ...prev, rows: prev.rows.map((r) => (r.squareTeamMemberId === id ? { ...r, ...patch } : r)) }
+        : prev
+    )
+    const res = await fetch(`/api/square/labor/roster/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    })
+    if (!res.ok) {
+      setErr("Could not save that change.")
+      await load()
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <Select
+          value={storeId}
+          onValueChange={(v) => {
+            // Clear before switching, so the previous store's roster cannot sit
+            // under the new store's name while its fetch is in flight. Done in
+            // the handler rather than in an effect — same reason the abort exists.
+            setData(null)
+            setErr(null)
+            setStoreId(v)
+          }}
+        >
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="Select a store" />
+          </SelectTrigger>
+          <SelectContent>
+            {stores.map((st) => (
+              <SelectItem key={st.id} value={st.id}>
+                {st.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="sm" variant="outline" onClick={syncRoster} disabled={syncing}>
+          {syncing ? "Syncing…" : "Sync roster"}
+        </Button>
+        {/* THE FRESHNESS STAMP, not a health badge. There is no scheduled
+            refresh for the roster (see the route comment): a wage setting moves
+            when somebody gets a raise, so the stamp says when it was last read
+            and the button is how it is read again. */}
+        <span className="text-xs text-[var(--color-muted-foreground)]">
+          {data?.syncedAt
+            ? `Synced ${new Date(data.syncedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+            : "Not synced yet"}
+        </span>
+      </div>
+
+      {err && <p className="text-sm text-[var(--color-destructive)] mb-3">{err}</p>}
+
+      {!data && !err ? (
+        // Skeleton, never a spinner (§ Design System).
+        <div className="space-y-2 py-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-8 rounded bg-[var(--color-muted)] animate-pulse" />
+          ))}
+        </div>
+      ) : !data || data.rows.length === 0 ? (
+        <p className="text-sm text-[var(--color-muted-foreground)] py-6 text-center">
+          {data && !data.storeLinked
+            ? "This store is not linked to a Square location, so it has no Square team."
+            : "No team members synced yet — use Sync roster to pull them from Square."}
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--color-muted-foreground)] border-b border-[var(--color-border)]">
+                <th className="py-2 pr-3 font-semibold">Name</th>
+                <th className="py-2 pr-3 font-semibold">Position (Square)</th>
+                <th className="py-2 pr-3 font-semibold">Pay</th>
+                <th className="py-2 pr-3 font-semibold">Wk hrs</th>
+                <th className="py-2 pr-0 font-semibold">Sup.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((r) => (
+                <tr key={r.squareTeamMemberId} className="border-b border-[var(--color-border)] last:border-0">
+                  <td className="py-2.5 pr-3 font-medium text-[var(--color-foreground)]">
+                    {r.displayName ?? (
+                      <span className="text-[var(--color-muted-foreground)] italic">Not in Froot</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 pr-3 text-[var(--color-muted-foreground)]">
+                    {r.jobTitle ?? "—"}
+                    {/* NO SILENT TRUNCATION. Square's job_assignments is plural;
+                        measured 2026-08-19 every member carried exactly one. If
+                        one ever carries two, the extra is named here rather than
+                        dropped. */}
+                    {r.jobAssignmentCount > 1 && (
+                      <span className="ml-1 text-xs" title="Square carries more than one job for this person; the first is shown.">
+                        +{r.jobAssignmentCount - 1}
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className={
+                      payText(r) === "Not set in Square"
+                        ? "py-2.5 pr-3 text-[var(--color-warning,#efa201)]"
+                        : "py-2.5 pr-3 text-[var(--color-foreground)]"
+                    }
+                  >
+                    {payText(r)}
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={168}
+                      className="h-7 w-20"
+                      // Square's own weekly_hours is the PLACEHOLDER, never the
+                      // value: showing it as a value would make an unset override
+                      // indistinguishable from one that happens to match Square.
+                      placeholder={r.squareWeeklyHours != null ? String(r.squareWeeklyHours) : "—"}
+                      defaultValue={r.weeklyHoursOverride ?? ""}
+                      onBlur={(e) => {
+                        const raw = e.target.value.trim()
+                        const next = raw === "" ? null : Number(raw)
+                        if (next !== null && !(Number.isInteger(next) && next > 0 && next <= 168)) return
+                        if (next === r.weeklyHoursOverride) return
+                        void patchRow(r.squareTeamMemberId, { weeklyHoursOverride: next })
+                      }}
+                    />
+                  </td>
+                  <td className="py-2.5 pr-0">
+                    <Switch
+                      checked={r.isSupervisory === true}
+                      onCheckedChange={(v) => void patchRow(r.squareTeamMemberId, { isSupervisory: v })}
+                      aria-label={`Supervisory — ${r.displayName ?? r.squareTeamMemberId}`}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-3 space-y-1">
+            {/* WK HRS AND SUP ARE INERT, AND THE CARD SAYS SO (Gary's Q9 ruling).
+                Seam (b) holds: the weekly budget is built from the rate legend,
+                and no core labor engine gained a Square-sourced input in this
+                phase. Labelling it is what stops an operator concluding their
+                edits did nothing — or worse, concluding they did something. */}
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              Wk hrs and Sup. are Froot&rsquo;s own fields and are saved here, but nothing reads them yet — the weekly
+              labor budget is still built from the rate legend.
+            </p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              Pay is each person&rsquo;s current wage setting in Square, not what past shifts were costed at. Froot
+              never writes to Square — correct a rate there and sync.
+            </p>
+            {data.unmatchedCount > 0 && (
+              <p className="text-xs text-[var(--color-warning,#efa201)]">
+                {data.unmatchedCount} in Square with no Froot staff record — run Sync from Square on the Staff page to
+                import them.
+              </p>
+            )}
+            {data.unmappedLocationCount > 0 && (
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                {data.unmappedLocationCount} Square location
+                {data.unmappedLocationCount === 1 ? " has" : "s have"} no matching store in Froot — team members
+                assigned only there appear on no roster.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
