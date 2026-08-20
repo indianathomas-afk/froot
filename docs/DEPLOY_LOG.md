@@ -4,6 +4,67 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 3cec6b8 — 2026-08-20 — Docs-only: S1b schedule-overlay rulings + CLAUDE.md corrections
+
+Promotion merge `3cec6b8` (`--no-ff` from `staging`, subject "promote: S1b
+schedule-overlay rulings + CLAUDE.md corrections (docs only)"), pushed
+2026-08-20. **DOCS ONLY — no code changes, no migration, production behavior
+unchanged.** Three files: `CLAUDE.md`, `docs/DECISIONS.md`, and one new file
+under `docs/prompts/`. Nothing touches `prisma/`, so the Vercel build's
+`migrate deploy` is a no-op and no schema change reaches any Neon branch. No env
+var, no cron, no webhook, no `GoalPlan` data — nothing to regenerate per
+environment, and nothing to check on the site afterwards.
+
+**Commits carried — THREE, not the two the promotion was described with.**
+`git log fec487f..3cec6b8` is the authority and it lists:
+
+- `6e1510f` — the staging probe exception ruling, recording Gary's one-time,
+  narrow exception to the Neon-console-only rule so the S1b `ScheduledShift`
+  probe could read the staging org's id and `squareAccessToken` in a single
+  SELECT and use that token for read-only Square calls. Scope limits are part of
+  the ruling; it covers that probe only.
+- `0f8706c` — the S1b rulings entry (effective shift = published else draft;
+  `SquareJobColor` keyed `(organizationId, squareJobId)`; shift notes synced but
+  never selected into an overlay payload; the fetch protocol as law — one
+  `location_id` per request, windows sized to never paginate, the cursor never
+  followed, `limit` cap 50; `is_deleted` tombstones filtered on read), the two
+  `CLAUDE.md` corrections, and the filed S1 scout prompt.
+- `de8e7cf` — the original schedule/actual overlay scope rulings, **which had
+  not previously reached `main`** and rode along on this push. It was written
+  before the S1b session and was not named when this promotion was described.
+  Named here because that is what this log is for.
+
+**What the `CLAUDE.md` corrections change for a reader.** Both are marked
+`(corrected 2026-08-20)` in place. The Square Integration bullet claimed
+`TIMECARDS_READ` and `TIMECARDS_SETTINGS_READ` were "deliberately DORMANT"
+because `SQUARE_VERSION` was "still pinned at `2024-01-17`" — below the
+`2025-05-21` floor the Timecard endpoints require. SQ-VER-1 cleared that floor
+months ago (`src/lib/square.ts:13` is `2026-01-22`) and `labor-actuals.ts` has
+been reading timecards on that scope in production since; scheduled-shift reads
+ride the same one, verified against the live grant on 2026-08-20. The stale
+paragraph would have told a future session that a shipped feature was
+impossible. `TIMECARDS_SETTINGS_READ` is genuinely still unread by any code, and
+the consent-economics reasoning is kept as the standing rule for future scopes.
+Separately, the Environment Variables section called the `vercel env pull` ban
+total, which contradicted the exception recorded in `6e1510f`; it now points at
+it and restates that the exception covers that one probe only.
+
+**The merge was AMENDED before it was pushed.** Its first message was reused
+from the `248a80b` promotion and named the wrong work. The amend rewrote the
+message only — same tree, same parents. **`3cec6b8` is the only SHA that ever
+reached the remote**, so a reader reconciling push history will not find a
+superseded merge SHA and should not go looking for one.
+
+**This entry cannot carry its own SHA.** It is a docs commit on `staging` made
+after `3cec6b8`, so like the `248a80b` bookkeeping commit above it, it needs its
+own follow-up merge to reach `main` — resolvable as the commit above this entry
+in `git log --oneline -- docs/DEPLOY_LOG.md`. **`main` therefore reaches
+production one merge ahead of `3cec6b8`.**
+
+**Rollback:** `git revert -m 1 3cec6b8`. Reverting is docs-only and cannot affect
+running code; it would restore the two stale `CLAUDE.md` paragraphs and remove
+three rulings from `DECISIONS.md`, which is the reason not to.
+
 ## 248a80b — 2026-08-20 — Same-day coverage shape fix + the ruling that governs it (BUG-9, POLISH-1, DEBT-75 filed)
 
 Promotion merge `248a80b` (`--no-ff` from `staging`, subject "promote: same-day
