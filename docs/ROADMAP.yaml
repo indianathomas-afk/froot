@@ -7930,6 +7930,213 @@ phases:
       same day with `closed` and resolved it the same way, so this is now a
       pattern rather than a one-off.
 
+  # ---- Schedule/actual overlay (labor-schedule) ----
+  # Session split ratified 2026-08-20: S1 discovery -> S1b probe -> S2 ingest
+  # -> S3 card overlay -> S4 /labor comparison. One phase per session.
+
+  - id: OVL-S1
+    track: labor
+    size: S
+    status: verified
+    shipped: 2026-08-20
+    commits: [de8e7cf, 6e1510f]
+    title: "Schedule/actual overlay — S1 seam audit and scope rulings (discovery, docs only)"
+    notes: >
+      BACKFILLED 2026-08-20 during S2, because the board had no row for the two
+      discovery sessions the whole overlay track rests on and their rulings were
+      only findable in docs/DECISIONS.md. Filed after the fact rather than
+      pretended into existence earlier — the dates below are when the work
+      happened.
+      NO CODE SHIPPED. A read-only session that audited the three seams against
+      HEAD and took Gary's scope rulings before any build was scoped. `verified`
+      is the closest the board's vocabulary comes to "audit-only, no shipped
+      code" — the same gap SQ-1 sits in, recorded at the top of this file.
+      WHAT IT DECIDED, and the decisions are in docs/DECISIONS.md § "Schedule/
+      actual overlay, scope rulings" (2026-08-20) rather than restated here:
+      ingest is sync-and-cache cloned from timecards and never fetch-on-view;
+      position colours are deterministic-by-default with a settings override;
+      the overlay is STORE-visible and shows counts by position, never wages,
+      with a PERM-5 capability override to turn it off; scheduled and actual
+      curves are DISPLAY OVERLAYS on coverage output only and never enter the
+      demand shape, budget or recommendation path (seam b); a sync failure
+      renders last-synced and LABELLED STALE rather than a blank pretending no
+      schedule exists (seam c).
+      IT ALSO RULED THE SHAPE OF THE TRACK: scout first, one phase per session,
+      S1 -> S2 -> S3 -> S4. Everything filed under OVL- follows from that.
+      The commits carry the rulings and the S1b session prompt; there is no
+      application code in either.
+
+  - id: OVL-S1b
+    track: labor
+    size: S
+    status: verified
+    shipped: 2026-08-20
+    commits: [0f8706c]
+    title: "Schedule/actual overlay — S1b ScheduledShift API probe against the real Square account"
+    notes: >
+      BACKFILLED 2026-08-20 during S2, same reason as OVL-S1. THE REPORT IS THE
+      DELIVERABLE and it is committed at
+      docs/prompts/Overlay_S1b_Probe_RESULTS.md (LABOR-0B_RESULTS.md precedent) —
+      read it rather than this summary, because S2's schema doc-comments cite it
+      by count and a future session changing a nullability needs the measurement,
+      not a paraphrase.
+      RAN UNDER A NAMED ONE-TIME EXCEPTION to the Neon-console-only rule
+      (docs/DECISIONS.md § "Staging probe exception, schedule payload
+      discovery", 2026-08-20): ONE read-only SELECT against the staging database
+      for the organization id and access token, solely to make read-only Square
+      calls with the org token. No other staging read, no staging write, no
+      getSquareClient (it writes tokens back), no production contact, and every
+      pulled env file and scratch artifact deleted before the session ended. The
+      exception covers that probe only; any future need is its own ruling.
+      WHAT IT MEASURED — 462 distinct shifts, real Keva Square account,
+      Square-Version 2026-01-22, 19 locations, window 2026-08-06 -> 2026-09-17.
+      THE HEADLINE FINDING IS THAT SQUARE'S CURSOR IS UNSAFE HERE. Against a
+      ground truth of 976 shifts (one request per location per day, each
+      verified single-page): all 18 locations batched following the cursor
+      retrieved 224 and missed 752 (77%); per-location following the cursor
+      retrieved 751 and missed 225 (23%); per-location with weekly windows
+      retrieved all 976. The cursor decodes to (start_at, shift_id) and page 1
+      of a sweep is an interleaved merge across the whole window rather than a
+      time-ordered slice, so resuming skips earlier rows PERMANENTLY and Square
+      then reports the cursor exhausted. The same defect duplicates — one
+      location returned 114 rows over 3 pages, 76 unique. The timecard sync's
+      do…while(cursor) loop must NOT be cloned, and that inversion became a
+      binding ruling rather than a note.
+      FOUR OTHER FINDINGS THAT CHANGED THE DESIGN. (1) An UNKNOWN FILTER FIELD
+      RETURNS 200 WITH THE FULL RESULT — a typo does not fail, it silently
+      widens the window, which is why S2 builds its filter from typed constants
+      and asserts at runtime that the filter was applied. (2) "No schedules" and
+      "nonexistent location" are byte-identical 200 {}, so seam (c) cannot be
+      served from the response and needs its own sync-state table — eight of
+      eighteen active locations answer exactly that today, mid Square-Scheduling
+      rollout. (3) limit caps at EXACTLY 50; the timecard endpoint's documented
+      200 does not transfer. (4) job_id is the sole position reference, GET
+      /v2/labor/jobs 404s, and only 1 of 7 estate job ids matches a
+      LaborPosition name — which killed the colour-on-LaborPosition idea and
+      produced the SquareJobColor ruling.
+      NO BETA HEADERS EXIST on the endpoint — no Warning, Deprecation, Sunset or
+      rate-limit header — so there is nothing to detect a future breaking change
+      from. That is the argument for pinning SQUARE_VERSION and re-testing on
+      every bump, and it is the one finding with no code attached to it.
+      The rulings it produced are docs/DECISIONS.md § "Schedule overlay, S1b
+      rulings". CLAUDE.md's Square-scopes section was corrected in the same
+      commit: scheduled-shift reads ride TIMECARDS_READ, verified live.
+
+  - id: OVL-S2
+    track: labor
+    size: M
+    status: in_progress
+    commits: [a56a2e8]
+    title: "Schedule/actual overlay — S2 ingest: SquareScheduledShift tables, sync module, fixtures"
+    notes: >
+      BUILT 2026-08-20, work commit a56a2e8. STATUS IS in_progress AND NOT
+      staging, DELIBERATELY: the commit is local and NOT PUSHED (pushes are
+      Gary's, CLAUDE.md Git Rules), so nothing has reached the staging branch or
+      a Vercel preview yet. Flip to `staging` when the push happens — BUG-9's
+      precedent, where the row was filed against the built work and promoted
+      afterwards rather than claiming a deploy that had not occurred.
+      NO UI IN THIS PHASE. The card toggle, the colour rendering and the
+      settings editor are S3; the /labor comparison is S4. This session is
+      ingest, tables and fixtures only.
+      THREE ADDITIVE TABLES, migration
+      20260820170000_ovl_s2_scheduled_shift_ingest, applied to the DEV branch
+      only — staging and production ride the normal deploy path.
+      SquareScheduledShift carries draft, published and effective columns.
+      EVERY NULLABILITY IS AN OBSERVED FACT from the S1b report, not a guess:
+      draft_shift_details was present on 462/462, so the draft location, job,
+      start, end, timezone and is_deleted columns are NON-NULL and only
+      draftTeamMemberId (450/462) and draftNotes (24/462) are nullable; the
+      published columns are all nullable because published_shift_details is
+      ABSENT — not null, not empty — until a manager publishes (399/462).
+      The effective columns denormalize published ?? draft at write time so the
+      coalesce cannot be forgotten by one caller and remembered by another, and
+      effectiveSource records WHICH SIDE WON so the S3 legend can say "this is
+      the manager's draft" without inferring it from a null check that will one
+      day be null for another reason. There is deliberately no effectiveNotes.
+      SquareScheduleSyncState is a clone of SquareLaborSyncState with its own
+      storeId @unique rather than a shared row: the two syncs fail independently
+      and one lastError column cannot hold two sentences. Its purpose is seam
+      (c) — lastSyncOkAt set with lastShiftCount 0 is the ONLY way "we asked and
+      Square said nothing" is distinguishable from "never synced".
+      SquareJobColor is keyed (organizationId, squareJobId) and holds OVERRIDES
+      ONLY. A row's absence is not missing data: deterministicJobColor() gives
+      every job id a stable colour from the badge palette (grey excluded — grey
+      is what badgePreset() returns for an unrecognised key, so a job
+      legitimately assigned grey would be indistinguishable from a broken one),
+      which means the overlay is fully coloured with the table empty and the
+      writer can wait for S3.
+      THE FETCH PROTOCOL IS THE LOAD-BEARING PART, and it INVERTS the timecard
+      sync. One location_id per request, weekly windows, limit 50. A returned
+      cursor means the window was too big: the page is DROPPED (its 50 rows are
+      an interleaved sample of the whole window, not its first 50, so keeping
+      them would duplicate some and still miss others), the window is halved,
+      and both halves are re-queried from scratch. A ONE-DAY WINDOW THAT STILL
+      PAGINATES THROWS — SQUARE_SCHEDULE_WINDOW_UNSPLITTABLE — rather than
+      storing a partial day, because a truncated schedule renders as "nobody is
+      scheduled", which is exactly the sentence seam (c) exists to forbid.
+      assertFilterApplied() is the runtime tripwire for S1b's other trap: an
+      unknown filter field returns 200 with the full result, so a
+      request-construction mistake would otherwise land silently in the
+      database. Location is checked exactly; dates carry one day of slack in
+      each direction, because a draft/published pair straddling a boundary is
+      real (22 of 399 differ) whereas an ignored filter misses by weeks.
+      NOTES ARE SYNCED AND NEVER SELECTED. The columns exist on the table;
+      getScheduledCoverage's select list omits them. Enforced by NOT FETCHING,
+      never by filtering afterwards — observed live notes already carry a
+      person's name and the overlay reaches a STORE-visible surface.
+      THE TRIGGER IS A SECOND, SEPARATE ONE — its own 30-minute cooldown, its
+      own cap of 2 stores per load and its own deferral log, wired to the same
+      three dashboard sites the timecard refresh uses and behind the SAME
+      existing laborOverlayOn gate (no new ruling). Separate rather than a
+      branch inside scheduleLaborRefresh because a schedule sync costs ~5 Square
+      requests to the timecard sync's 1, and a shared claim column would make
+      either one's failure look like the other's. Its window is the card horizon
+      (-3/+28 days), not today: a schedule is about days that have NOT happened,
+      so syncing today only would leave the week ahead blank however often it
+      ran.
+      /api/cron/labor-scheduled-shifts is built and DELIBERATELY ABSENT from
+      vercel.json — the same ruling, and the same shape, as
+      /api/cron/labor-timecards (see CRON-1). Read the missing entry as the
+      ruling, not as an oversight to be helpfully corrected.
+      SEAM (b) VERIFIED BY GREP, not by assertion: labor-plan, labor-coverage,
+      labor-budget, labor-forecast, labor-week and labor-daily contain no
+      reference to labor-schedule. The only importers are labor-dashboard, the
+      cron route and the fixture.
+      scripts/verify-labor-schedule.ts — 44 checks, pure, no DB and no network.
+      The protocol itself is under test, not just its helpers:
+      collectScheduledShifts takes an injected page-fetcher so the fixture can
+      prove that a cursor is dropped rather than followed, that the paginated
+      page is discarded rather than merged, that both halves are re-queried in
+      calendar order, that an unsplittable day throws, and that a
+      silently-ignored filter throws. Also: effective = published ?? draft
+      including the differs and draft-only cases and the case where a published
+      shift legitimately drops its team member; an unassigned shift still
+      counting toward coverage; overnight shifts splitting at store-local
+      midnight; the upsert guard's predicate; colour stability; and a structural
+      assertion that no notes and no team-member field appears anywhere in the
+      read function's serialized output.
+    open:
+      - >
+        THE LITERAL REQUEST BODY IS THE ONE THING S1b's REPORT DOES NOT RECORD.
+        The endpoint is confirmed — POST /v2/labor/scheduled-shifts/search on
+        TIMECARDS_READ, verified live 2026-08-20 (CLAUDE.md § Square scopes) —
+        but the report captures the payloads, the pagination behaviour and the
+        error matrix without ever quoting the query object the probe sent. S2
+        therefore builds the filter as
+        `query.filter.location_ids` plus `query.filter.start.{start_at,end_at}`
+        from typed constants. That is the documented ScheduledShiftQuery shape
+        and it is consistent with everything the report DOES record — windows
+        expressed as date ranges, and a cursor keyed on start_at — but it is
+        reconstructed rather than copied, and S1b § 4 proved a wrong filter key
+        fails SILENTLY with 200 and the wrong data.
+        WHY THIS IS NOT LEFT AS A HOPE: assertFilterApplied() turns exactly that
+        failure into a thrown SQUARE_SCHEDULE_FILTER_IGNORED on the first page
+        that comes back wrong, so a bad guess surfaces as an unhealthy store
+        with a named error rather than as silently wrong rows. CLOSES WHEN S3
+        runs the sync against staging and the log shows real shifts landing in
+        the right windows — which S3 needs anyway before it can build a card
+        against synced data.
+
   # ---- Permissions ----
 
   - id: PERM-1
