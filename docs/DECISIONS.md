@@ -6,6 +6,17 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Same-day coverage shape — ruled 2026-08-19 (Gary)
+
+- The current day's demand shape uses the future-day template (4-week
+  same-weekday average, last-year fallback) — never its own partial-day
+  SalesHourlyCache. (Gary)
+- Past days use their own complete cache. When today becomes yesterday, the
+  card flips to actuals — that flip is intended. (Gary)
+- The hours/budget/split path is unchanged — this ruling is shape-source only. (Gary)
+- Hybrid intraday shapes (actuals-to-date + template remainder) are rejected. (Gary)
+- "Today" is classified on the store-local day, not UTC. (Gary)
+
 ## Per-person pay is MANAGE-gated by ABSENCE, not by hiding — 2026-08-19 (Gary)
 
 The governing ruling for AL-3, and the one the rest of the phase is arranged
