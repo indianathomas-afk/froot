@@ -11911,6 +11911,34 @@ debt:
       variance in I-6, so old rows are not obviously disposable); and if it does,
       how far back. The measurement is the contribution here, not the remedy.
 
+  - id: DEBT-75
+    status: planned
+    title: "Demand-shape last-year fallback — build the ruled-but-unbuilt fallback: fewer than 4 completed same-weekdays in SalesHourlyCache → last-year same-weekday hourly shape (−364)"
+    notes: >
+      FILED 2026-08-19 OUT OF BUG-9'S TRIAGE, ruled the same day (DECISIONS.md
+      § "Same-day coverage shape, addenda"): the last-year same-weekday
+      fallback of original Advanced Labor decision #7 REMAINS BINDING but is
+      not built, and is tracked here rather than fixed inline.
+      THE STATE TODAY. getDemandShape (src/lib/labor-plan.ts) averages the four
+      completed same-weekday dates from SalesHourlyCache and returns [] when
+      none of them has rows — there is no −364 step under it. The card then
+      renders "No sales shape to project" (labor-coverage-card.tsx:151) and the
+      day has no coverage curve at all. The −364 read that DOES exist,
+      /api/labor/weekly-plan:58, feeds the sales COMPARISON column and not the
+      shape; do not mistake it for the fallback.
+      WHAT TO BUILD: fewer than 4 completed same-weekdays in the cache → fall
+      through to the same weekday one year prior (date − 364, the alignment
+      goal-engine already uses) for the HOURLY shape. Contained — one helper
+      plus a fixture case in scripts/verify-labor-coverage.ts, alongside the
+      pure demandShapeSource that BUG-9 added.
+      COST OF DOING NOTHING: LATENT, on two named triggers — a newly onboarded
+      store whose cache has no four completed same-weekdays yet, and any store
+      after 4+ dark weeks. On either, the Coverage card and the Weekly Plan day
+      detail show no curve rather than a degraded one.
+      CROSS-REFS: BUG-9 (the same-day shape fix this was found in), DECISIONS.md
+      § Same-day coverage shape + addenda (the binding ruling), L-3.
+
+
   - id: DEBT-1
     status: verified
     commits: ["c17ccc1", "c01a2b1"]
