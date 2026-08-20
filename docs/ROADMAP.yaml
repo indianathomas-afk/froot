@@ -18776,6 +18776,48 @@ debt:
       recovery tool" — which matters most in exactly the situation where someone
       would reach for it, so the bound is not as comfortable as it sounds.
 
+  - id: DEBT-76
+    title: >
+      `scripts/verify-hr8-compliance.ts` has been RED for days and nobody
+      noticed — 9 of 38 checks fail on a clean tree
+    notes: >
+      FOUND 2026-08-20 during OVL-S2, by running every verify script as that
+      session's definition of done. NOT CAUSED BY THAT SESSION — proved by
+      stashing the whole working tree and re-running: the same 9 checks fail at
+      807abf6 with no OVL-S2 code present. Filed rather than fixed because it is
+      HR compliance semantics in a labor session, and diagnosing it properly is
+      its own sitting.
+      WHY IT MATTERS MORE THAN NINE CHECKS. A verify script that is permanently
+      red stops being a signal. The next person who runs the suite sees a
+      failure, remembers "oh, hr8 is always like that", and the habit
+      generalises to the script that is failing for a real reason. This repo's
+      whole verification posture rests on the suite being green by default.
+      THE FAILURES CLUSTER INTO TWO SHAPES, and each has an obvious suspect —
+      both of them DELIBERATE behaviour changes that shipped without the fixture
+      being updated alongside:
+      (1) "s2: docA complete via all-required-acked (pending-record)" and the
+      percentages that cascade from it (s2 pct 33 -> 0, summaries s2, store A
+      67% -> 50%, manager scope). Suspect: HR-11n checkpoint retirement
+      (migration 20260815150000_hr11n_checkpoint_retirement). The fixture
+      asserts a document completes when every REQUIRED CHECKPOINT is acked even
+      though the record itself is pending — exactly the rule a checkpoint
+      retirement would change.
+      (2) "s3: docB needs-resign (record pinned to v1)", s3 pct, and the rollup
+      needs-resign count. Suspect: 20260816180000_hr_document_version_requires_
+      reacknowledgment. Note that the ADJACENT check still passes — "needs-resign
+      carries prior signed version v1" — so the version pinning works and it is
+      the STATE the fixture expects that has moved.
+      SO THE LIKELY VERDICT IS A STALE FIXTURE, NOT A PRODUCTION DEFECT, and the
+      first job of whoever picks this up is to CONFIRM that rather than assume
+      it. If it is the code, HR compliance percentages are wrong on a live
+      dashboard and this row is the wrong severity. If it is the fixture, the
+      fix is to re-derive the expected values from the post-HR-11n rules and say
+      in the script's header which ruling each expectation encodes — the reason
+      it drifted is that the expectations are bare numbers with no citation.
+      Disconfirmed by: the suite going green with no change to src/, which would
+      mean an environment-dependent fixture rather than a stale one.
+
+
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
 # A DECISION LOG, NOT A SECOND DEBT TABLE. An entry belongs here only if the
