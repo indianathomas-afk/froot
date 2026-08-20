@@ -6,6 +6,29 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Schedule overlay, S1b rulings — 2026-08-20 (Gary)
+
+- "Scheduled" means the EFFECTIVE shift: published where it exists,
+  else draft. During the Square Scheduling migration, draft-only stores
+  show the manager's actual plan instead of a blank. Owned trade-off:
+  the card may show shifts not yet announced to staff. (Gary)
+- Position colors live in a new SquareJobColor table keyed
+  (organizationId, squareJobId) — auto-discovered from synced shifts,
+  deterministic default color, editable by managers/admins in settings.
+  No color column on LaborPosition; no Square-job-to-LaborPosition
+  mapping layer. (Gary)
+- Shift notes are synced as part of the record and NEVER selected into
+  any overlay payload — enforced by not fetching, not by filtering.
+  Observed live notes already carry a person's name, and the overlay is
+  STORE-visible. (Gary)
+- The schedule sync's fetch protocol is law, from the S1b measurement:
+  one location_id per request; windows sized to never paginate (weekly
+  default, narrow if a response ever carries a cursor); the cursor is
+  NEVER followed as a completeness strategy; limit cap is 50. The
+  timecard sync's cursor loop must not be cloned. (Gary)
+- Deleted shifts: Square tombstones via is_deleted. Sync the flag,
+  filter on read. No reconciliation pass. (Gary)
+
 ## Staging probe exception, schedule payload discovery — 2026-08-20 (Gary)
 
 - One-time, narrow exception to the Neon-console-only rule for the S1b

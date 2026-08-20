@@ -831,13 +831,18 @@ Three things to know before you reason about them:
   permissions they granted until they re-consent, so a scope can sit in this
   line for weeks while every live call still runs on the older, smaller grant.
   Check the grant, not this line, when a call 403s.
-- **`TIMECARDS_READ` and `TIMECARDS_SETTINGS_READ` are deliberately DORMANT.**
-  No code reads them. The Timecard endpoints they unlock require
-  `Square-Version` >= 2025-05-21 and `SQUARE_VERSION` is still pinned at
-  `2024-01-17`, so they cannot be used until the version-bump session lands.
-  Dormancy is by design, not an oversight: scopes were added while exactly one
-  merchant was connected, which freezes the re-consent batch at one person
-  forever (consent economics, Gary 2026-08-18).
+- **`TIMECARDS_READ` IS LIVE (corrected 2026-08-20).** This bullet used to say
+  both timecard scopes were "deliberately DORMANT" because `SQUARE_VERSION` was
+  "still pinned at `2024-01-17`", below the `2025-05-21` floor the Timecard
+  endpoints require. **That version bump landed** — SQ-VER-1 set
+  `SQUARE_VERSION` to `2026-01-22` (`src/lib/square.ts:13`), clearing the floor.
+  `src/lib/labor-actuals.ts` reads `/v2/labor/timecards/search` on that scope in
+  production today, and **scheduled-shift reads ride the same one** —
+  `/v2/labor/scheduled-shifts/search` was verified against the live grant on
+  2026-08-20 (S1b). `TIMECARDS_SETTINGS_READ` is still unread by any code.
+  The dormancy REASONING remains the standing rule for any FUTURE scope: they
+  were added while exactly one merchant was connected, which freezes the
+  re-consent batch at one person forever (consent economics, Gary 2026-08-18).
 - **`REPORTING_READ` is PARKED and must not be added.** Square's Reporting API
   overview mandates it while the OAuth Permissions Reference and the
   `OAuthPermission` enum both omit it; a string absent from the enum cannot go
@@ -989,7 +994,11 @@ The ban is total by ruling (Gary, 2026-07-28), after a first draft of this
 section carved out staging. Staging's `DATABASE_URL` is genuinely not Sensitive
 and does pull, which is exactly why the carve-out was tempting and exactly why
 it is not allowed: a rule with an exception is one `--environment` flag away
-from the thing it forbids.
+from the thing it forbids. **One narrow exception has since been granted and
+recorded — `DECISIONS.md`, "Staging probe exception, schedule payload
+discovery" (2026-08-20); it covers that one probe only, and any future need is
+its own ruling (corrected 2026-08-20, so the two documents no longer
+contradict).**
 
 ### Provisioning a secret that will ever be presented by hand
 
