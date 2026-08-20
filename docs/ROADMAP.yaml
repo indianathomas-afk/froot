@@ -8102,7 +8102,11 @@ phases:
       labor-budget, labor-forecast, labor-week and labor-daily contain no
       reference to labor-schedule. The only importers are labor-dashboard, the
       cron route and the fixture.
-      scripts/verify-labor-schedule.ts — 44 checks, pure, no DB and no network.
+      scripts/verify-labor-schedule.ts — 57 checks, pure, no DB and no network.
+      (a56a2e8's own commit message says 44. It was written before the mocked
+      protocol section was added and undercounts; 57 is the number the script
+      prints. Corrected here rather than by amending the commit, because this
+      row cites that SHA.)
       The protocol itself is under test, not just its helpers:
       collectScheduledShifts takes an injected page-fetcher so the fixture can
       prove that a cursor is dropped rather than followed, that the paginated
