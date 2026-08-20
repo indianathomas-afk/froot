@@ -11011,6 +11011,78 @@ bugs:
       CROSS-REFS: BUG-6 (the poll window this can exceed, and the session this
       was observed in).
 
+  - id: BUG-9
+    title: "Coverage crams the whole day's budget into the morning — today shaped by its own partial-day cache"
+    status: in_progress
+    commits: [7f1fb3b]
+    notes: >
+      RULED BY GARY 2026-08-19 BEFORE ANY CODE WAS WRITTEN, and the ruling is in
+      docs/DECISIONS.md § "Same-day coverage shape", not in this row: the
+      current day's demand shape uses the future-day template, past days use
+      their own complete cache, the elapsed-day flip back to actuals is
+      INTENDED, hybrid intraday shapes are rejected, and "today" is the
+      STORE-LOCAL day. This row records what was built against it.
+      THE DEFECT. getDemandShape (src/lib/labor-plan.ts) classified with
+      `if (date <= today)`, so today fell in with the past and took its own
+      SalesHourlyCache. That cache holds only ELAPSED hours, and
+      computeDailyCoverage is pure — it spreads the day's ENTIRE hourly budget
+      across whatever demand array it gets. So the whole day's budget landed on
+      the hours that had already happened, post-now hours sat at floor-1, and
+      the curve mutated hour by hour as sales came in. Same-day only: past days
+      and future days both have complete shapes and always rendered correctly.
+      THE FIX. `date < today` -> that date's own cache; `date >= today` -> the
+      4-week same-weekday template future days already used. The boundary is
+      store-local because both callers derive `today` as
+      localDateStr(new Date(), store.timezone) — /api/labor/coverage:26 and
+      /api/labor/weekly-plan:46 — and the comparison is a yyyy-mm-dd string
+      compare against that value. NOTHING about how hours are budgeted or split
+      changed; this is a shape-source change only.
+      THE TEMPLATE WINDOW MOVED TOO, AND THAT IS A DEVIATION FROM THE SESSION
+      PROMPT, which asked for future-day behavior byte-identical. The
+      same-weekday walk-back anchored at `today`, so when the target weekday
+      was today's own the window was [today, -7, -14, -21] — today's partial
+      day inside the average. Left there it would have re-entered today's shape
+      through the template and the fix would have been self-defeating. It also
+      contradicted the determinism the ruling asks for: yesterday's future view
+      of today averaged [-7,-14,-21,-28], today's view averaged
+      [today,-7,-14,-21]. The walk now starts at YESTERDAY, so both views
+      average the same four COMPLETED same weekdays. Future days whose weekday
+      matches today's therefore changed as well — they were carrying the same
+      contamination, and the change moves them the same direction.
+      WHERE THE CLASSIFIER LIVES. demandShapeSource(date, today) is pure and
+      sits in src/lib/labor-coverage.ts, the module that already declares
+      itself PURE with no DB import, so the verify script exercises it with no
+      database. addDaysStr/jsDowOf moved there with it and are RE-EXPORTED from
+      labor-plan, so every `@/lib/labor-plan` import site is unchanged and the
+      date math is not duplicated a second time.
+      VERIFIED: scripts/verify-labor-coverage.ts section 9, with "today"
+      injected (2026-08-19) and never read from the clock — today takes the
+      template, today is not in its own window, a past day still takes its own
+      cache, and today's window equals the one yesterday's future view drew.
+      Both verify scripts green, npm run build green. No migration, no deps.
+      NOT PUSHED — the commit is on local `staging` only, which is why this row
+      reads in_progress rather than `staging` (WORKFLOW.md § Session completion
+      rules 4 keys on the push). It moves to `staging` in the session that
+      pushes it.
+      TWO FINDINGS THIS FIX DID NOT TOUCH, both filed as text per the triage:
+      (1) the demand-shape template has NO last-year fallback — the ruling and
+      the prompt both describe one, but getDemandShape returns [] when the four
+      weekday dates are all empty and the card renders "No sales shape to
+      project"; the -364 last-year read that DOES exist is
+      /api/labor/weekly-plan:58, and it feeds the sales comparison column, not
+      the shape. (2) No UI labels the shape source, so nothing today says
+      "projected shape" — the Coverage card's only shape sentence is the
+      "Demand-shaped and capped by the conservative budget" footnote
+      (labor-coverage-card.tsx:208) and the Weekly Plan day detail carries none.
+      Both are Gary's calls, not defects introduced here.
+      CROSS-REFS: DECISIONS.md § Same-day coverage shape (the ruling), L-3 (the
+      plan engine this rides), BUG-6/BUG-8 (the today-cache refresh path that
+      makes today's cache fill in over the day: /api/dashboard/summary,
+      /rollup and /sales sync today inline on a first-ever load and refresh it
+      behind after() past a staleness TTL, with Square order webhooks and the
+      11:00 sales-reconcile cron as the primary freshness).
+
+
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
 #
