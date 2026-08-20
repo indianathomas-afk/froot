@@ -6,6 +6,29 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Schedule/actual overlay, scope rulings — 2026-08-20 (Gary)
+
+- Schedule ingest uses the sync-and-cache pattern cloned from timecards
+  (dashboard-triggered, claimed cooldown, own sync-state) — never
+  fetch-on-view. Square ScheduledShift reads only; read-only,
+  org-token-only, shared SQUARE_VERSION constant, rides TIMECARDS_READ
+  per LABOR-0B. (Gary)
+- Position colors are assigned automatically (deterministic default per
+  position), and managers or admins can change a position's color in
+  settings (stored override on top of the default). (Gary)
+- The overlay is visible to STORE — it shows counts by position, never
+  wages — with a capability override in /users (PERM-5 machinery) to
+  turn the feature off, following the labor.actuals.view pattern. (Gary)
+- Scheduled and actual curves are display overlays on the coverage
+  output only — they never enter the demand shape, budget, or
+  recommendation path (seam b). Sync failure renders last-synced,
+  labeled stale — never a blank pretending no schedule exists (seam c).
+  Stores without schedules written show forecasted only. (Gary)
+- Scout first: a read-only discovery session probes the ScheduledShift
+  API against real orgs and audits the seams before any build. Session
+  split ratified: S1 discovery → S2 ingest+table → S3 card overlay →
+  S4 /labor comparison. One phase per session. (Gary)
+
 ## Same-day coverage shape, addenda — 2026-08-19 (Gary)
 
 - The 4-week same-weekday window is the last 4 COMPLETED same-weekdays —
