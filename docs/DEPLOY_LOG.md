@@ -4,6 +4,69 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ---
 
+## 248a80b — 2026-08-20 — Same-day coverage shape fix + the ruling that governs it (BUG-9, POLISH-1, DEBT-75 filed)
+
+Promotion merge `248a80b` (`--no-ff` from `staging`, subject "promote: same-day
+coverage shape fix + ruling addenda (BUG-9, DEBT-75)"). **EIGHT commits, and the
+merge subject names only two rows — so this entry names all eight**, which is the
+half a merge message does not carry:
+
+- `7f1fb3b` — BUG-9 work. `getDemandShape` classified `date <= today`, so the
+  current day took its own `SalesHourlyCache`, which holds only ELAPSED hours;
+  the pure coverage engine then spread the whole day's hourly budget across the
+  morning. Boundary is now `date < today` (store-local) → that date's own cache,
+  `date >= today` → the 4-week same-weekday template. The template walk-back also
+  moved to start at YESTERDAY, so no window contains today's partial day —
+  a deliberate output change for future days sharing today's weekday, ratified
+  by Gary in the addenda below. Hours/budget/split untouched.
+- `366839b` — the BUG-9 row.
+- `41f9fab` — DECISIONS.md addenda (completed-weekday window, last-year fallback
+  held binding, shape-source labeling deferred to the overlay), the DEBT-75 row,
+  and the bookkeeping prompt filed.
+- `04d79e1` — the original same-day ruling + the fix session prompt.
+- `0e9d6cb` — POLISH-1, display-only: the Monthly Goal card's MTD labor % now
+  reads at the size of the extrapolated month-end figure (`prominent` prop on
+  `LaborPctLine`, default false, one call site). **Its row did not exist when
+  this merge was made** — filed 2026-08-20 in the bookkeeping commit below.
+- `50833fe`, `aded82d`, `cbc35e1` — docs/roadmap only: session prompts filed,
+  L-2 marked shipped (5e2f4d7) with CRON-1 filed and the phase map moved to
+  production, and BUILD-3 filed as withdrawn.
+
+**Rows this promotion moves:** BUG-9 → `shipped` (2026-08-20), POLISH-1 → filed
+and `shipped` (2026-08-20), DEBT-75 → filed `planned` and NOT built — the
+last-year same-weekday fallback is ruled binding and still absent, so a store
+with fewer than four completed same-weekdays in cache still gets "No sales shape
+to project" after this deploy. That is a known, recorded gap, not a regression
+from this promotion.
+
+**A DOCS FOLLOW-UP MERGE RIDES THE SAME PUSH.** The three row/log changes above
+are not inside `248a80b` — they are one bookkeeping commit on `staging`, merged
+to `main` as "promote: deploy bookkeeping for 248a80b". Neither that commit nor
+that merge can carry its own SHA here; both resolve as the two commits above
+this entry in `git log --oneline -- docs/DEPLOY_LOG.md`. **`main` therefore
+reaches production two merges ahead of `248a80b`**, and a reader reconciling the
+push history should expect both.
+
+**NO MIGRATION.** Nothing in the eight commits touches `prisma/`, so the Vercel
+build's `migrate deploy` is a no-op on this promotion; no schema change reaches
+any Neon branch. No env var is added or changed, no cron or webhook is touched,
+and no `GoalPlan` data is involved — nothing to regenerate per environment.
+
+**Standing note: nothing new is owed.** No bullet has been added to the section
+below since 2026-08-15, that one was discharged by the 2026-08-17 retroactive
+entry, and the docs-only merges were reconciled by `90a8eca` on 2026-08-18.
+
+**Post-deploy check** (a glance, not a procedure): the dashboard Labor Coverage
+card for TODAY should render a full-day curve with an afternoon peak rather than
+a morning-loaded one flattening to 1 after the current hour, and it should not
+change shape as the day goes on. Same curve in the Weekly Plan day detail, which
+rides the same route. The Monthly Goal card's labor % should read at the larger
+size; the All Locations summary should be unchanged.
+
+**Rollback:** `git revert -m 1 248a80b` (revert the bookkeeping merge first if it
+is already in, or accept that the rows will read `shipped` against reverted
+code and fix them in the same session).
+
 ## 5e2f4d7 — 2026-08-19 — Advanced Labor Phases 1–3
 
 Promotes the full Advanced Labor build: AL-1 (be705a2), AL-2 (8a28f61, f47e3bd), AL-3 (fa86bae). Staging verified 2026-08-19: roster renders real names/pay post staff-import, seam holds toggle-off, STORE privacy check passed (tommy@keva.com saw no wage/tips). Post-deploy: SQUARE_LABOR_AVAILABLE=true on Production, enable Advanced Labor, staff import + roster/timecard syncs per store, repeat STORE privacy check on production.
