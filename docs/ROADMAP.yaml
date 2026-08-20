@@ -6988,11 +6988,65 @@ phases:
   - id: L-2
     track: labor
     size: L
-    status: in_progress
+    status: shipped
+    shipped: 2026-08-19
+    commits: [be705a2, 8a28f61, f47e3bd, fa86bae, 5e2f4d7]
     title: >
       OPTIONAL Square labor integration — schedules and timecards as an overlay
       on forecast-driven labor, per-org toggle, off by default
     notes: >
+      SHIPPED — PROMOTED TO PRODUCTION 2026-08-19 in merge 5e2f4d7. Prepended;
+      nothing below is edited, INCLUDING the "STATUS STAYS in_progress" and
+      "STAGED, NOT PROMOTED" lines in the block directly beneath this one. Both
+      were true when written and are superseded here rather than removed — the
+      order of the blocks is the record of how this row got to production.
+      ALL THREE PHASES ARE LIVE: AL-1 (be705a2), AL-2 (8a28f61 and f47e3bd),
+      AL-3 (fa86bae). PRODUCTION VERIFIED THE SAME DAY: the Positions roster
+      renders real names and real pay after the production staff import, and
+      THE STORE PRIVACY CHECK PASSED — tommy@keva.com sees no wage and no tips.
+      That is the check that mattered. AL-3 is the first phase where per-person
+      pay reaches a page, and the design rule is that the capability decides
+      whether to RUN THE QUERY, never whether to render the cell, so a STORE
+      viewer with an empty payload is the only evidence that the rule held
+      where it counts.
+      STATUS IS `shipped`, NOT `verified`, BY GARY'S 2026-08-19 RULING, and the
+      gap is deliberate rather than an oversight to be tidied. The production
+      checks recorded above are exactly what a later `verified` flip would
+      cite; Gary held the row at `shipped` on the day. Read the absence of
+      `verified` as a decision, not as missing bookkeeping.
+      ROLLBACK IS `git revert -m 1 5e2f4d7`, and that is worth stating because
+      the neighbouring precedent is the opposite one. 5e2f4d7 is a TRUE MERGE
+      with two parents (27ae79a, the previous main HEAD, and cd20a45, the
+      staging head) — unlike BUILD-2's 493175e, which was a fast-forward and
+      therefore had no `-m 1` rollback at all. Verified from `git log --format=%p`
+      at recording time, not assumed from the commit subject.
+      SQUARE_LABOR_AVAILABLE IS NOW A PRODUCTION VARIABLE. The AL-3 block below
+      says production "stays dark regardless" because the flag was Preview-only
+      and its activation was a separate future decision. THAT DECISION HAS BEEN
+      TAKEN — the promotion's post-deploy steps (docs/DEPLOY_LOG.md, 5e2f4d7)
+      set it true on Production, enabled Advanced Labor, ran the staff import
+      and the roster/timecard syncs per store, and repeated the privacy check
+      there. Anyone reading the older sentence in isolation would conclude the
+      overlay is off in production. It is on.
+      FIVE SQUARE LOCATION IDS ARE STILL UNIDENTIFIED, and this is the one open
+      item this row carries into production: 13KAHQ…, 2K1XTK…, 779FNA…,
+      7W133C… and CD2APE… hold 11 team-member assignments between them and map
+      to no Froot `Store`. They render as a counted line on the Positions card
+      (Q10 ruled: render the count, file nothing). GARY IS CLASSIFYING THEM
+      THIS WEEK — closed / test / real-but-unimported — and the classification
+      is what decides whether anything gets built. NOTHING IS FILED FOR THIS
+      DELIBERATELY: two of the three outcomes need no code, and filing a row
+      before the answer would put speculative work on the board. If the answer
+      is "real but unimported", the import is the follow-up and it gets its own
+      row then. The ids are also listed in docs/ADVANCED_LABOR.md, which is
+      where the measurement they came from lives.
+      TASK-4 CROSS-NOTE — the 2026-08-19 07:03 build anomaly is NOT filed on
+      this row and does not belong to it. It was filed as BUILD-3 in cbc35e1,
+      status `withdrawn`, closed as a transient build-environment failure. Said
+      here only because the recorder prompt for this session asked for it under
+      a different id and a reader comparing the two would otherwise look for a
+      row that does not exist.
+      ── AL-3 RECORD BELOW, UNEDITED ──
       PHASE 3 IS BUILT — 2026-08-19 (AL-3, work commit fa86bae). Prepended;
       nothing below is edited. STATUS STAYS in_progress — every vision item now
       has a build, but nothing is promoted and production stays dark regardless:
@@ -7818,6 +7872,63 @@ phases:
         CLEARS WHEN: L-2 clears, with L-4's write scope included in that single
         consent. The Froot-only assignment layer — everything except the Square
         push — is not gated by any of this and could be scoped independently.
+
+  - id: CRON-1
+    track: labor
+    size: S
+    status: planned
+    title: "Register the labor-timecards cron on production"
+    notes: >
+      FILED 2026-08-19 BY RULING, NOT BY NEED — this row exists so the
+      deliberate absence stays findable, and its whole content is a decision to
+      not act yet.
+      THE ROUTE IS BUILT AND IS DELIBERATELY ABSENT FROM vercel.json.
+      `/api/cron/labor-timecards` shipped with AL-1 (be705a2) and went to
+      production in 5e2f4d7 with everything else, so it is live and callable —
+      there is simply no schedule pointing at it. That is the AL-1 Q7 ruling
+      (Gary, 2026-08-18): build the route, register no cron, and pick the
+      cadence once Phase 2 gave the number something to be fresh FOR. Read the
+      missing vercel.json entry as this ruling, never as an oversight to be
+      helpfully corrected.
+      GARY'S 2026-08-19 RULING — BACK BURNER. Dashboard-triggered sync is
+      sufficient. The sync runs when someone opens the labor surfaces, which is
+      also when anyone cares about the number, so a schedule would mostly warm
+      data nobody is looking at.
+      REVISIT TRIGGER, and it is two specific events rather than a date: the
+      FIRST STALENESS COMPLAINT from the team, or the FIRST ALERTING FEATURE.
+      Both describe the same underlying change — a consumer that reads labor
+      data when no human just opened a page. Alerts and end-of-day reports need
+      always-warm data by construction; dashboards do not. Until one of those
+      exists there is nothing for a cron to serve.
+      SIZE S IS THE REGISTRATION ONLY. Picking the cadence is the actual
+      decision (AL-1 Q7 left hourly-during-business-hours and nightly both on
+      the table) and it should be made against whichever trigger fires, since
+      an alerting feature and a staleness complaint would not want the same
+      schedule.
+      SCOPE NOTE — THE ROSTER HAS NO SCHEDULED REFRESH EITHER, and it is a
+      separate question from this one. AL-3's roster sync is a manual "Sync
+      roster" action by design: a wage setting moves when somebody gets a
+      raise, not on a clock. Do not fold it into this row's cadence decision.
+      ID NOTE: `CRON-` is a NEW id prefix as of this row — no other row carries
+      it — and the track is `labor` rather than `build`, because what is parked
+      is a labor-data freshness decision and not a tooling change. Same
+      reasoning the `staff` track note on SQ-4 records.
+      STATUS NOTE, AND IT IS A DEVIATION FROM WHAT WAS ASKED. Gary specified
+      status `parked`. There is no such value — PhaseStatus in
+      src/lib/roadmap.ts is a closed union (planned | in_progress | staging |
+      shipped | verified | withdrawn) and src/generated/roadmap.ts is typed
+      against it, so `parked` fails the build typecheck rather than rendering
+      oddly. `planned` is the closest true statement: the work is real, it is
+      not started, and it is not blocked by anything except the absence of a
+      reason. THE PARKING LIVES IN THIS PROSE, which is weaker than a status
+      value would be — a board reader sees "planned" and has to open the row to
+      learn it is on the back burner behind a named trigger. If `parked` should
+      exist as its own value, that is Gary's call and it is the same shape as
+      the ruling that added `withdrawn` on 2026-08-01; it would touch the
+      union, BOARD_COLUMNS and the board's column mapping, which is code and
+      out of scope for a recorder commit. BUILD-3 hit the identical wall the
+      same day with `closed` and resolved it the same way, so this is now a
+      pattern rather than a one-off.
 
   # ---- Permissions ----
 
