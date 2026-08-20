@@ -11,6 +11,7 @@ import {
   loadLaborBlocks,
   loadTipBlocks,
   scheduleLaborRefresh,
+  scheduleScheduledShiftRefresh,
 } from "@/lib/labor-dashboard"
 import type { EstateLaborBlock, LaborBlock } from "@/lib/labor-judgment"
 import type { TipBlock } from "@/lib/labor-costs"
@@ -203,6 +204,10 @@ export async function GET(req: Request) {
   // scheduleLaborRefresh's per-load cap. Attempted whenever the OVERLAY is on,
   // independent of whether any individual store is currently connected (R1).
   if (laborByStore && laborOverlayOn(org)) scheduleLaborRefresh(org, stores)
+  // OVL-S2 — the schedule half, same gate, own cooldown and its own (smaller)
+  // per-load cap, because each schedule sync costs ~5 Square requests to the
+  // timecard sync's 1.
+  if (laborByStore && laborOverlayOn(org)) scheduleScheduledShiftRefresh(org, stores)
 
   return NextResponse.json({
     month: monthStart(anchorToday),
