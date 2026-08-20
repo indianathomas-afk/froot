@@ -6,6 +6,70 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Schedule overlay, S1b rulings — 2026-08-20 (Gary)
+
+- "Scheduled" means the EFFECTIVE shift: published where it exists,
+  else draft. During the Square Scheduling migration, draft-only stores
+  show the manager's actual plan instead of a blank. Owned trade-off:
+  the card may show shifts not yet announced to staff. (Gary)
+- Position colors live in a new SquareJobColor table keyed
+  (organizationId, squareJobId) — auto-discovered from synced shifts,
+  deterministic default color, editable by managers/admins in settings.
+  No color column on LaborPosition; no Square-job-to-LaborPosition
+  mapping layer. (Gary)
+- Shift notes are synced as part of the record and NEVER selected into
+  any overlay payload — enforced by not fetching, not by filtering.
+  Observed live notes already carry a person's name, and the overlay is
+  STORE-visible. (Gary)
+- The schedule sync's fetch protocol is law, from the S1b measurement:
+  one location_id per request; windows sized to never paginate (weekly
+  default, narrow if a response ever carries a cursor); the cursor is
+  NEVER followed as a completeness strategy; limit cap is 50. The
+  timecard sync's cursor loop must not be cloned. (Gary)
+- Deleted shifts: Square tombstones via is_deleted. Sync the flag,
+  filter on read. No reconciliation pass. (Gary)
+
+## Staging probe exception, schedule payload discovery — 2026-08-20 (Gary)
+
+- One-time, narrow exception to the Neon-console-only rule for the S1b
+  ScheduledShift probe: a local session may pull staging env vars and
+  perform ONE read-only SELECT against the staging database — the
+  organization's id and squareAccessToken only — solely to make read-only
+  Square API calls with the org token. (Gary)
+- Everything else stays forbidden: no other staging DB reads, no staging
+  DB writes of any kind, no calls to getSquareClient or any token-refresh
+  path (they write tokens back), no production contact. (Gary)
+- The Square calls themselves are reads by construction — the grant holds
+  six read scopes and no write scope (SQ-WB-1). (Gary)
+- Pulled env files and every scratch artifact are deleted before the
+  session ends; the token never appears in any output, report, or commit.
+  (Gary)
+- This exception covers this probe only. Any future need is its own
+  ruling. (Gary)
+
+## Schedule/actual overlay, scope rulings — 2026-08-20 (Gary)
+
+- Schedule ingest uses the sync-and-cache pattern cloned from timecards
+  (dashboard-triggered, claimed cooldown, own sync-state) — never
+  fetch-on-view. Square ScheduledShift reads only; read-only,
+  org-token-only, shared SQUARE_VERSION constant, rides TIMECARDS_READ
+  per LABOR-0B. (Gary)
+- Position colors are assigned automatically (deterministic default per
+  position), and managers or admins can change a position's color in
+  settings (stored override on top of the default). (Gary)
+- The overlay is visible to STORE — it shows counts by position, never
+  wages — with a capability override in /users (PERM-5 machinery) to
+  turn the feature off, following the labor.actuals.view pattern. (Gary)
+- Scheduled and actual curves are display overlays on the coverage
+  output only — they never enter the demand shape, budget, or
+  recommendation path (seam b). Sync failure renders last-synced,
+  labeled stale — never a blank pretending no schedule exists (seam c).
+  Stores without schedules written show forecasted only. (Gary)
+- Scout first: a read-only discovery session probes the ScheduledShift
+  API against real orgs and audits the seams before any build. Session
+  split ratified: S1 discovery → S2 ingest+table → S3 card overlay →
+  S4 /labor comparison. One phase per session. (Gary)
+
 ## Same-day coverage shape, addenda — 2026-08-19 (Gary)
 
 - The 4-week same-weekday window is the last 4 COMPLETED same-weekdays —
