@@ -10220,6 +10220,56 @@ phases:
       guidance) and shows the branch in the UI. The two queries used are
       preserved in docs/prompts/BUILD-2_default_store.md Task 1a.
 
+  - id: BUILD-3
+    track: build
+    size: S
+    status: withdrawn
+    title: "2026-08-19 07:03 production redeploy of 27ae79a failed — prisma migrate deploy: datasource.url required"
+    notes: >
+      CLOSED — transient build-environment failure. Filed for the record rather
+      than fixed: nothing was changed, and nothing is outstanding.
+      STATUS NOTE, AND IT IS A DEVIATION FROM WHAT WAS ASKED: Gary specified
+      status CLOSED. There is no `closed` value — PhaseStatus in
+      src/lib/roadmap.ts is a closed union (planned | in_progress | staging |
+      shipped | verified | withdrawn) and src/generated/roadmap.ts is typed
+      against it, so `closed` fails the build typecheck rather than rendering
+      oddly. `withdrawn` is the only value that means resolved-and-not-built:
+      it counts as resolved in isResolvedDebt and claims no board column
+      (DEBT-37), which is where a closed incident belongs. The imperfect fit is
+      its documented sense of "retracted" — this was investigated and dismissed,
+      not retracted. If CLOSED should exist as its own value, that is Gary's
+      call and it is the same shape as the ruling that added `withdrawn` on
+      2026-08-01; it would touch the union, BOARD_COLUMNS and isResolvedDebt,
+      which is code and was out of scope for a recorder commit.
+      WHAT HAPPENED. A production redeploy of 27ae79a — the DEPLOY_LOG entry for
+      the 90a8eca Square/labor promotion, committed 2026-08-18 21:57:26 local —
+      failed at 07:03 on 2026-08-19 (time as reported from the Vercel dashboard,
+      i.e. local, not UTC) with `prisma migrate deploy` reporting that
+      datasource.url is required.
+      THREE OBSERVATIONS FROM THE FAILED BUILD, recorded because together they
+      are what makes it environmental rather than a defect: the build ran WITHOUT
+      CACHE; npm allow-scripts BLOCKED THE PRISMA POSTINSTALL SCRIPTS; and the
+      environment variables were VERIFIED UNCHANGED in Vercel that morning. A
+      blocked postinstall means the Prisma client was never generated for that
+      build, which is the reading under which "datasource.url required" is a
+      symptom of the missing generate step rather than of a missing or malformed
+      URL — and the unchanged env vars are what rule out the other reading.
+      RESOLUTION: transient build-environment failure. The same-machinery
+      production promotion build 5e2f4d7 SUCCEEDED THE SAME DAY (promote:
+      Advanced Labor Phases 1-3, 2026-08-19 14:39:04 local), on the same project,
+      the same branch target and the same migration machinery — so whatever
+      blocked the 07:03 run was not present seven hours later and required no
+      change to fix. REOPEN ONLY IF THE ERROR RECURS.
+      NO COMMITS FIELD, deliberately, and it is the `withdrawn` convention
+      rather than an omission: nothing was fixed, so there is no SHA that
+      resolves this row. 5e2f4d7 is cited above as EVIDENCE that the failure did
+      not persist, which is a different claim from a fix, and putting it in
+      `commits` would assert the stronger one.
+      PRESERVE-AND-MARK: BUILD-2 is not edited by this row. The two are
+      unrelated beyond the shared `build` track — BUILD-2 is the
+      default/primary-store work and carries its own separate, still-open
+      verification debt.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
