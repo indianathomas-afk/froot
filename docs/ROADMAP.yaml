@@ -8025,7 +8025,7 @@ phases:
   - id: OVL-S2
     track: labor
     size: M
-    status: in_progress
+    status: staging
     commits: [a56a2e8]
     title: "Schedule/actual overlay — S2 ingest: SquareScheduledShift tables, sync module, fixtures"
     notes: >
@@ -8140,6 +8140,35 @@ phases:
         runs the sync against staging and the log shows real shifts landing in
         the right windows — which S3 needs anyway before it can build a card
         against synced data.
+
+        CLOSED 2026-08-20 — THE RECONSTRUCTED FILTER IS THE RIGHT ONE, PROVEN
+        AGAINST REAL SQUARE DATA. Appended rather than prepended, and nothing
+        above is edited: the reconstruction and the reasoning that accepted it
+        are the record of what was gambled, and they stay legible only beside
+        the answer. Verified on staging by Gary 2026-08-20, after a56a2e8
+        reached origin/staging. Twelve stores synced via the dashboard trigger:
+        NINE returned shifts, ~648 rows in total, and THREE returned zero — the
+        stores not yet migrated to Square Scheduling — each of those three
+        carrying lastSyncOkAt SET with a zero count, which is seam (c)'s whole
+        purpose and the one shape that distinguishes "we asked and Square said
+        nothing" from "never synced". lastError was null on every row
+        throughout. assertFilterApplied() stayed SILENT on every page, which is
+        the load-bearing observation: S1b § 4 proved a wrong filter key returns
+        200 with the wrong data, so the tripwire not firing across twelve
+        stores and every page of each is the evidence that
+        query.filter.location_ids + query.filter.start.{start_at,end_at} is
+        what the endpoint actually honours. Carson was re-synced a second time
+        and returned 60 shifts on both passes — the upsert guard is idempotent
+        against live data, not only against the fixture. Evidence measured on
+        Neon branch br-square-feather (preview/staging).
+
+        NOTE WHAT THIS CHANGES FOR S3. The entry above made S3 the closer; it
+        closed one phase early, during S2's own staging pass, so S3 does NOT
+        inherit "run the sync first and confirm the filter" as a precondition.
+        S3 opens against a staging database that already holds real synced
+        shifts across nine stores and three deliberate zeroes — which is also
+        the fixture it needs for the empty-state and stale-state renders, ready
+        without setup.
 
   # ---- Permissions ----
 
