@@ -6,6 +6,24 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Staging probe exception, schedule payload discovery — 2026-08-20 (Gary)
+
+- One-time, narrow exception to the Neon-console-only rule for the S1b
+  ScheduledShift probe: a local session may pull staging env vars and
+  perform ONE read-only SELECT against the staging database — the
+  organization's id and squareAccessToken only — solely to make read-only
+  Square API calls with the org token. (Gary)
+- Everything else stays forbidden: no other staging DB reads, no staging
+  DB writes of any kind, no calls to getSquareClient or any token-refresh
+  path (they write tokens back), no production contact. (Gary)
+- The Square calls themselves are reads by construction — the grant holds
+  six read scopes and no write scope (SQ-WB-1). (Gary)
+- Pulled env files and every scratch artifact are deleted before the
+  session ends; the token never appears in any output, report, or commit.
+  (Gary)
+- This exception covers this probe only. Any future need is its own
+  ruling. (Gary)
+
 ## Schedule/actual overlay, scope rulings — 2026-08-20 (Gary)
 
 - Schedule ingest uses the sync-and-cache pattern cloned from timecards
