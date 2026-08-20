@@ -10381,6 +10381,38 @@ phases:
       default/primary-store work and carries its own separate, still-open
       verification debt.
 
+  - id: POLISH-1
+    track: labor
+    size: S
+    status: shipped
+    shipped: 2026-08-20
+    commits: [0e9d6cb]
+    title: "Monthly Goal card — the MTD labor % reads at the same size as the extrapolated month-end figure"
+    notes: >
+      FILED 2026-08-20, AFTER THE CODE, and the row is the point: 0e9d6cb was
+      committed 2026-08-19 naming POLISH-1 in its own message while no POLISH-1
+      existed on the board, so the promotion merge 248a80b was carrying UI to
+      production with nothing here describing it. Caught in the pre-push read
+      of that merge and filed at Gary's instruction. This is DEBT-72a's failure
+      mode arriving from the other direction — not a row left stale after its
+      code moved, but code moved with no row at all.
+      WHAT IT DID, display-only. The Monthly Goal card's "<month> labor %" row
+      now sits on the same visual rung as the EXTRAPOLATED TO MONTH END pair
+      above it: value text-xl font-extrabold, label the small-caps/tracking
+      treatment, both COPIED from that block's classes rather than assumed.
+      HOW IT AVOIDED TOUCHING THE OTHER TWO SURFACES. The classes live in
+      LaborPctLine (src/app/(app)/dashboard/labor-pct.tsx), which three surfaces
+      share, so the change is an opt-in `prominent` prop DEFAULTING TO FALSE and
+      passed at exactly one call site — the Monthly Goal card in
+      dashboard-client.tsx:639. The Sales-goal-unset state of that same card and
+      the All Locations summary render byte-identically to before. Verdict
+      colours, the "over" bold-red state, the asterisk and the footnotes are
+      untouched; `prominent` is typography and nothing else.
+      NOT VERIFIED IN PRODUCTION — `shipped` states where the code is, not that
+      anyone has looked at it. It is display-only on a card that is on the
+      dashboard's first screen, so the check is a glance, not a procedure.
+
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
@@ -11013,7 +11045,8 @@ bugs:
 
   - id: BUG-9
     title: "Coverage crams the whole day's budget into the morning — today shaped by its own partial-day cache"
-    status: in_progress
+    status: shipped
+    shipped: 2026-08-20
     commits: [7f1fb3b]
     notes: >
       RULED BY GARY 2026-08-19 BEFORE ANY CODE WAS WRITTEN, and the ruling is in
@@ -11064,6 +11097,10 @@ bugs:
       reads in_progress rather than `staging` (WORKFLOW.md § Session completion
       rules 4 keys on the push). It moves to `staging` in the session that
       pushes it.
+      STATUS MOVED 2026-08-20 — the paragraph above is kept as written and is no
+      longer the state. It skipped `staging` entirely: the promotion merge
+      248a80b took this straight to `main`, so the row went in_progress ->
+      shipped in one step, dated the day of the push it rides.
       TWO FINDINGS THIS FIX DID NOT TOUCH, both filed as text per the triage:
       (1) the demand-shape template has NO last-year fallback — the ruling and
       the prompt both describe one, but getDemandShape returns [] when the four
