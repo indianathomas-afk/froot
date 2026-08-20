@@ -12,7 +12,7 @@ import {
   capGmFloorCredits,
   applyDayAdjustment,
 } from "../src/lib/labor-daily"
-import { computeDailyCoverage, type HourNet } from "../src/lib/labor-coverage"
+import { computeDailyCoverage, demandShapeSource, type HourNet } from "../src/lib/labor-coverage"
 
 let failures = 0
 function check(label: string, actual: unknown, expected: unknown) {
@@ -85,6 +85,28 @@ console.log("\n8 · Floor-first under-budget — floors scale down, still ≤ we
 const tightFF = splitWeeklyHoursToDaysFloorFirst({ weeklyHourlyHours: 20, weightsByWeekday: null, floorHoursByWeekday: floors })
 check("Mon scaled to 20×6/30 = 4.0", tightFF[0].hourlyHours, 4.0)
 check("sum ≤ weekly total (20)", tightFF.reduce((s, d) => s + d.hourlyHours, 0) <= 20, true)
+
+console.log("\n9 · Demand-shape source — same-day ruling (docs/DECISIONS.md 2026-08-19):")
+// "Today" is INJECTED, never read from the clock: Wed 2026-08-19, store-local.
+const today = "2026-08-19"
+const lastFourWeds = "2026-08-12,2026-08-05,2026-07-29,2026-07-22"
+// The current day takes the template, not its own partial-day cache.
+const sameDay = demandShapeSource(today, today)
+check("today uses no per-date cache", sameDay.actualsDate, null)
+check("today averages the last 4 completed Wednesdays", sameDay.templateDates.join(","), lastFourWeds)
+check("today is NOT in its own template window", sameDay.templateDates.includes(today), false)
+// A past day still uses its own complete cache.
+const pastDay = demandShapeSource("2026-08-18", today)
+check("past day uses its own cache", pastDay.actualsDate, "2026-08-18")
+// Deterministic: day-of draws the curve yesterday's future-day view drew.
+const viewedYesterday = demandShapeSource(today, "2026-08-18")
+check("same window as yesterday's future view of today", viewedYesterday.templateDates.join(","), lastFourWeds)
+// Future days are unchanged in kind — template, same completed-weekday window.
+const nextWed = demandShapeSource("2026-08-26", today)
+check("future same-weekday day uses the template", nextWed.actualsDate, null)
+check("future window excludes today too", nextWed.templateDates.join(","), lastFourWeds)
+const nextMon = demandShapeSource("2026-08-24", today)
+check("future Monday averages the last 4 completed Mondays", nextMon.templateDates.join(","), "2026-08-17,2026-08-10,2026-08-03,2026-07-27")
 
 console.log(`\n${failures === 0 ? "✅ All checks passed." : `❌ ${failures} check(s) failed.`}`)
 process.exitCode = failures === 0 ? 0 : 1

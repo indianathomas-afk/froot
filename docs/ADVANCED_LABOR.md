@@ -1,5 +1,52 @@
 # Advanced Labor
 
+**Status: PHASES 1, 2 AND 3 ARE IN PRODUCTION — 2026-08-19, merge `5e2f4d7`.**
+Prepended per preserve-and-mark; nothing below this block is edited, including
+the three "staged, NOT promoted" status lines beneath it and the `**staging**`
+marking in the Phase map. Each was true when written, and the order of the
+blocks is the record of how this file got to production — superseding them in
+place would delete that.
+
+**What is live.** AL-1 (`be705a2`), AL-2 (`8a28f61`, `f47e3bd`) and AL-3
+(`fa86bae`), promoted together in one merge. `SQUARE_LABOR_AVAILABLE` is now
+set on **Production**, not Preview-only: the flag's activation was a separate
+future decision throughout the build, and that decision has been taken. The
+post-deploy steps ran the same day — Advanced Labor enabled, staff import, and
+the roster and timecard syncs per store (`docs/DEPLOY_LOG.md`, 5e2f4d7).
+
+**Production verified the same day, and the privacy check is the one that
+mattered.** The Positions roster renders real names and real pay against the
+production staff import, and **the STORE privacy check passed — tommy@keva.com
+sees no wage and no tips.** This file's governing rule is that the capability
+decides whether to RUN THE QUERY, never whether to render the cell; a STORE
+viewer holding an empty payload is the only evidence that distinguishes the two,
+and it is now evidence from production rather than from staging.
+
+**Rollback is `git revert -m 1 5e2f4d7`** — the promotion is a true merge with
+two parents (`27ae79a`, the previous main HEAD, and `cd20a45`, the staging
+head), so the `-m 1` form applies. Recorded because the nearest precedent on the
+board is the opposite case: BUILD-2's `493175e` was a fast-forward with no merge
+commit and therefore no such rollback.
+
+**The remaining-items list is unchanged and still accurate.** Overtime is still
+deferred and labelled, salaried allocation is still not invented (though the gap
+is measured at 5 people org-wide), per-person tip attribution is still not
+built, a timecard deleted in Square still persists as a stale row, and the cron
+is still unregistered — that last one is now filed as **CRON-1** in
+`docs/ROADMAP.yaml`, parked by Gary's 2026-08-19 ruling behind two named
+triggers (the first staleness complaint, or the first alerting feature).
+Promotion moved none of these; they are production limits now rather than
+staging ones.
+
+**The five unmapped Square location ids remain UNIDENTIFIED** — `13KAHQ…`,
+`2K1XTK…`, `779FNA…`, `7W133C…`, `CD2APE…`, holding 11 team-member assignments
+between them. Gary is classifying them this week as **closed / test /
+real-but-unimported**, and the classification is what decides whether anything
+gets built: two of the three answers need no code. Nothing is filed for it yet,
+deliberately.
+
+---
+
 **Status: PHASE 3 BUILT — 2026-08-19 (AL-3 Phase B, work commit `fa86bae`),
 staged, NOT promoted.** Prepended per preserve-and-mark; nothing below this block
 is edited. Vision items 2, 5 and 10 are built: pay rates on `/staff` and
@@ -340,6 +387,13 @@ sentence was superseded by the read-only ruling of the same day.
 ---
 
 ## Phase map
+
+**ALL THREE PHASES ARE IN PRODUCTION — 2026-08-19, merge `5e2f4d7`** (Phase 1
+`be705a2`, Phase 2 `8a28f61` + `f47e3bd`, Phase 3 `fa86bae`). The table below is
+the BUILD-TIME record and is left exactly as written, `**staging**` marking and
+all: it says what each phase was scoped to and where it stood when it was built,
+which is a different question from where it runs now. This line is the answer to
+where it runs now.
 
 | Phase | Scope | Vision items |
 |---|---|---|

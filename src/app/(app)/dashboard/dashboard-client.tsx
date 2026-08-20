@@ -636,7 +636,7 @@ function MonthlyGoalCard({
             Month-to-date by definition, so it takes no date picker. */}
         {summary.labor && (
           <div className="border-t border-[var(--color-border)] mt-3 pt-3">
-            <LaborPctLine block={summary.labor} label={`${monthName} labor %`} />
+            <LaborPctLine block={summary.labor} label={`${monthName} labor %`} prominent />
             <LaborNotes block={summary.labor} timeZone={summary.store.timezone} />
           </div>
         )}

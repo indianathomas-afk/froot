@@ -123,3 +123,51 @@ export function computeDailyCoverage({
     supervisorGap,
   }
 }
+
+// ── Demand-shape source (PURE) ────────────────────────────────────────────────
+// Date helpers for the classifier below. `labor-plan` re-exports both, so every
+// existing `@/lib/labor-plan` import site is unchanged; they live here so the
+// classifier stays in a module with no DB import and the verify script can
+// exercise it without a database.
+export function addDaysStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+export function jsDowOf(dateStr: string): number {
+  return new Date(`${dateStr}T00:00:00.000Z`).getUTCDay() // 0 Sun..6 Sat
+}
+
+export type DemandShapeSource = {
+  // The date whose own SalesHourlyCache shapes the day — a COMPLETED past day
+  // only. null for today and future days, which take the template.
+  actualsDate: string | null
+  // The four completed same-weekday dates averaged into the template shape.
+  // Also the fallback when a past day has no cache. NEVER contains `today`.
+  templateDates: string[]
+}
+
+// Which slice of the sales cache shapes a given day. `date` and `today` are
+// STORE-LOCAL yyyy-mm-dd (callers derive `today` from localDateStr +
+// store.timezone), so the boundary is the store's day, not UTC's.
+//
+// Ruled 2026-08-19 (docs/DECISIONS.md, "Same-day coverage shape"): the current
+// day uses the future-day template, never its own partial-day cache — today's
+// cache holds only ELAPSED hours, and shaping the whole day's budget by it
+// crams the day into the morning and leaves post-now hours at floor-1. Past
+// days keep their own complete cache; when today becomes yesterday the card
+// flips to actuals, and that flip is intended.
+export function demandShapeSource(date: string, today: string): DemandShapeSource {
+  const targetWd = jsDowOf(date)
+  // Walk back from YESTERDAY so the window is the last four COMPLETED same
+  // weekdays. Anchoring at `today` (as this walk used to) folds today's partial
+  // day into the average whenever the target weekday is today's — the same
+  // contamination, and it would make today's curve differ from the one
+  // yesterday's future-day view drew for it.
+  let cursor = addDaysStr(today, -1)
+  for (let i = 0; i < 7 && jsDowOf(cursor) !== targetWd; i++) cursor = addDaysStr(cursor, -1)
+  return {
+    actualsDate: date < today ? date : null,
+    templateDates: [0, 7, 14, 21].map((k) => addDaysStr(cursor, -k)),
+  }
+}

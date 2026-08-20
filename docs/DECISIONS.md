@@ -6,6 +6,32 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Same-day coverage shape, addenda — 2026-08-19 (Gary)
+
+- The 4-week same-weekday window is the last 4 COMPLETED same-weekdays —
+  today is never in its own average. This corrects future days sharing
+  today's weekday as well (they previously averaged in today's partial
+  cache); that output change is intended. (Gary — ratifying the 7f1fb3b
+  deviation)
+- The last-year same-weekday fallback for thin demand-shape history
+  (original Advanced Labor decision #7) remains binding but is not built —
+  getDemandShape returns empty and the card shows "No sales shape to
+  project." Tracked as a DEBT row, not fixed inline. (Gary)
+- Shape-source labeling (marking today's curve as projected shape) is
+  deferred into the schedule/actual overlay scope; the overlay legend must
+  distinguish projected shape from actual-day shape. (Gary)
+
+## Same-day coverage shape — ruled 2026-08-19 (Gary)
+
+- The current day's demand shape uses the future-day template (4-week
+  same-weekday average, last-year fallback) — never its own partial-day
+  SalesHourlyCache. (Gary)
+- Past days use their own complete cache. When today becomes yesterday, the
+  card flips to actuals — that flip is intended. (Gary)
+- The hours/budget/split path is unchanged — this ruling is shape-source only. (Gary)
+- Hybrid intraday shapes (actuals-to-date + template remainder) are rejected. (Gary)
+- "Today" is classified on the store-local day, not UTC. (Gary)
+
 ## Per-person pay is MANAGE-gated by ABSENCE, not by hiding — 2026-08-19 (Gary)
 
 The governing ruling for AL-3, and the one the rest of the phase is arranged

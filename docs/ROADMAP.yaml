@@ -6988,11 +6988,65 @@ phases:
   - id: L-2
     track: labor
     size: L
-    status: in_progress
+    status: shipped
+    shipped: 2026-08-19
+    commits: [be705a2, 8a28f61, f47e3bd, fa86bae, 5e2f4d7]
     title: >
       OPTIONAL Square labor integration — schedules and timecards as an overlay
       on forecast-driven labor, per-org toggle, off by default
     notes: >
+      SHIPPED — PROMOTED TO PRODUCTION 2026-08-19 in merge 5e2f4d7. Prepended;
+      nothing below is edited, INCLUDING the "STATUS STAYS in_progress" and
+      "STAGED, NOT PROMOTED" lines in the block directly beneath this one. Both
+      were true when written and are superseded here rather than removed — the
+      order of the blocks is the record of how this row got to production.
+      ALL THREE PHASES ARE LIVE: AL-1 (be705a2), AL-2 (8a28f61 and f47e3bd),
+      AL-3 (fa86bae). PRODUCTION VERIFIED THE SAME DAY: the Positions roster
+      renders real names and real pay after the production staff import, and
+      THE STORE PRIVACY CHECK PASSED — tommy@keva.com sees no wage and no tips.
+      That is the check that mattered. AL-3 is the first phase where per-person
+      pay reaches a page, and the design rule is that the capability decides
+      whether to RUN THE QUERY, never whether to render the cell, so a STORE
+      viewer with an empty payload is the only evidence that the rule held
+      where it counts.
+      STATUS IS `shipped`, NOT `verified`, BY GARY'S 2026-08-19 RULING, and the
+      gap is deliberate rather than an oversight to be tidied. The production
+      checks recorded above are exactly what a later `verified` flip would
+      cite; Gary held the row at `shipped` on the day. Read the absence of
+      `verified` as a decision, not as missing bookkeeping.
+      ROLLBACK IS `git revert -m 1 5e2f4d7`, and that is worth stating because
+      the neighbouring precedent is the opposite one. 5e2f4d7 is a TRUE MERGE
+      with two parents (27ae79a, the previous main HEAD, and cd20a45, the
+      staging head) — unlike BUILD-2's 493175e, which was a fast-forward and
+      therefore had no `-m 1` rollback at all. Verified from `git log --format=%p`
+      at recording time, not assumed from the commit subject.
+      SQUARE_LABOR_AVAILABLE IS NOW A PRODUCTION VARIABLE. The AL-3 block below
+      says production "stays dark regardless" because the flag was Preview-only
+      and its activation was a separate future decision. THAT DECISION HAS BEEN
+      TAKEN — the promotion's post-deploy steps (docs/DEPLOY_LOG.md, 5e2f4d7)
+      set it true on Production, enabled Advanced Labor, ran the staff import
+      and the roster/timecard syncs per store, and repeated the privacy check
+      there. Anyone reading the older sentence in isolation would conclude the
+      overlay is off in production. It is on.
+      FIVE SQUARE LOCATION IDS ARE STILL UNIDENTIFIED, and this is the one open
+      item this row carries into production: 13KAHQ…, 2K1XTK…, 779FNA…,
+      7W133C… and CD2APE… hold 11 team-member assignments between them and map
+      to no Froot `Store`. They render as a counted line on the Positions card
+      (Q10 ruled: render the count, file nothing). GARY IS CLASSIFYING THEM
+      THIS WEEK — closed / test / real-but-unimported — and the classification
+      is what decides whether anything gets built. NOTHING IS FILED FOR THIS
+      DELIBERATELY: two of the three outcomes need no code, and filing a row
+      before the answer would put speculative work on the board. If the answer
+      is "real but unimported", the import is the follow-up and it gets its own
+      row then. The ids are also listed in docs/ADVANCED_LABOR.md, which is
+      where the measurement they came from lives.
+      TASK-4 CROSS-NOTE — the 2026-08-19 07:03 build anomaly is NOT filed on
+      this row and does not belong to it. It was filed as BUILD-3 in cbc35e1,
+      status `withdrawn`, closed as a transient build-environment failure. Said
+      here only because the recorder prompt for this session asked for it under
+      a different id and a reader comparing the two would otherwise look for a
+      row that does not exist.
+      ── AL-3 RECORD BELOW, UNEDITED ──
       PHASE 3 IS BUILT — 2026-08-19 (AL-3, work commit fa86bae). Prepended;
       nothing below is edited. STATUS STAYS in_progress — every vision item now
       has a build, but nothing is promoted and production stays dark regardless:
@@ -7818,6 +7872,63 @@ phases:
         CLEARS WHEN: L-2 clears, with L-4's write scope included in that single
         consent. The Froot-only assignment layer — everything except the Square
         push — is not gated by any of this and could be scoped independently.
+
+  - id: CRON-1
+    track: labor
+    size: S
+    status: planned
+    title: "Register the labor-timecards cron on production"
+    notes: >
+      FILED 2026-08-19 BY RULING, NOT BY NEED — this row exists so the
+      deliberate absence stays findable, and its whole content is a decision to
+      not act yet.
+      THE ROUTE IS BUILT AND IS DELIBERATELY ABSENT FROM vercel.json.
+      `/api/cron/labor-timecards` shipped with AL-1 (be705a2) and went to
+      production in 5e2f4d7 with everything else, so it is live and callable —
+      there is simply no schedule pointing at it. That is the AL-1 Q7 ruling
+      (Gary, 2026-08-18): build the route, register no cron, and pick the
+      cadence once Phase 2 gave the number something to be fresh FOR. Read the
+      missing vercel.json entry as this ruling, never as an oversight to be
+      helpfully corrected.
+      GARY'S 2026-08-19 RULING — BACK BURNER. Dashboard-triggered sync is
+      sufficient. The sync runs when someone opens the labor surfaces, which is
+      also when anyone cares about the number, so a schedule would mostly warm
+      data nobody is looking at.
+      REVISIT TRIGGER, and it is two specific events rather than a date: the
+      FIRST STALENESS COMPLAINT from the team, or the FIRST ALERTING FEATURE.
+      Both describe the same underlying change — a consumer that reads labor
+      data when no human just opened a page. Alerts and end-of-day reports need
+      always-warm data by construction; dashboards do not. Until one of those
+      exists there is nothing for a cron to serve.
+      SIZE S IS THE REGISTRATION ONLY. Picking the cadence is the actual
+      decision (AL-1 Q7 left hourly-during-business-hours and nightly both on
+      the table) and it should be made against whichever trigger fires, since
+      an alerting feature and a staleness complaint would not want the same
+      schedule.
+      SCOPE NOTE — THE ROSTER HAS NO SCHEDULED REFRESH EITHER, and it is a
+      separate question from this one. AL-3's roster sync is a manual "Sync
+      roster" action by design: a wage setting moves when somebody gets a
+      raise, not on a clock. Do not fold it into this row's cadence decision.
+      ID NOTE: `CRON-` is a NEW id prefix as of this row — no other row carries
+      it — and the track is `labor` rather than `build`, because what is parked
+      is a labor-data freshness decision and not a tooling change. Same
+      reasoning the `staff` track note on SQ-4 records.
+      STATUS NOTE, AND IT IS A DEVIATION FROM WHAT WAS ASKED. Gary specified
+      status `parked`. There is no such value — PhaseStatus in
+      src/lib/roadmap.ts is a closed union (planned | in_progress | staging |
+      shipped | verified | withdrawn) and src/generated/roadmap.ts is typed
+      against it, so `parked` fails the build typecheck rather than rendering
+      oddly. `planned` is the closest true statement: the work is real, it is
+      not started, and it is not blocked by anything except the absence of a
+      reason. THE PARKING LIVES IN THIS PROSE, which is weaker than a status
+      value would be — a board reader sees "planned" and has to open the row to
+      learn it is on the back burner behind a named trigger. If `parked` should
+      exist as its own value, that is Gary's call and it is the same shape as
+      the ruling that added `withdrawn` on 2026-08-01; it would touch the
+      union, BOARD_COLUMNS and the board's column mapping, which is code and
+      out of scope for a recorder commit. BUILD-3 hit the identical wall the
+      same day with `closed` and resolved it the same way, so this is now a
+      pattern rather than a one-off.
 
   # ---- Permissions ----
 
@@ -10220,6 +10331,56 @@ phases:
       guidance) and shows the branch in the UI. The two queries used are
       preserved in docs/prompts/BUILD-2_default_store.md Task 1a.
 
+  - id: BUILD-3
+    track: build
+    size: S
+    status: withdrawn
+    title: "2026-08-19 07:03 production redeploy of 27ae79a failed — prisma migrate deploy: datasource.url required"
+    notes: >
+      CLOSED — transient build-environment failure. Filed for the record rather
+      than fixed: nothing was changed, and nothing is outstanding.
+      STATUS NOTE, AND IT IS A DEVIATION FROM WHAT WAS ASKED: Gary specified
+      status CLOSED. There is no `closed` value — PhaseStatus in
+      src/lib/roadmap.ts is a closed union (planned | in_progress | staging |
+      shipped | verified | withdrawn) and src/generated/roadmap.ts is typed
+      against it, so `closed` fails the build typecheck rather than rendering
+      oddly. `withdrawn` is the only value that means resolved-and-not-built:
+      it counts as resolved in isResolvedDebt and claims no board column
+      (DEBT-37), which is where a closed incident belongs. The imperfect fit is
+      its documented sense of "retracted" — this was investigated and dismissed,
+      not retracted. If CLOSED should exist as its own value, that is Gary's
+      call and it is the same shape as the ruling that added `withdrawn` on
+      2026-08-01; it would touch the union, BOARD_COLUMNS and isResolvedDebt,
+      which is code and was out of scope for a recorder commit.
+      WHAT HAPPENED. A production redeploy of 27ae79a — the DEPLOY_LOG entry for
+      the 90a8eca Square/labor promotion, committed 2026-08-18 21:57:26 local —
+      failed at 07:03 on 2026-08-19 (time as reported from the Vercel dashboard,
+      i.e. local, not UTC) with `prisma migrate deploy` reporting that
+      datasource.url is required.
+      THREE OBSERVATIONS FROM THE FAILED BUILD, recorded because together they
+      are what makes it environmental rather than a defect: the build ran WITHOUT
+      CACHE; npm allow-scripts BLOCKED THE PRISMA POSTINSTALL SCRIPTS; and the
+      environment variables were VERIFIED UNCHANGED in Vercel that morning. A
+      blocked postinstall means the Prisma client was never generated for that
+      build, which is the reading under which "datasource.url required" is a
+      symptom of the missing generate step rather than of a missing or malformed
+      URL — and the unchanged env vars are what rule out the other reading.
+      RESOLUTION: transient build-environment failure. The same-machinery
+      production promotion build 5e2f4d7 SUCCEEDED THE SAME DAY (promote:
+      Advanced Labor Phases 1-3, 2026-08-19 14:39:04 local), on the same project,
+      the same branch target and the same migration machinery — so whatever
+      blocked the 07:03 run was not present seven hours later and required no
+      change to fix. REOPEN ONLY IF THE ERROR RECURS.
+      NO COMMITS FIELD, deliberately, and it is the `withdrawn` convention
+      rather than an omission: nothing was fixed, so there is no SHA that
+      resolves this row. 5e2f4d7 is cited above as EVIDENCE that the failure did
+      not persist, which is a different claim from a fix, and putting it in
+      `commits` would assert the stronger one.
+      PRESERVE-AND-MARK: BUILD-2 is not edited by this row. The two are
+      unrelated beyond the shared `build` track — BUILD-2 is the
+      default/primary-store work and carries its own separate, still-open
+      verification debt.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
@@ -10849,6 +11010,78 @@ bugs:
       ones, on the named trigger of adding a store.
       CROSS-REFS: BUG-6 (the poll window this can exceed, and the session this
       was observed in).
+
+  - id: BUG-9
+    title: "Coverage crams the whole day's budget into the morning — today shaped by its own partial-day cache"
+    status: in_progress
+    commits: [7f1fb3b]
+    notes: >
+      RULED BY GARY 2026-08-19 BEFORE ANY CODE WAS WRITTEN, and the ruling is in
+      docs/DECISIONS.md § "Same-day coverage shape", not in this row: the
+      current day's demand shape uses the future-day template, past days use
+      their own complete cache, the elapsed-day flip back to actuals is
+      INTENDED, hybrid intraday shapes are rejected, and "today" is the
+      STORE-LOCAL day. This row records what was built against it.
+      THE DEFECT. getDemandShape (src/lib/labor-plan.ts) classified with
+      `if (date <= today)`, so today fell in with the past and took its own
+      SalesHourlyCache. That cache holds only ELAPSED hours, and
+      computeDailyCoverage is pure — it spreads the day's ENTIRE hourly budget
+      across whatever demand array it gets. So the whole day's budget landed on
+      the hours that had already happened, post-now hours sat at floor-1, and
+      the curve mutated hour by hour as sales came in. Same-day only: past days
+      and future days both have complete shapes and always rendered correctly.
+      THE FIX. `date < today` -> that date's own cache; `date >= today` -> the
+      4-week same-weekday template future days already used. The boundary is
+      store-local because both callers derive `today` as
+      localDateStr(new Date(), store.timezone) — /api/labor/coverage:26 and
+      /api/labor/weekly-plan:46 — and the comparison is a yyyy-mm-dd string
+      compare against that value. NOTHING about how hours are budgeted or split
+      changed; this is a shape-source change only.
+      THE TEMPLATE WINDOW MOVED TOO, AND THAT IS A DEVIATION FROM THE SESSION
+      PROMPT, which asked for future-day behavior byte-identical. The
+      same-weekday walk-back anchored at `today`, so when the target weekday
+      was today's own the window was [today, -7, -14, -21] — today's partial
+      day inside the average. Left there it would have re-entered today's shape
+      through the template and the fix would have been self-defeating. It also
+      contradicted the determinism the ruling asks for: yesterday's future view
+      of today averaged [-7,-14,-21,-28], today's view averaged
+      [today,-7,-14,-21]. The walk now starts at YESTERDAY, so both views
+      average the same four COMPLETED same weekdays. Future days whose weekday
+      matches today's therefore changed as well — they were carrying the same
+      contamination, and the change moves them the same direction.
+      WHERE THE CLASSIFIER LIVES. demandShapeSource(date, today) is pure and
+      sits in src/lib/labor-coverage.ts, the module that already declares
+      itself PURE with no DB import, so the verify script exercises it with no
+      database. addDaysStr/jsDowOf moved there with it and are RE-EXPORTED from
+      labor-plan, so every `@/lib/labor-plan` import site is unchanged and the
+      date math is not duplicated a second time.
+      VERIFIED: scripts/verify-labor-coverage.ts section 9, with "today"
+      injected (2026-08-19) and never read from the clock — today takes the
+      template, today is not in its own window, a past day still takes its own
+      cache, and today's window equals the one yesterday's future view drew.
+      Both verify scripts green, npm run build green. No migration, no deps.
+      NOT PUSHED — the commit is on local `staging` only, which is why this row
+      reads in_progress rather than `staging` (WORKFLOW.md § Session completion
+      rules 4 keys on the push). It moves to `staging` in the session that
+      pushes it.
+      TWO FINDINGS THIS FIX DID NOT TOUCH, both filed as text per the triage:
+      (1) the demand-shape template has NO last-year fallback — the ruling and
+      the prompt both describe one, but getDemandShape returns [] when the four
+      weekday dates are all empty and the card renders "No sales shape to
+      project"; the -364 last-year read that DOES exist is
+      /api/labor/weekly-plan:58, and it feeds the sales comparison column, not
+      the shape. (2) No UI labels the shape source, so nothing today says
+      "projected shape" — the Coverage card's only shape sentence is the
+      "Demand-shaped and capped by the conservative budget" footnote
+      (labor-coverage-card.tsx:208) and the Weekly Plan day detail carries none.
+      Both are Gary's calls, not defects introduced here.
+      CROSS-REFS: DECISIONS.md § Same-day coverage shape (the ruling), L-3 (the
+      plan engine this rides), BUG-6/BUG-8 (the today-cache refresh path that
+      makes today's cache fill in over the day: /api/dashboard/summary,
+      /rollup and /sales sync today inline on a first-ever load and refresh it
+      behind after() past a staleness TTL, with Square order webhooks and the
+      11:00 sales-reconcile cron as the primary freshness).
+
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
@@ -11677,6 +11910,34 @@ debt:
       window at all (it feeds the Item Sales report now and theoretical usage /
       variance in I-6, so old rows are not obviously disposable); and if it does,
       how far back. The measurement is the contribution here, not the remedy.
+
+  - id: DEBT-75
+    status: planned
+    title: "Demand-shape last-year fallback — build the ruled-but-unbuilt fallback: fewer than 4 completed same-weekdays in SalesHourlyCache → last-year same-weekday hourly shape (−364)"
+    notes: >
+      FILED 2026-08-19 OUT OF BUG-9'S TRIAGE, ruled the same day (DECISIONS.md
+      § "Same-day coverage shape, addenda"): the last-year same-weekday
+      fallback of original Advanced Labor decision #7 REMAINS BINDING but is
+      not built, and is tracked here rather than fixed inline.
+      THE STATE TODAY. getDemandShape (src/lib/labor-plan.ts) averages the four
+      completed same-weekday dates from SalesHourlyCache and returns [] when
+      none of them has rows — there is no −364 step under it. The card then
+      renders "No sales shape to project" (labor-coverage-card.tsx:151) and the
+      day has no coverage curve at all. The −364 read that DOES exist,
+      /api/labor/weekly-plan:58, feeds the sales COMPARISON column and not the
+      shape; do not mistake it for the fallback.
+      WHAT TO BUILD: fewer than 4 completed same-weekdays in the cache → fall
+      through to the same weekday one year prior (date − 364, the alignment
+      goal-engine already uses) for the HOURLY shape. Contained — one helper
+      plus a fixture case in scripts/verify-labor-coverage.ts, alongside the
+      pure demandShapeSource that BUG-9 added.
+      COST OF DOING NOTHING: LATENT, on two named triggers — a newly onboarded
+      store whose cache has no four completed same-weekdays yet, and any store
+      after 4+ dark weeks. On either, the Coverage card and the Weekly Plan day
+      detail show no curve rather than a degraded one.
+      CROSS-REFS: BUG-9 (the same-day shape fix this was found in), DECISIONS.md
+      § Same-day coverage shape + addenda (the binding ruling), L-3.
+
 
   - id: DEBT-1
     status: verified

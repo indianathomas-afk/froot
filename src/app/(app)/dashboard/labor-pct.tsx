@@ -63,13 +63,33 @@ export function LaborPctMetric({ block, label = "Labor %" }: { block: LaborBlock
 
 /// The compact form for the Monthly Goal card and the All Locations summary card:
 /// one value with its verdict colour and its target, no meter.
-export function LaborPctLine({ block, label }: { block: LaborBlock; label: string }) {
+/// POLISH-1 — `prominent` is TYPOGRAPHY ONLY: it lifts the label and value onto
+/// the same rung as the "EXTRAPOLATED TO MONTH END" pair above it on the Monthly
+/// Goal card, copying that block's classes. Default false, so the other call
+/// sites render exactly as before.
+export function LaborPctLine({
+  block,
+  label,
+  prominent = false,
+}: {
+  block: LaborBlock
+  label: string
+  prominent?: boolean
+}) {
   const verdict = judgeLaborPct(block.laborPct, block.target, block.health)
   const note = laborNoValueLabel(block)
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[12.5px] text-[var(--color-muted-foreground)]">{label}</span>
-      <span className={`text-[13px] font-bold ${laborVerdictClass(verdict)}`}>
+      <span
+        className={
+          prominent
+            ? "text-[11px] font-semibold tracking-wide uppercase text-[var(--color-muted-foreground)]"
+            : "text-[12.5px] text-[var(--color-muted-foreground)]"
+        }
+      >
+        {label}
+      </span>
+      <span className={`${prominent ? "text-xl font-extrabold" : "text-[13px] font-bold"} ${laborVerdictClass(verdict)}`}>
         {formatLaborPct(block.laborPct)}
         {block.laborPct !== null && <span className="font-normal">*</span>}
         {note && <span className="ml-1 text-[11px] font-normal text-[var(--color-muted-foreground)]">{note}</span>}
