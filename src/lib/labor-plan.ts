@@ -10,7 +10,7 @@ import {
   applyDayAdjustment,
   capGmFloorCredits,
 } from "@/lib/labor-daily"
-import { computeDailyCoverage, type CoverageResult, type HourNet } from "@/lib/labor-coverage"
+import { computeDailyCoverage, demandShapeSource, addDaysStr, jsDowOf, type CoverageResult, type HourNet } from "@/lib/labor-coverage"
 
 // L-3 shared weekly-plan engine. One place that turns a store's weekly labor
 // budget into a per-DAY hourly-hours plan, so the Budget card, the Coverage
@@ -29,14 +29,10 @@ import { computeDailyCoverage, type CoverageResult, type HourNet } from "@/lib/l
 const WEEKLY_GM_CAP_HOURS = 40
 
 // ── date / hour helpers ───────────────────────────────────────────────────────
-export function addDaysStr(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00.000Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
-}
-export function jsDowOf(dateStr: string): number {
-  return new Date(`${dateStr}T00:00:00.000Z`).getUTCDay() // 0 Sun..6 Sat
-}
+// addDaysStr/jsDowOf now live in the pure labor-coverage module (alongside the
+// demand-shape classifier that needs them) and are re-exported here so every
+// existing `@/lib/labor-plan` call site is unchanged.
+export { addDaysStr, jsDowOf }
 export function laborWeekdayOf(dateStr: string): number {
   return (jsDowOf(dateStr) + 6) % 7 // 0 Mon..6 Sun
 }
@@ -301,20 +297,19 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
   }
 }
 
-// The day's hourly demand shape. Past/today with data → that day's actuals;
-// otherwise (future or a gap) the average of the same weekday over the last 4
-// weeks (dates ≤ today). Moved here from the coverage route so the Weekly Plan
-// page reuses the exact same shape. `today` is store-local yyyy-mm-dd.
+// The day's hourly demand shape. A COMPLETED past day with data → that day's
+// own actuals; today and every future day → the average of the same weekday
+// over the last 4 completed weeks (also the fallback when a past day has no
+// cache). Moved here from the coverage route so the Weekly Plan page reuses the
+// exact same shape. `today` is store-local yyyy-mm-dd; which slice applies is
+// decided by the pure `demandShapeSource` (see the ruling quoted there).
 export async function getDemandShape(storeId: string, date: string, today: string): Promise<HourNet[]> {
-  if (date <= today) {
-    const rows = await prisma.salesHourlyCache.findMany({ where: { storeId, date: dbDate(date) }, orderBy: { hour: "asc" } })
+  const source = demandShapeSource(date, today)
+  if (source.actualsDate) {
+    const rows = await prisma.salesHourlyCache.findMany({ where: { storeId, date: dbDate(source.actualsDate) }, orderBy: { hour: "asc" } })
     if (rows.length > 0) return rows.map((r) => ({ hour: r.hour, net: r.netSales }))
   }
-  const targetWd = jsDowOf(date)
-  let cursor = today
-  for (let i = 0; i < 7 && jsDowOf(cursor) !== targetWd; i++) cursor = addDaysStr(cursor, -1)
-  const dates = [0, 7, 14, 21].map((k) => addDaysStr(cursor, -k))
-  const rows = await prisma.salesHourlyCache.findMany({ where: { storeId, date: { in: dates.map((d) => dbDate(d)) } } })
+  const rows = await prisma.salesHourlyCache.findMany({ where: { storeId, date: { in: source.templateDates.map((d) => dbDate(d)) } } })
   if (rows.length === 0) return []
   const sum = new Map<number, number>()
   const seenDays = new Set<string>()
