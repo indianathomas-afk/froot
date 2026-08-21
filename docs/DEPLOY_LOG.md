@@ -2,6 +2,48 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## 3d10d46 — 2026-08-21 — Advanced Labor schedule overlay track (OVL-S2…S5 + CRON-1 + BUG-10)
+
+**Merge SHA:** `3d10d461fdec2cdfe241fc20a833dbde7e109a79`
+**Payload:** 29 commits, `a56a2e8`..`8f763da` (staging → main, `--no-ff`)
+**Prior main tip:** `3cec6b8` (docs-only)
+**Diff:** 38 files, +9,046 / −60
+
+### What shipped
+
+- **OVL-S2** — Square scheduled-shift ingest. New tables `SquareScheduledShift`, `SquareScheduleSyncState`, `SquareJobColor`; `src/lib/labor-schedule.ts`. Fetch protocol is law: one location per request, weekly windows, cursor never followed, limit 50, `assertFilterApplied` tripwire. Square's `ScheduledShift` pagination is silently lossy.
+- **OVL-S3** — Coverage card overlay. Scheduled|Clocked-in toggle, per-position colours (deterministic + `SquareJobColor` override, editor at `/settings/labor`), `labor.schedule.view` capability (OPERATIONAL, deniable, STORE-visible by default).
+- **OVL-S4** — `/labor` scheduled-vs-suggested comparison, legend click-to-toggle, clocked-in roster popup (three-field contract; `squareTeamMemberId` never on the wire).
+- **CRON-1** — `/api/cron/labor-timecards` activated in `vercel.json`, `30 11 * * *` (11:30 UTC / 4:30a Pacific). Vercel crons fire on Production only — this promotion is its first live run. `CRON_SECRET` held by Gary. Payload also carries `/api/cron/labor-scheduled-shifts`; confirm whether it is scheduled.
+- **BUG-10** — late clock-outs after the day's final dashboard-triggered sync froze as phantom opens (Las Brisas Aug 19; UNR still carrying one at 22.9h as of promotion). The cron is the systemic fix and flips on this deploy.
+- **OVL-S5** — Day Inspector at `/labor/inspector`. Per-person daily timeline with ghosted schedule behind, six variance flags, manager/admin only via `labor.manage`, read-only, no wages, no break rendering.
+  - **A12** — NO-SHOW gains an evaluation horizon: `shift.start + 20min <= min(now, lastTimecardSyncOkAt)`. Fixes false no-shows on shifts not yet started and on windows the sync had not reached.
+  - **A13** — explanatory notices composed server-side into `notices: {code,text}[]`; the client maps and filters nothing. Closes the class where a correct payload field is unreachable because its render condition lives where no fixture looks.
+
+### Schema
+
+S2's migration `20260820170000_ovl_s2_scheduled_shift_ingest` rides this deploy. Additive only — no column drops, no hard deletes. Staging and production Neon branches are separate; code promotion migrates no data. Production `SquareScheduledShift` and `SquareTimecard` start empty and accumulate from the first sync.
+
+### Production env — verified before merge
+
+`SQUARE_LABOR_AVAILABLE=true` · `LABOR_MODULE_AVAILABLE=true` · `CRON_SECRET` present. `SQUARE_LABOR_INTERNAL_ORG_IDS` not needed — `SQUARE_LABOR_AVAILABLE` is the direct path. Without these the cron returns `ok:true, stores:0`, which reads as success.
+
+### Field verification (staging, 2026-08-21)
+
+Proven live with real data: A1 unbounded open-card read with `startedOn` labelling across day boundaries · OPEN-STALE on a 22.9h phantom · A12 suppression (zero false no-shows at 07:17 with three future shifts) · A13 horizon sentence rendering with store-local timestamp · a genuine NO-SHOW firing (Meadowood Mall, Aug 20) · UNMAPPED · UNSCHEDULED · paid totals · both per-store freshness stamps · reconciliation sentence · per-position colours · unassigned shifts firing no NO-SHOW · single Las Brisas in the picker (DEBT-78 fossil absent) · chip/roster/curve agreement on the dashboard.
+
+Fixture-proven only, recorded as gaps: DOUBLE overlap rendering (no real overlapping pair exists in staging data) · stale-sync suppression render · capability-denied renders · the unassigned-shift notice variant.
+
+### Rollback
+
+    git revert -m 1 3d10d461fdec2cdfe241fc20a833dbde7e109a79
+
+`-m 1` keeps main's side as the parent. The migration is additive, so a code revert leaves the new tables in place, unread and harmless. Do not drop them.
+
+### Known open at promotion
+
+DEBT-75 · DEBT-76 (hr8 fixture, exactly nine known failures) · DEBT-77 · DEBT-78 (duplicate unlinked Las Brisas Store row; inspector picker filters it, other pickers do not) · DEBT-79 (cross-store DOUBLE not implemented) · S5-D10 (two independent 40s: `WEEKLY_GM_CAP_HOURS` hardcoded vs `budget.salariedHours` summed — they agree at UNR by coincidence) · the GM-hours whole-crew ruling ratified but not built (thirteen surfaces, audit filed) · vocabulary defect: "Recommended" / "Suggested" / "the forecast" all name the same chart while "Forecast" elsewhere is a dollar amount · UNR past-day coverage window terminating at the old close time (Q2, unaudited) · deletion-blindness `labor-actuals.ts:749-753` still theoretical and unruled.
+
 ---
 
 ## 3cec6b8 — 2026-08-20 — Docs-only: S1b schedule-overlay rulings + CLAUDE.md corrections
