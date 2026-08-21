@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SplitPolicyInfo } from "@/components/labor/split-policy-info"
+import { BADGE_PRESETS, badgePreset, type BadgePresetKey } from "@/lib/badge-presets"
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,7 @@ export function LaborSettingsClient({
       <PositionsCard initial={initialPositions} stores={stores} showRoster={showRoster} />
       <DaySplitCard stores={stores} />
       <DaypartsCard />
+      <JobColorsCard />
     </div>
   )
 }
@@ -1246,5 +1248,130 @@ function DaypartDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ─── OVL-S3: position colours on the Coverage overlay ─────────────────────────
+//
+// GATED BY THE PAGE, NOT BY ITSELF. /settings/labor already requires both
+// feature gates plus labor.manage (ADMIN + MANAGER), so this card inherits the
+// manager/admin restriction the ruling asks for without inventing a second one
+// that could drift from it.
+//
+// EMPTY IS THE COMMON CASE AND IT IS NOT AN ERROR. Jobs are auto-discovered from
+// synced shifts; a store mid-Square-Scheduling-rollout has none, and the card
+// says so rather than rendering an empty table.
+
+type JobColor = {
+  squareJobId: string
+  title: string | null
+  colorKey: BadgePresetKey
+  isOverride: boolean
+}
+
+function JobColorsCard() {
+  const [jobs, setJobs] = useState<JobColor[] | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [saving, setSaving] = useState<string | null>(null)
+
+  const load = useCallback(() => {
+    fetch("/api/labor/job-colors")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((d) => {
+        setJobs(d.jobs)
+        setFailed(false)
+      })
+      .catch(() => setFailed(true))
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  async function setColor(squareJobId: string, colorKey: BadgePresetKey) {
+    setSaving(squareJobId)
+    // Optimistic — a colour picker that waits on a round trip feels broken. The
+    // reload below is what makes the stored truth win if the write failed.
+    setJobs((prev) => prev?.map((j) => (j.squareJobId === squareJobId ? { ...j, colorKey, isOverride: true } : j)) ?? null)
+    await fetch("/api/labor/job-colors", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ squareJobId, colorKey }),
+    }).catch(() => null)
+    setSaving(null)
+    load()
+  }
+
+  async function reset(squareJobId: string) {
+    setSaving(squareJobId)
+    await fetch(`/api/labor/job-colors?squareJobId=${encodeURIComponent(squareJobId)}`, { method: "DELETE" }).catch(() => null)
+    setSaving(null)
+    load()
+  }
+
+  return (
+    <Card>
+      <CardContent className="pt-5 pb-5">
+        <h2 className="text-[15px] font-bold text-[var(--color-foreground)] mb-1">Position colours</h2>
+        <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+          The colours the scheduled and clocked-in curves use on the Labor Coverage card. Every
+          position already has a stable colour — change one only where you want a different one.
+        </p>
+
+        {failed ? (
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-[var(--color-muted-foreground)]">Couldn’t load positions.</p>
+            <Button size="sm" variant="outline" onClick={load}>
+              Retry
+            </Button>
+          </div>
+        ) : jobs === null ? (
+          <p className="text-sm text-[var(--color-muted-foreground)]">Loading…</p>
+        ) : jobs.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            No positions yet — they appear here once shifts are scheduled in Square and synced.
+          </p>
+        ) : (
+          <div className="divide-y divide-[var(--color-border)]">
+            {jobs.map((j) => (
+              <div key={j.squareJobId} className="flex items-center gap-3 py-2.5 flex-wrap">
+                <span className={`h-3 w-3 shrink-0 rounded-full ${badgePreset(j.colorKey).dot}`} />
+                <span className="text-sm font-medium text-[var(--color-foreground)] min-w-[140px]">
+                  {j.title ?? <span className="italic text-[var(--color-muted-foreground)]">Unnamed position</span>}
+                </span>
+                <div className="flex items-center gap-1 flex-wrap ml-auto">
+                  {(Object.keys(BADGE_PRESETS) as BadgePresetKey[]).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      title={BADGE_PRESETS[k].label}
+                      aria-label={`${BADGE_PRESETS[k].label} for ${j.title ?? "unnamed position"}`}
+                      aria-pressed={j.colorKey === k}
+                      disabled={saving === j.squareJobId}
+                      onClick={() => setColor(j.squareJobId, k)}
+                      className={`h-5 w-5 rounded-full ${BADGE_PRESETS[k].dot} ${
+                        j.colorKey === k
+                          ? "ring-2 ring-offset-1 ring-[var(--color-primary)]"
+                          : "opacity-60 hover:opacity-100"
+                      } disabled:opacity-40`}
+                    />
+                  ))}
+                  {j.isOverride && (
+                    <button
+                      type="button"
+                      onClick={() => reset(j.squareJobId)}
+                      disabled={saving === j.squareJobId}
+                      className="text-[11px] text-[var(--color-primary)] hover:underline ml-1 disabled:opacity-40"
+                    >
+                      reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

@@ -101,6 +101,7 @@ export type Capability =
   | "inventory.analytics.view"
   | "labor.view"
   | "labor.actuals.view"
+  | "labor.schedule.view"
   | "labor.costs.view"
   | "labor.manage"
   | "labor.toggle"
@@ -265,6 +266,23 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // Dollars are NOT governed here — laborCost never enters a dashboard payload
   // (see the MANAGE-gated split in src/lib/labor-judgment.ts and the routes).
   "labor.actuals.view": OPERATIONAL,
+  // OVL-S3 (Gary, 2026-08-20): the schedule/actual OVERLAY on the Coverage card —
+  // the scheduled and clocked-in curves laid over the suggested one, and nothing
+  // else. It governs a DISPLAY OVERLAY, never a calculation: the suggested curve
+  // is computed identically whether or not the holder has this, so denying it
+  // removes two lines from a chart and changes no number on the page.
+  //
+  // OPERATIONAL, and STORE is the point rather than an afterthought. The people
+  // who read "am I scheduled thin at 2pm" off this card are on the floor, so the
+  // overlay is ON for STORE by default and the /users override is what turns it
+  // off for one person — Gary's ruling, and the inverse of how labor.costs.view
+  // is shaped one entry below.
+  //
+  // COUNTS ONLY, NEVER MONEY. The overlay payload carries per-hour headcounts and
+  // job colours; no wage, no rate, no per-person field is assembled anywhere in
+  // its read path. That is structural (see getClockedInCoverage's select list),
+  // not a promise this capability is holding up.
+  "labor.schedule.view": OPERATIONAL,
   // AL-3 (Gary, 2026-08-19): the capability AL-1 deferred and PERM-4 (c) promised,
   // arriving with the first surfaces that actually need it — per-person PAY on
   // /staff and on the Positions roster, and the per-store tips figure.
@@ -608,6 +626,17 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "See pay rates and tips",
     removes:
       "Pay rates on Staff and on the Positions team roster, and the Tips column on All Locations. The labor % readouts, the Labor module and the weekly budget are unaffected.",
+  },
+  // OVL-S3 append — the third Labor row. Denying it removes the overlay
+  // SERVER-SIDE: the route omits the `overlay` key entirely rather than sending
+  // curves the card then declines to draw (the same absence-not-emptiness rule
+  // labor.costs.view follows for wages).
+  {
+    capability: "labor.schedule.view",
+    area: "Labor",
+    label: "See scheduled and clocked-in staffing",
+    removes:
+      "The scheduled and clocked-in curves overlaid on the Labor Coverage card. The suggested coverage curve itself, the labor % readouts, the Labor module and the weekly budget are unaffected.",
   },
 ]
 

@@ -17,15 +17,28 @@
 // (Q1). Adding a colour here is additive and safe; the DB column is free text
 // with a 'gray' default, and unknownPreset() below is what makes that survivable.
 
+// OVL-S3 — `hex` IS THE SAME COLOUR, SPELLED FOR SVG. Recharts paints a stroke
+// through an inline SVG attribute, which no Tailwind class can reach, while the
+// legend chip beside it is a `dot` class. Without this field the two would be
+// chosen independently and would drift the first time either changed. ONE KEY
+// drives both: the database still stores only the key, the class strings stay
+// literal for the scanner, and nothing here is ever interpolated.
+//
+// Each value is the colour `bg-<name>-400` ACTUALLY PAINTS, read out of the
+// emitted stylesheet (`--color-<name>-400`) rather than recalled — Tailwind 4
+// ships its palette in oklch and the familiar v3 hexes are no longer what these
+// utilities resolve to. Re-read them from the built CSS if the Tailwind major
+// version moves; a stale hex here shows up as a legend chip that does not match
+// its own line.
 export const BADGE_PRESETS = {
-  gray: { label: "Grey", badge: "bg-gray-100 text-gray-700 border-gray-200", dot: "bg-gray-400" },
-  orange: { label: "Orange", badge: "bg-orange-100 text-orange-700 border-orange-200", dot: "bg-orange-400" },
-  amber: { label: "Amber", badge: "bg-amber-100 text-amber-700 border-amber-200", dot: "bg-amber-400" },
-  green: { label: "Green", badge: "bg-green-100 text-green-700 border-green-200", dot: "bg-green-400" },
-  blue: { label: "Blue", badge: "bg-blue-100 text-blue-700 border-blue-200", dot: "bg-blue-400" },
-  purple: { label: "Purple", badge: "bg-purple-100 text-purple-700 border-purple-200", dot: "bg-purple-400" },
-  pink: { label: "Pink", badge: "bg-pink-100 text-pink-700 border-pink-200", dot: "bg-pink-400" },
-  red: { label: "Red", badge: "bg-red-100 text-red-700 border-red-200", dot: "bg-red-400" },
+  gray: { label: "Grey", badge: "bg-gray-100 text-gray-700 border-gray-200", dot: "bg-gray-400", hex: "#99a1af" },
+  orange: { label: "Orange", badge: "bg-orange-100 text-orange-700 border-orange-200", dot: "bg-orange-400", hex: "#ff8b1a" },
+  amber: { label: "Amber", badge: "bg-amber-100 text-amber-700 border-amber-200", dot: "bg-amber-400", hex: "#fcbb00" },
+  green: { label: "Green", badge: "bg-green-100 text-green-700 border-green-200", dot: "bg-green-400", hex: "#05df72" },
+  blue: { label: "Blue", badge: "bg-blue-100 text-blue-700 border-blue-200", dot: "bg-blue-400", hex: "#54a2ff" },
+  purple: { label: "Purple", badge: "bg-purple-100 text-purple-700 border-purple-200", dot: "bg-purple-400", hex: "#c07eff" },
+  pink: { label: "Pink", badge: "bg-pink-100 text-pink-700 border-pink-200", dot: "bg-pink-400", hex: "#fb64b6" },
+  red: { label: "Red", badge: "bg-red-100 text-red-700 border-red-200", dot: "bg-red-400", hex: "#ff6568" },
 } as const
 
 export type BadgePresetKey = keyof typeof BADGE_PRESETS

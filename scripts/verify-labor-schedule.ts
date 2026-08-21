@@ -19,7 +19,14 @@
  *   6. deterministicJobColor is stable, never grey, and spreads over the palette.
  *   7. The overlay-facing read function's output shape carries NO notes field —
  *      asserted structurally, on the real result object.
- *   8. The protocol END TO END against a mocked page-fetcher — the cursor is
+ *   8. OVL-S3 — the CLOCKED-IN curve: an open card is ceilinged at the current
+ *      hour and never beyond, a cross-day open card is clamped to its own day,
+ *      the end stays exclusive so the two curves bucket identically, and a
+ *      clock-skewed row is dropped by the same test the cost calculation uses.
+ *   9. OVL-S3 — colour resolution: an override beats the default, an unknown
+ *      job falls back to the deterministic default, and every palette entry
+ *      carries a hex so the Recharts stroke and the legend chip cannot drift.
+ *  10. The protocol END TO END against a mocked page-fetcher — the cursor is
  *      dropped rather than followed, the paginated page is discarded rather than
  *      merged, both halves are re-queried, an unsplittable day throws, and a
  *      silently-ignored filter (S1b's 200-with-wrong-data trap) throws too.
@@ -29,14 +36,19 @@
  */
 import {
   collectScheduledShifts,
+  computeClockedInCoverage,
   computeScheduledCoverage,
   deterministicJobColor,
   effectiveShiftOf,
   planScheduleWindows,
   splitWindow,
+  UNKNOWN_JOB_ID,
+  type ClockedInCoverageRow,
   type ScheduledCoverageRow,
 } from "../src/lib/labor-schedule"
-import { BADGE_PRESET_KEYS } from "../src/lib/badge-presets"
+import { BADGE_PRESETS, BADGE_PRESET_KEYS } from "../src/lib/badge-presets"
+import { clockedEndMs, paidMinutesOf } from "../src/lib/labor-actuals"
+import { readFileSync } from "fs"
 
 let failures = 0
 function check(label: string, actual: unknown, expected: unknown) {
@@ -263,6 +275,221 @@ function details(o: Partial<Record<string, unknown>> = {}) {
 
 // ─── 8 · the protocol under a mock — where the law actually lives ────────────
 // Async, so it runs after the synchronous sections above and owns the summary.
+// ─── OVL-S3 · THE CLOCKED-IN CURVE ────────────────────────────────────────────
+//
+// Every case here is a rule that costs real data if it is "simplified" away. The
+// ceiling ones matter most: without them an open timecard paints a full floor
+// through midnight, and the actual curve claims staffing that has not happened.
+
+function clockedInCases() {
+  console.log("\nOVL-S3 · clocked-in coverage")
+
+  const card = (o: Partial<ClockedInCoverageRow> = {}): ClockedInCoverageRow => ({
+    startAt: new Date("2026-08-18T10:30:00-07:00"),
+    endAt: new Date("2026-08-18T16:00:00-07:00"),
+    breakUnpaidMinutes: 0,
+    wageJobId: "tVvhwvQ12FHG5RhzTpCvkWED",
+    ...o,
+  })
+
+  // Same shape, same boundaries as computeScheduledCoverage — the two curves sit
+  // on one axis and must agree about what an hour is.
+  const closed = computeClockedInCoverage({
+    rows: [card()],
+    date: "2026-08-18",
+    timeZone: TZ,
+    now: new Date("2026-08-18T23:00:00-07:00"),
+  })
+  check("24 hourly points", closed.points.length, 24)
+  check("hour 10 is on the clock", closed.points[10].clockedIn, 1)
+  check("hour 15 is on the clock", closed.points[15].clockedIn, 1)
+  check("hour 16 is NOT — the end is exclusive", closed.points[16].clockedIn, 0)
+  check("split by job id", closed.points[12].byJobId["tVvhwvQ12FHG5RhzTpCvkWED"], 1)
+  check("a closed card is not counted open", closed.openCount, 0)
+
+  // THE CEILING. An open card at 14:00 occupies through hour 13 and NOTHING
+  // after — the store has not reached 15:00, so claiming a body there would be
+  // inventing staffing.
+  const open = computeClockedInCoverage({
+    rows: [card({ endAt: null })],
+    date: "2026-08-18",
+    timeZone: TZ,
+    now: new Date("2026-08-18T14:00:00-07:00"),
+  })
+  check("an open card covers the current hour's predecessor", open.points[13].clockedIn, 1)
+  check("an open card NEVER covers a future hour", open.points[14].clockedIn, 0)
+  check("nor the hour after that", open.points[15].clockedIn, 0)
+  check("and it is reported as open", open.openCount, 1)
+
+  // A CROSS-DAY OPEN CARD. Someone clocked in yesterday and never clocked out:
+  // yesterday is clamped to its own midnight, not run forward to now.
+  const crossDay = computeClockedInCoverage({
+    rows: [card({ startAt: new Date("2026-08-17T22:00:00-07:00"), endAt: null })],
+    date: "2026-08-17",
+    timeZone: TZ,
+    now: new Date("2026-08-18T14:00:00-07:00"),
+  })
+  check("yesterday's open card covers its own evening", crossDay.points[23].clockedIn, 1)
+  check("and stops at that day's midnight", crossDay.points[0].clockedIn, 0)
+
+  // The same card viewed on TODAY starts at midnight and stops at the ceiling.
+  const crossDayToday = computeClockedInCoverage({
+    rows: [card({ startAt: new Date("2026-08-17T22:00:00-07:00"), endAt: null })],
+    date: "2026-08-18",
+    timeZone: TZ,
+    now: new Date("2026-08-18T14:00:00-07:00"),
+  })
+  check("today's half of it starts at hour 0", crossDayToday.points[0].clockedIn, 1)
+  check("runs to the hour before now", crossDayToday.points[13].clockedIn, 1)
+  check("and not past it", crossDayToday.points[14].clockedIn, 0)
+
+  // A day that has not started yet in store-local terms: the ceiling is BEFORE
+  // the day start, so the card contributes no hour rather than a negative span.
+  const future = computeClockedInCoverage({
+    rows: [card({ endAt: null })],
+    date: "2026-08-19",
+    timeZone: TZ,
+    now: new Date("2026-08-18T14:00:00-07:00"),
+  })
+  check("a day the clock has not reached is empty", future.points.reduce((a, p) => a + p.clockedIn, 0), 0)
+
+  // THE DROP TEST IS SHARED WITH THE COST CALCULATION. A clock-skewed row (end
+  // before start) is dropped by paidMinutesOf, so it is dropped here too — the
+  // chart and the labor % never disagree about which rows are real.
+  const skewed = computeClockedInCoverage({
+    rows: [card({ endAt: new Date("2026-08-18T09:00:00-07:00") })],
+    date: "2026-08-18",
+    timeZone: TZ,
+    now: new Date("2026-08-18T23:00:00-07:00"),
+  })
+  check("a clock-skewed row is dropped", skewed.timecardCount, 0)
+  check("paidMinutesOf agrees it contributes nothing", paidMinutesOf(card({ endAt: new Date("2026-08-18T09:00:00-07:00") }), Date.now()), null)
+
+  // BREAKS ARE IGNORED BY RULING. An unpaid break shortens PAID minutes but not
+  // the hours a person was on the premises — this curve counts heads, not cost.
+  const withBreak = computeClockedInCoverage({
+    rows: [card({ breakUnpaidMinutes: 60 })],
+    date: "2026-08-18",
+    timeZone: TZ,
+    now: new Date("2026-08-18T23:00:00-07:00"),
+  })
+  check("an unpaid break does not remove an hour from the curve", withBreak.points[12].clockedIn, 1)
+  check("though it does remove it from paid minutes", paidMinutesOf(card({ breakUnpaidMinutes: 60 }), Date.now()), 270)
+
+  // The open-card rule lives in ONE place — this is the assertion that would fail
+  // if it were ever re-derived in the overlay instead of imported.
+  const ceiling = new Date("2026-08-18T14:00:00-07:00").getTime()
+  check("clockedEndMs ceilings an open card", clockedEndMs({ endAt: null }, ceiling), ceiling)
+  check("and leaves a closed one alone", clockedEndMs({ endAt: new Date("2026-08-18T16:00:00-07:00") }, ceiling), new Date("2026-08-18T16:00:00-07:00").getTime())
+
+  // A timecard with no job still counts — the person was there. It lands under
+  // the sentinel rather than being dropped or crashing the colour map.
+  const noJob = computeClockedInCoverage({
+    rows: [card({ wageJobId: null })],
+    date: "2026-08-18",
+    timeZone: TZ,
+    now: new Date("2026-08-18T23:00:00-07:00"),
+  })
+  check("a job-less timecard still counts", noJob.points[12].clockedIn, 1)
+  check("under the unknown-job sentinel", noJob.points[12].byJobId[UNKNOWN_JOB_ID], 1)
+  check("which is the id the legend is given", noJob.jobIds[0], UNKNOWN_JOB_ID)
+
+  // COUNTS TIMECARDS, NOT DISTINCT PEOPLE — the same choice the scheduled curve
+  // makes for shifts, so the two are commensurable.
+  const two = computeClockedInCoverage({
+    rows: [card(), card({ wageJobId: "EcwRoP64JFZxQDFmZBV8iMGK" })],
+    date: "2026-08-18",
+    timeZone: TZ,
+    now: new Date("2026-08-18T23:00:00-07:00"),
+  })
+  check("two on the floor at noon", two.points[12].clockedIn, 2)
+  check("both jobs in the legend", two.jobIds.length, 2)
+
+  // STRUCTURAL: no wage, no rate, no team member anywhere in the output. The
+  // overlay is STORE-visible and STORE accounts are shared iPad logins.
+  const serialized = JSON.stringify(two)
+  check("no wage in the output", /wage|rate|tip|salar/i.test(serialized), false)
+  check("no team member in the output", /teamMember|memberId/i.test(serialized), false)
+
+  // hour >= 6 PARITY. The card filters both curves with the same predicate, so
+  // the two series must expose the same hours to filter.
+  const sched = computeScheduledCoverage({
+    rows: [{ effectiveJobId: "J", effectiveStartAt: new Date("2026-08-18T10:30:00-07:00"), effectiveEndAt: new Date("2026-08-18T16:00:00-07:00"), effectiveSource: "published" }],
+    date: "2026-08-18",
+    timeZone: TZ,
+  })
+  check("both curves expose the same hour domain", sched.points.map((p) => p.hour).join(), closed.points.map((p) => p.hour).join())
+  check("and both survive the hour>=6 filter identically", sched.points.filter((p) => p.hour >= 6).length, closed.points.filter((p) => p.hour >= 6).length)
+}
+
+// ─── OVL-S3 · ABSENCE, NOT EMPTINESS ──────────────────────────────────────────
+//
+// A SOURCE GUARD, AND DELIBERATELY SO. The rule is that a viewer without
+// labor.schedule.view gets NO `overlay` key — not null, not {} — and the only
+// honest way to assert that without a database is to check the shape of the code
+// that emits it. Asserting it on a hand-built object would test JSON.stringify
+// rather than the route.
+//
+// What it catches is the real regression: someone "tidying" the conditional
+// spread into a plain `overlay,` or an `overlay: overlay ?? null`. Either would
+// ship an empty overlay to a denied viewer, which is the difference between a
+// payload that cannot leak and one that merely does not.
+
+function absenceCases() {
+  console.log("\nOVL-S3 · absence, not emptiness")
+
+  const route = readFileSync(
+    new URL("../src/app/api/labor/coverage/route.ts", import.meta.url),
+    "utf8"
+  )
+
+  check(
+    "the overlay is gated on the capability",
+    /can\(ctx\.actor,\s*"labor\.schedule\.view"\)/.test(route),
+    true
+  )
+  check(
+    "and spread CONDITIONALLY, so the key is absent when denied",
+    /\.\.\.\(overlay \? \{ overlay \} : \{\}\)/.test(route),
+    true
+  )
+  check(
+    "the route never emits an empty overlay",
+    /overlay:\s*(null|\{\}|overlay \?\? null)/.test(route),
+    false
+  )
+  check(
+    "the denied path builds nothing at all",
+    /:\s*undefined\b/.test(route),
+    true
+  )
+}
+
+// ─── OVL-S3 · COLOUR RESOLUTION ───────────────────────────────────────────────
+
+function colorCases() {
+  console.log("\nOVL-S3 · colour resolution")
+
+  // EVERY preset carries a hex, because ONE key has to drive both the Recharts
+  // stroke (an inline SVG attribute Tailwind cannot reach) and the legend chip.
+  // A missing hex renders an invisible line, which is the failure this catches.
+  const missingHex = BADGE_PRESET_KEYS.filter((k) => !/^#[0-9a-f]{6}$/i.test(BADGE_PRESETS[k].hex))
+  check("every preset has a 6-digit hex", missingHex.length, 0)
+  check("every preset still has its dot class", BADGE_PRESET_KEYS.filter((k) => !BADGE_PRESETS[k].dot).length, 0)
+
+  // The resolution rule the overlay and the settings editor both apply: a stored
+  // override wins; anything else falls back to the deterministic default.
+  const resolve = (jobId: string, stored?: string) =>
+    stored && BADGE_PRESET_KEYS.includes(stored as never) ? stored : deterministicJobColor(jobId)
+
+  const jobId = "tVvhwvQ12FHG5RhzTpCvkWED"
+  check("an override beats the default", resolve(jobId, "purple"), "purple")
+  check("no row falls back to the deterministic default", resolve(jobId), deterministicJobColor(jobId))
+  check("and a junk stored key falls back too", resolve(jobId, "chartreuse"), deterministicJobColor(jobId))
+  check("the default is stable across calls", deterministicJobColor(jobId), deterministicJobColor(jobId))
+  check("an unknown job still gets a colour", BADGE_PRESET_KEYS.includes(deterministicJobColor(UNKNOWN_JOB_ID)), true)
+}
+
 async function protocolCases() {
   console.log("\n8 · collectScheduledShifts against a mock (no network)")
 
@@ -353,6 +580,10 @@ async function protocolCases() {
   )
   check("a shift just past the boundary is tolerated", boundary.shifts.length, 1)
 }
+
+clockedInCases()
+colorCases()
+absenceCases()
 
 protocolCases().then(() => {
   console.log(`\n${failures === 0 ? "PASS" : `FAIL — ${failures} check(s)`}\n`)

@@ -4,7 +4,12 @@ import type { Organization, Store } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { getSquareClient } from "@/lib/square"
 import { dbDate } from "@/lib/reports"
-import { BADGE_PRESET_KEYS, type BadgePresetKey } from "@/lib/badge-presets"
+import { BADGE_PRESETS, BADGE_PRESET_KEYS, isBadgePresetKey, type BadgePresetKey } from "@/lib/badge-presets"
+// OVL-S3 — the open-card ceiling and the does-this-row-count test, IMPORTED
+// RATHER THAN COPIED (Gary, D3/D4). The direction is what keeps seam (b) intact:
+// labor-actuals never imports schedule-side, and it is not one of the six core
+// engines the wall names (labor-plan/coverage/budget/forecast/daily/week).
+import { clockedEndMs, computeHealth, paidMinutesOf } from "@/lib/labor-actuals"
 
 // OVL-S2 — SCHEDULE INGEST. The schedule/actual overlay's plan half.
 //
@@ -729,4 +734,309 @@ function addDaysStr(dateStr: string, days: number): string {
 function daysInclusive(startDate: string, endDate: string): number {
   const ms = Date.parse(`${endDate}T00:00:00.000Z`) - Date.parse(`${startDate}T00:00:00.000Z`)
   return Math.max(1, Math.round(ms / 86400000) + 1)
+}
+
+// ─── OVL-S3: THE CLOCKED-IN CURVE ─────────────────────────────────────────────
+//
+// The overlay's ACTUAL half. Scheduled staffing is the plan; this is what
+// happened, derived from the timecards the AL-1 sync already mirrors.
+//
+// WHY IT LIVES HERE AND NOT IN labor-actuals.ts (Gary, D4, 2026-08-20). It is
+// overlay code — the only caller is the overlay endpoint, its output shape
+// mirrors ScheduledCoveragePoint exactly so the card can draw both with one
+// component, and keeping the pair together is what stops the two curves being
+// bucketed by two different notions of an hour. The cost is the import below,
+// and that import's DIRECTION is what makes it safe: labor-actuals never
+// imports schedule-side, so no cycle exists and the seam-(b) wall — which names
+// labor-plan/coverage/budget/forecast/daily/week, not labor-actuals — is
+// untouched.
+//
+// "CLOCKED IN", NOT "WORKED", AND THE LABEL IS THE RULING (Gary, 2026-08-20).
+// Breaks are IGNORED here: a person on an unpaid break is still on the clock in
+// Square's data and this curve counts heads on the premises, not compensable
+// minutes. paidMinutesOf's break subtraction is deliberately NOT applied — it
+// answers the cost question, which is a different question. What IS reused is
+// its open-card ceiling (clockedEndMs) and its does-this-row-count test, so the
+// two calculations cannot disagree about which rows are real.
+
+/// One hour of the store-local day. COUNTS, NEVER PEOPLE AND NEVER MONEY — the
+/// same contract ScheduledCoveragePoint carries, and for the same reason: this
+/// reaches a STORE-visible surface.
+export type ClockedInCoveragePoint = {
+  hour: number
+  /// Timecards open on the floor this hour, all jobs. Counts TIMECARDS, not
+  /// distinct people — the same choice computeScheduledCoverage makes for
+  /// shifts, so the two curves are commensurable. A person clocked in twice in
+  /// one hour is a data question, not a reason for the two halves of one chart
+  /// to count differently.
+  clockedIn: number
+  /// Split by Square job id, so the overlay colours the actual curve with the
+  /// same palette as the scheduled one. Timecards whose wageJobId is null land
+  /// under UNKNOWN_JOB_ID.
+  byJobId: Record<string, number>
+}
+
+export type ClockedInCoverageResult = {
+  date: string
+  /// Always 24 entries, hour 0…23 — ScheduledCoverageResult's shape exactly.
+  points: ClockedInCoveragePoint[]
+  jobIds: string[]
+  timecardCount: number
+  /// Cards still open at the ceiling. The legend says so: an open card's hours
+  /// are real up to now and unknown after, and a curve that ends at the current
+  /// hour should not read as "everybody went home".
+  openCount: number
+}
+
+/// The bucket a timecard with no wageJobId falls into. Square carries a rate
+/// without a job on some team members, and dropping those rows would understate
+/// the floor — the person was there. A SENTINEL rather than null so the colour
+/// map, the legend and the byJobId record all have one key to agree on.
+export const UNKNOWN_JOB_ID = "__unknown__"
+
+/// The row shape the calculation needs. NOTE WHAT IS ABSENT, exactly as in
+/// ScheduledCoverageRow: no wage, no rate, no team-member id. The ruling is
+/// enforced by not selecting them (see getClockedInCoverage).
+export type ClockedInCoverageRow = {
+  startAt: Date
+  endAt: Date | null
+  breakUnpaidMinutes: number
+  wageJobId: string | null
+}
+
+/// PURE — no DB, no network, injected timezone and injected clock. Buckets
+/// timecards into the 24 hours of ONE store-local day.
+///
+/// THE CEILING IS THE WHOLE POINT. An OPEN timecard occupies hours up to the
+/// current hour and NEVER BEYOND: `ceilingMs` is the earlier of `now` and the
+/// day's end, so today's curve stops where the day has actually got to and a
+/// card left open on a PAST day is clamped to that day rather than running to
+/// now. Without it an open card would paint a full floor through midnight and
+/// the actual curve would claim staffing that has not happened.
+///
+/// Hour occupancy follows computeScheduledCoverage's convention exactly — the
+/// end is EXCLUSIVE, so a card ending at 15:00 is not on the floor during hour
+/// 15 — because two curves on one axis that disagreed about the boundary would
+/// be a difference the reader would attribute to the store.
+export function computeClockedInCoverage({
+  rows,
+  date,
+  timeZone,
+  now,
+}: {
+  rows: ClockedInCoverageRow[]
+  date: string
+  timeZone: string
+  now: Date
+}): ClockedInCoverageResult {
+  const dayStart = localMidnightUtc(date, timeZone).getTime()
+  const dayEnd = localMidnightUtc(addDaysStr(date, 1), timeZone).getTime()
+  const ceilingMs = Math.min(now.getTime(), dayEnd)
+
+  const points: ClockedInCoveragePoint[] = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    clockedIn: 0,
+    byJobId: {},
+  }))
+  const jobIds = new Set<string>()
+  let timecardCount = 0
+  let openCount = 0
+
+  for (const r of rows) {
+    // The SAME does-this-row-count test the cost calculation uses. A clock-skewed
+    // or zero-length row is dropped by both or by neither.
+    if (paidMinutesOf(r, ceilingMs) === null) continue
+
+    const start = r.startAt.getTime()
+    const end = clockedEndMs(r, ceilingMs)
+    if (!(start < dayEnd && end > dayStart)) continue
+
+    const from = Math.max(start, dayStart)
+    const to = Math.min(end, dayEnd)
+    // A row clamped to nothing (an open card on a day that has not started here)
+    // contributes no hour at all.
+    if (to <= from) continue
+
+    const firstHour = localHourOf(new Date(from), timeZone)
+    // `to - 1` so an end landing exactly on an hour boundary belongs to the hour
+    // before it — computeScheduledCoverage's rule, restated so the two agree.
+    const lastHour = localHourOf(new Date(to - 1), timeZone)
+
+    const jobId = r.wageJobId ?? UNKNOWN_JOB_ID
+    timecardCount++
+    if (r.endAt === null) openCount++
+    jobIds.add(jobId)
+
+    for (let h = firstHour; h <= lastHour; h++) {
+      const p = points[h]
+      p.clockedIn++
+      p.byJobId[jobId] = (p.byJobId[jobId] ?? 0) + 1
+    }
+  }
+
+  return { date, points, jobIds: [...jobIds].sort(), timecardCount, openCount }
+}
+
+/// The clocked-in read path. NO SQUARE CALL — pure calculation over timecards
+/// the AL-1 sync already mirrored.
+///
+/// THE `select` IS THE COUNTS-ONLY RULING, the same way getScheduledCoverage's
+/// select is the notes ruling. wageHourlyRate, declaredCashTips and
+/// squareTeamMemberId all exist on this table and are deliberately absent: the
+/// overlay is STORE-visible, STORE accounts are shared iPad logins, and a payload
+/// that never carries a wage cannot leak one by a later caller forgetting to
+/// re-check. NOT FILTERED AFTERWARDS — NOT FETCHED.
+export async function getClockedInCoverage(
+  storeId: string,
+  dateStr: string,
+  now = new Date()
+): Promise<ClockedInCoverageResult | null> {
+  const store = await prisma.store.findUnique({ where: { id: storeId }, select: { timezone: true } })
+  if (!store) return null
+
+  const dayStart = localMidnightUtc(dateStr, store.timezone)
+  const dayEnd = localMidnightUtc(addDaysStr(dateStr, 1), store.timezone)
+
+  // An OPEN card starting before this day is still on the floor during it, so the
+  // window cannot be `startAt >= dayStart`. Bounding the lookback at one day keeps
+  // the query indexed; a card open longer than 24h is a data problem, not a shift.
+  const rows = await prisma.squareTimecard.findMany({
+    where: {
+      storeId,
+      startAt: { gte: new Date(dayStart.getTime() - 24 * 60 * 60 * 1000), lt: dayEnd },
+      OR: [{ endAt: null }, { endAt: { gt: dayStart } }],
+    },
+    select: { startAt: true, endAt: true, breakUnpaidMinutes: true, wageJobId: true },
+  })
+
+  return computeClockedInCoverage({ rows, date: dateStr, timeZone: store.timezone, now })
+}
+
+// ─── OVL-S3: SYNC STATE, JOB TITLES AND COLOURS ───────────────────────────────
+
+/// Seam (c)'s threshold, and it MATCHES ITS SIBLING ON PURPOSE (Gary, D5,
+/// 2026-08-20). labor-actuals uses 26h for the timecard sync; two labor syncs
+/// that went stale at different ages would put two differently-worded staleness
+/// warnings on one card for the same outage.
+export const SCHEDULE_STALE_AFTER_MINUTES = 26 * 60
+
+/// The four states the card must tell apart, plus the one seam (c) invented.
+///
+///   never         — no successful sync has ever run. Render NOTHING: no overlay,
+///                   no toggle, no empty chart pretending the schedule is blank.
+///   synced-empty  — we asked and Square said nothing. HONEST ZERO, and it is the
+///                   state eight of eighteen live locations are in mid-rollout.
+///                   Also renders forecasted-only, but it is a different fact and
+///                   the card says so.
+///   fresh / stale / error — we have data. Stale and error still RENDER IT, with
+///                   a last-synced stamp. Seam (c): last-synced data labelled
+///                   stale, never a blank pretending "no schedule".
+export type ScheduleSyncHealth = "never" | "synced-empty" | "fresh" | "stale" | "error"
+
+export type ScheduleSyncSummary = {
+  health: ScheduleSyncHealth
+  lastSyncOkAt: string | null
+  /// Shifts the last successful sync wrote across its whole window — NOT the
+  /// count for the viewed day. It is what distinguishes synced-empty from
+  /// synced-with-data, and a day with no shifts inside a healthy window is a
+  /// quiet day rather than a broken integration.
+  lastShiftCount: number
+}
+
+/// Reads SquareScheduleSyncState and reduces it to what the legend needs.
+///
+/// HEALTH IS ABOUT THE ATTEMPT, NOT THE ROWS — computeHealth's argument, reused
+/// rather than restated. The one state it cannot express is synced-empty, because
+/// that is a fact about the ROW COUNT and computeHealth deliberately never looks
+/// at rows; so it is layered on top, after a healthy verdict, exactly where the
+/// schema comment says the distinction lives.
+export async function getScheduleSyncSummary(
+  storeId: string,
+  now = new Date()
+): Promise<ScheduleSyncSummary> {
+  const state = await prisma.squareScheduleSyncState.findUnique({
+    where: { storeId },
+    select: { lastSyncOkAt: true, lastError: true, lastShiftCount: true },
+  })
+
+  const health = computeHealth(state, now, SCHEDULE_STALE_AFTER_MINUTES)
+  if (health === "never") {
+    return { health: "never", lastSyncOkAt: null, lastShiftCount: 0 }
+  }
+  return {
+    health: health === "fresh" && (state?.lastShiftCount ?? 0) === 0 ? "synced-empty" : health,
+    lastSyncOkAt: state?.lastSyncOkAt?.toISOString() ?? null,
+    lastShiftCount: state?.lastShiftCount ?? 0,
+  }
+}
+
+export type OverlayJob = {
+  jobId: string
+  /// Null renders as "Unnamed position" (Gary, D6). Square exposes no job
+  /// catalogue — GET /v2/labor/jobs 404s and the shift payload carries no title
+  /// (S1b § 3) — so a job that is SCHEDULED but never WORKED has no timecard to
+  /// borrow a title from and cannot be given one. It keeps its colour and stays
+  /// editable in settings; only the name is missing.
+  title: string | null
+  colorKey: BadgePresetKey
+  /// Resolved here rather than in the card so the stroke and the legend chip
+  /// cannot be chosen from two different keys.
+  hex: string
+}
+
+/// Titles for a set of Square job ids, from the timecards standing beside them.
+///
+/// THE SOURCE IS SquareTimecard.wageTitle (schema.prisma, SquareJobColor's own
+/// doc-comment). It is the only place in the estate where a job id sits next to a
+/// human-readable name. SELECTS TWO COLUMNS — the id and the title — because the
+/// row it reads also carries wages, and this function's output reaches a
+/// STORE-visible payload.
+export async function resolveJobTitles(
+  organizationId: string,
+  jobIds: string[]
+): Promise<Map<string, string>> {
+  if (jobIds.length === 0) return new Map()
+  const rows = await prisma.squareTimecard.findMany({
+    where: { organizationId, wageJobId: { in: jobIds }, wageTitle: { not: null } },
+    select: { wageJobId: true, wageTitle: true },
+    distinct: ["wageJobId"],
+    orderBy: { squareUpdatedAt: "desc" },
+  })
+  const out = new Map<string, string>()
+  for (const r of rows) if (r.wageJobId && r.wageTitle) out.set(r.wageJobId, r.wageTitle)
+  return out
+}
+
+/// The legend's jobs: colour (override, else deterministic default) plus title.
+///
+/// A ROW IN SquareJobColor IS AN OVERRIDE AND ITS ABSENCE IS NOT MISSING DATA —
+/// deterministicJobColor gives every id a stable colour, so the overlay is fully
+/// coloured with the table empty. badgePreset() degrades an unrecognised stored
+/// key to neutral rather than throwing, which is what makes a hand-edited row
+/// survivable.
+export async function getOverlayJobs(
+  organizationId: string,
+  jobIds: string[]
+): Promise<OverlayJob[]> {
+  if (jobIds.length === 0) return []
+
+  const [overrides, titles] = await Promise.all([
+    prisma.squareJobColor.findMany({
+      where: { organizationId, squareJobId: { in: jobIds } },
+      select: { squareJobId: true, colorKey: true },
+    }),
+    resolveJobTitles(organizationId, jobIds.filter((id) => id !== UNKNOWN_JOB_ID)),
+  ])
+  const overrideOf = new Map(overrides.map((o) => [o.squareJobId, o.colorKey]))
+
+  return jobIds.map((jobId) => {
+    const stored = overrideOf.get(jobId)
+    const colorKey: BadgePresetKey = isBadgePresetKey(stored) ? stored : deterministicJobColor(jobId)
+    return {
+      jobId,
+      title: jobId === UNKNOWN_JOB_ID ? null : titles.get(jobId) ?? null,
+      colorKey,
+      hex: BADGE_PRESETS[colorKey].hex,
+    }
+  })
 }
