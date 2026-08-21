@@ -8610,7 +8610,7 @@ phases:
     track: labor
     size: M
     status: in_progress
-    commits: [64415ef]
+    commits: [64415ef, f5b812c]
     title: "Labor Day Inspector — per-person day timeline, ghosted schedule, six variance flags"
     notes: >
       BUILT 2026-08-21, work commit 64415ef. STATUS IS in_progress AND NOT
@@ -8804,6 +8804,81 @@ phases:
       errors; weekly-plan-client.tsx's two set-state-in-effect errors are
       pre-existing, confirmed by re-running eslint against the stashed HEAD tree
       rather than by citing the note that says so.
+
+      ── FIELD VERIFICATION, 2026-08-21 — S5-A12, work commit f5b812c. The
+      paragraphs above are KEPT AS WRITTEN and the sentences about what the
+      staging pass still owed are now partly answered rather than rewritten.
+
+      THE FIRST STAGING LOOK FOUND A FALSE POSITIVE, and it is the good kind of
+      finding: the page was wrong in a way only real data could show. Measured at
+      UNR, Friday 2026-08-21, 07:17 Pacific. NO-SHOW fired on THREE SHIFTS THAT
+      HAD NOT YET STARTED — ghosts at ~8a, ~10a and ~3p, read at 07:17 — on a
+      store whose timecards had last synced ≈22:15 the previous evening.
+
+      TWO DEFECTS IN ONE CONDITION, and Gary's amendment separates them because
+      fixing only the obvious one would have left the other live. (1) IT
+      EVALUATED THE FUTURE: a 3p shift cannot be a no-show at 7:17a, which a
+      comparison against `now` would fix on its own. (2) IT EVALUATED AGAINST
+      `now` RATHER THAN AGAINST WHAT HAD BEEN SYNCED: Froot had heard nothing
+      since 22:15, so it could not have known whether anyone clocked in for the
+      8a shift either — and a `now`-only fix would have kept flagging THAT one,
+      confidently and wrongly, all morning. The second defect is the one worth
+      remembering, because it is invisible from the symptom.
+
+      THE RULE. A shift is eligible for NO-SHOW only when effectiveStartAt +
+      NO_SHOW_GRACE_MINUTES <= min(now, lastTimecardSyncOkAt), on top of every
+      condition that already applied. An ineligible shift is neither flagged nor
+      counted and renders as a plain ghost. NO_SHOW_GRACE_MINUTES = 20 — long
+      enough that a few minutes' late clock-in is not flagged, short enough that
+      a real no-show surfaces while the shift can still be covered. THE GRACE IS
+      THE SECOND HALF OF THE RULE AND NEVER THE WHOLE OF IT: grace alone would
+      still have produced the UNR false positive.
+
+      ONE EXPRESSION, TWO FLAGS. openLongCeilingMs is renamed syncedThroughMs and
+      now serves OPEN-LONG (S5-A2) and NO-SHOW (S5-A12) both. Writing
+      min(now, lastSyncOkAt) ONCE is what makes the shared rule structural rather
+      than a coincidence between two similar-looking lines: NO FLAG DERIVED FROM
+      DURATION OR FROM ABSENCE MAY ASSERT ANYTHING ABOUT A WINDOW THE TIMECARD
+      SYNC HAS NOT REACHED. A2 was the first instance of that rule and nobody had
+      named it as a rule; A12 is what made it one.
+
+      UNSCHEDULED IS DELIBERATELY NOT GATED THE SAME WAY. It is EVIDENCE-POSITIVE
+      — a card exists and we are looking straight at it — so it asserts something
+      about data we HAVE rather than about data we might be missing. Gating it
+      would suppress a true finding for no reason, and a fixture pins that it
+      still fires behind the horizon.
+
+      INELIGIBLE SHIFTS ARE NAMED, NOT HIDDEN. noShowPendingCount and a
+      pre-formatted store-local noShowHorizonLabel ride the payload, and the page
+      renders "N shifts not yet evaluated for no-show — timecards synced 10:15p
+      Aug 20" beside the existing suppression sentences. Silently omitting them
+      would leave a reader unable to tell "checked, nobody missing" from "not
+      checked yet" — the same ambiguity that made the false positive look
+      reasonable for a morning. The label ALWAYS carries its date, never dropping
+      it when the sync landed today, for that same reason.
+
+      A SUPPRESSED SCHEDULE STILL PRODUCES ONE SENTENCE, NOT TWO: where there is
+      no plan to compare against, nothing is counted pending either.
+
+      FIXTURE group 13 — twenty-three checks including the observed case
+      verbatim, the grace boundary from both sides, a never-synced store, a mixed
+      day, and UNSCHEDULED firing behind the horizon. Suite now 113 checks, 0
+      failures, groups 1-12 unchanged.
+
+      ── COMMENT, NO BEHAVIOUR CHANGE (recorded 2026-08-21 at Gary's instruction).
+      TWO WAYS THE PER-PERSON PAID TOTAL CAN DISAGREE WITH THE BAR BESIDE IT, both
+      correct and both currently unlabelled:
+      (a) THE TOTAL IS THE WHOLE CARD, THE BAR IS CLIPPED TO THE VIEWED DAY. A
+      midnight-spanning card therefore shows a total LARGER than the bar it sits
+      next to — on both of the days it appears on. This is consistent with S5-A6
+      (a card is shown whole on every day it touches) and inconsistent with what a
+      reader measuring the bar would expect.
+      (b) ON AN OPEN CARD THE TOTAL IS A RUNNING FIGURE, accruing to the ceiling
+      rather than to a clock-out that has not happened. It will be larger the next
+      time the page is loaded, and nothing on screen says so.
+      LABEL COPY IS A SEPARATE POLISH ITEM and was deliberately NOT changed in the
+      A12 session. Recorded here so the next reader finds the known behaviour
+      rather than re-deriving it from a total that looks wrong.
     deferred:
       - >
         Cross-store DOUBLE detection — filed as DEBT-79 and ruled OUT of S5 by
@@ -8839,6 +8914,17 @@ phases:
         cannot be forced: it needs a store whose lastSyncOkAt has aged past 26h
         to appear on its own. Same gap OVL-S3's row already records for the
         overlay's stale badge, and for the same reason.
+      - narrowed: true
+        text: >
+          THE FIRST TWO ENTRIES ARE NARROWED, NOT CLOSED, 2026-08-21. A staging
+          look DID happen and it found the A12 false positive, so "not
+          field-verified" is no longer true wholesale — the ghosted schedule
+          renders against real shifts and the NO-SHOW condition has now been
+          corrected against real data. WHAT IS STILL OWED: the A12 fix itself is
+          unverified on staging (f5b812c is local and unpushed), and the two
+          Aug-19 Las Brisas OPEN-STALE cards, the unassigned-shift row and the
+          DEBT-78 fossil's absence from the picker have still not been observed
+          on a deployment.
 
   # ---- Permissions ----
 
