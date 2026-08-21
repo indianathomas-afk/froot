@@ -30,8 +30,11 @@ import {
   MAX_WEEKLY_HOURS,
   MIN_WEEKLY_HOURS,
   formatWeeklyHoursDraft,
+  isPendingChange,
   parseWeeklyHoursDraft,
+  pendingCommitIds,
   rosterRowPatchSchema,
+  summarizeRosterEdits,
 } from "../src/lib/labor-roster-hours"
 
 let failures = 0
@@ -79,9 +82,9 @@ check('"40" → 40', (parseWeeklyHoursDraft("40") as { value: number | null }).v
 check('"" → null (blank is a VALUE, not a rejection)', (parseWeeklyHoursDraft("") as { value: number | null }).value, null)
 check('"   " → null', (parseWeeklyHoursDraft("   ") as { value: number | null }).value, null)
 check('" 40 " → 40', (parseWeeklyHoursDraft(" 40 ") as { value: number | null }).value, 40)
-check(`"${MIN_WEEKLY_HOURS}" accepted`, parseWeeklyHoursDraft(String(MIN_WEEKLY_HOURS)).ok, true)
+check(`"${MIN_WEEKLY_HOURS}" accepted (the floor is now 0)`, parseWeeklyHoursDraft(String(MIN_WEEKLY_HOURS)).ok, true)
 check(`"${MAX_WEEKLY_HOURS}" accepted`, parseWeeklyHoursDraft(String(MAX_WEEKLY_HOURS)).ok, true)
-check('"0" rejected (no override, not an override of zero)', parseWeeklyHoursDraft("0").ok, false)
+check('"0" ACCEPTED — zero hours is a statement (BUG-12)', (parseWeeklyHoursDraft("0") as { value: number | null }).value, 0)
 check('"169" rejected', parseWeeklyHoursDraft("169").ok, false)
 check('"-5" rejected', parseWeeklyHoursDraft("-5").ok, false)
 check('"40.5" rejected', parseWeeklyHoursDraft("40.5").ok, false)
@@ -89,13 +92,13 @@ check('"4e1" rejected (Number() would say 40)', parseWeeklyHoursDraft("4e1").ok,
 check('"abc" rejected', parseWeeklyHoursDraft("abc").ok, false)
 
 console.log("\n2 · The two ends agree — nothing the box emits is refused by the route:")
-for (const draft of ["", "1", "40", "168", "  40  "]) {
+for (const draft of ["", "0", "1", "40", "168", "  40  "]) {
   const parsed = parseWeeklyHoursDraft(draft)
   const accepted =
     parsed.ok && rosterRowPatchSchema.safeParse({ weeklyHoursOverride: parsed.value }).success
   check(`draft ${JSON.stringify(draft)} parses AND is accepted`, accepted, true)
 }
-check("route refuses 0 too", rosterRowPatchSchema.safeParse({ weeklyHoursOverride: 0 }).success, false)
+check("route ACCEPTS 0 too", rosterRowPatchSchema.safeParse({ weeklyHoursOverride: 0 }).success, true)
 check("route refuses 169 too", rosterRowPatchSchema.safeParse({ weeklyHoursOverride: 169 }).success, false)
 check("route refuses 40.5 too", rosterRowPatchSchema.safeParse({ weeklyHoursOverride: 40.5 }).success, false)
 check("an empty body is a 400, never a silent clear", applyPatch({ squareWeeklyHours: 40, weeklyHoursOverride: 40 }, {}).status, 400)
@@ -136,7 +139,7 @@ const same = pressSave({ squareWeeklyHours: 40, weeklyHoursOverride: 30 }, "30")
 check("re-saving an unchanged number still writes", same.sent, true)
 check("30", same.row.weeklyHoursOverride, 30)
 // An invalid draft never reaches the network — the Save button is disabled.
-const bad = pressSave({ squareWeeklyHours: 40, weeklyHoursOverride: 30 }, "0")
+const bad = pressSave({ squareWeeklyHours: 40, weeklyHoursOverride: 30 }, "-1")
 check("an invalid draft is not sent", bad.sent, false)
 check("and leaves the stored value alone", bad.row.weeklyHoursOverride, 30)
 
@@ -146,6 +149,59 @@ check("box is blank", reload(hourly), "")
 const hourlySaved = pressSave(hourly, "24")
 check("an override can still be set", hourlySaved.row.weeklyHoursOverride, 24)
 check("clearing it returns to blank", reload(pressSave(hourlySaved.row, "").row), "")
+
+console.log("\n8 · ZERO AND BLANK ARE DIFFERENT ANSWERS (BUG-12, Gary 2026-08-21):")
+// The distinction the whole of BUG-12's third finding is about. Both round-trip
+// through the same nullable Int column and neither may collapse into the other.
+const zeroed = pressSave({ squareWeeklyHours: 40, weeklyHoursOverride: null }, "0")
+check("saving 0 writes 0, not null", zeroed.row.weeklyHoursOverride, 0)
+check("0 reads back as \"0\", NOT as an empty box", reload(zeroed.row), "0")
+const blanked = pressSave(zeroed.row, "")
+check("clearing 0 writes null", blanked.row.weeklyHoursOverride, null)
+check("null reads back BLANK", reload(blanked.row), "")
+check("0 and null are not equal", zeroed.row.weeklyHoursOverride === blanked.row.weeklyHoursOverride, false)
+// formatWeeklyHoursDraft is where a falsy test would destroy the distinction.
+check("format(0) is \"0\"", formatWeeklyHoursDraft(0), "0")
+check("format(null) is \"\"", formatWeeklyHoursDraft(null), "")
+// And the round trip survives being re-parsed, which is what a reload does.
+check("0 -> format -> parse -> 0", (parseWeeklyHoursDraft(formatWeeklyHoursDraft(0)) as { value: number | null }).value, 0)
+check("null -> format -> parse -> null", (parseWeeklyHoursDraft(formatWeeklyHoursDraft(null)) as { value: number | null }).value, null)
+// A row already at 0 is not "pending" — 0 must compare as a value, not as absent.
+check("a row already at 0 showing \"0\" is NOT pending", isPendingChange("0", 0), false)
+check("a row at 0 cleared to blank IS pending", isPendingChange("", 0), true)
+check("a row at null showing \"0\" IS pending", isPendingChange("0", null), true)
+
+console.log("\n9 · ENTER COMMITS THE FOCUSED ROW — the parse the key handler runs:")
+// The cell's Enter handler commits parseWeeklyHoursDraft(draft) and refuses,
+// VISIBLY, when it does not parse. Browser-measured 2026-08-21 on the real
+// component; asserted here at the decision the handler makes.
+check("Enter over \"24\" commits 24", (parseWeeklyHoursDraft("24") as { value: number | null }).value, 24)
+check("Enter over \"\" commits null", (parseWeeklyHoursDraft("") as { value: number | null }).value, null)
+check("Enter over \"0\" commits 0", (parseWeeklyHoursDraft("0") as { value: number | null }).value, 0)
+check("Enter over \"abc\" commits NOTHING and has a reason to show", parseWeeklyHoursDraft("abc").ok, false)
+check("the reason is non-empty", (parseWeeklyHoursDraft("abc") as { reason: string }).reason.length > 0, true)
+
+console.log("\n10 · THE CARD-LEVEL SAVE BAR — summarizeRosterEdits / pendingCommitIds:")
+// Exactly the arithmetic the button and its count run. Four rows: one untouched,
+// one edited to a number, one cleared to blank, one holding junk.
+const bar = [
+  { id: "untouched", draft: "40", persisted: 40 },
+  { id: "edited", draft: "24", persisted: 40 },
+  { id: "cleared", draft: "", persisted: 40 },
+  { id: "junk", draft: "abc", persisted: 40 },
+]
+const summary = summarizeRosterEdits(bar)
+check("pending", summary.pending, 3)
+check("invalid", summary.invalid, 1)
+check("committable", summary.committable, 2)
+check("Save all writes exactly the two good rows", pendingCommitIds(bar).join(","), "edited,cleared")
+check("an untouched row is never written", pendingCommitIds(bar).includes("untouched"), false)
+check("a junk row is skipped, not fatal", pendingCommitIds(bar).includes("junk"), false)
+// Nothing pending is the resting state the bar reports as "All changes saved".
+const rest = summarizeRosterEdits([{ id: "a", draft: "40", persisted: 40 }, { id: "b", draft: "", persisted: null }])
+check("nothing pending when every row matches storage", rest.pending, 0)
+check("and 0-vs-0 counts as matching", summarizeRosterEdits([{ id: "z", draft: "0", persisted: 0 }]).pending, 0)
+check("but 0-vs-blank does not", summarizeRosterEdits([{ id: "z", draft: "0", persisted: null }]).pending, 1)
 
 console.log(`\n${failures === 0 ? "✅ All checks passed." : `❌ ${failures} check(s) failed.`}`)
 process.exitCode = failures === 0 ? 0 : 1
