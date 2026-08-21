@@ -8173,7 +8173,7 @@ phases:
   - id: OVL-S4
     track: labor
     size: M
-    status: in_progress
+    status: staging
     commits: [e6a70b1]
     title: "Schedule/actual overlay — S4 comparison + polish: legend toggles, clocked-in roster popup, /labor scheduled-vs-suggested"
     notes: >
@@ -8182,7 +8182,16 @@ phases:
       commit is LOCAL AND NOT PUSHED (pushes are Gary's, CLAUDE.md Git Rules),
       so nothing has reached the staging branch or a Vercel preview. Flip to
       `staging` when the push happens rather than claiming a deploy that has not
-      occurred. TIER 2 WITH AN APPROVAL CHECKPOINT — the roster popup puts
+      occurred.
+      STATUS MOVED 2026-08-20 — the sentences above are kept as written and are
+      NO LONGER THE STATE. Gary pushed e6a70b1 and 4c3ea31; origin/staging now
+      carries both, so the condition those sentences set has been met and the
+      row reads `staging`. THE PUSH IS WHAT COUNTS, not a Vercel deploy —
+      WORKFLOW.md § Session completion rules 4 keys the status on the push, and
+      BUG-9 is the precedent for marking the stale paragraph rather than
+      rewriting it. Kept because it records WHY the row read in_progress for two
+      sessions, which a silently-corrected status field would erase.
+      TIER 2 WITH AN APPROVAL CHECKPOINT — the roster popup puts
       person-level data on a STORE-visible surface, which earned the checkpoint
       even at TIER 2. The plan was presented and STOPPED for approval before any
       file was touched; five deviations were ratified individually and are
