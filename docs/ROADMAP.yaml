@@ -8170,6 +8170,198 @@ phases:
         the fixture it needs for the empty-state and stale-state renders, ready
         without setup.
 
+  - id: OVL-S4
+    track: labor
+    size: M
+    status: in_progress
+    commits: [e6a70b1]
+    title: "Schedule/actual overlay — S4 comparison + polish: legend toggles, clocked-in roster popup, /labor scheduled-vs-suggested"
+    notes: >
+      BUILT 2026-08-20, work commit e6a70b1. STATUS IS in_progress AND NOT
+      staging, for OVL-S2's and OVL-S3's reason and by the same precedent: the
+      commit is LOCAL AND NOT PUSHED (pushes are Gary's, CLAUDE.md Git Rules),
+      so nothing has reached the staging branch or a Vercel preview. Flip to
+      `staging` when the push happens rather than claiming a deploy that has not
+      occurred. TIER 2 WITH AN APPROVAL CHECKPOINT — the roster popup puts
+      person-level data on a STORE-visible surface, which earned the checkpoint
+      even at TIER 2. The plan was presented and STOPPED for approval before any
+      file was touched; five deviations were ratified individually and are
+      listed below. The prompt is filed at
+      docs/prompts/Overlay_S4_Comparison_Polish_Session_Prompt.md in the docs
+      commit.
+
+      SEAM (b) IS PROVED BY THE DIFF, NOT BY ASSERTION, and this time the proof
+      is stronger than S3's. labor-plan.ts, labor-coverage.ts, labor-budget.ts,
+      labor-forecast.ts, labor-week.ts and labor-daily.ts have ZERO diff in
+      e6a70b1 and still contain no reference to labor-schedule (grepped after
+      the build, not before). /api/labor/coverage/route.ts is ALSO untouched —
+      the S3 payload is byte-identical, which is what makes "the card's default
+      payload carries no name under any code path" a fact about the diff rather
+      than a promise about the code.
+
+      PART A1 — LEGEND CLICK-TO-TOGGLE. Every series chip (Suggested, the
+      Scheduled/Clocked-in chip, and each per-position chip) is now a button;
+      the non-series chips (GM window, hourly budget) stay plain spans because
+      there is no curve for them to hide. Display state only, per the ruling: no
+      fetch, no recomputation, no server round trip. Two decisions worth the
+      words. A HIDDEN SERIES IS OMITTED FROM THE CHART, NOT STYLED TRANSPARENT —
+      a zero-opacity Recharts <Line> still owns the tooltip row it would have
+      drawn, so a reader who hid a curve would keep reading its number. And THE
+      CHIP STAYS, MUTED (opacity, not a colour swap, so the position dot is
+      still recognisable) because a chip that vanished when clicked would leave
+      no way to bring the curve back.
+
+      THE RESET IS DERIVED, NOT CLEARED IN AN EFFECT. The ruling says the
+      toggles reset on day navigation. The obvious implementation — a
+      useEffect on viewedDate calling setHidden(new Set()) — was written first
+      and then replaced: it leaves a render in which yesterday's hidden set
+      applies to today's curve, and it made a NEW eslint error in a file whose
+      two existing ones are pre-existing. The hidden set is now stored WITH the
+      date it belongs to and read through a date comparison during render, which
+      also closes a second hole: a `froot-labor-changed` refetch of the SAME day
+      must not silently restore a curve the reader just switched off.
+
+      PART A2 — THE CLOCKED-IN ROSTER POPUP, and it rides a NARROWING of the
+      S1b person-data principle that Gary made deliberately rather than a gap
+      that was overlooked (DECISIONS.md, "Overlay polish rulings, S4"): name,
+      position title and clock-in time on a STORE-visible surface, because who
+      is standing in the room is the same information as looking around the
+      room. The notes ruling is untouched and free text still never ships.
+
+      WHAT THE NARROWING DOES NOT COVER IS ENFORCED STRUCTURALLY. The read
+      selects four columns and wageHourlyRate, wageTipEligible and
+      declaredCashTips — all three of which sit on the very row it reads — are
+      not among them. NOT FILTERED AFTERWARDS, NOT FETCHED, the same discipline
+      getClockedInCoverage's select carries. The Square team-member id is read
+      to JOIN and NEVER EMITTED, which is what its own schema doc-comment
+      demands ("this column NEVER leaves the server"); "Unnamed" is resolved
+      SERVER-SIDE precisely so the client never needs the id to fill a gap in.
+      NOW ONLY — there is no date parameter, and the ABSENCE OF THE PARAMETER is
+      what forbids a historical roster, asserted as a source guard.
+
+      NAMES LOAD ON CLICK ONLY, and the separate endpoint is the mechanism. The
+      fetch fires on popover open, every open, never prefetched and never cached
+      between opens — which is also what makes "right now" true rather than
+      true-when-the-card-loaded. A manager asking who is working is an action
+      they took, not something the dashboard does to itself.
+
+      THE AFFORDANCE IS A BUTTON, NOT A CHART CLICK, and the reason is
+      measurable rather than aesthetic. The card's <ChartTooltip> is
+      hover-driven, and on touch Recharts synthesises hover from a tap — a click
+      handler on the plot would fire underneath a live tooltip and fight it. The
+      button coexists, is keyboard-reachable, and leaves the shipped S3 tooltip
+      untouched. Gary approved the substitution when the plan was presented.
+
+      THE BUTTON SAYS "N ON FLOOR" AND THE LIST IS N LONG, BY CONSTRUCTION. N is
+      overlay.openTimecardCount from computeClockedInCoverage; the roster
+      discards a row on paidMinutesOf's test, which is the SAME test that curve
+      uses, and reads the SAME query window narrowed to open cards. A clock-
+      skewed card that has not started yet is dropped by both or by neither —
+      asserted by a fixture that runs both calculations over the same row and
+      checks the two counts agree, rather than by checking each in isolation.
+
+      PART B — THE /labor COMPARISON RIDES BESIDE `days` ON
+      /api/labor/weekly-plan rather than taking a second endpoint (deviation 2,
+      ratified). The route had ALREADY run computeDayCoverage for all seven days
+      to derive the week strip's status, so the suggested half costs a sum and
+      nothing more, and the absence-not-emptiness idiom is reused rather than
+      re-invented. Without labor.schedule.view there is NO `comparison` key at
+      all — not null, not {} — through the same conditional spread, and four
+      source guards assert the idiom rather than the assembled object, for
+      exactly the reason S3's absenceCases gives: the regression that threatens
+      this rule is somebody tidying the spread into a plain `comparison,`.
+
+      SUGGESTED HOURS ARE Σ headcount OVER OPEN HOURS, INCLUDING THE GM
+      (deviation 3, ratified). This was the one number in the session that could
+      have been wrong quietly. usedHourlyHours is right there, is already
+      exported, and is labelled "hourly heads actually recommended" — and it
+      EXCLUDES the salaried GM, while a Square schedule does not. Using it would
+      have shown every store as over-scheduled by the GM's hours every day. The
+      card's own legend already says "(incl. GM)", and a manager who reads the
+      card and then the comparison must not find two different suggested totals.
+
+      SCHEDULED HOURS ARE DURATIONS, NOT HOUR BUCKETS, and this is the second
+      number that could have been wrong quietly. computeScheduledCoverage exists,
+      returns per-hour counts, and summing them looks like scheduled hours — but
+      it necessarily counts a 4h30 shift as occupying FIVE hour slots, because
+      its question is "how many people are on the floor during hour 14". A week
+      of half-hour shifts compared against an hours budget would read as
+      materially more scheduled labour than was scheduled. computeScheduledHours-
+      ByDay sums clamped minutes instead, and a fixture pins the difference by
+      running BOTH functions over the same shift and asserting 5.5 against 6.
+
+      An OVERNIGHT SHIFT SPLITS across two store-local days rather than landing
+      whole on either, and TOMBSTONES ARE FILTERED IN THE PURE FUNCTION AS WELL
+      AS IN THE QUERY (deviation 5, ratified) — a small divergence from
+      getScheduledCoverage, which filters deletions in its `where` alone and so
+      only ever exercises that rule against a database. Taking the flag on the
+      row makes "a deleted shift is not scheduled labour" provable without one.
+
+      SYNC HONESTY IS THE DESIGN CONSTRAINT, NOT A FOOTNOTE, and the three
+      states say three different sentences. never-synced renders NO SECTION AT
+      ALL — the rest of the page is untouched. synced-empty renders the
+      suggested column with an EM DASH where the scheduled number would go, plus
+      the card's own sentence: a 0.0 in that cell would present Square's silence
+      as a staffing decision somebody made, which is the sentence seam (c)
+      exists to forbid. stale/error render the last known plan with its age, at
+      the same 26h threshold via the same computeHealth. agoLabel MOVED into the
+      shared client-safe module and the card now imports it, so one outage
+      cannot produce two differently-worded warnings on two surfaces — the same
+      argument D5 made for the threshold itself.
+
+      A NEW MODULE, src/lib/overlay-legend.ts, AND ITS DEPENDENCY-FREEDOM IS THE
+      POINT. The legend's series model has to be shared between a "use client"
+      component and a fixture; every other schedule-side module imports prisma,
+      so a helper placed in labor-schedule.ts would have dragged the database
+      client into the browser bundle. Zero imports is what lets ONE definition of
+      "which series are visible" serve both, instead of the card holding the rule
+      and the fixture holding a copy of it. agoLabel joined it for the same
+      reason, widening the module's documented scope by one function.
+
+      DAY DRILL-IN WAS DELIBERATELY LEFT OUT (deviation 4, ratified). It looks
+      cheap — DayDetail on /labor already refetches /api/labor/coverage, which
+      already returns the `overlay` key — and it is not: DayDetail holds its OWN
+      local CoverageResponse type and its OWN chart builder, so adding curves
+      there means either a SECOND renderer of the same overlay (the drift S3
+      spent a session forbidding) or extracting the chart out of a card that was
+      staging-verified four commits earlier. Its own session if ever.
+
+      FIXTURES 99 -> 150 in scripts/verify-labor-schedule.ts, still pure and
+      still no DB beyond source guards. The ones worth keeping: the roster
+      payload's SERIALIZED keys ARE name/title/clockInAt, so no future caller can
+      widen them without the fixture failing, and the Square id is asserted
+      absent from the wire by searching for the id itself rather than for a field
+      name; an unresolvable — or blank-named — member renders "Unnamed" and stays
+      ON the roster rather than vanishing from the floor; the bucket count really
+      would have said 6 where the duration says 5.5; an overnight shift is 2 + 6
+      and never 8 on either; and the CHIP COUNT is unchanged when a series is
+      hidden, including when every series is hidden at once. The roster's source
+      guards strip doc-comments before matching, because the comments quote the
+      column names they are ruling OUT and the guard would otherwise fail itself.
+
+      NO SCHEMA CHANGE, NO MIGRATION, NO SYNC CHANGE, NO NEW CAPABILITY — every
+      column and every gate S4 needed already existed.
+
+      npm run build green. THE VERIFY SUITE IS DIFFED RATHER THAN ASSUMED:
+      verify-hr8-compliance.ts fails with EXACTLY the nine DEBT-76 checks it
+      failed at 4874402, 32 passing on both sides, sorted and diffed before and
+      after. verify-goal-engine.ts was green on both runs this session (no
+      DEBT-77 flake). Import wall grep clean.
+
+      NOT VERIFIED ON STAGING. Nothing here has been rendered against real
+      synced shifts or real open timecards. That is the next session's first
+      job, and the order to look in is: the roster popup against a store with
+      people actually on the clock (the ONE surface in this session that shows
+      person-level data, and the one whose failure mode is a name appearing
+      where it should not); then the comparison's three sync-state branches,
+      since OVL-S2 measured nine stores with shifts and three honest zeros, so
+      never / synced-empty are both sitting there ready and only stale needs a
+      store whose lastSyncOkAt has aged past 26h. Also unexercised: the
+      capability-denied render on both surfaces (no `overlay` key, no
+      `comparison` key, and a 403 from the roster endpoint), which needs a
+      /users override on a test account — the same gap S3 recorded and did not
+      close.
+
   - id: OVL-S3
     track: labor
     size: M
