@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SplitPolicyInfo } from "@/components/labor/split-policy-info"
 import { BADGE_PRESETS, badgePreset, type BadgePresetKey } from "@/lib/badge-presets"
+import { formatWeeklyHoursDraft, parseWeeklyHoursDraft } from "@/lib/labor-roster-hours"
 import {
   Dialog,
   DialogContent,
@@ -649,7 +650,13 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
     }
   }
 
-  async function patchRow(id: string, patch: { weeklyHoursOverride?: number | null; isSupervisory?: boolean | null }) {
+  /// RETURNS WHETHER THE WRITE LANDED. It used to return nothing, which is why
+  /// the WK HRS cell had no way to confirm a save and no way to report one that
+  /// failed — `void patchRow(...)` discarded the only fact worth showing.
+  async function patchRow(
+    id: string,
+    patch: { weeklyHoursOverride?: number | null; isSupervisory?: boolean | null }
+  ): Promise<boolean> {
     // Optimistic, then reconciled by the response — a two-field edit that has to
     // wait for a round trip to show a tick reads as broken.
     setData((prev) =>
@@ -657,14 +664,26 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
         ? { ...prev, rows: prev.rows.map((r) => (r.squareTeamMemberId === id ? { ...r, ...patch } : r)) }
         : prev
     )
-    const res = await fetch(`/api/square/labor/roster/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    })
-    if (!res.ok) {
-      setErr("Could not save that change.")
+    try {
+      const res = await fetch(`/api/square/labor/roster/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      })
+      // A THROWN fetch (offline, DNS, an aborted tab) used to escape entirely:
+      // every call site is `void patchRow(...)`, so a rejection became an
+      // unhandled promise and the row sat there wearing its optimistic value.
+      if (!res.ok) throw new Error(`Save failed (${res.status})`)
+      setErr(null)
+      return true
+    } catch {
+      // THE RELOAD COMES FIRST, AND THE ERROR AFTER IT. load() clears `err` on a
+      // successful fetch (see its body), so the old order — set the message,
+      // then reload — wiped the message it had just written and a failed save
+      // reported nothing at all.
       await load()
+      setErr("Could not save that change.")
+      return false
     }
   }
 
@@ -764,23 +783,9 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
                     {payText(r)}
                   </td>
                   <td className="py-2.5 pr-3">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={168}
-                      className="h-7 w-20"
-                      // Square's own weekly_hours is the PLACEHOLDER, never the
-                      // value: showing it as a value would make an unset override
-                      // indistinguishable from one that happens to match Square.
-                      placeholder={r.squareWeeklyHours != null ? String(r.squareWeeklyHours) : "—"}
-                      defaultValue={r.weeklyHoursOverride ?? ""}
-                      onBlur={(e) => {
-                        const raw = e.target.value.trim()
-                        const next = raw === "" ? null : Number(raw)
-                        if (next !== null && !(Number.isInteger(next) && next > 0 && next <= 168)) return
-                        if (next === r.weeklyHoursOverride) return
-                        void patchRow(r.squareTeamMemberId, { weeklyHoursOverride: next })
-                      }}
+                    <WeeklyHoursCell
+                      row={r}
+                      onSave={(value) => patchRow(r.squareTeamMemberId, { weeklyHoursOverride: value })}
                     />
                   </td>
                   <td className="py-2.5 pr-0">
@@ -805,6 +810,15 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
               Wk hrs and Sup. are Froot&rsquo;s own fields and are saved here, but nothing reads them yet — the weekly
               labor budget is still built from the rate legend.
             </p>
+            {/* THE SAVE SEMANTICS, ON THE CARD. Wk hrs writes on Save (or Enter)
+                and never on blur: an autosaving cell that also had no
+                confirmation is what made this column look inert for two days.
+                The blank case is spelled out because it is the one an operator
+                is most likely to attempt and least likely to believe. */}
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              Wk hrs saves when you press Save or Enter. Leaving it blank and saving clears Froot&rsquo;s value —
+              the grey &ldquo;Square&rdquo; figure beside the box is what Square carries, and it is never written here.
+            </p>
             <p className="text-xs text-[var(--color-muted-foreground)]">
               Pay is each person&rsquo;s current wage setting in Square, not what past shifts were costed at. Froot
               never writes to Square — correct a rate there and sync.
@@ -825,6 +839,124 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── WK HRS — the one editable Froot field on a Square roster row ─────────────
+//
+// THE THREE THINGS THAT WERE WRONG, because each one on its own reads as a
+// working field and only the combination makes the column look inert:
+//
+//   1. THE SAVE WAS SILENT AND ON BLUR. Nothing confirmed a write, so a save
+//      that landed and a save that never fired were the same screen.
+//   2. THE WRITE WAS SKIPPED WHEN THE VALUE "HAD NOT CHANGED". Clearing a field
+//      whose override was already null compared null === null and returned
+//      before the fetch — so the operation an operator most wants (make this
+//      blank) was the one operation guaranteed to do nothing.
+//   3. SQUARE'S weekly_hours WAS THE INPUT'S PLACEHOLDER. Clear the box and
+//      Square's 40 reappears inside it, in grey, in the same position the value
+//      occupied. A cleared field and a field holding 40 look identical, so a
+//      successful clear is indistinguishable from a failed one — which is what
+//      "40 always returns" was.
+//
+// So: explicit Save, a status that says what happened, and Square's figure
+// rendered BESIDE the box rather than inside it. The original placeholder
+// comment's intent — an unset override must not masquerade as a set one — is
+// kept and is what moving the number out finally delivers.
+function WeeklyHoursCell({
+  row,
+  onSave,
+}: {
+  row: RosterRow
+  onSave: (value: number | null) => Promise<boolean>
+}) {
+  const persisted = row.weeklyHoursOverride
+  // `base` is the persisted value this draft was derived from. Comparing it to
+  // the incoming prop during render is React's own adjust-state-on-prop-change
+  // pattern, and it is what lets a store switch or a Sync roster repaint the box
+  // without an effect and without a remount that would steal focus mid-edit.
+  const [base, setBase] = useState<number | null>(persisted)
+  const [draft, setDraft] = useState(() => formatWeeklyHoursDraft(persisted))
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
+
+  if (persisted !== base) {
+    setBase(persisted)
+    setDraft(formatWeeklyHoursDraft(persisted))
+    // STATUS IS DELIBERATELY NOT RESET HERE. A failed save reloads the roster,
+    // which reverts `persisted` and lands in this branch — resetting the status
+    // too would erase the "Not saved" the operator has to see. Typing clears it
+    // instead, which is the moment it stops being true.
+  }
+
+  const parsed = parseWeeklyHoursDraft(draft)
+
+  async function save() {
+    if (!parsed.ok || status === "saving") return
+    const value = parsed.value
+    // Adopt the value BEFORE awaiting: patchRow updates the row optimistically,
+    // so `persisted` arrives already changed and the adjustment above must not
+    // treat our own write as somebody else's.
+    setBase(value)
+    setDraft(formatWeeklyHoursDraft(value))
+    setStatus("saving")
+    setStatus((await onSave(value)) ? "saved" : "error")
+  }
+
+  const message =
+    !parsed.ok
+      ? { text: parsed.reason, tone: "text-[var(--color-destructive)]" }
+      : status === "saving"
+        ? { text: "Saving…", tone: "text-[var(--color-muted-foreground)]" }
+        : status === "saved"
+          ? { text: "Saved", tone: "text-[var(--color-success-text)]" }
+          : status === "error"
+            ? { text: "Not saved", tone: "text-[var(--color-destructive)]" }
+            : row.squareWeeklyHours != null
+              ? { text: `Square ${row.squareWeeklyHours}`, tone: "text-[var(--color-muted-foreground)]" }
+              : null
+
+  const label = row.displayName ?? row.squareTeamMemberId
+
+  return (
+    <div className="flex items-center gap-2 whitespace-nowrap">
+      <Input
+        type="number"
+        min={1}
+        max={168}
+        className="h-7 w-20"
+        // CONTROLLED, not defaultValue. An uncontrolled box cannot be repainted
+        // when the stored value changes underneath it, which is how a reverted
+        // save used to leave the rejected number sitting in the field.
+        value={draft}
+        aria-label={`Weekly hours — ${label}`}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setStatus("idle")
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault()
+            void save()
+          }
+        }}
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 px-2 text-xs"
+        // ALWAYS RENDERED AND ALWAYS ENABLED FOR A VALID DRAFT, including a
+        // blank one that matches what is already stored. A Save that hides
+        // itself when nothing "changed" is the no-op guard wearing a different
+        // hat, and blank-when-already-blank is precisely the case that has to
+        // stay pressable.
+        disabled={!parsed.ok || status === "saving"}
+        onClick={() => void save()}
+        aria-label={`Save weekly hours — ${label}`}
+      >
+        Save
+      </Button>
+      {message && <span className={`text-xs ${message.tone}`}>{message.text}</span>}
     </div>
   )
 }
