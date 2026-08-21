@@ -6,6 +6,33 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Scheduling hours count the whole crew, GM included — 2026-08-21 (Gary)
+
+- For the purposes of scheduling, forecasted and suggested hours
+  include EVERYTHING required to run the business, including the
+  salaried GM. One number, one crew. (Gary)
+- The GM-excluded view exists only as an ADMIN-only toggle that
+  strips the GM and shows hourly team members alone. It is never the
+  default and is not visible to MANAGER or STORE. (Gary)
+
+WHY, in Gary's words and from his own measurement: /labor currently
+shows an unlabelled day-card hours figure beside a Suggested figure,
+and they count different crews. Arithmetic from two staging
+screenshots (UNR, week of Aug 17): day hrs 19.0 + 21.0 + 19.0 + 13.0
++ 17.0 + 12.0 + 7.0 = 108.0; header Schedulable 148.0; Labor Budget
+salaried fixed 40 hrs; 148.0 − 40 = 108.0 exact. Earlier the same day,
+108.5 against 148.5 − 40 = 108.5, exact again. So the day card is the
+HOURLY POOL ONLY while Suggested INCLUDES the GM. Observed gaps
+Mon–Thu of 7, 7, 7, 8 are the GM's 7a–3p window. **Rather than label
+the discrepancy, I am removing it.** (Gary)
+
+- The audit answering this ruling — including the confirmation that
+  the identity is exact BY CONSTRUCTION rather than by coincidence,
+  and the three surfaces that must change together — is filed at
+  docs/prompts/Labor_S5_Q1_GM_HOURS_AUDIT.md. Implementation is NOT
+  ruled here: the audit returns options and the build waits on a
+  second ruling. (Claude)
+
 ## Labor Day Inspector, S5 scope — 2026-08-21 (Gary)
 
 - A troubleshooting page exists for labor data: pick a store and a
