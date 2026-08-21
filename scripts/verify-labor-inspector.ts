@@ -41,6 +41,13 @@
  *      only once min(now, lastTimecardSyncOkAt) has passed its start plus grace;
  *      ineligible shifts are neither flagged nor counted, and the page says how
  *      many are waiting. UNSCHEDULED is deliberately NOT gated the same way.
+ *  14. S5-A13 — THE SENTENCE ITSELF, asserted as a STRING on the payload.
+ *      Group 13 passed on staging while no sentence rendered at all, because it
+ *      asserted noShowPendingCount — the INPUT the sentence is derived from —
+ *      and never that a sentence was produced. A field can be correct and
+ *      unreachable at the same time. These cases assert the text a reader sees,
+ *      including the observed UNR shape (three UNASSIGNED shifts), which is the
+ *      case that made A12's condition unsatisfiable.
  *
  * The Aug-19 times and durations are from docs/ROADMAP.yaml's BUG-10 row
  * ("MEASURED RESOLUTION 2026-08-20, Square dashboard, Aug 19, Las Brisas").
@@ -630,6 +637,113 @@ console.log(`\n13. NO-SHOW's evaluation horizon, grace ${NO_SHOW_GRACE_MINUTES}m
     hasSchedule: true,
   })
   check("UNSCHEDULED still fires behind the horizon", unscheduledBehindHorizon.counts.UNSCHEDULED, 1)
+}
+
+
+// ── 14. S5-A13 — THE SENTENCE, ASSERTED AS A STRING ──────────────────────────
+console.log("\n14. The explanatory sentences are on the payload as text (S5-A13)")
+{
+  const noticeOf = (r: ReturnType<typeof run>, code: string) =>
+    r.notices.find((n) => n.code === code)?.text ?? null
+
+  const at = (h: number, member: string | null): InspectorShiftRow =>
+    shift({
+      effectiveTeamMemberId: member,
+      effectiveStartAt: new Date(`2026-08-21T${String(h).padStart(2, "0")}:00:00-07:00`),
+      effectiveEndAt: new Date(`2026-08-21T${String(h + 4).padStart(2, "0")}:00:00-07:00`),
+    })
+
+  // THE OBSERVED UNR CASE, 2026-08-21 09:43 Pacific, timecards synced 10:15p the
+  // prior evening. THREE UNASSIGNED SHIFTS — which is what made A12's sentence
+  // unreachable: they are not waiting on the sync, they are outside the question.
+  const unrArgs = {
+    shifts: [at(8, null), at(10, null), at(15, null)],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T09:43:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-20T22:15:00-07:00"),
+  }
+  const unr = run(unrArgs)
+  check("UNR — three ghosts render", unr.people.flatMap((p) => p.ghosts).length, 3)
+  check("UNR — no false NO-SHOW (A12 still holds)", unr.counts["NO-SHOW"], 0)
+  check("UNR — counted as unassigned, not as pending", unr.unassignedShiftCount, 3)
+  check("UNR — pending is legitimately zero", unr.noShowPendingCount, 0)
+  // THE REGRESSION THAT SHIPPED: a day with ghosts must never be silent.
+  check("UNR — the page is NOT silent", unr.notices.length > 0, true)
+  check(
+    "UNR — the sentence a reader sees",
+    noticeOf(unr, "unassigned-shifts"),
+    "3 scheduled shifts have nobody assigned in Square, so no-show cannot apply to them — there is no one to fail to show. They are drawn as plain scheduled shifts and counted nowhere."
+  )
+  check("UNR — and it is NOT the horizon sentence", noticeOf(unr, "no-show-pending"), null)
+
+  // THE SAME DAY WITH THE SHIFTS ASSIGNED — A12's sentence, verbatim to the
+  // wording the ruling specified, horizon named in store-local time WITH its date.
+  const assigned = run({ ...unrArgs, shifts: [at(8, DUNCAN), at(10, DUNCAN), at(15, DUNCAN)] })
+  check("assigned — three pending", assigned.noShowPendingCount, 3)
+  check(
+    "assigned — the horizon sentence, as specified",
+    noticeOf(assigned, "no-show-pending"),
+    "3 shifts not yet evaluated for no-show — timecards synced 10:15p Aug 20. A shift cannot be a no-show until the timecard sync has reached past its start; until then it is drawn as a plain scheduled shift and counted nowhere."
+  )
+  check("assigned — no unassigned sentence", noticeOf(assigned, "unassigned-shifts"), null)
+
+  // Singular agreement — one shift each way. A count spliced into prose is where
+  // "1 shifts" lives, and this page is read while someone doubts a number.
+  const oneAssigned = run({ ...unrArgs, shifts: [at(10, DUNCAN)] })
+  check(
+    "singular — one pending shift",
+    noticeOf(oneAssigned, "no-show-pending")?.startsWith("1 shift not yet evaluated for no-show —"),
+    true
+  )
+  const oneOpen = run({ ...unrArgs, shifts: [at(10, null)] })
+  check(
+    "singular — one unassigned shift",
+    noticeOf(oneOpen, "unassigned-shifts"),
+    "1 scheduled shift has nobody assigned in Square, so no-show cannot apply to it — there is no one to fail to show. It is drawn as a plain scheduled shift and counted nowhere."
+  )
+
+  // A never-synced store takes the other branch of the same sentence.
+  const never = run({ ...unrArgs, shifts: [at(10, DUNCAN)], timecardSyncOkAt: null })
+  check(
+    "never synced — the horizon clause changes",
+    noticeOf(never, "no-show-pending")?.includes("timecards have never synced for this store"),
+    true
+  )
+
+  // The other two sentences still reach the payload.
+  const suppressed = run({ ...unrArgs, shifts: [at(10, DUNCAN)], hasSchedule: false })
+  check(
+    "schedule-suppressed sentence present",
+    noticeOf(suppressed, "schedule-suppressed")?.startsWith("No schedule data for this store-day"),
+    true
+  )
+  check("…and no pending sentence beside it", noticeOf(suppressed, "no-show-pending"), null)
+  check("…and no unassigned sentence beside it", noticeOf(suppressed, "unassigned-shifts"), null)
+
+  const stale = run({ ...unrArgs, shifts: [], durationSuppressed: true })
+  check(
+    "duration-suppressed sentence present",
+    noticeOf(stale, "duration-suppressed")?.startsWith("The timecard sync is not fresh"),
+    true
+  )
+
+  // A clean day says nothing, which is the one case where silence is correct.
+  const clean = run({
+    shifts: [],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T09:43:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-21T09:40:00-07:00"),
+    hasSchedule: true,
+  })
+  check("a clean day emits no sentence", clean.notices.length, 0)
+
+  // ORDER IS STABLE — the client renders the array as given and sorts nothing.
+  const both = run({ ...unrArgs, shifts: [at(10, DUNCAN), at(11, null)], durationSuppressed: true })
+  check(
+    "sentence order is server-decided",
+    both.notices.map((n) => n.code).join(","),
+    "no-show-pending,unassigned-shifts,duration-suppressed"
+  )
 }
 
 console.log(`\n${failures === 0 ? "PASS" : `FAIL — ${failures} check(s)`}`)

@@ -190,6 +190,27 @@ export function durationFlagsSuppressed(timecardHealth: LaborHealth): boolean {
 
 export type FlagCode = "OPEN-STALE" | "OPEN-LONG" | "DOUBLE" | "UNMAPPED" | "NO-SHOW" | "UNSCHEDULED"
 
+/// S5-A13 — THE EXPLANATORY SENTENCES, COMPOSED SERVER-SIDE.
+///
+/// They used to be JSX conditions in the client, each reading a different payload
+/// field. That is how A12's sentence went missing on staging while every fixture
+/// stayed green: the fixtures asserted the COUNT the sentence was derived from,
+/// and nothing anywhere asserted that a sentence had actually been produced. A
+/// field can be correct and unreachable at the same time, and the client is where
+/// that gap lives.
+///
+/// Composing them here closes the gap by construction. The payload now carries
+/// the sentence a reader will see, so a fixture can assert THE STRING — the
+/// surface that was actually broken — rather than an input it is computed from.
+/// The client's job shrinks to rendering an array it does not filter.
+export type InspectorNoticeCode =
+  | "schedule-suppressed"
+  | "no-show-pending"
+  | "unassigned-shifts"
+  | "duration-suppressed"
+
+export type InspectorNotice = { code: InspectorNoticeCode; text: string }
+
 export const FLAG_CODES: FlagCode[] = ["OPEN-STALE", "OPEN-LONG", "DOUBLE", "UNMAPPED", "NO-SHOW", "UNSCHEDULED"]
 
 /// The timecard row shape the assembly needs. NOTE WHAT IS ABSENT, exactly as in
@@ -290,6 +311,15 @@ export type DayInspectorResult = {
   /// "10:15p Aug 20". Null = the timecard sync has never succeeded for this store,
   /// which is a different sentence and the page renders it as one.
   noShowHorizonLabel: string | null
+  /// S5-A13 — scheduled shifts with nobody assigned in Square. Twelve of 462
+  /// observed shifts are open shifts (S1b § 3), and they are the case that made
+  /// A12's sentence unreachable: they can NEVER be a no-show — there is nobody to
+  /// fail to show — so they are not "not yet evaluated", they are never evaluated.
+  /// Counted separately because saying otherwise about them would be false.
+  unassignedShiftCount: number
+  /// EVERY EXPLANATORY SENTENCE THIS DAY NEEDS, in render order, pre-composed.
+  /// The client renders the array and filters nothing.
+  notices: InspectorNotice[]
   /// True = OPEN-LONG was not computed, because the timecard sync is not fresh.
   durationSuppressed: boolean
 }
@@ -596,6 +626,58 @@ export function assembleDayInspector({
     })
   }
 
+  // THE HORIZON LABEL IS BUILT WHETHER OR NOT A SENTENCE USES IT, because it is a
+  // fact about the store rather than about this day's shifts.
+  const horizonLabel =
+    syncedThroughMs === null
+      ? null
+      : `${formatClockInLabel(new Date(syncedThroughMs), timeZone)} ${shortDate(
+          localDateStr(new Date(syncedThroughMs), timeZone)
+        )}`
+
+  const notices: InspectorNotice[] = []
+  if (!hasSchedule) {
+    notices.push({
+      code: "schedule-suppressed",
+      text:
+        "No schedule data for this store-day, so No-show and Unscheduled are not computed. " +
+        "Nothing here says a shift was unplanned — only that there is no plan to compare it against.",
+    })
+  }
+  if (hasSchedule && noShowPending > 0) {
+    notices.push({
+      code: "no-show-pending",
+      text:
+        `${noShowPending} shift${noShowPending === 1 ? "" : "s"} not yet evaluated for no-show — ` +
+        `${horizonLabel ? `timecards synced ${horizonLabel}` : "timecards have never synced for this store"}. ` +
+        "A shift cannot be a no-show until the timecard sync has reached past its start; until then it is " +
+        "drawn as a plain scheduled shift and counted nowhere.",
+    })
+  }
+  // S5-A13 — THE CASE THAT WENT UNNAMED. Deliberately a DIFFERENT sentence from
+  // the one above: an unassigned shift is not waiting on the sync, it is outside
+  // the question entirely, and telling a manager it is "not yet evaluated" would
+  // promise an evaluation that is never coming.
+  if (hasSchedule && unassignedShifts.length > 0) {
+    const n = unassignedShifts.length
+    notices.push({
+      code: "unassigned-shifts",
+      text:
+        `${n} scheduled shift${n === 1 ? " has" : "s have"} nobody assigned in Square, so no-show cannot ` +
+        `apply to ${n === 1 ? "it" : "them"} — there is no one to fail to show. ` +
+        `${n === 1 ? "It is" : "They are"} drawn as ${n === 1 ? "a plain scheduled shift" : "plain scheduled shifts"} and counted nowhere.`,
+    })
+  }
+  if (durationSuppressed) {
+    notices.push({
+      code: "duration-suppressed",
+      text:
+        "The timecard sync is not fresh, so Open, long is not computed — every open card looks long once " +
+        "Froot stops being told. Open, stale is still computed: it is a date comparison, and a broken sync " +
+        "is exactly when it matters most.",
+    })
+  }
+
   return {
     date,
     hourTicks: hourTicks(dayStart, dayEnd, spanMs, timeZone),
@@ -605,16 +687,13 @@ export function assembleDayInspector({
     jobIds: [...jobIds].sort(),
     scheduleSuppressed: !hasSchedule,
     noShowPendingCount: noShowPending,
+    unassignedShiftCount: unassignedShifts.length,
+    notices,
     // THE DATE IS ALWAYS PRESENT, never dropped when the sync landed today. The
     // sentence this feeds is read while someone is deciding whether to believe a
     // flag, and "synced 10:15p" with no date is exactly the ambiguity that let the
     // UNR false-positive look reasonable for a morning.
-    noShowHorizonLabel:
-      syncedThroughMs === null
-        ? null
-        : `${formatClockInLabel(new Date(syncedThroughMs), timeZone)} ${shortDate(
-            localDateStr(new Date(syncedThroughMs), timeZone)
-          )}`,
+    noShowHorizonLabel: horizonLabel,
     durationSuppressed,
   }
 }

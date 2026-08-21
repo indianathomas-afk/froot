@@ -68,6 +68,13 @@ type InspectorResponse = {
   durationSuppressed: boolean
   noShowPendingCount: number
   noShowHorizonLabel: string | null
+  unassignedShiftCount: number
+  /// S5-A13 — every explanatory sentence, pre-composed server-side and rendered
+  /// in order. THE CLIENT FILTERS NOTHING: the previous shape was four payload
+  /// fields and four JSX conditions here, and A12's sentence went missing on
+  /// staging because its condition could not be true for the data in front of it
+  /// while every fixture — which asserted the FIELD — stayed green.
+  notices: { code: string; text: string }[]
   jobs: Job[]
   timecardSync: { health: Health; lastSyncOkAt: string | null; lastTimecardCount: number }
   scheduleSync: { health: ScheduleHealth; lastSyncOkAt: string | null; lastShiftCount: number }
@@ -351,44 +358,20 @@ function FlagStrip({ res }: { res: InspectorResponse }) {
           rule).
         </p>
 
-        {res.scheduleSuppressed && (
-          <p className="flex items-start gap-1.5 text-[12px] text-[var(--color-muted-foreground)] mt-1.5">
+        {/* S5-A13 — ONE RENDER PATH, NO CONDITIONS. Whether a sentence applies is
+            decided where the numbers are known; this maps what it is given. That
+            is the fix for the class of defect A13 was, not just for the instance:
+            a field can be correct and unreachable at the same time, and the
+            unreachability lived in the conditions that used to be here. */}
+        {res.notices.map((n) => (
+          <p
+            key={n.code}
+            className="flex items-start gap-1.5 text-[12px] text-[var(--color-muted-foreground)] mt-1.5"
+          >
             <CircleAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>
-              No schedule data for this store-day, so <strong>No-show</strong> and{" "}
-              <strong>Unscheduled</strong> are not computed. Nothing here says a shift was unplanned —
-              only that there is no plan to compare it against.
-            </span>
+            <span>{n.text}</span>
           </p>
-        )}
-        {/* S5-A12 — shifts the sync has not reached yet are NAMED, never silently
-            dropped. Without this sentence a reader has no way to tell "checked,
-            nobody missing" from "not checked yet", which is the same ambiguity
-            that made the UNR false-positive look reasonable. */}
-        {!res.scheduleSuppressed && res.noShowPendingCount > 0 && (
-          <p className="flex items-start gap-1.5 text-[12px] text-[var(--color-muted-foreground)] mt-1.5">
-            <CircleAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>
-              {res.noShowPendingCount} shift{res.noShowPendingCount === 1 ? "" : "s"} not yet evaluated
-              for no-show —{" "}
-              {res.noShowHorizonLabel
-                ? `timecards synced ${res.noShowHorizonLabel}`
-                : "timecards have never synced for this store"}
-              . A shift cannot be a no-show until the timecard sync has reached past its start; until
-              then it is drawn as a plain scheduled shift and counted nowhere.
-            </span>
-          </p>
-        )}
-        {res.durationSuppressed && (
-          <p className="flex items-start gap-1.5 text-[12px] text-[var(--color-muted-foreground)] mt-1.5">
-            <CircleAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>
-              The timecard sync is not fresh, so <strong>Open, long</strong> is not computed — every
-              open card looks long once Froot stops being told. <strong>Open, stale</strong> is still
-              computed: it is a date comparison, and a broken sync is exactly when it matters most.
-            </span>
-          </p>
-        )}
+        ))}
       </CardContent>
     </Card>
   )
