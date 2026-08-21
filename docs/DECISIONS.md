@@ -6,6 +6,26 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Labor Day Inspector, S5 scope — 2026-08-21 (Gary)
+
+- A troubleshooting page exists for labor data: pick a store and a
+  day, see every person's timecards on a timeline with scheduled
+  shifts ghosted behind, and variance flags computed. Its purpose is
+  diagnosing Square-vs-Froot labor variances without database access. (Gary)
+- Manager/admin surface only — gated like /settings/labor
+  (labor.manage), NOT STORE-visible. It shows names and times;
+  wages, rates, tips, and pay data NEVER appear. notes never
+  selected. (Gary)
+- Read-only in every direction: the page fixes nothing, edits
+  nothing, and never writes to Square (standing law). Corrections
+  happen in Square; the page tells you where to look. (Gary)
+- Break intervals are not rendered — Froot stores summed break
+  minutes only (S1-measured). Timeline bars are clock-in to
+  clock-out; no break segmentation is implied. (Gary)
+- The page carries sync-freshness stamps for both timecard and
+  schedule sync (computeHealth, 26h), so lag is never mistaken for
+  truth. (Gary)
+
 ## CRON-1 activation, phantom opens — 2026-08-20 (Gary)
 
 - CRON-1 is activated: the parked timecard reconcile cron
