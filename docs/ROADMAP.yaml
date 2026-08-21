@@ -8035,6 +8035,19 @@ phases:
       a Vercel preview yet. Flip to `staging` when the push happens — BUG-9's
       precedent, where the row was filed against the built work and promoted
       afterwards rather than claiming a deploy that had not occurred.
+      STATUS MOVED 2026-08-20 in bb5871d — the sentences above are kept as
+      written and are NO LONGER THE STATE. a56a2e8 reached origin/staging and
+      the row reads `staging`, which is the flip the paragraph promised. THE
+      PUSH IS WHAT COUNTS, not a Vercel deploy (WORKFLOW.md § Session completion
+      rules 4; BUG-9 is the precedent for marking rather than rewriting).
+      MARKED RETROACTIVELY 2026-08-20, and only the marker is new. bb5871d DID
+      record the push — "after a56a2e8 reached origin/staging" — but it recorded
+      it inside the nested reconstructed-filter entry below, which is about the
+      filter rather than about this paragraph. A reader of these top-level notes
+      met "STATUS IS in_progress AND NOT staging" against a `status: staging`
+      field with nothing adjacent resolving it, and had to find the resolution
+      two indent levels down in an entry on another subject. The preservation
+      was always deliberate; the adjacency is what was missing.
       NO UI IN THIS PHASE. The card toggle, the colour rendering and the
       settings editor are S3; the /labor comparison is S4. This session is
       ingest, tables and fixtures only.
