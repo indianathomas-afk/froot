@@ -6,6 +6,108 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Scheduling hours count the whole crew, GM included — 2026-08-21 (Gary)
+
+- For the purposes of scheduling, forecasted and suggested hours
+  include EVERYTHING required to run the business, including the
+  salaried GM. One number, one crew. (Gary)
+- The GM-excluded view exists only as an ADMIN-only toggle that
+  strips the GM and shows hourly team members alone. It is never the
+  default and is not visible to MANAGER or STORE. (Gary)
+
+WHY, in Gary's words and from his own measurement: /labor currently
+shows an unlabelled day-card hours figure beside a Suggested figure,
+and they count different crews. Arithmetic from two staging
+screenshots (UNR, week of Aug 17): day hrs 19.0 + 21.0 + 19.0 + 13.0
++ 17.0 + 12.0 + 7.0 = 108.0; header Schedulable 148.0; Labor Budget
+salaried fixed 40 hrs; 148.0 − 40 = 108.0 exact. Earlier the same day,
+108.5 against 148.5 − 40 = 108.5, exact again. So the day card is the
+HOURLY POOL ONLY while Suggested INCLUDES the GM. Observed gaps
+Mon–Thu of 7, 7, 7, 8 are the GM's 7a–3p window. **Rather than label
+the discrepancy, I am removing it.** (Gary)
+
+- The audit answering this ruling — including the confirmation that
+  the identity is exact BY CONSTRUCTION rather than by coincidence,
+  and the three surfaces that must change together — is filed at
+  docs/prompts/Labor_S5_Q1_GM_HOURS_AUDIT.md. Implementation is NOT
+  ruled here: the audit returns options and the build waits on a
+  second ruling. (Claude)
+
+## Labor Day Inspector, S5 scope — 2026-08-21 (Gary)
+
+- A troubleshooting page exists for labor data: pick a store and a
+  day, see every person's timecards on a timeline with scheduled
+  shifts ghosted behind, and variance flags computed. Its purpose is
+  diagnosing Square-vs-Froot labor variances without database access. (Gary)
+- Manager/admin surface only — gated like /settings/labor
+  (labor.manage), NOT STORE-visible. It shows names and times;
+  wages, rates, tips, and pay data NEVER appear. notes never
+  selected. (Gary)
+- Read-only in every direction: the page fixes nothing, edits
+  nothing, and never writes to Square (standing law). Corrections
+  happen in Square; the page tells you where to look. (Gary)
+- Break intervals are not rendered — Froot stores summed break
+  minutes only (S1-measured). Timeline bars are clock-in to
+  clock-out; no break segmentation is implied. (Gary)
+- The page carries sync-freshness stamps for both timecard and
+  schedule sync (computeHealth, 26h), so lag is never mistaken for
+  truth. (Gary)
+
+Implementation limitation, recorded as S5 shipped — 2026-08-21 (Claude,
+at Gary's instruction S5-A8). The bullets above are Gary's rulings and
+are unchanged; this paragraph qualifies them and rules nothing.
+
+- DOUBLE detection is WITHIN-STORE BY CONSTRUCTION. The inspector is a
+  one-store, one-day surface and its timecard read is storeId-scoped,
+  so DOUBLE compares a person's cards pairwise within that one store.
+  A person double-punched across TWO stores on one day is NOT detected:
+  neither store's view holds both rows, so neither can see the overlap.
+  Nothing is wrong on either page — the pair is simply never assembled.
+  This is written down rather than left to be discovered because a flag
+  that silently does not cover a case is worse than no flag: a clean
+  DOUBLE column reads as "no double punches", and here it means "no
+  double punches at this store". The cross-store case is DEBT-79 and
+  was deliberately NOT built in S5. (Claude)
+
+## CRON-1 activation, phantom opens — 2026-08-20 (Gary)
+
+- CRON-1 is activated: the parked timecard reconcile cron
+  (/api/cron/labor-timecards, RECONCILE_DAYS=3) is registered in
+  vercel.json. The BUG-10 mechanism is the case: clock-outs after the
+  day's final dashboard-triggered sync are otherwise never seen — a
+  26-minute gap that never closes, measured live 2026-08-20. (Gary)
+- The schedule cron stays parked: the schedule trigger's window is
+  already −3/+28, so prior-day schedule drift self-heals on every
+  dashboard load. Timecards were the gap. (Gary)
+- The clocked-in 24h lookback window STAYS on both reads (curve and
+  roster) — an open card from yesterday genuinely still on the floor
+  must render, and the cron now closes the genuinely-closed ones.
+  Both-reads-or-neither; neither changes. (Gary)
+- Popup entries whose card started before the store-local today carry
+  a date qualifier (e.g. "in 2:55p yesterday" / "since Aug 19") so a
+  stale open is self-evident at a glance. Display only; neither query
+  changes. (Gary)
+
+## Overlay polish rulings, S4 — 2026-08-20 (Gary)
+
+- I am deliberately narrowing the S1b person-data principle for one
+  case: the Clocked-in view gains an on-demand roster popup listing
+  WHO is clocked in — name, position title, clock-in time (store-
+  local). This puts three structured person-level fields on a STORE-
+  visible surface, and that is intended: who is on the floor right
+  now is the same information as looking around the room. The notes
+  ruling stands untouched — free text never ships. (Gary)
+- The popup rides labor.schedule.view exactly as the overlay does;
+  the /users override removes both together. NEVER wages, rates,
+  tips, or any pay data in the popup or its payload. (Gary)
+- Names load ON CLICK ONLY via a separate endpoint — never in the
+  default card payload. The popup shows NOW only; no historical
+  rosters. (Gary)
+- Legend chips on the Labor Coverage card become click-to-toggle:
+  any series can be hidden/shown to cut visual noise. Client-side
+  display state only, resetting on day navigation; no data or
+  computation change. (Gary)
+
 ## Schedule overlay, S1b rulings — 2026-08-20 (Gary)
 
 - "Scheduled" means the EFFECTIVE shift: published where it exists,

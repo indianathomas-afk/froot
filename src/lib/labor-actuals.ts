@@ -196,6 +196,25 @@ export function computeHealth(
   return "fresh"
 }
 
+/// OVL-S3 — THE OPEN-CARD CEILING, EXTRACTED FOR THE SAME REASON paidMinutesOf
+/// ITSELF WAS.
+///
+/// paidMinutesOf answers "how many minutes", which is all its two callers ever
+/// needed. The overlay asks a different question — WHICH HOURS was this person on
+/// the floor — and that needs the END INSTANT, not a duration. Re-deriving
+/// `endAt ?? ceiling` in the overlay would put the open-timecard rule in two
+/// places, which is precisely the drift the docstring below argues against; so
+/// the one line moves here, paidMinutesOf calls it, and there is still exactly
+/// one definition of when an open card stops accruing.
+///
+/// The rule: an OPEN timecard (endAt null — someone is on the clock right now)
+/// runs to the ceiling, the earlier of `now` and the window end. A card left open
+/// on Tuesday must not accrue into Thursday's query, and it must never occupy an
+/// hour that has not happened yet.
+export function clockedEndMs(tc: { endAt: Date | null }, ceilingMs: number): number {
+  return tc.endAt === null ? ceilingMs : tc.endAt.getTime()
+}
+
 /// AL-3 — THE PAID-MINUTES RULE, EXTRACTED SO TWO CALCULATIONS CANNOT DRIFT.
 ///
 /// computeLaborActuals divides labor cost by sales; computeTipPayout divides
@@ -205,17 +224,20 @@ export function computeHealth(
 /// condition rather than each inventing one.
 ///
 /// The rule itself is unchanged from Phase 1: an OPEN timecard is costed to the
-/// ceiling (the earlier of `now` and the window end — a card left open on Tuesday
-/// must not accrue into Thursday's query); a non-positive span is clock skew or a
-/// bad row and is dropped rather than subtracted, because a corrupt row must not
-/// make labor look cheaper than it is; paid breaks are compensable and stay
-/// inside the span while unpaid breaks come out of it.
-function paidMinutesOf(
+/// ceiling (now delegated to clockedEndMs above); a non-positive span is clock
+/// skew or a bad row and is dropped rather than subtracted, because a corrupt row
+/// must not make labor look cheaper than it is; paid breaks are compensable and
+/// stay inside the span while unpaid breaks come out of it.
+///
+/// EXPORTED SINCE OVL-S3 for the third caller — the overlay's clocked-in-by-hour
+/// derivation uses it as the "does this row contribute any work at all" test, so
+/// a row this function drops is dropped by the chart too. Exported rather than
+/// copied, per the same argument the paragraphs above make.
+export function paidMinutesOf(
   tc: { startAt: Date; endAt: Date | null; breakUnpaidMinutes: number },
   ceilingMs: number
 ): number | null {
-  const endMs = tc.endAt === null ? ceilingMs : tc.endAt.getTime()
-  const grossMinutes = (endMs - tc.startAt.getTime()) / 60000
+  const grossMinutes = (clockedEndMs(tc, ceilingMs) - tc.startAt.getTime()) / 60000
   if (grossMinutes <= 0) return null
   return Math.max(0, grossMinutes - tc.breakUnpaidMinutes)
 }

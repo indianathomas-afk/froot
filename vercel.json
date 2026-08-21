@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/checklist-day-close",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/labor-timecards",
+      "schedule": "30 11 * * *"
     }
   ]
 }

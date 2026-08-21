@@ -6,7 +6,12 @@ import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
 import { monthStart } from "@/lib/pacing"
 import { getMonthGoal } from "@/lib/month-goal"
-import { loadLaborBlock, laborOverlayOn, scheduleLaborRefresh } from "@/lib/labor-dashboard"
+import {
+  loadLaborBlock,
+  laborOverlayOn,
+  scheduleLaborRefresh,
+  scheduleScheduledShiftRefresh,
+} from "@/lib/labor-dashboard"
 
 // GET /api/dashboard/summary?storeId= — everything the Dashboard needs in one
 // call. NOT module-gated (the Dashboard is the landing page); the sales block
@@ -153,6 +158,8 @@ export async function GET(req: Request) {
   // block above uses. Absent entirely when any gate is off.
   const labor = await loadLaborBlock(org, store, actor, mStart, today)
   if (labor && laborOverlayOn(org)) scheduleLaborRefresh(org, [store])
+  // OVL-S2 — the schedule half, same gate, own cooldown and cap.
+  if (labor && laborOverlayOn(org)) scheduleScheduledShiftRefresh(org, [store])
 
   // ── Monthly goal ──
   // Shared with the all-locations rollup (src/lib/month-goal.ts): a

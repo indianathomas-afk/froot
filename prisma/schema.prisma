@@ -119,15 +119,18 @@ model Organization {
   squareTimecards               SquareTimecard[]
   squareLaborSyncStates         SquareLaborSyncState[]
   squareTeamMemberWages         SquareTeamMemberWage[]
+  squareScheduledShifts         SquareScheduledShift[]
+  squareScheduleSyncStates      SquareScheduleSyncState[]
+  squareJobColors               SquareJobColor[]
 }
 
 model User {
-  id             String   @id @default(cuid())
-  clerkUserId    String   @unique
-  organizationId String
-  email          String
-  name           String?
-  role           Role     @default(STAFF)
+  id                 String   @id @default(cuid())
+  clerkUserId        String   @unique
+  organizationId     String
+  email              String
+  name               String?
+  role               Role     @default(STAFF)
   // BUILD-2: the store this user lands on. Lives on User, not on
   // StoreUserAssignment, because ADMINs have NO assignment rows at all (every
   // page scopes with `...(isAdmin ? {} : { id: { in: storeIds } })`) — and the
@@ -135,7 +138,7 @@ model User {
   // Nullable with no backfill: null = fall back to alphabetically-first, which
   // is what every picker already does. Validated on write AND on read, since
   // assignments churn (Clerk webhook, admin edit) after a default is set.
-  defaultStoreId String?
+  defaultStoreId     String?
   // PERM-5: capabilities SUBTRACTED from this user's role baseline. Empty (the
   // default for every existing row) = pure role baseline. Never additive — see
   // can() in src/lib/permissions.ts: the ceiling check returns before this list
@@ -148,7 +151,7 @@ model User {
   // on a NEW clerkUserId — which restricted mode (production, ON since
   // 2026-08-04) makes an admin-visible event rather than a silent duplicate.
   deniedCapabilities String[]
-  createdAt      DateTime @default(now())
+  createdAt          DateTime @default(now())
 
   organization         Organization          @relation(fields: [organizationId], references: [id])
   defaultStore         Store?                @relation("UserDefaultStore", fields: [defaultStoreId], references: [id], onDelete: SetNull)
@@ -216,6 +219,8 @@ model Store {
   weeklyDayHours            WeeklyDayHours[]
   squareTimecards           SquareTimecard[]
   squareLaborSyncState      SquareLaborSyncState?
+  squareScheduledShifts     SquareScheduledShift[]
+  squareScheduleSyncState   SquareScheduleSyncState?
 }
 
 // CHK-2 (S2) gave this table its first writer; CHK-3 (S3) gives it the key that
@@ -1649,7 +1654,7 @@ model HrDocument {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  organization Organization          @relation(fields: [organizationId], references: [id])
+  organization Organization           @relation(fields: [organizationId], references: [id])
   versions     HrDocumentVersion[]
   checkpoints  HrDocumentCheckpoint[]
   formFields   FormField[]
@@ -1723,16 +1728,16 @@ model HrDocumentGrant {
 // (fileUrl "", contentType application/x-froot-form-definition, sizeBytes =
 // JSON byte length). Same pin semantics, no nullability change for HR-4.
 model HrDocumentVersion {
-  id                 String   @id @default(cuid())
-  hrDocumentId       String
-  versionNumber      Int
-  fileUrl            String
-  fileName           String
-  contentType        String
-  sizeBytes          Int
-  fileHash           String // sha256 (file bytes, or canonical form-definition JSON)
-  definitionSnapshot Json? // FillableForm: frozen { bodyText, fields } this version pins
-  isCurrent          Boolean  @default(true)
+  id                       String   @id @default(cuid())
+  hrDocumentId             String
+  versionNumber            Int
+  fileUrl                  String
+  fileName                 String
+  contentType              String
+  sizeBytes                Int
+  fileHash                 String // sha256 (file bytes, or canonical form-definition JSON)
+  definitionSnapshot       Json? // FillableForm: frozen { bodyText, fields } this version pins
+  isCurrent                Boolean  @default(true)
   // R2 Phase B / Case A (HR-11k, Gary 2026-08-16). Set at upload: this version
   // demands a fresh signature from EVERYONE, including people who already
   // signed an earlier version in this same tenure. It overrides R2's default —
@@ -1750,9 +1755,9 @@ model HrDocumentVersion {
   // api/hr/documents/[id]/versions/[versionId]). Unticking cannot un-collect a
   // signature already given, and ticking late demands one from people who were
   // told they were finished.
-  requiresReacknowledgment Boolean @default(false)
-  uploadedByUserId   String
-  createdAt          DateTime @default(now())
+  requiresReacknowledgment Boolean  @default(false)
+  uploadedByUserId         String
+  createdAt                DateTime @default(now())
 
   hrDocument      HrDocument                 @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
   acknowledgments HrDocumentAcknowledgment[]
@@ -2616,4 +2621,194 @@ model SquareTeamMemberWage {
   /// be read by more than one tenant.
   @@unique([organizationId, squareTeamMemberId])
   @@index([organizationId, syncedAt])
+}
+
+/// ── SCHEDULE/ACTUAL OVERLAY, S2 ───────────────────────────────────────────────
+///
+/// Square's SCHEDULED shift — the plan — mirrored beside SquareTimecard, which is
+/// the actual. Naming per CLAUDE.md: never a bare `Shift`; the word is already
+/// spent on LaborDaypart's "Shift blocks" UI and on store-view handoff notes.
+///
+/// EVERY NULLABILITY BELOW IS AN OBSERVED FACT, NOT A GUESS. Source:
+/// docs/prompts/Overlay_S1b_Probe_RESULTS.md § 3 — n = 462 distinct shifts read
+/// from the real Keva Square account on 2026-08-20, Square-Version 2026-01-22,
+/// 19 locations over 2026-08-06 → 2026-09-17.
+///
+/// THE FETCH PROTOCOL IS PART OF THIS TABLE'S CORRECTNESS and is NOT expressible
+/// in schema: S1b measured that a batched multi-location sweep loses 77% of rows
+/// to Square's cursor. src/lib/labor-schedule.ts is where that law lives — read
+/// it before changing any writer.
+model SquareScheduledShift {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  /// Resolved from the shift's location_id via Store.squareLocationId at sync
+  /// time — the same rule SquareTimecard.storeId follows, and for the same
+  /// reason: per-store labor comes from Square's own location, never from a
+  /// staff member's primary store.
+  storeId                String
+  /// Square's id for the scheduled shift. Half the upsert key. Observed present
+  /// on 462/462.
+  squareScheduledShiftId String
+  /// THE IDEMPOTENCY GUARD, same as SquareTimecard.squareVersion — Square's own
+  /// monotonic counter, observed 462/462 and ranging 1…17 in the sample, so a
+  /// slow sync cannot clobber a fast one regardless of commit order.
+  squareVersion          Int
+  /// Observed 462/462, always UTC `Z` with milliseconds (unlike the shift times
+  /// below, which carry a location offset).
+  squareCreatedAt        DateTime
+  squareUpdatedAt        DateTime
+
+  /// ── DRAFT — the manager's working copy. NON-NULL BECAUSE IT IS ALWAYS THERE.
+  /// draft_shift_details was present on 462/462 observed shifts; a shift with no
+  /// draft has never been seen and would be a Square-side novelty worth failing
+  /// on rather than storing half of. Only the two genuinely optional members
+  /// below are nullable.
+  draftLocationId   String
+  draftJobId        String
+  /// Location-LOCAL with a real offset ("2026-08-10T14:00:00-07:00"), never Z.
+  /// Stored as the UTC instant Date parses that into — CLAUDE.md § "A DATABASE
+  /// TIMESTAMP IS UTC". Display-local conversion is the reader's job.
+  draftStartAt      DateTime
+  draftEndAt        DateTime
+  /// IANA, observed 462/462. Square's own opinion of the location's zone — the
+  /// same second opinion SquareTimecard.timezone carries.
+  draftTimezone     String
+  /// Square TOMBSTONES rather than deletes: observed true on 21/462. Synced, and
+  /// filtered on read (Gary, 2026-08-20). No reconciliation pass exists.
+  draftIsDeleted    Boolean
+  /// OPTIONAL AND THE NULL IS LOAD-BEARING — observed on 450/462, so 12 are
+  /// UNASSIGNED OPEN SHIFTS. A coverage curve counts SHIFTS, never distinct team
+  /// members, or those twelve vanish from the plan they are part of.
+  draftTeamMemberId String?
+  /// Observed on 24/462. SYNCED AND NEVER SELECTED INTO AN OVERLAY PAYLOAD
+  /// (Gary, 2026-08-20) — the observed live values already carry a person's name
+  /// ("training <name> day 2") and the overlay is STORE-visible. The rule is
+  /// enforced by not fetching the column, never by filtering it afterwards.
+  draftNotes        String?
+
+  /// ── PUBLISHED — announced to staff. ALL NULLABLE, AND ABSENCE IS A STATE.
+  /// published_shift_details was present on 399/462 and is ABSENT — not null,
+  /// not empty — until a manager publishes. 63/462 are draft-only; published-only
+  /// was observed 0/462.
+  publishedLocationId   String?
+  publishedJobId        String?
+  publishedStartAt      DateTime?
+  publishedEndAt        DateTime?
+  publishedTimezone     String?
+  publishedIsDeleted    Boolean?
+  /// Observed on 387/399 published details.
+  publishedTeamMemberId String?
+  /// Observed on 19/399. Same never-selected rule as draftNotes.
+  publishedNotes        String?
+
+  /// ── EFFECTIVE — published ?? draft, DENORMALIZED AT WRITE TIME (Gary,
+  /// 2026-08-20). Every read and every index uses these columns, so the
+  /// coalesce cannot be forgotten by one caller and remembered by another.
+  /// Draft ≠ published on 22 of the 399 shifts carrying both, so this is a real
+  /// choice and not a copy.
+  /// NON-NULL, because draft is: an effective value always exists.
+  effectiveLocationId   String
+  effectiveJobId        String
+  effectiveStartAt      DateTime
+  effectiveEndAt        DateTime
+  effectiveTimezone     String
+  effectiveIsDeleted    Boolean
+  /// Nullable for the twelve open shifts — see draftTeamMemberId.
+  effectiveTeamMemberId String?
+  /// "published" | "draft" — WHICH SIDE WON, stored rather than re-derived.
+  /// The overlay legend has to be able to say "this is the manager's draft, not
+  /// what staff were told", and `publishedStartAt IS NULL` stops being that
+  /// answer the moment a column is added that is null for another reason.
+  effectiveSource       String
+  /// DELIBERATELY ABSENT: there is no effectiveNotes. Denormalizing notes would
+  /// put the one column the ruling forbids on the overlay's own read path.
+
+  /// Row-level provenance. NOT the health signal — a store that synced fine and
+  /// has nothing scheduled has NO ROWS here to stamp. That is what
+  /// SquareScheduleSyncState is for.
+  syncedAt  DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  /// The upsert key. Org-scoped, matching SquareTimecard's: the same real Square
+  /// shift can be read by more than one tenant.
+  @@unique([organizationId, squareScheduledShiftId])
+  /// Every overlay read is one store over a date range, on the EFFECTIVE start.
+  @@index([storeId, effectiveStartAt])
+  @@index([organizationId, syncedAt])
+}
+
+/// SEAM (c), AND ITS OWN TABLE ON PURPOSE.
+///
+/// A CLONE OF SquareLaborSyncState RATHER THAN A SHARED ROW, because the two
+/// syncs fail independently: timecards can be healthy while schedules are not,
+/// and one lastError column cannot hold two sentences. Own storeId @unique, own
+/// claim token, own cooldown.
+///
+/// IT IS THE ONLY THING THAT MAKES "NO SCHEDULES" READABLE. S1b § 4: a real
+/// location with nothing scheduled and a BOGUS location id both return
+/// `200 {}` — byte-identical, the array key absent. Eight of eighteen active
+/// locations answer exactly that today, mid Square-Scheduling rollout. So the
+/// distinguishing fact cannot come from the response; it is lastSyncOkAt set
+/// with lastShiftCount 0, which reads "we asked, and Square said nothing".
+model SquareScheduleSyncState {
+  id                String    @id @default(cuid())
+  organizationId    String
+  storeId           String    @unique
+  lastSyncStartedAt DateTime?
+  /// The health input. Null with a row present means every attempt has failed.
+  lastSyncOkAt      DateTime?
+  /// The window the last successful sync covered, store-local.
+  lastWindowStart   DateTime? @db.Date
+  lastWindowEnd     DateTime? @db.Date
+  /// Zero here WITH lastSyncOkAt set is the "no schedules written in Square"
+  /// state — see the model comment. It is not the absence of a sync.
+  lastShiftCount    Int       @default(0)
+  /// Truncated. A sync failure writes here and returns; it NEVER throws into a
+  /// labor surface and never wears an auth failure's clothes (BUG-1, DON'T #5).
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+/// The overlay's position colours, keyed by SQUARE's job id (Gary, 2026-08-20).
+///
+/// WHY NOT A COLUMN ON LaborPosition. S1b measured the estate's 7 distinct
+/// job_ids against LaborPosition names: exactly ONE matches ("Team Member"), and
+/// grep for a squareJobId anywhere in the codebase returns nothing. There is no
+/// mapping layer and building one to hang a colour off would be a mapping
+/// maintained for cosmetics.
+///
+/// A ROW HERE IS AN OVERRIDE, AND ABSENCE IS NOT MISSING DATA. Every job id gets
+/// a deterministic default from deterministicJobColor() in
+/// src/lib/labor-schedule.ts, so the overlay is fully coloured with this table
+/// empty. A row appears only where a manager or admin has chosen differently.
+/// The settings editor that writes them is S3; S2 creates the table and the
+/// default function and writes nothing.
+model SquareJobColor {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// Square's job_id — the SOLE position reference a scheduled shift carries.
+  /// S1b: GET /v2/labor/jobs 404s, and the shift payload has no title, so the
+  /// human-readable name comes from SquareTimecard.wageTitle beside the same id.
+  squareJobId    String
+  /// A key from BADGE_PRESETS (src/lib/badge-presets.ts), never a class string —
+  /// Tailwind 4 CSS-first generates utilities by scanning source text, so a
+  /// class read out of the database renders unstyled. badgePreset() already
+  /// degrades an unrecognised key to neutral rather than throwing.
+  colorKey       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, squareJobId])
 }

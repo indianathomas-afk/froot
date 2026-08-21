@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type { Store, User } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { getCurrentUser, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
+import { getCurrentUser, laborModuleAvailable, squareLaborAvailable, actorFor } from "@/lib/auth"
 
 type Organization = NonNullable<Awaited<ReturnType<typeof prisma.organization.findUnique>>>
 
@@ -10,6 +10,12 @@ export type LaborContext = {
   dbUser: (User & { storeAssignments: { storeId: string }[] }) | null
   userId: string
   isAdmin: boolean
+  /// OVL-S3 — THE CAPABILITY ANSWER, AND IT MUST BE THIS AND NOT `dbUser.role`.
+  /// `actor` carries the role PLUS the per-user override set, so can(actor, …) is
+  /// the only form that consults a PERM-5 denial (auth.ts, actorFor). A route
+  /// reconstructing `{ role }` from dbUser would silently ignore every override —
+  /// which is the bug this field exists to make unavailable.
+  actor: ReturnType<typeof actorFor>
 }
 
 // Both feature gates (env availability + per-org activeModules): where Labor
@@ -18,11 +24,13 @@ export type LaborContext = {
 // (STORE/STAFF) and the ADMIN/MANAGER config routes both build on it.
 export async function requireLaborView(): Promise<LaborContext | { error: NextResponse }> {
   let userId: string, org: Organization | null, dbUser: LaborContext["dbUser"]
+  let actor: LaborContext["actor"]
   try {
     const current = await getCurrentUser()
     userId = current.userId
     org = current.org
     dbUser = current.dbUser
+    actor = current.actor
   } catch (err) {
     // BUG-1: this catch also swallows DB/connection errors for every
     // /api/labor route — log the real cause before masking it as a 401.
@@ -41,7 +49,7 @@ export async function requireLaborView(): Promise<LaborContext | { error: NextRe
   }
 
   const isAdmin = dbUser?.role === "ADMIN"
-  return { org, dbUser, userId, isAdmin }
+  return { org, dbUser, userId, isAdmin, actor }
 }
 
 // Guard for config/mutation routes (settings, positions, forecast entry): the

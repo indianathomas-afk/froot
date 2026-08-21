@@ -4,7 +4,12 @@ import { z } from "zod"
 import { getCurrentUser } from "@/lib/auth"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
-import { loadLaborBlock, laborOverlayOn, scheduleLaborRefresh } from "@/lib/labor-dashboard"
+import {
+  loadLaborBlock,
+  laborOverlayOn,
+  scheduleLaborRefresh,
+  scheduleScheduledShiftRefresh,
+} from "@/lib/labor-dashboard"
 
 // GET /api/dashboard/sales?storeId=&start=&end=&compare= — sales data for the
 // Dashboard's Sales Performance card. The selection may be a single day
@@ -176,6 +181,12 @@ export async function GET(req: Request) {
   // gone still serves its mirrored rows, and scheduleLaborRefresh no-ops without
   // a token rather than hiding anything.
   if (labor && laborOverlayOn(org) && end === today) scheduleLaborRefresh(org, [store])
+  // OVL-S2: the schedule half, on the SAME trigger sites and the same overlay
+  // gate, with its own cooldown and its own cap. Deliberately NOT conditioned on
+  // `end === today` the way the timecard refresh is — a schedule is about days
+  // that have not happened, so the window is the card horizon rather than the
+  // window being viewed, and gating it on today would leave the week ahead blank.
+  if (labor && laborOverlayOn(org)) scheduleScheduledShiftRefresh(org, [store])
 
   if (!salesAvailable) {
     return NextResponse.json({

@@ -11,6 +11,11 @@ import {
   syncTimecardsForStore,
   type TipPayoutResult,
 } from "@/lib/labor-actuals"
+import {
+  SCHEDULE_WINDOW_DAYS_BACK,
+  SCHEDULE_WINDOW_DAYS_FORWARD,
+  syncScheduledShiftsForStore,
+} from "@/lib/labor-schedule"
 import { aggregateLaborActuals, toLaborBlock, type EstateLaborBlock, type LaborBlock } from "@/lib/labor-judgment"
 import type { TipBlock } from "@/lib/labor-costs"
 
@@ -221,6 +226,122 @@ export function scheduleLaborRefresh(org: Organization, stores: Store[], now = n
       )
     }
   })
+}
+
+// ─── THE SCHEDULE REFRESH (OVL-S2) ────────────────────────────────────────────
+//
+// A SECOND, SEPARATE TRIGGER — not a branch inside scheduleLaborRefresh. The two
+// syncs have different costs and different windows: a timecard refresh is one
+// store-day, a schedule refresh is 32 store-days across five weekly requests. A
+// shared cooldown would make the cheap one wait on the expensive one, and a
+// shared claim column would make either one's failure look like the other's.
+// Hence its own state table, its own cooldown, its own cap and its own log line.
+
+/// THIRTY MINUTES, not the timecard sync's fifteen (Gary, 2026-08-20). A
+/// schedule is a PLAN — managers edit it in bursts days ahead, not continuously
+/// — so the number the card shows does not get fresher for being re-fetched
+/// twice an hour, and each fetch costs five Square requests instead of one.
+const SCHEDULE_SYNC_COOLDOWN_MS = 30 * 60 * 1000
+
+/// TWO stores per load, not the timecard sync's three, for the same arithmetic:
+/// each schedule sync is ~5 requests to the timecard sync's 1, so two stores
+/// here already costs more than three there. The estate still converges across a
+/// few loads, and no single request can spend the whole quota. THE DROP IS
+/// LOGGED below — a silent cap reads as full coverage.
+const MAX_SCHEDULE_SYNCS_PER_LOAD = 2
+
+/// The debounce, as a DATABASE CLAIM rather than a timer — claimSync's shape
+/// against SquareScheduleSyncState. One conditional statement, never
+/// check-then-act: the updateMany takes the row lock and re-evaluates against
+/// the COMMITTED value, so two concurrent loads cannot both win. The create()
+/// branch covers a store that has never synced; its unique violation on storeId
+/// is the same race resolved the same way, by losing quietly.
+///
+/// A FAILED SYNC STILL HOLDS THE CLAIM — lastSyncStartedAt is stamped before the
+/// fetch and is not rolled back on error, so a failing store retries once per
+/// cooldown instead of on every load. Degraded store, not sync storm (DEBT-69).
+async function claimScheduleSync(organizationId: string, storeId: string, now: Date): Promise<boolean> {
+  const cutoff = new Date(now.getTime() - SCHEDULE_SYNC_COOLDOWN_MS)
+  const claimed = await prisma.squareScheduleSyncState.updateMany({
+    where: { storeId, OR: [{ lastSyncStartedAt: null }, { lastSyncStartedAt: { lt: cutoff } }] },
+    data: { lastSyncStartedAt: now },
+  })
+  if (claimed.count > 0) return true
+  try {
+    await prisma.squareScheduleSyncState.create({ data: { organizationId, storeId, lastSyncStartedAt: now } })
+    return true
+  } catch {
+    // The row exists and is inside its cooldown — another load owns this window.
+    return false
+  }
+}
+
+/// Refreshes the CARD HORIZON — three days back, four weeks forward — after the
+/// response, for at most MAX_SCHEDULE_SYNCS_PER_LOAD stores whose cooldown has
+/// expired.
+///
+/// WHY THE WINDOW IS NOT "TODAY". scheduleLaborRefresh syncs one day because a
+/// timecard is a record of a day that happened. A SCHEDULE IS ABOUT DAYS THAT
+/// HAVE NOT — the overlay's whole point is the week ahead, so syncing today only
+/// would leave every future day of the card blank no matter how often it ran.
+/// The three days back absorb after-the-fact corrections to shifts already
+/// worked, the same reason the timecard ingest is polled rather than webhooked.
+///
+/// GATED BY laborOverlayOn, THE EXISTING GATE — no new ruling (Gary,
+/// 2026-08-20). With the overlay off nothing here runs and no schedule row is
+/// ever written, which keeps the toggle-off render byte-identical.
+///
+/// after() rather than an inline await, and NEVER THROWS INTO THE RESPONSE: the
+/// route has already returned by the time this runs, and the card renders
+/// whatever was last mirrored.
+export function scheduleScheduledShiftRefresh(org: Organization, stores: Store[], now = new Date()): void {
+  if (!org.squareAccessToken) return // read-only degrade — the rows still serve, stale
+  const candidates = stores.filter((s) => s.squareLocationId)
+  if (candidates.length === 0) return
+
+  after(async () => {
+    let spent = 0
+    let deferred = 0
+    for (const store of candidates) {
+      if (spent >= MAX_SCHEDULE_SYNCS_PER_LOAD) {
+        deferred++
+        continue
+      }
+      try {
+        if (!(await claimScheduleSync(org.id, store.id, now))) continue
+        spent++
+        const today = localDateStr(now, store.timezone)
+        await syncScheduledShiftsForStore(
+          org,
+          store,
+          addDaysStr(today, -SCHEDULE_WINDOW_DAYS_BACK),
+          addDaysStr(today, SCHEDULE_WINDOW_DAYS_FORWARD)
+        )
+      } catch (err) {
+        // syncScheduledShiftsForStore has already recorded lastError and logged
+        // the real cause; this catch only stops one store ending the loop.
+        console.error(`[labor-dashboard] schedule refresh failed store=${store.id}:`, err)
+      }
+    }
+    if (deferred > 0) {
+      // THE DROP, NAMED — and named SEPARATELY from the timecard sweep's line so
+      // the two caps are never read as one.
+      console.log(
+        `[labor-dashboard] org=${org.id} schedule-synced ${spent}, deferred ${deferred} store(s) ` +
+          `past the per-load cap of ${MAX_SCHEDULE_SYNCS_PER_LOAD}`
+      )
+    }
+  })
+}
+
+/// Local, because labor-dashboard must not import a core labor engine to do date
+/// arithmetic — labor-plan re-exports addDaysStr from labor-coverage, and
+/// reaching for it here would put the dashboard's schedule trigger on the wrong
+/// side of the import wall for three lines of calendar maths.
+function addDaysStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
 }
 
 // ─── THE READS ────────────────────────────────────────────────────────────────
