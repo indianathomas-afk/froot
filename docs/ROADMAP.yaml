@@ -8170,6 +8170,136 @@ phases:
         the fixture it needs for the empty-state and stale-state renders, ready
         without setup.
 
+  - id: OVL-S3
+    track: labor
+    size: M
+    status: in_progress
+    commits: [d30f7ea]
+    title: "Schedule/actual overlay — S3 card overlay: scheduled/clocked-in curves, labor.schedule.view, position colours"
+    notes: >
+      BUILT 2026-08-20, work commit d30f7ea. STATUS IS in_progress AND NOT
+      staging, for OVL-S2's reason and by the same precedent: the commit is
+      LOCAL AND NOT PUSHED (pushes are Gary's, CLAUDE.md Git Rules), so nothing
+      has reached the staging branch or a Vercel preview. Flip to `staging` when
+      the push happens rather than claiming a deploy that has not occurred.
+      TIER 3 — the plan was presented and approved in-session before any file
+      was touched, and six deviations were ruled on individually (D1-D7 below).
+      The prompt is filed at
+      docs/prompts/Overlay_S3_Card_Overlay_Session_Prompt.md in this commit.
+      SEAM (b) IS PROVED BY THE DIFF, NOT BY ASSERTION. labor-plan.ts,
+      labor-coverage.ts, labor-budget.ts, labor-forecast.ts, labor-week.ts and
+      labor-daily.ts have ZERO diff in d30f7ea and still contain no reference to
+      labor-schedule (grepped after the build, not before). The suggested curve
+      is computed by computeDayCoverage BEFORE the overlay is assembled and is
+      never an input to it — the boundary test is that deleting the `overlay`
+      key returns the payload to byte-identical.
+      ABSENCE, NOT EMPTINESS, AND THE FIXTURE GUARDS THE IDIOM. Without
+      labor.schedule.view the route emits no `overlay` key at all — not null,
+      not {} — through `...(overlay ? { overlay } : {})`. That is asserted as a
+      SOURCE GUARD rather than on a hand-built object, deliberately: asserting
+      absence on an object literal tests JSON.stringify, whereas the regression
+      that actually threatens this rule is someone tidying the conditional
+      spread into a plain `overlay,` or an `overlay ?? null`. Four checks read
+      the route's own text for the capability call, the conditional spread, and
+      the absence of any empty-overlay emission.
+      D3 — THE OPEN-CARD RULE MOVED INTO clockedEndMs BECAUSE EXPORTING
+      paidMinutesOf WAS NOT ENOUGH. The ruling said reuse-by-export, don't copy.
+      But paidMinutesOf returns MINUTES and the overlay needs the END INSTANT
+      (which hours, not how many), so exporting it alone would still have left
+      `endAt ?? ceiling` re-derived on the schedule side — the exact drift its
+      own docstring argues against. The two-line ceiling moved into
+      clockedEndMs, paidMinutesOf calls it, both are exported, and the rule has
+      one definition. BREAKS ARE NOT SUBTRACTED in the overlay: paidMinutesOf's
+      unpaid-break deduction answers the COST question, and this curve counts
+      heads on the premises — which is why the label reads "clocked in" and why
+      a fixture asserts a 60-minute unpaid break removes an hour from paid
+      minutes (330 -> 270) and no hour from the curve.
+      D4 — computeClockedInCoverage LIVES IN labor-schedule.ts, so that module
+      now imports labor-actuals. The direction is what makes it safe:
+      labor-actuals never imports schedule-side (grepped — no cycle), and it is
+      not one of the six core engines the wall names. The alternative
+      considered and rejected was putting it in labor-actuals, which needs no
+      export and no new edge but splits the overlay across two files and leaves
+      the two curves free to be bucketed by two different notions of an hour.
+      D5 — 26h staleness, matching computeHealth's timecard sibling rather than
+      the 24h the prompt floated. Two labor syncs going stale at different ages
+      would put two differently-worded warnings on one card for one outage.
+      SEAM (c) DISTINGUISHES THREE STATES AND THE TABLE IS WHY IT CAN.
+      never-synced renders NOTHING — no overlay, no toggle, no blank chart
+      pretending the schedule is empty. synced-empty (lastSyncOkAt set,
+      lastShiftCount 0) is the honest zero eight of eighteen live locations sit
+      in mid-rollout, and it says so in words. stale and error still RENDER THE
+      LAST KNOWN PLAN with its age. computeHealth is reused rather than
+      restated; the one state it cannot express is synced-empty, because that is
+      a fact about ROW COUNT and computeHealth deliberately never looks at rows,
+      so it is layered on top of a healthy verdict.
+      D7 — TODAY'S CURVE IS PROJECTED AND NOW SAYS SO, and this was a real
+      defect the legend ruling surfaced rather than a cosmetic addition.
+      getDemandShape gives today AND every future day the same-weekday template
+      (only a completed past day is shaped by its own actuals), but the card
+      gated its "projected from recent Thursdays" label on `isFuture`
+      (date > today). So on the one day most people read the card, a projection
+      was presented unlabelled. The route now sends `projected`, derived from
+      the pure demandShapeSource().actualsDate === null, and both the day
+      navigator and the new legend read it instead of re-deriving.
+      D6 — "Unnamed position" IS A REAL STATE, NOT A GAP TO BE FILLED. Titles
+      come from SquareTimecard.wageTitle standing beside the same job id, which
+      is the only place in the estate where a job id meets a human-readable
+      name. A job that is SCHEDULED but never WORKED has no timecard to borrow
+      from and cannot be given one — GET /v2/labor/jobs 404s and the shift
+      payload carries no title (S1b). It keeps its colour and stays editable.
+      COUNTS ONLY, STRUCTURALLY. getClockedInCoverage selects four columns and
+      wageHourlyRate, declaredCashTips and squareTeamMemberId are not among
+      them — the overlay is STORE-visible and STORE accounts are shared iPad
+      logins (DEBT-10's lesson). Asserted on the SERIALIZED output rather than
+      by trusting the select list to stay right.
+      THE MODE IS DERIVED, NOT MERELY STORED — caught in review before the
+      commit. Clocked-in exists only for today, so a reader who selected it and
+      paged to tomorrow would have held a mode whose series is null and the
+      overlay would have vanished silently instead of falling back to the plan.
+      effectiveMode falls back for rendering while the stored request survives a
+      round trip back to today.
+      BADGE_PRESETS gains `hex` on all eight entries so ONE key drives both the
+      Recharts stroke (an inline SVG attribute no Tailwind class can reach) and
+      the Tailwind legend chip. THE VALUES WERE READ OUT OF THE EMITTED
+      STYLESHEET, not recalled: Tailwind 4 ships its palette in oklch and the
+      familiar v3 hexes are not what bg-*-400 resolves to. Re-read them if the
+      Tailwind major moves. Ten existing consumers were checked — every one
+      reads .badge/.dot/.label or iterates the keys, none destructures the entry
+      exhaustively, so the fourth field disturbs nothing.
+      PERM-5 COST THREE EDITS, NOT FIVE. labor.schedule.view is OPERATIONAL
+      (ADMIN/MANAGER/STORE) in the union type, in GRANTS, and as one
+      ENFORCED_CAPABILITIES entry — from which the /users grid row AND
+      deniability both derive (DENIABLE is built from that array in
+      api/users/[id]/route.ts). STORE holds it by default and the per-user
+      override is what removes it, which is the inverse of labor.costs.view one
+      entry above.
+      FIXTURES 57 -> 99 in scripts/verify-labor-schedule.ts, still pure and
+      still no DB except the source guard described above. The ceiling cases are
+      the ones worth keeping: an open card covers the hour before now and NEVER
+      a future hour; a cross-day open card is clamped to its own midnight when
+      that day is viewed and starts at hour 0 when today is; a day the clock has
+      not reached is empty rather than negative; a clock-skewed row is dropped
+      by the same test the cost calculation uses. Plus hour>=6 parity between
+      the two curves' domains, colour resolution (override beats default, junk
+      key falls back, unknown job still gets a colour), and every preset
+      carrying a 6-digit hex.
+      npm run build green. THE VERIFY SUITE IS UNCHANGED, DIFFED RATHER THAN
+      ASSUMED: verify-hr8-compliance.ts fails with EXACTLY the nine DEBT-76
+      checks it failed at bb5871d, 32 passing on both sides, sorted and diffed.
+      Gary granted the build-over-red exception on that condition. Also worth
+      recording: verify-goal-engine.ts failed ONCE at the start of this session
+      with P2028 (a 5s interactive-transaction limit against ~10s of work) and
+      was green on every subsequent run — filed as DEBT-77, not a product defect
+      but the same species of suite-trust erosion DEBT-76 names.
+      NO SCHEMA CHANGE, NO MIGRATION — every column S3 needed already existed.
+      NOT VERIFIED ON STAGING. The card has not been rendered against real
+      synced shifts; that is the next session's first job, and the three
+      sync-state branches (never / synced-empty / stale) are what to look at
+      first, since OVL-S2 measured nine stores with shifts and three honest
+      zeros.
+
+
   # ---- Permissions ----
 
   - id: PERM-1
@@ -18849,6 +18979,43 @@ debt:
       it drifted is that the expectations are bare numbers with no citation.
       Disconfirmed by: the suite going green with no change to src/, which would
       mean an environment-dependent fixture rather than a stale one.
+  - id: DEBT-77
+    title: >
+      `scripts/verify-goal-engine.ts` fails intermittently on a 5s Prisma
+      interactive-transaction limit against ~10s of work
+    notes: >
+      FOUND 2026-08-20 at the start of OVL-S3, running the whole verify suite as
+      the session's precondition. NOT A PRODUCT DEFECT and not caused by that
+      session — it failed once on a clean tree at bb5871d and was green on every
+      subsequent run, including twice more after the OVL-S3 work landed.
+      THE FAILURE: nine checks pass, then `tx.dailyGoal.updateMany()` at
+      src/lib/goal-engine.ts:224 throws P2028 — "the timeout for this
+      transaction was 5000 ms, however 10071 ms passed since the start of the
+      transaction". Prisma's default interactive-transaction timeout is 5s and
+      the fixture's recalc does roughly twice that much work against the dev
+      Neon branch. It is a race with the network, so it passes or fails on
+      latency rather than on anything in the code.
+      WHY IT IS FILED RATHER THAN SHRUGGED AT. This is DEBT-76's species, one
+      step earlier. DEBT-76 is a script that is ALWAYS red and has stopped being
+      a signal; this is a script that is red often enough to teach the same
+      habit — "oh, goal-engine does that sometimes" — and the habit is what
+      eventually gets applied to a script failing for a real reason. The repo's
+      whole verification posture rests on the suite being green by default, and
+      an intermittent failure erodes that faster than a permanent one because
+      re-running makes it go away.
+      THE FIX IS PROBABLY ONE OF TWO, and which one matters. Either raise the
+      transaction timeout for this call (correct if the 10s of work is
+      legitimate — 365 DailyGoal rows in one transaction is not obviously wrong)
+      or do less inside the transaction (correct if the updateMany at :224 is
+      the "no-op kept for clarity" its own comment says it is, in which case it
+      may not need to be inside the interactive transaction at all). CONFIRM
+      WHICH BEFORE CHANGING EITHER: if that updateMany is genuinely a no-op, the
+      timeout is a symptom and raising it hides the real question, which is why
+      a no-op is inside a transaction that is already at its budget.
+      Not attempted in OVL-S3 — it is forecasting-engine work in a labor
+      session, and the same argument that filed DEBT-76 rather than fixing it
+      applies unchanged.
+
 
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
