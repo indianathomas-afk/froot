@@ -8173,7 +8173,7 @@ phases:
   - id: OVL-S3
     track: labor
     size: M
-    status: in_progress
+    status: staging
     commits: [d30f7ea]
     title: "Schedule/actual overlay — S3 card overlay: scheduled/clocked-in curves, labor.schedule.view, position colours"
     notes: >
@@ -8298,6 +8298,38 @@ phases:
       sync-state branches (never / synced-empty / stale) are what to look at
       first, since OVL-S2 measured nine stores with shifts and three honest
       zeros.
+      VERIFIED ON STAGING 2026-08-20 (deploy 70ba6cc), and the two paragraphs
+      above are SUPERSEDED RATHER THAN EDITED — "NOT PUSHED" and "NOT VERIFIED ON
+      STAGING" were both true when written, and the order of the blocks is the
+      record of how this row reached staging. Status flipped in_progress ->
+      staging in the same commit, which is the flip the first paragraph promised
+      would happen when the push did.
+      WHAT WAS SEEN ON THE DEPLOYED CARD. The scheduled/actual TOGGLE is live.
+      The scheduled overlay draws IN POSITION COLOURS — which is the end-to-end
+      proof that one key really does drive both renderers, because the stroke is
+      an inline SVG attribute and the legend chip is a Tailwind class, and they
+      agree on screen. The clocked-in view renders. The Position colours editor
+      on /settings/labor lists its discovered jobs and shows DETERMINISTIC
+      DEFAULTS — the SquareJobColor table is still empty, so this is the "a row's
+      absence is not missing data" design confirmed against real data rather than
+      against the fixture: every job is coloured with nothing stored.
+      D7 IS VISIBLE AND IT IS THE FIX, NOT A DECORATION. The
+      projected-from-recent-weekdays label now appears ON TODAY. That is the
+      defect the legend ruling surfaced — getDemandShape has always given today
+      the same-weekday template, but the card gated the label on isFuture, so the
+      projection went unlabelled on the one day most people read the card. Seeing
+      it on today's render is the confirmation that `projected` is being derived
+      from demandShapeSource().actualsDate server-side rather than re-guessed in
+      the component.
+      WHAT THIS PASS DID NOT COVER, and it is worth naming rather than letting
+      the word "verified" imply more than it earned: the three sync-state
+      branches were not each exercised on the deployed card. never-synced,
+      synced-empty and stale are the renders OVL-S2's estate is already staged to
+      show — nine stores with shifts and three honest zeros — and the
+      zero-with-lastSyncOkAt trio is the synced-empty case sitting there ready.
+      Stale needs a store whose lastSyncOkAt has aged past 26h to appear on its
+      own. Also unexercised: the capability-denied render (no overlay key at
+      all), which needs a /users override on a test account.
 
 
   # ---- Permissions ----
