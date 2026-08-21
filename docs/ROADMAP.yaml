@@ -12351,6 +12351,118 @@ bugs:
       England's staff record is still an operational fix, deliberately out of
       scope here.
 
+  - id: BUG-11
+    status: in_progress
+    commits: [4ef2cea]
+    title: >
+      WK HRS on the "Team from Square" roster could not be cleared — Square's
+      weekly_hours was the input's PLACEHOLDER and a same-value guard skipped
+      the write, so a blank box repainted Square's 40 and read as a failed save
+    notes: >
+      REPORTED 2026-08-21 by Gary against production (www.usefroot.com,
+      org_3FhYUR4l0ue7egug1I0Ig8wxOVn — Keva Juice, production Clerk instance).
+      /settings/labor -> Positions -> "Team from Square", Las Brisas. Kelton
+      Thomas rendered Manager / $36,000/yr / WK HRS 40; the field was edited
+      repeatedly — cleared, tabbed out, Enter, hard reload — and 40 always came
+      back, with no Save control anywhere on the card.
+      THE WRITE PATH ALWAYS EXISTED AND WAS ALWAYS WIRED. This was NOT case (a)
+      "never built" and NOT case (c) "fails with an error". PATCH
+      /api/square/labor/roster/[id] accepted both a number and an explicit null
+      before this session (verified by parsing the route's own zod against both
+      bodies), and the card's onBlur called it. THREE THINGS TOGETHER made a
+      working column read as inert, and any one of them alone still reads as a
+      working field:
+      (1) SQUARE'S weekly_hours WAS THE INPUT'S PLACEHOLDER — the old
+      labor-settings-client.tsx:775 rendered `placeholder={r.squareWeeklyHours}`
+      with `defaultValue={r.weeklyHoursOverride ?? ""}`. Kelton's override was
+      NULL and Square carries weekly_hours 40, so the box was EMPTY showing a
+      grey 40. You cannot delete a placeholder. That is "40 always returns",
+      exactly and completely.
+      (2) THE SAME-VALUE GUARD SKIPPED THE ONE OPERATION THAT MATTERED — the old
+      :781 `if (next === r.weeklyHoursOverride) return` compared null === null on
+      a field that was already unset, so clearing it never issued a fetch at all.
+      The operation an operator most wants (make this blank) was the one
+      guaranteed to do nothing.
+      (3) NOTHING CONFIRMED ANYTHING. A save that landed and a save that never
+      fired were the same screen. Worse, the failure branch set the card error and
+      THEN awaited load(), which clears the error on its own successful fetch —
+      so a genuinely failed PATCH reported nothing either.
+      GARY'S PREMISE ON THE ROW IS WRONG AND IS CORRECTED HERE RATHER THAN
+      QUIETLY. The report reasoned that WK HRS feeds budget.salariedHours and
+      that Las Brisas therefore carries up to 165 phantom salaried hours. IT DOES
+      NOT. computeWeeklyLaborBudget sums LaborPosition rows only —
+      src/lib/labor-budget.ts:74-77, `p.payType === "SALARIED" &&
+      p.impliedWeeklyHours` over `positions.filter(p => p.active)` — and
+      labor-plan.ts:161,175 sources those positions from
+      prisma.laborPosition.findMany, never from SquareTeamMemberWage. The roster
+      column is SquareTeamMemberWage.weeklyHoursOverride and NO core engine reads
+      it (seam (b), and the card has said so on its face since AL-3). So the two
+      unmapped "Not in Froot" Administrators at 45 and 40 distort nothing today,
+      and neither do Kristie's or Kelton's 40s. What the org-wide rate legend
+      actually contributes is ONE salaried position, "General Manager" at 40
+      implied weekly hours, applied per store — a separate question, and Gary's.
+      WHERE THE DISPLAYED 40 CAME FROM, since it decides insert-vs-update:
+      Square. `squareWeeklyHours` is mirrored at sync time from the first job
+      assignment's weekly_hours (labor-roster.ts:263) and the row already exists
+      for every synced member, so every edit is an UPDATE of a nullable column on
+      an existing row. NO SCHEMA CHANGE, NO MIGRATION, NO INSERT — which is why
+      this stayed TIER 2.
+      NO NOTION OF "SALARIED BUT NOT STORE COVERAGE" EXISTS ANYWHERE. There is no
+      flag, no position filter and no exclusion list. `isSupervisory` is the only
+      other Froot-owned roster field and it is equally unread. Today a blank WK
+      HRS does not even express it: null means "fall back to Square's
+      weekly_hours", not "no coverage". That gap is a Gary ruling and this
+      session deliberately did not take it.
+      THE FIX, SCOPED TO THE FIELD AND NOTHING ELSE. New
+      src/lib/labor-roster-hours.ts — dependency-free so a client bundle can
+      import it — holds parseWeeklyHoursDraft (blank parses to a VALUE, null, not
+      to a rejection), formatWeeklyHoursDraft (null is an EMPTY BOX) and the PATCH
+      zod, moved out of the route file. A route may only export HTTP handlers, so
+      a schema declared inside one can never be imported by a fixture — which is
+      exactly how the client came to be able to decline a write the route would
+      have accepted. New WeeklyHoursCell in labor-settings-client.tsx: a
+      CONTROLLED input, an explicit Save button (Enter also saves, blur does NOT),
+      a per-row status of Saving… / Saved / Not saved, and Square's figure
+      rendered BESIDE the box as a grey "Square 40" instead of inside it. The
+      same-value guard is GONE and Save stays pressable on a blank box that is
+      already blank — a Save that hides itself when nothing "changed" is the same
+      guard wearing a different hat. patchRow now returns whether the write
+      landed, catches a thrown fetch (every call site is `void patchRow(...)`, so
+      a rejection used to become an unhandled promise), and sets its error AFTER
+      the reload rather than before it.
+      FIXTURES: scripts/verify-labor-roster-hours.ts, 39 checks, green. Gary's
+      three named cases are sections 3, 4 and 5 — write a value, clear to blank
+      and have blank persist, reload and read back what was written, blank
+      included. Section 2 is the one worth keeping: everything the input can emit
+      is asserted to be something the route accepts, which the two ends could not
+      previously be compared for. Section 6 pins the regression itself — saving
+      blank over an already-blank field STILL writes.
+      DELIBERATELY NOT TOUCHED, all four named out of scope by Gary: how
+      salariedHours is computed, the GM-hours model, any coverage/non-coverage
+      flag, the Rebalancer, and every dollar and labor-percentage figure. The
+      column remains inert to the budget after this fix — it is WRITABLE now, not
+      CONSUMED, and the card still says so.
+      NOT VERIFIED IN A BROWSER, AND THAT IS A REAL GAP. The dev database holds
+      ZERO SquareTeamMemberWage rows (local dev, measured 2026-08-21), so the
+      roster renders empty locally and there was nothing to click. Production
+      credentials are banned to disk (CLAUDE.md § Environment Variables) and the
+      dev Square grant lacks the labor scopes. The reasoning above is from the
+      code and the fixture; the three-way behaviour on a real roster row is
+      unproven until this reaches an environment with synced members.
+      GATES: scoped eslint zero new (the same four pre-existing
+      react-hooks/set-state-in-effect errors in labor-settings-client.tsx, at
+      HEAD and after, confirmed by stashing the file); next build green; verify
+      suite green except DEBT-76's exact nine, diffed sorted against a baseline
+      captured at stashed HEAD in this session — IDENTICAL; import wall unchanged,
+      with no core engine (labor-budget / labor-plan / labor-coverage /
+      labor-daily) importing the new module and only the card, the route and the
+      fixture doing so.
+      CROSS-REFS: L-2 (AL-3 built this card and recorded WK HRS as deliberately
+      inert, Gary's Q9 2026-08-19), DEBT-78 (the duplicate Las Brisas Store row —
+      /settings/labor's store picker still offers both).
+      STATUS IS in_progress AND NOT staging: 4ef2cea is LOCAL AND NOT PUSHED
+      (pushes are Gary's), per WORKFLOW.md § Session completion rules 4.
+
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
