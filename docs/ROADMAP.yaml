@@ -11761,6 +11761,75 @@ bugs:
       /rollup and /sales sync today inline on a first-ever load and refresh it
       behind after() past a staleness TTL, with Square order webhooks and the
       11:00 sales-reconcile cron as the primary freshness).
+  - id: BUG-10
+    status: planned
+    title: >
+      Prior-day open timecards are frozen and haunt the clocked-in popup — the
+      dashboard sync fetches today only, so a card left open yesterday never
+      updates again and still renders as "on the floor now"
+    notes: >
+      MEASURED 2026-08-20 at Las Brisas during the OVL-S4 staging verification.
+      Two timecards opened Aug 19 (2:55p and 3:27p store-local) were never
+      closed. The dashboard-triggered sync fetches TODAY ONLY —
+      syncTimecardsForStore(org, store, today, today), src/lib/labor-dashboard.ts:214
+      — so those two rows have not been in a sync window since Aug 19, their
+      syncedAt froze at Aug 19 9:29p, and ANY later closure, deletion or edit in
+      Square is invisible to Froot. The S4 popup listed both as on the floor now,
+      with time-only labels ("2:55p"), indistinguishable from a card opened today.
+      THE POPUP DID NOT INTRODUCE THIS AND THAT IS THE POINT. openTimecardCount
+      has counted these same frozen rows since OVL-S3 — the count and the roster
+      read the SAME window and the popup simply put names on a number nobody
+      could interrogate. The S4 row already records the popup catching two bad
+      rows; this row is what those two rows turned out to be.
+      THE WINDOW IS DELIBERATE, WHICH IS WHY THE FIX IS NOT A ONE-LINER. Both
+      reads use `startAt >= dayStart - 24h` (labor-schedule.ts:906 for the curve,
+      :1179 for the roster), and the roster's comment at :1172 says why: an open
+      card starting before today is still on the floor during it, so the lookback
+      cannot be `startAt >= dayStart`, and matching the curve's row set ROW FOR
+      ROW is what makes "the button says N and the list is N long" true. A
+      fixture asserts that agreement.
+      SO PART (2) MUST TOUCH BOTH READS OR NEITHER. Excluding prior-day cards
+      from the roster alone would leave the button counting rows the list no
+      longer shows — the exact defect the S4 invariant exists to prevent, and it
+      would fail scripts/verify-labor-schedule.ts's agreement check. Whoever
+      takes this should expect to change the curve's window too, or to date-label
+      rather than exclude.
+      THE AUDIT PART (2) ASKED FOR, ANSWERED: the shipped roster query does NOT
+      contradict the S4 plan. The prompt's "clock-in time (store-local)" modified
+      the TIME LABEL, not the query window, and its "store-local day boundaries"
+      phrase belongs to the scheduled-hours fixture, not the roster. The plan
+      never specified a lookback. What the shipped code arguably does violate is
+      the prompt's own word NOW in "who is clocked in NOW" — which is a real
+      objection, and it is this row.
+      THE CHEAP HALF IS THE LABEL, and it is separable from the window question.
+      A card frozen since yesterday currently renders identically to one opened
+      this morning; a date qualifier on any card whose startAt precedes
+      store-local today would make these two self-evident at a glance without
+      touching either query or the count/list agreement. Worth doing even if the
+      window ruling takes longer.
+      PART (1), SYSTEMIC: CRON-1 IS THE DESIGNED FIX AND IT IS ALREADY BUILT.
+      /api/cron/labor-timecards syncs a 3-day window (RECONCILE_DAYS = 3,
+      route.ts:33, start = today - 2) precisely so prior-day rows keep being
+      re-fetched. It is PARKED, not missing — CRON-1 is status `planned` and its
+      activation needs Gary's ruling. Until it runs, every store's yesterday is
+      frozen the moment the clock passes local midnight, and this is not
+      specific to Las Brisas or to open cards.
+      PART (3), LATENT: DELETION-BLINDNESS REMAINS UNPROVEN LIVE. The known
+      limit is recorded at src/lib/labor-actuals.ts:749-753 — "a timecard DELETED
+      in Square persists here as a stale row", with a reconciliation pass
+      deferred pending a ruling on vanish-vs-tombstone. (Gary's note cited
+      726-731; the sentences are at 749-753 in the current file, inside
+      writeTimecards' doc-comment.) These two Aug-19 cards are the first real
+      chance to test it: if Square shows them closed or deleted and Froot still
+      shows them open, that is the limit firing on live data rather than in a
+      comment. NEEDS A SQUARE-SIDE CHECK of both cards before it can be called
+      either way — it is listed here as unproven, deliberately.
+      COST: LIVE, and small but real. A manager reading "N on floor" gets a
+      number inflated by anyone who forgot to clock out yesterday, and the
+      popup now shows those people by name as though they were in the building.
+      CROSS-REFS: CRON-1 (the parked fix), OVL-S3 (where the count window
+      landed), OVL-S4 (where the popup made it visible), DEBT-78 (the duplicate
+      Las Brisas Store row noticed during the same investigation, not a cause).
 
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
