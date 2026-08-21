@@ -7876,7 +7876,7 @@ phases:
   - id: CRON-1
     track: labor
     size: S
-    status: planned
+    status: in_progress
     title: "Register the labor-timecards cron on production"
     notes: >
       FILED 2026-08-19 BY RULING, NOT BY NEED — this row exists so the
@@ -7905,6 +7905,40 @@ phases:
       the table) and it should be made against whichever trigger fires, since
       an alerting feature and a staleness complaint would not want the same
       schedule.
+      ACTIVATED 2026-08-20 (Gary, DECISIONS.md § "CRON-1 activation, phantom
+      opens"), work commit 54f2720. EVERYTHING ABOVE IS KEPT AS WRITTEN AND IS
+      NO LONGER THE STATE — including "read the missing vercel.json entry as
+      this ruling, never as an oversight to be helpfully corrected", which was
+      correct for two days and is now superseded by an explicit ruling rather
+      than by anyone correcting it helpfully. The parked reasoning stays because
+      it records why the entry was absent, which a silently-added line would
+      erase.
+      THE TRIGGER THAT FIRED WAS NOT EITHER OF THE TWO THIS ROW NAMED. The
+      revisit trigger above is "the first staleness complaint" or "the first
+      alerting feature" — both consumers reading labor data when no human just
+      opened a page. What actually fired was a THIRD case the row did not
+      anticipate: a measured DATA DEFECT in the dashboard-triggered path itself
+      (BUG-10). The premise "dashboard-triggered sync is sufficient" was true
+      for freshness and false for completeness — a sync that only ever asks for
+      today can never see a clock-out that lands after the day's last request,
+      and no amount of someone opening the page fixes it, because opening the
+      page is what triggers the today-only sync. Worth recording: the row's
+      reasoning was sound and its conclusion still expired, because the
+      trigger list was scoped to WHO READS the data rather than to whether the
+      data was right.
+      CADENCE: "30 11 * * *", the route's own suggestion at route.ts:20-23,
+      taken unchanged — half an hour after sales-reconcile so the two never
+      contend for the same unpublished Square rate limit in the same minute. The
+      row's "picking the cadence is the actual decision" is answered by the
+      route having already argued for one.
+      STATUS IS in_progress AND NOT staging: 54f2720 is LOCAL AND NOT PUSHED
+      (pushes are Gary's), and WORKFLOW.md § Session completion rules 4 keys the
+      status on the push. It moves to `staging` in the session that pushes it.
+      A VERCEL CRON FIRES ON PRODUCTION DEPLOYMENTS ONLY, so this entry is INERT
+      on staging and activates on the next promotion to main. It cannot be
+      verified by waiting for it on a preview; see the BUG-10 row for the manual
+      invocation path and for what Gary must confirm in the Vercel dashboard
+      before it fires.
       SCOPE NOTE — THE ROSTER HAS NO SCHEDULED REFRESH EITHER, and it is a
       separate question from this one. AL-3's roster sync is a manual "Sync
       roster" action by design: a wage setting moves when somebody gets a
@@ -11762,7 +11796,7 @@ bugs:
       behind after() past a staleness TTL, with Square order webhooks and the
       11:00 sales-reconcile cron as the primary freshness).
   - id: BUG-10
-    status: planned
+    status: in_progress
     title: >
       Prior-day open timecards are frozen and haunt the clocked-in popup — the
       dashboard sync fetches today only, so a card left open yesterday never
@@ -11875,6 +11909,68 @@ bugs:
       OPERATIONAL FIX, SEPARATE FROM THE CODE: create Emmalea England's Froot
       staff record. That resolves her "Unnamed" row and is worth doing whatever
       happens to the sync window — it is a missing record, not a defect.
+      FIX LANDED 2026-08-20, work commit 54f2720, RULED FIRST (DECISIONS.md §
+      "CRON-1 activation, phantom opens"). Everything above is KEPT AS WRITTEN
+      and nothing in it is edited — the measurement, the mechanism and the
+      resolution stay as the record of how this was found, and this block is
+      what was done about it.
+      TWO FIXES, AND THEY ANSWER DIFFERENT HALVES. CRON-1 is activated
+      (vercel.json, "30 11 * * *") and is the SYSTEMIC half: prior days get
+      re-fetched for three days, so a late clock-out stops being invisible. The
+      DATE QUALIFIER is the DISPLAY half: a card started before the store-local
+      today now reads "2:55p yesterday" instead of a bare "2:55p", so a stale
+      open is self-evident even in the window before a reconcile runs.
+      THE WINDOW DID NOT CHANGE, ON EITHER READ, and the diff proves it rather
+      than the prose asserting it — grepping 54f2720 for the 24h bound and the
+      endAt filter returns nothing on the curve or the roster. That is Gary's
+      "both-reads-or-neither; neither changes", and it is what keeps the
+      count/list agreement intact: an open card from yesterday that is genuinely
+      still on the floor must render, and the label cannot tell that apart from
+      a phantom. It reports WHEN the card started and lets the reader judge.
+      THE QUALIFIER RIDES clockInAt, adding no field — the S4 person-data ruling
+      fixes this payload at three and a fixture asserts the sorted key list.
+      formatClockInLabel was WRAPPED, not modified: it answers what time, the new
+      clockInLabelFor answers which day, and the old contract and its fixture are
+      untouched.
+      "since Aug 19" WAS DROPPED FOR "in 2:55p Aug 19" (ratified 2026-08-20).
+      The client renders a fixed " · in " prefix, so the "since" form would have
+      read "in since Aug 19" without a client change nobody wanted. One prefix,
+      one shape.
+      FIXTURES 150 -> 161, THE CLOCK INJECTED IN EVERY CASE — a label that read
+      the real clock would pass in the morning and fail after midnight, which is
+      precisely this bug's own class. The two worth keeping: 2026-08-20T05:00Z is
+      Aug 20 in UTC but 10:00p on Aug 19 in Los Angeles, so a UTC comparison
+      would print a bare "10:00p" and re-introduce the defect; and the same
+      instant reads as TODAY in an eastern store. Both real frozen cards (2:55p
+      and 3:27p Aug 19) are in the fixture by their measured times.
+      STATUS IS in_progress AND NOT staging: 54f2720 is LOCAL AND NOT PUSHED
+      (pushes are Gary's), per WORKFLOW.md § Session completion rules 4.
+      NOT YET PROVEN IN PRODUCTION, AND THE CRON CANNOT BE PROVEN ON STAGING.
+      Vercel crons fire against PRODUCTION deployments only, so the vercel.json
+      entry rides staging INERT and activates on the next promotion to main. The
+      staging check is a manual invocation:
+      `curl -s -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/cron/labor-timecards`
+      A good response is `{"ok":true,"stores":N,"failed":0,"results":[...]}`
+      (route.ts:80). `ok:false` means at least one store errored, with the cause
+      in its results entry and on its SquareLaborSyncState. THE TRAP IS
+      `stores:0` — the route skips an org SILENTLY when a gate is off, so zero
+      stores is indistinguishable from success in the response body.
+      WHAT GARY MUST CONFIRM IN THE VERCEL DASHBOARD before this fires in
+      production, listed because a local session cannot read deployed env and
+      `vercel env pull` is banned repo-wide: CRON_SECRET present in PRODUCTION
+      scope (the route 500s without it; the three registered crons already use
+      it, so this is near-certain but is the one that hard-fails);
+      SQUARE_LABOR_AVAILABLE=true or SQUARE_LABOR_INTERNAL_ORG_IDS containing the
+      org (auth.ts:75-83); LABOR_MODULE_AVAILABLE=true (auth.ts:53, recorded as
+      Production-scoped since 2026-07-21). TWO FURTHER GATES ARE DATA, NOT ENV,
+      and no dashboard check covers them: Organization.squareLaborEnabled and
+      activeModules including "labor" (route.ts:49-54). Those are the silent
+      skips behind `stores:0`.
+      STILL OPEN AFTER THIS: deletion-blindness (labor-actuals.ts:749-753)
+      remains theoretical and still needs its vanish-vs-tombstone ruling —
+      unchanged by this work, which neither touches nor tests it. Emmalea
+      England's staff record is still an operational fix, deliberately out of
+      scope here.
 
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
