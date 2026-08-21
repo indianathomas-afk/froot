@@ -8610,7 +8610,7 @@ phases:
     track: labor
     size: M
     status: in_progress
-    commits: [64415ef, f5b812c]
+    commits: [64415ef, f5b812c, 535ce1d]
     title: "Labor Day Inspector — per-person day timeline, ghosted schedule, six variance flags"
     notes: >
       BUILT 2026-08-21, work commit 64415ef. STATUS IS in_progress AND NOT
@@ -8865,6 +8865,60 @@ phases:
       day, and UNSCHEDULED firing behind the horizon. Suite now 113 checks, 0
       failures, groups 1-12 unchanged.
 
+      ── S5-A13, 2026-08-21, work commit 535ce1d. THE SENTENCE A12 REQUIRED NEVER
+      RENDERED. Verified on staging (UNR, Fri Aug 21, 09:43 Pacific): three
+      horizon-ineligible shifts drew as plain ghosts with no explanation, and a
+      page find for "no-show" returned nothing. A12's BEHAVIOUR was correct
+      throughout — no false no-show fired — but the page was SILENT, which is the
+      precise ambiguity A12 exists to remove.
+
+      ROOT CAUSE: a condition that cannot be true. noShowPending is incremented
+      only inside the ASSIGNED-member loop, so a day whose shifts carry no
+      effectiveTeamMemberId can never satisfy `noShowPendingCount > 0`.
+
+      PROVEN BY EXHAUSTION RATHER THAN GUESSED, which is worth recording because
+      the first three hypotheses were all wrong. Exactly three branches produce a
+      ghost: schedule-not-comparable (which renders its own sentence containing
+      the word "No-show", so the page find would have hit it), an assigned shift
+      (eligible ⇒ evaluated, ineligible ⇒ pending ⇒ sentence), and an unassigned
+      shift. Only the third yields ghosts with no sentence at all. A probe of the
+      pure function at the observed shape reproduced it exactly — and computed the
+      horizon label "10:15p Aug 20" correctly before discarding it unshown. An
+      assigned shift at 10a or 3p read at 09:43 is past no horizon and would have
+      counted; it did not.
+
+      THE UNASSIGNED CASE NEEDED ITS OWN SENTENCE, NOT A12's. An unassigned shift
+      is not waiting on the sync — there is nobody to fail to show, so it will
+      NEVER be evaluated. Telling a manager it is "not yet evaluated" would
+      promise an evaluation that is never coming. unassignedShiftCount is counted
+      separately and carries its own wording.
+
+      THE STRUCTURAL FIX IS THE POINT. Every explanatory sentence is now COMPOSED
+      SERVER-SIDE into a notices: {code, text}[] array and the client maps it,
+      filtering nothing. The old shape was four payload fields and four JSX
+      conditions — which is exactly how a correct field stayed unreachable: the
+      condition lived in the one place no fixture looked. A FIELD CAN BE CORRECT
+      AND UNREACHABLE AT THE SAME TIME, and that is the class of defect this
+      closes, not just the instance.
+
+      WHICH FIXTURE WAS WRONG AND WHY IT PASSED. Group 13 asserted
+      noShowPendingCount — the INPUT the sentence is derived from — and never that
+      a sentence was produced. For the UNR data that count is legitimately 0, so
+      the fixture was RIGHT ABOUT THE NUMBER and silent about the reader's
+      surface. It passed while the page said nothing. This is DEBT-37's rule
+      ("an observation that lives only in a transcript does not exist") wearing a
+      different hat: a fixture that asserts an input has not tested the output.
+      Group 14 now asserts THE STRING on the payload — the observed UNR case,
+      A12's horizon sentence verbatim to the ruling's wording, singular/plural
+      agreement both ways, the never-synced clause, server-decided ordering, and
+      the one case where silence is correct. Suite now 132 checks, 0 failures,
+      groups 1-13 unchanged.
+
+      S5-D14 — DISPLAY CONSEQUENCE, NAMED. The three pre-existing sentences lose
+      their <strong> emphasis, since notices are plain text. Wording is
+      byte-identical; only the bolding goes. Flagged rather than assumed — copy is
+      Gary's call.
+
       ── COMMENT, NO BEHAVIOUR CHANGE (recorded 2026-08-21 at Gary's instruction).
       TWO WAYS THE PER-PERSON PAID TOTAL CAN DISAGREE WITH THE BAR BESIDE IT, both
       correct and both currently unlabelled:
@@ -8914,6 +8968,12 @@ phases:
         cannot be forced: it needs a store whose lastSyncOkAt has aged past 26h
         to appear on its own. Same gap OVL-S3's row already records for the
         overlay's stale badge, and for the same reason.
+      - >
+        A13 IS NOT FIELD-VERIFIED EITHER (2026-08-21). 535ce1d is local and
+        unpushed, so the sentence has been proved on the payload by fixture and
+        NOT yet seen on a rendered page. The staging re-check owed is the exact
+        one that found the defect: UNR, a day carrying unassigned shifts, and a
+        page find for "no-show" that now returns a sentence.
       - narrowed: true
         text: >
           THE FIRST TWO ENTRIES ARE NARROWED, NOT CLOSED, 2026-08-21. A staging
