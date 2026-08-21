@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { WeeklyPlanClient } from "./weekly-plan-client"
 
 // Weekly Plan (L-3) — the digital successor to the "Chief Schedule Strategy"
@@ -19,7 +20,7 @@ export default async function LaborWeeklyPlanPage() {
   // Gate 1 (env availability) + Gate 2 (per-org toggle).
   if (!laborModuleAvailable(orgId) || !org.activeModules.includes("labor")) notFound()
 
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
   const stores = await prisma.store.findMany({
     where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
     orderBy: { name: "asc" },
@@ -33,5 +34,28 @@ export default async function LaborWeeklyPlanPage() {
   // this environment at all.
   const advancedLabor = squareLaborAvailable(orgId) ? org.squareLaborEnabled : null
 
-  return <WeeklyPlanClient stores={stores} advancedLabor={advancedLabor} />
+  // OVL-S5 — THE DAY INSPECTOR LINK, AND IT CARRIES ALL FIVE OF THE INSPECTOR'S
+  // OWN GATES (S5-A5), not the three this page already passed.
+  //
+  // This is S5-D2's argument turned on the link itself. The reason the inspector
+  // gets NO SIDEBAR ENTRY is that the sidebar knows `laborAvailable` and nothing
+  // about squareLaborEnabled, so an entry there would be a door that 404s — the
+  // exact thing sidebar.tsx's own comment says the nav asks the override to avoid.
+  // A header link computed from three of the five gates would have been that same
+  // broken door in a different place, and worse: /labor is visible to every role
+  // (labor.view is ALL), so without the labor.manage check the link would 404 for
+  // STORE and STAFF on every load.
+  //
+  // can() on `actor` rather than on the role string, so a PERM-5 per-user override
+  // is consulted — a manager denied labor.manage must not be shown the link.
+  // `actor` comes off the getUserStoreScope() call this page already makes; a
+  // second call would be a second getCurrentUser() round trip for one boolean.
+  const canInspect =
+    laborModuleAvailable(orgId) &&
+    org.activeModules.includes("labor") &&
+    squareLaborAvailable(orgId) &&
+    org.squareLaborEnabled &&
+    can(actor, "labor.manage")
+
+  return <WeeklyPlanClient stores={stores} advancedLabor={advancedLabor} canInspect={canInspect} />
 }

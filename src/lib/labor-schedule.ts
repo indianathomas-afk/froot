@@ -684,12 +684,21 @@ export async function getScheduledCoverage(
 }
 
 // ─── DATE HELPERS ─────────────────────────────────────────────────────────────
-// Local copies, kept private so this module imports nothing from a core labor
-// engine — the same argument labor-actuals.ts makes for its own localMidnightUtc,
-// and the precedent this file follows.
+// Local copies, so this module imports nothing from a core labor engine — the
+// same argument labor-actuals.ts makes for its own localMidnightUtc, and the
+// precedent this file follows.
+//
+// EXPORTED SINCE OVL-S5, AND THE SENTENCE ABOVE IS WHY THAT IS NOT A REVERSAL.
+// The reason for the copy is the IMPORT DIRECTION — never reaching into
+// labor-plan/coverage/budget/forecast/daily/week — not secrecy. labor-inspector.ts
+// is already on this side of the wall and already imports this module, so a
+// THIRD private copy would have added a drift risk to buy nothing: three
+// definitions of store-local midnight, any one of which could be "simplified"
+// without the other two noticing. Exporting keeps the count at two (here and
+// labor-actuals.ts) and the wall exactly where it was.
 
 /// The UTC instant of store-local midnight on a yyyy-mm-dd.
-function localMidnightUtc(dateStr: string, timeZone: string): Date {
+export function localMidnightUtc(dateStr: string, timeZone: string): Date {
   const guess = new Date(`${dateStr}T00:00:00.000Z`)
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -717,7 +726,7 @@ function localMidnightUtc(dateStr: string, timeZone: string): Date {
 /// localParts, narrowed to the half this module needs — a private copy per the
 /// labor-actuals precedent rather than an export that would put a core module on
 /// the wrong side of the import wall.
-function localHourOf(instant: Date, timeZone: string): number {
+export function localHourOf(instant: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat("en-CA", { timeZone, hour: "2-digit", hourCycle: "h23" })
   const p = Object.fromEntries(dtf.formatToParts(instant).map((x) => [x.type, x.value]))
   return Number(p.hour)
@@ -725,7 +734,7 @@ function localHourOf(instant: Date, timeZone: string): number {
 
 /// Calendar arithmetic on UTC midnights, safe because both ends are date
 /// STRINGS, not instants.
-function addDaysStr(dateStr: string, days: number): string {
+export function addDaysStr(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00.000Z`)
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)

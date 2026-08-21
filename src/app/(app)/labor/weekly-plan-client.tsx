@@ -1,7 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { CalendarRange, CalendarClock, ChevronLeft, ChevronRight, CloudRain, Crown, ShieldAlert, CircleAlert, Sliders } from "lucide-react"
+import { CalendarRange, CalendarClock, ChevronLeft, ChevronRight, CloudRain, Crown, ShieldAlert, CircleAlert, Sliders, Stethoscope } from "lucide-react"
 import { Line, LineChart, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, ReferenceArea } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -112,11 +113,18 @@ const STATUS: Record<PlanDay["status"], { dot: string; label: string; text: stri
 export function WeeklyPlanClient({
   stores,
   advancedLabor = null,
+  canInspect = false,
 }: {
   stores: { id: string; name: string }[]
   /// null = the Square-labor overlay does not exist in this environment (no
   /// badge at all). true/false = it exists and is on/off for this org.
   advancedLabor?: boolean | null
+  /// OVL-S5 — whether to offer the Day Inspector link. The SERVER answers all
+  /// five of the inspector's gates (page.tsx); this component never re-derives it,
+  /// so the link cannot become a door that 404s by one of them being forgotten
+  /// here. Defaulted false so a caller that forgets the prop hides the link rather
+  /// than showing a broken one.
+  canInspect?: boolean
 }) {
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "")
   const [weekStart, setWeekStart] = useState(() => mondayOf(todayStr()))
@@ -186,12 +194,27 @@ export function WeeklyPlanClient({
             Everything you need to write the week&apos;s schedule — forecast, hours, and recommended coverage in one view.
           </p>
         </div>
-        {stores.length > 1 && (
-          <Select value={storeId} onValueChange={(v) => { setStoreId(v); setSelectedDate(null) }}>
-            <SelectTrigger className="w-52"><SelectValue placeholder="Select store" /></SelectTrigger>
-            <SelectContent>{stores.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-          </Select>
-        )}
+        <div className="flex items-center gap-2">
+          {/* OVL-S5 — the Day Inspector's only entry point. No sidebar item: the
+              sidebar cannot see squareLaborEnabled and would offer a door that
+              404s (S5-D2). */}
+          {canInspect && (
+            <Link
+              href="/labor/inspector"
+              className="inline-flex items-center gap-1.5 text-sm px-3 py-2 rounded-md border border-[var(--color-border)] text-[var(--color-foreground)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-primary)] transition-colors"
+              title="Diagnose a Square-vs-Froot labor variance for one store-day"
+            >
+              <Stethoscope className="h-4 w-4" />
+              Day Inspector
+            </Link>
+          )}
+          {stores.length > 1 && (
+            <Select value={storeId} onValueChange={(v) => { setStoreId(v); setSelectedDate(null) }}>
+              <SelectTrigger className="w-52"><SelectValue placeholder="Select store" /></SelectTrigger>
+              <SelectContent>{stores.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
       {/* Week navigator */}
