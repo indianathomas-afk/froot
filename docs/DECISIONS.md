@@ -6,6 +6,25 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## CRON-1 activation, phantom opens — 2026-08-20 (Gary)
+
+- CRON-1 is activated: the parked timecard reconcile cron
+  (/api/cron/labor-timecards, RECONCILE_DAYS=3) is registered in
+  vercel.json. The BUG-10 mechanism is the case: clock-outs after the
+  day's final dashboard-triggered sync are otherwise never seen — a
+  26-minute gap that never closes, measured live 2026-08-20. (Gary)
+- The schedule cron stays parked: the schedule trigger's window is
+  already −3/+28, so prior-day schedule drift self-heals on every
+  dashboard load. Timecards were the gap. (Gary)
+- The clocked-in 24h lookback window STAYS on both reads (curve and
+  roster) — an open card from yesterday genuinely still on the floor
+  must render, and the cron now closes the genuinely-closed ones.
+  Both-reads-or-neither; neither changes. (Gary)
+- Popup entries whose card started before the store-local today carry
+  a date qualifier (e.g. "in 2:55p yesterday" / "since Aug 19") so a
+  stale open is self-evident at a glance. Display only; neither query
+  changes. (Gary)
+
 ## Overlay polish rulings, S4 — 2026-08-20 (Gary)
 
 - I am deliberately narrowing the S1b person-data principle for one
