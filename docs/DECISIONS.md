@@ -26,6 +26,22 @@ decisions too.)
   schedule sync (computeHealth, 26h), so lag is never mistaken for
   truth. (Gary)
 
+Implementation limitation, recorded as S5 shipped — 2026-08-21 (Claude,
+at Gary's instruction S5-A8). The bullets above are Gary's rulings and
+are unchanged; this paragraph qualifies them and rules nothing.
+
+- DOUBLE detection is WITHIN-STORE BY CONSTRUCTION. The inspector is a
+  one-store, one-day surface and its timecard read is storeId-scoped,
+  so DOUBLE compares a person's cards pairwise within that one store.
+  A person double-punched across TWO stores on one day is NOT detected:
+  neither store's view holds both rows, so neither can see the overlap.
+  Nothing is wrong on either page — the pair is simply never assembled.
+  This is written down rather than left to be discovered because a flag
+  that silently does not cover a case is worse than no flag: a clean
+  DOUBLE column reads as "no double punches", and here it means "no
+  double punches at this store". The cross-store case is DEBT-79 and
+  was deliberately NOT built in S5. (Claude)
+
 ## CRON-1 activation, phantom opens — 2026-08-20 (Gary)
 
 - CRON-1 is activated: the parked timecard reconcile cron
