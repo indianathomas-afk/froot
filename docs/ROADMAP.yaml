@@ -8362,6 +8362,33 @@ phases:
       /users override on a test account — the same gap S3 recorded and did not
       close.
 
+      VERIFIED ON STAGING 2026-08-20, against live data — the roster popup
+      first, per the order this row set out above.
+
+      IT IMMEDIATELY PROVED ITS TROUBLESHOOTING WORTH, which was not the reason
+      it was built. It surfaced TWO STALE OPEN TIMECARDS in Square — a double
+      clock-in and an unmapped team member — that COUNTS ALONE HAD HIDDEN.
+      "N on floor" was a number nobody could interrogate; the same number with
+      names attached was wrong in a way that was obvious at a glance. This is
+      the argument for the narrowing Gary made, arriving from the operations
+      side rather than the design side: the popup's value turned out to be
+      catching bad DATA, not just answering who is working.
+
+      THE VARIANCE IS SQUARE-SIDE, NOT FROOT-SIDE, and the sync was ruled out
+      before the conclusion rather than after. Sync freshness was confirmed at
+      observation time — last_sync 4 minutes prior, well inside the 26h stale
+      threshold — so the overlay was reading current mirrored rows and
+      reporting them faithfully. The stale opens exist in Square. Froot showed
+      them correctly, which is the right outcome for a display-only seam: the
+      overlay is not the place to correct upstream data, and it did not.
+
+      A duplicate unlinked Store row was noticed alongside this investigation
+      and is filed separately as DEBT-78 — it was not the cause of the variance.
+
+      STILL UNVERIFIED after this pass: the comparison's three sync-state
+      branches, and the capability-denied render on both surfaces. Both remain
+      as recorded above.
+
   - id: OVL-S3
     track: labor
     size: M
@@ -19239,6 +19266,40 @@ debt:
       Not attempted in OVL-S3 — it is forecasting-engine work in a labor
       session, and the same argument that filed DEBT-76 rather than fixing it
       applies unchanged.
+  - id: DEBT-78
+    status: planned
+    title: >
+      Unlinked duplicate Store row hygiene — staging holds two "Las Brisas"
+      Store rows, one of them an unlinked fossil with no synced data
+    notes: >
+      FOUND 2026-08-20 while investigating clocked-in variance during the OVL-S4
+      staging verification. Staging has TWO "Las Brisas" Store rows:
+      cmqvygque000004l7hj2me30o (created 2026-06-27) has squareLocationId NULL
+      and no synced data, and cmrd1a4hz000004jjl91v23nm (created 2026-07-09) is
+      the real linked store. The second is the one Square syncs into; the first
+      is a fossil from before the link existed.
+      NOT THE VARIANCE THIS WAS FOUND CHASING. The clocked-in variance resolved
+      to Square-side stale open timecards (recorded on the OVL-S4 row), and the
+      duplicate row was noticed alongside it rather than being its cause. Filed
+      separately for that reason — the investigation is closed and this is not.
+      THE AUDIT, IN THREE PARTS. First: does the unlinked fossil APPEAR
+      ANYWHERE — store pickers, scope assignment, rollups, any per-store list a
+      manager or admin sees? A duplicate name in a picker is the failure mode
+      that costs someone an afternoon, and it is the part worth checking before
+      the other two. Second: are there OTHER null-squareLocationId duplicates,
+      in this org or any other? One fossil is a data-entry artifact; a pattern
+      is a gap in whatever created it. Third: what the SAFE RETIREMENT PATH is.
+      ADDITIVE-ONLY IS LAW AND APPLIES HERE (CLAUDE.md, "What does NOT tier
+      down"): no hard delete without a ruling, at any tier. The likely shapes
+      are a soft-inactive flag if one already exists, or a rename that makes the
+      fossil unmistakable in a picker until a ruling retires it — but which one
+      is a decision, not an implementation detail, and it needs the first two
+      parts of the audit answered before it can be made sensibly.
+      WHY IT IS DEBT RATHER THAN A BUG. Nothing is currently WRONG on any
+      surface that has been looked at — the synced store is the linked one and
+      the overlay reads it correctly. The cost is the ordinary cost of a
+      duplicate: the next person to pick a store by name has two to choose from
+      and no way to tell which is real.
 
 
 
