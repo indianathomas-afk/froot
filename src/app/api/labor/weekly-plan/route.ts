@@ -4,6 +4,8 @@ import { requireLaborView, requireLaborStore } from "@/lib/labor-access"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { mondayOfWeekStr } from "@/lib/labor-week"
 import { getWeeklyDayPlan, computeDayCoverage, addDaysStr } from "@/lib/labor-plan"
+import { can } from "@/lib/permissions"
+import { getScheduleSyncSummary, getScheduledHoursByDay } from "@/lib/labor-schedule"
 
 // GET /api/labor/weekly-plan?storeId=&weekStart= — the Weekly Plan week strip
 // (Layer 1). Assembles the shared L-3 day plan (floor-first split + GM cap +
@@ -11,6 +13,16 @@ import { getWeeklyDayPlan, computeDayCoverage, addDaysStr } from "@/lib/labor-pl
 // actuals, allocated hours, projected labor %, weather chips, and a coverage
 // status. The selected-day detail (Layer 2) is the existing /api/labor/coverage
 // endpoint. Read-only, any role that can see the store.
+//
+// OVL-S4 — THE COMPARISON RIDES BESIDE `days`, NEVER INSIDE IT. Scheduled-vs-
+// suggested is a DISPLAY comparison (seam (b)): both halves are read after the
+// plan has already been computed, and neither is an input to the budget, the
+// demand shape or the recommendation. Delete the `comparison` key and this
+// route's plan is byte-identical to what it served before this session.
+//
+// ABSENCE, NOT EMPTINESS. Without labor.schedule.view there is NO `comparison`
+// key at all — not an empty object, not nulls — exactly as /api/labor/coverage
+// omits `overlay`. A payload that never carries the data cannot leak it.
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -103,9 +115,15 @@ export async function GET(req: Request) {
     }
   })
 
+  const comparison = can(ctx.actor, "labor.schedule.view")
+    ? await buildComparison(storeId, dates, covByDay)
+    : undefined
+
   return NextResponse.json({
     ...base,
     hasForecast: true,
+    // `undefined` is dropped by JSON.stringify — the key is genuinely absent.
+    ...(comparison ? { comparison } : {}),
     weekly: {
       forecastTotal: plan.forecast?.total ?? null,
       forecastSource: plan.forecast?.source ?? null,
@@ -119,4 +137,48 @@ export async function GET(req: Request) {
     },
     days,
   })
+}
+
+/// Assembles the scheduled-vs-suggested comparison. TWO READS, AND NEITHER
+/// RE-COMPUTES THE RECOMMENDATION: `covByDay` is the coverage the route already
+/// ran for the week strip's status, so the suggested half costs nothing beyond a
+/// sum, and the scheduled half is a single mirrored-row query.
+async function buildComparison(
+  storeId: string,
+  dates: string[],
+  covByDay: (Awaited<ReturnType<typeof computeDayCoverage>>)[]
+) {
+  const sync = await getScheduleSyncSummary(storeId)
+
+  // SUGGESTED HOURS ARE Σ headcount OVER OPEN HOURS — INCLUDING THE GM
+  // (ratified 2026-08-20), because that is what the Labor Coverage card's own
+  // legend already says it is drawing ("Suggested staff on floor (incl. GM)")
+  // and what its overlay is compared against. usedHourlyHours is the wrong
+  // number here: it excludes the salaried GM, and a Square schedule does not.
+  // A day with no shape at all is null rather than 0 — no forecast is not a
+  // recommendation of nobody.
+  const suggested = dates.map((_, i) => {
+    const cov = covByDay[i]
+    if (!cov) return null
+    return cov.points.filter((p) => p.open).reduce((sum, p) => sum + p.headcount, 0)
+  })
+
+  // NEVER-SYNCED READS NOTHING. Seam (c): a store we have never asked about must
+  // not have a scheduled column at all, and the client renders no section — the
+  // same fall-through the card makes.
+  const hoursByDate = sync.health === "never" ? null : await getScheduledHoursByDay(storeId, dates)
+
+  // SYNCED-EMPTY IS SUGGESTED-ONLY, NOT A COLUMN OF ZEROS. We asked and Square
+  // said nothing; "0.0 hrs scheduled" would present that silence as a staffing
+  // decision somebody made. The card says so in words and so does this.
+  const scheduledIsReal = hoursByDate !== null && sync.health !== "synced-empty"
+
+  return {
+    sync,
+    days: dates.map((date, i) => ({
+      date,
+      suggestedHours: suggested[i],
+      scheduledHours: scheduledIsReal ? hoursByDate[date] ?? 0 : null,
+    })),
+  }
 }

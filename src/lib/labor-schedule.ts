@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client"
 import type { Organization, Store } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { getSquareClient } from "@/lib/square"
-import { dbDate } from "@/lib/reports"
+import { dbDate, localDateStr } from "@/lib/reports"
 import { BADGE_PRESETS, BADGE_PRESET_KEYS, isBadgePresetKey, type BadgePresetKey } from "@/lib/badge-presets"
 // OVL-S3 — the open-card ceiling and the does-this-row-count test, IMPORTED
 // RATHER THAN COPIED (Gary, D3/D4). The direction is what keeps seam (b) intact:
@@ -1039,4 +1039,251 @@ export async function getOverlayJobs(
       hex: BADGE_PRESETS[colorKey].hex,
     }
   })
+}
+
+// ─── OVL-S4: THE CLOCKED-IN ROSTER ────────────────────────────────────────────
+//
+// WHO IS ON THE FLOOR RIGHT NOW — three structured person-level fields on a
+// STORE-visible surface, and that is a DELIBERATE NARROWING of the S1b
+// person-data principle rather than an oversight (Gary, 2026-08-20): who is
+// standing in the room is the same information as looking around the room.
+//
+// WHAT THE NARROWING DOES NOT COVER, and every line below is written to keep it
+// that way. NEVER wages, rates or tips — wageHourlyRate, wageTipEligible and
+// declaredCashTips sit on the very row this reads and are not selected. NEVER
+// notes; the S1b ruling is untouched and free text still never ships. NEVER the
+// Square team-member id, which is read to JOIN and never emitted (its own
+// schema doc-comment: "this column NEVER leaves the server"). And NOW ONLY —
+// there is no date parameter, because a historical roster is a different
+// feature with a different ruling.
+//
+// NAMES LOAD ON CLICK ONLY. Nothing here is reachable from /api/labor/coverage;
+// it is a separate endpoint hit when the popup opens, so the card's default
+// payload carries no name under any code path.
+
+/// The row shape the assembly needs. `breakUnpaidMinutes` is here ONLY to feed
+/// paidMinutesOf's does-this-row-count test — it is never emitted.
+export type ClockedInRosterRow = {
+  squareTeamMemberId: string
+  startAt: Date
+  wageTitle: string | null
+  breakUnpaidMinutes: number
+}
+
+/// THE WHOLE PAYLOAD, AND IT IS THESE THREE FIELDS. Adding a fourth is a ruling,
+/// not a refactor.
+export type ClockedInRosterEntry = {
+  /// Resolved SERVER-SIDE, so an unmatched member ships the word "Unnamed"
+  /// rather than a null the client fills in — which is also what keeps the
+  /// Square id off the wire entirely.
+  name: string
+  /// Square's wage.title for the timecard they are on. Null where Square never
+  /// recorded one; the card renders that as "No position recorded", the same
+  /// wording the legend already uses.
+  title: string | null
+  /// STORE-LOCAL WALL CLOCK, pre-formatted (Gary, ratified 2026-08-20). The
+  /// timezone lives on the server and the conversion happens where the answer
+  /// is known — a bare instant plus a timezone field would be one more chance
+  /// for a surface to render a UTC hour and call it 9am.
+  clockInAt: string
+}
+
+/// "9:42a" — the card's own hourLabel convention, carried down to the minute so
+/// the popup reads like the axis above it rather than like a log line.
+export function formatClockInLabel(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(instant)
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ""
+  return `${get("hour")}:${get("minute")}${get("dayPeriod").toLowerCase().startsWith("a") ? "a" : "p"}`
+}
+
+/// PURE — no DB, no network, injected timezone and injected clock.
+///
+/// THE DROP TEST IS paidMinutesOf's, NOT A NEW ONE. The button that opens this
+/// popup says "N on floor", and N is openTimecardCount from
+/// computeClockedInCoverage. A button reading 3 that opens a list of 2 is a
+/// defect, so both sides discard a row on exactly the same condition — a
+/// clock-skewed card that has not started yet is dropped by both or by neither.
+export function assembleClockedInRoster({
+  rows,
+  namesBySquareId,
+  timeZone,
+  now,
+}: {
+  rows: ClockedInRosterRow[]
+  namesBySquareId: Map<string, string>
+  timeZone: string
+  now: Date
+}): ClockedInRosterEntry[] {
+  const ceilingMs = now.getTime()
+
+  const kept = rows.filter(
+    (r) => paidMinutesOf({ startAt: r.startAt, endAt: null, breakUnpaidMinutes: r.breakUnpaidMinutes }, ceilingMs) !== null
+  )
+
+  // Longest on the floor first — the reader's question is usually "who is due a
+  // break", and clock-in order answers it. Name breaks the tie so two people who
+  // clocked in the same minute do not swap places between renders.
+  kept.sort((a, b) => {
+    const d = a.startAt.getTime() - b.startAt.getTime()
+    if (d !== 0) return d
+    return nameOf(a, namesBySquareId).localeCompare(nameOf(b, namesBySquareId))
+  })
+
+  return kept.map((r) => ({
+    name: nameOf(r, namesBySquareId),
+    title: r.wageTitle,
+    clockInAt: formatClockInLabel(r.startAt, timeZone),
+  }))
+}
+
+/// An unmatched — or blank-named — member is "Unnamed" (the D6 posture: a real
+/// state, not a gap to be filled). A Square team member with no StaffMember row
+/// is a normal mid-import condition, and erasing them from the roster would
+/// understate the floor.
+function nameOf(row: ClockedInRosterRow, namesBySquareId: Map<string, string>): string {
+  const name = namesBySquareId.get(row.squareTeamMemberId)?.trim()
+  return name ? name : "Unnamed"
+}
+
+/// The roster read path. NO SQUARE CALL — mirrored rows only, exactly like the
+/// two coverage reads above it.
+///
+/// THE `select` IS THE RULING, the same way getClockedInCoverage's select is.
+/// wageHourlyRate, wageTipEligible and declaredCashTips are on this row and are
+/// deliberately absent. NOT FILTERED AFTERWARDS — NOT FETCHED.
+export async function getClockedInRoster(
+  organizationId: string,
+  storeId: string,
+  now = new Date()
+): Promise<ClockedInRosterEntry[] | null> {
+  const store = await prisma.store.findUnique({ where: { id: storeId }, select: { timezone: true } })
+  if (!store) return null
+
+  const dateStr = localDateStr(now, store.timezone)
+  const dayStart = localMidnightUtc(dateStr, store.timezone)
+  const dayEnd = localMidnightUtc(addDaysStr(dateStr, 1), store.timezone)
+
+  // THE SAME WINDOW getClockedInCoverage USES, narrowed to open cards. An open
+  // card starting before today is still on the floor during it, so the lookback
+  // cannot be `startAt >= dayStart`; bounding it at one day keeps the query
+  // indexed and matches the curve's row set row for row.
+  const rows = await prisma.squareTimecard.findMany({
+    where: {
+      storeId,
+      endAt: null,
+      startAt: { gte: new Date(dayStart.getTime() - 24 * 60 * 60 * 1000), lt: dayEnd },
+    },
+    select: { squareTeamMemberId: true, startAt: true, wageTitle: true, breakUnpaidMinutes: true },
+  })
+  if (rows.length === 0) return []
+
+  // The join of record, per labor-roster.ts: StaffMember.squareTeamMemberId is
+  // org-unique and displayName is the OPERATIONAL identity — the name a roster
+  // shows. fullName is the LEGAL identity and belongs on signed documents, not
+  // on a card an iPad in the back of house is logged into.
+  const staff = await prisma.staffMember.findMany({
+    where: { organizationId, squareTeamMemberId: { in: rows.map((r) => r.squareTeamMemberId) } },
+    select: { displayName: true, squareTeamMemberId: true },
+  })
+  const namesBySquareId = new Map(
+    staff.filter((s) => s.squareTeamMemberId).map((s) => [s.squareTeamMemberId!, s.displayName])
+  )
+
+  return assembleClockedInRoster({ rows, namesBySquareId, timeZone: store.timezone, now })
+}
+
+// ─── OVL-S4: SCHEDULED HOURS PER DAY ──────────────────────────────────────────
+//
+// The /labor comparison's scheduled half. DURATIONS, NOT HOUR BUCKETS, and the
+// difference is the point: computeScheduledCoverage answers "how many people are
+// on the floor during hour 14" and necessarily counts a 4h30 shift as occupying
+// five hour slots. A comparison against a budget in hours has to sum the actual
+// minutes, or a week of half-hour shifts would read as materially more scheduled
+// labour than was scheduled.
+
+/// The row shape the calculation needs. NOTE WHAT IS ABSENT — no notes column,
+/// and no column that could carry one. Same ruling, same enforcement.
+export type ScheduledHoursRow = {
+  effectiveStartAt: Date
+  effectiveEndAt: Date
+  effectiveIsDeleted: boolean
+}
+
+/// PURE — no DB, no network, injected timezone. Sums effective shift durations
+/// into store-local days.
+///
+/// AN OVERNIGHT SHIFT SPLITS. Each row contributes only the part of itself that
+/// falls inside each day, so a 22:00–06:00 shift puts two hours on one date and
+/// six on the next rather than eight on either. The day boundaries are
+/// store-local for the reason this repo keeps re-filing: the number it will sit
+/// beside — the suggested curve — is store-local, and comparing two different
+/// notions of a day is the trap.
+///
+/// TOMBSTONES ARE FILTERED HERE AS WELL AS IN THE QUERY, and the redundancy is
+/// deliberate (ratified 2026-08-20). getScheduledCoverage filters deletions in
+/// its `where` alone, which means the rule is only ever exercised against a
+/// database. Taking the flag on the row makes "a deleted shift is not scheduled
+/// labour" a property the fixture can prove without one.
+export function computeScheduledHoursByDay({
+  rows,
+  dates,
+  timeZone,
+}: {
+  rows: ScheduledHoursRow[]
+  dates: string[]
+  timeZone: string
+}): Record<string, number> {
+  const live = rows.filter((r) => !r.effectiveIsDeleted)
+  const out: Record<string, number> = {}
+
+  for (const date of dates) {
+    const dayStart = localMidnightUtc(date, timeZone).getTime()
+    const dayEnd = localMidnightUtc(addDaysStr(date, 1), timeZone).getTime()
+
+    let ms = 0
+    for (const r of live) {
+      const overlap =
+        Math.min(r.effectiveEndAt.getTime(), dayEnd) - Math.max(r.effectiveStartAt.getTime(), dayStart)
+      // A zero-length or non-overlapping shift contributes nothing rather than a
+      // negative, which would quietly subtract from a neighbouring day's total.
+      if (overlap > 0) ms += overlap
+    }
+    // Two decimals internally so a week of half-hours does not accumulate float
+    // noise into the total the page prints.
+    out[date] = Math.round((ms / 3600000) * 100) / 100
+  }
+
+  return out
+}
+
+/// The read path. NO SQUARE CALL — mirrored rows only, and the same four-column
+/// discipline every other overlay read follows.
+export async function getScheduledHoursByDay(
+  storeId: string,
+  dates: string[]
+): Promise<Record<string, number> | null> {
+  if (dates.length === 0) return {}
+  const store = await prisma.store.findUnique({ where: { id: storeId }, select: { timezone: true } })
+  if (!store) return null
+
+  const sorted = [...dates].sort()
+  const rangeStart = localMidnightUtc(sorted[0], store.timezone)
+  const rangeEnd = localMidnightUtc(addDaysStr(sorted[sorted.length - 1], 1), store.timezone)
+
+  const rows = await prisma.squareScheduledShift.findMany({
+    where: {
+      storeId,
+      effectiveIsDeleted: false,
+      effectiveStartAt: { lt: rangeEnd },
+      effectiveEndAt: { gt: rangeStart },
+    },
+    select: { effectiveStartAt: true, effectiveEndAt: true, effectiveIsDeleted: true },
+  })
+
+  return computeScheduledHoursByDay({ rows, dates, timeZone: store.timezone })
 }

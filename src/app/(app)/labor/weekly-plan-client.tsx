@@ -1,13 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { CalendarRange, ChevronLeft, ChevronRight, CloudRain, Crown, ShieldAlert, CircleAlert, Sliders } from "lucide-react"
+import { CalendarRange, CalendarClock, ChevronLeft, ChevronRight, CloudRain, Crown, ShieldAlert, CircleAlert, Sliders } from "lucide-react"
 import { Line, LineChart, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, ReferenceArea } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { agoLabel } from "@/lib/overlay-legend"
 
 // ── date helpers (client-local, weeks start Monday) ──────────────────────────
 const pad = (n: number) => String(n).padStart(2, "0")
@@ -57,6 +58,26 @@ type PlanDay = {
   gmWindow: { startHour: number; endHour: number } | null
   status: "closed" | "under" | "tight" | "slack" | "ok"
 }
+// OVL-S4 — the comparison half. OPTIONAL BECAUSE IT IS ABSENT, NOT EMPTY:
+// without labor.schedule.view the route sends no `comparison` key at all, so
+// `res.comparison` is undefined and the page renders exactly as it did before
+// this session.
+type ScheduleSyncHealth = "never" | "synced-empty" | "fresh" | "stale" | "error"
+type ComparisonDay = {
+  date: string
+  /// Σ suggested headcount over the day's open hours, INCLUDING the GM — the
+  /// same number the Labor Coverage card's legend describes. Null where the day
+  /// has no shape at all, which is not a recommendation of nobody.
+  suggestedHours: number | null
+  /// Null is "we are not claiming a scheduled number for this day" — never-synced
+  /// or synced-empty. It is NOT zero, and the difference is the whole of §3.4.
+  scheduledHours: number | null
+}
+type Comparison = {
+  sync: { health: ScheduleSyncHealth; lastSyncOkAt: string | null; lastShiftCount: number }
+  days: ComparisonDay[]
+}
+
 type WeekResponse = {
   store: { id: string; name: string; timezone: string }
   today: string
@@ -77,6 +98,7 @@ type WeekResponse = {
     overrideTotal: number | null
   } | null
   days: PlanDay[]
+  comparison?: Comparison
 }
 
 const STATUS: Record<PlanDay["status"], { dot: string; label: string; text: string }> = {
@@ -202,6 +224,7 @@ export function WeeklyPlanClient({
       ) : (
         <div className="flex flex-col gap-4">
           <WeekOverview res={res} selectedDate={selectedDate} onSelect={setSelectedDate} />
+          {res.comparison && <ScheduleComparison res={res} comparison={res.comparison} />}
           {res.canManage && <Rebalancer res={res} onSaved={load} />}
           {selected && <DayDetail storeId={storeId} day={selected} target={res.target} />}
         </div>
@@ -292,6 +315,136 @@ function WeekOverview({ res, selectedDate, onSelect }: { res: WeekResponse; sele
       </CardContent>
     </Card>
   )
+}
+
+// ── OVL-S4: scheduled vs suggested ───────────────────────────────────────────
+//
+// THE MANAGER QUESTION THIS ANSWERS: "how does what we scheduled stack against
+// what Froot suggests?" Both numbers are read-only — the suggested half is the
+// coverage engine's own output, summed; the scheduled half is Square's mirrored
+// shifts, summed. Neither feeds the other, and neither feeds the budget.
+//
+// SYNC HONESTY IS THE DESIGN CONSTRAINT, not a footnote. A blank where a number
+// should be is a different sentence from a zero, and this section is careful to
+// say the right one: never-synced renders nothing at all, synced-empty renders
+// the suggested column with the card's own words beneath it, and stale renders
+// the last known plan with its age.
+function ScheduleComparison({ res, comparison }: { res: WeekResponse; comparison: Comparison }) {
+  const { sync } = comparison
+
+  // NEVER-SYNCED RENDERS NOTHING. Seam (c): a store we have never asked about
+  // must not show a comparison pretending its schedule is blank. The rest of the
+  // page is untouched — the same fall-through the Coverage card makes.
+  if (sync.health === "never") return null
+
+  const planByDate = new Map(res.days.map((d) => [d.date, d]))
+  const totalSuggested = comparison.days.reduce((s, d) => s + (d.suggestedHours ?? 0), 0)
+  const anyScheduled = comparison.days.some((d) => d.scheduledHours != null)
+  const totalScheduled = comparison.days.reduce((s, d) => s + (d.scheduledHours ?? 0), 0)
+  const totalDelta = totalScheduled - totalSuggested
+
+  return (
+    <Card>
+      <CardContent className="pt-5 pb-4">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <CalendarRange className="h-4 w-4 text-[var(--color-primary)]" />
+            <p className="text-[15px] font-bold text-[var(--color-foreground)]">Scheduled vs suggested</p>
+          </div>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-primary)]">Comparison · guidance</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          {comparison.days.map((d) => {
+            const plan = planByDate.get(d.date)
+            const closed = plan?.closed ?? false
+            const delta =
+              d.scheduledHours != null && d.suggestedHours != null ? d.scheduledHours - d.suggestedHours : null
+            return (
+              <div key={d.date} className="rounded-lg border border-[var(--color-border)] p-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-bold text-[var(--color-foreground)]">
+                    {plan ? WD[plan.weekday] : d.date.slice(5)}{plan?.isToday ? " ·" : ""}
+                  </span>
+                </div>
+                <div className="text-[11px] text-[var(--color-muted-foreground)] mb-1.5">{d.date.slice(5)}</div>
+                {closed ? (
+                  <div className="text-[12px] text-[var(--color-muted-foreground)] py-2">Closed</div>
+                ) : (
+                  <>
+                    <div className="text-[11.5px] text-[var(--color-muted-foreground)]">
+                      Suggested{" "}
+                      <span className="font-semibold text-[var(--color-foreground)]">
+                        {d.suggestedHours != null ? `${d.suggestedHours.toFixed(1)}` : "—"}
+                      </span>
+                    </div>
+                    <div className="text-[11.5px] text-[var(--color-muted-foreground)]">
+                      {/* AN EM DASH IS NOT A ZERO. Where the sync has told us
+                          nothing, the cell says nothing — it never presents
+                          silence as a staffing decision somebody made. */}
+                      Scheduled{" "}
+                      <span className="font-semibold text-[var(--color-foreground)]">
+                        {d.scheduledHours != null ? `${d.scheduledHours.toFixed(1)}` : "—"}
+                      </span>
+                    </div>
+                    <div className={`text-[11px] mt-1 font-semibold ${deltaClass(delta)}`}>
+                      {delta == null ? "—" : `${delta > 0 ? "▲ +" : delta < 0 ? "▼ " : ""}${delta.toFixed(1)} hrs`}
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap mt-3 text-[12.5px] text-[var(--color-muted-foreground)]">
+          <span>
+            Week suggested <span className="font-semibold text-[var(--color-foreground)]">{totalSuggested.toFixed(1)} hrs</span>
+          </span>
+          <span>
+            scheduled{" "}
+            <span className="font-semibold text-[var(--color-foreground)]">
+              {anyScheduled ? `${totalScheduled.toFixed(1)} hrs` : "—"}
+            </span>
+          </span>
+          {anyScheduled && (
+            <span className={`font-semibold ${deltaClass(totalDelta)}`}>
+              {totalDelta > 0 ? "+" : ""}{totalDelta.toFixed(1)} hrs vs suggested
+            </span>
+          )}
+        </div>
+
+        {/* SEAM (c) — STALE DATA IS SHOWN AND LABELLED, NEVER BLANKED, and the
+            wording is the Coverage card's own (shared agoLabel) so one outage
+            cannot produce two differently-worded warnings. */}
+        {(sync.health === "stale" || sync.health === "error") && (
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#a36a00] mt-2">
+            <CalendarClock className="h-3 w-3 shrink-0" />
+            Schedule last synced {agoLabel(sync.lastSyncOkAt)} — showing the last known plan.
+          </div>
+        )}
+        {/* SYNCED-EMPTY IS AN HONEST ZERO AND SAYS SO — the card's sentence,
+            verbatim, because it is the same fact about the same store. */}
+        {sync.health === "synced-empty" && (
+          <p className="text-[11px] text-[var(--color-muted-foreground)] mt-2">
+            No shifts scheduled in Square for this store yet — showing the forecast only.
+          </p>
+        )}
+        <p className="text-[11px] text-[var(--color-muted-foreground)] mt-1">
+          Suggested is demand-shaped and capped by the conservative budget, and counts the GM on floor — a guide, not a schedule.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+/// Over suggested is the loud one: it is the direction that costs money. Under
+/// is green rather than red because the budget is a cap, not a target to hit.
+function deltaClass(delta: number | null): string {
+  if (delta == null) return "text-[var(--color-muted-foreground)]"
+  if (delta > 0.05) return "text-[#b42318]"
+  if (delta < -0.05) return "text-[#1d7c2e]"
+  return "text-[var(--color-muted-foreground)]"
 }
 
 // ── Rebalancer (L-3B) ────────────────────────────────────────────────────────

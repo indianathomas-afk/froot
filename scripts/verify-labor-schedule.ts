@@ -26,6 +26,15 @@
  *   9. OVL-S3 — colour resolution: an override beats the default, an unknown
  *      job falls back to the deterministic default, and every palette entry
  *      carries a hex so the Recharts stroke and the legend chip cannot drift.
+ *  11. OVL-S4 — the clocked-in ROSTER: the payload is structurally free of any
+ *      wage/rate/tip field, only OPEN cards are read, and an unresolvable member
+ *      renders "Unnamed" rather than vanishing from the floor.
+ *  12. OVL-S4 — scheduled HOURS per day: durations rather than hour buckets, a
+ *      tombstone contributes nothing, and an overnight shift splits across two
+ *      store-local days instead of landing whole on either.
+ *  13. OVL-S4 — legend toggle state: a hidden series is omitted from the chart
+ *      while the CHIP COUNT IS UNCHANGED, because a chip that vanished when
+ *      clicked would leave no way to bring the curve back.
  *  10. The protocol END TO END against a mocked page-fetcher — the cursor is
  *      dropped rather than followed, the paginated page is discarded rather than
  *      merged, both halves are re-queried, an unsplittable day throws, and a
@@ -35,17 +44,30 @@
  * (n = 462, real Keva Square account, 2026-08-20).
  */
 import {
+  assembleClockedInRoster,
   collectScheduledShifts,
   computeClockedInCoverage,
   computeScheduledCoverage,
+  computeScheduledHoursByDay,
   deterministicJobColor,
   effectiveShiftOf,
+  formatClockInLabel,
   planScheduleWindows,
   splitWindow,
   UNKNOWN_JOB_ID,
   type ClockedInCoverageRow,
+  type ClockedInRosterRow,
   type ScheduledCoverageRow,
+  type ScheduledHoursRow,
 } from "../src/lib/labor-schedule"
+import {
+  OVERLAY_KEY,
+  SUGGESTED_KEY,
+  jobSeriesKey,
+  legendSeriesKeys,
+  toggleSeries,
+  visibleSeriesKeys,
+} from "../src/lib/overlay-legend"
 import { BADGE_PRESETS, BADGE_PRESET_KEYS } from "../src/lib/badge-presets"
 import { clockedEndMs, paidMinutesOf } from "../src/lib/labor-actuals"
 import { readFileSync } from "fs"
@@ -490,6 +512,280 @@ function colorCases() {
   check("an unknown job still gets a colour", BADGE_PRESET_KEYS.includes(deterministicJobColor(UNKNOWN_JOB_ID)), true)
 }
 
+// ─── OVL-S4 · THE CLOCKED-IN ROSTER ───────────────────────────────────────────
+
+function rosterCases() {
+  console.log("\nOVL-S4 · the clocked-in roster")
+
+  const NOW = new Date("2026-08-20T21:00:00.000Z") // 2pm store-local
+  const row = (o: Partial<ClockedInRosterRow> = {}): ClockedInRosterRow => ({
+    squareTeamMemberId: "TM3xMrcozhpb_gKJ",
+    startAt: new Date("2026-08-20T16:00:00.000Z"), // 9am store-local
+    wageTitle: "Barista",
+    breakUnpaidMinutes: 0,
+    ...o,
+  })
+
+  const names = new Map([["TM3xMrcozhpb_gKJ", "Kev A."]])
+
+  const one = assembleClockedInRoster({ rows: [row()], namesBySquareId: names, timeZone: TZ, now: NOW })
+  check("the name is resolved through the staff join", one[0].name, "Kev A.")
+  check("the title comes from the timecard's own wage title", one[0].title, "Barista")
+  check("the clock-in is STORE-LOCAL, not UTC", one[0].clockInAt, "9:00a")
+
+  // THE PAYLOAD IS THE RULING, ASSERTED STRUCTURALLY. Not "we did not add a wage
+  // field" — the serialized keys ARE these three and no future caller can widen
+  // them without this failing. The source row carries breakUnpaidMinutes and a
+  // Square team-member id, and neither survives the assembly.
+  const keys = Object.keys(one[0]).sort().join(",")
+  check("exactly three fields ship", keys, "clockInAt,name,title")
+  const wire = JSON.stringify(one)
+  check("no wage field anywhere in the payload", /wage|rate|salary/i.test(wire), false)
+  check("no tip field anywhere in the payload", /tip/i.test(wire), false)
+  check("the Square team-member id never leaves the server", wire.includes("TM3xMrcozhpb_gKJ"), false)
+  check("and no shift note could ride along", /note/i.test(wire), false)
+
+  // D6's posture, applied to people: an unmatched member is a NORMAL mid-import
+  // state, and erasing them would understate who is on the floor.
+  const unmatched = assembleClockedInRoster({
+    rows: [row({ squareTeamMemberId: "TM_not_in_froot" })],
+    namesBySquareId: names,
+    timeZone: TZ,
+    now: NOW,
+  })
+  check("an unresolvable member renders Unnamed", unmatched[0].name, "Unnamed")
+  check("and is still ON the roster, not dropped", unmatched.length, 1)
+  const blank = assembleClockedInRoster({
+    rows: [row()],
+    namesBySquareId: new Map([["TM3xMrcozhpb_gKJ", "   "]]),
+    timeZone: TZ,
+    now: NOW,
+  })
+  check("a blank display name is Unnamed too", blank[0].name, "Unnamed")
+
+  // A job Square never titled keeps a null the CARD words; the endpoint does not
+  // invent a title.
+  const untitled = assembleClockedInRoster({ rows: [row({ wageTitle: null })], namesBySquareId: names, timeZone: TZ, now: NOW })
+  check("an untitled job stays null rather than being invented", untitled[0].title, null)
+
+  // THE BUTTON SAYS "N ON FLOOR" AND THE LIST MUST BE N LONG. Both sides discard
+  // a row on paidMinutesOf's test, so a clock-skewed card that has not started
+  // yet is dropped by the curve's openCount and by the roster identically.
+  const skewed = assembleClockedInRoster({
+    rows: [row({ startAt: new Date("2026-08-20T23:00:00.000Z") })], // starts after now
+    namesBySquareId: names,
+    timeZone: TZ,
+    now: NOW,
+  })
+  check("a clock-skewed card is dropped, as it is from the curve", skewed.length, 0)
+  const curveOpenCount = computeClockedInCoverage({
+    rows: [{ startAt: new Date("2026-08-20T23:00:00.000Z"), endAt: null, breakUnpaidMinutes: 0, wageJobId: null }],
+    date: "2026-08-20",
+    timeZone: TZ,
+    now: NOW,
+  }).openCount
+  check("and the two agree on the count", skewed.length, curveOpenCount)
+
+  // Longest on the floor first, so the reader's "who is due a break" question is
+  // answered by the order.
+  const sorted = assembleClockedInRoster({
+    rows: [
+      row({ squareTeamMemberId: "B", startAt: new Date("2026-08-20T19:00:00.000Z") }),
+      row({ squareTeamMemberId: "A", startAt: new Date("2026-08-20T16:00:00.000Z") }),
+    ],
+    namesBySquareId: new Map([["A", "Early"], ["B", "Late"]]),
+    timeZone: TZ,
+    now: NOW,
+  })
+  check("clock-in order, earliest first", sorted.map((r) => r.name).join(","), "Early,Late")
+
+  check("the pm side of the clock reads p", formatClockInLabel(new Date("2026-08-21T01:42:00.000Z"), TZ), "6:42p")
+
+  // THE READ IS OPEN CARDS ONLY, AND THE ROUTE'S select IS THE COUNTS RULING.
+  // Source guards, because the regression that threatens these is someone
+  // widening a `select` or dropping `endAt: null` while every pure test stays
+  // green.
+  const lib = readFileSync(new URL("../src/lib/labor-schedule.ts", import.meta.url), "utf8")
+  // The function's own body, bounded at the next section banner — a slice that
+  // ran to the end of the file would be tested against every function after it.
+  const from = lib.indexOf("export async function getClockedInRoster")
+  const to = lib.indexOf("// ─── OVL-S4: SCHEDULED HOURS PER DAY", from)
+  check("the roster read is bounded for these guards", from > 0 && to > from, true)
+  // Comments quote the column names they are ruling OUT, so the guards read the
+  // code with its doc-comments stripped — otherwise the ruling would fail itself.
+  const roster = lib.slice(from, to).replace(/\/\/.*$/gm, "")
+  check("the roster read takes OPEN cards only", /endAt:\s*null,/.test(roster), true)
+  check("and selects no wage column", /wageHourlyRate|declaredCashTips|wageTipEligible/.test(roster), false)
+  check("and no notes column", /Notes/.test(roster), false)
+  check("displayName is the operational identity read", /displayName:\s*true/.test(roster), true)
+  check("fullName — the LEGAL identity — is never selected here", /fullName/.test(roster), false)
+}
+
+// ─── OVL-S4 · SCHEDULED HOURS PER DAY ─────────────────────────────────────────
+
+function scheduledHoursCases() {
+  console.log("\nOVL-S4 · scheduled hours per day")
+
+  const shift = (start: string, end: string, deleted = false): ScheduledHoursRow => ({
+    effectiveStartAt: new Date(start),
+    effectiveEndAt: new Date(end),
+    effectiveIsDeleted: deleted,
+  })
+
+  // 10:30–16:00 store-local = 5.5 hours. DURATIONS, NOT BUCKETS: the coverage
+  // curve would count this as six occupied hours, and a week of those would
+  // overstate scheduled labour against an hours budget.
+  const half = computeScheduledHoursByDay({
+    rows: [shift("2026-08-18T17:30:00.000Z", "2026-08-18T23:00:00.000Z")],
+    dates: ["2026-08-18"],
+    timeZone: TZ,
+  })
+  check("a 5h30 shift is 5.5 hours, not 6 buckets", half["2026-08-18"], 5.5)
+
+  const buckets = computeScheduledCoverage({
+    rows: [
+      {
+        effectiveJobId: "J",
+        effectiveStartAt: new Date("2026-08-18T17:30:00.000Z"),
+        effectiveEndAt: new Date("2026-08-18T23:00:00.000Z"),
+        effectiveSource: "published",
+      },
+    ],
+    date: "2026-08-18",
+    timeZone: TZ,
+  })
+  check("…and the bucket count really would have said 6", buckets.points.filter((p) => p.scheduled > 0).length, 6)
+
+  // TOMBSTONES ARE FILTERED IN THE PURE FUNCTION, not only in the query — which
+  // is the whole reason effectiveIsDeleted is on the row type.
+  const withTomb = computeScheduledHoursByDay({
+    rows: [
+      shift("2026-08-18T17:30:00.000Z", "2026-08-18T23:00:00.000Z"),
+      shift("2026-08-18T17:30:00.000Z", "2026-08-18T23:00:00.000Z", true),
+    ],
+    dates: ["2026-08-18"],
+    timeZone: TZ,
+  })
+  check("a tombstoned shift contributes nothing", withTomb["2026-08-18"], 5.5)
+
+  // 22:00 Tue → 06:00 Wed store-local. Two hours belong to Tuesday and six to
+  // Wednesday; eight on either would be a day's staffing invented from nothing.
+  const overnight = computeScheduledHoursByDay({
+    rows: [shift("2026-08-19T05:00:00.000Z", "2026-08-19T13:00:00.000Z")],
+    dates: ["2026-08-18", "2026-08-19"],
+    timeZone: TZ,
+  })
+  check("an overnight shift puts 2h on the first day", overnight["2026-08-18"], 2)
+  check("and 6h on the next", overnight["2026-08-19"], 6)
+  check("and never 8 on either", overnight["2026-08-18"] + overnight["2026-08-19"], 8)
+
+  // A day with nothing scheduled is a real 0 from the PURE function — turning
+  // that into "we are not claiming a number" is the ROUTE's job, and it does it
+  // from sync health rather than from row count.
+  const quiet = computeScheduledHoursByDay({ rows: [], dates: ["2026-08-18"], timeZone: TZ })
+  check("a day with no shifts is 0 from the calculation", quiet["2026-08-18"], 0)
+
+  const week = computeScheduledHoursByDay({
+    rows: [
+      shift("2026-08-17T17:00:00.000Z", "2026-08-17T21:00:00.000Z"),
+      shift("2026-08-18T17:00:00.000Z", "2026-08-18T21:00:00.000Z"),
+      shift("2026-08-18T21:00:00.000Z", "2026-08-19T01:00:00.000Z"),
+    ],
+    dates: ["2026-08-17", "2026-08-18"],
+    timeZone: TZ,
+  })
+  check("the week sums per day, not per row", `${week["2026-08-17"]}|${week["2026-08-18"]}`, "4|8")
+}
+
+// ─── OVL-S4 · LEGEND TOGGLE STATE ─────────────────────────────────────────────
+
+function legendToggleCases() {
+  console.log("\nOVL-S4 · legend toggle state")
+
+  const jobKeys = ["JOB_A", "JOB_B"]
+  const all = legendSeriesKeys({ hasOverlay: true, jobKeys })
+  check("the legend lists suggested + overlay + one chip per position", all.length, 4)
+
+  const hiddenOne = new Set([OVERLAY_KEY])
+  check(
+    "a hidden series is omitted from the chart",
+    visibleSeriesKeys({ hasOverlay: true, jobKeys, hidden: hiddenOne }).includes(OVERLAY_KEY),
+    false
+  )
+  // THE CHIP COUNT IS UNCHANGED. A chip that disappeared when clicked would
+  // leave the reader no way to bring the curve back.
+  check("but the CHIP COUNT is unchanged", legendSeriesKeys({ hasOverlay: true, jobKeys }).length, 4)
+  check(
+    "and only the hidden one goes",
+    visibleSeriesKeys({ hasOverlay: true, jobKeys, hidden: hiddenOne }).length,
+    3
+  )
+
+  const hiddenJob = new Set([jobSeriesKey("JOB_A")])
+  const shown = visibleSeriesKeys({ hasOverlay: true, jobKeys, hidden: hiddenJob })
+  check("hiding one position leaves the other", shown.includes(jobSeriesKey("JOB_B")), true)
+  check("and does not touch the suggested curve", shown.includes(SUGGESTED_KEY), true)
+
+  // Hiding EVERYTHING is allowed and is not an error state — the legend is still
+  // fully there to click back on.
+  const allHidden = new Set(all)
+  check("every series can be hidden at once", visibleSeriesKeys({ hasOverlay: true, jobKeys, hidden: allHidden }).length, 0)
+  check("and the legend still has all four chips", legendSeriesKeys({ hasOverlay: true, jobKeys }).length, 4)
+
+  // Without an overlay there is one series and one chip — the card as it renders
+  // for a store with no schedule at all.
+  check("no overlay means one chip", legendSeriesKeys({ hasOverlay: false, jobKeys }).length, 1)
+
+  // The toggle is a round trip, and it returns a NEW set (a mutated Set does not
+  // re-render React state).
+  const once = toggleSeries(new Set<string>(), SUGGESTED_KEY)
+  check("toggling hides", once.has(SUGGESTED_KEY), true)
+  check("toggling again shows", toggleSeries(once, SUGGESTED_KEY).has(SUGGESTED_KEY), false)
+  check("and the original set is not mutated", new Set<string>().size, 0)
+}
+
+// ─── OVL-S4 · THE COMPARISON'S ABSENCE ────────────────────────────────────────
+
+function comparisonAbsenceCases() {
+  console.log("\nOVL-S4 · absence, not emptiness (comparison + roster)")
+
+  const plan = readFileSync(new URL("../src/app/api/labor/weekly-plan/route.ts", import.meta.url), "utf8")
+
+  check(
+    "the comparison is gated on the capability",
+    /can\(ctx\.actor,\s*"labor\.schedule\.view"\)/.test(plan),
+    true
+  )
+  check(
+    "and spread CONDITIONALLY, so the key is absent when denied",
+    /\.\.\.\(comparison \? \{ comparison \} : \{\}\)/.test(plan),
+    true
+  )
+  check(
+    "the route never emits an empty comparison",
+    /comparison:\s*(null|\{\}|comparison \?\? null)/.test(plan),
+    false
+  )
+  check("the denied path builds nothing at all", /:\s*undefined\b/.test(plan), true)
+  check("suggested hours are SUMMED, never recomputed", /computeDayCoverage|covByDay/.test(plan), true)
+
+  // The roster endpoint DENIES rather than serving a thinned body — the
+  // /api/square/labor/roster posture for labor.costs.view, applied here.
+  const route = readFileSync(
+    new URL("../src/app/api/labor/clocked-in-roster/route.ts", import.meta.url),
+    "utf8"
+  )
+  check(
+    "the roster endpoint checks the same capability",
+    /can\(ctx\.actor,\s*"labor\.schedule\.view"\)/.test(route),
+    true
+  )
+  check("and denies with a 403, not a partial body", /status:\s*403/.test(route), true)
+  check("the store is re-scoped server-side", /requireLaborStore/.test(route), true)
+  // NOW ONLY, and the ABSENCE OF THE PARAMETER is what enforces it.
+  check("there is no date parameter to ask for history with", /searchParams\.get\("date"\)/.test(route), false)
+}
+
 async function protocolCases() {
   console.log("\n8 · collectScheduledShifts against a mock (no network)")
 
@@ -584,6 +880,10 @@ async function protocolCases() {
 clockedInCases()
 colorCases()
 absenceCases()
+rosterCases()
+scheduledHoursCases()
+legendToggleCases()
+comparisonAbsenceCases()
 
 protocolCases().then(() => {
   console.log(`\n${failures === 0 ? "PASS" : `FAIL — ${failures} check(s)`}\n`)

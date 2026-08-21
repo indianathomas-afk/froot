@@ -10,10 +10,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { fetchCard } from "./card-fetch"
 import { useLaborViewedDate, shiftDateStr, todayStr } from "./use-labor-date"
 import { SplitPolicyInfo } from "@/components/labor/split-policy-info"
 import { badgePreset, type BadgePresetKey } from "@/lib/badge-presets"
+import { OVERLAY_KEY, SUGGESTED_KEY, agoLabel, jobSeriesKey, toggleSeries, visibleSeriesKeys } from "@/lib/overlay-legend"
 
 // Labor Coverage card (Dashboard, Phase 3 — "Recommended · guidance"). A
 // demand-shaped, budget-capped headcount step line for the viewed day — future
@@ -46,6 +48,11 @@ type Overlay = {
 }
 
 type OverlayMode = "scheduled" | "clockedIn"
+
+/// The empty hidden set, hoisted so every "nothing is hidden" render shares one
+/// identity — a fresh `new Set()` each render would re-run the memo below on
+/// every keystroke elsewhere in the card.
+const EMPTY_HIDDEN: ReadonlySet<string> = new Set<string>()
 
 /// One x-position of the chart. The suggested curve, the overlay total, and one
 /// `job:<id>` key per position on the active curve — an index signature because
@@ -104,6 +111,22 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
   // is the curve that exists on every day; what actually renders is
   // `effectiveMode` below, which falls back when the request cannot be honoured.
   const [mode, setMode] = useState<OverlayMode>("scheduled")
+  // OVL-S4 — LEGEND VISIBILITY, AND IT IS DISPLAY STATE ONLY (Gary,
+  // 2026-08-20). Holds the Recharts dataKeys the reader has switched off. No
+  // fetch, no recomputation, no server round trip: hiding a curve cuts visual
+  // noise and changes nothing about what the card was told.
+  //
+  // THE HIDDEN SET IS STORED WITH THE DATE IT BELONGS TO, which is how the
+  // ruling's "resets on day navigation" is enforced. Deriving it from the viewed
+  // date rather than clearing it in an effect means there is no window — not
+  // even one render — in which yesterday's hidden series applies to today's
+  // curve, and a "froot-labor-changed" refetch of the SAME day cannot silently
+  // restore a curve the reader just switched off.
+  const [hiddenFor, setHiddenFor] = useState<{ date: string; keys: ReadonlySet<string> }>({
+    date: viewedDate,
+    keys: EMPTY_HIDDEN,
+  })
+  const hidden = hiddenFor.date === viewedDate ? hiddenFor.keys : EMPTY_HIDDEN
 
   const key = `${storeId}|${viewedDate}`
   const load = useCallback(() => {
@@ -179,6 +202,22 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
       jobKeys,
     }
   }, [res, activeSeries])
+
+  // The drawn set, from the one module that decides it. `chart.jobKeys` is
+  // already the ACTIVE curve's positions, so switching mode re-derives the chips
+  // while a job id the reader hid stays hidden — the same series, same key.
+  const visible = useMemo(
+    () => new Set(visibleSeriesKeys({ hasOverlay: !!activeSeries, jobKeys: chart.jobKeys, hidden })),
+    [activeSeries, chart.jobKeys, hidden]
+  )
+  const toggle = useCallback(
+    (k: string) =>
+      setHiddenFor((h) => ({
+        date: viewedDate,
+        keys: toggleSeries(h.date === viewedDate ? h.keys : EMPTY_HIDDEN, k),
+      })),
+    [viewedDate]
+  )
 
   const canGoBack = viewedDate > shiftDateStr(todayStr(), -60)
   const canGoFwd = viewedDate < shiftDateStr(todayStr(), 28)
@@ -265,6 +304,16 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
                     ))}
                   </div>
                 )}
+                {/* OVL-S4 — THE ROSTER AFFORDANCE, AND IT IS A BUTTON RATHER
+                    THAN A CHART CLICK (approved 2026-08-20). The Recharts
+                    tooltip at <ChartTooltip> below is hover-driven, and on touch
+                    Recharts synthesises hover from a tap — a click handler on the
+                    plot would fire underneath a live tooltip and fight it. A
+                    button coexists, is keyboard-reachable, and leaves the shipped
+                    tooltip untouched. */}
+                {effectiveMode === "clockedIn" && overlay!.openTimecardCount > 0 && (
+                  <ClockedInRosterPopover storeId={storeId} count={overlay!.openTimecardCount} />
+                )}
                 {res.adjustment && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold rounded-full px-2 py-0.5 bg-[var(--color-warning)]/15 text-[#a36a00]">
                     <CloudRain className="h-3 w-3" />
@@ -302,11 +351,17 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={2} />
                   <YAxis tick={{ fontSize: 10 }} width={28} allowDecimals={false} domain={[0, Math.max(2, chart.maxHead + 1)]} />
                   <ChartTooltip formatter={(v, name) => [`${v} on floor`, tooltipLabel(String(name), res.overlay, effectiveMode)]} />
-                  <Line type="stepAfter" dataKey="headcount" stroke="var(--color-primary)" strokeWidth={3} dot={false} connectNulls={false} />
+                  {/* OVL-S4 — every <Line> is gated on `visible`. OMITTED, NOT
+                      styled transparent: a zero-opacity line still owns the
+                      tooltip row it would have drawn, so the reader who hid a
+                      curve would keep reading its number. */}
+                  {visible.has(SUGGESTED_KEY) && (
+                    <Line type="stepAfter" dataKey="headcount" stroke="var(--color-primary)" strokeWidth={3} dot={false} connectNulls={false} />
+                  )}
                   {/* OVL-S3 — DISPLAY ONLY. These series are drawn from the
                       `overlay` key and feed nothing: the suggested curve above is
                       computed server-side before the overlay is even assembled. */}
-                  {activeSeries && (
+                  {activeSeries && visible.has(OVERLAY_KEY) && (
                     <Line
                       type="stepAfter"
                       dataKey="overlayTotal"
@@ -317,7 +372,9 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
                       connectNulls={false}
                     />
                   )}
-                  {chart.jobKeys.map((jobId) => (
+                  {chart.jobKeys
+                    .filter((jobId) => visible.has(jobSeriesKey(jobId)))
+                    .map((jobId) => (
                     <Line
                       key={jobId}
                       type="stepAfter"
@@ -333,15 +390,32 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
               </ResponsiveContainer>
             </div>
 
+            {/* OVL-S4 — THE LEGEND IS NOW THE CONTROL. Every series chip is a
+                click-to-toggle button; a hidden series keeps its chip, muted, so
+                there is always a way back. The chips that are NOT series — GM
+                window, hourly budget — stay plain spans, because there is no
+                curve for them to hide. */}
             <div className="flex items-center gap-3 mt-2 flex-wrap text-[11px] text-[var(--color-muted-foreground)]">
               {/* THE CURVE IDENTIFICATION, and the projected-shape ruling landing
                   on the legend rather than only on the day navigator. */}
-              <span className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => toggle(SUGGESTED_KEY)}
+                aria-pressed={visible.has(SUGGESTED_KEY)}
+                title={visible.has(SUGGESTED_KEY) ? "Hide the suggested curve" : "Show the suggested curve"}
+                className={`inline-flex items-center gap-1 rounded hover:text-[var(--color-foreground)] ${chipMuted(visible.has(SUGGESTED_KEY))}`}
+              >
                 <span className="h-0.5 w-4 rounded bg-[var(--color-primary)]" /> Suggested
                 {res.projected && ` · projected from recent ${new Date(`${res.date}T12:00`).toLocaleDateString("en-US", { weekday: "long" })}s`}
-              </span>
+              </button>
               {activeSeries && (
-                <span className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => toggle(OVERLAY_KEY)}
+                  aria-pressed={visible.has(OVERLAY_KEY)}
+                  title={visible.has(OVERLAY_KEY) ? "Hide this curve" : "Show this curve"}
+                  className={`inline-flex items-center gap-1 rounded hover:text-[var(--color-foreground)] ${chipMuted(visible.has(OVERLAY_KEY))}`}
+                >
                   <span
                     className="h-0 w-4 border-t-2 border-dashed border-[var(--color-foreground)]"
                     style={effectiveMode === "clockedIn" ? { borderStyle: "dotted" } : undefined}
@@ -350,18 +424,26 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
                   {effectiveMode === "clockedIn" && overlay!.openTimecardCount > 0 && " · still on the clock"}
                   {effectiveMode === "scheduled" && overlay!.draftSourcedCount > 0 &&
                     ` · incl. ${overlay!.draftSourcedCount} draft shift${overlay!.draftSourcedCount === 1 ? "" : "s"}`}
-                </span>
+                </button>
               )}
               {/* Per-position chips. ONE KEY drives the chip and the stroke — the
                   class here, the hex on the <Line> above, both from colorKey. */}
               {activeSeries &&
                 chart.jobKeys.map((jobId) => {
                   const job = overlay!.jobs.find((j) => j.jobId === jobId)
+                  const shown = visible.has(jobSeriesKey(jobId))
                   return (
-                    <span key={jobId} className="inline-flex items-center gap-1">
+                    <button
+                      key={jobId}
+                      type="button"
+                      onClick={() => toggle(jobSeriesKey(jobId))}
+                      aria-pressed={shown}
+                      title={shown ? "Hide this position" : "Show this position"}
+                      className={`inline-flex items-center gap-1 rounded hover:text-[var(--color-foreground)] ${chipMuted(shown)}`}
+                    >
                       <span className={`h-2 w-2 rounded-full ${badgePreset(job?.colorKey).dot}`} />
                       {jobLabel(job, jobId, overlay!.unknownJobId)}
-                    </span>
+                    </button>
                   )
                 })}
               {cov!.gmWindow && (
@@ -487,6 +569,79 @@ function AdjustmentDialog({
 }
 
 
+// ─── OVL-S4 · THE CLOCKED-IN ROSTER POPUP ─────────────────────────────────────
+
+type RosterEntry = { name: string; title: string | null; clockInAt: string }
+
+/// WHO IS ON THE FLOOR RIGHT NOW. name · position title · clock-in time, and
+/// nothing else — the payload is structurally free of wage, rate and tip fields
+/// because the endpoint never selects them.
+///
+/// THE FETCH FIRES ON OPEN AND ONLY ON OPEN (Gary's ruling). Not prefetched, not
+/// cached between opens, and not folded into the card's own payload: a manager
+/// asking who is working is an action they took, not something the dashboard
+/// does to itself every thirty seconds. Re-opening re-reads, which is also what
+/// makes "right now" true rather than true-when-the-card-loaded.
+function ClockedInRosterPopover({ storeId, count }: { storeId: string; count: number }) {
+  const [state, setState] = useState<{ loading: boolean; rows: RosterEntry[] | null; failed: boolean }>({
+    loading: false,
+    rows: null,
+    failed: false,
+  })
+
+  function onOpenChange(open: boolean) {
+    if (!open) return setState({ loading: false, rows: null, failed: false })
+    setState({ loading: true, rows: null, failed: false })
+    fetch(`/api/labor/clocked-in-roster?storeId=${storeId}`)
+      .then((r): Promise<{ roster: RosterEntry[] } | null> => (r.ok ? r.json() : Promise.resolve(null)))
+      .then((res) =>
+        setState({ loading: false, rows: res?.roster ?? null, failed: !res })
+      )
+      .catch(() => setState({ loading: false, rows: null, failed: true }))
+  }
+
+  return (
+    <Popover onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-[11px] font-semibold rounded-full px-2 py-0.5 border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-accent)]"
+        >
+          <Users className="h-3 w-3" />
+          {count} on floor
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3">
+        <p className="text-[12px] font-semibold text-[var(--color-foreground)] mb-2">On the floor now</p>
+        {state.loading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : state.failed ? (
+          <p className="text-[11.5px] text-[var(--color-muted-foreground)]">Couldn’t load the roster — try again in a moment.</p>
+        ) : !state.rows?.length ? (
+          /* Reachable when the last card closes between the render and the click
+             — an honest "nobody", never a stale list. */
+          <p className="text-[11.5px] text-[var(--color-muted-foreground)]">Nobody is clocked in right now.</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {state.rows.map((r, i) => (
+              <li key={`${r.name}|${r.clockInAt}|${i}`} className="text-[11.5px] leading-tight">
+                <span className="font-semibold text-[var(--color-foreground)]">{r.name}</span>
+                <span className="text-[var(--color-muted-foreground)]">
+                  {" · "}
+                  {/* The legend's own wording for a job Square never titled. */}
+                  {r.title ?? "No position recorded"}
+                  {" · in "}
+                  {r.clockInAt}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 // ─── OVL-S3 helpers ───────────────────────────────────────────────────────────
 
 /// The legend's name for a position. An UNNAMED position is not an error state
@@ -513,12 +668,10 @@ function tooltipLabel(dataKey: string, overlay: Overlay | undefined, mode: Overl
   return dataKey
 }
 
-/// Coarse age for the stale stamp. Deliberately coarse — the reader needs "this
-/// is old", not a duration to the minute.
-function agoLabel(iso: string | null): string {
-  if (!iso) return "some time ago"
-  const hours = (Date.now() - new Date(iso).getTime()) / 3600000
-  if (hours < 1) return "under an hour ago"
-  if (hours < 48) return `${Math.round(hours)} hours ago`
-  return `${Math.round(hours / 24)} days ago`
+/// The muted treatment for a switched-off chip. Opacity rather than a colour
+/// swap so the position dot stays recognisable — the reader has to be able to
+/// tell WHICH curve they hid in order to bring it back.
+function chipMuted(shown: boolean): string {
+  return shown ? "" : "opacity-40"
 }
+
