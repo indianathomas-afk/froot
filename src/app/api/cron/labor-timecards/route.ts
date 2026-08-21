@@ -22,6 +22,20 @@ import { syncTimecardsForStore } from "@/lib/labor-actuals"
 // Half an hour after sales-reconcile (0 11 * * *) so the two never contend for
 // the same unpublished Square rate limit in the same minute.
 //
+// ACTIVATED 2026-08-20 (Gary, DECISIONS.md § "CRON-1 activation, phantom
+// opens"). THE TWO PARAGRAPHS ABOVE ARE KEPT AS WRITTEN AND ARE NO LONGER THE
+// STATE — this route IS registered in vercel.json now, at exactly the schedule
+// its own suggestion proposed, and the parked-by-design reasoning is kept
+// because it records why the entry was absent for two days rather than
+// forgotten. A comment reading "deliberately not registered" above a registered
+// route is the one shape of staleness that actively misleads.
+//
+// WHAT ACTIVATION IS FOR: BUG-10. Clock-outs landing after a day's final
+// dashboard-triggered sync were never seen, because that sync asks for TODAY
+// only (labor-dashboard.ts:214) and nothing revisited a prior day — measured
+// live 2026-08-20 as a 26-minute gap that never closed. RECONCILE_DAYS = 3 is
+// what closes it.
+//
 // RECONCILE_DAYS IS 3, THE SAME NUMBER sales-reconcile USES, deliberately — the
 // numerator and the denominator of the labor percentage must not disagree about
 // how far back "recent" reaches. KNOWN LIMIT, recorded rather than hidden:

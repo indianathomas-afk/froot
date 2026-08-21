@@ -1101,6 +1101,52 @@ export function formatClockInLabel(instant: Date, timeZone: string): string {
   return `${get("hour")}:${get("minute")}${get("dayPeriod").toLowerCase().startsWith("a") ? "a" : "p"}`
 }
 
+/// BUG-10 — THE DATE QUALIFIER. A card that started before the store-local
+/// today reads "2:55p yesterday" instead of a bare "2:55p".
+///
+/// WHY THIS EXISTS: two Aug-19 cards at Las Brisas were left open, clocked out
+/// in Square at ≈9:55p — AFTER that day's final sync at 9:29p — and so stayed
+/// open in Froot forever, because the dashboard sync asks for TODAY only and
+/// nothing revisited a prior day. The popup drew both as "on the floor now" with
+/// time-only labels, indistinguishable from a card opened this morning. The
+/// qualifier is what makes a stale open self-evident at a glance.
+///
+/// DISPLAY ONLY, AND IT CHANGES NEITHER QUERY (Gary, 2026-08-20). The 24h
+/// lookback STAYS on both reads — an open card from yesterday that is genuinely
+/// still on the floor must render, and CRON-1's reconcile is what now closes the
+/// genuinely-closed ones. This function cannot tell those two apart and does not
+/// try: it reports WHEN the card started and lets the reader judge.
+///
+/// THE QUALIFIER FOLDS INTO clockInAt RATHER THAN BECOMING A FOURTH FIELD. The
+/// S4 person-data ruling fixes this payload at exactly three fields and a
+/// fixture asserts the sorted key list; a `startedBefore` boolean would breach
+/// both for a string the client would only concatenate anyway.
+///
+/// formatClockInLabel IS LEFT ALONE and wrapped rather than modified — it has
+/// its own contract and its own fixture, and the qualifier is a different
+/// question (WHICH DAY) from the one it answers (WHAT TIME).
+///
+/// The older-than-yesterday branch is unreachable through getClockedInRoster's
+/// 24h window, where the earliest possible start is yesterday 00:00 store-local.
+/// It is built anyway because this function is pure and takes whatever row it is
+/// given: a widened window later must not silently start printing a bare "2:55p"
+/// for a card three days old.
+export function clockInLabelFor(startAt: Date, now: Date, timeZone: string): string {
+  const time = formatClockInLabel(startAt, timeZone)
+  const today = localDateStr(now, timeZone)
+  const started = localDateStr(startAt, timeZone)
+
+  if (started === today) return time
+  if (started === addDaysStr(today, -1)) return `${time} yesterday`
+
+  // "2:55p Aug 19" — ONE PREFIX, ONE SHAPE (ratified 2026-08-20). The client
+  // renders a fixed " · in " before this string, so a "since Aug 19" form would
+  // read "in since Aug 19".
+  const [y, m, d] = started.split("-").map(Number)
+  const month = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+  return `${time} ${month} ${d}`
+}
+
 /// PURE — no DB, no network, injected timezone and injected clock.
 ///
 /// THE DROP TEST IS paidMinutesOf's, NOT A NEW ONE. The button that opens this
@@ -1137,7 +1183,7 @@ export function assembleClockedInRoster({
   return kept.map((r) => ({
     name: nameOf(r, namesBySquareId),
     title: r.wageTitle,
-    clockInAt: formatClockInLabel(r.startAt, timeZone),
+    clockInAt: clockInLabelFor(r.startAt, now, timeZone),
   }))
 }
 

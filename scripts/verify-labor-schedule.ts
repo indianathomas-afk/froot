@@ -51,6 +51,7 @@ import {
   computeScheduledHoursByDay,
   deterministicJobColor,
   effectiveShiftOf,
+  clockInLabelFor,
   formatClockInLabel,
   planScheduleWindows,
   splitWindow,
@@ -600,6 +601,79 @@ function rosterCases() {
   check("clock-in order, earliest first", sorted.map((r) => r.name).join(","), "Early,Late")
 
   check("the pm side of the clock reads p", formatClockInLabel(new Date("2026-08-21T01:42:00.000Z"), TZ), "6:42p")
+
+  // BUG-10 — THE DATE QUALIFIER. Two Aug-19 cards were left open at Las Brisas,
+  // clocked out in Square AFTER that day's final sync, and stayed open in Froot
+  // forever; the popup drew both as "on the floor now" with time-only labels,
+  // indistinguishable from a card opened that morning. THE CLOCK IS INJECTED in
+  // every case below — a label that depended on the real clock would pass in
+  // the morning and fail after midnight, which is the exact bug class this is.
+  check(
+    "a card started TODAY carries no qualifier",
+    clockInLabelFor(new Date("2026-08-20T16:00:00.000Z"), NOW, TZ),
+    "9:00a"
+  )
+  // 2:55p store-local on Aug 19 — one of the two real frozen cards.
+  check(
+    "a card started YESTERDAY says so",
+    clockInLabelFor(new Date("2026-08-19T21:55:00.000Z"), NOW, TZ),
+    "2:55p yesterday"
+  )
+  // The other one, and the pair is the whole finding: both read as today's
+  // before this change.
+  check(
+    "…and so does the second frozen card",
+    clockInLabelFor(new Date("2026-08-19T22:27:00.000Z"), NOW, TZ),
+    "3:27p yesterday"
+  )
+  // ONE PREFIX, ONE SHAPE (ratified 2026-08-20): the client renders a fixed
+  // " · in " before this string, so "since Aug 19" would read "in since Aug 19".
+  check(
+    "an older card names its date instead",
+    clockInLabelFor(new Date("2026-08-17T21:55:00.000Z"), NOW, TZ),
+    "2:55p Aug 17"
+  )
+  // THE BOUNDARY IS STORE-LOCAL MIDNIGHT, NOT UTC MIDNIGHT, and this is the case
+  // that proves it: 2026-08-20T05:00Z is already Aug 20 in UTC but is still
+  // 10:00p on Aug 19 in America/Los_Angeles. A UTC comparison would call this
+  // today and print a bare "10:00p" — the original bug, re-introduced.
+  check(
+    "the day boundary is STORE-LOCAL, not UTC",
+    clockInLabelFor(new Date("2026-08-20T05:00:00.000Z"), NOW, TZ),
+    "10:00p yesterday"
+  )
+  // Same instant, read from a store on the other side of the date line from it:
+  // in New York that moment is 1:00a on Aug 20, which IS today.
+  check(
+    "…and the same instant is TODAY in an eastern store",
+    clockInLabelFor(new Date("2026-08-20T05:00:00.000Z"), NOW, "America/New_York"),
+    "1:00a"
+  )
+
+  // THE QUALIFIER RIDES clockInAt AND ADDS NO FIELD. The S4 ruling fixes this
+  // payload at three, and this is the assertion that keeps it there through the
+  // change.
+  const stale = assembleClockedInRoster({
+    rows: [row({ startAt: new Date("2026-08-19T21:55:00.000Z") })],
+    namesBySquareId: names,
+    timeZone: TZ,
+    now: NOW,
+  })
+  check("a stale open is labelled through the assembly too", stale[0].clockInAt, "2:55p yesterday")
+  check("and STILL exactly three fields", Object.keys(stale[0]).sort().join(","), "clockInAt,name,title")
+  check("no wage/tip field crept in with the qualifier", /wage|rate|tip|salary/i.test(JSON.stringify(stale)), false)
+
+  // THE COUNT/LIST AGREEMENT IS UNTOUCHED BY THE LABEL, which is the invariant a
+  // display change is most likely to break by accident: the label changes what a
+  // row SAYS, never whether it is kept.
+  const staleCurve = computeClockedInCoverage({
+    rows: [{ startAt: new Date("2026-08-19T21:55:00.000Z"), endAt: null, breakUnpaidMinutes: 0, wageJobId: null }],
+    date: "2026-08-20",
+    timeZone: TZ,
+    now: NOW,
+  }).openCount
+  check("a labelled stale card is still counted by the curve", staleCurve, 1)
+  check("and the roster still lists exactly that many", stale.length, staleCurve)
 
   // THE READ IS OPEN CARDS ONLY, AND THE ROUTE'S select IS THE COUNTS RULING.
   // Source guards, because the regression that threatens these is someone
