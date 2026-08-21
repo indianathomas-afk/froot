@@ -1071,3 +1071,17 @@ const form = useForm({ resolver: zodResolver(schema) })
 **Feature-gated sidebar link:** Show lock icon if module not in `activeModules`. Clicking opens upgrade prompt instead of navigating.
 
 **Upgrade prompt:** Full-page card explaining the feature, current plan, and a "Upgrade Plan" CTA linking to `/settings/billing`.
+
+## DEPLOY_LOG edits are Claude-authored (2026-08-21)
+
+Entries in `docs/DEPLOY_LOG.md` are never hand-edited and never pasted into a
+text editor. Claude composes the entry and hands Gary pasteable terminal
+commands that write it, built in short heredoc chunks with a `wc -l` check
+after each one, then spliced with `head`/`tail`. Every splice is followed by
+`grep -c "^## " docs/DEPLOY_LOG.md` to prove no prior entry was clobbered —
+a count of 1 means restore with `git checkout docs/DEPLOY_LOG.md`.
+
+Why: a long paste into an editor, or into a shell that is still waiting on a
+previous command, fails silently or half-writes. The log is the document
+consulted during a rollback, so a silent half-write is the worst possible
+failure. Short chunks, verified counts, no editors.
