@@ -11830,6 +11830,51 @@ bugs:
       CROSS-REFS: CRON-1 (the parked fix), OVL-S3 (where the count window
       landed), OVL-S4 (where the popup made it visible), DEBT-78 (the duplicate
       Las Brisas Store row noticed during the same investigation, not a cause).
+      MEASURED RESOLUTION 2026-08-20 (Square dashboard, Aug 19, Las Brisas).
+      Everything above is KEPT AS WRITTEN and nothing in it is edited; the
+      paragraphs that asked open questions are answered here rather than
+      rewritten, so the row stays the record of what was suspected and then what
+      was found. In particular the PART (3) paragraph's "NEEDS A SQUARE-SIDE
+      CHECK ... listed here as unproven, deliberately" is the question this
+      block closes.
+      ALL FIVE Aug-19 CARDS ARE CLOSED IN SQUARE. The two Froot still shows open
+      decode as Duncan Ornelas (in 3:27p, 6.47 paid hrs, so out ≈ 9:55p) and
+      EVIDENTLY Emmalea England (in 2:55p, 7.00 hrs, out ≈ 9:55p). The hedge on
+      the second name is deliberate and is kept: she has no Froot staff record,
+      so the identification is inferred from the in-time and duration rather
+      than read from a mapping.
+      THE MECHANISM IS PROVEN, AND IT IS NOT DELETION. Both clocked out ≈9:55p,
+      AFTER Froot's final Aug-19 sync at 9:29p store-local — a gap of roughly
+      twenty-six minutes. A late clock-out landing after the day's last
+      dashboard-triggered sync is never seen, because nothing revisits a prior
+      day. That is the whole defect: not a bad row, not a failed write, just a
+      window that closes at local midnight and a sync that only ever looks at
+      today.
+      PART (3) IS ANSWERED AND THE ANSWER IS "NOT THIS". Square is clean and
+      nothing was deleted, so deletion-blindness (labor-actuals.ts:749-753)
+      DID NOT FIRE HERE and REMAINS THEORETICAL — still recorded, still
+      untested against live data, and still needing its vanish-vs-tombstone
+      ruling before anything is built. This measurement removes it as the
+      explanation for BUG-10; it does not close the limit itself.
+      THE "UNNAMED" ROW WAS LOAD-BEARING, which is worth recording because it
+      was a design decision that could easily have gone the other way. Emmalea
+      England has no Froot staff record, so she is exactly the case
+      assembleClockedInRoster renders as "Unnamed" rather than dropping. Had
+      unresolvable members been filtered out instead, the popup would have
+      listed ONE person while the button still said 2 — the count/list agreement
+      broken, and half of this finding invisible. The D6 posture (an unmatched
+      member is a real state, not a gap) is what made both frozen cards visible
+      at once.
+      COST CONFIRMED LIVE, not merely asserted: a real store's "N on floor" was
+      inflated by two, on a real evening, with two real names attached.
+      WHAT TO DO, UNCHANGED BY THIS. CRON-1 activation is still the systemic fix
+      and still pending Gary's ruling. The cheap half — a date qualifier on any
+      card whose startAt precedes store-local today — is still separable and
+      still worth doing alone; this measurement strengthens it, since both cards
+      were genuinely closed hours before the popup drew them as present.
+      OPERATIONAL FIX, SEPARATE FROM THE CODE: create Emmalea England's Froot
+      staff record. That resolves her "Unnamed" row and is worth doing whatever
+      happens to the sync window — it is a missing record, not a defect.
 
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
