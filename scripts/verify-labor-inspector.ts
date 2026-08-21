@@ -34,6 +34,13 @@
  *      24-tick assumption would misplace every bar on those two days a year.
  *  12. S5-A10 — the per-person total is paidMinutesOf (breaks deducted), NOT the
  *      wall-clock length of the bars.
+ *  13. S5-A12 — NO-SHOW's EVALUATION HORIZON, including the exact staging
+ *      false-positive that produced it: UNR, Friday 2026-08-21, read at 07:17
+ *      Pacific with timecards last synced ≈22:15 the previous evening, where
+ *      three not-yet-started shifts were flagged as no-shows. A shift is eligible
+ *      only once min(now, lastTimecardSyncOkAt) has passed its start plus grace;
+ *      ineligible shifts are neither flagged nor counted, and the page says how
+ *      many are waiting. UNSCHEDULED is deliberately NOT gated the same way.
  *
  * The Aug-19 times and durations are from docs/ROADMAP.yaml's BUG-10 row
  * ("MEASURED RESOLUTION 2026-08-20, Square dashboard, Aug 19, Las Brisas").
@@ -42,10 +49,12 @@ import {
   assembleDayInspector,
   durationFlagsSuppressed,
   scheduleComparable,
+  noShowEligible,
   DEFAULT_INSPECTOR_THRESHOLDS,
   OPEN_LONG_HOURS,
   SHOWED_UP_MIN_OVERLAP_MINUTES,
   DOUBLE_MIN_OVERLAP_MINUTES,
+  NO_SHOW_GRACE_MINUTES,
   type FlagCode,
   type InspectorShiftRow,
   type InspectorTimecardRow,
@@ -488,6 +497,139 @@ console.log("\n12. The per-person total is paidMinutesOf, breaks deducted (S5-A1
   })
   check("cardsOnFloor counts cards, not people", two.cardsOnFloor, 2)
   check("…while people is one", two.people.length, 1)
+}
+
+
+// ── 13. S5-A12 — THE NO-SHOW EVALUATION HORIZON ──────────────────────────────
+console.log(`\n13. NO-SHOW's evaluation horizon, grace ${NO_SHOW_GRACE_MINUTES}m (S5-A12)`)
+{
+  check("the constant", NO_SHOW_GRACE_MINUTES, 20)
+
+  const eightAm = new Date("2026-08-21T08:00:00-07:00")
+  const morningShift = shift({
+    effectiveStartAt: eightAm,
+    effectiveEndAt: new Date("2026-08-21T16:00:00-07:00"),
+  })
+
+  // (a) The shift has not started yet. Read at 7:17a with a sync minutes old —
+  // the sync is FRESH and it still must not fire, because 8a has not happened.
+  const beforeStart = run({
+    shifts: [morningShift],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T07:17:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-21T07:00:00-07:00"),
+  })
+  check("shift at 8a, viewed 7:17a, fresh sync ⇒ no NO-SHOW", beforeStart.counts["NO-SHOW"], 0)
+  check("…and it is counted as pending instead", beforeStart.noShowPendingCount, 1)
+  check("…and the ghost carries no flag", beforeStart.people[0].ghosts[0].flags.length, 0)
+
+  // (b) THE OBSERVED UNR CASE. Read at 3p, well after the 8a shift — but the sync
+  // stopped at 10:15p the PREVIOUS evening, so Froot cannot know whether anyone
+  // clocked in. This is the one a `now`-only fix would still have got wrong.
+  const unr = run({
+    shifts: [morningShift],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T15:00:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-20T22:15:00-07:00"),
+  })
+  check("shift at 8a, viewed 3p, sync 10:15p PRIOR day ⇒ no NO-SHOW", unr.counts["NO-SHOW"], 0)
+  check("…counted as pending", unr.noShowPendingCount, 1)
+  check("…and the horizon is named in store-local time", unr.noShowHorizonLabel, "10:15p Aug 20")
+
+  // (c) The sync HAS reached past the shift, and nobody clocked in. Now it fires.
+  const real = run({
+    shifts: [morningShift],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T15:00:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-21T14:50:00-07:00"),
+  })
+  check("shift at 8a, viewed 3p, sync 2:50p, no card ⇒ NO-SHOW", real.counts["NO-SHOW"], 1)
+  check("…nothing left pending", real.noShowPendingCount, 0)
+
+  // (d) THE GRACE BOUNDARY, driven by the horizon rather than by the clock.
+  const at19 = run({
+    shifts: [morningShift],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T15:00:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-21T08:19:00-07:00"),
+  })
+  check("horizon at start+19m ⇒ no NO-SHOW", at19.counts["NO-SHOW"], 0)
+  const at21 = run({
+    shifts: [morningShift],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T15:00:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-21T08:21:00-07:00"),
+  })
+  check("horizon at start+21m ⇒ NO-SHOW", at21.counts["NO-SHOW"], 1)
+
+  // The predicate on its own, at both sides of the boundary and at null.
+  check(
+    "noShowEligible at start+19m",
+    noShowEligible(eightAm, new Date("2026-08-21T08:19:00-07:00").getTime(), NO_SHOW_GRACE_MINUTES),
+    false
+  )
+  check(
+    "noShowEligible at start+20m (inclusive)",
+    noShowEligible(eightAm, new Date("2026-08-21T08:20:00-07:00").getTime(), NO_SHOW_GRACE_MINUTES),
+    true
+  )
+  check("noShowEligible with a null horizon", noShowEligible(eightAm, null, NO_SHOW_GRACE_MINUTES), false)
+
+  // (e) A never-synced store evaluates nothing and says so with the OTHER sentence.
+  const neverSynced = run({
+    shifts: [morningShift],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T15:00:00-07:00"),
+    timecardSyncOkAt: null,
+  })
+  check("never synced ⇒ no NO-SHOW", neverSynced.counts["NO-SHOW"], 0)
+  check("never synced ⇒ pending", neverSynced.noShowPendingCount, 1)
+  check("never synced ⇒ no horizon label", neverSynced.noShowHorizonLabel, null)
+
+  // (f) MIXED — one shift past the horizon and unattended, one still ahead of it.
+  // The count must reflect only the evaluated one.
+  const mixed = run({
+    shifts: [
+      morningShift,
+      shift({
+        effectiveStartAt: new Date("2026-08-21T18:00:00-07:00"),
+        effectiveEndAt: new Date("2026-08-21T22:00:00-07:00"),
+      }),
+    ],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T15:00:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-21T14:50:00-07:00"),
+  })
+  check("mixed — one evaluated NO-SHOW", mixed.counts["NO-SHOW"], 1)
+  check("mixed — one still pending", mixed.noShowPendingCount, 1)
+  check("mixed — the pending ghost is unflagged", mixed.people[0].ghosts[1].flags.length, 0)
+
+  // (g) A SUPPRESSED SCHEDULE PRODUCES ONE SENTENCE, NOT TWO. Where there is no
+  // plan to compare against, nothing is "pending" either — the reader gets the
+  // schedule-suppressed message alone.
+  const suppressed = run({
+    shifts: [morningShift],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T07:17:00-07:00"),
+    hasSchedule: false,
+  })
+  check("schedule suppressed ⇒ nothing counted pending", suppressed.noShowPendingCount, 0)
+  check("schedule suppressed ⇒ its own flag is set", suppressed.scheduleSuppressed, true)
+
+  // (h) UNSCHEDULED IS NOT GATED BY THE HORIZON. A card exists — we are looking at
+  // it — so the finding is evidence-positive and stands however far behind the
+  // sync is. Gating it would suppress a TRUE finding for no reason.
+  const unscheduledBehindHorizon = run({
+    timecards: [
+      card({ startAt: new Date("2026-08-21T09:00:00-07:00"), endAt: new Date("2026-08-21T17:00:00-07:00") }),
+    ],
+    shifts: [],
+    date: "2026-08-21",
+    now: new Date("2026-08-21T18:00:00-07:00"),
+    timecardSyncOkAt: new Date("2026-08-20T22:15:00-07:00"),
+    hasSchedule: true,
+  })
+  check("UNSCHEDULED still fires behind the horizon", unscheduledBehindHorizon.counts.UNSCHEDULED, 1)
 }
 
 console.log(`\n${failures === 0 ? "PASS" : `FAIL — ${failures} check(s)`}`)

@@ -66,6 +66,8 @@ type InspectorResponse = {
   jobIds: string[]
   scheduleSuppressed: boolean
   durationSuppressed: boolean
+  noShowPendingCount: number
+  noShowHorizonLabel: string | null
   jobs: Job[]
   timecardSync: { health: Health; lastSyncOkAt: string | null; lastTimecardCount: number }
   scheduleSync: { health: ScheduleHealth; lastSyncOkAt: string | null; lastShiftCount: number }
@@ -356,6 +358,24 @@ function FlagStrip({ res }: { res: InspectorResponse }) {
               No schedule data for this store-day, so <strong>No-show</strong> and{" "}
               <strong>Unscheduled</strong> are not computed. Nothing here says a shift was unplanned —
               only that there is no plan to compare it against.
+            </span>
+          </p>
+        )}
+        {/* S5-A12 — shifts the sync has not reached yet are NAMED, never silently
+            dropped. Without this sentence a reader has no way to tell "checked,
+            nobody missing" from "not checked yet", which is the same ambiguity
+            that made the UNR false-positive look reasonable. */}
+        {!res.scheduleSuppressed && res.noShowPendingCount > 0 && (
+          <p className="flex items-start gap-1.5 text-[12px] text-[var(--color-muted-foreground)] mt-1.5">
+            <CircleAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span>
+              {res.noShowPendingCount} shift{res.noShowPendingCount === 1 ? "" : "s"} not yet evaluated
+              for no-show —{" "}
+              {res.noShowHorizonLabel
+                ? `timecards synced ${res.noShowHorizonLabel}`
+                : "timecards have never synced for this store"}
+              . A shift cannot be a no-show until the timecard sync has reached past its start; until
+              then it is drawn as a plain scheduled shift and counted nowhere.
             </span>
           </p>
         )}

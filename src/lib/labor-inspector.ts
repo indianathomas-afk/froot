@@ -87,16 +87,64 @@ export const DOUBLE_MIN_OVERLAP_MINUTES = 1
 /// from something that means something else.
 export const SHOWED_UP_MIN_OVERLAP_MINUTES = 15
 
+/// NO-SHOW's GRACE (S5-A12). How long after a shift's start we wait before the
+/// absence of a timecard means anything.
+///
+/// Twenty minutes: long enough that a few minutes' late clock-in is not called a
+/// no-show, short enough that a real one surfaces while the shift can still be
+/// covered. It is the SECOND half of the eligibility rule and not the whole of it
+/// — see noShowEligible() — because grace alone would still have produced the
+/// defect this constant arrived with.
+export const NO_SHOW_GRACE_MINUTES = 20
+
 export type InspectorThresholds = {
   openLongHours: number
   doubleMinOverlapMinutes: number
   showedUpMinOverlapMinutes: number
+  noShowGraceMinutes: number
 }
 
 export const DEFAULT_INSPECTOR_THRESHOLDS: InspectorThresholds = {
   openLongHours: OPEN_LONG_HOURS,
   doubleMinOverlapMinutes: DOUBLE_MIN_OVERLAP_MINUTES,
   showedUpMinOverlapMinutes: SHOWED_UP_MIN_OVERLAP_MINUTES,
+  noShowGraceMinutes: NO_SHOW_GRACE_MINUTES,
+}
+
+/// THE NO-SHOW EVALUATION HORIZON (S5-A12), and it is A2's posture applied to the
+/// second absence-derived flag.
+///
+/// MEASURED ON STAGING 2026-08-21 07:17 Pacific (UNR, Friday Aug 21). NO-SHOW
+/// fired on three shifts that HAD NOT YET STARTED — ghosts at ~8a, ~10a and ~3p,
+/// read at 07:17 — on a store whose timecards had last synced ~22:15 the previous
+/// evening. Two defects in one condition, and they are worth separating because
+/// fixing only the obvious one would have left the other live:
+///
+///   (1) IT EVALUATED THE FUTURE. A 3p shift cannot be a no-show at 7:17a. On its
+///       own this would be fixed by comparing against `now`.
+///   (2) IT EVALUATED AGAINST `now` RATHER THAN AGAINST WHAT HAD BEEN SYNCED.
+///       Froot had heard nothing since 22:15; it could not have known whether
+///       anyone clocked in for the 8a shift either. A `now` comparison alone would
+///       have kept flagging that one, confidently and wrongly, all morning.
+///
+/// So the horizon is `min(now, lastTimecardSyncOkAt)` — the same quantity A2 uses
+/// for OPEN-LONG, and deliberately the SAME EXPRESSION rather than a parallel one:
+/// NO FLAG DERIVED FROM DURATION OR FROM ABSENCE MAY ASSERT ANYTHING ABOUT A
+/// WINDOW THE TIMECARD SYNC HAS NOT REACHED. A never-synced store yields a null
+/// horizon and therefore no NO-SHOW at all, which is the correct answer rather
+/// than a degenerate one.
+///
+/// UNSCHEDULED IS DELIBERATELY NOT GATED BY THIS. It is EVIDENCE-POSITIVE — a card
+/// exists, we are looking straight at it — so it asserts something about data we
+/// have rather than about data we might be missing. A horizon on it would suppress
+/// a true finding for no reason.
+export function noShowEligible(
+  shiftStartAt: Date,
+  syncedThroughMs: number | null,
+  graceMinutes: number
+): boolean {
+  if (syncedThroughMs === null) return false
+  return shiftStartAt.getTime() + graceMinutes * 60000 <= syncedThroughMs
 }
 
 /// THE SCHEDULE-SUPPRESSION CONDITION (S5-A7), exported as a predicate because it
@@ -233,6 +281,15 @@ export type DayInspectorResult = {
   /// True = NO-SHOW and UNSCHEDULED were not computed. The page says so in a
   /// sentence rather than rendering zeros that would read as "no variance".
   scheduleSuppressed: boolean
+  /// S5-A12 — assigned shifts the timecard sync has not reached yet, so NO-SHOW
+  /// could not be evaluated for them. They render as plain ghosts and the page
+  /// NAMES THE COUNT: silently omitting them would put the reader back where the
+  /// false-positive did, believing the page had checked something it had not.
+  noShowPendingCount: number
+  /// Pre-formatted store-local instant the NO-SHOW horizon sits at, e.g.
+  /// "10:15p Aug 20". Null = the timecard sync has never succeeded for this store,
+  /// which is a different sentence and the page renders it as one.
+  noShowHorizonLabel: string | null
   /// True = OPEN-LONG was not computed, because the timecard sync is not fresh.
   durationSuppressed: boolean
 }
@@ -291,12 +348,18 @@ export function assembleDayInspector({
   // cannot disagree about where an open card stops.
   const ceilingMs = Math.min(now.getTime(), dayEnd)
 
-  // S5-A2 — AND THIS ONE IS DIFFERENT ON PURPOSE. OPEN-LONG asks "how long has
-  // this been open", which is only answerable up to the last sync. Using the bar
-  // ceiling here would let a store whose sync died on Tuesday grow a fresh crop of
-  // ten-hour alarms every day after. The asymmetry is the point: the BAR draws
-  // what the day looked like, the FLAG measures what we actually know.
-  const openLongCeilingMs =
+  // HOW FAR THE TIMECARD SYNC HAS ACTUALLY REACHED — and this one is different
+  // from the bar ceiling on purpose. Using the bar ceiling for a flag would let a
+  // store whose sync died on Tuesday grow a fresh crop of alarms every day after.
+  // The asymmetry is the point: the BAR draws what the day looked like, a FLAG
+  // measures only what we actually know.
+  //
+  // ONE EXPRESSION, TWO FLAGS, DELIBERATELY. OPEN-LONG (S5-A2) and NO-SHOW
+  // (S5-A12) both rest on it, and writing it once is what makes the shared rule
+  // structural rather than a coincidence between two similar-looking lines: no
+  // flag derived from duration or from absence may assert anything about a window
+  // the sync has not reached. UNSCHEDULED is evidence-positive and needs neither.
+  const syncedThroughMs =
     timecardSyncOkAt === null ? null : Math.min(now.getTime(), timecardSyncOkAt.getTime())
 
   const today = localDateStr(now, timeZone)
@@ -335,6 +398,10 @@ export function assembleDayInspector({
   const memberIds = [...new Set([...cardsBy.keys(), ...shiftsBy.keys()])]
   const jobIds = new Set<string>()
   let cardsOnFloor = 0
+  // S5-A12 — assigned shifts the sync has not reached yet. Counted only where the
+  // schedule is comparable at all, so a store with no plan produces ONE sentence
+  // (schedule suppressed) rather than two saying overlapping things.
+  let noShowPending = 0
 
   type Draft = {
     name: string
@@ -392,8 +459,8 @@ export function assembleDayInspector({
       // OPEN-LONG — today's cards only (a prior-day open card is OPEN-STALE, which
       // is the stronger and more specific statement), and only where the sync is
       // fresh enough for a duration to mean anything.
-      if (isOpen && startedDate === today && !durationSuppressed && openLongCeilingMs !== null) {
-        const openMinutes = (openLongCeilingMs - tc.startAt.getTime()) / 60000
+      if (isOpen && startedDate === today && !durationSuppressed && syncedThroughMs !== null) {
+        const openMinutes = (syncedThroughMs - tc.startAt.getTime()) / 60000
         if (openMinutes >= thresholds.openLongHours * 60) {
           barFlags.add("OPEN-LONG")
           flags.add("OPEN-LONG")
@@ -448,22 +515,29 @@ export function assembleDayInspector({
       })
     })
 
-    // NO-SHOW — a scheduled shift nobody's card overlaps by enough to count.
+    // NO-SHOW — a scheduled shift nobody's card overlaps by enough to count, AND
+    // ONLY ONCE THE SYNC HAS REACHED PAST ITS START PLUS GRACE (S5-A12). A shift
+    // that is not yet eligible is neither flagged NOR counted: it renders as a
+    // plain ghost, and the page says how many are waiting rather than hiding them.
     const ghosts = memberShifts.map((s) => {
       const ghostFlags = new Set<FlagCode>()
       if (hasSchedule) {
-        const matched = cards.some(
-          (tc) =>
-            overlapMinutes(
-              tc.startAt.getTime(),
-              clockedEndMs(tc, ceilingMs),
-              s.effectiveStartAt.getTime(),
-              s.effectiveEndAt.getTime()
-            ) >= thresholds.showedUpMinOverlapMinutes
-        )
-        if (!matched) {
-          ghostFlags.add("NO-SHOW")
-          flags.add("NO-SHOW")
+        if (!noShowEligible(s.effectiveStartAt, syncedThroughMs, thresholds.noShowGraceMinutes)) {
+          noShowPending++
+        } else {
+          const matched = cards.some(
+            (tc) =>
+              overlapMinutes(
+                tc.startAt.getTime(),
+                clockedEndMs(tc, ceilingMs),
+                s.effectiveStartAt.getTime(),
+                s.effectiveEndAt.getTime()
+              ) >= thresholds.showedUpMinOverlapMinutes
+          )
+          if (!matched) {
+            ghostFlags.add("NO-SHOW")
+            flags.add("NO-SHOW")
+          }
         }
       }
       jobIds.add(s.effectiveJobId)
@@ -530,6 +604,17 @@ export function assembleDayInspector({
     cardsOnFloor,
     jobIds: [...jobIds].sort(),
     scheduleSuppressed: !hasSchedule,
+    noShowPendingCount: noShowPending,
+    // THE DATE IS ALWAYS PRESENT, never dropped when the sync landed today. The
+    // sentence this feeds is read while someone is deciding whether to believe a
+    // flag, and "synced 10:15p" with no date is exactly the ambiguity that let the
+    // UNR false-positive look reasonable for a morning.
+    noShowHorizonLabel:
+      syncedThroughMs === null
+        ? null
+        : `${formatClockInLabel(new Date(syncedThroughMs), timeZone)} ${shortDate(
+            localDateStr(new Date(syncedThroughMs), timeZone)
+          )}`,
     durationSuppressed,
   }
 }
