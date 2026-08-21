@@ -6,6 +6,26 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Overlay polish rulings, S4 — 2026-08-20 (Gary)
+
+- I am deliberately narrowing the S1b person-data principle for one
+  case: the Clocked-in view gains an on-demand roster popup listing
+  WHO is clocked in — name, position title, clock-in time (store-
+  local). This puts three structured person-level fields on a STORE-
+  visible surface, and that is intended: who is on the floor right
+  now is the same information as looking around the room. The notes
+  ruling stands untouched — free text never ships. (Gary)
+- The popup rides labor.schedule.view exactly as the overlay does;
+  the /users override removes both together. NEVER wages, rates,
+  tips, or any pay data in the popup or its payload. (Gary)
+- Names load ON CLICK ONLY via a separate endpoint — never in the
+  default card payload. The popup shows NOW only; no historical
+  rosters. (Gary)
+- Legend chips on the Labor Coverage card become click-to-toggle:
+  any series can be hidden/shown to cut visual noise. Client-side
+  display state only, resetting on day navigation; no data or
+  computation change. (Gary)
+
 ## Schedule overlay, S1b rulings — 2026-08-20 (Gary)
 
 - "Scheduled" means the EFFECTIVE shift: published where it exists,
