@@ -2,6 +2,41 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## c183331 — 2026-08-21 — Roster hours editor (BUG-11, BUG-12) + forecastExempt ruling and R7
+
+**Merge SHA:** `c1833313a29b63adf11be5d9e20b744f9797599d`
+**Payload:** 6 commits, `4ef2cea`..`041bfaa` (staging → main, `--no-ff`)
+**Prior main tip:** `3d10d46` (overlay track promotion, same day)
+**Diff:** 7 files, +1,229 / −35 — no schema, no migration, no env, no cron
+
+### What shipped
+
+- **BUG-11** — WK HRS on `/settings/labor` → Positions appeared inert. Three causes stacked: Square's `weekly_hours` was the input's placeholder, so an empty box displayed a grey 40 exactly where a typed value sits and could not be deleted; a same-value guard compared `null === null` so clearing an already-unset field never issued a request; and the error branch was cleared by the `load()` that followed it, so a failed PATCH reported nothing. Square's figure now renders beside the box, never inside it.
+- **BUG-12** — explicit per-row Save. Enter commits the focused row, blur also saves, `0` is a savable value distinct from blank, and each row reports Saving / Saved / Not saved. New `src/lib/labor-roster-hours.ts` (client-bundle-safe) holds the parse and the PATCH schema so fixtures import the same code the UI calls.
+- **forecastExempt** — Gary's ruling ratified into DECISIONS.md: forecast participation is a property of the person, not of an hours value. The audit that followed found the flag would suppress nothing.
+
+### R7 — opened, unruled
+
+`weeklyHoursOverride` has five touch points and none reach a calculation: the column (`schema.prisma:2606`), the sync that omits it (`labor-roster.ts:230`), the read (`labor-roster.ts:370`), the write (`route.ts:65`), and the settings card. `getStoreRoster` has one caller.
+
+The forecast engine cannot read a person even in principle. `labor-plan.ts:150`'s eight reads are sales caches, store, laborPosition, laborDaySplit, laborDayAdjustment, weeklyDayHours, storeHours. The three core engines (`labor-budget`, `labor-coverage`, `labor-daily`) contain no prisma reference at all. `budget.salariedHours` sums `LaborPosition` rows only (`labor-budget.ts:74-77`) — org-wide archetypes with no `storeId` and no relation to `StaffMember`.
+
+So a `forecastExempt` flag would leave every forecast figure byte-identical while displaying a badge asserting an effect that does not exist. What is actually in the arithmetic is one org-wide row — General Manager / SALARIED / `impliedWeeklyHours: 40` — applied to every store, naming nobody.
+
+**R7 is open with no recommendation.** Gary's ratified ruling is implementable only if the forecast gains a per-person input, which crosses L-2 seam (b) (DECISIONS.md 2026-08-05). Two rulings disagree; that is Gary's to settle. `StaffMember.isCorporate` already exists and would need settling alongside. Kristie Connolly's split across Las Brisas and UNR is unexpressible under every option but the per-person one.
+
+### Field verification (staging, 2026-08-21)
+
+Kelton Thomas at Las Brisas renders an empty box with "Square 40" beside it. Typing a value and saving persists it. Clearing to blank persists as blank. `0` saves and reads back distinct from blank. Enter commits the focused row without a click. Per-row status text observed ("Saved" on Karson Thomas).
+
+Note: the first verification pass was run against production by mistake and reported the fixes as failing. The `~staging` badge is the tell — fourth recorded instance of this trap.
+
+### Rollback
+
+    git revert -m 1 c1833313a29b63adf11be5d9e20b744f9797599d
+
+No schema change, so a revert is clean.
+
 ## 3d10d46 — 2026-08-21 — Advanced Labor schedule overlay track (OVL-S2…S5 + CRON-1 + BUG-10)
 
 **Merge SHA:** `3d10d461fdec2cdfe241fc20a833dbde7e109a79`
