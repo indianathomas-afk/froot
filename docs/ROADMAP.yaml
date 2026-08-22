@@ -20495,3 +20495,70 @@ rulings:
       asking for — and it is the last of the six to close, deliberately, since a
       meta-question about a set cannot honestly be settled before the set is.
     links: [DEBT-36, DEBT-38, DEBT-41, DEBT-42, DEBT-45, DEBT-48]
+
+  - id: R7
+    status: open
+    asked: 2026-08-21
+    title: >
+      forecastExempt has nothing to suppress — the labor forecast is entirely
+      position-based, so what should happen to LaborPosition instead?
+    question: >
+      Gary ruled 2026-08-21 that forecast participation is a property of the
+      person, and commissioned an explicit forecastExempt flag on StaffMember.
+      The blocking trace commissioned in the same prompt found that NO PERSON
+      ENTERS THE FORECAST ARITHMETIC AT ALL. getWeeklyDayPlan
+      (src/lib/labor-plan.ts:150) is the single engine behind day-card hours,
+      Schedulable, Suggested, the coverage curve and the Rebalancer, and its
+      eight database reads (labor-plan.ts:159-167) contain no staffMember, no
+      squareTeamMemberWage and no squareTimecard. budget.salariedHours
+      (labor-budget.ts:74-77) sums LaborPosition rows fetched at
+      labor-plan.ts:161, and LaborPosition is ORG-WIDE — no storeId, no relation
+      to StaffMember. weeklyHoursOverride reaches no calculation anywhere: five
+      touch points, all schema, sync, read, write or render. So a flag on a
+      person would suppress a number that is never counted — a flag that appears
+      to work and changes nothing. The full trace with file:line is
+      docs/prompts/FORECAST_EXEMPT_AUDIT.md. What is actually in the arithmetic
+      is ONE seeded org-wide row — General Manager, SALARIED, impliedWeeklyHours
+      40 (src/lib/labor-positions.ts:9) — contributing 40 hours to EVERY store's
+      plan independently, nine-plus times across the estate, naming nobody. The
+      question is what to do about that, and it is a decision rather than work.
+    options:
+      - >
+        (a) Make LaborPosition per-store, or give it a per-store override, so a
+        store with no resident GM can carry a different implied figure. Schema
+        change; keeps the model position-based and keeps seam (b) intact.
+      - >
+        (b) Keep it org-wide and change the seeded value or the seeding rule.
+        Cheapest; does not distinguish stores from each other.
+      - >
+        (c) Give the forecast a per-person input for the first time, at which
+        point forecastExempt acquires something to suppress. THIS IS THE ONLY
+        BRANCH IN WHICH THE 2026-08-21 RULING BECOMES IMPLEMENTABLE AS WRITTEN,
+        and it COLLIDES WITH L-2 SEAM (b), which forbids a Square-sourced
+        per-person input reaching a core engine (DECISIONS.md 2026-08-05). Two
+        of Gary's own rulings disagree here; that conflict has to be settled
+        before any build, and settling it is the substance of this entry.
+      - >
+        (d) Do nothing to the model — treat the GM's 40 as intentional, per the
+        2026-08-21 ruling that scheduling hours count the whole crew, GM
+        included. The forecast is then correct as built and the exempt flag is
+        withdrawn rather than deferred.
+    recommendation: >
+      NONE OFFERED, DELIBERATELY. The audit was instructed not to design around
+      its own finding, and choosing between these is exactly that design. What
+      the audit will say is which fact should drive the choice: option (c) is
+      the only one that honours the ratified ruling literally, and it is the one
+      that crosses a seam another ruling put there. Everything else is a
+      question about how much per-store fidelity the rate legend deserves.
+      TWO ADJACENT FACTS THE RULING WILL WANT. StaffMember.isCorporate already
+      exists as a Boolean with a comment that already reasons about forecast
+      leakage; if a person-level exemption is ever built, the relationship
+      between the two booleans must be settled in the same sitting, because two
+      flags that both mean "not an ordinary store body" is how a model rots. And
+      SHARED MANAGERS REMAIN UNEXPRESSIBLE UNDER EVERY OPTION EXCEPT (c):
+      Kristie Connolly covers Las Brisas and UNR and is SPLIT, which neither a
+      boolean on her record nor an org-wide position row can say. That is a
+      property of the model rather than of the proposed flag, it was explicitly
+      not solved in this session, and it is folded in here rather than filed as
+      work because its next step is also a decision.
+    links: [L-2, BUG-11, BUG-12]
