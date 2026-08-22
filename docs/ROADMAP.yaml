@@ -12460,8 +12460,124 @@ bugs:
       CROSS-REFS: L-2 (AL-3 built this card and recorded WK HRS as deliberately
       inert, Gary's Q9 2026-08-19), DEBT-78 (the duplicate Las Brisas Store row —
       /settings/labor's store picker still offers both).
+      SUPERSEDED ON STATUS BY BUG-12, 2026-08-21. 4ef2cea and 3cfb99c were
+      PUSHED by Gary and are on staging; the sentence below is kept as written
+      because it was true when written. The fix it describes was incomplete —
+      see BUG-12, which is the same field.
       STATUS IS in_progress AND NOT staging: 4ef2cea is LOCAL AND NOT PUSHED
       (pushes are Gary's), per WORKFLOW.md § Session completion rules 4.
+
+
+  - id: BUG-12
+    status: in_progress
+    commits: [2116965]
+    title: >
+      WK HRS, second pass — type="number" hid the caret so the box could not be
+      emptied, Enter refused in silence, and 0 was rejected at three layers at
+      once
+    notes: >
+      REPORTED 2026-08-21 by Gary against STAGING at 3cfb99c, i.e. against
+      BUG-11's own fix. THE DEPLOYED SHA WAS CONFIRMED BEFORE ANY OF THIS WAS
+      BELIEVED (CLAUDE.md § Staging Verification): the staging alias
+      froot-git-staging-indianathomas-2483s-projects.vercel.app serves
+      deployment froot-n5l82vy9a, and `vercel ls --meta
+      githubCommitSha=3cfb99c16b83f8a93c65155c9b25a0e252e173ee` returns that
+      same deployment. That check mattered here rather than being ceremony:
+      three of Gary's four observations describe BUG-11's PRE-FIX code exactly,
+      and "staging is stale" was the cheap, wrong, and very attractive
+      explanation. It was ruled out in two commands before a line was changed.
+      ALL THREE FINDINGS WERE REPRODUCED IN A BROWSER against the real
+      WeeklyHoursCell before anything was edited, via a throwaway probe page
+      under the public /menu route (src/proxy.ts:11) with a fake onSave — the
+      dev DB still holds ZERO SquareTeamMemberWage rows, so the roster itself
+      renders empty locally and there is nothing to click on the real page. The
+      probe was deleted before the commit; `next build` at 2116965 emits no
+      /menu route.
+      FINDING 1 WAS NOT A PLACEHOLDER, WHICH IS THE WHOLE POINT. Gary read
+      "pressing Delete makes 40 appear" as the field defaulting back. It is
+      not: hasAttribute("placeholder") reads FALSE on the live input, and a
+      genuinely empty box gained nothing under Delete pressed three times. The
+      cause was type="number", which EXPOSES NO CARET — selectionStart reads
+      null and setSelectionRange throws InvalidStateError, both measured on the
+      old build. With no caret the user cannot tell where a keystroke will
+      land, one Delete frequently removes nothing, and a box still showing 40 is
+      indistinguishable from one that reset itself. FIXED as type="text" with
+      inputMode="numeric" (selectionStart now reads a real offset), PLUS an
+      explicit Clear control on any non-empty row so that reaching blank never
+      depends on caret position, keyboard layout, or what Delete means on this
+      platform. DO NOT "IMPROVE" THIS BACK TO type="number".
+      FINDING 2 WAS A SILENT REFUSAL, NOT A MISSING HANDLER. The onKeyDown was
+      there and does fire — a well-formed Enter committed the row in the probe,
+      measured twice (over a blank box and over "0"). What it did not do was
+      say anything when the draft did not parse: save() returned early and
+      silently, so an Enter pressed over a bad value was indistinguishable from
+      an Enter that was never wired. NOTE THE HARNESS ARTIFACT, recorded because
+      it nearly produced a wrong finding: the automation's "Return" key arrives
+      with e.key === "" and does nothing, while "Enter" arrives correctly and
+      commits. A tool's key naming is not evidence about a real keyboard. Enter
+      now surfaces the reason; blur commits as well, since Gary finds blur
+      natural, guarded by the last-committed draft so that blurring onto the
+      Save button cannot write twice — measured as one save, not two.
+      FINDING 3 WAS REAL AND WAS THREE LAYERS DEEP: min={1} on the input,
+      MIN_WEEKLY_HOURS = 1 in parseWeeklyHoursDraft, and .min(1) in the route's
+      zod. All three now admit 0.
+      ZERO AND BLANK ARE DIFFERENT ANSWERS — Gary's ruling, and the rule is
+      written at MIN_WEEKLY_HOURS so the next reader finds it before the next
+      consumer is added. null means NO OVERRIDE and Square's own weekly_hours
+      stands; 0 means EXPLICITLY ZERO HOURS. Both live in the same nullable Int
+      column and NO SCHEMA CHANGE WAS NEEDED — 0 is a perfectly good Int. Every
+      existing consumer of weeklyHoursOverride was audited for falsy handling
+      BEFORE the change (`||`, `!x`, a truthy ternary): there is none, every one
+      is a passthrough or an explicit `!= null`. That audit is the reason this
+      was safe to do inside TIER 2 rather than a ruling in its own right.
+      THE CARD-LEVEL SAVE, Gary's reasoning ratified: fifteen-plus editable rows
+      saving implicitly, one at a time, leaves the state of the table AS A WHOLE
+      unknowable. Per-row saves stay and the button is an ADDITIONAL deliberate
+      commit — "Save changes" at the foot of the roster, a live "N unsaved
+      changes" / "All changes saved" count, and a separate count of rows that
+      must be fixed first. One bad box does not strand the other fourteen. This
+      required lifting the drafts out of WeeklyHoursCell into TeamRosterView,
+      because a button at the foot of the table cannot commit edits it cannot
+      see; a welcome side effect is that the render-time state adjustment the
+      previous cell needed is gone entirely.
+      THE A13 POINT IS TAKEN AND ACTED ON. Gary asked whether the fixture tests
+      the path the UI takes. BUG-11's did call the same parse the UI calls, so
+      it was not asserting an input as an output — but it RE-IMPLEMENTED the
+      wiring around it, which proves only that the fixture agrees with itself.
+      summarizeRosterEdits and pendingCommitIds are now exported and are what
+      the save bar's count and the button's row selection actually run, so
+      section 10 asserts the button's own code. 61 checks, up from 39.
+      WHAT IS BROWSER-PROVEN VS FIXTURE-ONLY, stated because the distinction is
+      the honest part of this row. MEASURED IN A BROWSER on the real component:
+      no placeholder attribute; an empty box staying empty under Delete;
+      selectionStart null under type="number" and a real offset under
+      type="text"; Clear emptying a box holding 40; Enter committing blank
+      (-> null) and committing "0" (-> 0); blur committing 32 exactly once; and
+      0 and null coexisting as distinct stored values on two rows at the same
+      time. FIXTURE-ONLY, NOT CLICKED: the "Save changes" button itself and its
+      multi-row batch, since the probe rendered cells rather than the roster
+      card — its arithmetic and row selection are asserted as pure functions and
+      the wiring is typechecked, and that is all that can be claimed. ALSO NOT
+      EXERCISED: the Delete and Backspace KEYSTROKES themselves. The automation
+      produced no edit from either even with the caret measured at offset 2,
+      which is a harness limit, not an app behaviour — so the claim made here is
+      the structural one (a text input has a caret where a number input has
+      none) plus the Clear control that makes the keystroke unnecessary.
+      NOTHING TOUCHED DOWNSTREAM: how salariedHours is computed, the GM-hours
+      model, any coverage flag, the Rebalancer, every dollar and
+      labor-percentage figure. The column remains WRITABLE, not CONSUMED —
+      budget.salariedHours still sums LaborPosition rows (labor-budget.ts:74-77)
+      and no core engine reads weeklyHoursOverride.
+      GATES: scoped eslint zero new (the same four pre-existing
+      react-hooks/set-state-in-effect errors in labor-settings-client.tsx, line
+      numbers shifted); next build green; verify suite green except DEBT-76's
+      exact nine, diffed sorted against a FRESHLY captured stashed-HEAD baseline
+      — identical; import wall unchanged.
+      STATUS IS in_progress AND NOT staging: 2116965 is LOCAL AND NOT PUSHED
+      (pushes are Gary's), per WORKFLOW.md § Session completion rules 4.
+      CROSS-REFS: BUG-11 (the first pass at this field, whose fix this one
+      corrects), L-2 (AL-3 built the card and recorded WK HRS as deliberately
+      inert).
 
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
