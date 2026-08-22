@@ -20585,7 +20585,14 @@ rulings:
       the schema, the resolution rule, the UI and the fate of
       WEEKLY_GM_CAP_HOURS wait on a second ruling. The audit and plan answering
       this are at docs/prompts/R7_PER_STORE_SALARIED_AUDIT.md, deviations
-      S5-D18..S5-D23. Its load-bearing finding, which resizes the ruling: the
+      S5-D18..S5-D23, with an addendum at
+      docs/prompts/R7_PER_STORE_SALARIED_AUDIT_ADDENDUM.md (S5-D24..S5-D27)
+      covering the pre-state capture Gary took on staging before the build
+      (docs/prompts/r7_budget_BEFORE_staging_2026-08-22.jsonl, f071158) — twelve
+      stores at weekStart 2026-08-10, of which five carry budgets, verified to
+      recompute exactly from the seeded legend at 50 of 50 fields, pinning
+      blendedHourlyRate 14.5 and salariedCost 800 / salariedHours 40 as the
+      explicit invariant assertions. Its load-bearing finding, which resizes the ruling: the
       weekly budget's BLENDED HOURLY RATE is the unweighted mean of
       LaborPosition's active HOURLY rows (src/lib/labor-budget.ts:88-91), so a
       per-store dimension on the WHOLE table would move every store's hourly
