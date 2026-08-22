@@ -6,6 +6,49 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Absent means zero, and L-2 seam (b) is amended — 2026-08-22 (Gary)
+
+Gary's rulings, in his words:
+
+- **Absent means zero.** A store with no salaried declaration carries no
+  salaried hours. The org-wide archetype no longer applies as a fallback.
+  This deliberately re-baselines the estate: ten stores currently charged
+  $800/week for a manager who doesn't work there will stop being charged
+  it, and their numbers will move on purpose. (Gary)
+- **L-2 seam (b) is amended.** Individual people and their store
+  allocations may reach the labor forecast. The seam stood on the premise
+  that person-level data is Square-sourced and unstable; allocation and
+  exemption are Froot's own facts about the business, entered
+  deliberately by an admin, not synced. (Gary)
+
+**THE FIRST RULING REVERSES `resolveSalariedHours`'s FALLBACK, WHICH IS THE ONE
+LINE THE R7-B BUILD WAS DESIGNED AROUND.** `src/lib/labor-position-hours.ts`
+returns `position.impliedWeeklyHours` when a store has not declared — chosen
+precisely so an empty table reproduced today's numbers byte for byte. Under this
+ruling it returns zero instead, and the emptiness that was the promotion
+guarantee becomes the thing that moves the estate. **R7-B is built and verified
+on staging at `1f3eba8` and MUST NOT PROMOTE ON ITS OLD GATE.** The replacement
+gate is Gary's item 6 and is proposed, not built, in
+`docs/prompts/R7_EXEMPT_AUDIT.md`. (Claude)
+
+**WHY THE SEAM AMENDMENT IS NARROWER THAN IT LOOKS, and the distinction is
+Gary's own.** Seam (b) forbade a SQUARE-SOURCED input reaching a core engine.
+What it is amended to admit is not Square data at all: an allocation or an
+exemption is an admin's deliberate statement about the business, stored in
+Froot, never written by a sync. The mirrored Square tables — `SquareTimecard`,
+`SquareScheduledShift`, and the wage mirror's Square-owned columns — stay
+outside the core engines exactly as before, and the boundary test ("drop every
+Square-labor table and every existing labor surface must render byte-identically")
+still passes for those. **What changes is that "person-level" is no longer a
+synonym for "Square-sourced."** That conflation is what the original seam
+encoded, and it is what this amendment separates. (Claude)
+
+**THE SEAM'S ORIGINAL TEXT IS MARKED IN PLACE, NOT EDITED** —
+`docs/ROADMAP.yaml`, L-2 § SEAM (b) THE DATA BOUNDARY. The amendment is
+prepended above it per preserve-and-mark; every word of the 2026-08-05 boundary
+stands underneath, because it records what was believed and why, and most of it
+is still in force. (Claude)
+
 ## R7 option B — the build rulings: LaborPositionStoreHours — 2026-08-22 (Gary)
 
 Gary's rulings, in his words:
@@ -126,6 +169,27 @@ audit's §5 proposes the narrow shape that avoids it and states plainly which
 option is deliverable additively. (Claude)
 
 ## Forecast participation is a property of the person, not of an hours value — 2026-08-21 (Gary)
+
+**SUPERSEDED 2026-08-22, LATER THE SAME DAY — THE WITHDRAWAL BELOW RESTED ON A
+PREMISE GARY HAS SINCE CHANGED.** The withdrawal's whole argument is that
+individuals cannot reach the forecast: `getWeeklyDayPlan`'s reads contain no
+person, so a `forecastExempt` flag would have suppressed a number that is never
+counted. **That was true of the code as it stood and is no longer the intended
+design.** The same-day amendment to L-2 seam (b) — "individual people and their
+store allocations may reach the labor forecast" — removes the premise, so the
+finding no longer settles the question it settled.
+
+**WHAT IS AND IS NOT REVIVED.** The 2026-08-21 ruling is NOT thereby
+reinstated: it is superseded, not un-withdrawn, and nothing about a
+`StaffMember.forecastExempt` column is ratified by this. What is revived is only
+the QUESTION — whether a person may be marked as not counting toward any
+store's labor — and it is being audited fresh rather than answered by reading
+the old entry. The audit is `docs/prompts/R7_EXEMPT_AUDIT.md`.
+
+**THE SEQUENCE, BECAUSE THREE MARKS ON ONE ENTRY IS EASY TO MISREAD.** Ratified
+`cbab6b7` → withdrawn `9baaa55` on the audit in `041bfaa` → superseded here by
+the seam amendment. Each mark is preserved; none of the text below or between
+has been edited. (Claude)
 
 **WITHDRAWN 2026-08-22 BY GARY (R7). PRESERVED AND MARKED, NOT DELETED — the
 2026-08-21 text below is unedited.** In Gary's words: *"forecastExempt is

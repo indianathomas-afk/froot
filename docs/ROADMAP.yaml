@@ -7440,6 +7440,34 @@ phases:
         module card.
 
       --- SEAM (b) THE DATA BOUNDARY ---
+      AMENDED 2026-08-22 (Gary, DECISIONS.md). PREPENDED PER PRESERVE-AND-MARK;
+      NOTHING BELOW IS EDITED. In Gary's words: "L-2 seam (b) is amended.
+      Individual people and their store allocations may reach the labor forecast.
+      The seam stood on the premise that person-level data is Square-sourced and
+      unstable; allocation and exemption are Froot's own facts about the business,
+      entered deliberately by an admin, not synced."
+      WHAT THE AMENDMENT ADMITS, AND ONLY THIS: an admin-entered per-person store
+      ALLOCATION or EXEMPTION may reach a core engine. It is Froot-owned data,
+      written by a human on a Froot surface, never by a sync — the same discipline
+      SquareTeamMemberWage.weeklyHoursOverride and .isSupervisory already carry
+      (the DO UPDATE list omits them, labor-roster.ts:230-233).
+      WHAT IS UNCHANGED, AND IT IS MOST OF THE SEAM. No SQUARE-SOURCED value may
+      reach a core engine. SquareTimecard and SquareScheduledShift stay outside
+      them. labor-actuals.ts is still never imported by the core. The blended
+      hourly rate is still the LaborPosition legend's and never the roster's — the
+      $14.50-vs-$12.36 measurement above stands and its conclusion is untouched.
+      Mirrored Square data is still per-environment.
+      THE BOUNDARY TEST SURVIVES IN AMENDED FORM. "Drop every Square-labor table
+      and every labor surface renders byte-identically" was the test. Dropping the
+      Square tables still must not move a core number — but a Froot-owned
+      allocation column living ON the mirrored wage row would be dropped with it,
+      so the test must be restated against the SQUARE-OWNED COLUMNS rather than
+      against the tables wholesale. WHOEVER BUILDS ALLOCATION OWES THAT
+      RESTATEMENT; it is not done here and this session builds nothing.
+      WHAT THE AMENDMENT WAS FOR: the premise it removes is the one the R7
+      forecastExempt withdrawal rested on (DECISIONS.md, 2026-08-21 entry, three
+      marks). "Person-level" and "Square-sourced" were treated as synonyms by the
+      original text below; they are now separated.
       Square-sourced labor lives in clearly-separated storage that no core
       feature reads. New, prefixed tables — SquareTimecard, SquareScheduledShift
       — each carrying its own syncedAt and syncState. The core engines
