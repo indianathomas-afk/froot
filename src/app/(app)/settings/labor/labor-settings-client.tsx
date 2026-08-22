@@ -55,13 +55,40 @@ const usd = (n: number) =>
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+/// R7/D27 — one salaried archetype and every store's carriage of it.
+export type SalariedStoreRow = {
+  storeId: string
+  storeName: string
+  /// null = INHERITING. A number = declared, and 0 is a declared 0. Never
+  /// collapse the two — `if (row.declaredHours)` is the bug.
+  declaredHours: number | null
+  effectiveHours: number | null
+  inheritedHours: number | null
+  salariedCost: number | null
+  totalLaborBudget: number | null
+  /// null = this store has no forecast this week, so the share is UNDEFINED.
+  /// It is not 0% and must never render as 0%.
+  salariedPctOfBudget: number | null
+}
+
+export type SalariedSummary = {
+  positionId: string
+  positionName: string
+  inheritedHours: number | null
+  rows: SalariedStoreRow[]
+}
+
 export function LaborSettingsClient({
   initialPositions,
   stores,
+  salariedSummaries,
+  summaryWeekStart,
   showRoster = false,
 }: {
   initialPositions: Position[]
   stores: { id: string; name: string }[]
+  salariedSummaries: SalariedSummary[]
+  summaryWeekStart: string
   /// AL-3. True only when the Advanced Labor overlay is on AND the viewer holds
   /// labor.costs.view. False makes PositionsCard render exactly as it did before
   /// AL-3 — the segmented control is not mounted and no roster fetch is issued.
@@ -71,10 +98,288 @@ export function LaborSettingsClient({
     <div className="space-y-6 max-w-3xl">
       <SettingsCard stores={stores} />
       <PositionsCard initial={initialPositions} stores={stores} showRoster={showRoster} />
+      <SalariedByStoreCard summaries={salariedSummaries} weekStart={summaryWeekStart} />
       <DaySplitCard stores={stores} />
       <DaypartsCard />
       <JobColorsCard />
     </div>
+  )
+}
+
+
+// ─── R7/D27: Salaried hours by store ──────────────────────────────────────────
+//
+// ESTATE-LEVEL BY RULING, NOT A PICKER. The defect that produced R7 is an estate
+// fact — ONE seeded org-wide row charged to nine stores independently, 360 hours
+// nobody typed. A store picker shows one store at a time and therefore can never
+// put that on screen. Nine rows and a total can.
+//
+// THE PERCENTAGE IS THE POINT (Gary, D27). Every inheriting store shows the SAME
+// hours figure, because it is the same row — so hours alone cannot tell an
+// operator which store the inherited number is hurting. "40 hrs · 80%" at UNR and
+// "40 hrs · 22%" at Las Brisas are the same declaration in situations that are
+// not remotely alike.
+//
+// INHERITS AND A DECLARED 0 RENDER DIFFERENTLY AND MUST. Absent means nobody has
+// said; 0 means this store carries none of this archetype. Every test here is
+// `!= null`.
+function SalariedByStoreCard({
+  summaries,
+  weekStart,
+}: {
+  summaries: SalariedSummary[]
+  weekStart: string
+}) {
+  const [data, setData] = useState(summaries)
+  const [editing, setEditing] = useState<{ positionId: string; row: SalariedStoreRow } | null>(null)
+
+  if (summaries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <h2 className="text-[15px] font-bold text-[var(--color-foreground)]">Salaried hours by store</h2>
+          <p className="text-[13px] text-[var(--color-muted-foreground)] mt-2">
+            No salaried positions in the rate legend, so there is nothing for a store to declare.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  function applyLocal(positionId: string, storeId: string, weeklyHours: number | null) {
+    setData((prev) =>
+      prev.map((sum) =>
+        sum.positionId !== positionId
+          ? sum
+          : {
+              ...sum,
+              rows: sum.rows.map((r) =>
+                r.storeId !== storeId
+                  ? r
+                  : {
+                      ...r,
+                      declaredHours: weeklyHours,
+                      effectiveHours: weeklyHours != null ? weeklyHours : r.inheritedHours,
+                    }
+              ),
+            }
+      )
+    )
+  }
+
+  return (
+    <Card>
+      <CardContent className="pt-5 pb-5">
+        <h2 className="text-[15px] font-bold text-[var(--color-foreground)]">Salaried hours by store</h2>
+        <p className="text-[13px] text-[var(--color-muted-foreground)] mt-1 mb-1">
+          Each store declares the salaried hours it actually carries. A store that has not declared
+          inherits the organisation figure from the rate legend.
+        </p>
+        {/* THE PERCENTAGES ARE WEEK-SPECIFIC because the budget they divide is.
+            Saying which week is not decoration: the same declaration reads 80% in
+            a slow week and 40% in a strong one. */}
+        <p className="text-[12px] text-[var(--color-muted-foreground)] mb-4">
+          Share of budget shown for the week of {weekStart}.
+        </p>
+
+        {data.map((sum) => {
+          const declaredCount = sum.rows.filter((r) => r.declaredHours != null).length
+          const estateTotal = sum.rows.reduce((t, r) => t + (r.effectiveHours ?? 0), 0)
+          return (
+            <div key={sum.positionId} className="mb-5 last:mb-0">
+              <div className="flex items-baseline justify-between mb-2">
+                <h3 className="text-[14px] font-semibold text-[var(--color-foreground)]">{sum.positionName}</h3>
+                <span className="text-[12px] text-[var(--color-muted-foreground)]">
+                  Organisation figure: {sum.inheritedHours != null ? `${sum.inheritedHours} hrs/wk` : "—"}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="text-left text-[var(--color-muted-foreground)] border-b border-[var(--color-border)]">
+                      <th className="py-2 pr-3 font-medium">Store</th>
+                      <th className="py-2 pr-3 font-medium">Weekly hours</th>
+                      <th className="py-2 pr-3 font-medium">Share of budget</th>
+                      <th className="py-2 font-medium sr-only">Edit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sum.rows.map((r) => (
+                      <tr key={r.storeId} className="border-b border-[var(--color-border)] last:border-0">
+                        <td className="py-2.5 pr-3 text-[var(--color-foreground)]">{r.storeName}</td>
+                        <td className="py-2.5 pr-3">
+                          {/* Three distinct states, never two. */}
+                          {r.declaredHours == null ? (
+                            <span className="text-[var(--color-muted-foreground)]">
+                              Inherits · {r.inheritedHours != null ? `${r.inheritedHours} hrs` : "—"}
+                            </span>
+                          ) : r.declaredHours === 0 ? (
+                            <span className="font-medium text-[var(--color-foreground)]">
+                              0 hrs <span className="font-normal text-[var(--color-muted-foreground)]">· declared</span>
+                            </span>
+                          ) : (
+                            <span className="font-medium text-[var(--color-foreground)]">
+                              {r.declaredHours} hrs <span className="font-normal text-[var(--color-muted-foreground)]">· declared</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          {/* NULL IS A SENTENCE, NEVER 0% — the same law the roster's
+                              pay column follows. No forecast means the share is
+                              undefined, and printing 0% would assert the GM costs
+                              this store nothing. */}
+                          {r.salariedPctOfBudget == null ? (
+                            <span className="text-[var(--color-muted-foreground)]">No forecast this week</span>
+                          ) : (
+                            <span className={r.salariedPctOfBudget >= 50 ? "font-semibold text-[#b42318]" : "text-[var(--color-foreground)]"}>
+                              {r.salariedPctOfBudget}%
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <button
+                            className="text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]"
+                            onClick={() => setEditing({ positionId: sum.positionId, row: r })}
+                            aria-label={`Edit ${sum.positionName} hours for ${r.storeName}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td className="pt-3 pr-3 text-[var(--color-muted-foreground)]">
+                        Estate total
+                        <span className="ml-1 text-[12px]">
+                          ({sum.rows.length} stores, {declaredCount} declared)
+                        </span>
+                      </td>
+                      <td className="pt-3 pr-3 font-semibold text-[var(--color-foreground)]">{estateTotal} hrs/wk</td>
+                      <td className="pt-3" colSpan={2}>
+                        {/* ADVISORY, AND IT SAYS SO. Nothing checks this total
+                            against how many salaried people exist — see the shared
+                            manager limitation in the R7 audit §8. A total that
+                            looked like a validation would be worse than none. */}
+                        <span className="text-[12px] text-[var(--color-muted-foreground)]">
+                          For comparison only — not checked against headcount
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )
+        })}
+      </CardContent>
+
+      {editing && (
+        <SalariedHoursDialog
+          positionId={editing.positionId}
+          row={editing.row}
+          onClose={() => setEditing(null)}
+          onSaved={(hours) => {
+            applyLocal(editing.positionId, editing.row.storeId, hours)
+            setEditing(null)
+          }}
+        />
+      )}
+    </Card>
+  )
+}
+
+function SalariedHoursDialog({
+  positionId,
+  row,
+  onClose,
+  onSaved,
+}: {
+  positionId: string
+  row: SalariedStoreRow
+  onClose: () => void
+  onSaved: (hours: number | null) => void
+}) {
+  const [draft, setDraft] = useState(row.declaredHours == null ? "" : String(row.declaredHours))
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  // BLANK MEANS INHERIT AND IS SENT AS null; "0" MEANS DECLARED ZERO AND IS SENT
+  // AS 0. parseWeeklyHours must not fold one into the other, which is why this is
+  // an explicit trim-and-test rather than `Number(draft) || null`.
+  function parseDraft(): number | null | undefined {
+    const t = draft.trim()
+    if (t === "") return null
+    if (!/^\d{1,3}$/.test(t)) return undefined
+    const n = Number(t)
+    return n >= 0 && n <= 168 ? n : undefined
+  }
+
+  async function save() {
+    const parsed = parseDraft()
+    if (parsed === undefined) {
+      setErr("Enter a whole number of hours from 0 to 168, or leave blank to inherit.")
+      return
+    }
+    setSaving(true)
+    setErr(null)
+    const res = await fetch("/api/labor/position-store-hours", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId: row.storeId, laborPositionId: positionId, weeklyHours: parsed }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      setErr("Could not save. Try again.")
+      return
+    }
+    onSaved(parsed)
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{row.storeName} — weekly salaried hours</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="salaried-hours">Weekly hours</Label>
+            <Input
+              id="salaried-hours"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={row.inheritedHours != null ? `Blank inherits ${row.inheritedHours}` : "Blank inherits"}
+              inputMode="numeric"
+            />
+          </div>
+          <p className="text-[12px] text-[var(--color-muted-foreground)]">
+            Leave blank to inherit the organisation figure. Enter <strong>0</strong> to declare that this
+            store carries none of this position — that is a different statement from leaving it blank.
+          </p>
+          {/* GARY'S CALL PENDING — see the ROADMAP row. Declaring 0 does NOT
+              shrink this store's budget: salaried cost is the subtrahend that
+              sizes the hourly pool, so removing it moves those dollars INTO
+              hourly hours. This sentence exists so an operator is not surprised;
+              the wording is flagged for Gary rather than settled here. */}
+          <p className="text-[12px] text-[var(--color-muted-foreground)]">
+            Lowering this figure does not lower the store&apos;s labour budget. The budget stays the
+            same and more of it becomes available for hourly staff.
+          </p>
+          {err && <p className="text-[12px] text-[#b42318]">{err}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

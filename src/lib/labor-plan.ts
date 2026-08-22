@@ -5,6 +5,11 @@ import { getWeeklyForecast } from "@/lib/labor-forecast"
 import { resolveLaborSettings } from "@/lib/labor-settings"
 import { computeWeeklyLaborBudget, type LaborBudgetResult } from "@/lib/labor-budget"
 import {
+  loadStoreHoursDeclarations,
+  resolveSalariedHours,
+  resolveGmCeilingHours,
+} from "@/lib/labor-position-hours"
+import {
   splitWeeklyHoursToDays,
   splitWeeklyHoursToDaysFloorFirst,
   applyDayAdjustment,
@@ -26,6 +31,12 @@ import { computeDailyCoverage, demandShapeSource, addDaysStr, jsDowOf, type Cove
 // It also applies the L-3B per-date WeeklyDayHours overrides on top of the
 // split (rebalancing), constrained to the weekly hourly total.
 
+// R7/S5-D19 (Gary, 2026-08-22): THIS IS NOW A FALLBACK, NOT THE CEILING. The
+// ceiling is the store's own resolved salaried hours, read through
+// resolveGmCeilingHours so the GM-hours whole-crew build (c17466e) reuses the
+// same helper rather than hardcoding a second 40. It is still 40 because that is
+// what the seeded General Manager archetype carries, so the substitution is a
+// measured no-op on present data.
 const WEEKLY_GM_CAP_HOURS = 40
 
 // ── date / hour helpers ───────────────────────────────────────────────────────
@@ -156,7 +167,11 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
   const store = await prisma.store.findUnique({ where: { id: storeId }, select: { organizationId: true } })
   const organizationId = store?.organizationId ?? ""
 
-  const [settings, positions, forecast, splitRows, adjRows, overrideRows, storeHoursRows] = await Promise.all([
+  // R7: the ninth read. THE ONLY new input this build adds to the plan engine,
+  // and it is org-owned operator data — no Square source, no person, seam (b)
+  // intact. With the table empty (the promotion state) this Map is empty and
+  // every resolveSalariedHours call below falls through to the org-wide figure.
+  const [settings, positions, forecast, splitRows, adjRows, overrideRows, storeHoursRows, declarations] = await Promise.all([
     resolveLaborSettings(organizationId, storeId),
     prisma.laborPosition.findMany({ where: { organizationId, active: true } }),
     getWeeklyForecast(storeId, weekStart),
@@ -164,19 +179,44 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
     prisma.laborDayAdjustment.findMany({ where: { storeId, date: { gte: dbDate(weekStart), lte: dbDate(weekEnd) } } }),
     prisma.weeklyDayHours.findMany({ where: { storeId, weekStart: dbDate(weekStart) } }),
     prisma.storeHours.findMany({ where: { storeId } }),
+    loadStoreHoursDeclarations(storeId),
   ])
 
   // Open windows: StoreHours if configured, else inferred from trailing sales
   // (StoreHours is currently never populated, so inference is the normal path).
   const inferredOpen = await inferOpenWindowsByWeekday(storeId, today)
 
+  // THE ONE RESOLUTION POINT. Every downstream figure — the budget block, hasGm,
+  // the GM ceiling — reads this array and nothing re-derives the fallback.
+  // `defaultHourlyRate` is passed through UNCHANGED and is not resolvable per
+  // store: D18's no-rate rule made concrete at the call site.
+  const resolvedPositions = positions.map((p) => ({
+    payType: p.payType,
+    defaultHourlyRate: Number(p.defaultHourlyRate),
+    impliedWeeklyHours: resolveSalariedHours(p, declarations),
+    active: p.active,
+  }))
+
   const budget = computeWeeklyLaborBudget({
     settings,
-    positions: positions.map((p) => ({ payType: p.payType, defaultHourlyRate: Number(p.defaultHourlyRate), impliedWeeklyHours: p.impliedWeeklyHours, active: p.active })),
+    positions: resolvedPositions,
     forecast: forecast ? { total: forecast.total } : null,
   })
 
-  const hasGm = positions.some((p) => p.payType === "SALARIED")
+  // S5-D23 — THE PRIMARY HAZARD, AND WHY hasGm IS RESOLVED RATHER THAN COUNTED.
+  // This was `positions.some(p => p.payType === "SALARIED")`. Left that way, a
+  // store declaring 0 would still be given a GM band, still earn GM floor
+  // credits, and still have its hourly split reshaped around a GM it just said
+  // it does not carry — while its salaried line read zero. It is the one place a
+  // per-store number moves without a declaration, so it resolves through the
+  // same array as everything else. With the table empty this is identical to the
+  // old expression, because every position keeps its org-wide hours.
+  const hasGm = resolvedPositions.some((p) => p.payType === "SALARIED" && (p.impliedWeeklyHours ?? 0) > 0)
+  // DELIBERATELY ON `positions`, NOT `resolvedPositions`, AND AUDITED AS SUCH.
+  // It reads isSupervisory and payType; the declaration table carries HOURS ONLY
+  // (D18), so neither field is per-store declarable and this figure cannot move
+  // without a declaration. It was checked as the candidate second S5-D23 hazard
+  // and is not one.
   const hasHourlySupervisor = positions.some((p) => p.isSupervisory && p.payType === "HOURLY")
   const target = settings.laborTargetPct
 
@@ -216,7 +256,11 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
   }
 
   // GM 40h weekly cap → per-day credited floor hours.
-  const gmCreditByDay = capGmFloorCredits(gmHoursByDay, WEEKLY_GM_CAP_HOURS)
+  // S5-D19: the ceiling is the store's own resolved salaried hours, not a module
+  // constant. A measured no-op today (every store resolves to 40, the fallback is
+  // 40); it becomes load-bearing the moment a store declares something else.
+  const gmCeilingHours = resolveGmCeilingHours(budget?.salariedHours ?? 0, WEEKLY_GM_CAP_HOURS)
+  const gmCreditByDay = capGmFloorCredits(gmHoursByDay, gmCeilingHours)
   const floorByDay = openHoursByDay.map((oh, wd) => Math.max(0, oh - gmCreditByDay[wd]))
 
   // Saved LaborDaySplit override wins; otherwise fall back to the SAME

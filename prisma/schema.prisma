@@ -110,6 +110,7 @@ model Organization {
   trainingCategories            TrainingCategory[]
   staffDocuments                StaffDocument[]
   laborPositions                LaborPosition[]
+  laborPositionStoreHours       LaborPositionStoreHours[]
   laborSettings                 LaborSettings[]
   salesForecasts                SalesForecast[]
   laborDaySplits                LaborDaySplit[]
@@ -216,6 +217,7 @@ model Store {
   laborDaySplits            LaborDaySplit[]
   laborDayparts             LaborDaypart[]
   laborDayAdjustments       LaborDayAdjustment[]
+  laborPositionStoreHours   LaborPositionStoreHours[]
   weeklyDayHours            WeeklyDayHours[]
   squareTimecards           SquareTimecard[]
   squareLaborSyncState      SquareLaborSyncState?
@@ -2263,9 +2265,49 @@ model LaborPosition {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization              @relation(fields: [organizationId], references: [id])
+  storeHours   LaborPositionStoreHours[]
 
   @@index([organizationId])
+}
+
+/// R7 (Gary, 2026-08-22): SALARIED ARCHETYPES ARE A PROPERTY OF THE STORE.
+/// One row = "this store carries N weekly hours of this archetype."
+///
+/// ABSENT MEANS INHERIT the org-wide LaborPosition.impliedWeeklyHours. Absence
+/// is the default, so an EMPTY TABLE reproduces today's numbers exactly — the
+/// promotion invariant is a property of the data, not of a fixture being green.
+///
+/// ZERO IS A DECLARATION, NOT AN ABSENCE — the same law BUG-12 established for
+/// weeklyHoursOverride (src/lib/labor-roster-hours.ts:21-35). Absent = nobody
+/// has said. 0 = this store carries none of this archetype. Nothing may collapse
+/// them: `if (row.weeklyHours)` IS THE BUG. Write `!= null`.
+///
+/// IT CARRIES NO RATE, DELIBERATELY, AND THAT IS D18's WHOLE POINT. The weekly
+/// budget's blended hourly rate is the unweighted mean of LaborPosition's active
+/// HOURLY rows (src/lib/labor-budget.ts:88-91) and divides the hourly dollar pool
+/// into hours (:97). A rate column here would put per-store rate math into a
+/// ruling that never asked for it. A table with no rate field CANNOT move the
+/// blended rate — structural, not disciplined. DO NOT ADD ONE.
+///
+/// RESOLUTION KEY: @@unique([storeId, laborPositionId]). Two rows cannot describe
+/// the same store's carriage of the same archetype; the database refuses the
+/// second. There is no precedence rule to get wrong because there is no second row.
+model LaborPositionStoreHours {
+  id              String   @id @default(cuid())
+  organizationId  String
+  storeId         String
+  laborPositionId String
+  weeklyHours     Int // 0 is a value: this store carries none of this archetype
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  store         Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  laborPosition LaborPosition @relation(fields: [laborPositionId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, laborPositionId])
+  @@index([organizationId, storeId])
 }
 
 /// Org default settings (storeId null) with optional per-store override rows.

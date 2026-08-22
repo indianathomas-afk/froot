@@ -32,7 +32,7 @@ export type LaborBudgetResult = {
   hourlyHours: number // hours (0.5 steps, rounded down)
   totalSchedulableHours: number // salariedHours + hourlyHours
   projectedLaborPctAtForecast: number | null // % of salesBasis; null if no sales
-  floorExceedsBudget: boolean // salaried cost alone exceeds the whole budget
+  floorExceedsBudget: boolean // salaried cost alone meets OR exceeds the whole budget (D28)
 }
 
 // dollars → integer cents (round absorbs float representation error).
@@ -112,6 +112,17 @@ export function computeWeeklyLaborBudget({
     hourlyHours,
     totalSchedulableHours,
     projectedLaborPctAtForecast,
-    floorExceedsBudget: salariedCostCents > totalLaborBudgetCents,
+    // D28 (Gary, 2026-08-22): `>=`, NOT `>`. THE ONLY NON-ADDITIVE CHANGE IN THE
+    // R7 BUILD — it alters an alert managers already see.
+    //
+    // At exact equality hourlyDollars is max(0, budget − salaried) = 0 (:81), so
+    // hourlyHours is 0 (:97) and the store has NO hourly hours for the entire
+    // week — the flag's exact symptom — while `>` left the alert silent. Gary's
+    // ruling: "Meeting the floor exactly counts as exceeding it."
+    //
+    // NOT HYPOTHETICAL. Staging's UNR carries salariedCost 800 against a
+    // totalLaborBudget of 1000 and reaches equality at one rounding tier down
+    // (docs/prompts/R7_PER_STORE_SALARIED_AUDIT_ADDENDUM.md §3.1).
+    floorExceedsBudget: salariedCostCents >= totalLaborBudgetCents,
   }
 }
