@@ -20497,7 +20497,7 @@ rulings:
     links: [DEBT-36, DEBT-38, DEBT-41, DEBT-42, DEBT-45, DEBT-48]
 
   - id: R7
-    status: open
+    status: ruled
     asked: 2026-08-21
     title: >
       forecastExempt has nothing to suppress — the labor forecast is entirely
@@ -20561,4 +20561,44 @@ rulings:
       property of the model rather than of the proposed flag, it was explicitly
       not solved in this session, and it is folded in here rather than filed as
       work because its next step is also a decision.
+    ruling: >
+      RULED (a) — SALARIED ARCHETYPES ARE A PROPERTY OF THE STORE, NOT OF THE
+      ORGANIZATION. Gary, 2026-08-22, ratified verbatim in docs/DECISIONS.md at
+      commit 9baaa55: "LaborPosition gains a per-store dimension so each store
+      declares the salaried hours it actually carries. A store with no GM is
+      charged nothing; a store sharing a GM declares its share as a number. The
+      forecast still names nobody — this stays an archetype model, and L-2 seam
+      (b) stands. forecastExempt is withdrawn: it was ratified on the premise
+      that individuals reach the forecast, and the audit proved they do not."
+      OPTION (c) IS THEREFORE DECLINED AND THE COLLISION IT NAMED IS CLOSED
+      RATHER THAN SETTLED: no per-person input enters a core engine, so L-2 seam
+      (b) is never crossed. The 2026-08-21 forecastExempt ruling (cbab6b7) is
+      marked WITHDRAWN in place in DECISIONS.md per preserve-and-mark — not
+      deleted, and its blank-vs-explicit-zero WK HRS distinction (BUG-12,
+      src/lib/labor-roster-hours.ts:21-35) is shipped and is NOT withdrawn.
+      THE PROMPT SAID "OPTION B" AND MEANT OPTION (a). The ruling's own words
+      are per-store, which is (a); (b) above is "keep it org-wide and change the
+      seed", the opposite. The words govern and neither document is edited —
+      both are claims. Recorded in DECISIONS.md so the lettering never has to be
+      re-derived.
+      NOTHING IS BUILT AND THE SHAPE IS NOT RULED. What is settled is the model;
+      the schema, the resolution rule, the UI and the fate of
+      WEEKLY_GM_CAP_HOURS wait on a second ruling. The audit and plan answering
+      this are at docs/prompts/R7_PER_STORE_SALARIED_AUDIT.md, deviations
+      S5-D18..S5-D23. Its load-bearing finding, which resizes the ruling: the
+      weekly budget's BLENDED HOURLY RATE is the unweighted mean of
+      LaborPosition's active HOURLY rows (src/lib/labor-budget.ts:88-91), so a
+      per-store dimension on the WHOLE table would move every store's hourly
+      hours, not just its salaried line. The plan's lean is a narrow per-store
+      layer carrying hours and no rate, which is additive by construction and
+      cannot move the blended rate because it has no rate to move.
+      TWO THINGS THIS RULING DOES NOT CLOSE, recorded here so they are not
+      mistaken for closed. Kristie Connolly's split becomes EXPRESSIBLE as two
+      independent numbers (Las Brisas declares its share, UNR declares its own)
+      with nothing linking them and nothing checking they sum to one person's
+      week — the recommendation's "shared managers remain unexpressible" is
+      answered only in the weaker sense. And S5-D10's two independent 40s are
+      NARROWED, not resolved: the cap-value mismatch goes away, the short-hours
+      store whose GM credits fall below its declaration does not.
+    ruled: 2026-08-22
     links: [L-2, BUG-11, BUG-12]
