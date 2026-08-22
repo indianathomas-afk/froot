@@ -6,6 +6,43 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Forecast participation is a property of the person, not of an hours value — 2026-08-21 (Gary)
+
+Gary's ruling, in his words:
+
+- Forecast participation is a property of the person, not of an hours
+  value. An explicit `forecastExempt` flag on `StaffMember` means this
+  person's hours never reach any labor forecast, at any store,
+  regardless of what number is set. It covers anyone who doesn't
+  financially impact hourly operations: managers, owners, owners'
+  family, volunteers, corporate staff. Blank hours still means inherit
+  Square's figure; a number still means that many hours; exempt
+  overrides both for forecasting purposes. (Gary)
+
+RATIFIED HERE AHEAD OF ANY BUILD, and deliberately ahead of the audit
+that was commissioned in the same breath. The ruling is Gary's and stands
+on its own; whether the codebase currently has anywhere for it to bite is
+a separate question, and the answer to that question does not amend the
+ruling. See the audit artifact for what the trace found, and read the two
+documents in that order.
+
+THE THREE STATES THE RULING CREATES, written out because two of them
+already exist and the third is new, and because collapsing any pair of
+them is the failure mode this entry exists to prevent:
+
+- blank WK HRS   → NO OVERRIDE. Square's own `weekly_hours` stands.
+- a number       → that many hours.
+- `forecastExempt` → the hours are still whatever the two lines above
+  say they are, and they DO NOT REACH A FORECAST. The flag does not
+  blank the number, does not change what Square carries, and is not a
+  fourth value of the hours field. It is a property of the PERSON.
+
+Note the direction of that last clause, which is the whole of Gary's
+framing: exempt is not "zero hours". Zero hours is a statement about a
+week; exempt is a statement about a human being's relationship to the
+hourly operation. A GM who genuinely works 45 hours is exempt AND works
+45 hours, and both facts stay true and stay visible.
+
 ## Scheduling hours count the whole crew, GM included — 2026-08-21 (Gary)
 
 - For the purposes of scheduling, forecasted and suggested hours
