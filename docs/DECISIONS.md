@@ -6,7 +6,90 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Salaried archetypes are a property of the store, not of the organization — R7 ruled — 2026-08-22 (Gary)
+
+Gary's ruling, in his words:
+
+- Salaried archetypes are a property of the store, not of the
+  organization. LaborPosition gains a per-store dimension so each store
+  declares the salaried hours it actually carries. A store with no GM is
+  charged nothing; a store sharing a GM declares its share as a number.
+  The forecast still names nobody — this stays an archetype model, and
+  L-2 seam (b) stands. forecastExempt is withdrawn: it was ratified on
+  the premise that individuals reach the forecast, and the audit proved
+  they do not. (Gary)
+
+THIS RESOLVES R7 AND WITHDRAWS THE 2026-08-21 RULING BELOW. The withdrawal is
+marked in place on that entry rather than deleted; read it for what survives
+the withdrawal, because not all of it is withdrawn.
+
+THE LETTER "B" IN THE PROMPT IS NOT ROADMAP OPTION (b), recorded here so the
+record is not ambiguous to a later reader. The session prompt is headed "R7
+resolution, option B". R7's option **(b)** in `docs/ROADMAP.yaml` reads "keep it
+org-wide and change the seeded value or the seeding rule" — the opposite of what
+the ruling says. The ruling's own words are unambiguous ("LaborPosition gains a
+per-store dimension") and they are R7's option **(a)**. **THE WORDS GOVERN.** The
+lettering is not reconciled by editing either document: R7's `options` are a
+claim of what was asked, and a saved prompt is a claim wholesale (CLAUDE.md
+§ Where documents live). (Claude)
+
+WHAT THE RULING SETTLES AND WHAT IT LEAVES OPEN. It settles the SHAPE — per-store
+declaration of salaried hours, archetypes and not people. It does NOT settle the
+schema, the resolution rule, the UI, or the fate of `WEEKLY_GM_CAP_HOURS`. Those
+are the audit's subject and wait on a second ruling. Audit filed at
+`docs/prompts/R7_PER_STORE_SALARIED_AUDIT.md`. **Nothing was built in the session
+that ratified this.** (Claude)
+
+ONE MEASURED FACT THE NEXT RULING WILL NEED, because it changes the size of the
+change from what the ruling describes. `LaborPosition` is not only the salaried
+table. The weekly budget's BLENDED HOURLY RATE is the unweighted mean of the
+active HOURLY rows' `defaultHourlyRate` (`src/lib/labor-budget.ts:88-91`), and
+that rate is what divides the hourly dollar pool into hours (`:97`). A per-store
+dimension applied to the WHOLE table therefore moves every store's HOURLY hours,
+not just its salaried line — materially more than the ruling asks for. Nothing
+shields the estate from this today: `LaborSettings.plannedBlendedRate` would
+override the computed mean, and there are **zero `LaborSettings` rows of either
+kind** on the dev branch, so the computed mean is live at all nine stores. The
+audit's §5 proposes the narrow shape that avoids it and states plainly which
+option is deliverable additively. (Claude)
+
 ## Forecast participation is a property of the person, not of an hours value — 2026-08-21 (Gary)
+
+**WITHDRAWN 2026-08-22 BY GARY (R7). PRESERVED AND MARKED, NOT DELETED — the
+2026-08-21 text below is unedited.** In Gary's words: *"forecastExempt is
+withdrawn: it was ratified on the premise that individuals reach the forecast,
+and the audit proved they do not."* The replacement is the 2026-08-22 entry
+above this one.
+
+**IT FOLLOWED FROM THE AUDIT, AND THE AUDIT IS THE REASON.**
+`docs/prompts/FORECAST_EXEMPT_AUDIT.md`, commissioned in the same breath as this
+ruling and filed in `041bfaa`; this entry was ratified in `cbab6b7`, deliberately
+ahead of it. What the trace found: **no person enters the forecast arithmetic
+anywhere.** `getWeeklyDayPlan`'s eight database reads
+(`src/lib/labor-plan.ts:159-167`) contain no `staffMember`, no
+`squareTeamMemberWage` and no `squareTimecard`; the three core engines
+(`labor-budget.ts`, `labor-coverage.ts`, `labor-daily.ts`) hold no `prisma`
+reference at all and cannot read a person even in principle; and
+`weeklyHoursOverride` reaches no calculation at any of its five touch points. A
+`forecastExempt` boolean would have suppressed a number that is never counted —
+the flag that appears to work and changes nothing, which is worse than no flag
+because the roster would then carry a visible "Exempt" marker asserting an effect
+that does not exist.
+
+**WITHDRAWN, NOT DEFERRED — AND NOT WRONG WHEN IT WAS WRITTEN.** The premise
+failed, not the reasoning. Everything below is a coherent policy about people and
+would still be the right policy IF a person's hours reached a forecast. The
+replacement ruling deliberately keeps people out of the forecast entirely, which
+removes the thing this flag existed to control. There is no build to undo: the
+flag was never implemented, no column was added, and no surface renders it.
+
+**WHAT THE WITHDRAWAL DOES *NOT* WITHDRAW.** The three-states paragraph below
+distinguishes blank WK HRS from an explicit `0`, and **that distinction is LIVE
+AND SHIPPED** — it is BUG-12's ruling, it lives in
+`src/lib/labor-roster-hours.ts:21-35` with an audited no-falsy-check guarantee,
+and nothing here touches it. Only the THIRD state, `forecastExempt`, is
+withdrawn. Read this entry, the 2026-08-22 entry, and the audit in that order.
+(Claude)
 
 Gary's ruling, in his words:
 
