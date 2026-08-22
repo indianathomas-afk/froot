@@ -8047,10 +8047,48 @@ phases:
   - id: R7-C
     track: labor
     size: L
-    status: planned
-    commits: [99b9c85]
+    status: staging
+    commits: [99b9c85, c7f4cdc, 05f9a98]
     title: "Per-person salaried allocation + exempt — percentages of a person, summing to 100%"
     notes: >
+      BUILT 2026-08-22 — work commit 05f9a98, build rulings ratified c7f4cdc.
+      Prepended; the planning text below is unedited.
+      WHAT SHIPPED. LaborSalariedPerson + LaborSalariedAllocation, both empty; one
+      resolution point (src/lib/labor-salaried.ts) that getWeeklyDayPlan reads as
+      its ninth query; PUT/GET/DELETE /api/labor/salaried behind the wage gate;
+      the Salaried people card on /settings/labor; predict + manifest on the
+      capture script; scripts/verify-labor-salaried.ts.
+      TWO FLOAT DEFECTS THE FIXTURE CAUGHT, both material. Hours computed as
+      `hours * (bps/10000)` divide first and yield 13.331999999999999, which
+      renders into JSON as itself and would trip the promotion diff on a
+      difference that does not exist — multiplying the two integers first and
+      dividing once lands bit-identical to the literal. And cost derived through a
+      synthesised rate LOST MONEY: toCents(rate) x fractional hours gave
+      777.6999999999998 against a true 777.70, so LaborBudgetPosition gained an
+      optional exact weeklyCost the SALARIED branch prefers. Neither can reach
+      blendedHourlyRate, which filters payType === "HOURLY".
+      DEVIATIONS S5-D57..S5-D62, all Claude implementation choices inside Gary's
+      rulings.
+      S5-D57 — hours multiply before dividing (the float defect above).
+      S5-D58 — LaborBudgetPosition.weeklyCost, optional and SALARIED-only, so an
+      allocated cost reaches the engine exactly instead of through a lossy rate.
+      S5-D59 — the retired route is unmounted via Next's PRIVATE-FOLDER idiom
+      (src/app/api/labor/_retired_position_store_hours/), not by deletion and not
+      by early-returning 404s from live handlers. It 404s while every handler line
+      survives byte-for-byte, which is what preserve-and-mark has to mean for a
+      route: a route left mounted is a route that still writes rows.
+      S5-D60 — the preserved card's unused-var warning is suppressed AT ITS
+      DECLARATION with the reason, because the obvious way to clear it is to
+      delete the component, which the ruling forbids.
+      S5-D61 — hasIncompleteAllocation is REPORTED by the capture script, not
+      STRICT. It describes a data-entry state rather than a labor figure, so it can
+      legitimately differ between a BEFORE taken before data entry and an AFTER
+      taken after. Startup assertions now pin blendedHourlyRate, salariedCost and
+      salariedHours as strict so a later edit cannot drop the three fields the
+      promotion actually turns on.
+      S5-D62 — the plan drops SALARIED archetypes BEFORE the engine sees them
+      rather than filtering later, so the seeded General Manager row is inert for
+      arithmetic while staying in the table (the cascade trap).
       RULED 2026-08-22 (Gary, DECISIONS.md 99b9c85 — four rulings: promotion
       order, exempt's timing, allocation is a percentage of a person, hourly
       staff untouched). AUDIT AND PLAN ONLY SO FAR; NOTHING IS BUILT.
@@ -8116,6 +8154,19 @@ phases:
         which Las Brisas and UNR carry nothing, which is exactly the silent
         strip Gary's promotion-order ruling exists to prevent.
         CLEARS WHEN: a production manifest is signed and AFTER matches PREDICTED.
+        THE RUNBOOK IS WRITTEN AND NOTHING IN IT HAS BEEN RUN —
+        docs/prompts/R7C_PRODUCTION_RUNBOOK.md. It carries both options Gary was
+        asked to choose between (manual entry through the UI, RECOMMENDED, or a
+        seeding script), the Neon SQL for the four Square ids, the exact capture
+        and predict commands, and a section on what an empty strict diff does and
+        does NOT establish — most importantly that it does not prove the
+        PERCENTAGES are right, only that the arithmetic followed them, which is
+        why Gary's signature is the gate and the diff only proves the deploy
+        obeyed it.
+        VERIFIED DURING THE BUILD, so the flip is not merely asserted: the
+        manifest reproduces the audit's numbers exactly; a seeded blendedHourlyRate
+        leak fails the diff at every store; and BEFORE vs PREDICTED reports 25
+        mismatches, which is the OLD gate being dead on purpose.
 
   - id: L-4
     track: labor
