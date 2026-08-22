@@ -6,6 +6,53 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Per-person salaried allocation — the four build rulings — 2026-08-22 (Gary)
+
+Gary's rulings, in his words:
+
+- **Promotion order.** "Absent means zero" does not ship alone. Allocation
+  ships with it, or Las Brisas and UNR carry declarations at the moment of
+  promotion. Shipping the re-baseline by itself would silently strip a real
+  manager from two real stores. (Gary)
+- **Exempt's timing.** Exempt and allocation are built and promoted as one
+  session. Exempt suppresses nothing on its own, and shipping a control
+  that does nothing is the failure we caught with forecastExempt. (Gary)
+- **Allocation is a percentage of a person.** A salaried person carries
+  their real salary and their real weekly hours, and is allocated across
+  stores by percentages that sum to 100%. Both the dollars and the hours at
+  each store derive from the person — nothing derived is ever typed by
+  hand. Kristie Connolly, $52,000/yr, 40 hrs/wk, Las Brisas 50% and UNR
+  50%, yields $500 and 20 hours at each store. A third store makes it
+  33/33/34 and everything recomputes. (Gary)
+- **Hourly managers are unchanged.** An hourly manager such as Karissa
+  Guerrero ($18.00/hr, Spanish Springs) comes out of the hourly pool like
+  any team member. Nothing in this work touches hourly staff. (Gary)
+
+**"NOTHING DERIVED IS EVER TYPED BY HAND" IS THE LOAD-BEARING CLAUSE, and it
+retires two things built in the last four days.** A per-store salaried HOURS
+declaration is a hand-typed derived figure, so `LaborPositionStoreHours` — R7-B,
+built and verified on staging at `1f3eba8` — is **superseded by this ruling**,
+not merely unused. So is `SquareTeamMemberWage.weeklyHoursOverride`, ruled into
+existence 2026-08-19 (Q9) as storage "a later salaried-allocation phase needs":
+this is that phase, and it needs the hours attached to the person's salary
+rather than to the Square mirror. **Neither column is dropped — additive-only
+does not tier down — and both are preserved and marked.** The audit's §5 states
+exactly what each stops driving. (Claude)
+
+**THE PATTERN IS WORTH NAMING ONCE, without blame attached.** Both retired
+columns were deliberate "build the storage ahead of its consumer" bets, each
+made for a stated reason and each labelled inert on its face at the time. Both
+were superseded by the consumer when it arrived with a shape nobody had ruled
+yet. The bets cost two columns and some UI; the labelling is what made the cost
+cheap to find. **The lesson is not "stop building ahead" — it is that storage
+built ahead of a ruling should expect to be re-shaped by it**, and should be
+preserved-and-marked rather than defended. (Claude)
+
+**WHAT IS EXPLICITLY NOT RULED HERE, so nobody reads it in.** Karissa Guerrero's
+"guaranteed 40 hours" is a per-person minimum *inside the hourly pool* — a
+different feature that touches hourly staff, which the fourth ruling puts out of
+scope. It gets a ROADMAP row and no design. (Claude)
+
 ## Absent means zero, and L-2 seam (b) is amended — 2026-08-22 (Gary)
 
 Gary's rulings, in his words:
