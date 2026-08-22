@@ -7968,6 +7968,40 @@ phases:
         the table ships empty by design.
         CLEARS WHEN: staging serves this SHA (staging-SHA precondition satisfied
         both times) and the strict diff is empty across all twelve lines.
+        DISCHARGED AS FAR AS IT GOES, 2026-08-22 — Gary captured the AFTER on
+        staging at tip 1f3eba8 (docs/prompts/r7_budget_AFTER_staging.jsonl) and
+        the strict diff is EMPTY: 110 field comparisons, 0 mismatches, twelve
+        lines both sides. The 12 "unpaired" entries are `target`, present only on
+        the AFTER side because the hand-built BEFORE predates that key — surfaced
+        by the comparator rather than silently skipped.
+        WHAT THAT PROVES AND WHAT IT NO LONGER SUFFICES FOR: it proves the
+        ADDITIVE work moved nothing. IT IS NO LONGER A PROMOTION GATE. Gary ruled
+        "absent means zero" the same day (DECISIONS.md, 856bd46), which moves
+        stores BY DESIGN, so an empty diff is now the wrong assertion. See the
+        blocker below.
+      - >
+        DO NOT PROMOTE ON THE OLD GATE — ADDED 2026-08-22 AFTER "ABSENT MEANS
+        ZERO" (Gary, DECISIONS.md 856bd46). This row's whole invariant was that
+        an empty declaration table reproduces today's numbers byte for byte.
+        Under the new ruling the empty table is what RE-BASELINES the estate:
+        resolveSalariedHours stops falling back to the org-wide archetype, and
+        every store with no declaration drops to zero salaried hours.
+        THE REPLACEMENT GATE IS PROPOSED, NOT BUILT —
+        docs/prompts/R7_EXEMPT_AUDIT.md §6, deviations S5-D45..S5-D47. In one
+        line: the reference side flips from AFTER == BEFORE to AFTER ==
+        PREDICTED, where PREDICTED is computed before the deploy from the BEFORE
+        capture and the pure engine, and signed off per store. The strict field
+        sets, the exclusions and the totalSchedulableHours separation are all
+        UNCHANGED.
+        THE SEQUENCING HAZARD, and it is the sharp one: Las Brisas and UNR must
+        carry declarations AT PROMOTION or Kristie Connolly's two real stores
+        lose a real manager. Gary's ruling says ten stores stop being charged;
+        the estate has twelve; the two uncounted are hers.
+        AND STAGING CANNOT DEMONSTRATE IT — only 5 of 12 staging stores carry a
+        forecast, and forecast goals are per-environment data, so the manifest
+        must be computed and signed against PRODUCTION's own BEFORE capture.
+        CLEARS WHEN: the replacement gate is built, a production manifest is
+        signed line by line, and AFTER matches PREDICTED.
       - >
         COPY AWAITING GARY (S5-D40) — DECLARING 0 DOES NOT SHRINK A STORE'S
         BUDGET, AND THAT IS CONTRARY TO HOW THE RULING READS. "A store with no GM

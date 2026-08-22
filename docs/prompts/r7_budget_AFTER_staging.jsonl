@@ -1,0 +1,33 @@
+# R7 labor-budget capture — br-square-feather, week 2026-08-10, tip 1f3eba8
+# One store per line, sorted by store name. Fixed key order. Compare with:
+#   npx tsx scripts/capture-labor-budget.ts diff <before.jsonl> <after.jsonl>
+#
+# CLOCK-DEPENDENCE — READ BEFORE DIFFING (S5-D33/D35).
+# adjustedTotalSchedulableHours IS A FUNCTION OF THE WALL CLOCK, NOT OF ANY
+# WRITE. weekStart is pinned by the query param; `today` is not —
+# budget/route.ts:26 computes it from new Date() at request time, and two
+# split inputs are trailing-56-day windows anchored on it (labor-plan.ts:171,
+# :228). It therefore moves on its own at midnight in the store's timezone,
+# in 0.5-hour steps, with nothing written. Proof: MEADOWOOD_DRIFT_AUDIT.md
+# (8203d2c) — reproduced on dev by changing only the today string, 176.0 ->
+# 175.5, zero writes. IT IS EXCLUDED FROM THE STRICT DIFF.
+#
+# totalSchedulableHours IS A DIFFERENT FIELD, one word apart, and it is
+# clock-independent (labor-budget.ts:100). IT STAYS IN THE STRICT DIFF.
+# Do not confuse them.
+#
+# `today` is recorded on every line (S5-D32) so a later reader can tell a
+# clock slide from a real change without an audit, and so a same-day pair can
+# be identified for S5-D34 promotion.
+{"name":"Carson","id":"cmrd1a3es000104kzao4mf69v","tz":"America/Los_Angeles","hasForecast":true,"source":"TREND","forecastTotal":14097.63,"salesBasis":14097.63,"conservativeSales":14000,"totalLaborBudget":2800,"salariedCost":800,"salariedHours":40,"hourlyDollars":2000,"blendedHourlyRate":14.5,"hourlyHours":137.5,"totalSchedulableHours":177.5,"projectedLaborPctAtForecast":19.86149444977631,"floorExceedsBudget":false,"adjustedTotalSchedulableHours":175.5,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"Default Test Account","id":"cmr87g5f8000004k0euevdpj4","tz":"Etc/UTC","hasForecast":false,"source":null,"forecastTotal":null,"budget":null,"adjustedTotalSchedulableHours":null,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"Las Brisas","id":"cmrd1a4hz000004jjl91v23nm","tz":"America/Los_Angeles","hasForecast":true,"source":"TREND","forecastTotal":18836.25,"salesBasis":18836.25,"conservativeSales":18000,"totalLaborBudget":3600,"salariedCost":800,"salariedHours":40,"hourlyDollars":2800,"blendedHourlyRate":14.5,"hourlyHours":193,"totalSchedulableHours":233,"projectedLaborPctAtForecast":19.11208441170615,"floorExceedsBudget":false,"adjustedTotalSchedulableHours":231,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"Meadowood Mall","id":"cmrd1a4l6000004k06v4sw4cq","tz":"America/Los_Angeles","hasForecast":true,"source":"TREND","forecastTotal":14566.64,"salesBasis":14566.64,"conservativeSales":14000,"totalLaborBudget":2800,"salariedCost":800,"salariedHours":40,"hourlyDollars":2000,"blendedHourlyRate":14.5,"hourlyHours":137.5,"totalSchedulableHours":177.5,"projectedLaborPctAtForecast":19.22200315240852,"floorExceedsBudget":false,"adjustedTotalSchedulableHours":175,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"South Reno","id":"cmrd1a4hw000004jrsgj5qah1","tz":"America/Los_Angeles","hasForecast":true,"source":"TREND","forecastTotal":16401.48,"salesBasis":16401.48,"conservativeSales":16000,"totalLaborBudget":3200,"salariedCost":800,"salariedHours":40,"hourlyDollars":2400,"blendedHourlyRate":14.5,"hourlyHours":165.5,"totalSchedulableHours":205.5,"projectedLaborPctAtForecast":19.510434424210498,"floorExceedsBudget":false,"adjustedTotalSchedulableHours":204,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"Southgate","id":"cmrd1a3dv000004kzgedd9m99","tz":"America/Denver","hasForecast":false,"source":null,"forecastTotal":null,"budget":null,"adjustedTotalSchedulableHours":null,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"Spanish Springs","id":"cmrd1a4iv000004l1rjv268j7","tz":"America/Los_Angeles","hasForecast":false,"source":null,"forecastTotal":null,"budget":null,"adjustedTotalSchedulableHours":null,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"Sparks","id":"cmrd1a4h3000004i8ufkftcce","tz":"America/Los_Angeles","hasForecast":false,"source":null,"forecastTotal":null,"budget":null,"adjustedTotalSchedulableHours":null,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"Tahoe Lemonade","id":"cmrd1a4l6000004lfannvq0uv","tz":"America/Los_Angeles","hasForecast":false,"source":null,"forecastTotal":null,"budget":null,"adjustedTotalSchedulableHours":null,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"The Palomino Club","id":"cmrd1a3g3000004l383d0yckj","tz":"America/Los_Angeles","hasForecast":false,"source":null,"forecastTotal":null,"budget":null,"adjustedTotalSchedulableHours":null,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"UNR","id":"cmrd1a3oq000204kz4oyqgbem","tz":"America/Los_Angeles","hasForecast":true,"source":"TREND","forecastTotal":5566.49,"salesBasis":5566.49,"conservativeSales":5000,"totalLaborBudget":1000,"salariedCost":800,"salariedHours":40,"hourlyDollars":200,"blendedHourlyRate":14.5,"hourlyHours":13.5,"totalSchedulableHours":53.5,"projectedLaborPctAtForecast":17.964641991632067,"floorExceedsBudget":false,"adjustedTotalSchedulableHours":51,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
+{"name":"University Village","id":"cmrd1a4ht000004jsdbb8bg8w","tz":"America/Denver","hasForecast":false,"source":null,"forecastTotal":null,"budget":null,"adjustedTotalSchedulableHours":null,"weekAdjustments":[],"target":20,"today":"2026-08-22"}
