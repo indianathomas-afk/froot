@@ -19,6 +19,13 @@ import { prisma } from "@/lib/prisma"
 /// when that store has actually declared; `0` is a present key with value 0.
 export type StoreHoursDeclarations = Map<string, number>
 
+/// ── RETIRED 2026-08-22. NOTHING CALLS THIS ANY MORE. ──
+/// The per-store declaration model it belongs to was replaced by per-person
+/// allocation (src/lib/labor-salaried.ts); getWeeklyDayPlan no longer reads
+/// declarations at all. Kept, unedited, so the reasoning below stays reachable
+/// from the code. `resolveGmCeilingHours` further down is NOT retired — it is a
+/// pure helper about the GM ceiling and labor-plan still calls it.
+///
 /// THE FALLBACK, AND THE WHOLE INVARIANT LIVES IN THIS FUNCTION.
 ///
 /// Absent  -> the org-wide LaborPosition.impliedWeeklyHours, which is the SAME
@@ -63,6 +70,8 @@ export function resolveGmCeilingHours(salariedHours: number, fallback: number): 
   return salariedHours > 0 ? salariedHours : fallback
 }
 
+/// RETIRED 2026-08-22 — nothing calls this. See the note above.
+///
 /// Load ONE store's declarations. Store-scoped by construction: the returned map
 /// can never carry another store's row, so a caller cannot accidentally resolve
 /// against the wrong store.

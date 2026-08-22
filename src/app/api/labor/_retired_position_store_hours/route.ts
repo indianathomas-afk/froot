@@ -3,6 +3,27 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireLaborContext } from "@/lib/labor-access"
 
+// ─── RETIRED 2026-08-22 — UNMOUNTED, NOT DELETED ──────────────────────────────
+//
+// THE FOLDER IS UNDERSCORE-PREFIXED, WHICH IS HOW THIS ROUTE STOPS EXISTING.
+// App Router treats a leading `_` as a private folder and excludes it from
+// routing, so /api/labor/position-store-hours now 404s while every line of the
+// handler below survives byte-for-byte. That is what "preserved and marked"
+// has to mean for a route: a route left mounted is a route that still writes
+// rows, so the MOUNT is what comes out, never the code.
+//
+// WHY (Gary, 2026-08-22, docs/DECISIONS.md): "Both the dollars and the hours at
+// each store derive from the person — nothing derived is ever typed by hand." A
+// per-store salaried HOURS declaration is a hand-typed derived figure.
+// Replaced by /api/labor/salaried and src/lib/labor-salaried.ts.
+//
+// THE TABLE AND ITS MIGRATION ARE UNTOUCHED — additive-only does not tier down —
+// and the SALARIED LaborPosition row must also stay, because laborPositionId
+// here carries onDelete: Cascade and removing the archetype would silently
+// cascade-delete every declaration row.
+//
+// EVERYTHING BELOW THIS LINE WAS TRUE WHEN WRITTEN AND IS UNEDITED.
+//
 // R7 option B — per-store salaried declarations (LaborPositionStoreHours).
 // ADMIN + MANAGER, the same gate as the rest of /settings/labor's config
 // endpoints (requireLaborContext({ write: true })).

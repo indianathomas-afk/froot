@@ -5,9 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { getCurrentUser, laborModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
-import { getSalariedSummaries } from "@/lib/labor-salaried-summary"
-import { localDateStr } from "@/lib/reports"
-import { mondayOfWeekStr } from "@/lib/labor-week"
+import { getSalariedPeopleForSettings } from "@/lib/labor-salaried"
 import { LaborSettingsClient } from "./labor-settings-client"
 
 // Labor configuration hub (ADMIN + MANAGER). Both feature gates first: where
@@ -77,20 +75,11 @@ export default async function LaborSettingsPage() {
     }),
   ])
 
-  // R7/D27 — the estate table's percentages need a week to size the budgets
-  // against. The CURRENT week, org-local: this card is a configuration surface,
-  // not a planner, so it does not carry a week picker. Which week is stated on
-  // the card, because the same declaration reads 80% in a slow week and 40% in a
-  // strong one.
-  //
-  // No trailing-window read happens here (labor-salaried-summary.ts), so unlike
-  // the day split this figure does not drift between page loads.
-  const summaryWeekStart = mondayOfWeekStr(localDateStr(new Date(), stores[0]?.timezone ?? "America/Los_Angeles"))
-  const salariedSummaries = await getSalariedSummaries(
-    org.id,
-    stores.map((s) => ({ id: s.id, name: s.name })),
-    summaryWeekStart
-  )
+  // R7-C — the salaried people card. NO WEEK IS INVOLVED: a person's weekly cost
+  // and their percentages are the same in every week, which is what replaced the
+  // week-scoped per-store view. Nothing here reads a trailing window or a
+  // forecast, so this card cannot drift between page loads (DEBT-80).
+  const salariedPeople = await getSalariedPeopleForSettings(org.id)
 
   return (
     <div>
@@ -111,8 +100,7 @@ export default async function LaborSettingsPage() {
       <LaborSettingsClient
         stores={stores}
         showRoster={showRoster}
-        salariedSummaries={salariedSummaries}
-        summaryWeekStart={summaryWeekStart}
+        salariedPeople={salariedPeople}
         initialPositions={positions.map((p) => ({
           id: p.id,
           name: p.name,

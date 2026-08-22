@@ -15,6 +15,19 @@ export type LaborBudgetPosition = {
   defaultHourlyRate: number // dollars
   impliedWeeklyHours: number | null
   active: boolean
+  /// R7-C: DOLLARS PER WEEK, GIVEN DIRECTLY INSTEAD OF DERIVED FROM rate x hours.
+  ///
+  /// A per-person allocation knows the cost exactly — 77.77% of $1,000.00 is
+  /// $777.70 — and cannot express it as a rate. `toCents(rate) * hours` rounds
+  /// the rate to whole cents and then multiplies by a FRACTIONAL hours figure,
+  /// so the round-trip loses money: the fixture measured $777.6999999999998
+  /// against a true $777.70. Money is exact integer cents everywhere else in
+  /// this file and must be here too.
+  ///
+  /// Only the SALARIED branch reads it. It cannot reach blendedHourlyRate, which
+  /// filters payType === "HOURLY" and uses defaultHourlyRate alone — the
+  /// promotion canary is structurally out of its path.
+  weeklyCost?: number
 }
 
 export type LaborBudgetForecast = {
@@ -72,7 +85,10 @@ export function computeWeeklyLaborBudget({
   let salariedHours = 0
   for (const p of active) {
     if (p.payType === "SALARIED" && p.impliedWeeklyHours && p.impliedWeeklyHours > 0) {
-      salariedCostCents += toCents(p.defaultHourlyRate) * p.impliedWeeklyHours
+      // An explicit weeklyCost wins. The rate x hours path stays for the
+      // archetype shape that predates R7-C and for the fixtures that pin it.
+      salariedCostCents +=
+        p.weeklyCost != null ? toCents(p.weeklyCost) : toCents(p.defaultHourlyRate) * p.impliedWeeklyHours
       salariedHours += p.impliedWeeklyHours
     }
   }

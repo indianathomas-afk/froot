@@ -4,11 +4,13 @@ import { mondayOfWeekStr } from "@/lib/labor-week"
 import { getWeeklyForecast } from "@/lib/labor-forecast"
 import { resolveLaborSettings } from "@/lib/labor-settings"
 import { computeWeeklyLaborBudget, type LaborBudgetResult } from "@/lib/labor-budget"
-import {
-  loadStoreHoursDeclarations,
-  resolveSalariedHours,
-  resolveGmCeilingHours,
-} from "@/lib/labor-position-hours"
+// R7-C: the salaried source is per-PERSON allocation. `resolveGmCeilingHours`
+// is still imported from labor-position-hours because it is a pure helper about
+// the GM ceiling and has nothing to do with the retired declaration table;
+// `loadStoreHoursDeclarations` and `resolveSalariedHours` are NO LONGER READ —
+// see the retirement note on LaborPositionStoreHours in prisma/schema.prisma.
+import { resolveGmCeilingHours } from "@/lib/labor-position-hours"
+import { resolveStoreSalariedFor } from "@/lib/labor-salaried"
 import {
   splitWeeklyHoursToDays,
   splitWeeklyHoursToDaysFloorFirst,
@@ -148,6 +150,13 @@ export type WeeklyPlan = {
   target: number
   hasGm: boolean
   hasHourlySupervisor: boolean
+  /// R7-C, INVARIANT 2 — A LEAF. It renders a banner and feeds NO arithmetic.
+  /// True when a person contributing to this store has an allocation set that
+  /// does not total 100%. The store is charged EXACTLY what its own row says;
+  /// nothing is normalised, because scaling 50/40 up to 55.6/44.4 would invent
+  /// allocation nobody typed and hide the forgotten 10%.
+  hasIncompleteAllocation: boolean
+  incompleteAllocationPeople: { displayName: string; totalBps: number }[]
   days: DayPlan[] // length 7, Mon…Sun
   weeklyHourlyHours: number // budget.hourlyHours (the pool the split distributes)
   weeklyHourlyAllocated: number // Σ baseHourlyHours (≈ pool, minus 0.5 flooring)
@@ -167,11 +176,12 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
   const store = await prisma.store.findUnique({ where: { id: storeId }, select: { organizationId: true } })
   const organizationId = store?.organizationId ?? ""
 
-  // R7: the ninth read. THE ONLY new input this build adds to the plan engine,
-  // and it is org-owned operator data — no Square source, no person, seam (b)
-  // intact. With the table empty (the promotion state) this Map is empty and
-  // every resolveSalariedHours call below falls through to the org-wide figure.
-  const [settings, positions, forecast, splitRows, adjRows, overrideRows, storeHoursRows, declarations] = await Promise.all([
+  // R7-C: the ninth read is now the store's resolved PER-PERSON salaried
+  // figures. Froot-owned and admin-entered throughout — a weekly cost, weekly
+  // hours and percentages all typed by a human — so seam (b) as amended holds
+  // and nothing synced reaches this engine. LaborPositionStoreHours is no longer
+  // read at all (retired 2026-08-22; see prisma/schema.prisma).
+  const [settings, positions, forecast, splitRows, adjRows, overrideRows, storeHoursRows, salaried] = await Promise.all([
     resolveLaborSettings(organizationId, storeId),
     prisma.laborPosition.findMany({ where: { organizationId, active: true } }),
     getWeeklyForecast(storeId, weekStart),
@@ -179,44 +189,69 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
     prisma.laborDayAdjustment.findMany({ where: { storeId, date: { gte: dbDate(weekStart), lte: dbDate(weekEnd) } } }),
     prisma.weeklyDayHours.findMany({ where: { storeId, weekStart: dbDate(weekStart) } }),
     prisma.storeHours.findMany({ where: { storeId } }),
-    loadStoreHoursDeclarations(storeId),
+    resolveStoreSalariedFor(organizationId, storeId),
   ])
 
   // Open windows: StoreHours if configured, else inferred from trailing sales
   // (StoreHours is currently never populated, so inference is the normal path).
   const inferredOpen = await inferOpenWindowsByWeekday(storeId, today)
 
-  // THE ONE RESOLUTION POINT. Every downstream figure — the budget block, hasGm,
-  // the GM ceiling — reads this array and nothing re-derives the fallback.
-  // `defaultHourlyRate` is passed through UNCHANGED and is not resolvable per
-  // store: D18's no-rate rule made concrete at the call site.
-  const resolvedPositions = positions.map((p) => ({
-    payType: p.payType,
-    defaultHourlyRate: Number(p.defaultHourlyRate),
-    impliedWeeklyHours: resolveSalariedHours(p, declarations),
-    active: p.active,
-  }))
+  // THE ONE RESOLUTION POINT. `salaried` (above) is the single source of this
+  // store's salaried cost and hours; nothing below re-derives either.
+  //
+  // THE ARCHETYPE'S SALARIED ROWS ARE DROPPED HERE, NOT FILTERED LATER. Every
+  // LaborPosition of payType SALARIED is excluded from what the budget engine
+  // sees, so the seeded "General Manager / $20 / 40" row contributes nothing —
+  // it is inert for arithmetic (S5-D53) while staying in the table, because
+  // LaborPositionStoreHours.laborPositionId cascades from it.
+  //
+  // THE HOURLY ROWS PASS THROUGH UNTOUCHED. blendedHourlyRate is the unweighted
+  // mean of their defaultHourlyRate (labor-budget.ts:88-91) and MUST NOT MOVE —
+  // it is the promotion canary. No person's cost is ever a rate here.
+  const hourlyPositions = positions
+    .filter((p) => p.payType === "HOURLY")
+    .map((p) => ({
+      payType: p.payType,
+      defaultHourlyRate: Number(p.defaultHourlyRate),
+      impliedWeeklyHours: null,
+      active: p.active,
+    }))
+
+  // The store's allocated people are handed to the engine as ONE synthetic
+  // salaried position, so computeWeeklyLaborBudget's signature is unchanged.
+  // rate x hours reproduces the resolved cost EXACTLY by construction, and the
+  // hours stay fractional (13.332, never 13) — impliedWeeklyHours is typed
+  // `number | null`, not Int, so nothing downstream coerces.
+  const salariedAsPosition =
+    salaried.salariedHours > 0
+      ? [{
+          payType: "SALARIED" as const,
+          // Kept for shape only; the cost below is what the engine uses.
+          defaultHourlyRate: salaried.salariedCost / salaried.salariedHours,
+          impliedWeeklyHours: salaried.salariedHours,
+          active: true,
+          // EXACT. Deriving the cost from rate x fractional hours loses cents.
+          weeklyCost: salaried.salariedCost,
+        }]
+      : []
 
   const budget = computeWeeklyLaborBudget({
     settings,
-    positions: resolvedPositions,
+    positions: [...salariedAsPosition, ...hourlyPositions],
     forecast: forecast ? { total: forecast.total } : null,
   })
 
-  // S5-D23 — THE PRIMARY HAZARD, AND WHY hasGm IS RESOLVED RATHER THAN COUNTED.
-  // This was `positions.some(p => p.payType === "SALARIED")`. Left that way, a
-  // store declaring 0 would still be given a GM band, still earn GM floor
-  // credits, and still have its hourly split reshaped around a GM it just said
-  // it does not carry — while its salaried line read zero. It is the one place a
-  // per-store number moves without a declaration, so it resolves through the
-  // same array as everything else. With the table empty this is identical to the
-  // old expression, because every position keeps its org-wide hours.
-  const hasGm = resolvedPositions.some((p) => p.payType === "SALARIED" && (p.impliedWeeklyHours ?? 0) > 0)
-  // DELIBERATELY ON `positions`, NOT `resolvedPositions`, AND AUDITED AS SUCH.
-  // It reads isSupervisory and payType; the declaration table carries HOURS ONLY
-  // (D18), so neither field is per-store declarable and this figure cannot move
-  // without a declaration. It was checked as the candidate second S5-D23 hazard
-  // and is not one.
+  // hasGm IS NO LONGER A HAZARD, and the reason is that the fallback it guarded
+  // no longer exists. Under R7-B it was the one place a store's number could move
+  // with no declaration present; now a store with no allocated person simply
+  // carries nothing, which IS the ruling ("absent means zero"). It is a straight
+  // read of the resolution.
+  const hasGm = salaried.hasSalariedPerson
+  // DELIBERATELY ON `positions`, AND AUDITED AS SUCH. It reads isSupervisory and
+  // payType on the HOURLY archetypes; no person is HOURLY here and the allocation
+  // tables carry neither field, so this figure cannot move from allocation. It
+  // was re-checked as the candidate second hazard under the per-person model and
+  // is still not one.
   const hasHourlySupervisor = positions.some((p) => p.isSupervisory && p.payType === "HOURLY")
   const target = settings.laborTargetPct
 
@@ -333,6 +368,8 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
     target,
     hasGm,
     hasHourlySupervisor,
+    hasIncompleteAllocation: salaried.hasIncompleteAllocation,
+    incompleteAllocationPeople: salaried.incompletePeople,
     days,
     weeklyHourlyHours: weeklyHourly,
     weeklyHourlyAllocated,

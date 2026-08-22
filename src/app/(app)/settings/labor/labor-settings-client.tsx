@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SplitPolicyInfo } from "@/components/labor/split-policy-info"
 import { BADGE_PRESETS, badgePreset, type BadgePresetKey } from "@/lib/badge-presets"
@@ -81,14 +82,15 @@ export type SalariedSummary = {
 export function LaborSettingsClient({
   initialPositions,
   stores,
-  salariedSummaries,
-  summaryWeekStart,
+  salariedPeople,
   showRoster = false,
 }: {
   initialPositions: Position[]
   stores: { id: string; name: string }[]
-  salariedSummaries: SalariedSummary[]
-  summaryWeekStart: string
+  /// R7-C. Every salaried member of the Square roster, joined to their Froot
+  /// record where one exists. Members with no record yet arrive with
+  /// weeklyCost null and no allocations, so the card can offer to seed them.
+  salariedPeople: SalariedPerson[]
   /// AL-3. True only when the Advanced Labor overlay is on AND the viewer holds
   /// labor.costs.view. False makes PositionsCard render exactly as it did before
   /// AL-3 — the segmented control is not mounted and no roster fetch is issued.
@@ -98,7 +100,11 @@ export function LaborSettingsClient({
     <div className="space-y-6 max-w-3xl">
       <SettingsCard stores={stores} />
       <PositionsCard initial={initialPositions} stores={stores} showRoster={showRoster} />
-      <SalariedByStoreCard summaries={salariedSummaries} weekStart={summaryWeekStart} />
+      {/* R7-C: the per-STORE declaration card is UNMOUNTED (retired 2026-08-22).
+          Its component and dialog remain below, marked, per the preserve-and-mark
+          ruling — a route left mounted is a route that still writes rows, so the
+          mount is what comes out, not the code. */}
+      <SalariedPeopleCard initial={salariedPeople} stores={stores} canEdit={showRoster} />
       <DaySplitCard stores={stores} />
       <DaypartsCard />
       <JobColorsCard />
@@ -107,6 +113,413 @@ export function LaborSettingsClient({
 }
 
 
+
+// ─── R7-C: Salaried people ────────────────────────────────────────────────────
+//
+// PER-PERSON, NOT PER-STORE, AND THAT IS THE RULING. "A salaried person carries
+// their real salary and their real weekly hours, and is allocated across stores
+// by percentages that sum to 100%. Both the dollars and the hours at each store
+// derive from the person — nothing derived is ever typed by hand."
+//
+// SO NOTHING DERIVED IS AN INPUT HERE. The only editable fields are the person's
+// weekly cost, their weekly hours, their exempt state, and their percentages.
+// Every per-store dollar and hour figure on this card is COMPUTED and rendered
+// read-only, in muted type, so the difference is visible rather than remembered.
+//
+// THE SUM IS ALWAYS ON SCREEN AND A NON-100% SET IS LOUD (invariant 2). Save is
+// disabled until the set totals exactly 100%, because the write endpoint would
+// refuse it anyway and a rejected save the operator could have seen coming is a
+// worse experience than a disabled button that says why.
+
+type SalariedAllocation = { storeId: string; allocationBps: number }
+
+export type SalariedPerson = {
+  id: string | null
+  squareTeamMemberId: string
+  displayName: string
+  /// Dollars per week, Froot-owned. null when this Square member has no Froot
+  /// record yet — the card offers to seed it from the mirrored annual figure.
+  weeklyCost: number | null
+  weeklyHours: number
+  /// NULL = not reviewed · true = outside allocation · false = included.
+  exempt: boolean | null
+  /// Square's annual figure, for SEEDING and for DIVERGENCE DISPLAY only.
+  squareAnnualRate: number | null
+  /// What Square said when weeklyCost was seeded. A difference from
+  /// squareAnnualRate is shown and never acted on.
+  squareAnnualRateSeen: number | null
+  allocations: SalariedAllocation[]
+}
+
+const usdW = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+function SalariedPeopleCard({
+  initial,
+  stores,
+  canEdit,
+}: {
+  initial: SalariedPerson[]
+  stores: { id: string; name: string }[]
+  canEdit: boolean
+}) {
+  const [people, setPeople] = useState<SalariedPerson[]>(initial)
+  const [editing, setEditing] = useState<SalariedPerson | null>(null)
+
+  if (!canEdit) {
+    return (
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <h2 className="text-[15px] font-bold text-[var(--color-foreground)]">Salaried people</h2>
+          <p className="text-[13px] text-[var(--color-muted-foreground)] mt-2">
+            These records carry weekly pay, so they are hidden without permission to view labour costs.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? id
+  const allocated = people.filter((p) => p.exempt !== true && p.allocations.length > 0)
+  const estateWeekly = allocated.reduce((t, p) => t + (p.weeklyCost ?? 0), 0)
+
+  return (
+    <Card>
+      <CardContent className="pt-5 pb-5">
+        <h2 className="text-[15px] font-bold text-[var(--color-foreground)]">Salaried people</h2>
+        {/* COPY PROPOSED, GARY RULES. Everything in this card's prose is a
+            proposal and is flagged in the session report. */}
+        <p className="text-[13px] text-[var(--color-muted-foreground)] mt-1 mb-4">
+          A salaried person is carried by the stores they actually work in. Enter their weekly cost
+          and hours once; each store&apos;s share is worked out from the percentages below. A store
+          with nobody allocated carries no salaried cost.
+        </p>
+
+        {people.length === 0 && (
+          <p className="text-[13px] text-[var(--color-muted-foreground)]">
+            No salaried people yet. Sync the team roster on the Positions card, then add the salaried
+            members from there.
+          </p>
+        )}
+
+        {people.map((p) => {
+          const total = p.allocations.reduce((t, a) => t + a.allocationBps, 0)
+          const complete = total === 10000
+          const diverged =
+            p.squareAnnualRate != null &&
+            p.squareAnnualRateSeen != null &&
+            p.squareAnnualRate !== p.squareAnnualRateSeen
+          return (
+            <div key={p.squareTeamMemberId} className="border-t border-[var(--color-border)] py-3 first:border-t-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[14px] font-semibold text-[var(--color-foreground)]">{p.displayName}</span>
+                    {p.exempt === true && <Badge variant="secondary">Not counted in store labour</Badge>}
+                    {p.exempt == null && <Badge variant="outline">Not reviewed</Badge>}
+                  </div>
+                  <div className="text-[12px] text-[var(--color-muted-foreground)] mt-0.5">
+                    {p.weeklyCost != null ? `${usdW(p.weeklyCost)}/wk · ${p.weeklyHours} hrs/wk` : "No weekly cost set"}
+                  </div>
+                  {/* DIVERGENCE IS SHOWN AND NEVER ACTED ON. Square cannot move a
+                      Froot-owned figure; a human decides whether to follow it. */}
+                  {diverged && (
+                    <div className="text-[12px] text-[#b54708] mt-1">
+                      Square now shows {usdW(p.squareAnnualRate!)}/yr — this record was set from{" "}
+                      {usdW(p.squareAnnualRateSeen!)}/yr. Update it here if that is right.
+                    </div>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setEditing(p)}>
+                  <Pencil className="h-4 w-4 mr-1" /> Edit
+                </Button>
+              </div>
+
+              {p.exempt !== true && (
+                <div className="mt-2">
+                  {p.allocations.length === 0 ? (
+                    <div className="text-[13px] text-[var(--color-muted-foreground)]">
+                      Not allocated to any store — no store carries this person.
+                    </div>
+                  ) : (
+                    <table className="w-full text-[13px] mt-1">
+                      <tbody>
+                        {p.allocations.map((a) => {
+                          // COMPUTED, NEVER TYPED. Both figures derive from the
+                          // person; the card shows them so the operator can see
+                          // the consequence of a percentage without entering one.
+                          const cost = ((p.weeklyCost ?? 0) * a.allocationBps) / 10000
+                          const hrs = (p.weeklyHours * a.allocationBps) / 10000
+                          return (
+                            <tr key={a.storeId}>
+                              <td className="py-1 pr-3 text-[var(--color-foreground)]">{storeName(a.storeId)}</td>
+                              <td className="py-1 pr-3 font-medium text-[var(--color-foreground)]">
+                                {(a.allocationBps / 100).toFixed(2).replace(/\.00$/, "")}%
+                              </td>
+                              <td className="py-1 text-[var(--color-muted-foreground)]">
+                                {usdW(cost)}/wk · {(+hrs.toFixed(2)).toString()} hrs
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className={complete ? "" : "text-[#b42318]"}>
+                          <td className="pt-1.5 pr-3 font-medium">Total</td>
+                          <td className="pt-1.5 pr-3 font-semibold">{(total / 100).toFixed(2).replace(/\.00$/, "")}%</td>
+                          <td className="pt-1.5">
+                            {complete ? (
+                              <span className="text-[var(--color-muted-foreground)]">
+                                {usdW(p.weeklyCost ?? 0)}/wk · {p.weeklyHours} hrs — fully allocated
+                              </span>
+                            ) : (
+                              // LOUD, per invariant 2. Nothing is normalised, so
+                              // the shortfall is real money no store is carrying.
+                              <span className="font-semibold">
+                                Must total 100% — {usdW(((p.weeklyCost ?? 0) * (10000 - total)) / 10000)}/wk of this
+                                person is not carried by any store
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {allocated.length > 0 && (
+          <div className="border-t border-[var(--color-border)] pt-3 mt-1 text-[12px] text-[var(--color-muted-foreground)]">
+            {allocated.length} allocated {allocated.length === 1 ? "person" : "people"} · {usdW(estateWeekly)}/wk across
+            the estate — for comparison only, not checked against payroll
+          </div>
+        )}
+      </CardContent>
+
+      {editing && (
+        <SalariedPersonDialog
+          person={editing}
+          stores={stores}
+          onClose={() => setEditing(null)}
+          onSaved={(next) => {
+            setPeople((prev) => prev.map((x) => (x.squareTeamMemberId === next.squareTeamMemberId ? next : x)))
+            setEditing(null)
+          }}
+        />
+      )}
+    </Card>
+  )
+}
+
+function SalariedPersonDialog({
+  person,
+  stores,
+  onClose,
+  onSaved,
+}: {
+  person: SalariedPerson
+  stores: { id: string; name: string }[]
+  onClose: () => void
+  onSaved: (p: SalariedPerson) => void
+}) {
+  const seeded = person.weeklyCost ?? (person.squareAnnualRate != null ? +(person.squareAnnualRate / 52).toFixed(2) : null)
+  const [cost, setCost] = useState(seeded == null ? "" : String(seeded))
+  const [hours, setHours] = useState(String(person.weeklyHours))
+  const [exempt, setExempt] = useState<boolean | null>(person.exempt)
+  const [pct, setPct] = useState<Record<string, string>>(
+    Object.fromEntries(person.allocations.map((a) => [a.storeId, (a.allocationBps / 100).toString()]))
+  )
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  // Percentages are entered to two decimals and held as BASIS POINTS, so the
+  // total is an integer comparison against 10000 and no float tolerance is ever
+  // needed — the same reason the column is bps rather than a percent.
+  const bpsFor = (v: string) => {
+    const t = v.trim()
+    if (t === "") return 0
+    if (!/^\d{1,3}(\.\d{1,2})?$/.test(t)) return NaN
+    return Math.round(Number(t) * 100)
+  }
+  const entries = Object.entries(pct)
+    .map(([storeId, v]) => ({ storeId, allocationBps: bpsFor(v) }))
+    .filter((e) => e.allocationBps > 0)
+  const anyInvalid = Object.values(pct).some((v) => Number.isNaN(bpsFor(v)))
+  const total = entries.reduce((t, e) => t + e.allocationBps, 0)
+  const allocationsOk = exempt === true ? entries.length === 0 : entries.length === 0 || total === 10000
+
+  async function save() {
+    const costNum = cost.trim() === "" ? null : Number(cost)
+    const hoursNum = Number(hours)
+    if (costNum === null || !Number.isFinite(costNum) || costNum < 0) {
+      setErr("Enter the person's weekly cost in dollars.")
+      return
+    }
+    if (!Number.isInteger(hoursNum) || hoursNum < 0 || hoursNum > 168) {
+      setErr("Enter whole weekly hours from 0 to 168.")
+      return
+    }
+    setSaving(true)
+    setErr(null)
+    const res = await fetch("/api/labor/salaried", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        squareTeamMemberId: person.squareTeamMemberId,
+        displayName: person.displayName,
+        weeklyCost: costNum,
+        annualRate: person.squareAnnualRate,
+        weeklyHours: hoursNum,
+        exempt,
+        allocations: exempt === true ? [] : entries,
+      }),
+    })
+    setSaving(false)
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      setErr(body?.error ?? "Could not save. Try again.")
+      return
+    }
+    onSaved({
+      ...person,
+      weeklyCost: costNum,
+      weeklyHours: hoursNum,
+      exempt,
+      squareAnnualRateSeen: person.squareAnnualRate ?? person.squareAnnualRateSeen,
+      allocations: exempt === true ? [] : entries,
+    })
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{person.displayName}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3 rounded-md border border-[var(--color-border)] px-3 py-2.5">
+            <div>
+              <div className="text-[13px] font-medium text-[var(--color-foreground)]">
+                Not counted in any store&apos;s labour
+              </div>
+              {/* EXEMPT IS OUTSIDE THE SYSTEM, NOT 0%. The copy says so rather
+                  than implying a zero share, because 0% would have to sum to
+                  100% with something and there is nothing to sum with. */}
+              <div className="text-[12px] text-[var(--color-muted-foreground)] mt-0.5">
+                For executives and office staff who appear on a store roster because Square requires
+                it, but who do no store work. They are left out of allocation entirely.
+              </div>
+            </div>
+            <Switch checked={exempt === true} onCheckedChange={(v) => setExempt(v ? true : false)} />
+          </div>
+
+          {exempt !== true && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="sal-cost">Weekly cost</Label>
+                  <Input id="sal-cost" value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />
+                  {person.squareAnnualRate != null && (
+                    <p className="text-[11px] text-[var(--color-muted-foreground)] mt-1">
+                      Square shows {usdW(person.squareAnnualRate)}/yr ={" "}
+                      {usdW(+(person.squareAnnualRate / 52).toFixed(2))}/wk. This figure is kept in Froot and
+                      is not updated by a Square sync.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="sal-hours">Weekly hours</Label>
+                  <Input id="sal-hours" value={hours} onChange={(e) => setHours(e.target.value)} inputMode="numeric" />
+                </div>
+              </div>
+
+              <div>
+                <Label>Share by store</Label>
+                <table className="w-full text-[13px] mt-1">
+                  <tbody>
+                    {stores.map((s) => {
+                      const bps = bpsFor(pct[s.id] ?? "")
+                      const valid = !Number.isNaN(bps) && bps > 0
+                      const costNum = Number(cost) || 0
+                      const hoursNum = Number(hours) || 0
+                      return (
+                        <tr key={s.id}>
+                          <td className="py-1 pr-2 text-[var(--color-foreground)]">{s.name}</td>
+                          <td className="py-1 pr-2 w-24">
+                            <Input
+                              value={pct[s.id] ?? ""}
+                              onChange={(e) => setPct((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                              placeholder="—"
+                              inputMode="decimal"
+                              className="h-8"
+                            />
+                          </td>
+                          <td className="py-1 text-[12px] text-[var(--color-muted-foreground)]">
+                            {valid
+                              ? `${usdW((costNum * bps) / 10000)}/wk · ${(+((hoursNum * bps) / 10000).toFixed(2)).toString()} hrs`
+                              : ""}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+
+                <div
+                  className={`mt-2 text-[13px] font-medium ${
+                    total === 10000 ? "text-[var(--color-muted-foreground)]" : "text-[#b42318]"
+                  }`}
+                >
+                  {anyInvalid
+                    ? "Percentages must be numbers with up to two decimals."
+                    : entries.length === 0
+                      ? "Not allocated to any store — no store will carry this person."
+                      : total === 10000
+                        ? "Totals 100%"
+                        : `Totals ${(total / 100).toFixed(2)}% — must be exactly 100%`}
+                </div>
+              </div>
+            </>
+          )}
+
+          {err && <p className="text-[12px] text-[#b42318]">{err}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={saving || anyInvalid || !allocationsOk}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── RETIRED 2026-08-22 — R7/D27's per-store declaration card ─────────────────
+//
+// UNMOUNTED, NOT DELETED (Gary's ruling, DECISIONS.md). Nothing renders this and
+// nothing routes to /api/labor/position-store-hours any more. It is kept so a
+// reader who finds LaborPositionStoreHours in the schema can see what drove it.
+//
+// WHY IT WENT: "Both the dollars and the hours at each store derive from the
+// person — nothing derived is ever typed by hand." A per-store salaried HOURS
+// declaration is a hand-typed derived figure. SalariedPeopleCard replaces it.
+//
+// EVERYTHING BELOW THIS LINE WAS TRUE WHEN WRITTEN AND IS UNEDITED.
+//
+// THE UNUSED-VAR WARNING ON THE COMPONENT BELOW IS DELIBERATE AND IS SUPPRESSED
+// AT ITS DECLARATION. An unmounted component is unused by definition, and the
+// obvious way to clear the warning — delete it — is precisely what the
+// preserve-and-mark ruling forbids. The disable exists so nobody clears it
+// helpfully.
+//
 // ─── R7/D27: Salaried hours by store ──────────────────────────────────────────
 //
 // ESTATE-LEVEL BY RULING, NOT A PICKER. The defect that produced R7 is an estate
@@ -123,6 +536,7 @@ export function LaborSettingsClient({
 // INHERITS AND A DECLARED 0 RENDER DIFFERENTLY AND MUST. Absent means nobody has
 // said; 0 means this store carries none of this archetype. Every test here is
 // `!= null`.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function SalariedByStoreCard({
   summaries,
   weekStart,

@@ -111,6 +111,8 @@ model Organization {
   staffDocuments                StaffDocument[]
   laborPositions                LaborPosition[]
   laborPositionStoreHours       LaborPositionStoreHours[]
+  laborSalariedPeople           LaborSalariedPerson[]
+  laborSalariedAllocations      LaborSalariedAllocation[]
   laborSettings                 LaborSettings[]
   salesForecasts                SalesForecast[]
   laborDaySplits                LaborDaySplit[]
@@ -218,6 +220,7 @@ model Store {
   laborDayparts             LaborDaypart[]
   laborDayAdjustments       LaborDayAdjustment[]
   laborPositionStoreHours   LaborPositionStoreHours[]
+  laborSalariedAllocations  LaborSalariedAllocation[]
   weeklyDayHours            WeeklyDayHours[]
   squareTimecards           SquareTimecard[]
   squareLaborSyncState      SquareLaborSyncState?
@@ -2271,6 +2274,28 @@ model LaborPosition {
   @@index([organizationId])
 }
 
+/// ── RETIRED 2026-08-22 BY THE PER-PERSON ALLOCATION RULING (Gary,
+/// docs/DECISIONS.md; audit docs/prompts/R7_ALLOCATION_AUDIT.md). PREPENDED PER
+/// PRESERVE-AND-MARK; NOTHING BELOW IS EDITED AND EVERYTHING BELOW WAS TRUE WHEN
+/// WRITTEN. ──
+///
+/// WHY: "Both the dollars and the hours at each store derive from the person —
+/// nothing derived is ever typed by hand." A per-store salaried HOURS
+/// declaration is a hand-typed derived figure. Two sources for one number is how
+/// a model rots, and the ruling picks the person.
+///
+/// WHAT REPLACES IT: LaborSalariedPerson + LaborSalariedAllocation, below.
+///
+/// NOTHING IS DROPPED AND THE TABLE SHIPS AS IT IS. Additive-only does not tier
+/// down. NOTHING READS THIS TABLE ANY MORE — getWeeklyDayPlan's ninth read is
+/// gone and src/lib/labor-position-hours.ts is severed from the plan engine. The
+/// route and card files remain, unmounted, each carrying a header naming this
+/// ruling.
+///
+/// DO NOT DELETE THE SALARIED LaborPosition ROW EITHER — laborPositionId below
+/// carries onDelete: Cascade, so removing the archetype would silently
+/// cascade-delete every row in this table.
+///
 /// R7 (Gary, 2026-08-22): SALARIED ARCHETYPES ARE A PROPERTY OF THE STORE.
 /// One row = "this store carries N weekly hours of this archetype."
 ///
@@ -2307,6 +2332,92 @@ model LaborPositionStoreHours {
   laborPosition LaborPosition @relation(fields: [laborPositionId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, laborPositionId])
+  @@index([organizationId, storeId])
+}
+
+/// R7-C (Gary, 2026-08-22): ONE ROW PER SALARIED PERSON THE BUSINESS CARRIES.
+///
+/// KEYED BY squareTeamMemberId AND NOT BY StaffMember. Karson and Taylin appear
+/// on store rosters with NO StaffMember row, and importing them was rejected
+/// because it manufactures HR obligations — document audiences, training
+/// assignment, signing ceremonies — to solve a labor problem. The Square id is
+/// used here as an OPAQUE KEY, not as Square-sourced data.
+///
+/// A FROOT-OWNED TABLE, NOT COLUMNS ON THE SQUARE MIRROR, AND THAT IS
+/// LOAD-BEARING. It is what keeps L-2's 2026-08-05 boundary test true VERBATIM:
+/// drop every Square-labor table and this survives with every row, so no labor
+/// NUMBER moves. Columns on SquareTeamMemberWage would have been dropped with
+/// it, which is why the seam amendment's owed restatement is not needed.
+/// (Qualifier, recorded rather than smoothed: with the mirror dropped the
+/// settings card renders ids instead of names. No labor surface changes.)
+///
+/// weeklyCost IS FROOT-OWNED AND NEVER SYNCED. Square's annualRate IS
+/// Square-sourced — writeRoster's DO UPDATE writes it (labor-roster.ts:230-233)
+/// — and the amended seam admits admin-entered facts, NOT synced values. Reading
+/// it live would let a wage edit in Square move two stores' budgets with no Froot
+/// action and nothing on screen. It is SEEDED ONCE from annualRate/52 and never
+/// again; squareAnnualRateSeen records what Square said at seeding so a
+/// divergence can be SHOWN and never acted on. This is the fullName /
+/// squareFullName pattern (StaffMember, above).
+model LaborSalariedPerson {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  /// The join key, to SquareTeamMemberWage.squareTeamMemberId. Opaque here.
+  squareTeamMemberId   String
+  /// Display name, snapshotted at create so this table is legible without the
+  /// mirror. NOT authoritative — the roster card renders the mirror's name.
+  displayName          String
+  /// DOLLARS PER WEEK, Froot-owned. $52,000/yr -> 1000.00. Decimal, not float:
+  /// docs/LABOR.md money convention.
+  weeklyCost           Decimal  @db.Decimal(10, 2)
+  /// The person's required weekly hours — 40 for Kristie. Froot-owned.
+  weeklyHours          Int
+  /// NULL = NOT REVIEWED · true = OUTSIDE ALLOCATION ENTIRELY · false =
+  /// EXPLICITLY INCLUDED. Three states, and `if (p.exempt)` collapses two of
+  /// them. Write `!= null`. An exempt person is not "allocated 0%" — 0% would
+  /// have to sum to 100% with something, and there is nothing to sum with.
+  exempt               Boolean?
+  /// What Square's annualRate said when weeklyCost was seeded. DISPLAY ONLY.
+  /// Nothing reads it for arithmetic, ever, and nothing may start to.
+  squareAnnualRateSeen Decimal? @db.Decimal(12, 2)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization              @relation(fields: [organizationId], references: [id])
+  allocations  LaborSalariedAllocation[]
+
+  @@unique([organizationId, squareTeamMemberId])
+  @@index([organizationId])
+}
+
+/// R7-C: one person's share of one store.
+///
+/// THE SET FOR A PERSON SUMS TO EXACTLY 10000 bps AND IS WRITTEN ATOMICALLY.
+/// There is no endpoint that edits a single row — PUT replaces the whole set in
+/// one transaction — which is what makes "someone edited one side" UNREACHABLE
+/// rather than merely validated against.
+///
+/// BASIS POINTS, NOT PERCENT: integers make the sum EXACTLY 10000 with no float
+/// tolerance, and none is offered. Same unit as LaborDaySplit.weightBps — and
+/// UNLIKE that table, the sum here is enforced at write and asserted (never
+/// normalised) at read. LaborDaySplit normalises on read, which is harmless for
+/// a day split and would be silent corruption for a person: 50/40 would behave
+/// as 55.6/44.4, inventing allocation nobody typed.
+model LaborSalariedAllocation {
+  id             String   @id @default(cuid())
+  organizationId String
+  personId       String
+  storeId        String
+  /// 0–10000. The person's whole set sums to exactly 10000.
+  allocationBps  Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  person       LaborSalariedPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  store        Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([personId, storeId])
   @@index([organizationId, storeId])
 }
 
