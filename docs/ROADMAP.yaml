@@ -7873,6 +7873,25 @@ phases:
     commits: [37d5ded, a9edfca]
     title: "Per-store salaried declarations — LaborPositionStoreHours, shipping empty"
     notes: >
+      SUPERSEDED 2026-08-22 BY THE PER-PERSON ALLOCATION RULING (Gary,
+      DECISIONS.md 99b9c85). PREPENDED PER PRESERVE-AND-MARK; NOTHING BELOW IS
+      EDITED, AND EVERYTHING BELOW WAS TRUE WHEN WRITTEN.
+      WHY: "Both the dollars and the hours at each store derive from the person —
+      nothing derived is ever typed by hand." A per-store salaried HOURS
+      declaration is a hand-typed derived figure. Two sources for one number is
+      how a model rots, and the ruling picks the person.
+      WHAT THAT COSTS, STATED PLAINLY: a table, a migration, a resolution helper,
+      an API route, an estate card and a fixture — built and verified on staging
+      four days earlier — are retired by the ruling that followed them. The
+      rejected alternative (person allocations, else store declaration, else
+      zero) reintroduces exactly the two-source ambiguity "absent means zero" was
+      ruled to remove.
+      NOTHING IS DROPPED. Additive-only does not tier down. The table, its
+      migration, its route and its UI all remain; getWeeklyDayPlan simply stops
+      reading it. The D28 floorExceedsBudget change (>= rather than >) is NOT
+      superseded and stays live — it was never about declarations.
+      THE REPLACEMENT IS R7-C. Audit and plan:
+      docs/prompts/R7_ALLOCATION_AUDIT.md, deviations S5-D48..S5-D56.
       R7 RULED OPTION (a) — "salaried archetypes are a property of the store, not
       of the organization" (Gary, 2026-08-22, DECISIONS.md, ratified 9baaa55).
       THE BUILD RULINGS D18/D19/D22/D24/D26/D27/D28/D32-D35 are ratified in
@@ -8024,6 +8043,79 @@ phases:
         CLEARS WHEN: Gary rules on the wording. Nothing about the ARITHMETIC is in
         question here and no number waits on this — only what the operator is told
         before they type.
+
+  - id: R7-C
+    track: labor
+    size: L
+    status: planned
+    commits: [99b9c85]
+    title: "Per-person salaried allocation + exempt — percentages of a person, summing to 100%"
+    notes: >
+      RULED 2026-08-22 (Gary, DECISIONS.md 99b9c85 — four rulings: promotion
+      order, exempt's timing, allocation is a percentage of a person, hourly
+      staff untouched). AUDIT AND PLAN ONLY SO FAR; NOTHING IS BUILT.
+      docs/prompts/R7_ALLOCATION_AUDIT.md, deviations S5-D48..S5-D56.
+      THE SHAPE. Two new Froot-owned tables, both shipping empty:
+      LaborSalariedPerson (keyed by squareTeamMemberId, carrying weeklySalary,
+      weeklyHours, exempt, squareAnnualRateSeen) and LaborSalariedAllocation
+      (personId + storeId + allocationBps). Two CREATE TABLEs, no ALTER on
+      anything existing, no backfill, no seed.
+      KEYED BY squareTeamMemberId AND NOT BY StaffMember, because Karson and
+      Taylin have no StaffMember row and importing them was rejected — it
+      manufactures HR obligations (audiences, training, signing ceremonies) to
+      solve a labor problem. That rejection stands.
+      SALARY IS RE-ENTERED, NOT READ FROM SQUARE. annualRate is written by the
+      roster sync's DO UPDATE (labor-roster.ts:230-233) and is Square-sourced;
+      the amended seam admits admin-entered facts, NOT synced values. weeklySalary
+      is SEEDED once from annualRate/52 and never live-synced, with
+      squareAnnualRateSeen recording what Square said so a divergence is SHOWN
+      and never acted on — the fullName / squareFullName pattern.
+      IT RESOLVES THE BOUNDARY-TEST DEBT BY DESIGN RATHER THAN BY AMENDMENT.
+      Because the person record is a NEW Froot table and not columns on the
+      Square mirror, dropping every Square-labor table leaves salary, hours,
+      exempt and allocations intact, so no labor NUMBER moves and L-2's
+      2026-08-05 boundary test passes VERBATIM. The restatement the seam
+      amendment recorded as owed (856bd46) is therefore not needed. One
+      qualifier: with the mirror dropped the settings card renders ids rather
+      than names — no labor surface changes, but the card is less legible.
+      THE 100% INVARIANT IS ENFORCED AT WRITE, ON THE WHOLE PERSON ATOMICALLY.
+      The unit of write is the person, never the (person, store) pair, so "someone
+      edited one side" is unreachable rather than merely validated against. READ
+      asserts and NEVER NORMALISES — normalising 50/40 into 55.6/44.4 invents a
+      percentage nobody typed. LaborDaySplit is the near-precedent and is the
+      WRONG shape: its bps sum is enforced nowhere and normalised at read
+      (day-split/route.ts:30-33, labor-daily.ts:97-107), which is harmless for a
+      day split and would be silent corruption for a person.
+      hasGm IS NO LONGER THE HAZARD — the fallback it guarded no longer exists.
+      A store with no allocation getting no GM band IS the ruling working.
+    blockers:
+      - >
+        THE GM ON-FLOOR WINDOW IS PER-STORE AND UNALLOCATED — the new hazard, and
+        it is NOT solvable on this row. labor-plan.ts:206-215 builds the band from
+        LaborSettings.gmOnFloorStartMinutes/EndMinutes, which is per STORE. With
+        Kristie at 50/50, Las Brisas and UNR each draw a GM on-floor band from
+        their own settings, on the same days, for the same person, and the weekly
+        credit ceiling does not help because each store caps at its OWN 20 hours
+        independently.
+        THE HOURS ARITHMETIC IS CORRECT — 20 + 20 = her 40. What is wrong is the
+        COVERAGE SHAPE: both stores may believe she is on the floor 7a-3p Monday.
+        WHICH SPECIFIC DAYS AND HOURS A NAMED PERSON WORKS IS L-4 BY CONSTRUCTION.
+        CLEARS WHEN: L-4 lands, or Gary rules that the double-drawn band is
+        acceptable and it is labelled on the coverage surface.
+      - >
+        PROMOTION CANNOT BE SIGNED OFF AGAINST STAGING — only 5 of 12 staging
+        stores carry a forecast, and forecast goals are PER-ENVIRONMENT stored
+        data (GoalPlan per Neon branch; a code deploy carries none of it). A
+        staging sign-off would understate the estate.
+        THE SEQUENCE, AND STEP 2 IS THE ONE THAT CANNOT BE AUTOMATED: capture
+        production BEFORE for EVERY store (not only budgeted ones) -> ENTER THE
+        DATA ON PRODUCTION FIRST (Kristie's person + 50/50 allocation; exempt on
+        Kelton, Karson, Taylin) -> predict + manifest -> GARY SIGNS LINE BY LINE
+        -> deploy -> capture AFTER -> diff --expect.
+        STEP 2 PRECEDES THE CODE BY RULING. Otherwise promotion runs a window in
+        which Las Brisas and UNR carry nothing, which is exactly the silent
+        strip Gary's promotion-order ruling exists to prevent.
+        CLEARS WHEN: a production manifest is signed and AFTER matches PREDICTED.
 
   - id: L-4
     track: labor
@@ -20349,6 +20441,42 @@ debt:
       wherever a surface is Square-sourced, so whoever takes the retirement
       decision has at least one worked example of "make the fossil unreachable
       where it cannot be real" as an alternative to renaming or soft-deleting it.
+
+  - id: DEBT-81
+    status: planned
+    title: >
+      A guaranteed weekly minimum for an HOURLY person — Karissa Guerrero's
+      "guaranteed 40 hours" — has nowhere to live in the hourly pool
+    notes: >
+      FILED 2026-08-22 BY GARY'S INSTRUCTION during the R7-C audit, as a ROW AND
+      NOT A DESIGN. Gary's fourth ruling that day puts hourly staff out of scope:
+      "An hourly manager such as Karissa Guerrero ($18.00/hr, Spanish Springs)
+      comes out of the hourly pool like any team member. Nothing in this work
+      touches hourly staff."
+      THE THING ITSELF. An hourly manager may be promised a weekly minimum — 40
+      hours — that the store must schedule regardless of what the sales forecast
+      supports. Nothing in the model expresses that today. The hourly pool is a
+      single dollar figure divided by the blended rate (labor-budget.ts:81, :97)
+      and then split across days (labor-daily.ts); it has no concept of a named
+      person, let alone a floor under one.
+      IT IS NOT PER-PERSON ALLOCATION WEARING A DIFFERENT HAT, and the difference
+      is why it gets its own row. Salaried allocation DIVIDES a person's fixed
+      cost across stores — the total is known and is being apportioned. A
+      guaranteed hourly minimum RESERVES capacity inside a pool that is derived
+      from sales, so it can EXCEED what the forecast supports, and something has
+      to give when it does: either the store schedules over budget, or the
+      guarantee is broken, or the remaining pool shrinks for everyone else. WHICH
+      OF THOSE THREE IS GARY'S RULING and none of them is implied by the
+      allocation work.
+      NEIGHBOURING FACTS, recorded so they are not rediscovered. floorExceedsBudget
+      (labor-budget.ts:115, >= since D28) already describes the shape of "the
+      fixed part exceeds the whole budget" for SALARIED cost; a guaranteed hourly
+      minimum would need the same alarm for a different quantity. And the
+      floor-first daily split (labor-daily.ts:68) already reserves a per-DAY floor
+      before distributing the remainder, which is the nearest existing mechanism —
+      but it reserves coverage for a STORE, not hours for a PERSON.
+      DISCONFIRMED BY: a ruling that guarantees are a payroll matter Froot does
+      not model, in which case this closes as won't-do rather than as built.
 
   - id: DEBT-80
     status: planned
