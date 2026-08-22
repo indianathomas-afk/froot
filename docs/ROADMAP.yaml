@@ -7876,7 +7876,7 @@ phases:
   - id: CRON-1
     track: labor
     size: S
-    status: in_progress
+    status: shipped
     title: "Register the labor-timecards cron on production"
     notes: >
       FILED 2026-08-19 BY RULING, NOT BY NEED — this row exists so the
@@ -8059,7 +8059,7 @@ phases:
   - id: OVL-S2
     track: labor
     size: M
-    status: staging
+    status: shipped
     commits: [a56a2e8]
     title: "Schedule/actual overlay — S2 ingest: SquareScheduledShift tables, sync module, fixtures"
     notes: >
@@ -8220,7 +8220,7 @@ phases:
   - id: OVL-S4
     track: labor
     size: M
-    status: staging
+    status: shipped
     commits: [e6a70b1]
     title: "Schedule/actual overlay — S4 comparison + polish: legend toggles, clocked-in roster popup, /labor scheduled-vs-suggested"
     notes: >
@@ -8448,7 +8448,7 @@ phases:
   - id: OVL-S3
     track: labor
     size: M
-    status: staging
+    status: shipped
     commits: [d30f7ea]
     title: "Schedule/actual overlay — S3 card overlay: scheduled/clocked-in curves, labor.schedule.view, position colours"
     notes: >
@@ -8609,7 +8609,7 @@ phases:
   - id: OVL-S5
     track: labor
     size: M
-    status: in_progress
+    status: shipped
     commits: [64415ef, f5b812c, 535ce1d]
     title: "Labor Day Inspector — per-person day timeline, ghosted schedule, six variance flags"
     notes: >
@@ -12175,7 +12175,7 @@ bugs:
       behind after() past a staleness TTL, with Square order webhooks and the
       11:00 sales-reconcile cron as the primary freshness).
   - id: BUG-10
-    status: in_progress
+    status: shipped
     title: >
       Prior-day open timecards are frozen and haunt the clocked-in popup — the
       dashboard sync fetches today only, so a card left open yesterday never
@@ -12352,7 +12352,7 @@ bugs:
       scope here.
 
   - id: BUG-11
-    status: in_progress
+    status: shipped
     commits: [4ef2cea]
     title: >
       WK HRS on the "Team from Square" roster could not be cleared — Square's
@@ -12469,7 +12469,7 @@ bugs:
 
 
   - id: BUG-12
-    status: in_progress
+    status: shipped
     commits: [2116965]
     title: >
       WK HRS, second pass — type="number" hid the caret so the box could not be
