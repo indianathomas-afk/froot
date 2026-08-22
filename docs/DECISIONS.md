@@ -6,6 +6,78 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## R7 option B — the build rulings: LaborPositionStoreHours — 2026-08-22 (Gary)
+
+Gary's rulings, in his words:
+
+- **D18 — schema shape.** The per-store salaried declaration lives in a new
+  LaborPositionStoreHours table: hours only, no rate. It ships empty.
+  LaborPosition is not modified — no storeId column, nullable or otherwise —
+  because a table with no rate field cannot move the blended rate, and that
+  safety should be structural rather than disciplined. (Gary)
+- **D19 — S5-D10's short-hours case.** Substituting the store's declaration for
+  WEEKLY_GM_CAP_HOURS closes the cap-mismatch case and I accept that. The
+  short-hours case stays open, with the condition recorded on the row. (Gary)
+- **D22 — build order.** B ships alone, before the GM-hours whole-crew work. One
+  table, one resolution point, one revertable merge. The GM-hours build reads the
+  ceiling from a named helper when it comes. (Gary)
+- **D24 — the two canary fields** get explicit fixture assertions by name, not
+  implied coverage: blendedHourlyRate == 14.5 at every budgeted store, and
+  salariedCost == 800 / salariedHours == 40 with zero declarations present. Exact
+  equality, no tolerance. (Gary)
+- **D26 — all twelve store lines** stay in the before/after diff. Filtering to
+  budgeted stores would hide a store gaining or losing a budget. (Gary)
+- **D27 — the UI shows the GM's share** of that store's budget beside the
+  declaration, not hours alone. UNR reads "40 hrs · 80%", Las Brisas "40 hrs ·
+  22%". Same hours figure, situations not remotely alike. (Gary)
+- **D28 — floorExceedsBudget fires on `>=`, not `>`** (labor-budget.ts:115). When
+  salaried cost exactly equals the whole labor budget, hourly hours are zero for
+  the entire week and the alert currently stays silent — the flag's exact symptom
+  without the flag. Meeting the floor exactly counts as exceeding it. (Gary)
+- **D32** — the capture records `today` alongside every store line. Had it been
+  there, the Meadowood drift would have been a five-second diagnosis. (Gary)
+- **D33** — adjustedTotalSchedulableHours is excluded from the strict invariant
+  diff. It is a function of the wall clock, not of any write. (Gary)
+- **D34** — it is promoted back into the strict diff for same-day BEFORE/AFTER
+  pairs, where the clock cannot have moved. (Gary)
+- **D35** — the capture file header states the clock-dependence in plain words, so
+  nobody re-derives it. (Gary)
+
+**THE GATE THAT OUTRANKS EVERYTHING, in Gary's words:** *"On the day this
+promotes, every store's plan must produce exactly the number it produces today,
+until someone deliberately writes a declaration. The table ships empty and that
+emptiness is the guarantee — not a green fixture."*
+
+**THE STRICT DIFF** is the whole budget block, plus forecast / source / target /
+weekAdjustments, plus the null-store lines staying null. **EXCLUDED:**
+`adjustedTotalSchedulableHours` and `today`. **STAYS IN:**
+`totalSchedulableHours` — *"different field, one word apart, clock-independent.
+Do not confuse them. Whoever writes the comparison must handle these two names
+without ambiguity; that near-collision is the trap in this gate."* (Gary)
+
+THE DEVIATION NUMBERING OF `MEADOWOOD_DRIFT_AUDIT.md` IS SUPERSEDED, AND THE
+DOCUMENT IS NOT EDITED. That audit (`8203d2c`) proposed S5-D28..S5-D31; D28
+collided with Gary's `floorExceedsBudget` ruling above, which takes the number.
+The audit's four are **renumbered D32..D35** by Gary in this entry. The audit
+file itself is a claim wholesale and stays exactly as written (CLAUDE.md § Where
+documents live) — **read its D28..D31 as this entry's D32..D35**. Recording the
+supersession here rather than editing the file is the point: an artifact that was
+silently renumbered to match a later decision would no longer record what was
+proposed. (Claude)
+
+D25 IS NOT RESTATED HERE AND IS NOT WITHDRAWN. The addendum's S5-D25 — the
+capture script regenerates both sides in the same format, its acceptance test is
+an empty diff against the hand-built BEFORE, and the original is never
+overwritten — arrives in this session as a build instruction rather than as a
+ruling to ratify. It is built to, unchanged. (Claude)
+
+WHAT D28 COSTS, NAMED SEPARATELY FROM THE ADDITIVE WORK, because it is the only
+ruling here that changes existing production behaviour rather than adding
+capability. Every other change in this build is additive and inert until someone
+writes a row; **D28 alters an alert managers already see.** Its blast radius is
+carried in the build's ROADMAP row and in
+`docs/prompts/R7_BUILD_D28_BLAST_RADIUS.md`. (Claude)
+
 ## Salaried archetypes are a property of the store, not of the organization — R7 ruled — 2026-08-22 (Gary)
 
 Gary's ruling, in his words:
