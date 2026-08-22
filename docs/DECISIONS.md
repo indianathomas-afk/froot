@@ -6,6 +6,44 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## R7-C build rulings — retirement, seed-and-own, deviation numbering — 2026-08-22 (Gary)
+
+Gary's rulings, in his words:
+
+- **LaborPositionStoreHours is retired.** A per-store hours declaration is
+  a hand-typed derived figure, which my allocation ruling forbids. The
+  table, its migration, helper, route, card and fixtures are preserved and
+  marked, not deleted — the SALARIED archetype row must also stay, because
+  `laborPositionId` has `onDelete: Cascade` and removing it would silently
+  cascade-delete every declaration row. (Gary)
+- **A salaried person's weekly cost is a Froot-owned figure**, seeded once
+  from Square's `annualRate ÷ 52` and owned in Froot thereafter, with
+  divergence tracked in `squareAnnualRateSeen`. Reading it live from the
+  mirror would let a wage edit in Square move two stores' budgets with no
+  Froot action and nothing on screen. (Gary)
+- **Session prompts no longer assign deviation numbers.** Each session
+  reads the highest recorded `S5-D` number from `docs/ROADMAP.yaml` and
+  continues from there. (Gary)
+
+**THE THIRD RULING CLOSES A THREE-SESSION FAILURE, and it is worth naming what
+it fixes.** Deviation numbers collided three times in four sessions — the drift
+audit's `D28` against Gary's `floorExceedsBudget` ruling, then `D36`, then
+`D41` — each caught only because the previous session's numbers happened to
+still be in view. **A prompt cannot know what the session before it recorded**;
+`docs/ROADMAP.yaml` can, because it is where the numbers land. This session is
+the first to apply it: highest recorded is `S5-D56`, so it opens at **S5-D57**.
+`S5-D15..D17` remain unrecorded and are still not closed. (Claude)
+
+**WHAT "PRESERVED AND MARKED" MEANS FOR CODE, as opposed to for a document.**
+For `ROADMAP.yaml` and `DECISIONS.md` it means prepend a marker and edit
+nothing. For code it cannot mean that literally — a route left mounted is a
+route that still writes rows. **The line taken here: the SCHEMA and the
+MIGRATION are untouchable (additive-only does not tier down); the READ PATH is
+severed so nothing derives a number from it; and the ROUTE and UI are unmounted
+but their files remain, each carrying a header saying what retired it and
+why.** A reader who finds `LaborPositionStoreHours` in the schema must be able
+to reach the ruling from the code, not only from the log. (Claude)
+
 ## Per-person salaried allocation — the four build rulings — 2026-08-22 (Gary)
 
 Gary's rulings, in his words:
