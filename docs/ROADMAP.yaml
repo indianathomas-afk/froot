@@ -7838,6 +7838,131 @@ phases:
     deferred:
       - Populating StoreHours with real operating hours (open windows inferred from trailing sales until then) — still the upgrade path; NOT replaced by L-2's Square actuals (2026-08-05 ruling)
 
+  - id: R7-B
+    track: labor
+    size: M
+    status: staging
+    commits: [37d5ded, a9edfca]
+    title: "Per-store salaried declarations — LaborPositionStoreHours, shipping empty"
+    notes: >
+      R7 RULED OPTION (a) — "salaried archetypes are a property of the store, not
+      of the organization" (Gary, 2026-08-22, DECISIONS.md, ratified 9baaa55).
+      THE BUILD RULINGS D18/D19/D22/D24/D26/D27/D28/D32-D35 are ratified in
+      37d5ded; the work is a9edfca. Audit and plan:
+      docs/prompts/R7_PER_STORE_SALARIED_AUDIT.md plus its addendum. Deviations
+      S5-D18..D23 (main audit), S5-D24..D27 (addendum), S5-D36..D40 (this build).
+      WHAT SHIPPED. One table — LaborPositionStoreHours(organizationId, storeId,
+      laborPositionId, weeklyHours) — carrying HOURS AND NO RATE, with
+      @@unique([storeId, laborPositionId]) as the resolution key so two rows can
+      never describe one store's carriage of one archetype. LaborPosition is
+      UNMODIFIED. One resolution point (src/lib/labor-position-hours.ts) that
+      getWeeklyDayPlan maps every position through once, so all four consuming
+      routes inherit it. A per-store GM floor-credit ceiling. The estate-level
+      "Salaried hours by store" card on /settings/labor. PUT
+      /api/labor/position-store-hours (ADMIN+MANAGER).
+      THE INVARIANT IS A PROPERTY OF THE DATA, NOT OF A GREEN FIXTURE. The
+      migration is CREATE TABLE only — no backfill, no seed — so the table is
+      EMPTY on promotion, every resolveSalariedHours call falls through to the
+      org-wide figure, and that fallback is the same expression
+      labor-budget.ts:76 evaluates today. Deliberately NOT seeded: a declaration
+      per store would be nine rows asserting a number nobody typed, which is the
+      failure that produced R7.
+      hasGm WAS THE PRIMARY HAZARD (S5-D23) and is resolved rather than counted.
+      hasHourlySupervisor was audited as the candidate second hazard and is not
+      one — it reads isSupervisory and payType, neither declarable — and the
+      reasoning is recorded at the call site.
+      FIXTURES PROVE THE ENGINE AND NOTHING PROVES THE ESTATE. See the blocker.
+      DEVIATIONS S5-D36..S5-D40, all Claude implementation choices inside Gary's
+      rulings rather than departures from them.
+      S5-D36 — the estate card composes computeWeeklyLaborBudget directly
+      (src/lib/labor-salaried-summary.ts) rather than calling getWeeklyDayPlan per
+      store. Two reasons, and the second matters more: the plan engine infers open
+      windows and day weights from 56 days of trailing sales PER STORE, which is
+      many multiples of the work for two numbers available upstream; and it is
+      wall-clock dependent (DEBT-80), so a settings table built on it would drift
+      between page loads. The figures are the SAME salariedCost and
+      totalLaborBudget the Budget card shows, not a second derivation.
+      S5-D37 — the write endpoint is a single PUT where `weeklyHours: null` means
+      "withdraw the declaration and inherit again", rather than POST/PATCH/DELETE.
+      One request shape for one cell, and it keeps the null/0 distinction inside a
+      single Zod schema where it can be read in one place.
+      S5-D38 — only SALARIED positions accept a declaration; an hourly position
+      400s. An hourly row has no impliedWeeklyHours to inherit, so a declaration
+      against one would be a row that resolves to nothing.
+      S5-D39 — the capture script sorts store lines by CODEPOINT, not
+      localeCompare. localeCompare is case-insensitive and orders "University
+      Village" before "UNR"; the hand-built BEFORE sorts by codepoint and puts UNR
+      first. Found by the S5-D25 acceptance test on its first run, which is exactly
+      the formatting noise that rule exists to keep out of a real diff.
+      S5-D40 — THE ZERO-DECLARATION COPY IS FLAGGED FOR GARY, NOT SETTLED. See the
+      third blocker.
+    blockers:
+      - >
+        S5-D10's SHORT-HOURS CASE STAYS OPEN BY RULING, NOT BY OVERSIGHT — D19,
+        and this entry is the condition Gary asked to be recorded on the row.
+        Substituting the store's declaration for WEEKLY_GM_CAP_HOURS closes the
+        CAP-MISMATCH case: an admin setting implied weekly hours to 45 no longer
+        gets credits capped at 40, so Sigma gmCreditHours == salariedHours holds.
+        IT DOES NOT CLOSE THE OTHER CASE. A SHORT-HOURS STORE — one whose GM
+        window intersected with open hours sums to LESS than its declaration —
+        still yields Sigma gmCreditHours < salariedHours, because
+        capGmFloorCredits returns hours unchanged below the ceiling
+        (labor-daily.ts:54). Then Sigma day cards != Schedulable again: the same
+        defect, quieter, at a different store.
+        WHY NO CEILING FIXES IT: the GM's CREDITED FLOOR COVERAGE and the GM's
+        BUDGETED HOURS are two different quantities that the identity assumes are
+        equal. Closing it means either scaling credits UP to assert coverage the
+        GM does not provide (wrong), or accepting the identity is conditional and
+        saying so on screen. THAT IS A RULING.
+        PINNED, NOT ASSUMED: scripts/verify-labor-position-hours.ts asserts a
+        short-hours store's credits stay at 15 against a 40-hour declaration, so
+        nobody can later read this gap as closed.
+        CLEARS WHEN: Gary rules on whether the identity may be conditional. The
+        GM-hours whole-crew build (c17466e) is the work that will care, and D22
+        puts it after this row.
+      - >
+        NO ESTATE PROOF EXISTS YET, AND A GREEN FIXTURE IS NOT ONE. The fixtures
+        are PURE — they prove computeWeeklyLaborBudget is invariant under an empty
+        declaration map, field for field, and that D24's canaries hold at the five
+        budgeted staging stores' forecast totals. They cannot prove the deployed
+        estate's numbers are unchanged, because those depend on live forecast and
+        sales rows no fixture can reach.
+        THE ONLY ESTATE PROOF is a BEFORE/AFTER capture of /api/labor/budget for
+        all twelve staging stores at weekStart=2026-08-10, strict-diffed with
+        scripts/capture-labor-budget.ts. The BEFORE exists
+        (docs/prompts/r7_budget_BEFORE_staging_2026-08-22.jsonl, f071158); the
+        AFTER needs this code deployed to staging, which needs a push, which is
+        Gary's alone.
+        WHAT AN EMPTY STRICT DIFF WOULD AND WOULD NOT ESTABLISH is written out in
+        docs/prompts/R7_BUILD_D28_BLAST_RADIUS.md's sibling section of the
+        session report; the short form is that it establishes the ADDITIVE work
+        moved nothing, and it does NOT exercise a single declaration row, because
+        the table ships empty by design.
+        CLEARS WHEN: staging serves this SHA (staging-SHA precondition satisfied
+        both times) and the strict diff is empty across all twelve lines.
+      - >
+        COPY AWAITING GARY (S5-D40) — DECLARING 0 DOES NOT SHRINK A STORE'S
+        BUDGET, AND THAT IS CONTRARY TO HOW THE RULING READS. "A store with no GM
+        is charged nothing" reads as a subtraction. It is a REDISTRIBUTION:
+        salariedCost is the subtrahend that sizes the hourly pool
+        (labor-budget.ts:81 -> :97), so a store declaring zero keeps the same
+        totalLaborBudget and its HOURLY HOURS GO UP. Measured on UNR's real
+        forecast: declaring 0 moves hourly hours 13.5 -> 68.5, a 5.1x change, with
+        the budget unchanged at $1,000. Declaring 20 gives 41.0.
+        THE BUILD SHIPS AN INTERIM SENTENCE in the edit dialog — "Lowering this
+        figure does not lower the store's labour budget. The budget stays the same
+        and more of it becomes available for hourly staff." — because shipping the
+        control with NO warning was the worse option. It is not Gary's wording and
+        is marked as such in the component.
+        THE OPTIONS, none applied: (a) keep the interim sentence; (b) show the
+        consequence live in the dialog, e.g. "hourly hours 13.5 -> 68.5" computed
+        as the operator types, which is honest and is more UI than a copy fix;
+        (c) reframe the column itself away from "charged" language, since nothing
+        on this card is a charge; (d) say nothing and let the Budget card carry it.
+        CLEARS WHEN: Gary rules on the wording. Nothing about the ARITHMETIC is in
+        question here and no number waits on this — only what the operator is told
+        before they type.
+
   - id: L-4
     track: labor
     size: L
@@ -20162,6 +20287,52 @@ debt:
       wherever a surface is Square-sourced, so whoever takes the retirement
       decision has at least one worked example of "make the fossil unreachable
       where it cannot be real" as an alternative to renaming or soft-deleting it.
+
+  - id: DEBT-80
+    status: planned
+    title: >
+      A saved week's day-by-day plan is not stable — ask for the same historical
+      week on two days and the per-day hours differ, while the weekly total holds
+    notes: >
+      FILED 2026-08-22 BY GARY'S INSTRUCTION during the R7-B build, as a KNOWN
+      PROPERTY OF WORKING CODE rather than a defect found afterwards, and
+      explicitly NOT SOLVED in that session. The measurement and the mechanism are
+      docs/prompts/MEADOWOOD_DRIFT_AUDIT.md (8203d2c) §5.4; read it there rather
+      than restated here, which is how these drift.
+      THE MECHANISM IN ONE LINE. weekStart is pinned by the query param but
+      `today` is not — src/app/api/labor/budget/route.ts:26 computes it from
+      new Date() at request time — and two inputs to the daily split are
+      trailing-56-day windows anchored on it (src/lib/labor-plan.ts:171
+      inferOpenWindowsByWeekday, :228 deriveDayWeightsFromSales, the latter only
+      when a store has no saved LaborDaySplit rows). The window slides at midnight
+      in the store's timezone, the derived day-of-week weights change, and each of
+      seven days re-floors to 0.5 hr (src/lib/labor-daily.ts:107), so the sum moves
+      in 0.5 steps. REPRODUCED ON DEV WITH ZERO WRITES by changing only the `today`
+      string: 176.0 -> 175.5, newest syncedAt a month earlier.
+      NOTHING IS WRONG WITH ANY SINGLE ANSWER. There simply is no single answer:
+      the split's weights and floors are derived from a window anchored on NOW
+      rather than on the week being planned.
+      TWO CONSEQUENCES WORTH A HUMAN'S ATTENTION. (1) A manager who plans a week,
+      leaves, and comes back sees different day numbers with nothing on screen
+      saying why; the weekly total is stable and the days are not. (2) It
+      interacts with the Rebalancer (/api/labor/day-hours), which pins specific
+      days by writing WeeklyDayHours and lets the rest re-split against
+      poolForSplit (labor-plan.ts:222) — so PINNED DAYS HOLD WHILE UNPINNED DAYS
+      KEEP DRIFTING UNDERNEATH THEM. That is arguably correct behaviour and it is
+      certainly undocumented.
+      ALREADY MITIGATED WHERE IT WOULD HAVE COST MOST. adjustedTotalSchedulableHours
+      is excluded from the R7 invariant diff by ruling (D33) precisely because of
+      this, and the capture file header states the clock-dependence in plain words
+      (D35) so nobody re-derives it. This row is about the PRODUCT behaviour, not
+      about the gate.
+      NOT A DEFECT REPORT AND NOT SCOPED AS WORK. WHETHER A PLANNED WEEK SHOULD
+      PIN ITS DAY SPLIT ONCE PLANNED IS GARY'S RULING. The honest options are at
+      least three — freeze the derived inputs when a week is first planned; keep
+      deriving and say so on screen; or derive from a window anchored on the WEEK
+      rather than on today — and they differ in what they cost, not just in taste.
+      Nothing should be built here until that call is made.
+      DISCONFIRMED BY: nothing. The mechanism is measured and the code is
+      unambiguous. What is open is only what to do about it.
 
   - id: DEBT-79
     status: planned
