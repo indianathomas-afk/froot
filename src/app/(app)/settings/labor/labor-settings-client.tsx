@@ -11,6 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SplitPolicyInfo } from "@/components/labor/split-policy-info"
 import { BADGE_PRESETS, badgePreset, type BadgePresetKey } from "@/lib/badge-presets"
 import {
+  formatWeeklyHoursDraft,
+  isPendingChange,
+  parseWeeklyHoursDraft,
+  pendingCommitIds,
+  summarizeRosterEdits,
+} from "@/lib/labor-roster-hours"
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -590,11 +597,21 @@ function payText(r: RosterRow): string {
   return "Not set in Square"
 }
 
+type RowStatus = "saving" | "saved" | "error"
+
 function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) {
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "")
   const [data, setData] = useState<RosterPayload | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // THE DRAFTS LIVE HERE, NOT IN THE CELL, and that is what makes a card-level
+  // Save possible at all: a button at the bottom of the table cannot commit
+  // edits it cannot see. A row is present in this map ONLY once it has been
+  // touched; an untouched row derives its text from the stored value, so the
+  // map is also the answer to "what has the operator changed".
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [statuses, setStatuses] = useState<Record<string, RowStatus>>({})
+  const [savingAll, setSavingAll] = useState(false)
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -649,7 +666,13 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
     }
   }
 
-  async function patchRow(id: string, patch: { weeklyHoursOverride?: number | null; isSupervisory?: boolean | null }) {
+  /// RETURNS WHETHER THE WRITE LANDED. It used to return nothing, which is why
+  /// the WK HRS cell had no way to confirm a save and no way to report one that
+  /// failed — `void patchRow(...)` discarded the only fact worth showing.
+  async function patchRow(
+    id: string,
+    patch: { weeklyHoursOverride?: number | null; isSupervisory?: boolean | null }
+  ): Promise<boolean> {
     // Optimistic, then reconciled by the response — a two-field edit that has to
     // wait for a round trip to show a tick reads as broken.
     setData((prev) =>
@@ -657,16 +680,93 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
         ? { ...prev, rows: prev.rows.map((r) => (r.squareTeamMemberId === id ? { ...r, ...patch } : r)) }
         : prev
     )
-    const res = await fetch(`/api/square/labor/roster/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    })
-    if (!res.ok) {
-      setErr("Could not save that change.")
+    try {
+      const res = await fetch(`/api/square/labor/roster/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      })
+      // A THROWN fetch (offline, DNS, an aborted tab) used to escape entirely:
+      // every call site is `void patchRow(...)`, so a rejection became an
+      // unhandled promise and the row sat there wearing its optimistic value.
+      if (!res.ok) throw new Error(`Save failed (${res.status})`)
+      setErr(null)
+      return true
+    } catch {
+      // THE RELOAD COMES FIRST, AND THE ERROR AFTER IT. load() clears `err` on a
+      // successful fetch (see its body), so the old order — set the message,
+      // then reload — wiped the message it had just written and a failed save
+      // reported nothing at all.
       await load()
+      setErr("Could not save that change.")
+      return false
     }
   }
+
+  /// The text a row is showing: the operator's draft once touched, otherwise
+  /// whatever is stored. ONE DEFINITION, used by the cells, by the save bar and
+  /// by saveRow — three readings that drifted apart would be the same class of
+  /// bug as the client and the route validating separately.
+  function draftOf(r: RosterRow): string {
+    return drafts[r.squareTeamMemberId] ?? formatWeeklyHoursDraft(r.weeklyHoursOverride)
+  }
+
+  /// Commit ONE row. Returns false for a draft that does not parse — the caller
+  /// decides whether that is worth reporting, and "Save all" skips such rows
+  /// rather than aborting the whole batch on one bad box.
+  async function saveRow(r: RosterRow): Promise<boolean> {
+    const parsed = parseWeeklyHoursDraft(draftOf(r))
+    if (!parsed.ok) return false
+    const id = r.squareTeamMemberId
+    setStatuses((prev) => ({ ...prev, [id]: "saving" }))
+    const ok = await patchRow(id, { weeklyHoursOverride: parsed.value })
+    setStatuses((prev) => ({ ...prev, [id]: ok ? "saved" : "error" }))
+    if (ok) {
+      // DROP THE DRAFT ON SUCCESS so the row falls back to the stored value —
+      // which patchRow has already updated optimistically. This is what keeps
+      // "pending" honest: a committed row is no longer in the map, so it stops
+      // being counted by the save bar without anything having to reset it.
+      setDrafts((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }
+    return ok
+  }
+
+  /// Commit every pending, parseable row. SEQUENTIAL, DELIBERATELY: patchRow
+  /// reloads the whole roster when a write fails, and firing fifteen of those
+  /// concurrently would have each failure racing the others' reloads.
+  async function saveAllPending() {
+    if (!data) return
+    // THE SELECTION IS pendingCommitIds AND NOTHING ELSE, so the fixture that
+    // asserts which rows get written is asserting this button's own code.
+    const ids = new Set(
+      pendingCommitIds(
+        data.rows.map((r) => ({
+          id: r.squareTeamMemberId,
+          draft: draftOf(r),
+          persisted: r.weeklyHoursOverride,
+        }))
+      )
+    )
+    setSavingAll(true)
+    try {
+      for (const r of data.rows) {
+        if (!ids.has(r.squareTeamMemberId)) continue
+        await saveRow(r)
+      }
+    } finally {
+      setSavingAll(false)
+    }
+  }
+
+  // The save bar's arithmetic is summarizeRosterEdits and nothing else, so the
+  // button, the count and the fixture cannot disagree about what "pending" is.
+  const edits = summarizeRosterEdits(
+    (data?.rows ?? []).map((r) => ({ draft: draftOf(r), persisted: r.weeklyHoursOverride }))
+  )
 
   return (
     <div>
@@ -679,6 +779,10 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
             // the handler rather than in an effect — same reason the abort exists.
             setData(null)
             setErr(null)
+            // Drafts are per store. Carrying them across a switch would paint
+            // one store's uncommitted edits onto another store's roster.
+            setDrafts({})
+            setStatuses({})
             setStoreId(v)
           }}
         >
@@ -764,23 +868,21 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
                     {payText(r)}
                   </td>
                   <td className="py-2.5 pr-3">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={168}
-                      className="h-7 w-20"
-                      // Square's own weekly_hours is the PLACEHOLDER, never the
-                      // value: showing it as a value would make an unset override
-                      // indistinguishable from one that happens to match Square.
-                      placeholder={r.squareWeeklyHours != null ? String(r.squareWeeklyHours) : "—"}
-                      defaultValue={r.weeklyHoursOverride ?? ""}
-                      onBlur={(e) => {
-                        const raw = e.target.value.trim()
-                        const next = raw === "" ? null : Number(raw)
-                        if (next !== null && !(Number.isInteger(next) && next > 0 && next <= 168)) return
-                        if (next === r.weeklyHoursOverride) return
-                        void patchRow(r.squareTeamMemberId, { weeklyHoursOverride: next })
+                    <WeeklyHoursCell
+                      row={r}
+                      draft={draftOf(r)}
+                      status={statuses[r.squareTeamMemberId]}
+                      busy={savingAll}
+                      onDraftChange={(text) => {
+                        setDrafts((prev) => ({ ...prev, [r.squareTeamMemberId]: text }))
+                        setStatuses((prev) => {
+                          if (!(r.squareTeamMemberId in prev)) return prev
+                          const next = { ...prev }
+                          delete next[r.squareTeamMemberId]
+                          return next
+                        })
                       }}
+                      onSave={() => saveRow(r)}
                     />
                   </td>
                   <td className="py-2.5 pr-0">
@@ -795,6 +897,35 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
             </tbody>
           </table>
 
+          {/* THE CARD-LEVEL COMMIT — Gary's ruling, 2026-08-21. Per-row saves
+              stay; this is an ADDITIONAL deliberate commit, not a replacement.
+              The reasoning is about the table rather than the row: fifteen-plus
+              editable rows saving implicitly, one at a time, leaves the state of
+              the table AS A WHOLE unknowable — you cannot look at it and say
+              whether everything you typed is in the database. A count that says
+              "3 unsaved" and a button that turns it into "All changes saved" is
+              the thing that was missing. */}
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-3">
+            <Button
+              size="sm"
+              onClick={() => void saveAllPending()}
+              disabled={edits.committable === 0 || savingAll}
+            >
+              {savingAll ? "Saving…" : "Save changes"}
+            </Button>
+            <span className="text-xs text-[var(--color-muted-foreground)]">
+              {edits.pending === 0
+                ? "All changes saved"
+                : `${edits.pending} unsaved change${edits.pending === 1 ? "" : "s"}`}
+              {edits.invalid > 0 && (
+                <span className="text-[var(--color-destructive)]">
+                  {" "}
+                  · {edits.invalid} need{edits.invalid === 1 ? "s" : ""} fixing first
+                </span>
+              )}
+            </span>
+          </div>
+
           <div className="mt-3 space-y-1">
             {/* WK HRS AND SUP ARE INERT, AND THE CARD SAYS SO (Gary's Q9 ruling).
                 Seam (b) holds: the weekly budget is built from the rate legend,
@@ -804,6 +935,17 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
             <p className="text-xs text-[var(--color-muted-foreground)]">
               Wk hrs and Sup. are Froot&rsquo;s own fields and are saved here, but nothing reads them yet — the weekly
               labor budget is still built from the rate legend.
+            </p>
+            {/* THE SAVE SEMANTICS, ON THE CARD. Wk hrs writes on Save (or Enter)
+                and never on blur: an autosaving cell that also had no
+                confirmation is what made this column look inert for two days.
+                The blank case is spelled out because it is the one an operator
+                is most likely to attempt and least likely to believe. */}
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              Wk hrs saves on Enter, on Save, or when you click away — and &ldquo;Save changes&rdquo; below commits
+              every edited row at once. <strong>Blank</strong> means no Froot value, so Square&rsquo;s own figure
+              (shown in grey beside the box) stands; <strong>0</strong> means explicitly zero hours. They are
+              different answers. Froot never writes either back to Square.
             </p>
             <p className="text-xs text-[var(--color-muted-foreground)]">
               Pay is each person&rsquo;s current wage setting in Square, not what past shifts were costed at. Froot
@@ -825,6 +967,164 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── WK HRS — the one editable Froot field on a Square roster row ────────────
+//
+// BUG-12, MEASURED IN A BROWSER 2026-08-21 against the real component (a temp
+// probe page, since the dev DB holds no roster rows). Three findings, and the
+// diagnosis of each is written here because two of the three were NOT what they
+// looked like:
+//
+//   1. "PRESSING DELETE MAKES 40 APPEAR." It is not a placeholder — there has
+//      been no placeholder attribute on this input since BUG-11, confirmed by
+//      reading the live DOM (hasAttribute("placeholder") === false), and an
+//      empty box never gains a digit. It was `type="number"`. A number input
+//      EXPOSES NO CARET: selectionStart reads null and setSelectionRange throws
+//      InvalidStateError, both measured. So the caret is wherever the browser
+//      put it, one Delete often removes nothing, and a box still reading 40
+//      after you pressed Delete is indistinguishable from a field that reset
+//      itself. IT IS NOW type="text" WITH inputMode="numeric" — a normal caret,
+//      normal selection, no spinner, and a box that can actually be emptied.
+//      Do not "improve" this back to type="number".
+//   2. "ENTER DOES NOT SAVE." The handler was present and does fire — measured,
+//      a synthetic Enter commits the row. What it did NOT do was say anything
+//      when the draft was unparseable: save() returned early and silently, so
+//      an Enter pressed over a bad value was indistinguishable from an Enter
+//      that was never wired. It now surfaces the reason instead of returning
+//      into the void, and BLUR SAVES TOO (Gary finds blur natural), guarded so
+//      that blurring onto the Save button cannot write twice.
+//   3. "0 CAN BE TYPED BUT DOES NOT SAVE." True, at three layers at once:
+//      min={1} on the input, MIN_WEEKLY_HOURS = 1 in parseWeeklyHoursDraft, and
+//      .min(1) in the route's zod. All three are now 0. ZERO AND BLANK ARE
+//      DIFFERENT ANSWERS — see MIN_WEEKLY_HOURS for the rule and for the audit
+//      that found no falsy handling anywhere to collapse them.
+//
+// THE CELL IS NOW CONTROLLED BY THE CARD. Its draft lives in TeamRosterView so
+// the card-level Save can commit rows this component never hears about.
+function WeeklyHoursCell({
+  row,
+  draft,
+  status,
+  busy,
+  onDraftChange,
+  onSave,
+}: {
+  row: RosterRow
+  draft: string
+  status: RowStatus | undefined
+  busy: boolean
+  onDraftChange: (text: string) => void
+  onSave: () => Promise<boolean>
+}) {
+  // What was last committed FROM THIS BOX, so blur does not re-send what the
+  // Save button just sent. Null means "nothing committed here yet".
+  const [lastCommitted, setLastCommitted] = useState<string | null>(null)
+  const [refusal, setRefusal] = useState<string | null>(null)
+
+  const parsed = parseWeeklyHoursDraft(draft)
+  const pending = isPendingChange(draft, row.weeklyHoursOverride)
+
+  async function commit() {
+    if (status === "saving" || busy) return
+    if (!parsed.ok) {
+      // NEVER RETURN SILENTLY. An Enter that does nothing and says nothing is
+      // finding 2, and it is why this branch exists at all.
+      setRefusal(parsed.reason)
+      return
+    }
+    setRefusal(null)
+    setLastCommitted(draft.trim())
+    await onSave()
+  }
+
+  const message: { text: string; tone: string } | null =
+    refusal !== null
+      ? { text: refusal, tone: "text-[var(--color-destructive)]" }
+      : !parsed.ok
+        ? { text: parsed.reason, tone: "text-[var(--color-destructive)]" }
+        : status === "saving"
+          ? { text: "Saving…", tone: "text-[var(--color-muted-foreground)]" }
+          : status === "error"
+            ? { text: "Not saved", tone: "text-[var(--color-destructive)]" }
+            : pending
+              ? { text: "Unsaved", tone: "text-[var(--color-warning,#efa201)]" }
+              : status === "saved"
+                ? { text: "Saved", tone: "text-[var(--color-success-text)]" }
+                : row.squareWeeklyHours != null
+                  ? { text: `Square ${row.squareWeeklyHours}`, tone: "text-[var(--color-muted-foreground)]" }
+                  : null
+
+  const label = row.displayName ?? row.squareTeamMemberId
+
+  return (
+    <div className="flex items-center gap-2 whitespace-nowrap">
+      <Input
+        // TEXT, NOT NUMBER. See finding 1 above — this is the fix, not a
+        // downgrade. inputMode keeps the numeric keypad on a phone.
+        type="text"
+        inputMode="numeric"
+        className="h-7 w-20"
+        value={draft}
+        aria-label={`Weekly hours — ${label}`}
+        onChange={(e) => {
+          setRefusal(null)
+          onDraftChange(e.target.value)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault()
+            void commit()
+          }
+        }}
+        onBlur={() => {
+          // Blur commits too, because Gary finds it natural — but only a real,
+          // parseable change that this box has not already sent. Without the
+          // lastCommitted guard, clicking Save blurs the input and fires a
+          // second identical write behind the first.
+          if (!pending) return
+          if (!parsed.ok) return
+          if (lastCommitted !== null && lastCommitted === draft.trim()) return
+          void commit()
+        }}
+      />
+      {/* BLANK IN ONE CLICK, so reaching it never depends on where the caret
+          landed or on what the Delete key does on this platform. Finding 1 was
+          an operator unable to empty a box; a text input with a real caret is
+          the mechanism fixed, and this is the affordance that means nobody has
+          to know that. Hidden when the box is already empty — there is nothing
+          to clear, and a permanent third control on fifteen rows is clutter. */}
+      {draft !== "" && (
+        <button
+          type="button"
+          className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] underline"
+          onClick={() => {
+            setRefusal(null)
+            onDraftChange("")
+          }}
+          disabled={status === "saving" || busy}
+          aria-label={`Clear weekly hours — ${label}`}
+        >
+          Clear
+        </button>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 px-2 text-xs"
+        // ALWAYS RENDERED AND ALWAYS ENABLED FOR A VALID DRAFT, including a
+        // blank one that matches what is already stored. A Save that hides
+        // itself when nothing "changed" is the old no-op guard wearing a
+        // different hat, and blank-when-already-blank has to stay pressable.
+        disabled={!parsed.ok || status === "saving" || busy}
+        onClick={() => void commit()}
+        aria-label={`Save weekly hours — ${label}`}
+      >
+        Save
+      </Button>
+      {message && <span className={`text-xs ${message.tone}`}>{message.text}</span>}
     </div>
   )
 }

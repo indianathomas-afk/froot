@@ -12351,6 +12351,234 @@ bugs:
       England's staff record is still an operational fix, deliberately out of
       scope here.
 
+  - id: BUG-11
+    status: in_progress
+    commits: [4ef2cea]
+    title: >
+      WK HRS on the "Team from Square" roster could not be cleared — Square's
+      weekly_hours was the input's PLACEHOLDER and a same-value guard skipped
+      the write, so a blank box repainted Square's 40 and read as a failed save
+    notes: >
+      REPORTED 2026-08-21 by Gary against production (www.usefroot.com,
+      org_3FhYUR4l0ue7egug1I0Ig8wxOVn — Keva Juice, production Clerk instance).
+      /settings/labor -> Positions -> "Team from Square", Las Brisas. Kelton
+      Thomas rendered Manager / $36,000/yr / WK HRS 40; the field was edited
+      repeatedly — cleared, tabbed out, Enter, hard reload — and 40 always came
+      back, with no Save control anywhere on the card.
+      THE WRITE PATH ALWAYS EXISTED AND WAS ALWAYS WIRED. This was NOT case (a)
+      "never built" and NOT case (c) "fails with an error". PATCH
+      /api/square/labor/roster/[id] accepted both a number and an explicit null
+      before this session (verified by parsing the route's own zod against both
+      bodies), and the card's onBlur called it. THREE THINGS TOGETHER made a
+      working column read as inert, and any one of them alone still reads as a
+      working field:
+      (1) SQUARE'S weekly_hours WAS THE INPUT'S PLACEHOLDER — the old
+      labor-settings-client.tsx:775 rendered `placeholder={r.squareWeeklyHours}`
+      with `defaultValue={r.weeklyHoursOverride ?? ""}`. Kelton's override was
+      NULL and Square carries weekly_hours 40, so the box was EMPTY showing a
+      grey 40. You cannot delete a placeholder. That is "40 always returns",
+      exactly and completely.
+      (2) THE SAME-VALUE GUARD SKIPPED THE ONE OPERATION THAT MATTERED — the old
+      :781 `if (next === r.weeklyHoursOverride) return` compared null === null on
+      a field that was already unset, so clearing it never issued a fetch at all.
+      The operation an operator most wants (make this blank) was the one
+      guaranteed to do nothing.
+      (3) NOTHING CONFIRMED ANYTHING. A save that landed and a save that never
+      fired were the same screen. Worse, the failure branch set the card error and
+      THEN awaited load(), which clears the error on its own successful fetch —
+      so a genuinely failed PATCH reported nothing either.
+      GARY'S PREMISE ON THE ROW IS WRONG AND IS CORRECTED HERE RATHER THAN
+      QUIETLY. The report reasoned that WK HRS feeds budget.salariedHours and
+      that Las Brisas therefore carries up to 165 phantom salaried hours. IT DOES
+      NOT. computeWeeklyLaborBudget sums LaborPosition rows only —
+      src/lib/labor-budget.ts:74-77, `p.payType === "SALARIED" &&
+      p.impliedWeeklyHours` over `positions.filter(p => p.active)` — and
+      labor-plan.ts:161,175 sources those positions from
+      prisma.laborPosition.findMany, never from SquareTeamMemberWage. The roster
+      column is SquareTeamMemberWage.weeklyHoursOverride and NO core engine reads
+      it (seam (b), and the card has said so on its face since AL-3). So the two
+      unmapped "Not in Froot" Administrators at 45 and 40 distort nothing today,
+      and neither do Kristie's or Kelton's 40s. What the org-wide rate legend
+      actually contributes is ONE salaried position, "General Manager" at 40
+      implied weekly hours, applied per store — a separate question, and Gary's.
+      WHERE THE DISPLAYED 40 CAME FROM, since it decides insert-vs-update:
+      Square. `squareWeeklyHours` is mirrored at sync time from the first job
+      assignment's weekly_hours (labor-roster.ts:263) and the row already exists
+      for every synced member, so every edit is an UPDATE of a nullable column on
+      an existing row. NO SCHEMA CHANGE, NO MIGRATION, NO INSERT — which is why
+      this stayed TIER 2.
+      NO NOTION OF "SALARIED BUT NOT STORE COVERAGE" EXISTS ANYWHERE. There is no
+      flag, no position filter and no exclusion list. `isSupervisory` is the only
+      other Froot-owned roster field and it is equally unread. Today a blank WK
+      HRS does not even express it: null means "fall back to Square's
+      weekly_hours", not "no coverage". That gap is a Gary ruling and this
+      session deliberately did not take it.
+      THE FIX, SCOPED TO THE FIELD AND NOTHING ELSE. New
+      src/lib/labor-roster-hours.ts — dependency-free so a client bundle can
+      import it — holds parseWeeklyHoursDraft (blank parses to a VALUE, null, not
+      to a rejection), formatWeeklyHoursDraft (null is an EMPTY BOX) and the PATCH
+      zod, moved out of the route file. A route may only export HTTP handlers, so
+      a schema declared inside one can never be imported by a fixture — which is
+      exactly how the client came to be able to decline a write the route would
+      have accepted. New WeeklyHoursCell in labor-settings-client.tsx: a
+      CONTROLLED input, an explicit Save button (Enter also saves, blur does NOT),
+      a per-row status of Saving… / Saved / Not saved, and Square's figure
+      rendered BESIDE the box as a grey "Square 40" instead of inside it. The
+      same-value guard is GONE and Save stays pressable on a blank box that is
+      already blank — a Save that hides itself when nothing "changed" is the same
+      guard wearing a different hat. patchRow now returns whether the write
+      landed, catches a thrown fetch (every call site is `void patchRow(...)`, so
+      a rejection used to become an unhandled promise), and sets its error AFTER
+      the reload rather than before it.
+      FIXTURES: scripts/verify-labor-roster-hours.ts, 39 checks, green. Gary's
+      three named cases are sections 3, 4 and 5 — write a value, clear to blank
+      and have blank persist, reload and read back what was written, blank
+      included. Section 2 is the one worth keeping: everything the input can emit
+      is asserted to be something the route accepts, which the two ends could not
+      previously be compared for. Section 6 pins the regression itself — saving
+      blank over an already-blank field STILL writes.
+      DELIBERATELY NOT TOUCHED, all four named out of scope by Gary: how
+      salariedHours is computed, the GM-hours model, any coverage/non-coverage
+      flag, the Rebalancer, and every dollar and labor-percentage figure. The
+      column remains inert to the budget after this fix — it is WRITABLE now, not
+      CONSUMED, and the card still says so.
+      NOT VERIFIED IN A BROWSER, AND THAT IS A REAL GAP. The dev database holds
+      ZERO SquareTeamMemberWage rows (local dev, measured 2026-08-21), so the
+      roster renders empty locally and there was nothing to click. Production
+      credentials are banned to disk (CLAUDE.md § Environment Variables) and the
+      dev Square grant lacks the labor scopes. The reasoning above is from the
+      code and the fixture; the three-way behaviour on a real roster row is
+      unproven until this reaches an environment with synced members.
+      GATES: scoped eslint zero new (the same four pre-existing
+      react-hooks/set-state-in-effect errors in labor-settings-client.tsx, at
+      HEAD and after, confirmed by stashing the file); next build green; verify
+      suite green except DEBT-76's exact nine, diffed sorted against a baseline
+      captured at stashed HEAD in this session — IDENTICAL; import wall unchanged,
+      with no core engine (labor-budget / labor-plan / labor-coverage /
+      labor-daily) importing the new module and only the card, the route and the
+      fixture doing so.
+      CROSS-REFS: L-2 (AL-3 built this card and recorded WK HRS as deliberately
+      inert, Gary's Q9 2026-08-19), DEBT-78 (the duplicate Las Brisas Store row —
+      /settings/labor's store picker still offers both).
+      SUPERSEDED ON STATUS BY BUG-12, 2026-08-21. 4ef2cea and 3cfb99c were
+      PUSHED by Gary and are on staging; the sentence below is kept as written
+      because it was true when written. The fix it describes was incomplete —
+      see BUG-12, which is the same field.
+      STATUS IS in_progress AND NOT staging: 4ef2cea is LOCAL AND NOT PUSHED
+      (pushes are Gary's), per WORKFLOW.md § Session completion rules 4.
+
+
+  - id: BUG-12
+    status: in_progress
+    commits: [2116965]
+    title: >
+      WK HRS, second pass — type="number" hid the caret so the box could not be
+      emptied, Enter refused in silence, and 0 was rejected at three layers at
+      once
+    notes: >
+      REPORTED 2026-08-21 by Gary against STAGING at 3cfb99c, i.e. against
+      BUG-11's own fix. THE DEPLOYED SHA WAS CONFIRMED BEFORE ANY OF THIS WAS
+      BELIEVED (CLAUDE.md § Staging Verification): the staging alias
+      froot-git-staging-indianathomas-2483s-projects.vercel.app serves
+      deployment froot-n5l82vy9a, and `vercel ls --meta
+      githubCommitSha=3cfb99c16b83f8a93c65155c9b25a0e252e173ee` returns that
+      same deployment. That check mattered here rather than being ceremony:
+      three of Gary's four observations describe BUG-11's PRE-FIX code exactly,
+      and "staging is stale" was the cheap, wrong, and very attractive
+      explanation. It was ruled out in two commands before a line was changed.
+      ALL THREE FINDINGS WERE REPRODUCED IN A BROWSER against the real
+      WeeklyHoursCell before anything was edited, via a throwaway probe page
+      under the public /menu route (src/proxy.ts:11) with a fake onSave — the
+      dev DB still holds ZERO SquareTeamMemberWage rows, so the roster itself
+      renders empty locally and there is nothing to click on the real page. The
+      probe was deleted before the commit; `next build` at 2116965 emits no
+      /menu route.
+      FINDING 1 WAS NOT A PLACEHOLDER, WHICH IS THE WHOLE POINT. Gary read
+      "pressing Delete makes 40 appear" as the field defaulting back. It is
+      not: hasAttribute("placeholder") reads FALSE on the live input, and a
+      genuinely empty box gained nothing under Delete pressed three times. The
+      cause was type="number", which EXPOSES NO CARET — selectionStart reads
+      null and setSelectionRange throws InvalidStateError, both measured on the
+      old build. With no caret the user cannot tell where a keystroke will
+      land, one Delete frequently removes nothing, and a box still showing 40 is
+      indistinguishable from one that reset itself. FIXED as type="text" with
+      inputMode="numeric" (selectionStart now reads a real offset), PLUS an
+      explicit Clear control on any non-empty row so that reaching blank never
+      depends on caret position, keyboard layout, or what Delete means on this
+      platform. DO NOT "IMPROVE" THIS BACK TO type="number".
+      FINDING 2 WAS A SILENT REFUSAL, NOT A MISSING HANDLER. The onKeyDown was
+      there and does fire — a well-formed Enter committed the row in the probe,
+      measured twice (over a blank box and over "0"). What it did not do was
+      say anything when the draft did not parse: save() returned early and
+      silently, so an Enter pressed over a bad value was indistinguishable from
+      an Enter that was never wired. NOTE THE HARNESS ARTIFACT, recorded because
+      it nearly produced a wrong finding: the automation's "Return" key arrives
+      with e.key === "" and does nothing, while "Enter" arrives correctly and
+      commits. A tool's key naming is not evidence about a real keyboard. Enter
+      now surfaces the reason; blur commits as well, since Gary finds blur
+      natural, guarded by the last-committed draft so that blurring onto the
+      Save button cannot write twice — measured as one save, not two.
+      FINDING 3 WAS REAL AND WAS THREE LAYERS DEEP: min={1} on the input,
+      MIN_WEEKLY_HOURS = 1 in parseWeeklyHoursDraft, and .min(1) in the route's
+      zod. All three now admit 0.
+      ZERO AND BLANK ARE DIFFERENT ANSWERS — Gary's ruling, and the rule is
+      written at MIN_WEEKLY_HOURS so the next reader finds it before the next
+      consumer is added. null means NO OVERRIDE and Square's own weekly_hours
+      stands; 0 means EXPLICITLY ZERO HOURS. Both live in the same nullable Int
+      column and NO SCHEMA CHANGE WAS NEEDED — 0 is a perfectly good Int. Every
+      existing consumer of weeklyHoursOverride was audited for falsy handling
+      BEFORE the change (`||`, `!x`, a truthy ternary): there is none, every one
+      is a passthrough or an explicit `!= null`. That audit is the reason this
+      was safe to do inside TIER 2 rather than a ruling in its own right.
+      THE CARD-LEVEL SAVE, Gary's reasoning ratified: fifteen-plus editable rows
+      saving implicitly, one at a time, leaves the state of the table AS A WHOLE
+      unknowable. Per-row saves stay and the button is an ADDITIONAL deliberate
+      commit — "Save changes" at the foot of the roster, a live "N unsaved
+      changes" / "All changes saved" count, and a separate count of rows that
+      must be fixed first. One bad box does not strand the other fourteen. This
+      required lifting the drafts out of WeeklyHoursCell into TeamRosterView,
+      because a button at the foot of the table cannot commit edits it cannot
+      see; a welcome side effect is that the render-time state adjustment the
+      previous cell needed is gone entirely.
+      THE A13 POINT IS TAKEN AND ACTED ON. Gary asked whether the fixture tests
+      the path the UI takes. BUG-11's did call the same parse the UI calls, so
+      it was not asserting an input as an output — but it RE-IMPLEMENTED the
+      wiring around it, which proves only that the fixture agrees with itself.
+      summarizeRosterEdits and pendingCommitIds are now exported and are what
+      the save bar's count and the button's row selection actually run, so
+      section 10 asserts the button's own code. 61 checks, up from 39.
+      WHAT IS BROWSER-PROVEN VS FIXTURE-ONLY, stated because the distinction is
+      the honest part of this row. MEASURED IN A BROWSER on the real component:
+      no placeholder attribute; an empty box staying empty under Delete;
+      selectionStart null under type="number" and a real offset under
+      type="text"; Clear emptying a box holding 40; Enter committing blank
+      (-> null) and committing "0" (-> 0); blur committing 32 exactly once; and
+      0 and null coexisting as distinct stored values on two rows at the same
+      time. FIXTURE-ONLY, NOT CLICKED: the "Save changes" button itself and its
+      multi-row batch, since the probe rendered cells rather than the roster
+      card — its arithmetic and row selection are asserted as pure functions and
+      the wiring is typechecked, and that is all that can be claimed. ALSO NOT
+      EXERCISED: the Delete and Backspace KEYSTROKES themselves. The automation
+      produced no edit from either even with the caret measured at offset 2,
+      which is a harness limit, not an app behaviour — so the claim made here is
+      the structural one (a text input has a caret where a number input has
+      none) plus the Clear control that makes the keystroke unnecessary.
+      NOTHING TOUCHED DOWNSTREAM: how salariedHours is computed, the GM-hours
+      model, any coverage flag, the Rebalancer, every dollar and
+      labor-percentage figure. The column remains WRITABLE, not CONSUMED —
+      budget.salariedHours still sums LaborPosition rows (labor-budget.ts:74-77)
+      and no core engine reads weeklyHoursOverride.
+      GATES: scoped eslint zero new (the same four pre-existing
+      react-hooks/set-state-in-effect errors in labor-settings-client.tsx, line
+      numbers shifted); next build green; verify suite green except DEBT-76's
+      exact nine, diffed sorted against a FRESHLY captured stashed-HEAD baseline
+      — identical; import wall unchanged.
+      STATUS IS in_progress AND NOT staging: 2116965 is LOCAL AND NOT PUSHED
+      (pushes are Gary's), per WORKFLOW.md § Session completion rules 4.
+      CROSS-REFS: BUG-11 (the first pass at this field, whose fix this one
+      corrects), L-2 (AL-3 built the card and recorded WK HRS as deliberately
+      inert).
+
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
@@ -20267,3 +20495,70 @@ rulings:
       asking for — and it is the last of the six to close, deliberately, since a
       meta-question about a set cannot honestly be settled before the set is.
     links: [DEBT-36, DEBT-38, DEBT-41, DEBT-42, DEBT-45, DEBT-48]
+
+  - id: R7
+    status: open
+    asked: 2026-08-21
+    title: >
+      forecastExempt has nothing to suppress — the labor forecast is entirely
+      position-based, so what should happen to LaborPosition instead?
+    question: >
+      Gary ruled 2026-08-21 that forecast participation is a property of the
+      person, and commissioned an explicit forecastExempt flag on StaffMember.
+      The blocking trace commissioned in the same prompt found that NO PERSON
+      ENTERS THE FORECAST ARITHMETIC AT ALL. getWeeklyDayPlan
+      (src/lib/labor-plan.ts:150) is the single engine behind day-card hours,
+      Schedulable, Suggested, the coverage curve and the Rebalancer, and its
+      eight database reads (labor-plan.ts:159-167) contain no staffMember, no
+      squareTeamMemberWage and no squareTimecard. budget.salariedHours
+      (labor-budget.ts:74-77) sums LaborPosition rows fetched at
+      labor-plan.ts:161, and LaborPosition is ORG-WIDE — no storeId, no relation
+      to StaffMember. weeklyHoursOverride reaches no calculation anywhere: five
+      touch points, all schema, sync, read, write or render. So a flag on a
+      person would suppress a number that is never counted — a flag that appears
+      to work and changes nothing. The full trace with file:line is
+      docs/prompts/FORECAST_EXEMPT_AUDIT.md. What is actually in the arithmetic
+      is ONE seeded org-wide row — General Manager, SALARIED, impliedWeeklyHours
+      40 (src/lib/labor-positions.ts:9) — contributing 40 hours to EVERY store's
+      plan independently, nine-plus times across the estate, naming nobody. The
+      question is what to do about that, and it is a decision rather than work.
+    options:
+      - >
+        (a) Make LaborPosition per-store, or give it a per-store override, so a
+        store with no resident GM can carry a different implied figure. Schema
+        change; keeps the model position-based and keeps seam (b) intact.
+      - >
+        (b) Keep it org-wide and change the seeded value or the seeding rule.
+        Cheapest; does not distinguish stores from each other.
+      - >
+        (c) Give the forecast a per-person input for the first time, at which
+        point forecastExempt acquires something to suppress. THIS IS THE ONLY
+        BRANCH IN WHICH THE 2026-08-21 RULING BECOMES IMPLEMENTABLE AS WRITTEN,
+        and it COLLIDES WITH L-2 SEAM (b), which forbids a Square-sourced
+        per-person input reaching a core engine (DECISIONS.md 2026-08-05). Two
+        of Gary's own rulings disagree here; that conflict has to be settled
+        before any build, and settling it is the substance of this entry.
+      - >
+        (d) Do nothing to the model — treat the GM's 40 as intentional, per the
+        2026-08-21 ruling that scheduling hours count the whole crew, GM
+        included. The forecast is then correct as built and the exempt flag is
+        withdrawn rather than deferred.
+    recommendation: >
+      NONE OFFERED, DELIBERATELY. The audit was instructed not to design around
+      its own finding, and choosing between these is exactly that design. What
+      the audit will say is which fact should drive the choice: option (c) is
+      the only one that honours the ratified ruling literally, and it is the one
+      that crosses a seam another ruling put there. Everything else is a
+      question about how much per-store fidelity the rate legend deserves.
+      TWO ADJACENT FACTS THE RULING WILL WANT. StaffMember.isCorporate already
+      exists as a Boolean with a comment that already reasons about forecast
+      leakage; if a person-level exemption is ever built, the relationship
+      between the two booleans must be settled in the same sitting, because two
+      flags that both mean "not an ordinary store body" is how a model rots. And
+      SHARED MANAGERS REMAIN UNEXPRESSIBLE UNDER EVERY OPTION EXCEPT (c):
+      Kristie Connolly covers Las Brisas and UNR and is SPLIT, which neither a
+      boolean on her record nor an org-wide position row can say. That is a
+      property of the model rather than of the proposed flag, it was explicitly
+      not solved in this session, and it is folded in here rather than filed as
+      work because its next step is also a decision.
+    links: [L-2, BUG-11, BUG-12]

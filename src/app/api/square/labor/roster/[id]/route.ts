@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { requireSquareLabor } from "@/lib/labor-access"
 import { canSeeWages } from "@/lib/labor-dashboard"
+import { rosterRowPatchSchema } from "@/lib/labor-roster-hours"
 
 // AL-3 — THE TWO FROOT-OWNED FIELDS ON A SQUARE ROSTER ROW.
 // PATCH /api/square/labor/roster/[squareTeamMemberId]
@@ -26,15 +26,11 @@ import { canSeeWages } from "@/lib/labor-dashboard"
 // storage a later salaried-allocation phase needs; the card says so on its face
 // so their inertness is visible rather than discovered.
 
-const patchSchema = z
-  .object({
-    // 168 = hours in a week. Null clears the override and falls back to Square's
-    // own weekly_hours, which is present for salaried members and absent for
-    // hourly ones.
-    weeklyHoursOverride: z.number().int().positive().max(168).nullable(),
-    isSupervisory: z.boolean().nullable(),
-  })
-  .partial()
+// THE SCHEMA LIVES IN src/lib/labor-roster-hours.ts, not here, and the card's
+// input parses through the same module. A route file may only export HTTP
+// handlers, so a schema declared here could never be imported by the fixture
+// that proves the two ends agree — which is how the client came to be able to
+// decline a write the route would have accepted.
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireSquareLabor()
@@ -49,7 +45,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const { id } = await params
-  const parsed = patchSchema.safeParse(await req.json().catch(() => null))
+  const parsed = rosterRowPatchSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success || Object.keys(parsed.data).length === 0) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 })
   }
