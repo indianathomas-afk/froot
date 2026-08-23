@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
+import { validateStoreHours } from "@/lib/store-hours-validate"
 
 // CHK-2 (S2). The editing surface for StoreHours — the table's first writer.
 // Mirrors the Edit Store dialog next to it (store-actions.tsx): a Dialog, a
@@ -74,6 +75,19 @@ export function StoreHoursButton({
   const [days, setDays] = useState<Record<number, DayState>>(() => seed(store.hours))
 
   const hasAny = store.hours.length > 0
+
+  // THE SAME MODULE THE WRITE ROUTE CALLS. Recomputed on every keystroke from
+  // the FORM's state, not from store.hours — the operator has to see the problem
+  // while they are still looking at the box that caused it.
+  const validation = validateStoreHours(
+    WEEK.map(({ dayOfWeek }) => ({
+      dayOfWeek,
+      openingTime: days[dayOfWeek].openingTime || null,
+      closingTime: days[dayOfWeek].closingTime || null,
+      isClosed: days[dayOfWeek].isClosed,
+    }))
+  )
+  const isBlocked = validation.blocking.length > 0
 
   function handleOpen() {
     setDays(seed(store.hours))
@@ -166,34 +180,59 @@ export function StoreHoursButton({
             <div className="space-y-2">
               {WEEK.map(({ dayOfWeek, label }) => {
                 const d = days[dayOfWeek]
+                // Blocking first, then warnings — the thing that stops the save
+                // reads above the thing that merely asks a question.
+                const dayIssues = [
+                  ...validation.blocking.filter((i) => i.dayOfWeek === dayOfWeek),
+                  ...validation.warnings.filter((i) => i.dayOfWeek === dayOfWeek),
+                ]
                 return (
-                  <div key={dayOfWeek} className="grid grid-cols-[5.5rem_1fr_1fr_auto] items-center gap-2">
-                    <span className="text-sm text-[var(--color-foreground)]">{label}</span>
-                    <Input
-                      type="time"
-                      aria-label={`${label} opening time`}
-                      value={d.openingTime}
-                      disabled={d.isClosed}
-                      onChange={(e) => set(dayOfWeek, { openingTime: e.target.value })}
-                      className="disabled:opacity-40"
-                    />
-                    <Input
-                      type="time"
-                      aria-label={`${label} closing time`}
-                      value={d.closingTime}
-                      disabled={d.isClosed}
-                      onChange={(e) => set(dayOfWeek, { closingTime: e.target.value })}
-                      className="disabled:opacity-40"
-                    />
-                    <label className="flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)] cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={d.isClosed}
-                        onChange={(e) => set(dayOfWeek, { isClosed: e.target.checked })}
-                        className="h-4 w-4 accent-[var(--color-primary)]"
+                  <div key={dayOfWeek} className="space-y-1">
+                    <div className="grid grid-cols-[5.5rem_1fr_1fr_auto] items-center gap-2">
+                      <span className="text-sm text-[var(--color-foreground)]">{label}</span>
+                      <Input
+                        type="time"
+                        aria-label={`${label} opening time`}
+                        value={d.openingTime}
+                        disabled={d.isClosed}
+                        onChange={(e) => set(dayOfWeek, { openingTime: e.target.value })}
+                        className="disabled:opacity-40"
                       />
-                      Closed
-                    </label>
+                      <Input
+                        type="time"
+                        aria-label={`${label} closing time`}
+                        value={d.closingTime}
+                        disabled={d.isClosed}
+                        onChange={(e) => set(dayOfWeek, { closingTime: e.target.value })}
+                        className="disabled:opacity-40"
+                      />
+                      <label className="flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)] cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={d.isClosed}
+                          onChange={(e) => set(dayOfWeek, { isClosed: e.target.checked })}
+                          className="h-4 w-4 accent-[var(--color-primary)]"
+                        />
+                        Closed
+                      </label>
+                    </div>
+                    {dayIssues.length > 0 && (
+                      <ul className="pl-[5.75rem] space-y-0.5">
+                        {dayIssues.map((issue, idx) => (
+                          <li
+                            key={`${issue.code}-${issue.field}-${idx}`}
+                            className={
+                              issue.code.startsWith("B")
+                                ? "text-xs text-[var(--color-destructive)]"
+                                : "text-xs text-[var(--color-muted-foreground)]"
+                            }
+                          >
+                            {issue.code.startsWith("B") ? "" : "Check: "}
+                            {issue.reason}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )
               })}
@@ -204,11 +243,18 @@ export function StoreHoursButton({
               rather than 24:00.
             </p>
 
+            {isBlocked && (
+              <p className="text-xs text-[var(--color-destructive)]">
+                Fix the {validation.blocking.length === 1 ? "day" : "days"} marked in red above to save.
+                Anything marked &quot;Check&quot; is only a question — those save normally.
+              </p>
+            )}
+
             {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Hours"}</Button>
+              <Button type="submit" disabled={saving || isBlocked}>{saving ? "Saving..." : "Save Hours"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

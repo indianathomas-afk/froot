@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessStoresManage } from "../../access"
+import { validateStoreHours } from "@/lib/store-hours-validate"
 
 // CHK-2 (S2). THE FIRST WRITER StoreHours HAS EVER HAD.
 //
@@ -111,6 +112,31 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const submitted = parsed.data.hours
   if (new Set(submitted.map((h) => h.dayOfWeek)).size !== submitted.length) {
     return NextResponse.json({ error: "Duplicate day" }, { status: 400 })
+  }
+
+  // THE SECOND CALL SITE, AND IT IS THE POINT. The dialog runs the same
+  // validateStoreHours and disables Save on the same list, but a form-only check
+  // is not a check — BUG-11/BUG-12 are the precedent for the editor and the
+  // write path drifting apart because each carried its own copy of the rule.
+  // One module, both ends.
+  //
+  // BLOCKING ONLY. Warnings are computed here too and deliberately DISCARDED:
+  // they are not persisted, there is no column and no flag, and a warned save
+  // must succeed. A store open three hours on a Tuesday is Rohan's, not an
+  // error, and R7-C's shape is to raise a visible flag and never normalise.
+  const { blocking } = validateStoreHours(
+    submitted.map((h) => ({
+      dayOfWeek: h.dayOfWeek,
+      openingTime: h.openingTime ?? null,
+      closingTime: h.closingTime ?? null,
+      isClosed: h.isClosed,
+    }))
+  )
+  if (blocking.length > 0) {
+    return NextResponse.json(
+      { error: blocking[0].reason, details: { blocking } },
+      { status: 400 }
+    )
   }
 
   // A day carries a decision when it is marked closed, or when at least one
