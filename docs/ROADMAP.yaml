@@ -8047,8 +8047,8 @@ phases:
   - id: R7-C
     track: labor
     size: L
-    status: staging
-    commits: [99b9c85, c7f4cdc, 05f9a98, 12a0738]
+    status: shipped
+    commits: [99b9c85, c7f4cdc, 05f9a98, 12a0738, 394d228, 04009b1, 3d95df5, 35d002a]
     title: "Per-person salaried allocation + exempt — percentages of a person, summing to 100%"
     notes: >
       THE "NOT REVIEWED" BADGE IS DERIVED, NOT STORED — Gary, 2026-08-22, in his
@@ -8221,6 +8221,36 @@ phases:
         WHICH SPECIFIC DAYS AND HOURS A NAMED PERSON WORKS IS L-4 BY CONSTRUCTION.
         CLEARS WHEN: L-4 lands, or Gary rules that the double-drawn band is
         acceptable and it is labelled on the coverage surface.
+      - >
+        CLEARED 2026-08-22 — the blocker below is satisfied and is kept verbatim.
+        Production manifest signed by Gary (docs/prompts/r7c_production_manifest_2026-08-22.md),
+        promoted at merge 35d002a, and AFTER MATCHES PREDICTED AT ALL NINE
+        BUDGETED STORES: Carson 193.0, Las Brisas 247.5, Meadowood 193.0, South
+        Reno 220.5, Southgate 179.0, Spanish Springs 165.5, Sparks 179.0, UNR
+        54.0, University Village 151.5. salariedCost 0 / salariedHours 0 at the
+        seven unallocated stores; 500 / 20 at Las Brisas and UNR.
+        blendedHourlyRate held at 14.50 at every store — the canary survived a
+        schema change, two migrations and a deliberate nine-store re-baseline.
+        Cafe De Keva Cart and Keva Kiosk were excluded by Gary's call, not
+        oversight: both returned budget:null in the BEFORE and cannot move.
+        THE RUNBOOK'S CAVEAT STANDS: an empty diff does not prove the
+        PERCENTAGES are right, only that the arithmetic obeyed them. Gary's
+        signature was the gate.
+        STEP 2 WAS NOT FOLLOWED AND COULD NOT BE — Gary's deviation, 2026-08-22:
+        "The runbook's step-2-before-code sequence was not followed and could not
+        be: LaborSalariedPerson and the Salaried people card ship with the deploy,
+        so there is nowhere to enter the data beforehand. The window was accepted
+        and closed by hand immediately after the deploy read Ready. Nine stores
+        were correct on deploy; Las Brisas and UNR carried nothing for its
+        duration. Future promotions of this shape need the data path to exist
+        before the ruling that depends on it — or the ruling must admit the window
+        explicitly."
+        S5-D61 ANTICIPATED THIS: hasIncompleteAllocation is reported and not
+        strict precisely because a BEFORE taken before data entry and an AFTER
+        taken after can legitimately differ.
+        THE STAGING NULL-VS-FALSE QUESTION IS ANSWERED: it was NULL. Gary's
+        toggle-on-and-off did not land, the badge still read "Not reviewed", and
+        the filter fix is what admitted her. One cause, no second defect.
       - >
         PROMOTION CANNOT BE SIGNED OFF AGAINST STAGING — only 5 of 12 staging
         stores carry a forecast, and forecast goals are PER-ENVIRONMENT stored
