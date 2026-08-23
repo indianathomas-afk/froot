@@ -2,6 +2,249 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## PENDING-MERGE-SHA — PENDING-DATE — R7-D: the GM no longer satisfies the floor of one body
+
+**Merge SHA:** `PENDING` — **the merge does not exist yet.** The promotion
+ritual stamps this line and the heading above from `git rev-parse`; neither is
+ever hand-typed. Until then this entry is written and unpromoted, which is the
+intended state.
+**Payload:** 4 commits on `staging` ahead of `main` at the time of writing —
+`c91af6c`, `1588d31`, `1e7286b`, `6911469` — plus the commit carrying this entry
+(staging → main, `--no-ff`).
+**Prior main tip:** `505f4e6`
+**Diff (code):** `src/lib/labor-coverage.ts` +23/−13, `src/lib/labor-plan.ts`
++10/−0 (comment only), `scripts/verify-labor-coverage.ts` +31/−0. No schema,
+no migration, no env var, no cron.
+
+### What shipped
+
+Two gates in `src/lib/labor-coverage.ts`, and nothing else in the module moved.
+Line numbers below are given **post-fix first, pre-fix in brackets**, because the
+commissioning prompt and the R7-D row both cite the pre-fix numbering and a
+reader at `main` will not find the code there:
+
+- **The floor-of-1 bump — `:93` [pre-fix `:87`].** It read
+  `hourly + (gmAt ? 1 : 0) < 1`, so during the GM band the hourly head count
+  could be ZERO and the floor was still considered satisfied. It is now a floor
+  of one **HOURLY** head: `if ((hourly.get(h) ?? 0) < 1) hourly.set(h, 1)`.
+- **`supervisorGap` — `:116` [pre-fix `:107`].** It read
+  `openHours.some((h) => !gmAt(h)) && !hasHourlySupervisor`, so a band spanning
+  the whole open window cleared the flag outright. It is now
+  `!hasHourlySupervisor`.
+
+**`points[].gm` and the peak are untouched.** The band still draws (`:102`
+[pre-fix `:97`]) and `peakHeadcount` (`:107` [pre-fix `:102`]) still counts the
+GM as a body. Gating those would move `suggestedHours` as a POLICY change — see
+WHAT WAS DELIBERATELY NOT FIXED below.
+
+**`labor-plan.ts` carried ZERO DIFF in the work commit, byte for byte**, and
+`scripts/verify-labor-budget.ts` produced byte-identical output before and after.
+That pair is the proof that nothing crossed into the plan's arithmetic. The
+`labor-plan.ts` +10 in the diffstat above is a COMMENT, and it rides the recorder
+commit precisely so the work commit's zero-diff claim stays literally true
+(DEVIATION R7-D/2 on the row).
+
+**Fixture first, and shown FAILING before the change.** Section 10 of
+`scripts/verify-labor-coverage.ts` — 4 checks failing against the unmodified
+module, then passing. Case (a) puts every unit of sales weight after 2p so
+largest-remainder places ZERO hourly heads inside an 8a–2p band; case (b) spans
+the band across the whole open window with no hourly supervisor.
+
+### THIS CHANGES AN ALERT MANAGERS ALREADY SEE
+
+`understaffedBudget` is not new. It is on screen today, and this change makes it
+fire on days it did not fire on before, at the two stores that draw a GM band —
+Las Brisas and UNR. Recommended coverage also rises there during the band.
+**That is the fix working:** those hours were always needed, and the GM — one
+person the estate counts as present at two stores at once — was papering over
+them. D28's precedent is the reason this has its own heading rather than a line
+in a bullet list: a change to an existing alert gets a blast-radius note.
+
+**The measured size, and it is SMALL.** Week of 2026-07-20, per-day real demand
+shapes, both engine versions run side by side:
+
+| store | suggestedHours BEFORE → AFTER | hours reclaimed inside the band | `understaffedBudget` flips false→true |
+|---|---|---|---|
+| Las Brisas | 275 → 277 (**+2** / week) | 2 (Thu, Sun) | **2 of 7** open days |
+| UNR | 58 → 59 (**+1** / week) | 1 (Mon) | **1 of 5** open days |
+
+`supervisorGap` is `false` before and `false` after, on every day, at both
+stores — see WHICH OF THE TWO GATES IS LIVE below.
+
+**UNR's flag does NOT flip most days**, and that is the sentence this entry
+exists to be able to say. The earlier figure on the R7-D row — UNR 30 → 50, +4
+per open day — was labelled a dev artifact when it was written and it is one:
+dev holds no salaried rows, so UNR's `hourlyHours` is 0.0 all week there and
+every single hour is a floor bump.
+
+**WHY IT IS SMALL, which is the part worth carrying forward.** The GM band's
+real default is `open.startHour → 14:00` (`labor-plan.ts:283-284`, the fallback,
+because `gmOnFloorStartMinutes`/`EndMinutes` are unset — DEBT-83). Both stores
+peak at 12:00. **The band therefore sits directly on top of the demand peak**,
+and those are exactly the hours largest-remainder already gives heads to. The
+hours that come out at zero are the thin ends of the day, and at both stores the
+thin end is the late afternoon and evening — OUTSIDE the band, where the floor
+bump fired before this change too. If a store's band ever moves off its peak, or
+a store's peak moves into its morning, this number grows; the mechanism, not the
+magnitude, is what governs.
+
+**PROVENANCE, STATED PLAINLY — THIS IS A PREDICTION, NOT A STAGING READ.** The
+demand shapes, open windows and day-of-week weights are the dev branch's real
+Square sales (`br-broad-wave-a6vpjdw0`). The weekly HOURLY pools are the
+PRODUCTION figures recorded at the R7-C promotion on 2026-08-22 — Las Brisas
+227.5 (247.5 total − 20 salaried), UNR 34.0 (54.0 − 20). The band is the
+`labor-plan.ts:283-284` fallback overlaid on those windows. **No deployed
+credential was used and none was pulled** (CLAUDE.md § Environment Variables).
+The staging/production confirmation is owed and is listed under KNOWN OPEN.
+
+**THE WEEK IS 2026-07-20, NOT THE CURRENT WEEK, AND THAT IS DELIBERATE.** Dev's
+`SalesHourlyCache` stops at 2026-08-13 for Las Brisas and 2026-07-25 for UNR, so
+the current week has no template dates at all, `getDemandShape` returns `[]`, and
+`computeDailyCoverage` falls back to a FLAT `1/openHours` weight. A flat shape
+spreads heads evenly and yields a delta of exactly zero at both stores — the
+mirror-image artifact of the zero-budget run that produced +20. Neither is the
+answer. 2026-07-20 is the most recent week both stores have complete hourly
+actuals for, so every day of it takes its own real curve.
+
+### WHICH OF THE TWO GATES IS ACTUALLY LIVE TODAY
+
+**Only the floor gate. `supervisorGap` (`:116` [pre-fix `:107`]) is INERT on
+present data, and it is inert twice over.**
+
+1. **`hasHourlySupervisor` is TRUE.** Measured, not read off the seed file: the
+   Keva Juice org carries Assistant Store Manager, Lead Supervisor and
+   Supervisor, all `payType HOURLY`, all `isSupervisory true`, all `active`. The
+   predicate at `labor-plan.ts:255` is therefore true, so `supervisorGap` is
+   `!true` = `false` — before the change and after it.
+2. **Even if it were false, the old clause it removed never fired.** The removed
+   term was `openHours.some((h) => !gmAt(h))`. The band ends at 14:00 and both
+   stores close later — Las Brisas 20:00–22:00 by weekday, UNR 16:00 — so there
+   is always an open hour outside the band and that term is always `true`. A
+   band that spans the WHOLE open window is what the old code needed in order to
+   suppress the flag, and no store in the estate has one.
+
+This is worth recording because it narrows the promotion: the `supervisorGap`
+half is a **latent** correction, priced at zero today. It becomes live the moment
+an org deactivates its hourly supervisory positions, or a store's hours shrink
+inside its band.
+
+### suggestedHours RISES, AND THAT IS EXPECTED
+
+The prompt that commissioned the fix predicted a delta of ZERO and called a
+non-zero delta a leak and a STOP condition. **THE PROMPT WAS WRONG AND THE
+SESSION WAS RIGHT TO OVERRIDE IT.** `suggestedHours` is Σ `points[].headcount`
+over open hours (`weekly-plan/route.ts:163-167`, ratified 2026-08-20), and
+`headcount` is `hourly + gm` (`:103` [pre-fix `:98`]). That line is genuinely
+untouched — it reads a value the floor gate legitimately changed upstream. So
+raising the floor NECESSARILY raises Suggested; a zero delta would have meant the
+fix did not work. The relationship is exact, not approximate:
+
+> **Δ suggestedHours = Δ usedHourlyHours = the number of open hours inside the
+> band that had zero hourly heads.** Items 1 and 3 of the measurement are the
+> same number by construction.
+
+Verified over a 40,000-day randomised sweep running BOTH module versions side by
+side (pre-fix from `git show`, post-fix from the tree) with zero violations, and
+alongside three companions: `understaffedBudget` is true exactly when the day has
+at least one floor bump (`usedHourlyHours = round(budget) + bumps`, and
+`round(B) − B` is in `(−0.5, 0.5]`, so one bump is always enough);
+`supervisorGap` differs before/after ONLY when the band spans every open hour AND
+there is no hourly supervisor; and **with no band at all the change is a
+byte-for-byte no-op**, which is ten of twelve stores.
+
+Recorded here, and ratified by Gary 2026-08-23, so a later reader who finds the
+STOP condition in `docs/prompts/R7D_GM_FLOOR_SAFETY.md` does not conclude it was
+ignored carelessly.
+
+### What does NOT move
+
+**No dollars. No hourly pool. No persisted hours figure.**
+
+`computeDailyCoverage` has ONE production caller — `computeDayCoverage`
+(`labor-plan.ts:411`, the function body at `:419`) — consumed by exactly two GET
+routes, `/api/labor/coverage` and `/api/labor/weekly-plan`. **Neither writes a
+row.** That is call-site exhaustion, re-verified for this promotion rather than
+carried forward on trust. Coverage output is DISPLAY-ONLY: it reaches no budget,
+no persisted hours figure and no dollar. `blendedHourlyRate`, the promotion
+canary, is not in this change's blast radius at all.
+
+`totalLaborBudget`, `salariedCost`, `salariedHours`, `hourlyHours`, the
+floor-first split and every `WeeklyDayHours` override are produced upstream in
+`labor-plan.ts`, which this promotion does not change.
+
+### What was deliberately NOT fixed
+
+**`:103` [pre-fix `:98`] headcount and `:107` [pre-fix `:102`] peak stay as they
+are.** Both still count the salaried GM as a whole body on the floor. Gating them
+would move `suggestedHours` as a POLICY change rather than a safety correction,
+and it would leave Gary's 2026-08-20 whole-crew ruling with **zero live cases**,
+since both GM stores are under 100% allocation. That is a ruling, it is still
+open, and it is not this promotion's to make.
+
+Also untouched: the band's WIDTH and day-shape (L-4's job — which specific days
+and hours a named person works), and any allocation-fraction threading, which was
+WITHDRAWN on the R7-D row because the measurement showed the weekly-cap gap
+dominates the allocation gap.
+
+### Rollback
+
+```
+git revert -m 1 <merge sha>
+```
+
+**No migration, no schema, nothing to un-drop.** Reverting restores the GM
+satisfying the floor of one body and restores the band's power to suppress
+`supervisorGap`. `understaffedBudget` returns to its pre-promotion firing
+pattern at Las Brisas and UNR and is unchanged everywhere else. No data written
+under the new behaviour needs unwinding, because none is written.
+
+### Known open at promotion
+
+Read off `docs/ROADMAP.yaml` at the time of writing, not copied forward from the
+previous entry.
+
+- **The staging/production confirmation of the numbers above is OWED.** The table
+  is a prediction assembled from dev shapes and recorded production pools. It has
+  never been run against a branch that carries both the allocations and the
+  forecasts. `vercel env pull` is banned repo-wide, so this is a Neon-console
+  read and it is Gary's to run.
+- **DEBT-83** (`planned`) — the GM on-floor window is a per-store setting whose
+  real default is a hardcoded literal, and the two halves of that default fall
+  back independently. Unset at eleven of twelve stores; set only at Southgate,
+  where it is inert because Southgate draws no band. **R7-D is what makes this
+  matter**: the band's edges now decide where a floor bump lands, and the reason
+  this promotion is small is that a literal `14` happens to sit on the demand
+  peak. Nobody chose that.
+- **The `:103`/`:107` [pre-fix `:98`/`:102`] ruling** — whether the GM counts as
+  a body for headcount and peak. Open since 2026-08-20, zero live cases while
+  both GM stores are under 100%.
+- **L-4** (`planned`) — the labor assignment layer. The coverage-shape half of R7
+  is blocked behind it: with Kristie at 50/50, Las Brisas and UNR both draw a
+  band from their own settings, on the same days, for the same person. The hours
+  arithmetic is right (20 + 20 = 40); the coverage SHAPE is what is wrong, and
+  which specific days and hours a named person works is L-4 by construction.
+- **DEBT-80** (`planned`) — a saved week's day-by-day plan is not stable; asking
+  for the same historical week twice can produce different day hours.
+- **DEBT-81** (`planned`) — a guaranteed weekly minimum for an HOURLY person has
+  nowhere to live.
+- **DEBT-75** (`planned`) — the last-year same-weekday fallback is ruled binding
+  and still absent, so a store with fewer than four completed same-weekdays in
+  cache still gets "No sales shape to project".
+- **BUG-13** (`planned`) — the all-locations rollup still syncs inline.
+- **`scripts/promote.sh` remains unbuilt.** Every promotion is still a hand-run
+  ritual pasted from a session report. Not filed as a row and not built here.
+
+### Post-deploy check
+
+A glance, not a procedure. Open `/labor` at **Las Brisas** and **UNR** for the
+current week. Expect the GM band to draw exactly as it did before — this change
+does not move it. Expect the Suggested curve to sit one head higher in at most a
+couple of band hours across the week, and expect `understaffedBudget` to be
+raised on one or two more days than before at each store. **A wall of red at UNR
+is NOT the expected outcome**; if that is what appears, the prediction above was
+wrong about the demand shape and the promotion should be reconciled against it
+rather than explained away. Every other store should be byte-identical.
+
 ## 35d002a — 2026-08-22 — R7-C: per-person salaried allocation, exempt, and the absent-means-zero re-baseline
 
 **Merge SHA:** `35d002a2d466e9d0dff853b37de87d76b0b3efca`
