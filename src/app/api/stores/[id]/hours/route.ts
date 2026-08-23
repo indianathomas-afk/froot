@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessStoresManage } from "../../access"
+import { validateStoreHours } from "@/lib/store-hours-validate"
 
 // CHK-2 (S2). THE FIRST WRITER StoreHours HAS EVER HAD.
 //
@@ -24,14 +25,23 @@ import { denyUnlessStoresManage } from "../../access"
 // the absence of a row — rather than becoming indistinguishable from a real
 // decision to open at nine.
 //
-// REPLACE, NOT UPSERT, AND THAT IS FORCED BY THE SCHEMA. StoreHours carries no
-// @@unique([storeId, dayOfWeek]) — verified at HEAD, prisma/schema.prisma:181 —
-// so `upsert` has no key to target and the table can in principle already hold
-// two rows for one weekday. Replacing the whole set inside one transaction is
-// both the only correct write and the fix for any such duplicate. It is the
-// same shape as the closest existing per-store set-write,
-// api/labor/day-hours/route.ts PUT. Adding the constraint would be a migration,
-// and S2 ships none.
+// REPLACE, NOT UPSERT. THE PARAGRAPH THIS REPLACES WENT STALE AND IS CORRECTED
+// HERE (BUG-14 recorder, 2026-08-23) RATHER THAN LEFT TO MISLEAD. It read
+// "StoreHours carries no @@unique([storeId, dayOfWeek]) — verified at HEAD,
+// prisma/schema.prisma:181". That was true when S2 wrote it and is FALSE NOW:
+// CHK-3 added the constraint on 2026-08-09 and it sits at
+// prisma/schema.prisma:255, where the schema's own note records the change. A
+// false comment beside the code it describes is how the next reader gets the
+// behaviour backwards.
+//
+// THE CODE BELOW IS UNCHANGED AND IS STILL CORRECT — only the reason moved. The
+// replace was originally forced by the ABSENCE of the key: `upsert` had nothing
+// to target and the table could already hold two rows for one weekday. With the
+// constraint in place the duplicate is unrepresentable, and the whole-week
+// replace inside one transaction remains the right write because this endpoint
+// receives the whole week and a day dropped from the payload must disappear —
+// which an upsert loop would silently leave behind. Same shape as the closest
+// existing per-store set-write, api/labor/day-hours/route.ts PUT.
 
 // 24-hour "HH:MM" — the format <input type="time"> emits and the format
 // labor-plan.ts's parseHourStart/parseHourEnd already read.
@@ -111,6 +121,31 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const submitted = parsed.data.hours
   if (new Set(submitted.map((h) => h.dayOfWeek)).size !== submitted.length) {
     return NextResponse.json({ error: "Duplicate day" }, { status: 400 })
+  }
+
+  // THE SECOND CALL SITE, AND IT IS THE POINT. The dialog runs the same
+  // validateStoreHours and disables Save on the same list, but a form-only check
+  // is not a check — BUG-11/BUG-12 are the precedent for the editor and the
+  // write path drifting apart because each carried its own copy of the rule.
+  // One module, both ends.
+  //
+  // BLOCKING ONLY. Warnings are computed here too and deliberately DISCARDED:
+  // they are not persisted, there is no column and no flag, and a warned save
+  // must succeed. A store open three hours on a Tuesday is Rohan's, not an
+  // error, and R7-C's shape is to raise a visible flag and never normalise.
+  const { blocking } = validateStoreHours(
+    submitted.map((h) => ({
+      dayOfWeek: h.dayOfWeek,
+      openingTime: h.openingTime ?? null,
+      closingTime: h.closingTime ?? null,
+      isClosed: h.isClosed,
+    }))
+  )
+  if (blocking.length > 0) {
+    return NextResponse.json(
+      { error: blocking[0].reason, details: { blocking } },
+      { status: 400 }
+    )
   }
 
   // A day carries a decision when it is marked closed, or when at least one

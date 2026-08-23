@@ -7967,6 +7967,24 @@ phases:
         CLEARS WHEN: Gary rules on whether the identity may be conditional. The
         GM-hours whole-crew build (c17466e) is the work that will care, and D22
         puts it after this row.
+        SECOND SURFACE, SAME GUARD — ADDED 2026-08-23 BY THE "MANAGER ON THE
+        FLOOR" RULING, and filed here rather than as a new row or against L-4
+        because this case already has a home and a fixture. Gary's ruling
+        (DECISIONS.md 2026-08-23) demotes the drawn band to an expectation and
+        sends every number that claims coverage to the credited hours instead.
+        That is true — WHEREVER THE BAND OUTRUNS THE CEILING. Below it,
+        labor-daily.ts:54 returns the band UNSCALED and the window IS the
+        credited number, which is this case exactly. So a short-hours store is
+        now also a store where the band the chart draws is the number Suggested
+        reads, and the ruling's "it stops feeding any number" holds by the
+        inequality rather than by construction.
+        NOTHING NEW IS CLAIMED AND NOTHING REOPENS. Same guard, same D19 ruling,
+        same pin at scripts/verify-labor-position-hours.ts:146. What changes is
+        the BLAST RADIUS of the ruling Gary still owes this row: it now decides
+        the honesty of a visible Suggested figure, not only of the
+        Sigma gmCreditHours == salariedHours identity. NOT LIVE TODAY — both
+        manager stores draw the unset default (DEBT-83) across their open days,
+        which totals far more than their 20h ceilings.
       - >
         NO ESTATE PROOF EXISTS YET, AND A GREEN FIXTURE IS NOT ONE. The fixtures
         are PURE — they prove computeWeeklyLaborBudget is invariant under an empty
@@ -8279,6 +8297,104 @@ phases:
         leak fails the diff at every store; and BEFORE vs PREDICTED reports 25
         mismatches, which is the OLD gate being dead on purpose.
 
+  - id: R7-D
+    track: labor
+    size: S
+    status: in_progress
+    commits: [1e7286b]
+    title: "The GM no longer satisfies the floor of one body, nor suppresses supervisorGap"
+    notes: >
+      TIER 2. One file, two gates, no schema, no threading. SUPERSEDES the scope
+      in docs/prompts/R7D_GM_BAND_COVERAGE.md (1588d31), which proposed threading
+      an allocation signal; that is WITHDRAWN because the measurement showed the
+      weekly-cap gap dominates the allocation gap, so the fix needs no fraction.
+      That prompt is preserved and marked, not deleted, and its Phase 1 findings
+      stand. The prompt executed here is docs/prompts/R7D_GM_FLOOR_SAFETY.md.
+      THE DEFECT. labor-coverage.ts treated the GM as an uncapped whole body via
+      gmAt(h). Two of its four uses were SAFETY DECISIONS. The floor-of-1 bump
+      read `hourly + (gmAt ? 1 : 0) < 1`, so during the band hourly heads could be
+      ZERO and the floor was considered satisfied. supervisorGap read
+      `openHours.some((h) => !gmAt(h)) && !hasHourlySupervisor`, so a band
+      spanning the whole open window cleared the flag outright.
+      WHY IT IS WRONG. Froot does not know which hours the GM is at which store.
+      Exactly two stores in the estate draw a band — Las Brisas and UNR, Kristie
+      Connolly at 50% each — and NO store is at 100%. Counting her present at both
+      is wrong in the direction that leaves a store EMPTY.
+      THE FIX. The floor is now one HOURLY head; supervisorGap is now
+      `!hasHourlySupervisor`. Nothing else in the module moved.
+      WHAT WAS DELIBERATELY NOT TOUCHED. points[].gm and :102 peak. Gating those
+      moves suggestedHours against Gary's 2026-08-20 whole-crew ruling, and since
+      both GM stores are under 100% it would leave that ruling with zero live
+      cases. A ruling, not a refactor. Also untouched: the band's WIDTH and
+      day-shape (L-4's job), and any allocation-fraction threading (withdrawn).
+      FIXTURE FIRST, AND SHOWN FAILING BEFORE THE CHANGE — 4 failing checks in
+      scripts/verify-labor-coverage.ts section 10 against unmodified
+      labor-coverage.ts, then all passing. Case (a) puts every unit of sales
+      weight after 2p so largest-remainder places ZERO hourly heads inside an
+      8a-2p band; case (b) spans the band across the whole open window with no
+      hourly supervisor. Two INVARIANT checks in the same section passed both
+      before and after on purpose — the band still draws six GM hours, and an
+      hourly supervisor still clears the gap.
+      labor-plan.ts CARRIED ZERO DIFF IN THE WORK COMMIT, byte for byte, and
+      scripts/verify-labor-budget.ts produced byte-identical output before and
+      after. That pair is the proof nothing crossed into the plan's arithmetic.
+      FINDING A RE-VERIFIED CHEAPLY, NOT RE-DERIVED. computeDailyCoverage has ONE
+      production caller, computeDayCoverage (labor-plan.ts:411), consumed by two
+      GET routes — /api/labor/coverage and /api/labor/weekly-plan. Neither writes
+      a row. Coverage output remains DISPLAY-ONLY: no budget, no persisted hours
+      figure, no dollar.
+      DEVIATION R7-D/1 — THE PROMPT CONTRADICTS ITSELF ON THE suggestedHours
+      DELTA, AND THE MEASUREMENT SIDES WITH THE COSTS PARAGRAPH. Step 4 of the
+      prompt expects a delta of ZERO at Las Brisas and UNR "because :98 is
+      untouched", and calls a non-zero delta a leak and a STOP. The prompt's own
+      WHAT THIS COSTS paragraph says the opposite — "Recommended headcount goes UP
+      at Las Brisas and UNR during the band, and understaffedBudget will fire more
+      often there". The COSTS paragraph is right and step 4's stop-condition is
+      mis-stated. suggestedHours is Σ points[].headcount (weekly-plan/route.ts:163-167,
+      ratified 2026-08-20) and headcount is hourly + gm, so raising the FLOOR
+      raises `hourly` and therefore headcount. :98 is genuinely untouched; it reads
+      a value that legitimately changed upstream. THE SESSION DID NOT STOP, because
+      stopping would have discarded the fix the same document commissioned and
+      priced. Recorded rather than resolved silently.
+      MEASURED — dev branch br-broad-wave-a6vpjdw0, org via Store rows Las Brisas
+      cmqvygque000004l7hj2me30o and UNR cmqvygqxb000004l45ajpg1la, week of
+      2026-08-17, throwaway tsx probe, deleted. AS DEV STANDS the delta is ZERO at
+      both stores over the whole week — but that run is NOT evidence about the
+      change, because dev holds no salaried rows, so hasGm is false, d.gmWindow is
+      null on every day, and the gated path never executes. What it DOES establish
+      is that the change is a strict no-op wherever no band draws, which is ten of
+      twelve stores. Overlaying the band these two stores actually draw in the live
+      estate (the labor-plan.ts:283-284 fallback, open.startHour -> 14) onto the
+      real open windows, budgets and demand: Las Brisas 258 -> 259 for the week,
+      +1, on Sunday alone, where understaffedBudget also flips false -> true; UNR
+      30 -> 50, +4 per open day. UNR's figure is a DEV-DATA ARTIFACT and must not
+      be quoted as the live cost — its hourlyHours is 0.0 on every day of that
+      week on dev, so every hour is a floor bump. Las Brisas is the honest signal:
+      a real budget already places heads through most of the band, and only the
+      thinnest day moves.
+      NOT MEASURED, AND IT SHOULD BE BEFORE PROMOTION: the live delta on the
+      branch that actually carries the allocations. vercel env pull is banned
+      repo-wide and the deployed-environment read goes through the Neon console,
+      so this needs Gary. The dev overlay above bounds the SHAPE of the answer,
+      not its size.
+      FOUND AND FIXED IN THE SAME SITTING. The header comment of
+      scripts/verify-labor-coverage.ts still described coverage as "floored at 1
+      while open, with the salaried GM counted on floor in their window" — a
+      clause this change made FALSE. It was first triaged as leave-behind to keep
+      the fixture diff to the added section, and that was the wrong call: it is a
+      display-only edit (CLAUDE.md § Display-Only Changes) in a file this session
+      already touched, and a false comment left next to the code it describes is
+      how the next reader gets the behaviour backwards. Corrected in the recorder
+      commit rather than by amending the work commit, so the SHA this row records
+      stays valid.
+      DEVIATION R7-D/2 — THE labor-plan.ts COMMENT SHIPPED IN THE RECORDER COMMIT,
+      NOT THE WORK COMMIT. The prompt requires labor-plan.ts to carry ZERO DIFF,
+      byte for byte, and in the same breath commissions a COMMENT at
+      labor-plan.ts:297. Both cannot hold in one commit. The work commit satisfies
+      the zero-diff requirement literally and provably; the commissioned comment
+      rides the recorder, which changes no behaviour. See DEBT-83, filed in the
+      same sitting.
+
   - id: L-4
     track: labor
     size: L
@@ -8404,6 +8520,77 @@ phases:
       out of scope for a recorder commit. BUILD-3 hit the identical wall the
       same day with `closed` and resolved it the same way, so this is now a
       pattern rather than a one-off.
+
+  - id: CUTOFF-1
+    track: labor
+    size: L
+    status: planned
+    title: "Business day cutoff — per store, defaulting to midnight, and true overnight hours"
+    notes: >
+      FILED 2026-08-23 BY RULING, NOT BY NEED — the same shape as CRON-1 above.
+      The model is decided and the build is deliberately not started, so this row
+      exists to keep the decision findable and to stop anyone solving overnight a
+      different way. Gary's ruling is docs/DECISIONS.md § "Overnight hours are a
+      business day cutoff, and the model is ruled now"; read it there rather than
+      restated here, which is how these drift.
+      THE MODEL, RULED. A business day cutoff is a PER-STORE setting that
+      DEFAULTS TO MIDNIGHT, and the operating window is expressed relative to it.
+      Everything before the cutoff belongs to the day before — a bar closing at
+      2am sets close of business at 3am, and the 1am sale is Friday's. Not a
+      wider clock, not a 0-30 hour day, not a display offset.
+      RULED BEFORE BUILT, WHICH INVERTS THIS PROJECT'S USUAL ORDER, and the
+      inversion is the point. LaborPositionStoreHours and weeklyHoursOverride
+      were both storage built ahead of a ruling and both were re-shaped by the
+      consumer when it arrived (DECISIONS.md, 2026-08-22). Here the consumer does
+      not exist and the shape is known, so the cheap move is the reverse.
+      TIER 3 BY DEFINITION, AND AUDIT-FIRST. A cutoff redefines what "a day"
+      MEANS across everything keyed by date — SalesHourlyCache, DailyGoal, the
+      forecast, LaborDaySplit and the whole labor plan. It is not a display
+      setting and it cannot be scoped from the outside.
+      OPENING TASK OF THE AUDIT, AND IT IS A TASK RATHER THAN A DETAIL INSIDE
+      ONE. DOES SQUARE EXPOSE A BUSINESS-DAY CUTOFF, AND WHAT DOES IT USE TO
+      ATTRIBUTE A 1AM SALE? Gary's ruling is that Froot's cutoff must AGREE with
+      Square's or it does not ship — sales come from Square and are reconciled
+      against Square, so a Froot day that runs to 3am against a Square day that
+      does not computes a labor percentage on one day from another day's sales,
+      and nobody would ever catch it. IF SQUARE OWNS IT, Froot MIRRORS it and no
+      operator ever types a divergent number. IF SQUARE DOES NOT, Froot owns it
+      and that is a LARGER DECISION THAN THIS RULING SETTLES — stop and ask
+      rather than picking a default. Nothing else in the audit is worth doing
+      until this is answered, because the answer decides whether the setting is
+      writable at all.
+      THE REST OF THE AUDIT, deliberately unruled and listed so the shape is
+      visible. What the cutoff defaults to for a store that HAS one; how a cutoff
+      interacts with the WEEK boundary; and whether SalesHourlyCache is RE-KEYED
+      or OFFSET AT READ. None of the three is answered by the ruling above.
+      SECOND BUILD ITEM — THE COVERAGE ENGINE HAS NOWHERE TO PUT THE HOURS.
+      labor-coverage.ts:99 builds its points array as `for (let h = 0; h < 24;
+      h++)` — one calendar day. Overnight support is not a predicate change
+      there, it is a change to what the array indexes.
+      TRIGGER — THE THING TO WATCH FOR — A REAL STORE THAT CROSSES MIDNIGHT.
+      None of the twelve locations does today, which is the entire reason this is
+      a row and not work. Gary: "I am not paying for a cutoff across sales, goals
+      and labor for a case I do not have."
+      WHAT DOES NOT WAIT FOR THIS ROW, so nobody reads the deferral wider than it
+      is. (1) The `00:00` parse fix rides Phase 3 of the 2026-08-23 session — a
+      midnight CLOSE is an ordinary day ending at 24:00 and was never an
+      overnight case. (2) BUG-14's surfacing work goes first on that row and is
+      not gated here: until true overnight works, a store whose typed hours the
+      engine ignores must say so ON SCREEN.
+      STATUS IS `planned` AND THE PARKING LIVES IN THIS PROSE, the same weakness
+      CRON-1 records above — there is no `parked` value in the PhaseStatus union
+      and inventing one is code, not a recorder commit. A board reader sees
+      "planned" and has to open the row to learn it is waiting on a named
+      trigger.
+      DISCONFIRMED BY: a Square answer showing Square attributes a 1am sale to
+      the calendar date with no cutoff of its own AND that Gary accepts Froot
+      owning the divergence — which would not close this row but would move its
+      largest open question from "mirror Square" to a Froot-owned default, and is
+      the one finding that changes the build rather than sizing it.
+      Related: BUG-14 (where the silent discard was measured, and whose surfacing
+      work is the near-term half of this), DEBT-83 and L-4 (the GM band, which
+      reads open.startHour and would move with any cutoff), L-3 (sales inference,
+      which is what every discarded row falls through to).
 
   # ---- Schedule/actual overlay (labor-schedule) ----
   # Session split ratified 2026-08-20: S1 discovery -> S1b probe -> S2 ingest
@@ -12033,9 +12220,52 @@ bugs:
 
   - id: BUG-6
     title: "Dashboard store switch serves the previous request's sales — the lazy refresh lands after the response"
-    status: staging
+    status: shipped
     commits: [37361ba, b77082e]
     notes: >
+      ── BOOKKEEPING PASS 2026-08-22 — status staging -> shipped. Prepended per
+      preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      REACHED MAIN 2026-08-14 in promotion 06dc830 (docs/DEPLOY_LOG.md:723).
+      THAT PROMOTION WAS A FAST-FORWARD, NOT A MERGE — `git revert -m 1` does
+      not apply, and rollback means reverting all ten of ce036f9..06dc830 in
+      reverse order. This is one of the five consecutive --no-ff violations
+      DEBT-38 records.
+
+      MEASURED 2026-08-22, not cited: `git branch -r --contains` returns
+      origin/main and origin/staging for BOTH 37361ba and b77082e. origin/main
+      and origin/staging are both 505f4e6 — identical, so the branches hold the
+      same code by identity rather than by inference.
+
+      SHIPPED, NOT VERIFIED, AND THE DISTINCTION IS DELIBERATE. The line below
+      reads "VERIFIED ON STAGING BY GARY 2026-08-13 — THE DEFECT IS CLOSED" and
+      it stands. But BUG-7's row establishes that on this board `verified` means
+      verified IN PRODUCTION; BUG-6's evidence is a staging store-switch pass.
+      The honest status is `shipped`. Taking it to `verified` costs one
+      store switch on www.usefroot.com showing current numbers without a manual
+      refresh — cheap, and not done, so not claimed.
+
+      WHY IT SAT AT `staging` FOR EIGHT DAYS. The DEBT-72a backfill of
+      2026-08-17 MEASURED this row as contradicting git (its §5a) and
+      deliberately did not flip it: §3a scoped that session to rows reading
+      planned/in_progress/absent, and this row read `staging`. It recorded the
+      finding as "Gary's to apply" and predicted the shape — a `staging` row
+      that never advances is the same disease one stage later, and it named
+      BUG-6 as the only instance. Five days later there were two (this row and
+      DEBT-28). The mechanism is that nothing in the promotion ritual reads the
+      board, which is DEBT-72's subject and Gary's ruling to write.
+
+      THE ROLLUP ASYMMETRY LEFT THIS ROW RATHER THAN CLOSING WITH IT — SEE
+      BUG-13. The block below folds /api/dashboard/rollup:66-68 into this row on
+      Gary's 2026-08-13 ruling and names deciding its posture as "this row's
+      remaining work". That work is NOT done and is NOT closed by this flip. It
+      is now BUG-13, split out 2026-08-22 on the DEBT-5 -> DEBT-27 precedent:
+      this row's notes were the only place in the file that mentioned it, so
+      flipping to shipped would have retired an undecided design question from
+      the open list. The 2026-08-13 fold-in ruling was correct on its premise —
+      this row was open and the question sat on a live row — and the flip is
+      what ends that premise. BUG-13 also carries a severity correction the
+      block below predates: it was filed while the Square webhook was dead.
       VERIFIED ON STAGING BY GARY 2026-08-13 — THE DEFECT IS CLOSED. Prepended;
       everything below stays exactly as written. Org
       cf888f2d-f234-48c7-8097-fd5b44b5b3dd on Clerk instance verified-snapper-7,
@@ -13019,7 +13249,224 @@ bugs:
       CROSS-REFS: BUG-11 (the first pass at this field, whose fix this one
       corrects), L-2 (AL-3 built the card and recorded WK HRS as deliberately
       inert).
+  - id: BUG-13
+    status: planned
+    title: >
+      The all-locations rollup still syncs inline while the single-store view
+      polls — two surfaces of one dashboard can disagree about the same store's
+      today
+    notes: >
+      SPLIT OUT OF BUG-6 2026-08-22 when that row flipped staging -> shipped.
+      NOT A NEW FINDING and not a re-litigation: this is BUG-6's own stated
+      remaining work, moved to a row of its own so that flipping BUG-6 does not
+      retire an undecided question from the open list.
+      THE PRECEDENT IS DEBT-5 -> DEBT-27, and it is the same move one field at a
+      time. DEBT-5's notes were the only place in this file that mentioned the
+      storeNumber backfill, so closing DEBT-5 would have dropped the data half
+      off the open list with nothing tracking it; DEBT-27 exists for that
+      reason. BUG-6's notes were the only place that mentioned the rollup
+      posture. Gary's 2026-08-13 ruling folded it into BUG-6 rather than opening
+      a row, and that ruling was correct on its premise — BUG-6 was open and the
+      question sat on a live row. The flip is what ends the premise. Ruled
+      2026-08-22 to split.
+      THE DEFECT. /api/dashboard/rollup:66-68 never received BUG-1 step 4 and
+      still `await`s syncSalesForStore INLINE before responding, while
+      /api/dashboard/summary and /api/dashboard/sales defer behind after() and
+      poll (BUG-6, 37361ba + b77082e). So the all-locations view is
+      fresh-and-slow and the single-store view is fast-then-fresh, and the two
+      surfaces of the same dashboard can render different "today" numbers for
+      the same store seconds apart. RE-VERIFY THE FILE:LINE BEFORE ACTING — it
+      is carried forward from the 2026-08-13 F-4 audit and has not been
+      re-measured since.
+      IT IS A REAL DECISION, NOT AN OVERSIGHT, which is why it was never folded
+      into the fix. The rollup loops every store SERIALLY, so giving it the
+      single-store treatment means N syncs rather than one, and the poll shape
+      that suits one card does not obviously suit a view that is already paying
+      N round trips. Deciding which posture is canonical is the work; the edit
+      is small once decided.
+      SEVERITY IS LIKELY LOWER THAN THE 2026-08-13 FRAMING, AND THAT SHOULD BE
+      MEASURED BEFORE ANYTHING IS BUILT. This was filed while the Square webhook
+      was DEAD, which is precisely why the 15-minute stale branch fired
+      constantly and the two surfaces diverged in practice. Since then F-4's
+      production webhook went live (06dc830, 2026-08-14) and BUG-7's guarded
+      upsert landed, with ~55 `discarded ... superseded by a newer fetch` lines
+      measured across nine stores on 2026-08-16 — direct evidence the caches are
+      being written at transaction rate. If syncedAt is now rarely older than
+      STALE_MS, the stale branch rarely fires on EITHER surface and the
+      disagreement window is a fraction of what it was. NOT ASSERTED AS FIXED —
+      unmeasured either way. The first task on this row is to measure how often
+      the rollup's stale branch actually fires in production, because the answer
+      may make the posture decision cheap or may retire the row outright.
+      NO AUTOMATED COVERAGE REACHES THIS. scripts/verify-f4-rollup-webhook.ts
+      computes rollup arithmetic through computeRollup in src/lib/pacing.ts, NOT
+      through /api/dashboard/rollup, and the dashboard routes need a Clerk
+      session a Node fixture does not have. Same limit BUG-6 recorded.
+      Related: BUG-6 (this row's origin, shipped 2026-08-14), BUG-1 (the change
+      whose step 4 the rollup never received), BUG-7 (the guard that made
+      concurrent writers safe), F-4 (the webhook whose death made this visible),
+      DEBT-69 (coalescing, which would reduce the N-syncs cost of one posture).
 
+  - id: BUG-14
+    status: in_progress
+    commits: [ec92e88]
+    title: >
+      The store hours editor accepted impossible hours in silence, and a wrong
+      open time lands straight in the labor forecast
+    notes: >
+      FILED AND FIXED 2026-08-23, from two errors Gary made the same morning
+      rather than from an audit. Nothing populated StoreHours until that day —
+      every open window in the labor model came from inferOpenWindowsByWeekday,
+      flagged since L-3 — so the editor had never been exercised on real input.
+      THE TWO ERRORS. Mon-Fri entered as 08:00 to 08:00, which is either a
+      zero-length day or a 24-hour one depending on how the engine reads it. And
+      a Sunday entered as 01:00 AM open on a campus store, an AM/PM slip. BOTH
+      SAVED WITHOUT A WORD.
+      WHY THE SECOND IS NOT COSMETIC. The GM on-floor band's real default is
+      open.startHour -> 14:00, a hardcoded literal at labor-plan.ts:284 (DEBT-83).
+      A 01:00 open therefore turns that Sunday band into THIRTEEN HOURS at a
+      store Kristie is 50% allocated to. A wrong open time does not stay in the
+      hours table; it propagates into the labor forecast.
+      THE EDITOR IS THE ONLY DEFENCE, and that is structural rather than an
+      oversight: these are Froot's own rows and a Square resync never overwrites
+      them, so nothing downstream will ever correct a bad value.
+      THE FIX — ONE PURE MODULE, TWO CALL SITES. src/lib/store-hours-validate.ts
+      exports validateStoreHours(days) -> { blocking, warnings }. It is
+      dependency-free on purpose, the same contract as labor-roster-hours.ts, so
+      the dialog (stores/store-hours-button.tsx) and the write route
+      (api/stores/[id]/hours PUT) run THE SAME CODE. A form-only check is not a
+      check — BUG-11/BUG-12 are this house's precedent for an editor and a write
+      path each carrying their own copy of one rule and drifting apart.
+      THE RULE SET. BLOCK: B1 open == close on a day not marked Closed; B2 one
+      time filled and the other blank. WARN: W1 over 16h, W2 under 4h, W3 opens
+      before 05:00, W4 open or close more than 3h from the median of that store's
+      other filled days, needing 3 siblings before it can fire.
+      CLOSE < OPEN IS LEGAL AND MUST NEVER BLOCK OR WARN. The dialog's helper
+      text promises it outright — "a store that closes after midnight is fine,
+      enter the real closing time rather than 24:00" — and the write route
+      already declined to order-check for the same reason. The obvious check is
+      the wrong check. Asserted explicitly in the fixture, on BOTH lists.
+      W1-W4 WARN AND NEVER BLOCK, BY RULING PRECEDENT. Rohan's Restaurant, Cafe
+      De Keva Cart and Keva Kiosk are seasonal and legitimately odd. The shape is
+      R7-C's: assert, raise a visible flag, never normalise. No time is
+      auto-corrected, no AM/PM is swapped, no intent is inferred — inventing a
+      value nobody typed is the failure this house has ruled against twice, and
+      LaborDaySplit's read-normalisation is the standing anti-pattern. The
+      fixture asserts the input object comes back unmutated.
+      WARNINGS ARE NOT PERSISTED. No column, no flag, no schema, no migration.
+      They are computed at render and at write, the route discards them, and a
+      warned save succeeds.
+      FIXTURE FIRST, SHOWN FAILING. scripts/verify-store-hours.ts was written and
+      run before the module existed, failing with MODULE_NOT_FOUND. 17 assertions.
+      DEVIATION — TWO FIXTURE EXPECTATIONS WERE CORRECTED, NOT THE MODULE. The
+      fixture predicted B2 would name the DAY; the implementation names the EMPTY
+      BOX, because that is the box the dialog has to highlight. The fixture was
+      wrong and was changed to match. Recorded because "the fixture went green"
+      means nothing if the fixture is edited without saying so.
+      THE SWEEP FOUND NOTHING, AND THAT IS A STATEMENT ABOUT THE BRANCH, NOT THE
+      DATA. The dev branch (ep-late-water-a6k53nv2) holds ZERO StoreHours rows,
+      so the sweep exercised the code and tested no data. Gary's rows live on a
+      deployed branch, which the credential rule says is read through the Neon
+      console and never by pulling a deployed credential to disk. So
+      scripts/sweep-store-hours.ts takes a console JSON export as an argument and
+      validates it with THE SAME MODULE, rather than reimplementing the rule set
+      in SQL — a SQL copy would be the exact drift BUG-11/BUG-12 record. Verified
+      against a synthetic export of both real errors: 5 blocking, 2 warnings, and
+      a legitimate overnight store correctly silent. THE DEPLOYED SWEEP IS STILL
+      OUTSTANDING and is the first thing to run on this row.
+      NO DATA WAS CORRECTED, DELIBERATELY. A wrong row is Gary's to fix in the
+      UI, which is also the first live test of the editor's new behaviour.
+      KNOWN GAP, NAMED RATHER THAN FIXED: a time that is present but does not
+      match HH:MM is treated as ABSENT by the validator, so two junk values on
+      one day read as an undecided day and stay silent. It cannot arise from the
+      dialog — the route's zod enforces the format on write — and it can only
+      come from a row predating that. The sweep counts unparseable values in its
+      own column rather than leaning on the validator for this.
+      CORRECTION 2026-08-23, SAME DAY, TO THIS ROW'S OWN ACCOUNT OF ERROR 1. The
+      text above says 08:00-08:00 is "either a zero-length day or a 24-hour one
+      depending on how the engine reads it". THE ENGINE READS IT AS NEITHER: it
+      DISCARDS IT. labor-plan.ts:272 admits an explicit window only when
+      `s != null && e != null && e > s`, and 08:00-08:00 gives s == e == 8, so
+      the row falls through to inferredOpen[wd] and the store silently runs on
+      sales inference. Verified at HEAD by evaluating parseHourStart and
+      parseHourEnd over the shapes directly.
+      SO ERROR 1 NEVER REACHED THE FORECAST, AND THAT IS NOT THE GOOD NEWS IT
+      SOUNDS LIKE. The editor shows 08:00-08:00, the operator believes the store's
+      hours are set, and the engine uses a window nobody typed. A value that is
+      ignored while being displayed back as accepted is its own defect, and a
+      quieter one than a wrong number. Error 2 (01:00 open) is unaffected by this
+      correction and does propagate: s=1, e=16, e > s holds.
+      THE SILENT-DISCARD CLASS IS WIDER THAN THE TWO ERRORS, AND ITS LARGEST
+      MEMBER IS THE ONE THIS SESSION DELIBERATELY CERTIFIED AS CLEAN.
+      labor-plan.ts:272 discards EVERY OVERNIGHT ROW. parseHourStart("22:00") is
+      22 and parseHourEnd("02:00") is 2, so `e > s` is false and a 22:00-02:00
+      week falls through to sales inference. 18:00-00:00 discards too, because
+      parseHourEnd("00:00") is 0 — a midnight close is ordinary data.
+      THREE PARTS OF THE SYSTEM NOW DISAGREE ABOUT THE SAME ROW. The dialog's
+      helper text PROMISES overnight works ("a store that closes after midnight
+      is fine — enter the real closing time, say 02:00, rather than 24:00"). The
+      write route declines to order-check for that reason. store-hours-validate.ts
+      asserts overnight is clean on BOTH lists, explicitly, because this row's
+      prompt required it and the promise on screen justified it. AND THE ENGINE
+      THROWS IT AWAY. An operator entering a real overnight window gets no
+      warning, a successful save, and hours that drive nothing.
+      THE VALIDATOR IS NOT WRONG; ITS SILENCE MEANS SOMETHING NARROWER THAN IT
+      APPEARS. "Clean" means the EDITOR accepts the row, not that the ENGINE uses
+      it. Those were assumed to be the same thing when the rule set was written.
+      RULED 2026-08-23 BY GARY — ROWS THE ENGINE SILENTLY DISCARDS MUST BE
+      SURFACED, NOT ONLY BLOCKED GOING FORWARD. Blocking B1 and B2 at the editor
+      stops new ones; it does nothing for rows already in the database, and
+      nothing at all for overnight rows, which are never blocked by design. THE
+      WORK: (a) a discarded-row check that names the ENGINE's admission rule
+      (`e > s` at labor-plan.ts:272) rather than the editor's, since they are not
+      the same predicate; (b) it must be visible where the hours are — a store
+      whose typed hours are being ignored has to say so on screen, not only in a
+      sweep; (c) the deployed sweep reports the discarded set alongside blocking
+      and warnings. NOT DONE IN THE FILING SESSION and deliberately not folded
+      into the validator, because whether overnight should be MADE TO WORK in the
+      engine or DECLARED UNSUPPORTED in the dialog is a ruling, not an
+      implementation detail — and the helper text has already promised the first.
+      DISCONFIRMED BY: a ruling that overnight windows are out of scope for the
+      labor model, at which point the dialog's promise is withdrawn instead and
+      the discard becomes correct behaviour that the editor must stop inviting.
+      RULED 2026-08-23, SAME DAY — THE DIRECTION QUESTION THIS ROW LEFT OPEN IS
+      ANSWERED, AND THE ANSWER IS "MADE TO WORK". The paragraph above says
+      whether overnight should be MADE TO WORK in the engine or DECLARED
+      UNSUPPORTED in the dialog "is a ruling, not an implementation detail".
+      Gary ruled it: overnight hours ARE supported, the dialog's promise stands,
+      and the mechanism is a per-store BUSINESS DAY CUTOFF defaulting to
+      midnight. Full entry: docs/DECISIONS.md § "Overnight hours are a business
+      day cutoff, and the model is ruled now". THE `DISCONFIRMED BY` ABOVE DID
+      NOT FIRE — it named the other branch, a ruling that overnight is out of
+      scope, and that branch is now closed rather than pending.
+      THE CUTOFF ITSELF IS DEFERRED TO ITS OWN ROW, CUTOFF-1 (TIER 3), which
+      waits for a real store that crosses midnight and opens with an audit whose
+      first task is the Square question. NOTHING ON THIS ROW WAITS FOR IT.
+      WHAT IS FIRST ON THIS ROW, BY GARY'S RULING — THE SURFACING WORK, items
+      (a) and (b) above. A store whose typed hours the engine ignores has to say
+      so ON SCREEN, not only in a sweep: until the cutoff exists, that visible
+      flag is the whole of what protects an operator who enters a real overnight
+      window. THIS COLLIDES WITH THIS ROW'S OWN EARLIER SENTENCE that the
+      deployed sweep "is the first thing to run on this row", and the collision
+      is named rather than edited away — the sweep is not code and is blocked on
+      a Neon console export, so it does not compete with the surfacing work for
+      a session. ORDER OF RECORD: (a) and (b) first, (c) rides the sweep
+      whenever the export arrives.
+      THE `00:00` HALF IS NOT PART OF THIS ROW'S WORK AND DOES NOT WAIT FOR IT.
+      Gary: "18:00 to 00:00 is a normal day that ends at 24:00 ... a plain bug
+      and it gets fixed now, on its own." `parseHourEnd("00:00")` must yield 24
+      rather than 0, and the fix RIDES PHASE 3 of the 2026-08-23 session.
+      Measured at HEAD: `parseHourEnd` is exported but has exactly ONE consumer
+      in the tree (labor-plan.ts:272), so changing the helper rather than the
+      call site has a one-line blast radius. A midnight close was never an
+      overnight case and is not evidence for or against the cutoff.
+      LINE-NUMBER CORRECTION TO THIS ROW'S OWN CITATIONS, NAMED AND NOT EDITED.
+      The text above cites `labor-plan.ts:272` three times for the admission
+      rule. `:272` is `const e = parseHourEnd(sh.closingTime)`; the predicate
+      `s != null && e != null && e > s` is on `:273`. The surfacing check in item
+      (a) must key to `:273`. The prose above is a claim and stays as written.
+      Related: DEBT-83 (the hardcoded 14:00 that makes a bad open time
+      expensive), BUG-11/BUG-12 (the editor-vs-route precedent this module's
+      shape exists to honour), L-3 (where sales inference was first flagged).
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
@@ -16205,8 +16652,43 @@ debt:
 
   - id: DEBT-28
     title: "The `#0034 — Carson` store label idiom has three variants across fourteen sites"
-    status: staging
+    status: shipped
+    commits: ["893d91d"]
     notes: >
+      ── BOOKKEEPING PASS 2026-08-22 — status staging -> shipped. Prepended per
+      preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      REACHED MAIN 2026-08-18 in promotion 90a8eca ("promote: Square read-only
+      ruling + labor scopes + SQUARE_VERSION 2026-01-22 + verify probe"),
+      docs/DEPLOY_LOG.md:263. A REAL --no-ff MERGE, so `git revert -m 1 90a8eca`
+      is available — unlike the five fast-forward promotions DEBT-38 tracks.
+
+      MEASURED 2026-08-22, not cited: origin/main and origin/staging are both
+      505f4e6 (identical), so the two branches hold the same code by identity.
+      `git branch -r --contains 893d91d` returns origin/main and origin/staging.
+
+      THE WORK IS COMPLETE AS RULED. `git show --stat 893d91d` is exactly the
+      five files the 2026-08-17 ruling scoped — stores/page.tsx (dash swap AND
+      the "Store " prefix drop), staff-buttons.tsx, staff-edit-actions.tsx,
+      staff/page.tsx, staff/[id]/page.tsx — one line changed in each, plus this
+      file as the recorder. store-view-client.tsx:100 is untouched, correctly:
+      that is the ruled header exemption, not a missed site.
+
+      THIS PASS ADDS THE commits FIELD. The row carried none, so DEBT-72a had to
+      identify 893d91d by commit-message grep rather than read it off the row —
+      that is the gap this closes. Five other commits mention DEBT-28
+      (b46bc29, 8b855d3, 5faec45, 5c6419f, b375e50) and NONE touch src/: they
+      filed the row, triaged it, and preserved its prompts. 893d91d is the fix.
+
+      FLAGGED, NOT FIXED HERE: the DEPLOY_LOG entry for 90a8eca is titled for
+      the Square read-only work and does not name 893d91d — the label change
+      rode a promotion about something else. A DEPLOY_LOG completeness gap, not
+      a ROADMAP one, named here rather than repaired in a bookkeeping pass.
+
+      THE DEBT-27 TIE STANDS AND IS NOT CLOSED BY THIS. Ten of twelve stores
+      still carry storeNumber: null, so twelve of the fourteen sites do not
+      render the separator at all today. The idiom is now uniform; the data
+      that makes it visible is DEBT-27's.
       ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS ABSENT -> staging.
       Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
 
@@ -20756,6 +21238,87 @@ debt:
       timecards across the account's history, which would make this a limitation
       worth documenting and not worth building.
 
+  - id: DEBT-83
+    status: planned
+    title: >
+      The GM on-floor window is a per-store setting whose real default is a
+      hardcoded literal, and the two halves of that default disagree
+    notes: >
+      FILED 2026-08-22 during R7-D, as a KNOWN PROPERTY OF WORKING CODE rather
+      than a defect found afterwards. R7-D made the band's edges matter more than
+      they did — the GM no longer stands in for an hourly body — so the fact that
+      almost nobody has ever chosen those edges is now worth a row.
+      THE MECHANISM. labor-plan.ts:283-284 resolves the window from
+      StoreLaborSettings, and each half falls back independently:
+      gmOnFloorStartMinutes falls back to open.startHour, and gmOnFloorEndMinutes
+      falls back to the literal 14. THE TWO HALVES ARE ASYMMETRIC — one follows
+      the store's own opening time, the other is a number in the source. So an
+      unset store draws open-until-2pm whatever its hours are, and a store that
+      opens at 7 draws a 7h band while a store that opens at 10 draws 4h, from the
+      same absence of configuration.
+      WHAT IS ACTUALLY SET, measured before R7-D. Unset at ELEVEN OF TWELVE
+      stores, including BOTH stores that draw a band. The org default (storeId
+      null) is NULL too. The ONLY configured window in the estate is Southgate's,
+      465 -> 900, and Southgate has no allocation, so hasGm is false there and the
+      setting drives NOTHING. Net: nobody has ever chosen the band width at a
+      store that draws one, and the one person who chose a width picked a store
+      where it is inert.
+      WHY IT IS A ROW AND NOT A FIX. The right default is a product question, not
+      an arithmetic one — an operator has to say what a GM's on-floor day means,
+      and whether "until 2pm" or "the first N hours of the shift" is the honest
+      shape. R7-D was explicitly scoped away from the band's WIDTH and day-shape,
+      which is L-4's job, and this row should be read together with L-4 rather
+      than fixed ahead of it.
+      TRIGGER — the thing to watch for: ANYONE WHO SETS A GM WINDOW EXPECTING IT
+      TO MEAN SOMETHING. Today that person gets one of two surprises. At a store
+      with no allocated person the setting is inert and silently does nothing. At
+      a store with one, changing the end time moves the drawn band, and since
+      R7-D the band no longer changes the recommended headcount at all — so a
+      setting that looks like a staffing lever is a drawing lever.
+      SECOND HALF, SAME SITTING — resolveGmCeilingHours(0, 40) RETURNS 40.
+      labor-position-hours.ts:69-71 is `salariedHours > 0 ? salariedHours :
+      fallback`, so a store that declares nothing gets a 40h GM ceiling at
+      labor-plan.ts:297. That is inert ONLY because hasGm is false in exactly that
+      case — hasGm is salaried.hasSalariedPerson (labor-plan.ts:249), so with no
+      allocated person gmHoursByDay stays all zeros and capGmFloorCredits has
+      nothing to scale. THE SAFETY COMES FROM THE OTHER BRANCH, NOT FROM THE
+      VALUE. Anything that lets gmHoursByDay become non-zero while salariedHours
+      is 0 makes the 40 load-bearing and wrong. This dependency is now named at
+      the site in a comment (R7-D recorder commit) rather than left to be
+      rediscovered; the row exists because a comment is not a test.
+      DISCONFIRMED BY: a ruling that the 14 and the open.startHour fallback are
+      both intentional and should stay, at which point this becomes a
+      documentation line on L-4 and not work.
+      RULED 2026-08-23 — THE CLOSING CONDITION IS NOW L-4, and this row is no
+      longer waiting on a product question that anyone might answer. Gary's
+      ruling (DECISIONS.md, top entry): "Do not fix DEBT-83 by setting the
+      window. If I enter my real hours the band gets wider, not narrower. Leave
+      the default alone, write down why, and close it with L-4." So the row
+      stays open, the default stays untouched, and it closes with L-4 rather
+      than on its own. The DISCONFIRMED BY above is NOT what fired — Gary did
+      not rule the 14 intentional, he ruled it not worth moving ahead of L-4.
+      THE REASON IT CANNOT BE FIXED BY CONFIGURING IT — CONFIGURING THE WINDOW
+      MAKES THE BAND WIDER, NOT NARROWER, which is the opposite of what anyone
+      setting it would expect. Both halves at labor-plan.ts:283-284 round
+      OUTWARD: the start through Math.floor and the end through Math.ceil. Take
+      Kristie's real hours, 6:30am-3:30pm = 390 -> 930 minutes. The end goes
+      through Math.ceil(930/60) = 16, so 3:30pm becomes a 4pm edge. The start
+      goes through Math.floor(390/60) = 6, then is clamped back up by
+      max(gmStart, open.startHour) at :288, so at a 7am store the floor half is
+      absorbed and the ceil half is not. NET AT A 7AM STORE: the band goes from
+      7 hours a day (7 -> the hardcoded 14) to 9 (7 -> 16) — WIDER BY TWO HOURS
+      A DAY for entering the true, narrower hours. The 9 assumes the store is
+      still open at 16:00, since :289 clamps the end to min(gmEnd,
+      open.endHour); a store closing at 15:00 would draw 8.
+      SOUTHGATE'S 465 -> 900 CONFIRMS IT RATHER THAN BEING AN EXCEPTION, and it
+      is recorded above as the estate's only configured window. It resolves to
+      floor(465/60) = 7 and ceil(900/60) = 15, so 7:45am-3:00pm draws a 7 -> 15
+      band: EIGHT hours, one MORE than the unset default's seven, from a window
+      that is narrower than the default at both ends. It remains inert and
+      drives nothing — Southgate has no allocation, so hasGm is false there
+      (labor-plan.ts:249, :282) and gmHoursByDay stays all zeros. Recorded here
+      on the row rather than as its own row: it is evidence for this row's
+      claim, not a separate defect.
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #

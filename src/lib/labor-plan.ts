@@ -294,6 +294,16 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
   // S5-D19: the ceiling is the store's own resolved salaried hours, not a module
   // constant. A measured no-op today (every store resolves to 40, the fallback is
   // 40); it becomes load-bearing the moment a store declares something else.
+  // NAMING THE DEPENDENCY, because it is not visible on this line (R7-D). The
+  // zero case does NOT resolve to zero: resolveGmCeilingHours(0, 40) returns 40,
+  // since the helper is `salariedHours > 0 ? salariedHours : fallback`
+  // (labor-position-hours.ts:69-71). A store that declares nothing therefore
+  // gets a 40h GM ceiling here. THAT IS INERT ONLY BECAUSE hasGm IS FALSE IN
+  // EXACTLY THAT CASE — hasGm is salaried.hasSalariedPerson (:249), so with no
+  // allocated person the gmHoursByDay guarded by it (:282) stays all zeros and
+  // capGmFloorCredits has nothing to scale against the ceiling. The safety comes
+  // from the OTHER branch, not from this value. Anything that lets gmHoursByDay
+  // become non-zero while salariedHours is 0 makes the 40 load-bearing and wrong.
   const gmCeilingHours = resolveGmCeilingHours(budget?.salariedHours ?? 0, WEEKLY_GM_CAP_HOURS)
   const gmCreditByDay = capGmFloorCredits(gmHoursByDay, gmCeilingHours)
   const floorByDay = openHoursByDay.map((oh, wd) => Math.max(0, oh - gmCreditByDay[wd]))

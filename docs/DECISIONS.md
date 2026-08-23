@@ -6,6 +6,223 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Overnight hours are a business day cutoff, and the model is ruled now — 2026-08-23 (Gary)
+
+Gary's rulings, in his words:
+
+- **Overnight hours are supported.** The hours dialog already promises a
+  store closing after midnight is fine, and I am not going back on that. A
+  row an operator saves is a row the engine uses. (Gary)
+- **The way you do this is a business day cutoff, not a wider clock.**
+  Every business I have run has one. A bar that closes at 2am sets its
+  close of business at 3am, and everything before 3am belongs to the day
+  before. It is a per-store setting, it defaults to midnight, and the
+  operating window is expressed relative to it. That is the model. (Gary)
+- **Froot's cutoff must agree with Square's, or it does not ship.** My
+  sales come from Square and I reconcile against Square. If Froot decides
+  Friday runs to 3am and Square reports that 1am sale on Saturday, my
+  labor percentage is computed on one day against sales from another, and
+  nobody would ever catch it. Find out what Square does first. If Square
+  has a cutoff, Froot mirrors it and nobody types a different number. (Gary)
+- **A close at midnight is not overnight.** 18:00 to 00:00 is a normal day
+  that ends at 24:00. The engine reading that as hour zero and throwing
+  the row away is a plain bug and it gets fixed now, on its own. (Gary)
+- **Nothing is discarded silently.** Until true overnight works, if the
+  engine will not read a store's hours, the operator has to be able to see
+  that on screen. A row that saves, displays, and drives nothing is worse
+  than a row that was rejected. (Gary)
+- **Build it when a store needs it.** None of my locations cross midnight
+  today. I am ruling the model so nobody solves this a different way in
+  six months, but I am not paying for a cutoff across sales, goals and
+  labor for a case I do not have. The row waits for a real store. (Gary)
+
+**WHY THIS IS RULED BEFORE IT IS BUILT, WHICH IS THE OPPOSITE OF THIS PROJECT'S
+USUAL ORDER.** The R7 sequence is the argument: `LaborPositionStoreHours` and
+`weeklyHoursOverride` were both storage built ahead of a ruling, and both were
+re-shaped by the consumer when it arrived — recorded two entries down as "storage
+built ahead of a ruling should expect to be re-shaped by it". Here the consumer
+does not exist yet and the shape is known, so the cheap move is the reverse: fix
+the model in writing, build nothing, and let the row wait. (Claude)
+
+**WHAT THE ENGINE ACTUALLY DOES TODAY, MEASURED AT HEAD.** `labor-plan.ts:273`
+admits a stored window only when `s != null && e != null && e > s`, otherwise
+falling through to `inferredOpen[wd]`. `parseHourStart("22:00")` is 22 and
+`parseHourEnd("02:00")` is 2, so every overnight row fails. `parseHourEnd("00:00")`
+is 0, so an ordinary midnight close fails too. The row saves, the dialog displays
+it, and the engine runs on a window nobody typed. (Claude)
+
+**THE LINE NUMBER IS `:273`, NOT `:272`, AND BOTH THIS RULING'S DRAFT AND BUG-14
+SAY `:272`.** `:272` is `const e = parseHourEnd(sh.closingTime)`; the admission
+ternary is the line below it. Named here rather than corrected in place, because
+BUG-14's prose is a claim and the draft in `docs/prompts/` is never edited. A
+reader chasing either citation lands one line short of the predicate. (Claude)
+
+**THREE PARTS OF THE SYSTEM DISAGREED ABOUT ONE ROW, AND IT IS WORTH NAMING WHY.**
+The dialog promises overnight works (`store-hours-button.tsx:242`). The write route
+declines to order-check *because* of that promise. The BUG-14 validator asserts
+overnight is clean on both lists — explicitly, because the spec required it. The
+engine discards it. The validator is not wrong; its silence means something
+narrower than it looks. **"Clean" means the editor accepts the row, not that the
+engine uses it, and those were assumed to be the same predicate when the rule set
+was written.** They are not, and the next person writing a validation rule needs to
+know that. (Claude)
+
+**DO NOT RESOLVE THIS BY WARNING ON OVERNIGHT.** That contradicts the dialog's
+promise while leaving the engine still ignoring the row — a worse state than
+today, because the operator would then be told their hours are questionable
+rather than told they are unused. (Claude)
+
+**THE CUTOFF IS NOT A DISPLAY SETTING.** It redefines what "a day" means across
+everything keyed by date: `SalesHourlyCache`, `DailyGoal`, the forecast,
+`LaborDaySplit`, and the whole labor plan. That is why the build is TIER 3 with an
+audit first, and why the Square question is the audit's opening task rather than a
+detail inside it. (Claude)
+
+**WHICH OF BUG-14's OPEN QUESTIONS THIS CLOSES, AND WHICH IT DOES NOT.** That row
+left one thing explicitly unruled: "whether overnight should be MADE TO WORK in
+the engine or DECLARED UNSUPPORTED in the dialog is a ruling, not an
+implementation detail". **The first ruling above answers it: made to work.** So
+BUG-14's `DISCONFIRMED BY` — a ruling that overnight is out of scope, withdrawing
+the dialog's promise — is now the branch that did NOT fire, and the row's
+surfacing work stands. What is still open on BUG-14 is nothing about direction;
+it is the work. (Claude)
+
+### What ships now, and what does not
+
+**NOW — small, no cutoff, no model change:**
+- **The `00:00` parse fix**, riding Phase 3 of this session. `parseHourEnd("00:00")`
+  must yield 24, not 0. `parseHourEnd` is exported but has exactly ONE consumer
+  in the tree (`labor-plan.ts:272`), so the blast radius of changing the helper
+  rather than the call site is that single line — verified at HEAD.
+- **The surfacing work, first on BUG-14**, keyed to the ENGINE's admission rule
+  and not the editor's — they are different predicates.
+
+**DEFERRED — `CUTOFF-1`, TIER 3, waits for a store that crosses midnight:**
+- The business day cutoff itself, per store, defaulting to midnight.
+- The audit that must precede it. **Opening question: does Square expose a
+  business-day cutoff, and what does it use to attribute a 1am sale?** If Square
+  owns it, Froot mirrors it and never accepts a divergent value. If Square does
+  not, Froot owns it and that is a larger decision than this ruling settles.
+- Overnight support in the coverage engine, whose points array is
+  `for (let h = 0; h < 24; h++)` (`labor-coverage.ts:99`) — one calendar day, with
+  nowhere to put the hours that belong to the next.
+
+**NOT RULED HERE:** what the cutoff defaults to for a store that has one, how a
+cutoff interacts with the week boundary, or whether `SalesHourlyCache` is re-keyed
+or offset at read. All of that is the audit's.
+
+**PROVENANCE.** `docs/prompts/RULING_business_day_cutoff_DRAFT.md`, kept as-is.
+Its `(Gary)` bullets are carried above; its `(Claude)` annotations are carried
+except where this entry corrects them, and the corrections are the `:273` note
+and the `parseHourEnd` blast-radius line, both new here. (Claude)
+
+## Manager on the floor — one guaranteed number — 2026-08-23 (Gary)
+
+Gary's ruling, in his words:
+
+- **Call it the manager on the floor.** "GM on-floor window" is jargon
+  and it is wrong besides — Kristie is a store manager, not only a
+  general manager. Rename it everywhere it shows on screen. The column
+  names stay as they are; this is a label change, not a migration. (Gary)
+- **The manager's hours are guaranteed, and whatever is left spreads
+  across the other shifts based on what the business needs.** That is
+  how I run the stores and it is what floor-first already does. The
+  guaranteed number is the manager's credited hours at that store — 20 a
+  week at Las Brisas and 20 at UNR, off her allocation, never typed by
+  hand. (Gary)
+- **The window says when the manager is expected on the floor. It does
+  not say how much of the floor she covers.** Every number that claims
+  coverage uses the credited hours instead. The band can stay on the
+  chart as a reminder of when she is expected; it stops feeding any
+  number. (Gary)
+- **Leave the setting where it is for now.** Shift blocks and the
+  manager window describe the same hours from two directions and one day
+  they should be one thing. Not today — shift blocks only drive the
+  supervisor rule right now, and moving a live setting into one that
+  barely does anything buys me nothing. Revisit when L-4 lands. (Gary)
+- **Do not fix DEBT-83 by setting the window.** If I enter my real hours
+  the band gets wider, not narrower. Leave the default alone, write down
+  why, and close it with L-4. (Gary)
+
+**THE DRAFT THIS ENTRY WAS SUPPOSED TO CARRY ANNOTATIONS ACROSS FROM DOES NOT
+EXIST.** `docs/prompts/RULING_manager_on_floor_DRAFT.md` is cited by path in two
+session prompts and is absent from disk and from git history. So the instruction
+to carry across the draft's `(Claude)` annotations and drop the ones the final
+wording contradicts could not be executed as written: **there was nothing to
+carry and nothing to drop, and no list of dropped annotations is recorded below
+because none were seen.** The annotations that follow are built from the code at
+HEAD instead, not inherited. A reader who later finds the draft should diff it
+against this entry rather than assume it was reconciled. (Claude)
+
+**WHAT "OFF HER ALLOCATION, NEVER TYPED BY HAND" IS TRUE OF — AND THE ONE CASE
+WHERE IT STOPS BEING TRUE.** The second ruling is exactly right about the WEEKLY
+number and needs one qualification about the DAILY one, because the credited
+figure is not read from the allocation — it is read from the band and then
+scaled to a ceiling that comes from the allocation. `labor-plan.ts:307-308` is
+`gmCeilingHours = resolveGmCeilingHours(budget.salariedHours, 40)` followed by
+`gmCreditByDay = capGmFloorCredits(gmHoursByDay, gmCeilingHours)`, and
+`capGmFloorCredits` (`labor-daily.ts:51-57`) multiplies every day's band hours by
+`weeklyCap / total`. **So the weekly total is hers and cannot be typed by hand,
+precisely as ruled — but only because of the guard on line 54,
+`if (total <= weeklyCap || total <= 0) return nonNeg`.** When the drawn band
+totals LESS than the ceiling, the band is returned unscaled and the window feeds
+the credited number directly, which is the one thing the third ruling says it
+must never do. Not live today: both manager stores draw the unset default
+(DEBT-83), Las Brisas from 07:00 and UNR from 08:00 to the hardcoded 14:00, which
+across their open days totals far more than 20. **THE INEQUALITY IS WHAT MAKES
+THE RULING TRUE, NOT THE DESIGN.** A band narrowed far enough, or a store open
+few enough days, hands the window back the number it was just relieved of. The
+band's width and day-shape are L-4's by construction, so this is named here
+rather than fixed — but it should be read as part of L-4's scope, not
+rediscovered as a bug. (Claude)
+
+**CORRECTION TO THE PARAGRAPH ABOVE, same day, by Gary — THE UNSCALED-BAND CASE
+IS NOT L-4's, IT IS S5-D10's SECOND DIVERGENCE CASE, and it already has a home.**
+The paragraph above sends it to L-4 on the reasoning that the band's width is
+L-4's. That is the wrong filing: `labor-daily.ts:54` returning the band unscaled
+below the ceiling is the SHORT-HOURS STORE, which is recorded on R7-C's first
+blocker in `ROADMAP.yaml`, was left open by Gary's D19 ruling rather than by
+oversight, and is pinned by an explicit assertion at
+`scripts/verify-labor-position-hours.ts:146` ("short-hours store: credits stay
+15, NOT scaled up to 40 (D10 case 2 OPEN)"). **So it was already filed, already
+ruled open, and already covered before this session found it, and what looked
+like a new hazard is one surface of a known one.** Recorded on S5-D10's blocker
+2026-08-23. What this ruling genuinely adds is only the second surface: after the
+manager-on-floor build, a short-hours store is also one where the band the chart
+draws is the number Suggested reads, so the ruling Gary still owes that row now
+decides a visible figure and not only the Sigma identity. The paragraph above is
+left standing rather than rewritten, because the misfiling is the useful part of
+the record — a finding that arrives without checking the deviation list first
+reads as new when it is not. (Claude)
+
+**A CORRECTION THAT MATTERS FOR THE BUILD, not for the ruling.**
+`docs/prompts/MANAGER_ON_FLOOR_BUILD.md` describes `gmCreditHours` as "derived
+from her allocation, capped by `capGmFloorCredits`". It is the other way round:
+derived from the BAND, capped TO a ceiling that comes from the allocation. The
+shipped number is the same 20 either way and the build's scope is unaffected —
+but the per-store Suggested delta that prompt requires to be predicted in
+writing has to be reasoned from the band's hours, not from the allocation, or
+it will come out right by luck and prove nothing. (Claude)
+
+**THE RENAME STOPS AT THE GLASS, AND THE COLUMN NAMES ARE THE SEAM.** The first
+ruling keeps the columns, which additive-only requires anyway. So
+`gmOnFloorStartMinutes` / `gmOnFloorEndMinutes` (`labor-settings.ts:11-12`, the
+settings route's zod schema at `route.ts:19-20`, and the settings client at
+`labor-settings-client.tsx:1006-1007`), along with `hasGm`, `gmCreditHours` and
+`points[].gm`, all keep the word this ruling removes from the screen. **After
+this ships, grepping `manager` will not find the setting that draws the band,
+and grepping `gmOnFloor` will not find any words a user sees.** That gap is the
+deliberate cost of not migrating, and it is recorded here so the next reader
+crosses it on purpose instead of concluding the rename was left half-done. (Claude)
+
+**THE FOURTH RULING IS A DECISION, NOT A DEFERRAL, and the code agrees with its
+premise.** `supervisorGap` is `!hasHourlySupervisor` at `labor-coverage.ts:116`
+and R7-D settled that the GM's window does not clear it (`labor-coverage.ts:36`).
+So the shift-block half really does drive one rule and the manager-window half
+drives a drawn band and, after this ruling, nothing else. Merging a live setting
+into a nearly-inert one would move risk without buying a number, which is the
+argument made. Revisit at L-4 stands as the closing condition. (Claude)
+
 ## R7-C build rulings — retirement, seed-and-own, deviation numbering — 2026-08-22 (Gary)
 
 Gary's rulings, in his words:
