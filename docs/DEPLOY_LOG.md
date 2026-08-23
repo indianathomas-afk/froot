@@ -2,9 +2,9 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## PENDING-SHA-SHORT — PENDING-DATE — R7-D: the GM no longer satisfies the floor of one body + BUG-14: store hours validation
+## 4d0edd4 — 2026-08-23 — R7-D: the GM no longer satisfies the floor of one body + BUG-14: store hours validation
 
-**Merge SHA:** `PENDING-SHA-FULL`
+**Merge SHA:** `4d0edd4698d4f52a97d382660299e412a850d0bc`
 **Written before the merge existed.** The heading's SHA and date and the Merge
 SHA line above are stamped by the promotion ritual from `git rev-parse` and
 `date`, never hand-typed. Three placeholder tokens, all of them on the heading

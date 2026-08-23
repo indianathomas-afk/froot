@@ -8300,8 +8300,8 @@ phases:
   - id: R7-D
     track: labor
     size: S
-    status: in_progress
-    commits: [1e7286b]
+    status: shipped
+    commits: [1e7286b, 6911469, 4d0edd4]
     title: "The GM no longer satisfies the floor of one body, nor suppresses supervisorGap"
     notes: >
       TIER 2. One file, two gates, no schema, no threading. SUPERSEDES the scope
@@ -13308,7 +13308,7 @@ bugs:
 
   - id: BUG-14
     status: in_progress
-    commits: [ec92e88]
+    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4]
     title: >
       The store hours editor accepted impossible hours in silence, and a wrong
       open time lands straight in the labor forecast
