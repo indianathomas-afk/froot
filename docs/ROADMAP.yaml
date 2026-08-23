@@ -8048,9 +8048,62 @@ phases:
     track: labor
     size: L
     status: staging
-    commits: [99b9c85, c7f4cdc, 05f9a98]
+    commits: [99b9c85, c7f4cdc, 05f9a98, 12a0738]
     title: "Per-person salaried allocation + exempt — percentages of a person, summing to 100%"
     notes: >
+      DEFECT FOUND AND FIXED ON THE SAME DAY — work commit 12a0738, found by Gary
+      on staging. THE ALLOCATION DID NOT REACH THE ENGINE.
+      THE CAUSE, and the wiring was never it: resolveStoreSalariedFor filtered
+      `person: { exempt: { not: true } }`, which Prisma emits as `exempt <> true`.
+      In SQL `NULL <> true` is NULL rather than TRUE, so every person whose exempt
+      was NULL was silently dropped — and NULL IS THE DEFAULT STATE OF EVERY
+      PERSON THE CARD CREATES, because the dialog seeds the switch from a null
+      record. An operator who filled in cost, hours and percentages without
+      touching the toggle got an allocation that reached nothing.
+      WHY IT LOOKED LIKE "SAVED BUT NOT READ": the settings card reads allocations
+      through the person RELATION and never applies this filter, so it rendered
+      50/50 and "Totals 100%" correctly while /api/labor/budget returned
+      salariedCost 0. Reproduced end-to-end on dev at both exempt states.
+      THE OBVIOUS FIX IS ALSO BROKEN — measured, and recorded in the code:
+      `{ exempt: { not: true } }`, `{ NOT: { exempt: true } }` and
+      `NOT: { person: { exempt: true } }` ALL return only the `false` row. Only an
+      explicit `OR: [{exempt: null},{exempt: false}]` returns both. Prisma's
+      negation is uniformly not NULL-aware on a nullable Boolean.
+      THE FIXTURE WAS ASSERTING THE WRONG SURFACE — the A13 failure.
+      verify-labor-salaried.ts tests the PURE resolver by handing it rows, so it
+      never touched the query that broke and stayed green throughout.
+      scripts/verify-labor-salaried-db.ts now goes through getWeeklyDayPlan, the
+      same entry point the API uses. DEMONSTRATED, NOT CLAIMED: with the defect
+      restored the new fixture fails 8 checks while the old one still reports
+      "All checks passed."
+      NOT A RULING, SO IT WAS FIXED RATHER THAN REFERRED. The intent was already
+      written in three places — the schema comment, the helper's own comment, and
+      R7_EXEMPT_AUDIT.md §5 — and all three say NULL participates. The code
+      contradicted its own documentation.
+      DEVIATIONS S5-D63..S5-D64.
+      S5-D63 — the exempt filter is an explicit OR and must stay one; the three
+      broken alternatives are recorded at the call site so a later tidy-up cannot
+      silently reintroduce the defect.
+      S5-D64 — the engine-path fixture is DATABASE-BACKED, which no other labor
+      fixture is. A pure fixture cannot exercise a query, and the query is where
+      this lived. It skips cleanly on a branch with no forecast or fewer than two
+      active stores, and deletes its principals in a `finally` so a throw cannot
+      leave them behind.
+      STILL UNCONFIRMED ON STAGING: whether Kristie's row is NULL or false there.
+      Gary reported toggling exempt on and off to write an explicit false, which
+      would have matched even the broken filter — so either the toggle-off save
+      did not land, or the measurement predates it. Neon console, branch
+      preview/staging (ep-odd-rain-a6gr4xmm):
+        SELECT p."displayName", p.exempt, p."weeklyCost", p."weeklyHours",
+               a."storeId", s.name AS store, a."allocationBps"
+        FROM "LaborSalariedPerson" p
+        LEFT JOIN "LaborSalariedAllocation" a ON a."personId" = p.id
+        LEFT JOIN "Store" s ON s.id = a."storeId"
+        WHERE p."organizationId" = 'cf888f2d-f234-48c7-8097-fd5b44b5b3dd'
+        ORDER BY p."displayName", s.name;
+      A NULL there confirms the diagnosis outright. A `false` there means the fix
+      is still correct and necessary but a SECOND cause is live on staging, and
+      the fix must be deployed before that can be told apart.
       BUILT 2026-08-22 — work commit 05f9a98, build rulings ratified c7f4cdc.
       Prepended; the planning text below is unedited.
       WHAT SHIPPED. LaborSalariedPerson + LaborSalariedAllocation, both empty; one
@@ -20492,6 +20545,37 @@ debt:
       wherever a surface is Square-sourced, so whoever takes the retirement
       decision has at least one worked example of "make the fossil unreachable
       where it cannot be real" as an alternative to renaming or soft-deleting it.
+
+  - id: DEBT-82
+    status: planned
+    title: >
+      `scripts/verify-f5-polish.ts` output is nondeterministic run-to-run, which
+      degrades the sorted-diff gate CLAUDE.md prescribes
+    notes: >
+      FOUND 2026-08-22 during the R7-C defect fix, and previously observed on
+      2026-08-22 during the R7-B build without being filed — which is why it is
+      filed now.
+      TWO SOURCES OF NOISE, both on one check. The fixture mints test accounts
+      with a RANDOM SUFFIX (`f5-mgr-13wzhc@example.com`) and prints them in the
+      check label, and it prints the two recipients in a NONDETERMINISTIC ORDER
+      (`mgr, admin` on one run and `admin, mgr` on the next). The check itself
+      PASSES on every run; only its label text changes.
+      WHY IT MATTERS. The standing verification technique for a build is to
+      capture a stashed-HEAD baseline, run the suite after, and diff the two
+      SORTED outputs asserting that NO LINE WAS REMOVED. A label that varies
+      run-to-run shows up in that diff as one removed line and one added line —
+      indistinguishable in shape from a real regression. Every session that runs
+      the gate has to stop, normalise the suffix, normalise the ordering, and
+      satisfy itself that a passing check merely moved. Twice now.
+      THE FAILURE DIRECTION IS THE QUIET ONE: it trains the reader to wave past a
+      removed line, which is the exact signal the gate exists to raise.
+      THE FIX IS SMALL — sort the recipients before printing, and either drop the
+      generated addresses from the label or normalise them to a fixed token. The
+      random suffix itself must STAY in the data (CLAUDE.md § Name every test
+      principal makes fixtures cleanable); it is only the LABEL that needs to be
+      stable.
+      DISCONFIRMED BY: nothing. Measured twice, on two different days, on the same
+      check.
 
   - id: DEBT-81
     status: planned
