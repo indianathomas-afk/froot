@@ -222,3 +222,72 @@ What this ruling adds is only that the same guard now has a DISPLAY-SIDE
 face: after this build, a short-hours store is one where the band the
 chart draws is also the number Suggested reads. Same guard, same ruling,
 one more surface — recorded on S5-D10, not here.
+
+---
+
+# ADDENDUM 2 — THE COPY, AS APPROVED BY GARY 2026-08-23
+
+APPENDED, NOT EDITED. Ship these strings exactly. §2 above says "propose
+the band's new copy, do not ship wording Gary has not seen" — this is
+that wording, approved. Anything not listed here is still unapproved.
+
+## 1 · Settings label — `labor-settings-client.tsx:1070`
+
+    WAS  GM on-floor window (optional)
+    NOW  Manager on the floor (optional)
+
+## 2 · Settings helper — `labor-settings-client.tsx:1076`
+
+GARY'S OWN WORDING, NOT THE PROPOSED VERSION. The proposal said the band
+"does not add coverage and does not satisfy the supervisor rule"; Gary
+replaced the negations with what the number actually is. Use this text:
+
+    WAS  When the salaried GM is on the floor (counts as coverage +
+         supervisor). Blank = open→2:00p.
+
+    NOW  When the manager is expected on the floor. Shown as a band on the
+         coverage chart — a reminder, not coverage. The manager's
+         guaranteed hours come from her allocation. Blank = open→2:00p.
+
+THIS STRING WAS ALREADY FALSE BEFORE THIS BUILD, in both halves. R7-D
+(`1e7286b`) removed the supervisor half — `supervisorGap` is
+`!hasHourlySupervisor` at `labor-coverage.ts:116` and the GM's window no
+longer clears it. This ruling removes the coverage half. It has been
+half-wrong since R7-D shipped, so this is a correction, not only a
+rename.
+
+## 3 · Coverage card legend — `labor-coverage-card.tsx:286` — SHORT FORM
+
+    WAS  Suggested staff on floor (incl. GM)
+    NOW  Suggested staff on floor (incl. manager)
+
+The longer "(incl. the manager's credited hours)" was offered and
+DECLINED. The band legend carries the nuance; the axis label stays short.
+
+## 4 · Band legend — `labor-coverage-card.tsx:450` AND
+##     `weekly-plan-client.tsx:714` — BOTH, identical strings
+
+    WAS  GM on floor {start}–{end}
+    NOW  Manager expected {start}–{end}
+
+"EXPECTED" IS THE WORD DOING THE RULING'S WORK. Gary's third bullet: the
+window says when the manager is expected on the floor, not how much of
+the floor she covers. "On floor" was the false claim; do not soften
+"expected" back toward it.
+
+## 5 · Weekly plan footnote — `weekly-plan-client.tsx:457`
+
+    WAS  Suggested is demand-shaped and capped by the conservative budget,
+         and counts the GM on floor — a guide, not a schedule.
+    NOW  Suggested is demand-shaped and capped by the conservative budget,
+         and counts the manager's credited hours — a guide, not a
+         schedule.
+
+## Column and field names are UNCHANGED
+
+`gmOnFloorStartMinutes`, `gmOnFloorEndMinutes`, `hasGm`, `gmCreditHours`,
+`points[].gm` all keep their names — Gary's first ruling says the column
+names stay and additive-only forbids the migration anyway. After this
+ships, grepping `manager` will not find the setting that draws the band
+and grepping `gmOnFloor` will not find any words a user sees. That seam
+is recorded in `DECISIONS.md`; it is deliberate, not half-done work.
