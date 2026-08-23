@@ -13310,6 +13310,53 @@ bugs:
       dialog — the route's zod enforces the format on write — and it can only
       come from a row predating that. The sweep counts unparseable values in its
       own column rather than leaning on the validator for this.
+      CORRECTION 2026-08-23, SAME DAY, TO THIS ROW'S OWN ACCOUNT OF ERROR 1. The
+      text above says 08:00-08:00 is "either a zero-length day or a 24-hour one
+      depending on how the engine reads it". THE ENGINE READS IT AS NEITHER: it
+      DISCARDS IT. labor-plan.ts:272 admits an explicit window only when
+      `s != null && e != null && e > s`, and 08:00-08:00 gives s == e == 8, so
+      the row falls through to inferredOpen[wd] and the store silently runs on
+      sales inference. Verified at HEAD by evaluating parseHourStart and
+      parseHourEnd over the shapes directly.
+      SO ERROR 1 NEVER REACHED THE FORECAST, AND THAT IS NOT THE GOOD NEWS IT
+      SOUNDS LIKE. The editor shows 08:00-08:00, the operator believes the store's
+      hours are set, and the engine uses a window nobody typed. A value that is
+      ignored while being displayed back as accepted is its own defect, and a
+      quieter one than a wrong number. Error 2 (01:00 open) is unaffected by this
+      correction and does propagate: s=1, e=16, e > s holds.
+      THE SILENT-DISCARD CLASS IS WIDER THAN THE TWO ERRORS, AND ITS LARGEST
+      MEMBER IS THE ONE THIS SESSION DELIBERATELY CERTIFIED AS CLEAN.
+      labor-plan.ts:272 discards EVERY OVERNIGHT ROW. parseHourStart("22:00") is
+      22 and parseHourEnd("02:00") is 2, so `e > s` is false and a 22:00-02:00
+      week falls through to sales inference. 18:00-00:00 discards too, because
+      parseHourEnd("00:00") is 0 — a midnight close is ordinary data.
+      THREE PARTS OF THE SYSTEM NOW DISAGREE ABOUT THE SAME ROW. The dialog's
+      helper text PROMISES overnight works ("a store that closes after midnight
+      is fine — enter the real closing time, say 02:00, rather than 24:00"). The
+      write route declines to order-check for that reason. store-hours-validate.ts
+      asserts overnight is clean on BOTH lists, explicitly, because this row's
+      prompt required it and the promise on screen justified it. AND THE ENGINE
+      THROWS IT AWAY. An operator entering a real overnight window gets no
+      warning, a successful save, and hours that drive nothing.
+      THE VALIDATOR IS NOT WRONG; ITS SILENCE MEANS SOMETHING NARROWER THAN IT
+      APPEARS. "Clean" means the EDITOR accepts the row, not that the ENGINE uses
+      it. Those were assumed to be the same thing when the rule set was written.
+      RULED 2026-08-23 BY GARY — ROWS THE ENGINE SILENTLY DISCARDS MUST BE
+      SURFACED, NOT ONLY BLOCKED GOING FORWARD. Blocking B1 and B2 at the editor
+      stops new ones; it does nothing for rows already in the database, and
+      nothing at all for overnight rows, which are never blocked by design. THE
+      WORK: (a) a discarded-row check that names the ENGINE's admission rule
+      (`e > s` at labor-plan.ts:272) rather than the editor's, since they are not
+      the same predicate; (b) it must be visible where the hours are — a store
+      whose typed hours are being ignored has to say so on screen, not only in a
+      sweep; (c) the deployed sweep reports the discarded set alongside blocking
+      and warnings. NOT DONE IN THE FILING SESSION and deliberately not folded
+      into the validator, because whether overnight should be MADE TO WORK in the
+      engine or DECLARED UNSUPPORTED in the dialog is a ruling, not an
+      implementation detail — and the helper text has already promised the first.
+      DISCONFIRMED BY: a ruling that overnight windows are out of scope for the
+      labor model, at which point the dialog's promise is withdrawn instead and
+      the discard becomes correct behaviour that the editor must stop inviting.
       Related: DEBT-83 (the hardcoded 14:00 that makes a bad open time
       expensive), BUG-11/BUG-12 (the editor-vs-route precedent this module's
       shape exists to honour), L-3 (where sales inference was first flagged).

@@ -86,6 +86,21 @@ function fmt(minutes: number): string {
 /// — enter the real closing time, say 02:00, rather than 24:00") and the write
 /// route declines to order-check for the same reason. Blocking it would make an
 /// overnight store unrepresentable and break a promise the UI makes on screen.
+///
+/// BUT "CLEAN" HERE MEANS THE EDITOR ACCEPTS THE ROW — NOT THAT THE ENGINE USES
+/// IT, and those were assumed to be the same thing when this rule set was
+/// written. They are not. labor-plan.ts:272 admits an explicit window only when
+/// `s != null && e != null && e > s`, and an overnight row fails that test:
+/// parseHourStart("22:00") is 22, parseHourEnd("02:00") is 2. SO THE LABOR MODEL
+/// SILENTLY DISCARDS EVERY OVERNIGHT ROW and falls back to sales inference. A
+/// midnight close discards too — parseHourEnd("00:00") is 0.
+///
+/// THIS MODULE IS NOT THE PLACE TO FIX THAT and must not start warning on
+/// overnight to compensate: the promise on screen says overnight is fine, and a
+/// warning here would contradict the dialog while still leaving the engine
+/// ignoring the row. Whether overnight is MADE TO WORK in the engine or DECLARED
+/// UNSUPPORTED in the dialog is a ruling. Recorded on BUG-14 with the
+/// surfacing requirement; do not resolve it by editing this comment.
 function durationMinutes(open: number, close: number): number {
   return close > open ? close - open : close + MINUTES_PER_DAY - open
 }
