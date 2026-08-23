@@ -108,5 +108,36 @@ check("future window excludes today too", nextWed.templateDates.join(","), lastF
 const nextMon = demandShapeSource("2026-08-24", today)
 check("future Monday averages the last 4 completed Mondays", nextMon.templateDates.join(","), "2026-08-17,2026-08-10,2026-08-03,2026-07-27")
 
+console.log("\n10 · R7-D — the GM must not satisfy the floor of one body:")
+// Froot does not know WHICH hours the GM is at WHICH store: the only two stores
+// in the estate that draw a band share one GM at 50% each. Counting her as a
+// present body is wrong in the direction that leaves a store empty, so the
+// floor of 1 and supervisorGap are both HOURLY questions. The band still draws
+// (points[].gm is untouched) — it just stops paying for itself.
+//
+// (a) Zero-demand morning under a GM band. All the sales weight sits after 2p,
+// so largest-remainder places ZERO hourly heads in 8a–2p — exactly the hours
+// the GM band covers.
+const morningDead: HourNet[] = Array.from({ length: 12 }, (_, i) => ({ hour: 8 + i, net: 8 + i >= 14 ? 1000 : 0 }))
+const gmFloor = computeDailyCoverage({ hourlyBudgetHours: 12, demand: morningDead, open, gmWindow: { startHour: 8, endHour: 14 }, hasHourlySupervisor: true })!
+check(
+  "every open hour has ≥ 1 HOURLY head (GM does not satisfy the floor)",
+  gmFloor.points.filter((p) => p.open).every((p) => p.hourly >= 1),
+  true
+)
+check("9a is inside the band", gmFloor.points.find((p) => p.hour === 9)!.gm, true)
+check("9a still has an hourly body", gmFloor.points.find((p) => p.hour === 9)!.hourly >= 1, true)
+check("the band still DRAWS — points[].gm untouched", gmFloor.points.filter((p) => p.gm).length, 6)
+check("floor-1 bumps inside the band push hourly over budget", gmFloor.understaffedBudget, true)
+
+// (b) The GM band covers the WHOLE open window and there is no hourly
+// supervisor. The gap is real — she is at the other store half the time — so it
+// must be flagged, not suppressed by the band's width.
+const gmAllDay = computeDailyCoverage({ hourlyBudgetHours: 40, demand, open, gmWindow: { startHour: 8, endHour: 20 }, hasHourlySupervisor: false })!
+check("supervisorGap fires when the GM is the only supervisory cover", gmAllDay.supervisorGap, true)
+// An hourly supervisor still clears it — the gate is about the GM, not the flag.
+const gmAllDaySup = computeDailyCoverage({ hourlyBudgetHours: 40, demand, open, gmWindow: { startHour: 8, endHour: 20 }, hasHourlySupervisor: true })!
+check("an hourly supervisor still clears the gap", gmAllDaySup.supervisorGap, false)
+
 console.log(`\n${failures === 0 ? "✅ All checks passed." : `❌ ${failures} check(s) failed.`}`)
 process.exitCode = failures === 0 ? 0 : 1
