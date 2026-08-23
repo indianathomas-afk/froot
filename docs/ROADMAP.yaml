@@ -8395,6 +8395,115 @@ phases:
       rides the recorder, which changes no behaviour. See DEBT-83, filed in the
       same sitting.
 
+  - id: R7-E
+    track: labor
+    size: S
+    status: in_progress
+    commits: [b62f92f]
+    title: "Manager on the floor — the band is drawn as an expectation and stops feeding every number"
+    notes: >
+      TIER 2, display-side, built 2026-08-23 to Gary's ruling (docs/DECISIONS.md
+      § "Manager on the floor — one guaranteed number", ratified ddba758, copy
+      approved a8b7ab2). Prompt: docs/prompts/MANAGER_ON_FLOOR_BUILD.md plus its
+      two addenda. Phase 3 of the three-phase session; gated on R7-D being
+      promoted, which it was at 4d0edd4 (main 79e4bc8, verified by fetch rather
+      than taken on trust).
+      THE RULING IN ONE LINE. Froot knows the manager is worth 20 hours a week at
+      each of Las Brisas and UNR and does NOT know WHICH 20 — that is L-4 — so
+      the drawn band stays at its window and is DEMOTED to an expectation, while
+      every NUMBER reads her credited hours instead.
+      WHAT MOVED. labor-coverage.ts:111 — `headcount` is HOURLY HEADS ONLY.
+      labor-coverage.ts — new pure export `suggestedHoursForDay(points,
+      gmCreditHours)`. weekly-plan/route.ts — `suggestedHours` is now that sum,
+      with gmCreditHours threaded from plan.days as a 4th arg to buildComparison.
+      Peak is now the HOURLY peak, asserted rather than discovered, with no
+      compensating term. points[].gm is UNTOUCHED and the band draws exactly as
+      before.
+      R7-D IS NOT REOPENED — the floor-of-1 bump and supervisorGap are untouched
+      and the fixture re-asserts both inside the new section.
+      COPY — the six strings from ADDENDUM 2, shipped exactly as Gary approved
+      them. Column and field names unchanged by ruling: after this, grepping
+      `manager` does not find the setting that draws the band and grepping
+      `gmOnFloor` does not find any words a user sees. That seam is deliberate
+      and is recorded in DECISIONS.md.
+      DEVIATION S5-D66 — THE 00:00 PARSE FIX RIDES THIS COMMIT AND BREAKS THE
+      PROMPT'S ZERO-DIFF RULE FOR labor-plan.ts, DELIBERATELY.
+      MANAGER_ON_FLOOR_BUILD.md says to STOP if labor-plan.ts needs editing
+      beyond reading gmCreditHours through. parseHourEnd("00:00") now returns 24
+      rather than 0, which is exactly such an edit; it is here because Gary
+      folded it into this phase after that prompt was written. The prompt's STOP
+      condition was overridden by a later instruction, not ignored.
+      EXACTLY "00:00" AND NOTHING WIDER. "00:30" still returns 1 and is still
+      discarded — that is a genuine overnight close, and overnight needs the
+      per-store business day cutoff, which is ruled and deferred to CUTOFF-1.
+      Widening the special case would have built that cutoff by accident, in the
+      one place nobody would look for it.
+      DEVIATION S5-D67 — ONE EXISTING FIXTURE EXPECTATION WAS CHANGED, NOT THE
+      MODULE. verify-labor-coverage.ts section 3 asserted `headcount = hourly +
+      GM at 9a`, correct until this ruling. Updated in place with a comment
+      saying it changed by ruling, rather than deleted. Recorded because "the
+      fixture went green" means nothing if the fixture is edited without saying
+      so — BUG-14's precedent, same week.
+      FIXTURE FIRST, SHOWN FAILING. Sections 11 and 12 written and run before the
+      change: headcount failed 3 vs 2 and suggestedHoursForDay did not exist. 20
+      new assertions, including the weekly identity Sigma-K = min(B, C) that the
+      Suggested prediction rests on. verify-labor-budget.ts is BYTE-IDENTICAL
+      before and after, md5 f0ce67bd3b9ddb557a974dbe7fa16914 — the zero-diff
+      proof for the plan's arithmetic, true on dev because that branch holds ZERO
+      StoreHours rows so parseHourEnd is never reached there. On a branch with a
+      midnight-close row the fix WOULD move the plan, which is its whole point.
+      THE PREDICTION WAS PRE-REGISTERED AND IS HALF CONFIRMED. The formula —
+      DeltaWEEK = min(B,C) - B = -max(0, B - C) — was re-derived from the band
+      independently and AGREES with 08c2e6e exactly, and is now pinned by fixture
+      rather than by argument. THE MAGNITUDE HALF DOES NOT SURVIVE. See the
+      appended addendum on docs/prompts/MANAGER_ON_FLOOR_PREDICTION.md.
+      DEVIATION S5-D68 — THE PRE-REGISTERED PER-STORE NUMBERS ARE WRONG AND THE
+      REPO CONTRADICTED THEM A DAY BEFORE THEY WERE WRITTEN. The prediction
+      assumes both manager stores open 7 days; docs/DEPLOY_LOG.md:72, the R7-D
+      entry, measured "1 of 5 open days" at UNR for the same week. Measured again
+      here on dev for week 2026-07-20: Las Brisas B=47 not 49 (it opens 08:00 at
+      weekends, so those two days draw 6h not 7h), and UNR B=20 on 5 open days at
+      a 10:00 open, not 42 on 7 days at 08:00.
+      UNR LANDS EXACTLY ON THE PREDICTION FILE'S OWN TRIPWIRE. B = C = 20 means
+      capGmFloorCredits returns the band UNSCALED (labor-daily.ts:54) and
+      DeltaWEEK = 0. That is S5-D10's second divergence case going live on a
+      VISIBLE number — already filed on R7-C's first blocker, already ruled open
+      by D19, already pinned at verify-labor-position-hours.ts:146. Not a new row
+      by ADDENDUM's explicit instruction. The prediction file estimated the case
+      needed under 2.9 band-hours a day across 7 days and called it far off; at 5
+      open days the threshold is 4.0 and UNR's inferred window sits on it.
+      NO CAPTURE WAS TAKEN AND THAT IS THE FINDING, NOT AN OMISSION. Dev holds
+      ZERO salaried allocation — measured this session, all nine stores return
+      hasGm false and B is identically 0 — so dev cannot draw a band at all and
+      its windows are pure sales inference. The deployed branches hold both the
+      allocation and the StoreHours rows Gary entered on 2026-08-23, and
+      `vercel env pull` is banned, so B is a Neon console read and it is Gary's.
+      AND BUG-14 MAKES THE DEPLOYED B UNREADABLE FROM THE DIALOG, which is the
+      part nobody could have foreseen when the prediction was pre-registered.
+      Some typed StoreHours rows are DISCARDED by the engine (labor-plan.ts:286),
+      so the deployed open windows are a MIX of typed rows and sales inference
+      and the dialog does not show which is which. Both of Gary's known errors
+      bear on B directly: 08:00-08:00 Mon-Fri is discarded so those five days
+      fall back to inference, and a 01:00 Sunday open IS admitted and makes that
+      day's band THIRTEEN hours instead of six, +7 to B on its own. DO NOT
+      CAPTURE THE AFTER NUMBERS UNTIL BUG-14'S DEPLOYED SWEEP HAS RUN AND THE TWO
+      BAD ROWS ARE FIXED — a capture taken now measures the data errors, not the
+      ruling.
+      STATUS IS in_progress, NOT shipped, FOR THAT REASON ALONE. The code is
+      built, gated and committed; what is outstanding is the staging/production
+      capture against the written prediction, which the prompt requires and which
+      no branch reachable from here can supply.
+      DISCONFIRMED BY: a capture showing any of the ten non-manager stores moving
+      by any amount, or a positive delta anywhere, or DeltaWEEK not equal to
+      C - B at a manager store. Each would mean the identity above is not what
+      the code does.
+      Related: R7-D (the floor gate this sits on top of), DEBT-83 (the hardcoded
+      14:00 that sets the band's width and therefore B), L-4 (which 20 hours she
+      actually works — the question this ruling explicitly does not answer),
+      CUTOFF-1 (where the rest of the overnight work lives), BUG-14 (whose
+      deployed sweep gates this row's capture), S5-D10 (the unscaled-band case
+      UNR now sits on).
+
   - id: L-4
     track: labor
     size: L
