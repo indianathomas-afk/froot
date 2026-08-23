@@ -21039,6 +21039,36 @@ debt:
       DISCONFIRMED BY: a ruling that the 14 and the open.startHour fallback are
       both intentional and should stay, at which point this becomes a
       documentation line on L-4 and not work.
+      RULED 2026-08-23 — THE CLOSING CONDITION IS NOW L-4, and this row is no
+      longer waiting on a product question that anyone might answer. Gary's
+      ruling (DECISIONS.md, top entry): "Do not fix DEBT-83 by setting the
+      window. If I enter my real hours the band gets wider, not narrower. Leave
+      the default alone, write down why, and close it with L-4." So the row
+      stays open, the default stays untouched, and it closes with L-4 rather
+      than on its own. The DISCONFIRMED BY above is NOT what fired — Gary did
+      not rule the 14 intentional, he ruled it not worth moving ahead of L-4.
+      THE REASON IT CANNOT BE FIXED BY CONFIGURING IT — CONFIGURING THE WINDOW
+      MAKES THE BAND WIDER, NOT NARROWER, which is the opposite of what anyone
+      setting it would expect. Both halves at labor-plan.ts:283-284 round
+      OUTWARD: the start through Math.floor and the end through Math.ceil. Take
+      Kristie's real hours, 6:30am-3:30pm = 390 -> 930 minutes. The end goes
+      through Math.ceil(930/60) = 16, so 3:30pm becomes a 4pm edge. The start
+      goes through Math.floor(390/60) = 6, then is clamped back up by
+      max(gmStart, open.startHour) at :288, so at a 7am store the floor half is
+      absorbed and the ceil half is not. NET AT A 7AM STORE: the band goes from
+      7 hours a day (7 -> the hardcoded 14) to 9 (7 -> 16) — WIDER BY TWO HOURS
+      A DAY for entering the true, narrower hours. The 9 assumes the store is
+      still open at 16:00, since :289 clamps the end to min(gmEnd,
+      open.endHour); a store closing at 15:00 would draw 8.
+      SOUTHGATE'S 465 -> 900 CONFIRMS IT RATHER THAN BEING AN EXCEPTION, and it
+      is recorded above as the estate's only configured window. It resolves to
+      floor(465/60) = 7 and ceil(900/60) = 15, so 7:45am-3:00pm draws a 7 -> 15
+      band: EIGHT hours, one MORE than the unset default's seven, from a window
+      that is narrower than the default at both ends. It remains inert and
+      drives nothing — Southgate has no allocation, so hasGm is false there
+      (labor-plan.ts:249, :282) and gmHoursByDay stays all zeros. Recorded here
+      on the row rather than as its own row: it is evidence for this row's
+      claim, not a separate defect.
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #

@@ -6,6 +6,94 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## Manager on the floor — one guaranteed number — 2026-08-23 (Gary)
+
+Gary's ruling, in his words:
+
+- **Call it the manager on the floor.** "GM on-floor window" is jargon
+  and it is wrong besides — Kristie is a store manager, not only a
+  general manager. Rename it everywhere it shows on screen. The column
+  names stay as they are; this is a label change, not a migration. (Gary)
+- **The manager's hours are guaranteed, and whatever is left spreads
+  across the other shifts based on what the business needs.** That is
+  how I run the stores and it is what floor-first already does. The
+  guaranteed number is the manager's credited hours at that store — 20 a
+  week at Las Brisas and 20 at UNR, off her allocation, never typed by
+  hand. (Gary)
+- **The window says when the manager is expected on the floor. It does
+  not say how much of the floor she covers.** Every number that claims
+  coverage uses the credited hours instead. The band can stay on the
+  chart as a reminder of when she is expected; it stops feeding any
+  number. (Gary)
+- **Leave the setting where it is for now.** Shift blocks and the
+  manager window describe the same hours from two directions and one day
+  they should be one thing. Not today — shift blocks only drive the
+  supervisor rule right now, and moving a live setting into one that
+  barely does anything buys me nothing. Revisit when L-4 lands. (Gary)
+- **Do not fix DEBT-83 by setting the window.** If I enter my real hours
+  the band gets wider, not narrower. Leave the default alone, write down
+  why, and close it with L-4. (Gary)
+
+**THE DRAFT THIS ENTRY WAS SUPPOSED TO CARRY ANNOTATIONS ACROSS FROM DOES NOT
+EXIST.** `docs/prompts/RULING_manager_on_floor_DRAFT.md` is cited by path in two
+session prompts and is absent from disk and from git history. So the instruction
+to carry across the draft's `(Claude)` annotations and drop the ones the final
+wording contradicts could not be executed as written: **there was nothing to
+carry and nothing to drop, and no list of dropped annotations is recorded below
+because none were seen.** The annotations that follow are built from the code at
+HEAD instead, not inherited. A reader who later finds the draft should diff it
+against this entry rather than assume it was reconciled. (Claude)
+
+**WHAT "OFF HER ALLOCATION, NEVER TYPED BY HAND" IS TRUE OF — AND THE ONE CASE
+WHERE IT STOPS BEING TRUE.** The second ruling is exactly right about the WEEKLY
+number and needs one qualification about the DAILY one, because the credited
+figure is not read from the allocation — it is read from the band and then
+scaled to a ceiling that comes from the allocation. `labor-plan.ts:307-308` is
+`gmCeilingHours = resolveGmCeilingHours(budget.salariedHours, 40)` followed by
+`gmCreditByDay = capGmFloorCredits(gmHoursByDay, gmCeilingHours)`, and
+`capGmFloorCredits` (`labor-daily.ts:51-57`) multiplies every day's band hours by
+`weeklyCap / total`. **So the weekly total is hers and cannot be typed by hand,
+precisely as ruled — but only because of the guard on line 54,
+`if (total <= weeklyCap || total <= 0) return nonNeg`.** When the drawn band
+totals LESS than the ceiling, the band is returned unscaled and the window feeds
+the credited number directly, which is the one thing the third ruling says it
+must never do. Not live today: both manager stores draw the unset default
+(DEBT-83), Las Brisas from 07:00 and UNR from 08:00 to the hardcoded 14:00, which
+across their open days totals far more than 20. **THE INEQUALITY IS WHAT MAKES
+THE RULING TRUE, NOT THE DESIGN.** A band narrowed far enough, or a store open
+few enough days, hands the window back the number it was just relieved of. The
+band's width and day-shape are L-4's by construction, so this is named here
+rather than fixed — but it should be read as part of L-4's scope, not
+rediscovered as a bug. (Claude)
+
+**A CORRECTION THAT MATTERS FOR THE BUILD, not for the ruling.**
+`docs/prompts/MANAGER_ON_FLOOR_BUILD.md` describes `gmCreditHours` as "derived
+from her allocation, capped by `capGmFloorCredits`". It is the other way round:
+derived from the BAND, capped TO a ceiling that comes from the allocation. The
+shipped number is the same 20 either way and the build's scope is unaffected —
+but the per-store Suggested delta that prompt requires to be predicted in
+writing has to be reasoned from the band's hours, not from the allocation, or
+it will come out right by luck and prove nothing. (Claude)
+
+**THE RENAME STOPS AT THE GLASS, AND THE COLUMN NAMES ARE THE SEAM.** The first
+ruling keeps the columns, which additive-only requires anyway. So
+`gmOnFloorStartMinutes` / `gmOnFloorEndMinutes` (`labor-settings.ts:11-12`, the
+settings route's zod schema at `route.ts:19-20`, and the settings client at
+`labor-settings-client.tsx:1006-1007`), along with `hasGm`, `gmCreditHours` and
+`points[].gm`, all keep the word this ruling removes from the screen. **After
+this ships, grepping `manager` will not find the setting that draws the band,
+and grepping `gmOnFloor` will not find any words a user sees.** That gap is the
+deliberate cost of not migrating, and it is recorded here so the next reader
+crosses it on purpose instead of concluding the rename was left half-done. (Claude)
+
+**THE FOURTH RULING IS A DECISION, NOT A DEFERRAL, and the code agrees with its
+premise.** `supervisorGap` is `!hasHourlySupervisor` at `labor-coverage.ts:116`
+and R7-D settled that the GM's window does not clear it (`labor-coverage.ts:36`).
+So the shift-block half really does drive one rule and the manager-window half
+drives a drawn band and, after this ruling, nothing else. Merging a live setting
+into a nearly-inert one would move risk without buying a number, which is the
+argument made. Revisit at L-4 stands as the closing condition. (Claude)
+
 ## R7-C build rulings — retirement, seed-and-own, deviation numbering — 2026-08-22 (Gary)
 
 Gary's rulings, in his words:
