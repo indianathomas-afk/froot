@@ -12033,9 +12033,52 @@ bugs:
 
   - id: BUG-6
     title: "Dashboard store switch serves the previous request's sales — the lazy refresh lands after the response"
-    status: staging
+    status: shipped
     commits: [37361ba, b77082e]
     notes: >
+      ── BOOKKEEPING PASS 2026-08-22 — status staging -> shipped. Prepended per
+      preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      REACHED MAIN 2026-08-14 in promotion 06dc830 (docs/DEPLOY_LOG.md:723).
+      THAT PROMOTION WAS A FAST-FORWARD, NOT A MERGE — `git revert -m 1` does
+      not apply, and rollback means reverting all ten of ce036f9..06dc830 in
+      reverse order. This is one of the five consecutive --no-ff violations
+      DEBT-38 records.
+
+      MEASURED 2026-08-22, not cited: `git branch -r --contains` returns
+      origin/main and origin/staging for BOTH 37361ba and b77082e. origin/main
+      and origin/staging are both 505f4e6 — identical, so the branches hold the
+      same code by identity rather than by inference.
+
+      SHIPPED, NOT VERIFIED, AND THE DISTINCTION IS DELIBERATE. The line below
+      reads "VERIFIED ON STAGING BY GARY 2026-08-13 — THE DEFECT IS CLOSED" and
+      it stands. But BUG-7's row establishes that on this board `verified` means
+      verified IN PRODUCTION; BUG-6's evidence is a staging store-switch pass.
+      The honest status is `shipped`. Taking it to `verified` costs one
+      store switch on www.usefroot.com showing current numbers without a manual
+      refresh — cheap, and not done, so not claimed.
+
+      WHY IT SAT AT `staging` FOR EIGHT DAYS. The DEBT-72a backfill of
+      2026-08-17 MEASURED this row as contradicting git (its §5a) and
+      deliberately did not flip it: §3a scoped that session to rows reading
+      planned/in_progress/absent, and this row read `staging`. It recorded the
+      finding as "Gary's to apply" and predicted the shape — a `staging` row
+      that never advances is the same disease one stage later, and it named
+      BUG-6 as the only instance. Five days later there were two (this row and
+      DEBT-28). The mechanism is that nothing in the promotion ritual reads the
+      board, which is DEBT-72's subject and Gary's ruling to write.
+
+      THE ROLLUP ASYMMETRY LEFT THIS ROW RATHER THAN CLOSING WITH IT — SEE
+      BUG-13. The block below folds /api/dashboard/rollup:66-68 into this row on
+      Gary's 2026-08-13 ruling and names deciding its posture as "this row's
+      remaining work". That work is NOT done and is NOT closed by this flip. It
+      is now BUG-13, split out 2026-08-22 on the DEBT-5 -> DEBT-27 precedent:
+      this row's notes were the only place in the file that mentioned it, so
+      flipping to shipped would have retired an undecided design question from
+      the open list. The 2026-08-13 fold-in ruling was correct on its premise —
+      this row was open and the question sat on a live row — and the flip is
+      what ends that premise. BUG-13 also carries a severity correction the
+      block below predates: it was filed while the Square webhook was dead.
       VERIFIED ON STAGING BY GARY 2026-08-13 — THE DEFECT IS CLOSED. Prepended;
       everything below stays exactly as written. Org
       cf888f2d-f234-48c7-8097-fd5b44b5b3dd on Clerk instance verified-snapper-7,
@@ -13019,6 +13062,62 @@ bugs:
       CROSS-REFS: BUG-11 (the first pass at this field, whose fix this one
       corrects), L-2 (AL-3 built the card and recorded WK HRS as deliberately
       inert).
+  - id: BUG-13
+    status: planned
+    title: >
+      The all-locations rollup still syncs inline while the single-store view
+      polls — two surfaces of one dashboard can disagree about the same store's
+      today
+    notes: >
+      SPLIT OUT OF BUG-6 2026-08-22 when that row flipped staging -> shipped.
+      NOT A NEW FINDING and not a re-litigation: this is BUG-6's own stated
+      remaining work, moved to a row of its own so that flipping BUG-6 does not
+      retire an undecided question from the open list.
+      THE PRECEDENT IS DEBT-5 -> DEBT-27, and it is the same move one field at a
+      time. DEBT-5's notes were the only place in this file that mentioned the
+      storeNumber backfill, so closing DEBT-5 would have dropped the data half
+      off the open list with nothing tracking it; DEBT-27 exists for that
+      reason. BUG-6's notes were the only place that mentioned the rollup
+      posture. Gary's 2026-08-13 ruling folded it into BUG-6 rather than opening
+      a row, and that ruling was correct on its premise — BUG-6 was open and the
+      question sat on a live row. The flip is what ends the premise. Ruled
+      2026-08-22 to split.
+      THE DEFECT. /api/dashboard/rollup:66-68 never received BUG-1 step 4 and
+      still `await`s syncSalesForStore INLINE before responding, while
+      /api/dashboard/summary and /api/dashboard/sales defer behind after() and
+      poll (BUG-6, 37361ba + b77082e). So the all-locations view is
+      fresh-and-slow and the single-store view is fast-then-fresh, and the two
+      surfaces of the same dashboard can render different "today" numbers for
+      the same store seconds apart. RE-VERIFY THE FILE:LINE BEFORE ACTING — it
+      is carried forward from the 2026-08-13 F-4 audit and has not been
+      re-measured since.
+      IT IS A REAL DECISION, NOT AN OVERSIGHT, which is why it was never folded
+      into the fix. The rollup loops every store SERIALLY, so giving it the
+      single-store treatment means N syncs rather than one, and the poll shape
+      that suits one card does not obviously suit a view that is already paying
+      N round trips. Deciding which posture is canonical is the work; the edit
+      is small once decided.
+      SEVERITY IS LIKELY LOWER THAN THE 2026-08-13 FRAMING, AND THAT SHOULD BE
+      MEASURED BEFORE ANYTHING IS BUILT. This was filed while the Square webhook
+      was DEAD, which is precisely why the 15-minute stale branch fired
+      constantly and the two surfaces diverged in practice. Since then F-4's
+      production webhook went live (06dc830, 2026-08-14) and BUG-7's guarded
+      upsert landed, with ~55 `discarded ... superseded by a newer fetch` lines
+      measured across nine stores on 2026-08-16 — direct evidence the caches are
+      being written at transaction rate. If syncedAt is now rarely older than
+      STALE_MS, the stale branch rarely fires on EITHER surface and the
+      disagreement window is a fraction of what it was. NOT ASSERTED AS FIXED —
+      unmeasured either way. The first task on this row is to measure how often
+      the rollup's stale branch actually fires in production, because the answer
+      may make the posture decision cheap or may retire the row outright.
+      NO AUTOMATED COVERAGE REACHES THIS. scripts/verify-f4-rollup-webhook.ts
+      computes rollup arithmetic through computeRollup in src/lib/pacing.ts, NOT
+      through /api/dashboard/rollup, and the dashboard routes need a Clerk
+      session a Node fixture does not have. Same limit BUG-6 recorded.
+      Related: BUG-6 (this row's origin, shipped 2026-08-14), BUG-1 (the change
+      whose step 4 the rollup never received), BUG-7 (the guard that made
+      concurrent writers safe), F-4 (the webhook whose death made this visible),
+      DEBT-69 (coalescing, which would reduce the N-syncs cost of one posture).
 
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
@@ -16205,8 +16304,43 @@ debt:
 
   - id: DEBT-28
     title: "The `#0034 — Carson` store label idiom has three variants across fourteen sites"
-    status: staging
+    status: shipped
+    commits: ["893d91d"]
     notes: >
+      ── BOOKKEEPING PASS 2026-08-22 — status staging -> shipped. Prepended per
+      preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      REACHED MAIN 2026-08-18 in promotion 90a8eca ("promote: Square read-only
+      ruling + labor scopes + SQUARE_VERSION 2026-01-22 + verify probe"),
+      docs/DEPLOY_LOG.md:263. A REAL --no-ff MERGE, so `git revert -m 1 90a8eca`
+      is available — unlike the five fast-forward promotions DEBT-38 tracks.
+
+      MEASURED 2026-08-22, not cited: origin/main and origin/staging are both
+      505f4e6 (identical), so the two branches hold the same code by identity.
+      `git branch -r --contains 893d91d` returns origin/main and origin/staging.
+
+      THE WORK IS COMPLETE AS RULED. `git show --stat 893d91d` is exactly the
+      five files the 2026-08-17 ruling scoped — stores/page.tsx (dash swap AND
+      the "Store " prefix drop), staff-buttons.tsx, staff-edit-actions.tsx,
+      staff/page.tsx, staff/[id]/page.tsx — one line changed in each, plus this
+      file as the recorder. store-view-client.tsx:100 is untouched, correctly:
+      that is the ruled header exemption, not a missed site.
+
+      THIS PASS ADDS THE commits FIELD. The row carried none, so DEBT-72a had to
+      identify 893d91d by commit-message grep rather than read it off the row —
+      that is the gap this closes. Five other commits mention DEBT-28
+      (b46bc29, 8b855d3, 5faec45, 5c6419f, b375e50) and NONE touch src/: they
+      filed the row, triaged it, and preserved its prompts. 893d91d is the fix.
+
+      FLAGGED, NOT FIXED HERE: the DEPLOY_LOG entry for 90a8eca is titled for
+      the Square read-only work and does not name 893d91d — the label change
+      rode a promotion about something else. A DEPLOY_LOG completeness gap, not
+      a ROADMAP one, named here rather than repaired in a bookkeeping pass.
+
+      THE DEBT-27 TIE STANDS AND IS NOT CLOSED BY THIS. Ten of twelve stores
+      still carry storeNumber: null, so twelve of the fourteen sites do not
+      render the separator at all today. The idiom is now uniform; the data
+      that makes it visible is DEBT-27's.
       ── DEBT-72a BOARD-CURRENCY BACKFILL 2026-08-17 — STATUS ABSENT -> staging.
       Prepended per preserve-and-mark; NOTHING BELOW IS EDITED.
 
