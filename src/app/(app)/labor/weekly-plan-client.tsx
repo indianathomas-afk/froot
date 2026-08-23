@@ -66,9 +66,12 @@ type PlanDay = {
 type ScheduleSyncHealth = "never" | "synced-empty" | "fresh" | "stale" | "error"
 type ComparisonDay = {
   date: string
-  /// Σ suggested headcount over the day's open hours, INCLUDING the GM — the
-  /// same number the Labor Coverage card's legend describes. Null where the day
-  /// has no shape at all, which is not a recommendation of nobody.
+  /// Σ HOURLY heads over the day's open hours PLUS the manager's CREDITED hours
+  /// for that day — the whole crew, the same number the Labor Coverage card's
+  /// legend describes. Changed 2026-08-23: it used to add one manager body per
+  /// drawn band hour, which counted a person who works five days across seven.
+  /// Null where the day has no shape at all, which is not a recommendation of
+  /// nobody.
   suggestedHours: number | null
   /// Null is "we are not claiming a scheduled number for this day" — never-synced
   /// or synced-empty. It is NOT zero, and the difference is the whole of §3.4.
@@ -454,7 +457,7 @@ function ScheduleComparison({ res, comparison }: { res: WeekResponse; comparison
           </p>
         )}
         <p className="text-[11px] text-[var(--color-muted-foreground)] mt-1">
-          Suggested is demand-shaped and capped by the conservative budget, and counts the GM on floor — a guide, not a schedule.
+          Suggested is demand-shaped and capped by the conservative budget, and counts the manager’s credited hours — a guide, not a schedule.
         </p>
       </CardContent>
     </Card>
@@ -711,7 +714,7 @@ function DayDetail({ storeId, day, target }: { storeId: string; day: PlanDay; ta
 
             <div className="flex items-center gap-3 mt-2 flex-wrap text-[11px] text-[var(--color-muted-foreground)]">
               {cov!.gmWindow && (
-                <span className="inline-flex items-center gap-1"><Crown className="h-3 w-3 text-[var(--color-primary)]" /> GM on floor {hourLabel(cov!.gmWindow.startHour)}–{hourLabel(cov!.gmWindow.endHour)}</span>
+                <span className="inline-flex items-center gap-1"><Crown className="h-3 w-3 text-[var(--color-primary)]" /> Manager expected {hourLabel(cov!.gmWindow.startHour)}–{hourLabel(cov!.gmWindow.endHour)}</span>
               )}
               {cov!.peakHours.length > 0 && <span>Peak {cov!.peakHours.map(hourLabel).join(", ")} · {cov!.peakHeadcount} on floor</span>}
               {chart.quietHour != null && <span>Quietest {hourLabel(chart.quietHour)} — good break window</span>}

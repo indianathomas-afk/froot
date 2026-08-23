@@ -55,7 +55,20 @@ export function parseHourStart(t: string | null): number | null {
 }
 export function parseHourEnd(t: string | null): number | null {
   const m = t?.match(/^(\d{1,2}):(\d{2})/)
-  return m ? Math.ceil(Number(m[1]) + Number(m[2]) / 60) : null
+  if (!m) return null
+  // A MIDNIGHT CLOSE IS 24:00, NOT HOUR ZERO — Gary, 2026-08-23. "18:00 to 00:00
+  // is a normal day that ends at 24:00." Without this, Math.ceil gives 0, the
+  // admission rule below (`e > s`, :286) rejects the row, and the store silently
+  // runs on sales inference while the dialog displays the hours as accepted.
+  // A midnight close is ordinary data and was never an overnight case.
+  //
+  // EXACTLY "00:00" AND NOTHING ELSE. "00:30" still yields 1 and is still
+  // discarded — that IS an overnight close, and overnight needs the per-store
+  // business day cutoff, which is ruled and deferred to CUTOFF-1. Widening this
+  // to any small hour would be building that cutoff by accident, in the one
+  // place nobody would look for it.
+  if (Number(m[1]) === 0 && Number(m[2]) === 0) return 24
+  return Math.ceil(Number(m[1]) + Number(m[2]) / 60)
 }
 
 // Fraction of a weekday's peak hourly sales below which an hour is treated as

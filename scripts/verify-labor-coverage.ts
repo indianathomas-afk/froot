@@ -13,7 +13,8 @@ import {
   capGmFloorCredits,
   applyDayAdjustment,
 } from "../src/lib/labor-daily"
-import { computeDailyCoverage, demandShapeSource, type HourNet } from "../src/lib/labor-coverage"
+import { computeDailyCoverage, demandShapeSource, suggestedHoursForDay, type HourNet } from "../src/lib/labor-coverage"
+import { parseHourStart, parseHourEnd } from "../src/lib/labor-plan"
 
 let failures = 0
 function check(label: string, actual: unknown, expected: unknown) {
@@ -43,7 +44,12 @@ check("peak follows demand (3p / hour 15)", cov.peakHours.includes(15), true)
 check("every open hour ≥ 1 total", cov.points.filter((p) => p.open).every((p) => p.headcount >= 1), true)
 check("GM counted on floor at 9a", cov.points.find((p) => p.hour === 9)!.gm, true)
 check("GM NOT on floor at 5p", cov.points.find((p) => p.hour === 17)!.gm, false)
-check("headcount = hourly + GM at 9a", cov.points.find((p) => p.hour === 9)!.headcount, cov.points.find((p) => p.hour === 9)!.hourly + 1)
+// CHANGED 2026-08-23 — this asserted `headcount = hourly + 1` inside the band and
+// was correct until the manager-on-floor ruling. The band still draws (the `gm`
+// assertions above are untouched); it no longer contributes a body. Section 11
+// pins the new behaviour; this line is updated rather than deleted so the old
+// expectation stays visible as something that changed by ruling.
+check("headcount = hourly at 9a — the manager is drawn, not counted", cov.points.find((p) => p.hour === 9)!.headcount, cov.points.find((p) => p.hour === 9)!.hourly)
 check("within budget (not understaffed)", cov.understaffedBudget, false)
 check("no supervisor gap (hourly sup exists)", cov.supervisorGap, false)
 
@@ -139,6 +145,53 @@ check("supervisorGap fires when the GM is the only supervisory cover", gmAllDay.
 // An hourly supervisor still clears it — the gate is about the GM, not the flag.
 const gmAllDaySup = computeDailyCoverage({ hourlyBudgetHours: 40, demand, open, gmWindow: { startHour: 8, endHour: 20 }, hasHourlySupervisor: true })!
 check("an hourly supervisor still clears the gap", gmAllDaySup.supervisorGap, false)
+
+
+console.log("\n11 · Manager on the floor — the band stops feeding the numbers (2026-08-23 ruling):")
+// Gary's ruling: the band says when the manager is EXPECTED on the floor, not
+// how much of the floor she covers. So headcount sheds her, and Suggested adds
+// back the day's CREDITED hours instead. The band still draws.
+const mgrOpen = { startHour: 7, endHour: 21 }
+const mgrDemand: HourNet[] = Array.from({ length: 14 }, (_, i) => ({ hour: 7 + i, net: 100 + i * 10 }))
+const mgr = computeDailyCoverage({ hourlyBudgetHours: 40, demand: mgrDemand, open: mgrOpen, gmWindow: { startHour: 7, endHour: 14 }, hasHourlySupervisor: true })!
+
+check("headcount no longer includes the manager at 9a", mgr.points.find((p) => p.hour === 9)!.headcount, mgr.points.find((p) => p.hour === 9)!.hourly)
+check("headcount === hourly at EVERY open hour", mgr.points.filter((p) => p.open).every((p) => p.headcount === p.hourly), true)
+check("the band still DRAWS — points[].gm untouched", mgr.points.filter((p) => p.gm).length, 7)
+check("peak is the HOURLY peak", mgr.peakHeadcount, Math.max(...mgr.points.filter((p) => p.open).map((p) => p.hourly)))
+// R7-D's gates are NOT reopened by this ruling.
+check("floor of 1 HOURLY head still holds", mgr.points.filter((p) => p.open).every((p) => p.hourly >= 1), true)
+check("supervisorGap still !hasHourlySupervisor", mgr.supervisorGap, false)
+
+// The route-level sum, through the pure seam.
+console.log("  Suggested = Σ hourly over open hours + the day's credited hours:")
+const mgrHourly = mgr.points.filter((p) => p.open).reduce((s, p) => s + p.hourly, 0)
+check("suggestedHoursForDay = Σ hourly + credit", suggestedHoursForDay(mgr.points, 4.5), mgrHourly + 4.5)
+check("zero credit (no manager) = Σ hourly", suggestedHoursForDay(mgr.points, 0), mgrHourly)
+
+// A store with NO band is a byte-for-byte no-op — ten of twelve stores.
+const noBand = computeDailyCoverage({ hourlyBudgetHours: 40, demand: mgrDemand, open: mgrOpen, gmWindow: null, hasHourlySupervisor: true })!
+check("no band: no hour is drawn", noBand.points.some((p) => p.gm), false)
+check("no band: headcount === hourly everywhere", noBand.points.every((p) => p.headcount === p.hourly), true)
+check("no band: Suggested is unchanged by the new term", suggestedHoursForDay(noBand.points, 0), noBand.points.filter((p) => p.open).reduce((s, p) => s + p.hourly, 0))
+
+// THE WEEKLY IDENTITY THE PREDICTION RESTS ON: Σ credited = min(B, C).
+console.log("  Weekly identity ΣK = min(B, C) — what the Suggested delta is derived from:")
+const bandWeek = [7, 7, 7, 7, 7, 7, 7] // B = 49
+const cappedWeek = capGmFloorCredits(bandWeek, 20)
+check("over-cap: ΣK === C", +cappedWeek.reduce((s, h) => s + h, 0).toFixed(6), 20)
+check("over-cap: ΔWEEK === C − B", +(cappedWeek.reduce((s, h) => s + h, 0) - 49).toFixed(6), -29)
+const shortWeek = [2, 2, 2, 2, 2, 0, 0] // B = 10 ≤ C
+const unscaled = capGmFloorCredits(shortWeek, 20)
+check("under-cap: band returned UNSCALED (S5-D10 case 2)", unscaled.join(","), shortWeek.join(","))
+check("under-cap: ΔWEEK === 0", +(unscaled.reduce((s, h) => s + h, 0) - 10).toFixed(6), 0)
+
+console.log("\n12 · parseHourEnd — a midnight close is 24:00, not hour zero (2026-08-23 ruling):")
+check('parseHourEnd("00:00") === 24', parseHourEnd("00:00"), 24)
+check('an 18:00–00:00 day is ADMITTED by the engine (e > s)', (parseHourEnd("00:00") ?? 0) > (parseHourStart("18:00") ?? 0), true)
+check('parseHourEnd("22:00") unchanged', parseHourEnd("22:00"), 22)
+check('parseHourEnd("00:30") is UNCHANGED at 1 — a 00:30 close is overnight, CUTOFF-1', parseHourEnd("00:30"), 1)
+check('parseHourStart("00:00") is UNCHANGED at 0 — a midnight OPEN is hour zero', parseHourStart("00:00"), 0)
 
 console.log(`\n${failures === 0 ? "✅ All checks passed." : `❌ ${failures} check(s) failed.`}`)
 process.exitCode = failures === 0 ? 0 : 1
