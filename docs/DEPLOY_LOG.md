@@ -2,12 +2,15 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## PENDING-MERGE-SHA — PENDING-DATE — R7-D: the GM no longer satisfies the floor of one body
+## PENDING-SHA-SHORT — PENDING-DATE — R7-D: the GM no longer satisfies the floor of one body
 
-**Merge SHA:** `PENDING` — **the merge does not exist yet.** The promotion
-ritual stamps this line and the heading above from `git rev-parse`; neither is
-ever hand-typed. Until then this entry is written and unpromoted, which is the
-intended state.
+**Merge SHA:** `PENDING-SHA-FULL`
+**Written before the merge existed.** The heading's SHA and date and the Merge
+SHA line above are stamped by the promotion ritual from `git rev-parse` and
+`date`, never hand-typed. Three placeholder tokens, all of them on the heading
+and the Merge SHA line above and nowhere else in this entry, so the stamp is
+three substitutions and touches no other line. An entry still carrying them is
+written and unpromoted, which is a valid state rather than a mistake.
 **Payload:** 4 commits on `staging` ahead of `main` at the time of writing —
 `c91af6c`, `1588d31`, `1e7286b`, `6911469` — plus the commit carrying this entry
 (staging → main, `--no-ff`).
