@@ -162,3 +162,63 @@ subshell with `|| echo "*** NO MATCH ***"` guards. Row ids come from
 
 Triage everything found and not fixed: FIX NOW / RULING NOW / COMMENT /
 ROW. Default to the first three. Report the count in each bucket.
+
+---
+
+# ADDENDUM — 2026-08-23, appended by the three-phase session
+
+APPENDED, NOT EDITED. Everything above is the prompt as written and is
+the provenance record. This section corrects one factual claim in it and
+changes no scope.
+
+## The gmCreditHours direction is backwards above
+
+The WHY section says `gmCreditHours` is "derived from her allocation,
+capped by `capGmFloorCredits`". It is the other way round:
+
+  DERIVED FROM THE BAND, CAPPED TO A CEILING THAT COMES FROM THE
+  ALLOCATION.
+
+`labor-plan.ts:307-308`:
+
+    const gmCeilingHours = resolveGmCeilingHours(budget.salariedHours, 40)
+    const gmCreditByDay  = capGmFloorCredits(gmHoursByDay, gmCeilingHours)
+
+`capGmFloorCredits` (`labor-daily.ts:51-57`) takes the DRAWN band's hours
+per day and multiplies each by `weeklyCap / total`. The allocation sets
+the ceiling; the band supplies the shape and the raw magnitude.
+
+**The shipped number is 20 either way and NO SCOPE MOVES.** The two
+call sites in §1, the `points[].gm` untouched rule, and the DO NOT TOUCH
+list are all unaffected.
+
+## Why it matters anyway — the written prediction
+
+The prompt requires the per-store weekly Suggested delta to be PREDICTED
+IN WRITING before it is captured. That prediction has to be reasoned
+from the BAND's hours — 7 days times the unset default's width at each
+store, scaled to the 20h ceiling — not from the allocation. Reasoning
+from the allocation reaches the same 20 by a route that is not the one
+the code takes, which makes the prediction right by luck and proves
+nothing. A prediction that cannot be wrong for the right reason is not
+a prediction.
+
+## The unscaled-band case is NOT new, and its home is S5-D10
+
+`capGmFloorCredits` returns the band UNSCALED when it totals less than
+the ceiling — `if (total <= weeklyCap || total <= 0) return nonNeg`,
+`labor-daily.ts:54`. So a narrow enough band, or a store open few enough
+days, feeds the credited number directly.
+
+**This is S5-D10's SECOND DIVERGENCE CASE — the short-hours store — and
+it is already filed, already ruled open, and already pinned.** It sits on
+R7-C's first blocker in `ROADMAP.yaml`, it was left open by Gary's D19
+ruling rather than by oversight, and
+`scripts/verify-labor-position-hours.ts:146` asserts it explicitly
+("short-hours store: credits stay 15, NOT scaled up to 40 (D10 case 2
+OPEN)"). Do not open a row for it and do not file it against L-4.
+
+What this ruling adds is only that the same guard now has a DISPLAY-SIDE
+face: after this build, a short-hours store is one where the band the
+chart draws is also the number Suggested reads. Same guard, same ruling,
+one more surface — recorded on S5-D10, not here.

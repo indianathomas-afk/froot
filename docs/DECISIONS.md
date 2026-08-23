@@ -66,6 +66,25 @@ band's width and day-shape are L-4's by construction, so this is named here
 rather than fixed — but it should be read as part of L-4's scope, not
 rediscovered as a bug. (Claude)
 
+**CORRECTION TO THE PARAGRAPH ABOVE, same day, by Gary — THE UNSCALED-BAND CASE
+IS NOT L-4's, IT IS S5-D10's SECOND DIVERGENCE CASE, and it already has a home.**
+The paragraph above sends it to L-4 on the reasoning that the band's width is
+L-4's. That is the wrong filing: `labor-daily.ts:54` returning the band unscaled
+below the ceiling is the SHORT-HOURS STORE, which is recorded on R7-C's first
+blocker in `ROADMAP.yaml`, was left open by Gary's D19 ruling rather than by
+oversight, and is pinned by an explicit assertion at
+`scripts/verify-labor-position-hours.ts:146` ("short-hours store: credits stay
+15, NOT scaled up to 40 (D10 case 2 OPEN)"). **So it was already filed, already
+ruled open, and already covered before this session found it, and what looked
+like a new hazard is one surface of a known one.** Recorded on S5-D10's blocker
+2026-08-23. What this ruling genuinely adds is only the second surface: after the
+manager-on-floor build, a short-hours store is also one where the band the chart
+draws is the number Suggested reads, so the ruling Gary still owes that row now
+decides a visible figure and not only the Sigma identity. The paragraph above is
+left standing rather than rewritten, because the misfiling is the useful part of
+the record — a finding that arrives without checking the deviation list first
+reads as new when it is not. (Claude)
+
 **A CORRECTION THAT MATTERS FOR THE BUILD, not for the ruling.**
 `docs/prompts/MANAGER_ON_FLOOR_BUILD.md` describes `gmCreditHours` as "derived
 from her allocation, capped by `capGmFloorCredits`". It is the other way round:

@@ -7967,6 +7967,24 @@ phases:
         CLEARS WHEN: Gary rules on whether the identity may be conditional. The
         GM-hours whole-crew build (c17466e) is the work that will care, and D22
         puts it after this row.
+        SECOND SURFACE, SAME GUARD — ADDED 2026-08-23 BY THE "MANAGER ON THE
+        FLOOR" RULING, and filed here rather than as a new row or against L-4
+        because this case already has a home and a fixture. Gary's ruling
+        (DECISIONS.md 2026-08-23) demotes the drawn band to an expectation and
+        sends every number that claims coverage to the credited hours instead.
+        That is true — WHEREVER THE BAND OUTRUNS THE CEILING. Below it,
+        labor-daily.ts:54 returns the band UNSCALED and the window IS the
+        credited number, which is this case exactly. So a short-hours store is
+        now also a store where the band the chart draws is the number Suggested
+        reads, and the ruling's "it stops feeding any number" holds by the
+        inequality rather than by construction.
+        NOTHING NEW IS CLAIMED AND NOTHING REOPENS. Same guard, same D19 ruling,
+        same pin at scripts/verify-labor-position-hours.ts:146. What changes is
+        the BLAST RADIUS of the ruling Gary still owes this row: it now decides
+        the honesty of a visible Suggested figure, not only of the
+        Sigma gmCreditHours == salariedHours identity. NOT LIVE TODAY — both
+        manager stores draw the unset default (DEBT-83) across their open days,
+        which totals far more than their 20h ceilings.
       - >
         NO ESTATE PROOF EXISTS YET, AND A GREEN FIXTURE IS NOT ONE. The fixtures
         are PURE — they prove computeWeeklyLaborBudget is invariant under an empty
