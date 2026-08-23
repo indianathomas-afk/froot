@@ -8521,6 +8521,77 @@ phases:
       same day with `closed` and resolved it the same way, so this is now a
       pattern rather than a one-off.
 
+  - id: CUTOFF-1
+    track: labor
+    size: L
+    status: planned
+    title: "Business day cutoff — per store, defaulting to midnight, and true overnight hours"
+    notes: >
+      FILED 2026-08-23 BY RULING, NOT BY NEED — the same shape as CRON-1 above.
+      The model is decided and the build is deliberately not started, so this row
+      exists to keep the decision findable and to stop anyone solving overnight a
+      different way. Gary's ruling is docs/DECISIONS.md § "Overnight hours are a
+      business day cutoff, and the model is ruled now"; read it there rather than
+      restated here, which is how these drift.
+      THE MODEL, RULED. A business day cutoff is a PER-STORE setting that
+      DEFAULTS TO MIDNIGHT, and the operating window is expressed relative to it.
+      Everything before the cutoff belongs to the day before — a bar closing at
+      2am sets close of business at 3am, and the 1am sale is Friday's. Not a
+      wider clock, not a 0-30 hour day, not a display offset.
+      RULED BEFORE BUILT, WHICH INVERTS THIS PROJECT'S USUAL ORDER, and the
+      inversion is the point. LaborPositionStoreHours and weeklyHoursOverride
+      were both storage built ahead of a ruling and both were re-shaped by the
+      consumer when it arrived (DECISIONS.md, 2026-08-22). Here the consumer does
+      not exist and the shape is known, so the cheap move is the reverse.
+      TIER 3 BY DEFINITION, AND AUDIT-FIRST. A cutoff redefines what "a day"
+      MEANS across everything keyed by date — SalesHourlyCache, DailyGoal, the
+      forecast, LaborDaySplit and the whole labor plan. It is not a display
+      setting and it cannot be scoped from the outside.
+      OPENING TASK OF THE AUDIT, AND IT IS A TASK RATHER THAN A DETAIL INSIDE
+      ONE. DOES SQUARE EXPOSE A BUSINESS-DAY CUTOFF, AND WHAT DOES IT USE TO
+      ATTRIBUTE A 1AM SALE? Gary's ruling is that Froot's cutoff must AGREE with
+      Square's or it does not ship — sales come from Square and are reconciled
+      against Square, so a Froot day that runs to 3am against a Square day that
+      does not computes a labor percentage on one day from another day's sales,
+      and nobody would ever catch it. IF SQUARE OWNS IT, Froot MIRRORS it and no
+      operator ever types a divergent number. IF SQUARE DOES NOT, Froot owns it
+      and that is a LARGER DECISION THAN THIS RULING SETTLES — stop and ask
+      rather than picking a default. Nothing else in the audit is worth doing
+      until this is answered, because the answer decides whether the setting is
+      writable at all.
+      THE REST OF THE AUDIT, deliberately unruled and listed so the shape is
+      visible. What the cutoff defaults to for a store that HAS one; how a cutoff
+      interacts with the WEEK boundary; and whether SalesHourlyCache is RE-KEYED
+      or OFFSET AT READ. None of the three is answered by the ruling above.
+      SECOND BUILD ITEM — THE COVERAGE ENGINE HAS NOWHERE TO PUT THE HOURS.
+      labor-coverage.ts:99 builds its points array as `for (let h = 0; h < 24;
+      h++)` — one calendar day. Overnight support is not a predicate change
+      there, it is a change to what the array indexes.
+      TRIGGER — THE THING TO WATCH FOR — A REAL STORE THAT CROSSES MIDNIGHT.
+      None of the twelve locations does today, which is the entire reason this is
+      a row and not work. Gary: "I am not paying for a cutoff across sales, goals
+      and labor for a case I do not have."
+      WHAT DOES NOT WAIT FOR THIS ROW, so nobody reads the deferral wider than it
+      is. (1) The `00:00` parse fix rides Phase 3 of the 2026-08-23 session — a
+      midnight CLOSE is an ordinary day ending at 24:00 and was never an
+      overnight case. (2) BUG-14's surfacing work goes first on that row and is
+      not gated here: until true overnight works, a store whose typed hours the
+      engine ignores must say so ON SCREEN.
+      STATUS IS `planned` AND THE PARKING LIVES IN THIS PROSE, the same weakness
+      CRON-1 records above — there is no `parked` value in the PhaseStatus union
+      and inventing one is code, not a recorder commit. A board reader sees
+      "planned" and has to open the row to learn it is waiting on a named
+      trigger.
+      DISCONFIRMED BY: a Square answer showing Square attributes a 1am sale to
+      the calendar date with no cutoff of its own AND that Gary accepts Froot
+      owning the divergence — which would not close this row but would move its
+      largest open question from "mirror Square" to a Froot-owned default, and is
+      the one finding that changes the build rather than sizing it.
+      Related: BUG-14 (where the silent discard was measured, and whose surfacing
+      work is the near-term half of this), DEBT-83 and L-4 (the GM band, which
+      reads open.startHour and would move with any cutoff), L-3 (sales inference,
+      which is what every discarded row falls through to).
+
   # ---- Schedule/actual overlay (labor-schedule) ----
   # Session split ratified 2026-08-20: S1 discovery -> S1b probe -> S2 ingest
   # -> S3 card overlay -> S4 /labor comparison. One phase per session.
@@ -13357,6 +13428,42 @@ bugs:
       DISCONFIRMED BY: a ruling that overnight windows are out of scope for the
       labor model, at which point the dialog's promise is withdrawn instead and
       the discard becomes correct behaviour that the editor must stop inviting.
+      RULED 2026-08-23, SAME DAY — THE DIRECTION QUESTION THIS ROW LEFT OPEN IS
+      ANSWERED, AND THE ANSWER IS "MADE TO WORK". The paragraph above says
+      whether overnight should be MADE TO WORK in the engine or DECLARED
+      UNSUPPORTED in the dialog "is a ruling, not an implementation detail".
+      Gary ruled it: overnight hours ARE supported, the dialog's promise stands,
+      and the mechanism is a per-store BUSINESS DAY CUTOFF defaulting to
+      midnight. Full entry: docs/DECISIONS.md § "Overnight hours are a business
+      day cutoff, and the model is ruled now". THE `DISCONFIRMED BY` ABOVE DID
+      NOT FIRE — it named the other branch, a ruling that overnight is out of
+      scope, and that branch is now closed rather than pending.
+      THE CUTOFF ITSELF IS DEFERRED TO ITS OWN ROW, CUTOFF-1 (TIER 3), which
+      waits for a real store that crosses midnight and opens with an audit whose
+      first task is the Square question. NOTHING ON THIS ROW WAITS FOR IT.
+      WHAT IS FIRST ON THIS ROW, BY GARY'S RULING — THE SURFACING WORK, items
+      (a) and (b) above. A store whose typed hours the engine ignores has to say
+      so ON SCREEN, not only in a sweep: until the cutoff exists, that visible
+      flag is the whole of what protects an operator who enters a real overnight
+      window. THIS COLLIDES WITH THIS ROW'S OWN EARLIER SENTENCE that the
+      deployed sweep "is the first thing to run on this row", and the collision
+      is named rather than edited away — the sweep is not code and is blocked on
+      a Neon console export, so it does not compete with the surfacing work for
+      a session. ORDER OF RECORD: (a) and (b) first, (c) rides the sweep
+      whenever the export arrives.
+      THE `00:00` HALF IS NOT PART OF THIS ROW'S WORK AND DOES NOT WAIT FOR IT.
+      Gary: "18:00 to 00:00 is a normal day that ends at 24:00 ... a plain bug
+      and it gets fixed now, on its own." `parseHourEnd("00:00")` must yield 24
+      rather than 0, and the fix RIDES PHASE 3 of the 2026-08-23 session.
+      Measured at HEAD: `parseHourEnd` is exported but has exactly ONE consumer
+      in the tree (labor-plan.ts:272), so changing the helper rather than the
+      call site has a one-line blast radius. A midnight close was never an
+      overnight case and is not evidence for or against the cutoff.
+      LINE-NUMBER CORRECTION TO THIS ROW'S OWN CITATIONS, NAMED AND NOT EDITED.
+      The text above cites `labor-plan.ts:272` three times for the admission
+      rule. `:272` is `const e = parseHourEnd(sh.closingTime)`; the predicate
+      `s != null && e != null && e > s` is on `:273`. The surfacing check in item
+      (a) must key to `:273`. The prose above is a claim and stays as written.
       Related: DEBT-83 (the hardcoded 14:00 that makes a bad open time
       expensive), BUG-11/BUG-12 (the editor-vs-route precedent this module's
       shape exists to honour), L-3 (where sales inference was first flagged).
