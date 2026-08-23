@@ -13217,6 +13217,84 @@ bugs:
       concurrent writers safe), F-4 (the webhook whose death made this visible),
       DEBT-69 (coalescing, which would reduce the N-syncs cost of one posture).
 
+  - id: BUG-14
+    status: in_progress
+    commits: [ec92e88]
+    title: >
+      The store hours editor accepted impossible hours in silence, and a wrong
+      open time lands straight in the labor forecast
+    notes: >
+      FILED AND FIXED 2026-08-23, from two errors Gary made the same morning
+      rather than from an audit. Nothing populated StoreHours until that day —
+      every open window in the labor model came from inferOpenWindowsByWeekday,
+      flagged since L-3 — so the editor had never been exercised on real input.
+      THE TWO ERRORS. Mon-Fri entered as 08:00 to 08:00, which is either a
+      zero-length day or a 24-hour one depending on how the engine reads it. And
+      a Sunday entered as 01:00 AM open on a campus store, an AM/PM slip. BOTH
+      SAVED WITHOUT A WORD.
+      WHY THE SECOND IS NOT COSMETIC. The GM on-floor band's real default is
+      open.startHour -> 14:00, a hardcoded literal at labor-plan.ts:284 (DEBT-83).
+      A 01:00 open therefore turns that Sunday band into THIRTEEN HOURS at a
+      store Kristie is 50% allocated to. A wrong open time does not stay in the
+      hours table; it propagates into the labor forecast.
+      THE EDITOR IS THE ONLY DEFENCE, and that is structural rather than an
+      oversight: these are Froot's own rows and a Square resync never overwrites
+      them, so nothing downstream will ever correct a bad value.
+      THE FIX — ONE PURE MODULE, TWO CALL SITES. src/lib/store-hours-validate.ts
+      exports validateStoreHours(days) -> { blocking, warnings }. It is
+      dependency-free on purpose, the same contract as labor-roster-hours.ts, so
+      the dialog (stores/store-hours-button.tsx) and the write route
+      (api/stores/[id]/hours PUT) run THE SAME CODE. A form-only check is not a
+      check — BUG-11/BUG-12 are this house's precedent for an editor and a write
+      path each carrying their own copy of one rule and drifting apart.
+      THE RULE SET. BLOCK: B1 open == close on a day not marked Closed; B2 one
+      time filled and the other blank. WARN: W1 over 16h, W2 under 4h, W3 opens
+      before 05:00, W4 open or close more than 3h from the median of that store's
+      other filled days, needing 3 siblings before it can fire.
+      CLOSE < OPEN IS LEGAL AND MUST NEVER BLOCK OR WARN. The dialog's helper
+      text promises it outright — "a store that closes after midnight is fine,
+      enter the real closing time rather than 24:00" — and the write route
+      already declined to order-check for the same reason. The obvious check is
+      the wrong check. Asserted explicitly in the fixture, on BOTH lists.
+      W1-W4 WARN AND NEVER BLOCK, BY RULING PRECEDENT. Rohan's Restaurant, Cafe
+      De Keva Cart and Keva Kiosk are seasonal and legitimately odd. The shape is
+      R7-C's: assert, raise a visible flag, never normalise. No time is
+      auto-corrected, no AM/PM is swapped, no intent is inferred — inventing a
+      value nobody typed is the failure this house has ruled against twice, and
+      LaborDaySplit's read-normalisation is the standing anti-pattern. The
+      fixture asserts the input object comes back unmutated.
+      WARNINGS ARE NOT PERSISTED. No column, no flag, no schema, no migration.
+      They are computed at render and at write, the route discards them, and a
+      warned save succeeds.
+      FIXTURE FIRST, SHOWN FAILING. scripts/verify-store-hours.ts was written and
+      run before the module existed, failing with MODULE_NOT_FOUND. 17 assertions.
+      DEVIATION — TWO FIXTURE EXPECTATIONS WERE CORRECTED, NOT THE MODULE. The
+      fixture predicted B2 would name the DAY; the implementation names the EMPTY
+      BOX, because that is the box the dialog has to highlight. The fixture was
+      wrong and was changed to match. Recorded because "the fixture went green"
+      means nothing if the fixture is edited without saying so.
+      THE SWEEP FOUND NOTHING, AND THAT IS A STATEMENT ABOUT THE BRANCH, NOT THE
+      DATA. The dev branch (ep-late-water-a6k53nv2) holds ZERO StoreHours rows,
+      so the sweep exercised the code and tested no data. Gary's rows live on a
+      deployed branch, which the credential rule says is read through the Neon
+      console and never by pulling a deployed credential to disk. So
+      scripts/sweep-store-hours.ts takes a console JSON export as an argument and
+      validates it with THE SAME MODULE, rather than reimplementing the rule set
+      in SQL — a SQL copy would be the exact drift BUG-11/BUG-12 record. Verified
+      against a synthetic export of both real errors: 5 blocking, 2 warnings, and
+      a legitimate overnight store correctly silent. THE DEPLOYED SWEEP IS STILL
+      OUTSTANDING and is the first thing to run on this row.
+      NO DATA WAS CORRECTED, DELIBERATELY. A wrong row is Gary's to fix in the
+      UI, which is also the first live test of the editor's new behaviour.
+      KNOWN GAP, NAMED RATHER THAN FIXED: a time that is present but does not
+      match HH:MM is treated as ABSENT by the validator, so two junk values on
+      one day read as an undecided day and stay silent. It cannot arise from the
+      dialog — the route's zod enforces the format on write — and it can only
+      come from a row predating that. The sweep counts unparseable values in its
+      own column rather than leaning on the validator for this.
+      Related: DEBT-83 (the hardcoded 14:00 that makes a bad open time
+      expensive), BUG-11/BUG-12 (the editor-vs-route precedent this module's
+      shape exists to honour), L-3 (where sales inference was first flagged).
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.

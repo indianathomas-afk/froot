@@ -25,14 +25,23 @@ import { validateStoreHours } from "@/lib/store-hours-validate"
 // the absence of a row — rather than becoming indistinguishable from a real
 // decision to open at nine.
 //
-// REPLACE, NOT UPSERT, AND THAT IS FORCED BY THE SCHEMA. StoreHours carries no
-// @@unique([storeId, dayOfWeek]) — verified at HEAD, prisma/schema.prisma:181 —
-// so `upsert` has no key to target and the table can in principle already hold
-// two rows for one weekday. Replacing the whole set inside one transaction is
-// both the only correct write and the fix for any such duplicate. It is the
-// same shape as the closest existing per-store set-write,
-// api/labor/day-hours/route.ts PUT. Adding the constraint would be a migration,
-// and S2 ships none.
+// REPLACE, NOT UPSERT. THE PARAGRAPH THIS REPLACES WENT STALE AND IS CORRECTED
+// HERE (BUG-14 recorder, 2026-08-23) RATHER THAN LEFT TO MISLEAD. It read
+// "StoreHours carries no @@unique([storeId, dayOfWeek]) — verified at HEAD,
+// prisma/schema.prisma:181". That was true when S2 wrote it and is FALSE NOW:
+// CHK-3 added the constraint on 2026-08-09 and it sits at
+// prisma/schema.prisma:255, where the schema's own note records the change. A
+// false comment beside the code it describes is how the next reader gets the
+// behaviour backwards.
+//
+// THE CODE BELOW IS UNCHANGED AND IS STILL CORRECT — only the reason moved. The
+// replace was originally forced by the ABSENCE of the key: `upsert` had nothing
+// to target and the table could already hold two rows for one weekday. With the
+// constraint in place the duplicate is unrepresentable, and the whole-week
+// replace inside one transaction remains the right write because this endpoint
+// receives the whole week and a day dropped from the payload must disappear —
+// which an upsert loop would silently leave behind. Same shape as the closest
+// existing per-store set-write, api/labor/day-hours/route.ts PUT.
 
 // 24-hour "HH:MM" — the format <input type="time"> emits and the format
 // labor-plan.ts's parseHourStart/parseHourEnd already read.
