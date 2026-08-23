@@ -207,7 +207,7 @@ export async function getSalariedPeopleForSettings(organizationId: string): Prom
     squareTeamMemberId: string
     displayName: string
     weeklyCost: number | null
-    weeklyHours: number
+    weeklyHours: number | null
     exempt: boolean | null
     squareAnnualRate: number | null
     squareAnnualRateSeen: number | null
@@ -248,7 +248,12 @@ export async function getSalariedPeopleForSettings(organizationId: string): Prom
         // Square id — so an unmapped person is still identifiable on the card.
         displayName: rec?.displayName ?? nameBySquareId.get(sqId) ?? (wage?.jobTitle ? `${wage.jobTitle} (unmatched)` : sqId),
         weeklyCost: rec ? Number(rec.weeklyCost) : null,
-        weeklyHours: rec?.weeklyHours ?? 40,
+        // NULL WHEN THERE IS NO FROOT RECORD, not 40. This used to invent a 40
+        // for a person nobody had entered, which made "has no values at all"
+        // undetectable from the payload — and that emptiness is what the
+        // settings card's badge is derived from (Gary, 2026-08-22). The dialog
+        // owns its own form placeholder; the loader must not invent data.
+        weeklyHours: rec?.weeklyHours ?? null,
         exempt: rec?.exempt ?? null,
         squareAnnualRate: wage?.annualRate == null ? null : Number(wage.annualRate),
         squareAnnualRateSeen: rec?.squareAnnualRateSeen == null ? null : Number(rec.squareAnnualRateSeen),

@@ -8051,6 +8051,34 @@ phases:
     commits: [99b9c85, c7f4cdc, 05f9a98, 12a0738]
     title: "Per-person salaried allocation + exempt — percentages of a person, summing to 100%"
     notes: >
+      THE "NOT REVIEWED" BADGE IS DERIVED, NOT STORED — Gary, 2026-08-22, in his
+      words: "The 'Not reviewed' badge is derived, not stored. It shows only when
+      a person has no values at all — no weekly cost, no hours, no allocations. A
+      person with data entered shows their allocation instead. Nothing is written
+      on the user's behalf; the exempt column is unchanged."
+      IT WAS READING THE COLUMN. The card badged on `p.exempt == null`, which is
+      wrong for a reason the filter fix below created: since that fix a NULL
+      person participates in the forecast exactly like an explicit false, so
+      badging on the column flags someone whose numbers ARE reaching the engine —
+      a warning about nothing, on the one card where a warning means the figures
+      are not being counted.
+      THE LOADER WAS ALSO INVENTING DATA. getSalariedPeopleForSettings returned
+      `weeklyHours: rec?.weeklyHours ?? 40` for a person with no Froot record,
+      which made "has no values at all" undetectable from the payload. It now
+      returns null and the 40 lives in the dialog as a form placeholder, where a
+      human sees it before it is saved.
+      NOTHING IS WRITTEN ON THE USER'S BEHALF, VERIFIED RATHER THAN ASSUMED. The
+      obvious way to clear the badge would be to have the save coerce NULL to
+      false; exempt instead passes through verbatim at every write (the Zod schema
+      is nullable, and both the create and the update branches pass the parsed
+      value straight through). The badge disappears because data arrived, never
+      because the column was tidied.
+      MEASURED ON dev across all four states: no record -> SHOWN; cost+hours, no
+      allocations -> hidden; allocated 100% with exempt STILL NULL -> hidden; and
+      exempt set by a human -> hidden behind "Not counted in store labour".
+      DEVIATION S5-D65 — the badge predicate is the absence of all three values
+      (weeklyCost, weeklyHours, allocations), not a read of exempt, and the loader
+      never substitutes a default for a value nobody entered.
       DEFECT FOUND AND FIXED ON THE SAME DAY — work commit 12a0738, found by Gary
       on staging. THE ALLOCATION DID NOT REACH THE ENGINE.
       THE CAUSE, and the wiring was never it: resolveStoreSalariedFor filtered

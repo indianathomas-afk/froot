@@ -140,7 +140,9 @@ export type SalariedPerson = {
   /// Dollars per week, Froot-owned. null when this Square member has no Froot
   /// record yet — the card offers to seed it from the mirrored annual figure.
   weeklyCost: number | null
-  weeklyHours: number
+  /// null = nothing entered. The dialog supplies its own form placeholder; this
+  /// field never carries an invented value.
+  weeklyHours: number | null
   /// NULL = not reviewed · true = outside allocation · false = included.
   exempt: boolean | null
   /// Square's annual figure, for SEEDING and for DIVERGENCE DISPLAY only.
@@ -216,10 +218,30 @@ function SalariedPeopleCard({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[14px] font-semibold text-[var(--color-foreground)]">{p.displayName}</span>
                     {p.exempt === true && <Badge variant="secondary">Not counted in store labour</Badge>}
-                    {p.exempt == null && <Badge variant="outline">Not reviewed</Badge>}
+                    {/* DERIVED, NOT STORED (Gary, 2026-08-22). This badge means
+                        "nobody has entered anything for this person yet", and it
+                        is computed from the absence of values — never from the
+                        exempt column.
+                        WHY IT MATTERS RATHER THAN BEING A PREFERENCE: exempt NULL
+                        means NOT REVIEWED, and since the filter fix a NULL person
+                        participates in the forecast exactly like an explicit
+                        false. Badging on the column would therefore flag a person
+                        whose numbers are reaching the engine correctly — a
+                        warning about nothing, on the one card where a warning is
+                        supposed to mean the figures are not being counted.
+                        AND NOTHING IS WRITTEN ON THE USER'S BEHALF TO CLEAR IT.
+                        The obvious way to make the badge go away is to have the
+                        save coerce NULL to false; that would put a value in a
+                        column the operator never touched. The badge disappears
+                        because data arrived, not because the column was tidied. */}
+                    {p.weeklyCost == null && p.weeklyHours == null && p.allocations.length === 0 && (
+                      <Badge variant="outline">Not reviewed</Badge>
+                    )}
                   </div>
                   <div className="text-[12px] text-[var(--color-muted-foreground)] mt-0.5">
-                    {p.weeklyCost != null ? `${usdW(p.weeklyCost)}/wk · ${p.weeklyHours} hrs/wk` : "No weekly cost set"}
+                    {p.weeklyCost != null
+                      ? `${usdW(p.weeklyCost)}/wk${p.weeklyHours != null ? ` · ${p.weeklyHours} hrs/wk` : ""}`
+                      : "Nothing entered yet"}
                   </div>
                   {/* DIVERGENCE IS SHOWN AND NEVER ACTED ON. Square cannot move a
                       Froot-owned figure; a human decides whether to follow it. */}
@@ -249,7 +271,7 @@ function SalariedPeopleCard({
                           // person; the card shows them so the operator can see
                           // the consequence of a percentage without entering one.
                           const cost = ((p.weeklyCost ?? 0) * a.allocationBps) / 10000
-                          const hrs = (p.weeklyHours * a.allocationBps) / 10000
+                          const hrs = ((p.weeklyHours ?? 0) * a.allocationBps) / 10000
                           return (
                             <tr key={a.storeId}>
                               <td className="py-1 pr-3 text-[var(--color-foreground)]">{storeName(a.storeId)}</td>
@@ -270,7 +292,7 @@ function SalariedPeopleCard({
                           <td className="pt-1.5">
                             {complete ? (
                               <span className="text-[var(--color-muted-foreground)]">
-                                {usdW(p.weeklyCost ?? 0)}/wk · {p.weeklyHours} hrs — fully allocated
+                                {usdW(p.weeklyCost ?? 0)}/wk · {p.weeklyHours ?? 0} hrs — fully allocated
                               </span>
                             ) : (
                               // LOUD, per invariant 2. Nothing is normalised, so
@@ -327,7 +349,10 @@ function SalariedPersonDialog({
 }) {
   const seeded = person.weeklyCost ?? (person.squareAnnualRate != null ? +(person.squareAnnualRate / 52).toFixed(2) : null)
   const [cost, setCost] = useState(seeded == null ? "" : String(seeded))
-  const [hours, setHours] = useState(String(person.weeklyHours))
+  // 40 IS THE FORM'S PLACEHOLDER, NOT DATA. The loader returns null for a person
+  // with no record; the default belongs here, where a human can see it and change
+  // it before saving, rather than in the payload where it would read as entered.
+  const [hours, setHours] = useState(person.weeklyHours == null ? "40" : String(person.weeklyHours))
   const [exempt, setExempt] = useState<boolean | null>(person.exempt)
   const [pct, setPct] = useState<Record<string, string>>(
     Object.fromEntries(person.allocations.map((a) => [a.storeId, (a.allocationBps / 100).toString()]))
@@ -386,7 +411,7 @@ function SalariedPersonDialog({
     onSaved({
       ...person,
       weeklyCost: costNum,
-      weeklyHours: hoursNum,
+      weeklyHours: hoursNum as number | null,
       exempt,
       squareAnnualRateSeen: person.squareAnnualRate ?? person.squareAnnualRateSeen,
       allocations: exempt === true ? [] : entries,
