@@ -8279,6 +8279,104 @@ phases:
         leak fails the diff at every store; and BEFORE vs PREDICTED reports 25
         mismatches, which is the OLD gate being dead on purpose.
 
+  - id: R7-D
+    track: labor
+    size: S
+    status: in_progress
+    commits: [1e7286b]
+    title: "The GM no longer satisfies the floor of one body, nor suppresses supervisorGap"
+    notes: >
+      TIER 2. One file, two gates, no schema, no threading. SUPERSEDES the scope
+      in docs/prompts/R7D_GM_BAND_COVERAGE.md (1588d31), which proposed threading
+      an allocation signal; that is WITHDRAWN because the measurement showed the
+      weekly-cap gap dominates the allocation gap, so the fix needs no fraction.
+      That prompt is preserved and marked, not deleted, and its Phase 1 findings
+      stand. The prompt executed here is docs/prompts/R7D_GM_FLOOR_SAFETY.md.
+      THE DEFECT. labor-coverage.ts treated the GM as an uncapped whole body via
+      gmAt(h). Two of its four uses were SAFETY DECISIONS. The floor-of-1 bump
+      read `hourly + (gmAt ? 1 : 0) < 1`, so during the band hourly heads could be
+      ZERO and the floor was considered satisfied. supervisorGap read
+      `openHours.some((h) => !gmAt(h)) && !hasHourlySupervisor`, so a band
+      spanning the whole open window cleared the flag outright.
+      WHY IT IS WRONG. Froot does not know which hours the GM is at which store.
+      Exactly two stores in the estate draw a band — Las Brisas and UNR, Kristie
+      Connolly at 50% each — and NO store is at 100%. Counting her present at both
+      is wrong in the direction that leaves a store EMPTY.
+      THE FIX. The floor is now one HOURLY head; supervisorGap is now
+      `!hasHourlySupervisor`. Nothing else in the module moved.
+      WHAT WAS DELIBERATELY NOT TOUCHED. points[].gm and :102 peak. Gating those
+      moves suggestedHours against Gary's 2026-08-20 whole-crew ruling, and since
+      both GM stores are under 100% it would leave that ruling with zero live
+      cases. A ruling, not a refactor. Also untouched: the band's WIDTH and
+      day-shape (L-4's job), and any allocation-fraction threading (withdrawn).
+      FIXTURE FIRST, AND SHOWN FAILING BEFORE THE CHANGE — 4 failing checks in
+      scripts/verify-labor-coverage.ts section 10 against unmodified
+      labor-coverage.ts, then all passing. Case (a) puts every unit of sales
+      weight after 2p so largest-remainder places ZERO hourly heads inside an
+      8a-2p band; case (b) spans the band across the whole open window with no
+      hourly supervisor. Two INVARIANT checks in the same section passed both
+      before and after on purpose — the band still draws six GM hours, and an
+      hourly supervisor still clears the gap.
+      labor-plan.ts CARRIED ZERO DIFF IN THE WORK COMMIT, byte for byte, and
+      scripts/verify-labor-budget.ts produced byte-identical output before and
+      after. That pair is the proof nothing crossed into the plan's arithmetic.
+      FINDING A RE-VERIFIED CHEAPLY, NOT RE-DERIVED. computeDailyCoverage has ONE
+      production caller, computeDayCoverage (labor-plan.ts:411), consumed by two
+      GET routes — /api/labor/coverage and /api/labor/weekly-plan. Neither writes
+      a row. Coverage output remains DISPLAY-ONLY: no budget, no persisted hours
+      figure, no dollar.
+      DEVIATION R7-D/1 — THE PROMPT CONTRADICTS ITSELF ON THE suggestedHours
+      DELTA, AND THE MEASUREMENT SIDES WITH THE COSTS PARAGRAPH. Step 4 of the
+      prompt expects a delta of ZERO at Las Brisas and UNR "because :98 is
+      untouched", and calls a non-zero delta a leak and a STOP. The prompt's own
+      WHAT THIS COSTS paragraph says the opposite — "Recommended headcount goes UP
+      at Las Brisas and UNR during the band, and understaffedBudget will fire more
+      often there". The COSTS paragraph is right and step 4's stop-condition is
+      mis-stated. suggestedHours is Σ points[].headcount (weekly-plan/route.ts:163-167,
+      ratified 2026-08-20) and headcount is hourly + gm, so raising the FLOOR
+      raises `hourly` and therefore headcount. :98 is genuinely untouched; it reads
+      a value that legitimately changed upstream. THE SESSION DID NOT STOP, because
+      stopping would have discarded the fix the same document commissioned and
+      priced. Recorded rather than resolved silently.
+      MEASURED — dev branch br-broad-wave-a6vpjdw0, org via Store rows Las Brisas
+      cmqvygque000004l7hj2me30o and UNR cmqvygqxb000004l45ajpg1la, week of
+      2026-08-17, throwaway tsx probe, deleted. AS DEV STANDS the delta is ZERO at
+      both stores over the whole week — but that run is NOT evidence about the
+      change, because dev holds no salaried rows, so hasGm is false, d.gmWindow is
+      null on every day, and the gated path never executes. What it DOES establish
+      is that the change is a strict no-op wherever no band draws, which is ten of
+      twelve stores. Overlaying the band these two stores actually draw in the live
+      estate (the labor-plan.ts:283-284 fallback, open.startHour -> 14) onto the
+      real open windows, budgets and demand: Las Brisas 258 -> 259 for the week,
+      +1, on Sunday alone, where understaffedBudget also flips false -> true; UNR
+      30 -> 50, +4 per open day. UNR's figure is a DEV-DATA ARTIFACT and must not
+      be quoted as the live cost — its hourlyHours is 0.0 on every day of that
+      week on dev, so every hour is a floor bump. Las Brisas is the honest signal:
+      a real budget already places heads through most of the band, and only the
+      thinnest day moves.
+      NOT MEASURED, AND IT SHOULD BE BEFORE PROMOTION: the live delta on the
+      branch that actually carries the allocations. vercel env pull is banned
+      repo-wide and the deployed-environment read goes through the Neon console,
+      so this needs Gary. The dev overlay above bounds the SHAPE of the answer,
+      not its size.
+      FOUND AND FIXED IN THE SAME SITTING. The header comment of
+      scripts/verify-labor-coverage.ts still described coverage as "floored at 1
+      while open, with the salaried GM counted on floor in their window" — a
+      clause this change made FALSE. It was first triaged as leave-behind to keep
+      the fixture diff to the added section, and that was the wrong call: it is a
+      display-only edit (CLAUDE.md § Display-Only Changes) in a file this session
+      already touched, and a false comment left next to the code it describes is
+      how the next reader gets the behaviour backwards. Corrected in the recorder
+      commit rather than by amending the work commit, so the SHA this row records
+      stays valid.
+      DEVIATION R7-D/2 — THE labor-plan.ts COMMENT SHIPPED IN THE RECORDER COMMIT,
+      NOT THE WORK COMMIT. The prompt requires labor-plan.ts to carry ZERO DIFF,
+      byte for byte, and in the same breath commissions a COMMENT at
+      labor-plan.ts:297. Both cannot hold in one commit. The work commit satisfies
+      the zero-diff requirement literally and provably; the commissioned comment
+      rides the recorder, which changes no behaviour. See DEBT-83, filed in the
+      same sitting.
+
   - id: L-4
     track: labor
     size: L
@@ -20890,6 +20988,57 @@ debt:
       timecards across the account's history, which would make this a limitation
       worth documenting and not worth building.
 
+  - id: DEBT-83
+    status: planned
+    title: >
+      The GM on-floor window is a per-store setting whose real default is a
+      hardcoded literal, and the two halves of that default disagree
+    notes: >
+      FILED 2026-08-22 during R7-D, as a KNOWN PROPERTY OF WORKING CODE rather
+      than a defect found afterwards. R7-D made the band's edges matter more than
+      they did — the GM no longer stands in for an hourly body — so the fact that
+      almost nobody has ever chosen those edges is now worth a row.
+      THE MECHANISM. labor-plan.ts:283-284 resolves the window from
+      StoreLaborSettings, and each half falls back independently:
+      gmOnFloorStartMinutes falls back to open.startHour, and gmOnFloorEndMinutes
+      falls back to the literal 14. THE TWO HALVES ARE ASYMMETRIC — one follows
+      the store's own opening time, the other is a number in the source. So an
+      unset store draws open-until-2pm whatever its hours are, and a store that
+      opens at 7 draws a 7h band while a store that opens at 10 draws 4h, from the
+      same absence of configuration.
+      WHAT IS ACTUALLY SET, measured before R7-D. Unset at ELEVEN OF TWELVE
+      stores, including BOTH stores that draw a band. The org default (storeId
+      null) is NULL too. The ONLY configured window in the estate is Southgate's,
+      465 -> 900, and Southgate has no allocation, so hasGm is false there and the
+      setting drives NOTHING. Net: nobody has ever chosen the band width at a
+      store that draws one, and the one person who chose a width picked a store
+      where it is inert.
+      WHY IT IS A ROW AND NOT A FIX. The right default is a product question, not
+      an arithmetic one — an operator has to say what a GM's on-floor day means,
+      and whether "until 2pm" or "the first N hours of the shift" is the honest
+      shape. R7-D was explicitly scoped away from the band's WIDTH and day-shape,
+      which is L-4's job, and this row should be read together with L-4 rather
+      than fixed ahead of it.
+      TRIGGER — the thing to watch for: ANYONE WHO SETS A GM WINDOW EXPECTING IT
+      TO MEAN SOMETHING. Today that person gets one of two surprises. At a store
+      with no allocated person the setting is inert and silently does nothing. At
+      a store with one, changing the end time moves the drawn band, and since
+      R7-D the band no longer changes the recommended headcount at all — so a
+      setting that looks like a staffing lever is a drawing lever.
+      SECOND HALF, SAME SITTING — resolveGmCeilingHours(0, 40) RETURNS 40.
+      labor-position-hours.ts:69-71 is `salariedHours > 0 ? salariedHours :
+      fallback`, so a store that declares nothing gets a 40h GM ceiling at
+      labor-plan.ts:297. That is inert ONLY because hasGm is false in exactly that
+      case — hasGm is salaried.hasSalariedPerson (labor-plan.ts:249), so with no
+      allocated person gmHoursByDay stays all zeros and capGmFloorCredits has
+      nothing to scale. THE SAFETY COMES FROM THE OTHER BRANCH, NOT FROM THE
+      VALUE. Anything that lets gmHoursByDay become non-zero while salariedHours
+      is 0 makes the 40 load-bearing and wrong. This dependency is now named at
+      the site in a comment (R7-D recorder commit) rather than left to be
+      rediscovered; the row exists because a comment is not a test.
+      DISCONFIRMED BY: a ruling that the 14 and the open.startHour fallback are
+      both intentional and should stay, at which point this becomes a
+      documentation line on L-4 and not work.
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #

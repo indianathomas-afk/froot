@@ -4,7 +4,8 @@
  *   npx tsx scripts/verify-labor-coverage.ts
  *
  * Pure functions, no DB. Coverage is demand-shaped + budget-capped, floored at
- * 1 while open, with the salaried GM counted on floor in their window.
+ * 1 HOURLY head while open. The salaried GM is DRAWN on floor in their window
+ * but does not satisfy that floor and does not clear supervisorGap (R7-D).
  */
 import {
   splitWeeklyHoursToDays,
