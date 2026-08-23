@@ -97,15 +97,35 @@ export function resolveStoreSalaried(
 /// EXEMPT PEOPLE ARE EXCLUDED AT THE QUERY. An exempt person is OUTSIDE the
 /// system, not allocated 0%, so their rows never enter the sum and never enter
 /// the completeness check either — a person who is not in the system cannot be
-/// half in it. `exempt: true` is the only excluded state: NULL (not reviewed)
-/// and false (explicitly included) both participate, which is why the filter is
-/// `not: true` and not a truthiness test.
+/// half in it. `exempt: true` is the ONLY excluded state: NULL (not reviewed)
+/// and false (explicitly included) both participate.
+///
+/// THE FILTER IS AN EXPLICIT `OR` AND MUST STAY ONE. It was
+/// `exempt: { not: true }`, which is WRONG on a nullable column and was the whole
+/// of the "allocation does not reach the engine" defect: Prisma emits
+/// `exempt <> true`, and in SQL `NULL <> true` is NULL rather than TRUE, so every
+/// NOT-REVIEWED person was silently dropped. NULL is the DEFAULT state of every
+/// person the card creates, so the bug hit everyone who never touched the toggle
+/// — while the settings card kept rendering them perfectly, because it reads the
+/// allocations through the person RELATION and never applies this filter.
+///
+/// MEASURED ON dev 2026-08-22, three people (NULL / false / true), one allocation
+/// each, asking for the two that should participate:
+///   person: { exempt: { not: true } }            -> [false]        WRONG
+///   person: { NOT: { exempt: true } }            -> [false]        ALSO WRONG
+///   NOT: { person: { exempt: true } }            -> [false]        ALSO WRONG
+///   person: { OR: [{exempt: null},{exempt: false}] } -> [false, null]  CORRECT
+///
+/// THE OBVIOUS FIX IS ALSO BROKEN — that is why the measurement is recorded here
+/// rather than summarised. Prisma's negation is uniformly not NULL-aware on a
+/// nullable Boolean, so anyone "tidying" this back into a `NOT` reintroduces the
+/// defect and the tests that pin it are the only thing that would say so.
 export async function resolveStoreSalariedFor(
   organizationId: string,
   storeId: string
 ): Promise<StoreSalariedResolution> {
   const mine = await prisma.laborSalariedAllocation.findMany({
-    where: { organizationId, storeId, person: { exempt: { not: true } } },
+    where: { organizationId, storeId, person: { OR: [{ exempt: null }, { exempt: false }] } },
     select: {
       personId: true,
       allocationBps: true,
