@@ -2,7 +2,7 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## PENDING-SHA-SHORT — PENDING-DATE — R7-D: the GM no longer satisfies the floor of one body
+## PENDING-SHA-SHORT — PENDING-DATE — R7-D: the GM no longer satisfies the floor of one body + BUG-14: store hours validation
 
 **Merge SHA:** `PENDING-SHA-FULL`
 **Written before the merge existed.** The heading's SHA and date and the Merge
@@ -247,6 +247,211 @@ raised on one or two more days than before at each store. **A wall of red at UNR
 is NOT the expected outcome**; if that is what appears, the prediction above was
 wrong about the demand shape and the promotion should be reconciled against it
 rather than explained away. Every other store should be byte-identical.
+
+### AMENDED 2026-08-23, BEFORE THE MERGE — THIS PROMOTION ALSO CARRIES BUG-14
+
+**Everything above this heading is unedited.** It was written when the payload
+was R7-D alone, and it is still accurate about R7-D. This section is appended
+rather than woven in, so the pre-merge measurement above stays readable as the
+thing it was: a prediction made about a four-commit payload, not a summary
+rewritten once the payload grew.
+
+**THE ENTRY'S HEADING WAS EXTENDED AND THE `Payload:` LINE WAS NOT.** The
+heading is this file's index — a reader scanning `grep "^## " docs/DEPLOY_LOG.md`
+must be able to find BUG-14 — and it is machine-stamped at promotion anyway, so
+it is a pointer and it was repaired. The `Payload:` line says "4 commits on
+`staging` ahead of `main` **at the time of writing**"; that was true when written
+and is a dated claim, so it stands untouched and is superseded by the count
+below.
+
+**THE THREE PLACEHOLDER TOKENS ARE UNCHANGED AND STILL UNIQUE.** The short-SHA
+and date tokens on the heading, the full-SHA token on the Merge SHA line, one
+occurrence each, nowhere else in this entry. **This section deliberately does
+NOT spell any of the three out**, because a token written into prose is a token
+the stamp substitutes into prose — the uniqueness the entry above relies on is a
+property of the whole entry, not of its heading. The stamp is still three
+substitutions touching two lines.
+
+**Payload, reconciled:** **15 commits** on `staging` ahead of `main` —
+`c91af6c`..`2871c19` — plus the commit carrying this amendment (staging → main,
+`--no-ff`). **Prior main tip is unchanged at `505f4e6`.**
+
+**Diff (code), combined across all 15:**
+
+| file | + | − |
+|---|---|---|
+| `src/lib/store-hours-validate.ts` | 243 | 0 |
+| `scripts/verify-store-hours.ts` | 126 | 0 |
+| `scripts/sweep-store-hours.ts` | 119 | 0 |
+| `src/app/(app)/stores/store-hours-button.tsx` | 73 | 27 |
+| `src/app/api/stores/[id]/hours/route.ts` | 43 | 8 |
+| `scripts/verify-labor-coverage.ts` | 33 | 1 |
+| `src/lib/labor-coverage.ts` | 23 | 13 |
+| `src/lib/labor-plan.ts` | 10 | 0 |
+
+**Still no schema, no migration, no env var, no cron** — the R7-D line above
+holds for the whole payload. `prisma/` is absent from the diff entirely.
+
+**Two small reconciliations against the R7-D `Diff (code)` line above**, neither
+a correction to it: that line described the R7-D **work commit** `1e7286b`, so
+`verify-labor-coverage.ts` reads +31/−0 there and +33/−1 here (the recorder
+`6911469` added +2/−1), and `labor-plan.ts` +10/−0 is the same comment-only
+change in both.
+
+### What BUG-14 shipped
+
+**One pure module, two call sites.** `src/lib/store-hours-validate.ts` exports
+`validateStoreHours(days) → { blocking, warnings }`, dependency-free on purpose,
+and BOTH the dialog (`stores/store-hours-button.tsx`) and the write route
+(`api/stores/[id]/hours` PUT, `:136`) run the same code. A form-only check is
+not a check — BUG-11/BUG-12 are this house's precedent for an editor and a write
+path each carrying a copy of one rule and drifting apart.
+
+**The rule set.** BLOCK: `B1` open == close on a day not marked Closed; `B2` one
+time filled and the other blank. WARN: `W1` over 16h, `W2` under 4h, `W3` opens
+before 05:00, `W4` open or close more than 3h from the median of that store's
+other filled days, needing 3 siblings before it can fire.
+
+**Close < open is legal and never blocks or warns**, asserted explicitly in the
+fixture on both lists. The dialog's helper text promises it
+(`store-hours-button.tsx:242`) and the write route declined to order-check for
+that reason. The obvious check is the wrong check.
+
+**`W1`–`W4` warn and never block.** Rohan's Restaurant, Cafe De Keva Cart and
+Keva Kiosk are seasonal and legitimately odd. R7-C's shape: assert, raise a
+visible flag, never normalise. No time is auto-corrected, no AM/PM is swapped,
+no intent is inferred — the fixture asserts the input object comes back
+unmutated.
+
+**Fixture first, shown failing.** `scripts/verify-store-hours.ts` was written and
+run before the module existed, failing with `MODULE_NOT_FOUND`. 17 assertions.
+
+### THIS PROMOTION CHANGES A WRITE PATH, NOT ONLY A FORM
+
+`PUT /api/stores/[id]/hours` now returns **400** when `blocking` is non-empty
+(`:144-147`), after the existing zod and duplicate-day checks. **An operator who
+opens a store with an already-bad row and presses Save cannot save it back
+unchanged** — they must fix the day or mark it Closed. That is the intended
+behaviour and it is the first thing anyone will meet, so it is called out here
+rather than left to be discovered.
+
+**No data was corrected, deliberately.** A wrong row is Gary's to fix in the UI,
+which is also the first live test of the editor's new behaviour. **Warnings are
+not persisted** — no column, no flag; they are computed at render and at write,
+the route discards them, and a warned save succeeds.
+
+**The deployed sweep has NOT been run.** `scripts/sweep-store-hours.ts` takes a
+Neon-console JSON export as an argument and validates it with the same module
+rather than reimplementing the rules in SQL. The dev branch holds ZERO
+`StoreHours` rows, so the sweep exercised the code and tested no data. Gary's
+rows live on a deployed branch, and `vercel env pull` is banned repo-wide, so
+this is a console read and it is Gary's to run. **It is owed, and it is listed
+under KNOWN OPEN below.**
+
+### THE FINDING BUG-14 PRODUCED, AND THE RULING IT FORCED
+
+**The validator certified overnight rows clean, and the engine throws them
+away.** `labor-plan.ts:273` admits a stored window only when
+`s != null && e != null && e > s`, otherwise falling through to sales inference.
+`parseHourStart("22:00")` is 22 and `parseHourEnd("02:00")` is 2, so every
+overnight row fails. `parseHourEnd("00:00")` is 0, so an ordinary **midnight
+close** fails too. The row saves, the dialog displays it, and the engine runs on
+a window nobody typed.
+
+**Three parts of the system disagreed about one row.** The dialog promises
+overnight works; the write route declines to order-check *because* of that
+promise; the new validator asserts overnight is clean on both lists; the engine
+discards it. The validator is not wrong — **"clean" means the EDITOR accepts the
+row, not that the ENGINE uses it**, and those were assumed to be the same
+predicate when the rule set was written.
+
+**Gary ruled it the same day** (`docs/DECISIONS.md` § "Overnight hours are a
+business day cutoff, and the model is ruled now"): overnight hours ARE supported,
+the dialog's promise stands, and the mechanism is a per-store **business day
+cutoff** defaulting to midnight, which must agree with Square's or it does not
+ship. **The build is deferred to `CUTOFF-1`** (phase, TIER 3, `planned`) and
+waits for a real store that crosses midnight.
+
+**NONE OF THAT IS IN THIS PROMOTION.** What ships is the measurement and the
+ruling. The surfacing work, the `00:00` parse fix and the cutoff itself are all
+after this merge.
+
+### TWO RATIFIED RULINGS SHIP AHEAD OF THEIR BUILDS, AND A READER AT `main` WILL FIND BOTH
+
+This is the one thing about this payload that could mislead someone reading
+`DECISIONS.md` at `main` and looking for the code.
+
+- **"Manager on the floor — one guaranteed number"** (`ddba758`) is ratified and
+  its copy is approved (`a8b7ab2`), but **the build did not happen.** It is
+  Phase 3 of the 2026-08-23 session and it was gated on exactly this promotion:
+  R7-D pushed, staging level with main. It runs after the merge, not before it.
+- **"Overnight hours are a business day cutoff"** (`2871c19`) is ratified and
+  deliberately unbuilt — that is the ruling's own content, and `CUTOFF-1` carries
+  the deferral with a named trigger.
+
+The first is *not yet built*; the second is *ruled not to be built yet*. They
+look identical in the log and they are not the same state.
+
+### Rollback — the BUG-14 half
+
+```
+git revert -m 1 <merge sha>
+```
+
+Same single revert as the R7-D half; there is one merge. **Still no migration,
+no schema, nothing to un-drop, and no rows written under the new behaviour** —
+the validator persists nothing. Reverting restores an editor and a write route
+that accept `B1`/`B2` rows in silence. **Any bad row an operator FIXED while the
+validation was live stays fixed**, because those are ordinary `StoreHours`
+writes; the revert removes the guard, not the corrections.
+
+### Known open at promotion — added by this amendment
+
+The R7-D list above still stands in full. These are additional.
+
+- **BUG-14 (`in_progress`) — the surfacing work is FIRST on the row and is not
+  in this promotion.** A discarded-row check keyed to the ENGINE's admission rule
+  (`labor-plan.ts:273`) rather than the editor's, visible where the hours are, so
+  a store whose typed hours are being ignored says so on screen. Until it lands,
+  an operator entering a real overnight window still gets a successful save and
+  hours that drive nothing — which the dialog's promise makes worse, not better.
+- **The deployed sweep is OWED and is the other half of BUG-14.** Neon console
+  export → `scripts/sweep-store-hours.ts`. Gary's to run. Two real errors are
+  known to be in the data — a Mon–Fri `08:00`–`08:00` and a Sunday `01:00` open —
+  and neither is corrected by this promotion.
+- **The `00:00` parse fix is NOT in this payload.** `parseHourEnd("00:00")` must
+  yield 24, not 0. It rides Phase 3. Measured at HEAD: `parseHourEnd` is exported
+  but has exactly ONE consumer in the tree, so it is a one-line blast radius.
+- **`CUTOFF-1` (`planned`)** — the business day cutoff, TIER 3, opening with an
+  audit whose first task is the Square question: does Square expose a
+  business-day cutoff, and what does it attribute a 1am sale to? If Square does
+  not own it, that is a larger decision than the ruling settles.
+- **A line-number drift is recorded rather than repaired.** BUG-14's prose cites
+  `labor-plan.ts:272` three times for the admission rule; `:272` is the
+  `parseHourEnd` call and the predicate is `:273`. Named on the row and in the
+  ruling, not edited, because that prose is a claim.
+
+### Post-deploy check — the BUG-14 half
+
+A glance, not a procedure, and it is a **two-minute UI check, not a query.**
+
+Open **Stores → any store → Hours**. Expect the dialog to render as before with
+validation attached. Then, on a store you are willing to touch:
+
+1. Set one day's open and close to the **same time** and try to Save. Expect Save
+   **disabled** with `B1` named against that day. Expect the same rejection from
+   the API (400) if it is reached directly.
+2. Clear **one** of the two boxes on a day. Expect `B2` naming the **empty box**,
+   not the day — that was a deliberate fixture correction, recorded on the row.
+3. Enter a legitimate **overnight** window, say `22:00`–`02:00`. Expect it to save
+   **silently and successfully** — no block, no warning. **That is correct today
+   and it is also the open defect**: the engine will ignore it. Do not read the
+   clean save as the engine accepting it.
+4. Enter a day under 4h or over 16h. Expect a **visible warning and a working
+   Save** — warnings never block.
+
+**Gary's two real errors are the live test.** Fixing them in the UI is the first
+exercise of the new behaviour and is the reason no data was corrected here.
 
 ## 35d002a — 2026-08-22 — R7-C: per-person salaried allocation, exempt, and the absent-means-zero re-baseline
 
