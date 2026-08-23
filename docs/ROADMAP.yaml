@@ -7869,7 +7869,7 @@ phases:
   - id: R7-B
     track: labor
     size: M
-    status: staging
+    status: withdrawn
     commits: [37d5ded, a9edfca]
     title: "Per-store salaried declarations — LaborPositionStoreHours, shipping empty"
     notes: >
