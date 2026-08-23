@@ -133,6 +133,9 @@ export async function GET(req: Request) {
       adjustedTotalSchedulableHours: plan.adjustedTotalSchedulableHours,
       projectedLaborPctAtForecast: plan.budget.projectedLaborPctAtForecast,
       floorExceedsBudget: plan.budget.floorExceedsBudget,
+      // R7-C leaf — a banner input, never an arithmetic one.
+      hasIncompleteAllocation: plan.hasIncompleteAllocation,
+      incompleteAllocationPeople: plan.incompleteAllocationPeople,
       overrideTotal: plan.overrideTotal,
     },
     days,

@@ -6,7 +6,311 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## R7-C build rulings — retirement, seed-and-own, deviation numbering — 2026-08-22 (Gary)
+
+Gary's rulings, in his words:
+
+- **LaborPositionStoreHours is retired.** A per-store hours declaration is
+  a hand-typed derived figure, which my allocation ruling forbids. The
+  table, its migration, helper, route, card and fixtures are preserved and
+  marked, not deleted — the SALARIED archetype row must also stay, because
+  `laborPositionId` has `onDelete: Cascade` and removing it would silently
+  cascade-delete every declaration row. (Gary)
+- **A salaried person's weekly cost is a Froot-owned figure**, seeded once
+  from Square's `annualRate ÷ 52` and owned in Froot thereafter, with
+  divergence tracked in `squareAnnualRateSeen`. Reading it live from the
+  mirror would let a wage edit in Square move two stores' budgets with no
+  Froot action and nothing on screen. (Gary)
+- **Session prompts no longer assign deviation numbers.** Each session
+  reads the highest recorded `S5-D` number from `docs/ROADMAP.yaml` and
+  continues from there. (Gary)
+
+**THE THIRD RULING CLOSES A THREE-SESSION FAILURE, and it is worth naming what
+it fixes.** Deviation numbers collided three times in four sessions — the drift
+audit's `D28` against Gary's `floorExceedsBudget` ruling, then `D36`, then
+`D41` — each caught only because the previous session's numbers happened to
+still be in view. **A prompt cannot know what the session before it recorded**;
+`docs/ROADMAP.yaml` can, because it is where the numbers land. This session is
+the first to apply it: highest recorded is `S5-D56`, so it opens at **S5-D57**.
+`S5-D15..D17` remain unrecorded and are still not closed. (Claude)
+
+**WHAT "PRESERVED AND MARKED" MEANS FOR CODE, as opposed to for a document.**
+For `ROADMAP.yaml` and `DECISIONS.md` it means prepend a marker and edit
+nothing. For code it cannot mean that literally — a route left mounted is a
+route that still writes rows. **The line taken here: the SCHEMA and the
+MIGRATION are untouchable (additive-only does not tier down); the READ PATH is
+severed so nothing derives a number from it; and the ROUTE and UI are unmounted
+but their files remain, each carrying a header saying what retired it and
+why.** A reader who finds `LaborPositionStoreHours` in the schema must be able
+to reach the ruling from the code, not only from the log. (Claude)
+
+## Per-person salaried allocation — the four build rulings — 2026-08-22 (Gary)
+
+Gary's rulings, in his words:
+
+- **Promotion order.** "Absent means zero" does not ship alone. Allocation
+  ships with it, or Las Brisas and UNR carry declarations at the moment of
+  promotion. Shipping the re-baseline by itself would silently strip a real
+  manager from two real stores. (Gary)
+- **Exempt's timing.** Exempt and allocation are built and promoted as one
+  session. Exempt suppresses nothing on its own, and shipping a control
+  that does nothing is the failure we caught with forecastExempt. (Gary)
+- **Allocation is a percentage of a person.** A salaried person carries
+  their real salary and their real weekly hours, and is allocated across
+  stores by percentages that sum to 100%. Both the dollars and the hours at
+  each store derive from the person — nothing derived is ever typed by
+  hand. Kristie Connolly, $52,000/yr, 40 hrs/wk, Las Brisas 50% and UNR
+  50%, yields $500 and 20 hours at each store. A third store makes it
+  33/33/34 and everything recomputes. (Gary)
+- **Hourly managers are unchanged.** An hourly manager such as Karissa
+  Guerrero ($18.00/hr, Spanish Springs) comes out of the hourly pool like
+  any team member. Nothing in this work touches hourly staff. (Gary)
+
+**"NOTHING DERIVED IS EVER TYPED BY HAND" IS THE LOAD-BEARING CLAUSE, and it
+retires two things built in the last four days.** A per-store salaried HOURS
+declaration is a hand-typed derived figure, so `LaborPositionStoreHours` — R7-B,
+built and verified on staging at `1f3eba8` — is **superseded by this ruling**,
+not merely unused. So is `SquareTeamMemberWage.weeklyHoursOverride`, ruled into
+existence 2026-08-19 (Q9) as storage "a later salaried-allocation phase needs":
+this is that phase, and it needs the hours attached to the person's salary
+rather than to the Square mirror. **Neither column is dropped — additive-only
+does not tier down — and both are preserved and marked.** The audit's §5 states
+exactly what each stops driving. (Claude)
+
+**THE PATTERN IS WORTH NAMING ONCE, without blame attached.** Both retired
+columns were deliberate "build the storage ahead of its consumer" bets, each
+made for a stated reason and each labelled inert on its face at the time. Both
+were superseded by the consumer when it arrived with a shape nobody had ruled
+yet. The bets cost two columns and some UI; the labelling is what made the cost
+cheap to find. **The lesson is not "stop building ahead" — it is that storage
+built ahead of a ruling should expect to be re-shaped by it**, and should be
+preserved-and-marked rather than defended. (Claude)
+
+**WHAT IS EXPLICITLY NOT RULED HERE, so nobody reads it in.** Karissa Guerrero's
+"guaranteed 40 hours" is a per-person minimum *inside the hourly pool* — a
+different feature that touches hourly staff, which the fourth ruling puts out of
+scope. It gets a ROADMAP row and no design. (Claude)
+
+## Absent means zero, and L-2 seam (b) is amended — 2026-08-22 (Gary)
+
+Gary's rulings, in his words:
+
+- **Absent means zero.** A store with no salaried declaration carries no
+  salaried hours. The org-wide archetype no longer applies as a fallback.
+  This deliberately re-baselines the estate: ten stores currently charged
+  $800/week for a manager who doesn't work there will stop being charged
+  it, and their numbers will move on purpose. (Gary)
+- **L-2 seam (b) is amended.** Individual people and their store
+  allocations may reach the labor forecast. The seam stood on the premise
+  that person-level data is Square-sourced and unstable; allocation and
+  exemption are Froot's own facts about the business, entered
+  deliberately by an admin, not synced. (Gary)
+
+**THE FIRST RULING REVERSES `resolveSalariedHours`'s FALLBACK, WHICH IS THE ONE
+LINE THE R7-B BUILD WAS DESIGNED AROUND.** `src/lib/labor-position-hours.ts`
+returns `position.impliedWeeklyHours` when a store has not declared — chosen
+precisely so an empty table reproduced today's numbers byte for byte. Under this
+ruling it returns zero instead, and the emptiness that was the promotion
+guarantee becomes the thing that moves the estate. **R7-B is built and verified
+on staging at `1f3eba8` and MUST NOT PROMOTE ON ITS OLD GATE.** The replacement
+gate is Gary's item 6 and is proposed, not built, in
+`docs/prompts/R7_EXEMPT_AUDIT.md`. (Claude)
+
+**WHY THE SEAM AMENDMENT IS NARROWER THAN IT LOOKS, and the distinction is
+Gary's own.** Seam (b) forbade a SQUARE-SOURCED input reaching a core engine.
+What it is amended to admit is not Square data at all: an allocation or an
+exemption is an admin's deliberate statement about the business, stored in
+Froot, never written by a sync. The mirrored Square tables — `SquareTimecard`,
+`SquareScheduledShift`, and the wage mirror's Square-owned columns — stay
+outside the core engines exactly as before, and the boundary test ("drop every
+Square-labor table and every existing labor surface must render byte-identically")
+still passes for those. **What changes is that "person-level" is no longer a
+synonym for "Square-sourced."** That conflation is what the original seam
+encoded, and it is what this amendment separates. (Claude)
+
+**THE SEAM'S ORIGINAL TEXT IS MARKED IN PLACE, NOT EDITED** —
+`docs/ROADMAP.yaml`, L-2 § SEAM (b) THE DATA BOUNDARY. The amendment is
+prepended above it per preserve-and-mark; every word of the 2026-08-05 boundary
+stands underneath, because it records what was believed and why, and most of it
+is still in force. (Claude)
+
+## R7 option B — the build rulings: LaborPositionStoreHours — 2026-08-22 (Gary)
+
+Gary's rulings, in his words:
+
+- **D18 — schema shape.** The per-store salaried declaration lives in a new
+  LaborPositionStoreHours table: hours only, no rate. It ships empty.
+  LaborPosition is not modified — no storeId column, nullable or otherwise —
+  because a table with no rate field cannot move the blended rate, and that
+  safety should be structural rather than disciplined. (Gary)
+- **D19 — S5-D10's short-hours case.** Substituting the store's declaration for
+  WEEKLY_GM_CAP_HOURS closes the cap-mismatch case and I accept that. The
+  short-hours case stays open, with the condition recorded on the row. (Gary)
+- **D22 — build order.** B ships alone, before the GM-hours whole-crew work. One
+  table, one resolution point, one revertable merge. The GM-hours build reads the
+  ceiling from a named helper when it comes. (Gary)
+- **D24 — the two canary fields** get explicit fixture assertions by name, not
+  implied coverage: blendedHourlyRate == 14.5 at every budgeted store, and
+  salariedCost == 800 / salariedHours == 40 with zero declarations present. Exact
+  equality, no tolerance. (Gary)
+- **D26 — all twelve store lines** stay in the before/after diff. Filtering to
+  budgeted stores would hide a store gaining or losing a budget. (Gary)
+- **D27 — the UI shows the GM's share** of that store's budget beside the
+  declaration, not hours alone. UNR reads "40 hrs · 80%", Las Brisas "40 hrs ·
+  22%". Same hours figure, situations not remotely alike. (Gary)
+- **D28 — floorExceedsBudget fires on `>=`, not `>`** (labor-budget.ts:115). When
+  salaried cost exactly equals the whole labor budget, hourly hours are zero for
+  the entire week and the alert currently stays silent — the flag's exact symptom
+  without the flag. Meeting the floor exactly counts as exceeding it. (Gary)
+- **D32** — the capture records `today` alongside every store line. Had it been
+  there, the Meadowood drift would have been a five-second diagnosis. (Gary)
+- **D33** — adjustedTotalSchedulableHours is excluded from the strict invariant
+  diff. It is a function of the wall clock, not of any write. (Gary)
+- **D34** — it is promoted back into the strict diff for same-day BEFORE/AFTER
+  pairs, where the clock cannot have moved. (Gary)
+- **D35** — the capture file header states the clock-dependence in plain words, so
+  nobody re-derives it. (Gary)
+
+**THE GATE THAT OUTRANKS EVERYTHING, in Gary's words:** *"On the day this
+promotes, every store's plan must produce exactly the number it produces today,
+until someone deliberately writes a declaration. The table ships empty and that
+emptiness is the guarantee — not a green fixture."*
+
+**THE STRICT DIFF** is the whole budget block, plus forecast / source / target /
+weekAdjustments, plus the null-store lines staying null. **EXCLUDED:**
+`adjustedTotalSchedulableHours` and `today`. **STAYS IN:**
+`totalSchedulableHours` — *"different field, one word apart, clock-independent.
+Do not confuse them. Whoever writes the comparison must handle these two names
+without ambiguity; that near-collision is the trap in this gate."* (Gary)
+
+THE DEVIATION NUMBERING OF `MEADOWOOD_DRIFT_AUDIT.md` IS SUPERSEDED, AND THE
+DOCUMENT IS NOT EDITED. That audit (`8203d2c`) proposed S5-D28..S5-D31; D28
+collided with Gary's `floorExceedsBudget` ruling above, which takes the number.
+The audit's four are **renumbered D32..D35** by Gary in this entry. The audit
+file itself is a claim wholesale and stays exactly as written (CLAUDE.md § Where
+documents live) — **read its D28..D31 as this entry's D32..D35**. Recording the
+supersession here rather than editing the file is the point: an artifact that was
+silently renumbered to match a later decision would no longer record what was
+proposed. (Claude)
+
+D25 IS NOT RESTATED HERE AND IS NOT WITHDRAWN. The addendum's S5-D25 — the
+capture script regenerates both sides in the same format, its acceptance test is
+an empty diff against the hand-built BEFORE, and the original is never
+overwritten — arrives in this session as a build instruction rather than as a
+ruling to ratify. It is built to, unchanged. (Claude)
+
+WHAT D28 COSTS, NAMED SEPARATELY FROM THE ADDITIVE WORK, because it is the only
+ruling here that changes existing production behaviour rather than adding
+capability. Every other change in this build is additive and inert until someone
+writes a row; **D28 alters an alert managers already see.** Its blast radius is
+carried in the build's ROADMAP row and in
+`docs/prompts/R7_BUILD_D28_BLAST_RADIUS.md`. (Claude)
+
+## Salaried archetypes are a property of the store, not of the organization — R7 ruled — 2026-08-22 (Gary)
+
+Gary's ruling, in his words:
+
+- Salaried archetypes are a property of the store, not of the
+  organization. LaborPosition gains a per-store dimension so each store
+  declares the salaried hours it actually carries. A store with no GM is
+  charged nothing; a store sharing a GM declares its share as a number.
+  The forecast still names nobody — this stays an archetype model, and
+  L-2 seam (b) stands. forecastExempt is withdrawn: it was ratified on
+  the premise that individuals reach the forecast, and the audit proved
+  they do not. (Gary)
+
+THIS RESOLVES R7 AND WITHDRAWS THE 2026-08-21 RULING BELOW. The withdrawal is
+marked in place on that entry rather than deleted; read it for what survives
+the withdrawal, because not all of it is withdrawn.
+
+THE LETTER "B" IN THE PROMPT IS NOT ROADMAP OPTION (b), recorded here so the
+record is not ambiguous to a later reader. The session prompt is headed "R7
+resolution, option B". R7's option **(b)** in `docs/ROADMAP.yaml` reads "keep it
+org-wide and change the seeded value or the seeding rule" — the opposite of what
+the ruling says. The ruling's own words are unambiguous ("LaborPosition gains a
+per-store dimension") and they are R7's option **(a)**. **THE WORDS GOVERN.** The
+lettering is not reconciled by editing either document: R7's `options` are a
+claim of what was asked, and a saved prompt is a claim wholesale (CLAUDE.md
+§ Where documents live). (Claude)
+
+WHAT THE RULING SETTLES AND WHAT IT LEAVES OPEN. It settles the SHAPE — per-store
+declaration of salaried hours, archetypes and not people. It does NOT settle the
+schema, the resolution rule, the UI, or the fate of `WEEKLY_GM_CAP_HOURS`. Those
+are the audit's subject and wait on a second ruling. Audit filed at
+`docs/prompts/R7_PER_STORE_SALARIED_AUDIT.md`. **Nothing was built in the session
+that ratified this.** (Claude)
+
+ONE MEASURED FACT THE NEXT RULING WILL NEED, because it changes the size of the
+change from what the ruling describes. `LaborPosition` is not only the salaried
+table. The weekly budget's BLENDED HOURLY RATE is the unweighted mean of the
+active HOURLY rows' `defaultHourlyRate` (`src/lib/labor-budget.ts:88-91`), and
+that rate is what divides the hourly dollar pool into hours (`:97`). A per-store
+dimension applied to the WHOLE table therefore moves every store's HOURLY hours,
+not just its salaried line — materially more than the ruling asks for. Nothing
+shields the estate from this today: `LaborSettings.plannedBlendedRate` would
+override the computed mean, and there are **zero `LaborSettings` rows of either
+kind** on the dev branch, so the computed mean is live at all nine stores. The
+audit's §5 proposes the narrow shape that avoids it and states plainly which
+option is deliverable additively. (Claude)
+
 ## Forecast participation is a property of the person, not of an hours value — 2026-08-21 (Gary)
+
+**SUPERSEDED 2026-08-22, LATER THE SAME DAY — THE WITHDRAWAL BELOW RESTED ON A
+PREMISE GARY HAS SINCE CHANGED.** The withdrawal's whole argument is that
+individuals cannot reach the forecast: `getWeeklyDayPlan`'s reads contain no
+person, so a `forecastExempt` flag would have suppressed a number that is never
+counted. **That was true of the code as it stood and is no longer the intended
+design.** The same-day amendment to L-2 seam (b) — "individual people and their
+store allocations may reach the labor forecast" — removes the premise, so the
+finding no longer settles the question it settled.
+
+**WHAT IS AND IS NOT REVIVED.** The 2026-08-21 ruling is NOT thereby
+reinstated: it is superseded, not un-withdrawn, and nothing about a
+`StaffMember.forecastExempt` column is ratified by this. What is revived is only
+the QUESTION — whether a person may be marked as not counting toward any
+store's labor — and it is being audited fresh rather than answered by reading
+the old entry. The audit is `docs/prompts/R7_EXEMPT_AUDIT.md`.
+
+**THE SEQUENCE, BECAUSE THREE MARKS ON ONE ENTRY IS EASY TO MISREAD.** Ratified
+`cbab6b7` → withdrawn `9baaa55` on the audit in `041bfaa` → superseded here by
+the seam amendment. Each mark is preserved; none of the text below or between
+has been edited. (Claude)
+
+**WITHDRAWN 2026-08-22 BY GARY (R7). PRESERVED AND MARKED, NOT DELETED — the
+2026-08-21 text below is unedited.** In Gary's words: *"forecastExempt is
+withdrawn: it was ratified on the premise that individuals reach the forecast,
+and the audit proved they do not."* The replacement is the 2026-08-22 entry
+above this one.
+
+**IT FOLLOWED FROM THE AUDIT, AND THE AUDIT IS THE REASON.**
+`docs/prompts/FORECAST_EXEMPT_AUDIT.md`, commissioned in the same breath as this
+ruling and filed in `041bfaa`; this entry was ratified in `cbab6b7`, deliberately
+ahead of it. What the trace found: **no person enters the forecast arithmetic
+anywhere.** `getWeeklyDayPlan`'s eight database reads
+(`src/lib/labor-plan.ts:159-167`) contain no `staffMember`, no
+`squareTeamMemberWage` and no `squareTimecard`; the three core engines
+(`labor-budget.ts`, `labor-coverage.ts`, `labor-daily.ts`) hold no `prisma`
+reference at all and cannot read a person even in principle; and
+`weeklyHoursOverride` reaches no calculation at any of its five touch points. A
+`forecastExempt` boolean would have suppressed a number that is never counted —
+the flag that appears to work and changes nothing, which is worse than no flag
+because the roster would then carry a visible "Exempt" marker asserting an effect
+that does not exist.
+
+**WITHDRAWN, NOT DEFERRED — AND NOT WRONG WHEN IT WAS WRITTEN.** The premise
+failed, not the reasoning. Everything below is a coherent policy about people and
+would still be the right policy IF a person's hours reached a forecast. The
+replacement ruling deliberately keeps people out of the forecast entirely, which
+removes the thing this flag existed to control. There is no build to undo: the
+flag was never implemented, no column was added, and no surface renders it.
+
+**WHAT THE WITHDRAWAL DOES *NOT* WITHDRAW.** The three-states paragraph below
+distinguishes blank WK HRS from an explicit `0`, and **that distinction is LIVE
+AND SHIPPED** — it is BUG-12's ruling, it lives in
+`src/lib/labor-roster-hours.ts:21-35` with an audited no-falsy-check guarantee,
+and nothing here touches it. Only the THIRD state, `forecastExempt`, is
+withdrawn. Read this entry, the 2026-08-22 entry, and the audit in that order.
+(Claude)
 
 Gary's ruling, in his words:
 

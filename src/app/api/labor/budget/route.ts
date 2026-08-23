@@ -50,6 +50,11 @@ export async function GET(req: Request) {
     forecast: plan.forecast,
     budget: plan.budget,
     adjustedTotalSchedulableHours: plan.adjustedTotalSchedulableHours,
+    // R7-C leaf — a banner input, never an arithmetic one. Kept OUT of the
+    // capture script's strict field set for the same reason weekAdjustments is
+    // in it: this describes a data-entry state, not a computed labor figure.
+    hasIncompleteAllocation: plan.hasIncompleteAllocation,
+    incompleteAllocationPeople: plan.incompleteAllocationPeople,
     weekAdjustments,
   })
 }

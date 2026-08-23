@@ -15,6 +15,19 @@ export type LaborBudgetPosition = {
   defaultHourlyRate: number // dollars
   impliedWeeklyHours: number | null
   active: boolean
+  /// R7-C: DOLLARS PER WEEK, GIVEN DIRECTLY INSTEAD OF DERIVED FROM rate x hours.
+  ///
+  /// A per-person allocation knows the cost exactly — 77.77% of $1,000.00 is
+  /// $777.70 — and cannot express it as a rate. `toCents(rate) * hours` rounds
+  /// the rate to whole cents and then multiplies by a FRACTIONAL hours figure,
+  /// so the round-trip loses money: the fixture measured $777.6999999999998
+  /// against a true $777.70. Money is exact integer cents everywhere else in
+  /// this file and must be here too.
+  ///
+  /// Only the SALARIED branch reads it. It cannot reach blendedHourlyRate, which
+  /// filters payType === "HOURLY" and uses defaultHourlyRate alone — the
+  /// promotion canary is structurally out of its path.
+  weeklyCost?: number
 }
 
 export type LaborBudgetForecast = {
@@ -32,7 +45,7 @@ export type LaborBudgetResult = {
   hourlyHours: number // hours (0.5 steps, rounded down)
   totalSchedulableHours: number // salariedHours + hourlyHours
   projectedLaborPctAtForecast: number | null // % of salesBasis; null if no sales
-  floorExceedsBudget: boolean // salaried cost alone exceeds the whole budget
+  floorExceedsBudget: boolean // salaried cost alone meets OR exceeds the whole budget (D28)
 }
 
 // dollars → integer cents (round absorbs float representation error).
@@ -72,7 +85,10 @@ export function computeWeeklyLaborBudget({
   let salariedHours = 0
   for (const p of active) {
     if (p.payType === "SALARIED" && p.impliedWeeklyHours && p.impliedWeeklyHours > 0) {
-      salariedCostCents += toCents(p.defaultHourlyRate) * p.impliedWeeklyHours
+      // An explicit weeklyCost wins. The rate x hours path stays for the
+      // archetype shape that predates R7-C and for the fixtures that pin it.
+      salariedCostCents +=
+        p.weeklyCost != null ? toCents(p.weeklyCost) : toCents(p.defaultHourlyRate) * p.impliedWeeklyHours
       salariedHours += p.impliedWeeklyHours
     }
   }
@@ -112,6 +128,17 @@ export function computeWeeklyLaborBudget({
     hourlyHours,
     totalSchedulableHours,
     projectedLaborPctAtForecast,
-    floorExceedsBudget: salariedCostCents > totalLaborBudgetCents,
+    // D28 (Gary, 2026-08-22): `>=`, NOT `>`. THE ONLY NON-ADDITIVE CHANGE IN THE
+    // R7 BUILD — it alters an alert managers already see.
+    //
+    // At exact equality hourlyDollars is max(0, budget − salaried) = 0 (:81), so
+    // hourlyHours is 0 (:97) and the store has NO hourly hours for the entire
+    // week — the flag's exact symptom — while `>` left the alert silent. Gary's
+    // ruling: "Meeting the floor exactly counts as exceeding it."
+    //
+    // NOT HYPOTHETICAL. Staging's UNR carries salariedCost 800 against a
+    // totalLaborBudget of 1000 and reaches equality at one rounding tier down
+    // (docs/prompts/R7_PER_STORE_SALARIED_AUDIT_ADDENDUM.md §3.1).
+    floorExceedsBudget: salariedCostCents >= totalLaborBudgetCents,
   }
 }

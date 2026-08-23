@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { getCurrentUser, laborModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
+import { getSalariedPeopleForSettings } from "@/lib/labor-salaried"
 import { LaborSettingsClient } from "./labor-settings-client"
 
 // Labor configuration hub (ADMIN + MANAGER). Both feature gates first: where
@@ -70,9 +71,15 @@ export default async function LaborSettingsPage() {
     prisma.store.findMany({
       where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: dbUser?.storeAssignments.map((a) => a.storeId) ?? [] } }) },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, timezone: true },
     }),
   ])
+
+  // R7-C — the salaried people card. NO WEEK IS INVOLVED: a person's weekly cost
+  // and their percentages are the same in every week, which is what replaced the
+  // week-scoped per-store view. Nothing here reads a trailing window or a
+  // forecast, so this card cannot drift between page loads (DEBT-80).
+  const salariedPeople = await getSalariedPeopleForSettings(org.id)
 
   return (
     <div>
@@ -93,6 +100,7 @@ export default async function LaborSettingsPage() {
       <LaborSettingsClient
         stores={stores}
         showRoster={showRoster}
+        salariedPeople={salariedPeople}
         initialPositions={positions.map((p) => ({
           id: p.id,
           name: p.name,
