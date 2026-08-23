@@ -2,6 +2,57 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## 35d002a — 2026-08-22 — R7-C: per-person salaried allocation, exempt, and the absent-means-zero re-baseline
+
+**Merge SHA:** `35d002a2d466e9d0dff853b37de87d76b0b3efca`
+**Payload:** 19 commits, `9baaa55`..`3d95df5` (staging → main, `--no-ff`)
+**Prior main tip:** `7ab8525`
+**Diff:** 31 files, +6,590 / −10 · two additive migrations
+**Signed manifest:** `docs/prompts/r7c_production_manifest_2026-08-22.md`
+
+### THIS PROMOTION DELIBERATELY MOVES NINE STORES
+
+Not an invariant-holding deploy. One org-wide `LaborPosition` archetype — General Manager, SALARIED, $20/hr, 40 implied weekly hours — charged every store $800/week for a manager who does not work there. Nine production stores carried it.
+
+Exactly one salaried person works in stores: Kristie Connolly, $52,000/yr = $1,000/wk, 40 hrs, split 50/50 between Las Brisas and UNR. Kelton Thomas, Karson Thomas and Taylin Thomas are executives Square forces onto store rosters and who must never be counted.
+
+Estate-wide: **$7,200/week of phantom salaried cost becomes $1,000/week of real allocated cost.** The $6,200/week difference becomes hourly hours — roughly $322,000/year moving from an archetype nobody staffs into hours a store can actually schedule. UNR's hourly pool goes from 13.5 hours a week to 34.0.
+
+Cafe De Keva Cart and Keva Kiosk carry no forecast and do not move.
+
+### What shipped
+
+- **R7-C** — `LaborSalariedPerson` and its allocations, a NEW FROOT TABLE keyed by `squareTeamMemberId`. Not columns on `SquareTeamMemberWage`: dropping every Square-labor table must leave salary, hours, exempt and allocations intact, so L-2's boundary test passes verbatim and needs no restatement. Karson and Taylin have no `StaffMember` row and were not imported — importing manufactures HR obligations to solve a labor problem.
+- **weeklySalary is Froot-owned**, seeded once from Square's `annualRate ÷ 52` and never live-synced. `squareAnnualRateSeen` records what Square said so a divergence can be shown and never acted on. Reading `annualRate` live would let a Square wage edit move two stores' budgets with nothing on screen.
+- **The 100% invariant** is enforced at write, on the whole person atomically, so a half-edited person is unreachable rather than validated against. Read asserts and never normalises: a stored non-100% set allocates exactly what is stored and raises `hasIncompleteAllocation`, rather than silently rebalancing 50/40 into 55.6/44.4 the way `LaborDaySplit` does.
+- **Exempt** gates who enters allocation. An exempt person is outside the system, not allocated 0%. NULL means not reviewed and PARTICIPATES.
+- **The NULL bug (12a0738).** `exempt: { not: true }` emits SQL `exempt <> true`, and `NULL <> true` is NULL — so every unreviewed person was silently dropped from the engine while the card rendered them correctly. Prisma's negation is not NULL-aware on a nullable Boolean; `NOT: { exempt: true }` fails identically. The only correct spelling is an explicit `OR`, and the four-way comparison table sits at the call site.
+- **R7-B — `LaborPositionStoreHours` is RETIRED** by Gary's allocation ruling: a per-store hours declaration is a hand-typed derived figure. Preserved and marked, never dropped, never read. Its migration still ships and the table ships empty. The SALARIED archetype row must NOT be deleted — a live `onDelete: Cascade` would silently cascade-delete every declaration row.
+
+### Verified on staging before promotion
+
+Kristie entered at $1,000/wk, 40 hrs, 50/50. Las Brisas landed at 213.5 hourly hours and UNR at 34.0, both with `salariedCost` 500 and `salariedHours` 20 — matching staging's manifest exactly. Carson, Meadowood and South Reno did not move, so one person's allocation reached only her own stores. `blendedHourlyRate` stayed 14.5 everywhere.
+
+The UI blocks a non-100% allocation outright — "Totals 90.00% — must be exactly 100%", Save disabled. The never-normalise read path is the backstop for a direct API write and is fixture-proven only.
+
+Three exempt people render no allocation rows and cannot be allocated.
+
+Production's numbers differ from staging's because forecast goals are per-environment: staging had 5 budgeted stores of 12, production has 9 of 11, and Las Brisas' conservative sales differ. The signed manifest was computed against production's own BEFORE capture, not staging's.
+
+### Production sequence
+
+Kristie's allocation cannot exist before the code, because the tables and the card ship with it. The window between deploy and data entry is accepted and closed by hand: enter Kristie and mark the three executives exempt immediately after the deploy reads Ready. During that window Las Brisas and UNR read as though a real manager vanished; the other seven stores are already correct.
+
+### Rollback
+
+    git revert -m 1 35d002a2d466e9d0dff853b37de87d76b0b3efca
+
+The migrations are additive, so a code revert leaves both tables in place, unread and harmless. Do not drop them. Reverting restores the phantom $800/week at nine stores.
+
+### Known open at promotion
+
+The GM on-floor window stays per-store, so Las Brisas and UNR each draw Kristie's band from their own settings on the same days, each capping at its own 20 hours independently — hours correct, coverage shape not (L-4, filed). DEBT-80 (day-split drift) · DEBT-81 (guaranteed hourly minimums) · DEBT-82 (verify-f5-polish nondeterminism) · BUG-6 and DEBT-28 still reading `staging` from older promotions · S5-D15..D17 unrecorded · `/api/cron/labor-scheduled-shifts` shipped but unscheduled.
+
 ## c183331 — 2026-08-21 — Roster hours editor (BUG-11, BUG-12) + forecastExempt ruling and R7
 
 **Merge SHA:** `c1833313a29b63adf11be5d9e20b744f9797599d`
