@@ -17,6 +17,7 @@ import {
   jsDayOfWeek,
   shiftDateStr,
 } from "@/lib/checklist-lifecycle"
+import { discardedByEngine, engineHoursUse, ENGINE_DISCARDED_COPY } from "@/lib/store-hours-window"
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
@@ -184,6 +185,11 @@ export default async function StoresPage() {
           {stores.map((store) => {
             const hoursGroups = formatHours(store.hours)
             const fallbackDays = fallbackWeekdays(store.hours, store.timezone, now)
+            // BUG-14. Which days show times the labor engine will not read, and
+            // whether NOTHING on this store is read — a store with one bad day
+            // and six good ones must not be told its hours are unused wholesale.
+            const discardedDays = discardedByEngine(store.hours)
+            const discardedNone = !store.hours.some((h) => engineHoursUse(h) === "used")
 
             // PERM-7 Task 6. Replaces `hasAccount = store.userAssignments.length > 0`
             // — a count that lit up identically for a device login and for a
@@ -369,6 +375,39 @@ export default async function StoresPage() {
                               ? `No hours set — checklists for this store close at midnight + ${DAY_CLOSE_GRACE_HOURS}h, and no checklist here can have an expected window.`
                               : `No closing time on ${fallbackDays.join(", ")} — checklists on those days close at midnight + ${DAY_CLOSE_GRACE_HOURS}h and have no expected window.`}
                             {isAdmin ? " Set hours below to change that." : ""}
+                          </span>
+                        </p>
+                      )}
+                      {/* BUG-14 — THE SECOND SIGNAL, AND A DIFFERENT SUBSYSTEM
+                          FROM THE ONE ABOVE. CHK-4's note is about DAY CLOSE:
+                          which days give a checklist no closing time to hang
+                          off. This one is about the WEEKLY LABOR MODEL, which
+                          asks a STRICTER question — `e > s` through its own
+                          parsers — and silently drops a row that fails it,
+                          planning the day from sales inference instead. Both
+                          can fire on one store and that is not duplication;
+                          they are the two halves of DEBT-64, which is the
+                          written fact that day close and labor read these rows
+                          differently.
+
+                          THE OVERNIGHT ROW IS THE CASE THIS EXISTS FOR: the
+                          dialog promises overnight is fine, the validator
+                          raises nothing, this card prints the hours in primary
+                          colour like any other, and the model never reads them.
+                          Until now nothing at any layer said so.
+
+                          IT ASKS THE ENGINE, IT DOES NOT RE-DERIVE IT.
+                          discardedByEngine is the same predicate labor-plan.ts
+                          :286 admits with; a second spelling of `e > s` here is
+                          exactly BUG-11/BUG-12, and avoiding it is why the rule
+                          was MOVED to a shared module rather than copied. */}
+                      {discardedDays.length > 0 && (
+                        <p className="mt-1 flex items-start gap-1.5 text-xs text-[var(--color-warning-text)]">
+                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span>
+                            {discardedNone
+                              ? ENGINE_DISCARDED_COPY.all
+                              : ENGINE_DISCARDED_COPY.some(discardedDays.map((d) => DAYS[d]).join(", "))}
                           </span>
                         </p>
                       )}

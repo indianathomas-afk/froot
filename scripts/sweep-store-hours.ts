@@ -16,6 +16,16 @@
  * implementation of the rule set, and a sweep that reimplemented it in SQL would
  * be the very drift BUG-11/BUG-12 record.
  *
+ * TWO VERDICTS PER ROW, AND THE SECOND ONE IS THE POINT (BUG-14). The
+ * validator's verdict says whether the EDITOR would accept the row. The ENGINE
+ * verdict says whether the Weekly Labor Model will READ it, which is a
+ * different and stricter predicate — `e > s` through labor-plan's own parsers,
+ * reached here through store-hours-window.ts so this script cannot drift from
+ * the engine any more than the store card can. A row can be perfectly clean by
+ * the first and DISCARDED by the second; an overnight window is exactly that,
+ * and a store carrying one is running on sales inference with nothing on any
+ * screen saying so. Those rows are reported even when the validator is silent.
+ *
  * The export shape is one row per store/day:
  *   [{ "store": "...", "dayOfWeek": 0, "openingTime": "08:00",
  *      "closingTime": "20:00", "isClosed": false }, ...]
@@ -23,6 +33,7 @@
 import "dotenv/config"
 import { readFileSync } from "node:fs"
 import { validateStoreHours, type StoreHoursDay } from "../src/lib/store-hours-validate"
+import { engineHoursUse, engineOpenWindow } from "../src/lib/store-hours-window"
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -69,6 +80,8 @@ async function main() {
   let blockingTotal = 0
   let warningTotal = 0
   let unparseable = 0
+  const engineTally = { used: 0, discarded: 0, closed: 0, undecided: 0 }
+  const discardedStores = new Set<string>()
   const lines: string[] = []
 
   for (const [store, days] of [...byStore.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
@@ -83,7 +96,24 @@ async function main() {
     for (const d of [...days].sort((a, b) => a.dayOfWeek - b.dayOfWeek)) {
       const b = blocking.filter((i) => i.dayOfWeek === d.dayOfWeek).map((i) => i.code)
       const w = warnings.filter((i) => i.dayOfWeek === d.dayOfWeek).map((i) => `${i.code}:${i.field}`)
-      if (b.length === 0 && w.length === 0) continue
+
+      // THE ENGINE'S OWN ANSWER, through the engine's own parsers. `used` shows
+      // the window the model will actually plan on, because "admitted" alone
+      // hides the 08:30 -> 8 rounding and a reader should see the real hours.
+      const use = engineHoursUse(d)
+      engineTally[use]++
+      if (use === "discarded") discardedStores.add(store)
+      const wnd = engineOpenWindow(d)
+      const engine =
+        use === "used" ? `uses ${wnd!.startHour}-${wnd!.endHour}`
+        : use === "discarded" ? "DISCARDED -> sales inference"
+        : use === "closed" ? "closed (no window, correct)"
+        : "undecided -> sales inference"
+
+      // A row is reported when EITHER predicate has something to say. The
+      // engine half is why a validator-clean overnight row still appears —
+      // silence there was the defect, not the absence of one.
+      if (b.length === 0 && w.length === 0 && use !== "discarded") continue
       lines.push(
         [
           store.padEnd(26).slice(0, 26),
@@ -91,8 +121,8 @@ async function main() {
           (d.openingTime ?? "—").padStart(5),
           (d.closingTime ?? "—").padStart(5),
           d.isClosed ? "CLOSED" : "open  ",
-          (b.length ? `BLOCK ${b.join(",")}` : "").padEnd(12),
-          w.length ? `warn ${w.join(",")}` : "",
+          (b.length ? `BLOCK ${b.join(",")}` : w.length ? `warn ${w.join(",")}` : "clean").padEnd(22),
+          engine,
         ].join("  ")
       )
     }
@@ -104,12 +134,19 @@ async function main() {
   console.log(`blocking          : ${blockingTotal}`)
   console.log(`warnings          : ${warningTotal}`)
   console.log(`unparseable times : ${unparseable}`)
+  console.log(`engine uses       : ${engineTally.used}`)
+  console.log(`engine DISCARDS   : ${engineTally.discarded}  (across ${discardedStores.size} store(s)${discardedStores.size ? `: ${[...discardedStores].sort().join(", ")}` : ""})`)
+  console.log(`engine closed/undecided : ${engineTally.closed} / ${engineTally.undecided}`)
   console.log("")
   if (lines.length === 0) {
-    console.log(rows.length === 0 ? "(no StoreHours rows exist on this branch)" : "(every row is clean)")
+    console.log(
+      rows.length === 0
+        ? "(no StoreHours rows exist on this branch)"
+        : "(every row is clean AND every row is read by the engine)"
+    )
     return
   }
-  console.log("store                       day   open  close  state   issues")
+  console.log("store                       day   open  close  state   validator               ENGINE")
   for (const l of lines) console.log(l)
 }
 

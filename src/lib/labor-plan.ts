@@ -18,6 +18,7 @@ import {
   capGmFloorCredits,
 } from "@/lib/labor-daily"
 import { computeDailyCoverage, demandShapeSource, addDaysStr, jsDowOf, type CoverageResult, type HourNet } from "@/lib/labor-coverage"
+import { engineOpenWindow, parseHourStart, parseHourEnd } from "@/lib/store-hours-window"
 
 // L-3 shared weekly-plan engine. One place that turns a store's weekly labor
 // budget into a per-DAY hourly-hours plan, so the Budget card, the Coverage
@@ -49,27 +50,26 @@ export { addDaysStr, jsDowOf }
 export function laborWeekdayOf(dateStr: string): number {
   return (jsDowOf(dateStr) + 6) % 7 // 0 Mon..6 Sun
 }
-export function parseHourStart(t: string | null): number | null {
-  const m = t?.match(/^(\d{1,2}):(\d{2})/)
-  return m ? Math.floor(Number(m[1]) + Number(m[2]) / 60) : null
-}
-export function parseHourEnd(t: string | null): number | null {
-  const m = t?.match(/^(\d{1,2}):(\d{2})/)
-  if (!m) return null
-  // A MIDNIGHT CLOSE IS 24:00, NOT HOUR ZERO — Gary, 2026-08-23. "18:00 to 00:00
-  // is a normal day that ends at 24:00." Without this, Math.ceil gives 0, the
-  // admission rule below (`e > s`, :286) rejects the row, and the store silently
-  // runs on sales inference while the dialog displays the hours as accepted.
-  // A midnight close is ordinary data and was never an overnight case.
-  //
-  // EXACTLY "00:00" AND NOTHING ELSE. "00:30" still yields 1 and is still
-  // discarded — that IS an overnight close, and overnight needs the per-store
-  // business day cutoff, which is ruled and deferred to CUTOFF-1. Widening this
-  // to any small hour would be building that cutoff by accident, in the one
-  // place nobody would look for it.
-  if (Number(m[1]) === 0 && Number(m[2]) === 0) return 24
-  return Math.ceil(Number(m[1]) + Number(m[2]) / 60)
-}
+// THE ENGINE'S HOUR PARSERS AND ITS ADMISSION RULE MOVED TO
+// store-hours-window.ts ON 2026-08-23, AND NOTHING ABOUT EITHER CHANGED. They
+// were lifted verbatim; this is a relocation, not a behaviour edit, and the
+// midnight-close ruling (`parseHourEnd("00:00") === 24`, shipped in 817b3ef)
+// travelled with them, comment and all.
+//
+// WHY THEY MOVED: BUG-14's surfacing has to tell an operator when the model is
+// NOT reading hours they can see on screen, and the only honest way to say so
+// is to ask the engine's own question rather than a second spelling of it. The
+// asker is a client component and this file imports prisma on its first line,
+// so the rule had to go somewhere dependency-free. `e > s` is now written ONCE,
+// in store-hours-window.ts, and the admission site below (:286) calls it.
+//
+// RE-EXPORTED SO EVERY EXISTING CALL SITE IS UNCHANGED — the same courtesy
+// addDaysStr/jsDowOf get above. scripts/verify-labor-coverage.ts imports these
+// two from here and still does, deliberately: a fixture that reaches through
+// this file is a fixture that breaks if this file ever stops agreeing with the
+// module, which is exactly the guard BUG-14 asked for. The line count of this
+// block is held at the replaced block's so the :286 reference above is stable.
+export { parseHourStart, parseHourEnd }
 
 // Fraction of a weekday's peak hourly sales below which an hour is treated as
 // noise (a one-off late-night/early order) rather than a real open hour.
@@ -281,9 +281,9 @@ export async function getWeeklyDayPlan(storeId: string, anyDateInWeek: string, t
     if (sh) {
       // Explicit StoreHours wins; isClosed means genuinely closed (no inference).
       if (!sh.isClosed) {
-        const s = parseHourStart(sh.openingTime)
-        const e = parseHourEnd(sh.closingTime)
-        open = s != null && e != null && e > s ? { startHour: s, endHour: e } : inferredOpen[wd]
+        // THE ADMISSION RULE NOW LIVES IN store-hours-window.ts SO THE STORE
+        // CARD CAN ASK THE SAME QUESTION. Same predicate, same parsers, one site.
+        open = engineOpenWindow(sh) ?? inferredOpen[wd]
       }
     } else {
       // No StoreHours row → fall back to the sales-inferred window.
