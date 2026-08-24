@@ -13648,8 +13648,8 @@ bugs:
       DEBT-69 (coalescing, which would reduce the N-syncs cost of one posture).
 
   - id: BUG-14
-    status: staging
-    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4, 817b3ef, 66f0b59, aa8052a, e4cc40d]
+    status: shipped
+    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4, 817b3ef, 66f0b59, aa8052a, e4cc40d, 6256d5f]
     title: >
       The store hours editor accepted impossible hours in silence, and a wrong
       open time lands straight in the labor forecast

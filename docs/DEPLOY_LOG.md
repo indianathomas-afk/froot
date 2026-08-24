@@ -2,9 +2,9 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## PENDING-SHA-SHORT — PENDING-DATE — BUG-14: the engine's admission rule becomes shared, and a discarded row finally says so
+## 6256d5f — 2026-08-23 — BUG-14: the engine's admission rule becomes shared, and a discarded row finally says so
 
-**Merge SHA:** `PENDING-SHA-FULL`
+**Merge SHA:** `6256d5fe5424988b0c128b79cd5ca89c294111df`
 **Written before the merge existed.** The heading's SHA and date and the Merge
 SHA line above are stamped by the promotion ritual from `git rev-parse` and
 `date`, never hand-typed. Three placeholder tokens, all of them on the heading
