@@ -13568,7 +13568,7 @@ bugs:
 
   - id: BUG-14
     status: in_progress
-    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4, 817b3ef]
+    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4, 817b3ef, 66f0b59]
     title: >
       The store hours editor accepted impossible hours in silence, and a wrong
       open time lands straight in the labor forecast
@@ -13727,6 +13727,87 @@ bugs:
       Related: DEBT-83 (the hardcoded 14:00 that makes a bad open time
       expensive), BUG-11/BUG-12 (the editor-vs-route precedent this module's
       shape exists to honour), L-3 (where sales inference was first flagged).
+      THE SURFACING IS BUILT — ITEMS (a) AND (b), 2026-08-23. Appended per
+      preserve-and-mark; nothing above is edited. The engine's admission rule and
+      its two parsers MOVED OUT OF labor-plan.ts into a new dependency-free
+      module, src/lib/store-hours-window.ts, and labor-plan.ts imports the rule
+      and RE-EXPORTS the parsers so every existing call site is unchanged. The
+      move is the whole answer to item (a): the check had to name the ENGINE's
+      predicate rather than the editor's, the asker is a client component, and
+      labor-plan.ts imports prisma on its first line — so the rule could not
+      simply be exported from where it stood. It is now written ONCE. A second
+      spelling of `e > s` in a component would have been BUG-11/BUG-12 a third
+      time, on the row whose own module exists to honour that precedent.
+      LIFTED VERBATIM. parseHourStart and parseHourEnd moved unchanged, comments
+      and all, including the midnight-close ruling shipped in 817b3ef. This is a
+      relocation, not a behaviour edit, and scripts/verify-labor-coverage.ts —
+      which imports both from labor-plan and pins parseHourEnd("00:00") at 24 —
+      still passes untouched, which is the evidence for that claim.
+      WHAT IS NOW ON SCREEN, ITEM (b). Two surfaces, one predicate. The store
+      card (stores/page.tsx) names the days whose visible hours the model will
+      not read; the hours dialog (stores/store-hours-button.tsx) says it against
+      the offending row, recomputed from FORM state on every keystroke like the
+      validator beside it. The dialog asks ONLY where the editor is already
+      satisfied — a half-filled day is red on B2 above and does not need a second
+      sentence about a state it cannot be saved in. WHAT THAT LEAVES is exactly
+      the case the row exists for: everything on the row accepted, and the model
+      still not reading it. An overnight window, which this dialog's own footer
+      promises is fine.
+      A CLOSED DAY AND AN EMPTY DAY ARE NOT FLAGGED, DELIBERATELY. The classifier
+      has four answers, not two — closed / undecided / used / discarded — and
+      only `discarded` is a disagreement between what is shown and what is used.
+      Warning on a Closed day would tell an operator to fix what they already
+      did, which is CHK-4's own rule one file over.
+      THE COPY IS PROPOSED, NOT RULED. The prompt reserved the wording to Gary,
+      so all three strings sit in ONE exported object (ENGINE_DISCARDED_COPY) at
+      the foot of store-hours-window.ts and settling them is a single edit that
+      both surfaces inherit. What they may NOT do is imply the hours are wrong —
+      they are not wrong, an overnight window is legitimate data this dialog
+      invites, and the refusal to read it is the engine's limit (CUTOFF-1). The
+      word is "unused", never "questionable"; calling the hours doubtful when the
+      truth is that nothing reads them is the worse state the 2026-08-23 ruling
+      turned down.
+      FIXTURE FIRST, SHOWN FAILING. scripts/verify-store-hours-engine.ts, the
+      sibling of verify-store-hours.ts, 24 assertions. Shown failing by flipping
+      the shared predicate from `e > s` to `e >= s`: 3 failures, one of them in
+      the drift-guard section, which is the guard firing rather than a fixture
+      merely being red. IT IMPORTS THE PARSERS FROM labor-plan, NOT FROM THE
+      MODULE, on purpose — reaching through the re-export is what makes a future
+      change to labor-plan break this test, which is what the prompt asked for.
+      It also asserts the two are the SAME function objects, so re-privatising a
+      parser fails here rather than silently.
+      ITEM (c) IS BUILT AND UNRUN. scripts/sweep-store-hours.ts now carries a
+      second verdict per row — the ENGINE column — through the same shared
+      module, and reports a row when EITHER predicate has something to say. The
+      silence on a validator-clean overnight row was the defect, so those rows
+      now print with "clean" beside "DISCARDED -> sales inference". Verified on
+      a synthetic export of all four shapes: 3 discards across 2 stores, and the
+      01:00 open showing the inverse — W3 warned, and the engine USES it.
+      THE DEPLOYED SWEEP IS STILL OUTSTANDING AND THIS ROW STAYS in_progress FOR
+      THAT REASON ALONE. It is blocked on a Neon console export, which the
+      credential rule puts in Gary's hands and not this session's; the SQL was
+      handed over with it. Ten of twelve stores have never been swept. The
+      surfacing did not wait for it, per this row's own ORDER OF RECORD above.
+      LINE-NUMBER CORRECTION TO THE CORRECTION ABOVE, NAMED AND NOT EDITED. The
+      paragraph above rules that the surfacing check "must key to `:273`". It
+      does not, and cannot: 817b3ef's midnight-close comment pushed the predicate
+      down and it stood at `:286` when this session opened it. THE CHECK KEYS TO
+      NEITHER LINE ANY MORE, which is the better outcome — it calls the shared
+      function, so the citation is a module name rather than a line number and
+      the next fix to these parsers cannot strand it. labor-plan.ts:286 is now
+      the CALL to engineOpenWindow, and the block that replaced the parsers was
+      held at the replaced block's line count on purpose so that reference is
+      still true.
+      GATE: scoped npx eslint on all six touched files clean, bare npm run build
+      exit 0 with zero error lines, and the three fixtures (store-hours,
+      store-hours-engine, labor-coverage) all green.
+      NOT SEEN IN A BROWSER. The predicate is proven by fixture and the pages
+      compile; the rendered note has not been observed on a real store card,
+      because no store on the dev branch holds a discarded row to render it from.
+      Said plainly rather than left to be assumed from a green gate.
+      RECORDED AT 66f0b59. The work commit; this line is its recorder, per the
+      two-commit pattern. Item (c)'s ENGINE column rides the same SHA and is
+      unrun against deployed data.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
