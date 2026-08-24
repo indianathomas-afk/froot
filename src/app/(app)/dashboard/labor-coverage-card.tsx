@@ -332,7 +332,7 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
               <div className="flex flex-col gap-1 mb-2">
                 {cov.supervisorGap && (
                   <div className="flex items-center gap-1.5 text-[12px] font-medium text-[#b42318]">
-                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> No supervisory position covers the hours the GM is off the floor.
+                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> No hourly supervisory position is set up for this store.
                   </div>
                 )}
                 {cov.understaffedBudget && (

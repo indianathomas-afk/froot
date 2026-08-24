@@ -225,3 +225,80 @@ is BYTE-IDENTICAL before and after (md5 `f0ce67bd3b9ddb557a974dbe7fa16914`),
 which is the zero-diff proof for the plan's arithmetic — **with one stated
 exception, the `parseHourEnd` fix, which is on this row deliberately and is
 covered in the session report.**
+
+---
+
+# ADDENDUM 2 — CORRECTION, 2026-08-23, by Gary, same day
+
+APPENDED, NOT EDITED. Addendum 1 above stands as written and is wrong in the
+way this section states.
+
+## Every per-store figure in Addendum 1 is DEV data, and none of it describes a live condition
+
+**Production UNR opens 08:00 across 7 days** (Gary, 2026-08-23). Addendum 1's
+dev figures — a 10:00 open across 5 open days, a 4-hour band, `B = 20` — are
+**sales-inferred windows on a branch that holds no `StoreHours` rows at all**.
+They are not UNR's hours.
+
+**So the pre-registration on this file's first page is RIGHT for UNR:**
+`B = 42`, `C = 20`, **`ΔWEEK = −22`**. Addendum 1's claim that it is "not 42 on
+7 days at 08:00" is withdrawn.
+
+**Las Brisas `B = 47` is withdrawn on the same grounds**, though Gary's
+correction named only UNR. The weekend 08:00 opens that produced 47 rather than
+49 are dev's inference, from the same branch and the same absence of rows. Las
+Brisas's production windows are not known from here, and `B = 49` is neither
+confirmed nor refuted.
+
+## The tripwire is REAL AS A MECHANISM and UNPROVEN AS A LIVE CONDITION
+
+`B ≤ C` really does make `capGmFloorCredits` return the band unscaled
+(`labor-daily.ts:54`) and really does drive `ΔWEEK` to 0. That arithmetic is
+pinned by fixture and is not in question.
+
+**What is withdrawn is the claim that any store is on it.** No store in the
+estate is known to satisfy `B ≤ C`. Addendum 1's heading "THE UNR CASE LANDS ON
+THIS FILE'S OWN TRIPWIRE" should read: the tripwire exists, and whether anything
+sits on it is unmeasured. S5-D10's second divergence case remains open by
+ruling, exactly as it was, and is **not** newly live on a visible number.
+
+## What the mistake was
+
+Dev's inferred windows were read as if they were the store's hours. **They are
+what the engine falls back to WHEN there are no hours** — the opposite of
+evidence about what the hours are.
+
+This is `CLAUDE.md` § Database Evidence at one remove: the figures were
+correctly measured and correctly transcribed, and the LABEL — which branch they
+describe — is the part that was wrong. A dev-derived `B` looks exactly like a
+production-derived one.
+
+## `DEPLOY_LOG.md:72` had already contradicted assumption 1 when this file was written
+
+The R7-D entry, 2026-08-22, measured **"1 of 5 open days"** at UNR. This file,
+2026-08-23, assumed **both manager stores open 7 days**. Two documents in this
+repo, one day apart, disagreeing about a store's open days — and nothing flagged
+it at the time. That conflict is recorded here as a fact about the documents.
+
+**Its resolution is this correction's own root cause.** Production UNR opens 7
+days, so the DEPLOY_LOG's "5" is **also dev-derived** — and that entry states its
+provenance plainly: "THIS IS A PREDICTION, NOT A STAGING READ … the demand
+shapes, open windows and day-of-week weights are the dev branch's real Square
+sales." So the contradiction was never between production and this file. It was
+between **dev's inference and production's hours**, surfacing twice, a day apart,
+in two documents that each stated their provenance and were each read as though
+the numbers described the estate.
+
+## What survives
+
+**`ΔWEEK = −max(0, B − C)` with `C = 20` at both stores.** Confirmed, pinned by
+fixture, unaffected by any of the above.
+
+**And the one thing a future reader needs: DEV CANNOT MEASURE THIS CHANGE.** It
+holds no salaried allocation, so `hasGm` is false everywhere and no band is
+drawn; and it holds no `StoreHours`, so every window is inferred. Both halves of
+`B` are absent. Any `B` quoted from dev is a statement about dev's sales
+history, not about a store.
+
+The capture still waits on BUG-14's deployed sweep and on the two bad rows being
+fixed. That part of Addendum 1 is unchanged and still stands.
