@@ -68,7 +68,15 @@ export default async function HrDocumentsPage() {
       kind: d.kind as HrDocumentKind,
       fileName: d.versions[0]?.fileName ?? "",
       sizeBytes: d.versions[0]?.sizeBytes ?? 0,
+      // A LINK HAS NO VERSION, so this fell back to d.createdAt and the row
+      // then labelled it "Uploaded" — true of the value, false of the word.
+      // createdAt is carried separately now and the Link path renders "Added"
+      // from it; the file path is untouched (DOC-3).
       uploadedAt: (d.versions[0]?.createdAt ?? d.createdAt).toISOString(),
+      createdAt: d.createdAt.toISOString(),
+      externalUrl: d.externalUrl,
+      instructionsHtml: d.instructionsHtml,
+      instructionsVideoUrl: d.instructionsVideoUrl,
       isActive: d.isActive,
       // The audience chip's inputs. No extra query: AUDIENCE_INCLUDE was
       // already loaded so the predicate above could be asked, and appliesTo is
