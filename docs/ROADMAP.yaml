@@ -4883,6 +4883,61 @@ phases:
       - 234834f
       - 1b7600b
     notes: >
+      ── DOC-3 UPDATE 2026-08-24 (same session, after Gary's push). Prepended
+      per preserve-and-mark; NOTHING BELOW THIS BLOCK IS EDITED, including the
+      two sentences it corrects.
+      (A) PROCESS DEVIATION ON PHASE 1, RECORDED AT GARY'S INSTRUCTION. The
+      four evidence items for Phase 1 - the hrdoc_link_shape probe in both
+      directions, the _prisma_migrations ledger row, the DECISIONS.md entry as
+      written, and a green build - were pasted for review AFTER "aa4fc1b" was
+      committed, not before it as a gate. The checks themselves all RAN before
+      the commit and the commit did pass its own build gate; what did not
+      happen is the evidence being put in front of Gary while the commit was
+      still preventable. It was not re-gated retroactively: "aa4fc1b" was not
+      amended, because the row above records that SHA and amending a recorded
+      work commit invalidates it, and by then three phases sat on top of it.
+      The deviation is marked here rather than quietly closed because a gate
+      that reports after the fact is a review, and the two are not
+      interchangeable - a reviewer who reads the evidence cannot decline a
+      commit that already exists.
+      (B) TWO ITEMS FROM THE STILL-OWED LIST BELOW ARE NOW DISCHARGED. Gary
+      pushed; origin/staging is "dc99289" with zero unpushed commits. The
+      staging-SHA precondition PASSES - local HEAD
+      dc992891b190a2ddfd7699dcf9ff9d6bee927344, "vercel ls --meta
+      githubCommitSha=<full>" returns froot-7tvl2wgj2, and "vercel inspect
+      froot-git-staging-..." resolves to that same deployment
+      (dpl_2L6kLqjLnR6TWkwdAsVutmZn9moE). And THE MIGRATION REACHED THE STAGING
+      DATABASE, from that deployment's own build log: datasource host
+      ep-odd-rain-a6gr4xmm.us-west-2.aws.neon.tech (no -pooler, so BUG-3's
+      routing held), "Applying migration
+      20260824193000_doc3_document_links_and_instructions", "All migrations
+      have been successfully applied", and no P1002 advisory-lock failure.
+      (C) CORRECTION TO THE STILL-OWED PARAGRAPH BELOW, which says the ADMIN
+      gate "returns 401 before the schema is reached". IT RETURNS 404, NOT 401.
+      src/proxy.ts wraps every non-public route in auth.protect(), which 404s
+      an unauthenticated request rather than redirecting or 401ing - measured
+      on staging at dc99289: GET /hr/documents -> 404, POST
+      /api/hr/documents -> 404. THIS MATTERS FOR HOW THE REMAINING PROBES ARE
+      RUN, and it is why the correction is worth more than the fact. The two
+      typed-URL 404 probes in section 4h - /hr/documents/<link-id> and
+      /api/hr/documents/<link-id>/download - expect a 404 from the DOC-3 kind
+      guard and the missing version row respectively. Signed OUT, both return
+      404 for an entirely unrelated reason, and the two answers are
+      indistinguishable. RUN THEM SIGNED IN AS ADMIN OR THEY PROVE NOTHING;
+      run signed out they produce the right answer for the wrong reason, which
+      is the failure class CLAUDE.md's precondition sections exist to catch.
+      The same applies to the 4f server-half test: signed out it 404s and can
+      never show the 400 it is looking for.
+      (D) WHAT IS STILL OWED AFTER (B), and why this session could not do it:
+      every remaining item needs a signed-in karson@keva.com or tommy@keva.com
+      session. Claude does not enter passwords into a sign-in form, and no
+      already-authenticated browser was connected, so the ADMIN creation of the
+      I-9, the tommy other-store negative check, both typed-URL probes and the
+      4f server-half 400 are ALL still outstanding - none of them was attempted
+      and none should be read as passed. The staging SQL is likewise
+      outstanding: vercel env pull is banned repo-wide, so deployed-environment
+      reads go through the Neon console.
+      ── END UPDATE. Original notes follow, unedited. ──
       BUILT 2026-08-24 in three phases, all three committed and NONE PUSHED
       (Claude never pushes; CLAUDE.md Git Rules). Status in_progress at
       "1b7600b" per the CHK-4 "in_progress at SHA" convention, and it moves to
