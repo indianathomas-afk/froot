@@ -6,6 +6,27 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## TrainingModule `orderIndex` is GLOBAL across the org — 2026-08-24 (Gary)
+
+Ratified by Gary 2026-08-24 in the planning chat that approved the Phase 0 audit,
+at the same time as the plan. Recorded verbatim; the wording below is his and is
+not reworded here.
+
+> TrainingModule orderIndex is GLOBAL across the org, not per-category. One
+> order, every surface. The Assign dialog is a flat list with no category UI and
+> cannot show two numbering spaces. (Gary)
+
+Carried as `RULING = GLOBAL` through every step: the column on `TrainingModule`,
+the backfill partition (`PARTITION BY "organizationId"`, never by `categoryId`),
+the reorder endpoint's payload (`{ ids }` with no `category` field), and the
+`orderBy` on every consuming surface. `categoryId` is nullable and the measured
+libraries are mostly uncategorized, which is the evidence the lean rested on.
+
+Audit: `docs/prompts/2026-08-24_HR-TrainingModule_Order_AUDIT.md` §4. Its
+corrections — including the one that moved `/my/training` out of this row — are
+in `..._AUDIT_ADDENDUM.md` alongside it, which wins wherever the two disagree.
+
+
 ## 2026-08-24 — DOC-3: linked documents and instructions
 
 Ratified by Gary 2026-08-24, in the planning chat that scoped the row. Recorded

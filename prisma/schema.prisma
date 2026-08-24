@@ -2092,6 +2092,13 @@ model TrainingModule {
   categoryId     String?
   description    String?
   appliesTo      String   @default("all") // all | selected (store assignments below)
+  // HR-29: display order within the org, lowest first. GLOBAL, never
+  // per-category (Gary, 2026-08-24) — "categoryId" is nullable and a module
+  // that changes category keeps its place in the sequence. Every consuming
+  // surface reads [{ orderIndex: "asc" }, { createdAt: "asc" }]; the
+  // tie-break is what keeps rows still sitting on the default deterministic,
+  // and it is also what settles archived rows, which a reorder never rewrites.
+  orderIndex     Int      @default(0)
   isActive       Boolean  @default(true)
   isArchived     Boolean  @default(false)
   createdAt      DateTime @default(now())
