@@ -2,6 +2,307 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## PENDING-SHA-SHORT — PENDING-DATE — BUG-14: the engine's admission rule becomes shared, and a discarded row finally says so
+
+**Merge SHA:** `PENDING-SHA-FULL`
+**Written before the merge existed.** The heading's SHA and date and the Merge
+SHA line above are stamped by the promotion ritual from `git rev-parse` and
+`date`, never hand-typed. Three placeholder tokens, all of them on the heading
+and the Merge SHA line above and nowhere else in this entry — this entry
+deliberately never spells one out in prose, because a token written into a
+sentence is a token the stamp substitutes into that sentence. An entry still
+carrying them is written and unpromoted, which is a valid state rather than a
+mistake.
+**Payload:** 11 commits on `staging` ahead of `main` at the time of writing —
+`7533613`, `af407b3`, `66f0b59`, `6ef1bd0`, `2813018`, `aa8052a`, `6e0fd2b`,
+`658d9db`, `352d4c5`, `e4cc40d`, `54f67ae` — plus the commit carrying this entry
+(staging → main, `--no-ff`). `7533613` is the re-level merge that followed the
+R7-E promotion and carries no work of its own; `af407b3` is Gary's R7-C blocker
+ruling, written before this session opened.
+**Prior main tip:** `57e7764`
+**Diff (code):** `src/lib/store-hours-window.ts` +129/−0 (new),
+`scripts/verify-store-hours-engine.ts` +160/−0 (new),
+`scripts/sweep-store-hours.ts` +110/−11, `scripts/generate-roadmap.mjs` +81/−0,
+`src/app/(app)/stores/page.tsx` +39/−0,
+`src/app/(app)/stores/store-hours-button.tsx` +29/−0,
+`src/lib/labor-plan.ts` +24/−24, `src/lib/store-hours-validate.ts` +13/−6,
+`src/lib/checklist-lifecycle.ts` +7/−2. **No schema, no migration, no env var, no
+cron** — `prisma/` is absent from the diff entirely.
+
+### What shipped
+
+BUG-14's items (a), (b) and (c), and the row moves to `shipped` in this
+promotion. The defect: a `StoreHours` row the labor model discards was invisible
+at every layer. The dialog showed the hours, the store card showed the hours, and
+the engine planned the day from sales inference instead. Nothing anywhere said so.
+
+- **The admission rule moved out of `labor-plan.ts` into a new dependency-free
+  module, `src/lib/store-hours-window.ts`**, which now owns `parseHourStart`,
+  `parseHourEnd` and the `e > s` predicate. `labor-plan.ts` imports the rule and
+  RE-EXPORTS the parsers, so every existing call site is unchanged.
+- **Why it had to move rather than be read where it stood.** The surfacing has to
+  ask the ENGINE's question — the editor's is a different and looser one — and the
+  asker is a client component, while `labor-plan.ts` imports prisma on its first
+  line. A second spelling of `e > s` in a component would have been
+  BUG-11/BUG-12 a third time, on the row whose own module exists to honour that
+  precedent.
+- **The signal, on both hours surfaces, through that one predicate.** The store
+  card names the days whose visible hours the model will not read; the dialog says
+  it against the offending row, recomputed from FORM state on every keystroke.
+  The dialog asks ONLY where the editor is already satisfied — a half-filled day
+  is already red on B2 — which leaves exactly the case the row exists for: the
+  row accepted, and the model still not reading it.
+- **A closed day and an empty day are never flagged.** The classifier has four
+  answers — closed / undecided / used / discarded — and only `discarded` is a
+  disagreement between what is shown and what is used.
+- **Copy approved by Gary**, in one exported object so both surfaces inherit one
+  edit. It says "unused", never "questionable": the hours are not wrong, and the
+  engine's refusal to read an overnight window is the engine's limit (`CUTOFF-1`).
+  "Saved, but " was dropped from the dialog line on measurement — the flag renders
+  while the operator is still typing, and a successful save closes the dialog, so
+  it is never on screen after one.
+- **The sweep gained the ENGINE column** and reports a row when EITHER predicate
+  has something to say, so a validator-clean overnight row now prints as
+  `clean … DISCARDED -> sales inference`. That silence was the defect.
+- **`scripts/generate-roadmap.mjs` warns** when a bare blocker entry opens with a
+  closing verb and a date and carries no `resolved:` flag. Unrelated to store
+  hours; it rides this promotion because it is on the branch.
+
+### THE EXTRACTION MOVED NOTHING — the proof, and the proof that failed first
+
+Moving a live predicate out of the engine is the risky half of this promotion, so
+it was proved rather than argued.
+
+**`verify-labor-budget.ts` was byte-identical either side — md5
+`f0ce67bd3b9ddb557a974dbe7fa16914` — AND IT PROVED NOTHING.** That fixture
+imports `labor-budget.ts` and nothing else; the predicate is not in its
+dependency graph. Demonstrated rather than assumed: with `engineOpenWindow`
+sabotaged to discard every row — every store on sales inference — it still emits
+the same bytes and the same md5. A green result from an instrument that cannot
+detect the failure is not evidence, and it is recorded here because it looked
+like evidence.
+
+**The proof that does bind is a differential over the decision itself** — typed
+hours versus sales inference, which sets the open window and feeds the day split.
+The old inline predicate was run against the new shared one over **2,074,842
+input pairs**: every minute of the day against every other minute (1440 × 1440),
+plus nulls, empty strings, `24:00`, `8:00`, `08:0`, `abc`, `99:99` and
+`08:00:00`. **Zero disagreements.** The decision vector — window or
+SALES-INFERENCE for every pair — hashes to
+`f74111242928a692f2acf640544cd7d0` on both sides.
+
+**The control side was not retyped.** Its parsers were imported from a verbatim
+copy of `labor-plan.ts` at `af407b3`, and its admission expression was EXTRACTED
+FROM THAT FILE'S OWN TEXT at line 286 and compiled, so no transcription sits on
+the side the new code is being judged against.
+
+**And the harness was shown SENSITIVE** by flipping `e > s` to `e >= s`, which
+diverges the md5 immediately. Its silence therefore means something. The standing
+replacement is `scripts/verify-store-hours-engine.ts`, which asserts the same
+predicate through `labor-plan`'s re-export on every run — 24 assertions, shown
+failing before it passed.
+
+**The ten executable lines of the two parsers are byte-identical**, md5
+`f18cf4f1f58a8e51e1baaa42ef77bcb3`. Two COMMENT lines differ: the moved copy
+drops a `, :286` line citation and reflows around it, because the rule is no
+longer at that line of that file. An earlier claim that they moved "verbatim,
+comments and all" was overstated and is corrected here rather than quietly
+narrowed.
+
+### THE DEPLOYED SWEEP — production, `ep-green-smoke`, 2026-08-23
+
+Ten of twelve stores had never been swept. Read through the Neon console per the
+credential rule; **no deployed credential was pulled.** Gary ran the row export
+and the per-store census and transcribed both by hand.
+
+    store        day  open   close  VALIDATOR       ENGINE
+    Las Brisas   Sun 09:00  20:00  clean           USES 9-20
+    Las Brisas   Mon 07:00  21:00  clean           USES 7-21
+    Las Brisas   Tue 07:00  21:00  clean           USES 7-21
+    Las Brisas   Wed 07:00  21:00  clean           USES 7-21
+    Las Brisas   Thu 07:00  21:00  clean           USES 7-21
+    Las Brisas   Fri 07:00  21:00  clean           USES 7-21
+    Las Brisas   Sat 08:00  21:00  clean           USES 8-21
+    Southgate    Sun 09:00  20:00  clean           USES 9-20
+    Southgate    Mon 08:00  21:00  clean           USES 8-21
+    Southgate    Tue 08:00  21:00  clean           USES 8-21
+    Southgate    Wed 08:00  21:00  clean           USES 8-21
+    Southgate    Thu 08:00  21:00  clean           USES 8-21
+    Southgate    Fri 08:00  21:00  clean           USES 8-21
+    Southgate    Sat 08:00  21:00  clean           USES 8-21
+    UNR          Sun 10:00  17:00  warn W4:close   USES 10-17
+    UNR          Mon 08:00  21:00  clean           USES 8-21
+    UNR          Tue 08:00  21:00  clean           USES 8-21
+    UNR          Wed 08:00  21:00  clean           USES 8-21
+    UNR          Thu 08:00  21:00  clean           USES 8-21
+    UNR          Fri 08:00  21:00  clean           USES 8-21
+    UNR          Sat 10:00  17:00  warn W4:close   USES 10-17
+
+**THE VERDICT: 21 rows, ZERO DISCARDED, 3 of 12 stores with hours.** Zero
+blocking, zero unparseable. Every shape this row was written about is ABSENT from
+production — no overnight window, no zero-length day, no one-sided row, and no
+midnight close either.
+
+**The two warnings are both UNR and neither is an error.** UNR closes at 17:00 at
+weekends against a 21:00 midweek median, outside W4's three-hour tolerance — a
+campus store keeping short weekend hours, which is exactly what W4 was built to
+ASK rather than block. **No data was corrected**, per the row's standing rule
+that a wrong row is the operator's to fix in the UI. The engine uses both rows
+regardless, and that pair is **the first live case of the two predicates
+diverging in the HARMLESS direction**: everything recorded on this row until now
+has been the validator silent while the engine discards. "Clean" and "used" are
+independent in both directions, and the estate has now demonstrated it rather
+than a fixture asserting it.
+
+### SIX LIVE STORES RUN ON SALES INFERENCE
+
+Nine of twelve stores hold **no `StoreHours` rows at all**: Cafe De Keva Cart,
+Carson, Keva Kiosk, Meadowood Mall, Rohan's Restaurant, South Reno, Spanish
+Springs, Sparks, University Village. Rohan's is unlinked (`squareLocationId`
+null, per F-4's blocker) and Keva Kiosk and Cafe De Keva Cart are the seasonal
+pair named in `store-hours-validate.ts`, which leaves **SIX LIVE STORES — Carson,
+Meadowood Mall, South Reno, Spanish Springs, Sparks, University Village —
+planning their coverage entirely from `inferOpenWindowsByWeekday`.**
+
+**This is the PRE-BUG-14 state, not a defect and not a regression.** It is what
+the whole estate looked like before 2026-08-23, and nothing in this promotion
+changed it. It is recorded because **a store with no rows is silent on every axis
+the sweep measures** — no blocking issue, no warning, no engine discard — and
+that silence is not the same as being fine. A clean sweep over three stores says
+nothing about the other nine.
+
+Until `e4cc40d` the sweep could not see them at all. The export's query
+inner-joins `Store` to `StoreHours`, so a store with no rows contributes none and
+the sweep counted stores from the export itself: it would have printed **"3 / 3"**
+for an estate that is 3 of 12. The census is now an optional second argument, the
+zero-row stores are named under the table, and without a census the sweep reports
+the count as UNKNOWN rather than claiming coverage it cannot see.
+
+### THE SURFACING IS A LATENT GUARD — do not read the clean sweep as proof it works
+
+**Zero discarded rows estate-wide means NO DATA EXISTS TODAY THAT WOULD RENDER
+IT.** Not on production, not on staging, not on dev. The note has therefore never
+been observed on screen and cannot be, until the data changes. **A CLEAN SWEEP
+PROVES THERE IS NOTHING TO SURFACE, NOT THAT THE SURFACING RENDERS** — those are
+different claims and only one of them has been checked. What is established is
+the predicate underneath it: `verify-store-hours-engine.ts`, 24 assertions, shown
+failing before it passed, plus the pages compiling. **Its first real test is the
+day someone enters an overnight window.** A future reader must not promote this
+promotion's cleanliness into a claim about the signal.
+
+**The sweep is also a MEASUREMENT OF THE TRANSCRIPT, not of the database.** The
+export and census were hand-transcribed from the Neon console, so every
+conclusion above inherits that. A shape audit ran first — field names and types,
+`HH:MM` on every time, `dayOfWeek` in range, no duplicate `(store, dayOfWeek)`
+pair against the schema's `@@unique`, a complete Sun..Sat per store, and the
+census summing to exactly 21 — and it caught nothing. **A valid-but-wrong value
+would pass every one of those checks:** `07:00` typed where the console said
+`17:00` is well-formed, in range, unique and complete. The transcript files were
+deleted rather than committed; production store hours do not belong in the repo,
+and the queries that regenerate them are in BUG-14's record.
+
+### The flag audit, and DEBT-84
+
+`docs/ROADMAP.yaml`'s header says only the `resolved:` flag is read, but PERM-6's
+older convention — closing a blocker by PREPENDING a note above it — never went
+away, so an entry closed in prose keeps counting LIVE on `/internal/roadmap`.
+R7-C carried one for a day. **All 56 blocker entries across 21 phases were swept:
+22 resolved, 3 narrowed, 31 bare, and NOT ONE bare entry is an unflagged
+closure.** The inverse — flagged resolved with unsupporting prose, the direction
+that HIDES a blocker — also came back zero. **Nothing was flagged**; five entries
+announce a closure and every one names a surviving remainder in its own text, and
+Gary ruled them correct as written.
+
+**The over-count is real but structural, and it is filed as `DEBT-84`.** A
+prepended closure note is a new ARRAY ENTRY and the panel counts array entries,
+so closing a blocker by the prepend convention ADDS one to the live count at the
+moment it removes one. **Eight of the 31 live entries are such notes** — F-4
+carries 3 of its 5, L-2 carries 4 of its 6, IG-1 carries 1 of 3 — so F-4 reads as
+five live gates when it has two gates and three notes about them. Nothing is
+mis-flagged and the count is still wrong. Not fixable by flagging: the notes
+carry live remainders too.
+
+The generator's new warning is **not** the prefix detection P-4 rejected. P-4
+rejected prefix matching as a CLASSIFIER, on the evidence that F-5's live blocker
+opens "VERIFIED STILL TRUE"; a warning never closes anything and fails toward
+asking. It requires the closing verb to be IMMEDIATELY followed by a date, so
+both of P-4's counter-examples are structurally out of range. **Backtested before
+being built:** against `7533613` it fires once, on the exact entry `af407b3`
+found by hand, and exits 0; against HEAD it fires zero times.
+
+### Rollback
+
+```
+git revert -m 1 <merge sha>
+```
+
+**No schema, no migration, nothing to un-drop.** Reverting restores the inline
+`e > s` in `labor-plan.ts` and removes `store-hours-window.ts` along with both
+surfaces' notes — which is a no-op in visible behaviour today, because zero rows
+estate-wide trigger the note. It also removes the sweep's ENGINE column and its
+census argument, and the generator's warning. **No data written under the new
+behaviour needs unwinding, because none is written** — every part of this
+promotion reports and nothing persists. The differential above is the reason a
+revert is not expected to be needed for the extraction: the admission decision is
+identical across 2,074,842 inputs.
+
+### Post-deploy check
+
+A glance, not a procedure. **Everything here should be UNCHANGED** — that is the
+expected result, not a weak one, because production carries no row that the new
+signal fires on.
+
+- **`/stores` renders identically.** Las Brisas, Southgate and UNR show their
+  hours as before, with **no** "not being used" note on any of them. A note
+  appearing on a store today means the predicate is not what this entry claims.
+- **`/labor` at Las Brisas and UNR is unchanged** — same windows, same Suggested,
+  same hourly heads. The extraction is proved behaviour-identical and this is the
+  confirmation on real data.
+- **A store with no hours — Carson or Sparks — is identical**, and still shows
+  CHK-4's existing "No hours set" note. The two notes are different subsystems
+  and only the old one has anything to say there.
+- **The hours dialog still saves.** Open it on any store, change nothing, save.
+  The validator's B and W codes behave exactly as before.
+- **The Vercel build log carries no `[roadmap] WARNING` line.** If one appears, a
+  blocker entry has been closed in prose without its flag.
+
+**IF A "not being used" NOTE APPEARS ANYWHERE ON PRODUCTION TODAY, THAT IS A STOP
+AND A REVERT.** The sweep says zero rows qualify; a note on screen means the
+component and the engine disagree, which is the exact defect this promotion
+exists to make impossible.
+
+### Known open at promotion
+
+Read off `docs/ROADMAP.yaml` at the time of writing, not copied forward from the
+previous entry.
+
+- **The surfacing has never been seen render** — see the latent-guard section
+  above. This is the single most important thing to carry forward from this
+  promotion.
+- **Six live stores hold no hours at all** and run on sales inference. Not a
+  defect; not addressed here; named above so it is visible rather than assumed.
+- **`DEBT-84`** (`planned`, filed here) — a prepended closure note is counted as a
+  blocker in its own right, so `/internal/roadmap` over-states live gates even
+  when every flag is correct. LATENT, process not product.
+- **`CUTOFF-1`** (`planned`) — the per-store business day cutoff. Until it exists,
+  a genuine overnight window is still discarded by the engine, and the note
+  shipped here is all that stands between an operator and a silent discard.
+- **`DEBT-64`** — day close and labor still read an overnight row differently.
+  This promotion did NOT close it; it only made labor's half visible.
+- **`DEBT-83`** (`planned`) — the band's real default is the hardcoded `14`.
+  Closes with L-4 by Gary's ruling.
+- **`BUG-4`, `BUG-13`, `DEBT-75`, `DEBT-80`, `DEBT-81`** — all untouched by this
+  promotion and all still open.
+- **`DEBT-41`/`DEBT-42`** — the partial-closure vocabulary and the `deferred`/`open`
+  fields carrying resolved entries. `DEBT-84` is adjacent to both and is not
+  either of them.
+- **`scripts/promote.sh` remains unbuilt.** Every promotion is still a hand-run
+  ritual pasted from a session report. Not built here.
+
+**CLOSED BY THIS PROMOTION:** BUG-14, on all three of its items — the shared
+predicate, the surfacing, and the deployed sweep. It is the row's first promotion
+since the sweep it had been waiting on since 2026-08-23.
+
 ## 817b3ef — 2026-08-23 — R7-E: manager on the floor — the band stops feeding the numbers
 
 **Merge SHA:** `817b3efba1be1d42dbf86dd6ccddc029aded0522`

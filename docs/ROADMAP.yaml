@@ -13648,7 +13648,7 @@ bugs:
       DEBT-69 (coalescing, which would reduce the N-syncs cost of one posture).
 
   - id: BUG-14
-    status: in_progress
+    status: staging
     commits: [ec92e88, 5998e07, c7060f8, 4d0edd4, 817b3ef, 66f0b59]
     title: >
       The store hours editor accepted impossible hours in silence, and a wrong
@@ -13991,6 +13991,43 @@ bugs:
       typed where the console said 17:00 is well-formed and would pass every one
       of those checks. The sweep is therefore a measurement of the transcript,
       and it is a point-in-time measurement of 2026-08-23.
+      STATUS FLIPPED in_progress -> staging 2026-08-23 BY GARY'S RULING, on the
+      recommendation that the work is complete and unpromoted. Every item is
+      done — (a) the shared predicate, (b) the surfacing on both surfaces, (c)
+      the deployed sweep — and nothing on this row is outstanding. What is NOT
+      true is `shipped`, which this file defines as merged to main and live in
+      prod: 66f0b59 and aa8052a are on staging only. It closes to shipped in the
+      promotion that carries them.
+      THE SURFACING IS A LATENT GUARD, AND THE CLEAN SWEEP IS NOT EVIDENCE THAT
+      IT WORKS. Zero discarded rows estate-wide means NO DATA EXISTS TODAY THAT
+      WOULD RENDER IT — not on production, not on staging, not on dev. So the
+      note has never been observed on screen and cannot be, until the data
+      changes. A CLEAN SWEEP PROVES THERE IS NOTHING TO SURFACE, NOT THAT THE
+      SURFACING RENDERS. The predicate underneath it is proven by fixture
+      (verify-store-hours-engine.ts, 24 assertions, shown failing) and the pages
+      compile, and that is the whole of what has been established. ITS FIRST REAL
+      TEST IS THE DAY SOMEONE ENTERS AN OVERNIGHT WINDOW. Anyone reading this row
+      later must not promote the sweep's cleanliness into a claim about the
+      signal; they are different claims and only one of them has been checked.
+      THE SHAPE AUDIT IS A MEASUREMENT OF THE TRANSCRIPT, NOT OF THE DATABASE.
+      Gary hand-transcribed rows.json and census.json from the Neon console, so
+      what the sweep read was a transcript and every conclusion above inherits
+      that. The audit checked field names and types, HH:MM on every time,
+      dayOfWeek in range, no duplicate (store, dayOfWeek) against the schema's
+      @@unique, a complete Sun..Sat per store, and the census summing to 21 — and
+      it caught nothing. A VALID-BUT-WRONG VALUE WOULD PASS EVERY ONE OF THOSE
+      CHECKS: 07:00 typed where the console said 17:00 is well-formed, in range,
+      unique and complete. Stated so the sweep's authority is not overread.
+      W4 FIRED ON UNR SAT AND SUN AND THE ENGINE USES THOSE ROWS ANYWAY — THE
+      FIRST LIVE CASE OF THE TWO PREDICATES DIVERGING IN THE HARMLESS DIRECTION.
+      Everything this row has recorded until now is about the harmful direction:
+      the validator silent while the engine discards. This is the mirror. UNR
+      closes 17:00 at weekends against a 21:00 midweek median, more than W4's
+      three-hour tolerance, so the editor asks a question — and admission never
+      consulted the validator, so the engine plans 10-17 regardless. BOTH
+      BEHAVIOURS ARE CORRECT AND THE PAIR IS THE POINT: "clean" and "used" are
+      independent, in both directions, and this is the first time the estate has
+      demonstrated it rather than a fixture asserting it.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
