@@ -2,9 +2,9 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## PENDING-SHA-SHORT — PENDING-DATE — R7-E: manager on the floor — the band stops feeding the numbers
+## 817b3ef — 2026-08-23 — R7-E: manager on the floor — the band stops feeding the numbers
 
-**Merge SHA:** `PENDING-SHA-FULL`
+**Merge SHA:** `817b3efba1be1d42dbf86dd6ccddc029aded0522`
 **Written before the merge existed.** The heading's SHA and date and the Merge
 SHA line above are stamped by the promotion ritual from `git rev-parse` and
 `date`, never hand-typed. Three placeholder tokens, all of them on the heading
