@@ -2,9 +2,9 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## PENDING-SHA-SHORT — PENDING-DATE — DOC-3: a library document can be a link, and any document can carry instructions
+## 607926b — 2026-08-24 — DOC-3: a library document can be a link, and any document can carry instructions
 
-**Merge SHA:** `PENDING-SHA-FULL`
+**Merge SHA:** `607926bb5f9d0201b9f60c706eddb03ca4588abc`
 **Written before the merge existed.** The heading's SHA and date and the Merge
 SHA line above are stamped by the promotion ritual from `git rev-parse` and
 `date`, never hand-typed. Three placeholder tokens, all of them on the heading
