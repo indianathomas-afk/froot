@@ -422,6 +422,87 @@ phases:
       `open` carry the same defect, deliberately unfixed by Gary's ruling since
       no count on the page reads them).
       Session prompt: docs/prompts/P-4_blockers_panel_status.md
+      RE-AUDITED 2026-08-23 — THE WHOLE FILE, EVERY BLOCKER ENTRY, AND THE ANSWER
+      IS ZERO. Appended per preserve-and-mark; nothing above is edited. The
+      question was how many entries besides R7-C's carry the old PERM-6
+      convention — closed in prose, never flagged — and so count LIVE on
+      /internal/roadmap. 56 entries across 21 phases: 22 resolved, 3 narrowed,
+      31 bare. NOT ONE bare entry is an unambiguous unflagged closure, so
+      NOTHING WAS FLAGGED THIS SESSION and the file is unchanged apart from this
+      note.
+      THE INVERSE — an entry FLAGGED resolved whose prose does not support it,
+      which is the direction that HIDES a live blocker — ALSO CAME BACK ZERO.
+      Ten flagged entries tripped a still-live-language matcher and all ten read
+      clean on inspection. Six were "CLEARS WHEN ..." originals sitting under a
+      flag added later, which is the convention working exactly as the header
+      describes: the prose is never edited, so a correctly-flagged entry KEEPS
+      language that sounds live, and the closure lives in a separate entry
+      prepended above it. PERM-6:2 is the sharpest case — its own text says "this
+      blocker STAYS OPEN" and it is nonetheless correctly flagged, because
+      PERM-6:0 closes it. A matcher reading entries in isolation would call that
+      a false flag; it is not.
+      THE FIVE PROSE HITS ARE ALL AMBIGUOUS AND ARE LISTED FOR RULING, NOT
+      FLAGGED. F-4:0, HR-11c:0, L-2:0, L-2:1, L-2:3 and L-2:5 each open by
+      announcing something closed and then NAME A SURVIVING REMAINDER in their
+      own text — "that half of the entry below stays open" (F-4:0), "covers ONE
+      live item" (HR-11c:0), "STAGED, NOT PROMOTED" (L-2:0), "ADDED, NOT YET
+      GRANTED" (L-2:1). Flagging any of them would silence a live fact, which is
+      the failure mode a blocker exists to prevent. They are candidates for
+      NARROWED, which is a ruling, not a bookkeeping fix.
+      L-2:4 WAS CHECKED ITEM BY ITEM AND IS CORRECTLY LIVE. Its "CLEARS WHEN all
+      four are done" names LABOR-0 (done, L-2:3), the version bump (done, L-2:0),
+      the labor scopes (added, L-2:1) and EVERY MERCHANT RE-CONSENTS — which has
+      not happened, and L-2:1 says so in terms. Three of four is not four.
+      THE REAL OVER-COUNT HAS A DIFFERENT CAUSE THAN THIS ROW ASSUMED, AND IT IS
+      STRUCTURAL RATHER THAN A MISSING FLAG. Eight of the 31 live entries are
+      PREPENDED CLOSURE NOTES — F-4 carries 3 of its 5, L-2 carries 4 of its 6,
+      IG-1 carries 1 of 3. Each is a note written to close something below it,
+      and each is counted as a blocker in its own right. So F-4 reads as five
+      live gates when it has two, plus three notes about them. The prepend
+      convention inflates the count even when every flag is correct. NOT FIXED
+      HERE, and not fixable by flagging: the notes carry live remainders too.
+      WHAT WOULD STOP IT RECURRING — PROPOSED, NOT BUILT, awaiting Gary. A check
+      in the roadmap generator that WARNS when a bare entry OPENS with a closing
+      verb and a date and names no remainder. It runs on every `npm run build`
+      and every `npm run dev` via the existing prebuild/predev hooks, so it needs
+      nobody to remember it, which the promotion-checklist grep would.
+      IT IS NOT THE PREFIX DETECTION THIS ROW REJECTED, and the difference is the
+      job it does. This row rejected prefix matching as a CLASSIFIER — something
+      that decides an entry is closed — on the evidence that F-5's live blocker
+      opens "VERIFIED STILL TRUE" and F-4's opens "CONFIRMED LIVE". That
+      rejection stands and nothing here weakens it. A WARNING never closes
+      anything; it asks a human to look, and it fails toward asking rather than
+      toward understating, which is the direction this row cares about. It is
+      also far narrower: it requires a closing verb IMMEDIATELY FOLLOWED BY A
+      DATE, so "VERIFIED STILL TRUE 2026-07-27" and "CONFIRMED LIVE 2026-07-27"
+      do not match it at all.
+      BACKTESTED BEFORE PROPOSING. Against 7533613 — the commit before af407b3
+      flagged R7-C's three — it fires ONCE, on R7-C:1, which is exactly the entry
+      af407b3's message names as having been over-counted since 2026-08-22.
+      Against HEAD it fires ZERO times, and suppresses F-4:0 on the remainder
+      clause. One true positive, no false positives, on both sides of the fix.
+      A NOISY CHECK WOULD BE WORSE THAN NONE, which is why it was backtested
+      rather than reasoned about. The coarse prose matcher this audit opened with
+      produced five hits and all five were false; a warning built on THAT would
+      have cried wolf five times on every build from its first day and been
+      ignored inside a week.
+      RULED BY GARY 2026-08-23, BOTH HALVES. (1) THE SIX CANDIDATES STAY AS THEY
+      ARE — "each names a live remainder in its own text; narrowing accurate
+      prose to fix a count is the wrong repair". So F-4:0, HR-11c:0, L-2:0,
+      L-2:1, L-2:3 and L-2:5 are settled, not pending, and a future audit should
+      stop re-deriving them: they are correct as written and the `narrowed` flag
+      is not the tool for them. (2) THE PREPEND INFLATION IS THE REAL DEFECT and
+      is filed as its own row, DEBT-84, rather than carried as a comment here.
+      THE GENERATOR CHECK IS BUILT — Gary's word given 2026-08-23, as proposed
+      and as backtested. scripts/generate-roadmap.mjs warns when a BARE blocker
+      entry opens with a closing verb immediately followed by a date and names no
+      surviving remainder. It warns and never throws; it runs on every build and
+      every dev start through the existing prebuild/predev hooks, so nothing has
+      to be remembered. Both output paths were exercised — singular against
+      7533613 (fires once, on R7-C:1, exit 0), plural against a synthetic
+      two-hit file — and it is silent at HEAD.
+      Recorded at 658d9db.
+      Audit prompt: docs/prompts/SWEEP_AND_FLAG_AUDIT.md (Track B).
 
   - id: UX-1
     track: platform
@@ -8225,77 +8306,109 @@ phases:
       day split and would be silent corruption for a person.
       hasGm IS NO LONGER THE HAZARD — the fallback it guarded no longer exists.
       A store with no allocation getting no GM band IS the ruling working.
+      RULED 2026-08-23 BY GARY — THE FIRST BLOCKER CLEARS, AND R7 CLOSES WITH IT.
+      Gary's words: "R7-C's first blocker clears. The harm it named was that both
+      stores' numbers believe the manager is on the floor at the same time. After
+      R7-E, neither store's numbers believe anything about her hours — headcount,
+      Suggested and peak have all stopped reading the band. What's left is a label
+      at two stores that doesn't disclose the split, and that's L-4's job,
+      recorded on that row. With R7-E shipped, R7 closes."
+      IT CLEARED ON NEITHER BRANCH THE CLAUSE ANTICIPATED. The entry's own
+      condition was "L-4 lands, or Gary rules that the double-drawn band is
+      acceptable and it is labelled on the coverage surface." L-4 has not landed,
+      and the second branch understates what happened: the band is not merely
+      LABELLED, it NO LONGER FEEDS ANY NUMBER. R7-E (817b3ef) took the manager out
+      of headcount, out of suggestedHours and out of the peak. A clause written to
+      be satisfied by disclosure was satisfied by removal instead. Full reasoning
+      in docs/DECISIONS.md § "R7 closed on a stronger basis than the row
+      anticipated".
+      ALL THREE BLOCKER ENTRIES NOW CARRY resolved: true, AND ONE OF THEM HAD BEEN
+      SILENTLY OVER-COUNTED SINCE 2026-08-22. The second entry opens "CLEARED
+      2026-08-22" and closes the third by the prepend convention, but neither
+      carried a flag, so /internal/roadmap counted two closed gates as live for a
+      day — exactly the defect P-4 added the flag to fix, recurring because the
+      prepend convention and the flag convention were both in use and only the
+      flag is read. THE PROSE OF ALL THREE IS BYTE-IDENTICAL, verified by parsing
+      the YAML before and after and diffing the rendered strings (md5
+      cf0ee1477643c7d180274bdbdd756333 both sides). Only the indentation moved,
+      which the flagged shape requires.
+      R7 IS CLOSED. R7-B withdrawn (superseded by the allocation ruling), R7-C
+      shipped and now unblocked, R7-D shipped (4d0edd4), R7-E shipped (817b3ef).
+      No R7 row carries a live blocker.
     blockers:
-      - >
-        THE GM ON-FLOOR WINDOW IS PER-STORE AND UNALLOCATED — the new hazard, and
-        it is NOT solvable on this row. labor-plan.ts:206-215 builds the band from
-        LaborSettings.gmOnFloorStartMinutes/EndMinutes, which is per STORE. With
-        Kristie at 50/50, Las Brisas and UNR each draw a GM on-floor band from
-        their own settings, on the same days, for the same person, and the weekly
-        credit ceiling does not help because each store caps at its OWN 20 hours
-        independently.
-        THE HOURS ARITHMETIC IS CORRECT — 20 + 20 = her 40. What is wrong is the
-        COVERAGE SHAPE: both stores may believe she is on the floor 7a-3p Monday.
-        WHICH SPECIFIC DAYS AND HOURS A NAMED PERSON WORKS IS L-4 BY CONSTRUCTION.
-        CLEARS WHEN: L-4 lands, or Gary rules that the double-drawn band is
-        acceptable and it is labelled on the coverage surface.
-      - >
-        CLEARED 2026-08-22 — the blocker below is satisfied and is kept verbatim.
-        Production manifest signed by Gary (docs/prompts/r7c_production_manifest_2026-08-22.md),
-        promoted at merge 35d002a, and AFTER MATCHES PREDICTED AT ALL NINE
-        BUDGETED STORES: Carson 193.0, Las Brisas 247.5, Meadowood 193.0, South
-        Reno 220.5, Southgate 179.0, Spanish Springs 165.5, Sparks 179.0, UNR
-        54.0, University Village 151.5. salariedCost 0 / salariedHours 0 at the
-        seven unallocated stores; 500 / 20 at Las Brisas and UNR.
-        blendedHourlyRate held at 14.50 at every store — the canary survived a
-        schema change, two migrations and a deliberate nine-store re-baseline.
-        Cafe De Keva Cart and Keva Kiosk were excluded by Gary's call, not
-        oversight: both returned budget:null in the BEFORE and cannot move.
-        THE RUNBOOK'S CAVEAT STANDS: an empty diff does not prove the
-        PERCENTAGES are right, only that the arithmetic obeyed them. Gary's
-        signature was the gate.
-        STEP 2 WAS NOT FOLLOWED AND COULD NOT BE — Gary's deviation, 2026-08-22:
-        "The runbook's step-2-before-code sequence was not followed and could not
-        be: LaborSalariedPerson and the Salaried people card ship with the deploy,
-        so there is nowhere to enter the data beforehand. The window was accepted
-        and closed by hand immediately after the deploy read Ready. Nine stores
-        were correct on deploy; Las Brisas and UNR carried nothing for its
-        duration. Future promotions of this shape need the data path to exist
-        before the ruling that depends on it — or the ruling must admit the window
-        explicitly."
-        S5-D61 ANTICIPATED THIS: hasIncompleteAllocation is reported and not
-        strict precisely because a BEFORE taken before data entry and an AFTER
-        taken after can legitimately differ.
-        THE STAGING NULL-VS-FALSE QUESTION IS ANSWERED: it was NULL. Gary's
-        toggle-on-and-off did not land, the badge still read "Not reviewed", and
-        the filter fix is what admitted her. One cause, no second defect.
-      - >
-        PROMOTION CANNOT BE SIGNED OFF AGAINST STAGING — only 5 of 12 staging
-        stores carry a forecast, and forecast goals are PER-ENVIRONMENT stored
-        data (GoalPlan per Neon branch; a code deploy carries none of it). A
-        staging sign-off would understate the estate.
-        THE SEQUENCE, AND STEP 2 IS THE ONE THAT CANNOT BE AUTOMATED: capture
-        production BEFORE for EVERY store (not only budgeted ones) -> ENTER THE
-        DATA ON PRODUCTION FIRST (Kristie's person + 50/50 allocation; exempt on
-        Kelton, Karson, Taylin) -> predict + manifest -> GARY SIGNS LINE BY LINE
-        -> deploy -> capture AFTER -> diff --expect.
-        STEP 2 PRECEDES THE CODE BY RULING. Otherwise promotion runs a window in
-        which Las Brisas and UNR carry nothing, which is exactly the silent
-        strip Gary's promotion-order ruling exists to prevent.
-        CLEARS WHEN: a production manifest is signed and AFTER matches PREDICTED.
-        THE RUNBOOK IS WRITTEN AND NOTHING IN IT HAS BEEN RUN —
-        docs/prompts/R7C_PRODUCTION_RUNBOOK.md. It carries both options Gary was
-        asked to choose between (manual entry through the UI, RECOMMENDED, or a
-        seeding script), the Neon SQL for the four Square ids, the exact capture
-        and predict commands, and a section on what an empty strict diff does and
-        does NOT establish — most importantly that it does not prove the
-        PERCENTAGES are right, only that the arithmetic followed them, which is
-        why Gary's signature is the gate and the diff only proves the deploy
-        obeyed it.
-        VERIFIED DURING THE BUILD, so the flip is not merely asserted: the
-        manifest reproduces the audit's numbers exactly; a seeded blendedHourlyRate
-        leak fails the diff at every store; and BEFORE vs PREDICTED reports 25
-        mismatches, which is the OLD gate being dead on purpose.
+      - resolved: true
+        text: >
+          THE GM ON-FLOOR WINDOW IS PER-STORE AND UNALLOCATED — the new hazard, and
+          it is NOT solvable on this row. labor-plan.ts:206-215 builds the band from
+          LaborSettings.gmOnFloorStartMinutes/EndMinutes, which is per STORE. With
+          Kristie at 50/50, Las Brisas and UNR each draw a GM on-floor band from
+          their own settings, on the same days, for the same person, and the weekly
+          credit ceiling does not help because each store caps at its OWN 20 hours
+          independently.
+          THE HOURS ARITHMETIC IS CORRECT — 20 + 20 = her 40. What is wrong is the
+          COVERAGE SHAPE: both stores may believe she is on the floor 7a-3p Monday.
+          WHICH SPECIFIC DAYS AND HOURS A NAMED PERSON WORKS IS L-4 BY CONSTRUCTION.
+          CLEARS WHEN: L-4 lands, or Gary rules that the double-drawn band is
+          acceptable and it is labelled on the coverage surface.
+      - resolved: true
+        text: >
+          CLEARED 2026-08-22 — the blocker below is satisfied and is kept verbatim.
+          Production manifest signed by Gary (docs/prompts/r7c_production_manifest_2026-08-22.md),
+          promoted at merge 35d002a, and AFTER MATCHES PREDICTED AT ALL NINE
+          BUDGETED STORES: Carson 193.0, Las Brisas 247.5, Meadowood 193.0, South
+          Reno 220.5, Southgate 179.0, Spanish Springs 165.5, Sparks 179.0, UNR
+          54.0, University Village 151.5. salariedCost 0 / salariedHours 0 at the
+          seven unallocated stores; 500 / 20 at Las Brisas and UNR.
+          blendedHourlyRate held at 14.50 at every store — the canary survived a
+          schema change, two migrations and a deliberate nine-store re-baseline.
+          Cafe De Keva Cart and Keva Kiosk were excluded by Gary's call, not
+          oversight: both returned budget:null in the BEFORE and cannot move.
+          THE RUNBOOK'S CAVEAT STANDS: an empty diff does not prove the
+          PERCENTAGES are right, only that the arithmetic obeyed them. Gary's
+          signature was the gate.
+          STEP 2 WAS NOT FOLLOWED AND COULD NOT BE — Gary's deviation, 2026-08-22:
+          "The runbook's step-2-before-code sequence was not followed and could not
+          be: LaborSalariedPerson and the Salaried people card ship with the deploy,
+          so there is nowhere to enter the data beforehand. The window was accepted
+          and closed by hand immediately after the deploy read Ready. Nine stores
+          were correct on deploy; Las Brisas and UNR carried nothing for its
+          duration. Future promotions of this shape need the data path to exist
+          before the ruling that depends on it — or the ruling must admit the window
+          explicitly."
+          S5-D61 ANTICIPATED THIS: hasIncompleteAllocation is reported and not
+          strict precisely because a BEFORE taken before data entry and an AFTER
+          taken after can legitimately differ.
+          THE STAGING NULL-VS-FALSE QUESTION IS ANSWERED: it was NULL. Gary's
+          toggle-on-and-off did not land, the badge still read "Not reviewed", and
+          the filter fix is what admitted her. One cause, no second defect.
+      - resolved: true
+        text: >
+          PROMOTION CANNOT BE SIGNED OFF AGAINST STAGING — only 5 of 12 staging
+          stores carry a forecast, and forecast goals are PER-ENVIRONMENT stored
+          data (GoalPlan per Neon branch; a code deploy carries none of it). A
+          staging sign-off would understate the estate.
+          THE SEQUENCE, AND STEP 2 IS THE ONE THAT CANNOT BE AUTOMATED: capture
+          production BEFORE for EVERY store (not only budgeted ones) -> ENTER THE
+          DATA ON PRODUCTION FIRST (Kristie's person + 50/50 allocation; exempt on
+          Kelton, Karson, Taylin) -> predict + manifest -> GARY SIGNS LINE BY LINE
+          -> deploy -> capture AFTER -> diff --expect.
+          STEP 2 PRECEDES THE CODE BY RULING. Otherwise promotion runs a window in
+          which Las Brisas and UNR carry nothing, which is exactly the silent
+          strip Gary's promotion-order ruling exists to prevent.
+          CLEARS WHEN: a production manifest is signed and AFTER matches PREDICTED.
+          THE RUNBOOK IS WRITTEN AND NOTHING IN IT HAS BEEN RUN —
+          docs/prompts/R7C_PRODUCTION_RUNBOOK.md. It carries both options Gary was
+          asked to choose between (manual entry through the UI, RECOMMENDED, or a
+          seeding script), the Neon SQL for the four Square ids, the exact capture
+          and predict commands, and a section on what an empty strict diff does and
+          does NOT establish — most importantly that it does not prove the
+          PERCENTAGES are right, only that the arithmetic followed them, which is
+          why Gary's signature is the gate and the diff only proves the deploy
+          obeyed it.
+          VERIFIED DURING THE BUILD, so the flip is not merely asserted: the
+          manifest reproduces the audit's numbers exactly; a seeded blendedHourlyRate
+          leak fails the diff at every store; and BEFORE vs PREDICTED reports 25
+          mismatches, which is the OLD gate being dead on purpose.
 
   - id: R7-D
     track: labor
@@ -8620,6 +8733,27 @@ phases:
       L-2 and L-4 should be batched into ONE consent moment rather than two.
       Naming: SquareScheduledShift, never a bare `Shift` — see L-2 DON'T #2, the
       word is already spent twice in this codebase.
+      INHERITED FROM R7-C 2026-08-23, WHEN GARY CLEARED ITS FIRST BLOCKER — THE
+      LABEL AT TWO STORES DOES NOT DISCLOSE THE SPLIT, AND THAT IS THIS ROW'S JOB.
+      R7-E took the manager out of every number, so the double-drawn band no longer
+      corrupts headcount, Suggested or the peak. WHAT SURVIVES IS VISUAL AND IT IS
+      SMALL: the band still draws at BOTH Las Brisas and UNR on the same day, each
+      legend reading "Manager expected {start}-{end}", and neither says she is also
+      expected at the other store. A reader on one store's chart cannot tell she is
+      50/50. Gary: "What's left is a label at two stores that doesn't disclose the
+      split, and that's L-4's job, recorded on that row."
+      NOT A BLOCKER ON THIS ROW AND NOT A DEFECT ON ANY OTHER. It is the residue of
+      a hazard whose numeric half is closed, parked here because WHICH SPECIFIC
+      DAYS AND HOURS A NAMED PERSON WORKS is what this row exists to answer — once
+      the assignment layer knows she is at Las Brisas Monday and UNR Tuesday, the
+      band can draw where she actually is and the disclosure question dissolves
+      rather than needing its own feature.
+      DO NOT SOLVE IT BY WIDENING THE LABEL. "Manager expected 07:00-14:00 (also
+      expected at UNR)" is a per-store surface asserting a fact about another
+      store, which is the shape of cross-store leak the labor surfaces have
+      otherwise avoided; and it would harden a 50/50 split into copy at the moment
+      this row is about to make the split real. Read it together with R7-C's first
+      blocker, which carries the original hazard verbatim.
     blockers:
       - >
         BEHIND L-2 — promoted from this row's prose to a blocker entry
@@ -13514,8 +13648,8 @@ bugs:
       DEBT-69 (coalescing, which would reduce the N-syncs cost of one posture).
 
   - id: BUG-14
-    status: in_progress
-    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4, 817b3ef]
+    status: staging
+    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4, 817b3ef, 66f0b59, aa8052a, e4cc40d]
     title: >
       The store hours editor accepted impossible hours in silence, and a wrong
       open time lands straight in the labor forecast
@@ -13674,6 +13808,226 @@ bugs:
       Related: DEBT-83 (the hardcoded 14:00 that makes a bad open time
       expensive), BUG-11/BUG-12 (the editor-vs-route precedent this module's
       shape exists to honour), L-3 (where sales inference was first flagged).
+      THE SURFACING IS BUILT — ITEMS (a) AND (b), 2026-08-23. Appended per
+      preserve-and-mark; nothing above is edited. The engine's admission rule and
+      its two parsers MOVED OUT OF labor-plan.ts into a new dependency-free
+      module, src/lib/store-hours-window.ts, and labor-plan.ts imports the rule
+      and RE-EXPORTS the parsers so every existing call site is unchanged. The
+      move is the whole answer to item (a): the check had to name the ENGINE's
+      predicate rather than the editor's, the asker is a client component, and
+      labor-plan.ts imports prisma on its first line — so the rule could not
+      simply be exported from where it stood. It is now written ONCE. A second
+      spelling of `e > s` in a component would have been BUG-11/BUG-12 a third
+      time, on the row whose own module exists to honour that precedent.
+      LIFTED VERBATIM. parseHourStart and parseHourEnd moved unchanged, comments
+      and all, including the midnight-close ruling shipped in 817b3ef. This is a
+      relocation, not a behaviour edit, and scripts/verify-labor-coverage.ts —
+      which imports both from labor-plan and pins parseHourEnd("00:00") at 24 —
+      still passes untouched, which is the evidence for that claim.
+      WHAT IS NOW ON SCREEN, ITEM (b). Two surfaces, one predicate. The store
+      card (stores/page.tsx) names the days whose visible hours the model will
+      not read; the hours dialog (stores/store-hours-button.tsx) says it against
+      the offending row, recomputed from FORM state on every keystroke like the
+      validator beside it. The dialog asks ONLY where the editor is already
+      satisfied — a half-filled day is red on B2 above and does not need a second
+      sentence about a state it cannot be saved in. WHAT THAT LEAVES is exactly
+      the case the row exists for: everything on the row accepted, and the model
+      still not reading it. An overnight window, which this dialog's own footer
+      promises is fine.
+      A CLOSED DAY AND AN EMPTY DAY ARE NOT FLAGGED, DELIBERATELY. The classifier
+      has four answers, not two — closed / undecided / used / discarded — and
+      only `discarded` is a disagreement between what is shown and what is used.
+      Warning on a Closed day would tell an operator to fix what they already
+      did, which is CHK-4's own rule one file over.
+      THE COPY IS PROPOSED, NOT RULED. The prompt reserved the wording to Gary,
+      so all three strings sit in ONE exported object (ENGINE_DISCARDED_COPY) at
+      the foot of store-hours-window.ts and settling them is a single edit that
+      both surfaces inherit. What they may NOT do is imply the hours are wrong —
+      they are not wrong, an overnight window is legitimate data this dialog
+      invites, and the refusal to read it is the engine's limit (CUTOFF-1). The
+      word is "unused", never "questionable"; calling the hours doubtful when the
+      truth is that nothing reads them is the worse state the 2026-08-23 ruling
+      turned down.
+      FIXTURE FIRST, SHOWN FAILING. scripts/verify-store-hours-engine.ts, the
+      sibling of verify-store-hours.ts, 24 assertions. Shown failing by flipping
+      the shared predicate from `e > s` to `e >= s`: 3 failures, one of them in
+      the drift-guard section, which is the guard firing rather than a fixture
+      merely being red. IT IMPORTS THE PARSERS FROM labor-plan, NOT FROM THE
+      MODULE, on purpose — reaching through the re-export is what makes a future
+      change to labor-plan break this test, which is what the prompt asked for.
+      It also asserts the two are the SAME function objects, so re-privatising a
+      parser fails here rather than silently.
+      ITEM (c) IS BUILT AND UNRUN. scripts/sweep-store-hours.ts now carries a
+      second verdict per row — the ENGINE column — through the same shared
+      module, and reports a row when EITHER predicate has something to say. The
+      silence on a validator-clean overnight row was the defect, so those rows
+      now print with "clean" beside "DISCARDED -> sales inference". Verified on
+      a synthetic export of all four shapes: 3 discards across 2 stores, and the
+      01:00 open showing the inverse — W3 warned, and the engine USES it.
+      THE DEPLOYED SWEEP IS STILL OUTSTANDING AND THIS ROW STAYS in_progress FOR
+      THAT REASON ALONE. It is blocked on a Neon console export, which the
+      credential rule puts in Gary's hands and not this session's; the SQL was
+      handed over with it. Ten of twelve stores have never been swept. The
+      surfacing did not wait for it, per this row's own ORDER OF RECORD above.
+      LINE-NUMBER CORRECTION TO THE CORRECTION ABOVE, NAMED AND NOT EDITED. The
+      paragraph above rules that the surfacing check "must key to `:273`". It
+      does not, and cannot: 817b3ef's midnight-close comment pushed the predicate
+      down and it stood at `:286` when this session opened it. THE CHECK KEYS TO
+      NEITHER LINE ANY MORE, which is the better outcome — it calls the shared
+      function, so the citation is a module name rather than a line number and
+      the next fix to these parsers cannot strand it. labor-plan.ts:286 is now
+      the CALL to engineOpenWindow, and the block that replaced the parsers was
+      held at the replaced block's line count on purpose so that reference is
+      still true.
+      GATE: scoped npx eslint on all six touched files clean, bare npm run build
+      exit 0 with zero error lines, and the three fixtures (store-hours,
+      store-hours-engine, labor-coverage) all green.
+      NOT SEEN IN A BROWSER. The predicate is proven by fixture and the pages
+      compile; the rendered note has not been observed on a real store card,
+      because no store on the dev branch holds a discarded row to render it from.
+      Said plainly rather than left to be assumed from a green gate.
+      RECORDED AT 66f0b59. The work commit; this line is its recorder, per the
+      two-commit pattern. Item (c)'s ENGINE column rides the same SHA and is
+      unrun against deployed data.
+      COPY APPROVED BY GARY 2026-08-23, WITH ONE CHANGE, AND THE CONDITION HE SET
+      RESOLVED AGAINST THE STRING. He approved the three proposed strings and
+      asked that "Saved, but " be dropped from the dialog line UNLESS it renders
+      only after a successful save. IT DOES THE OPPOSITE, twice over: the flag is
+      computed from FORM state inside the render, so it appears while the
+      operator is still typing, and a successful save calls setOpen(false), so
+      the line is never on screen after one. Dropped. The dialog now reads "The
+      Weekly Labor Model will not use this day — coverage is inferred from past
+      sales instead." The reasoning is recorded in the constant's own comment so
+      nobody restores the prefix on the assumption it was a post-save notice.
+      CORRECTION TO THIS ROW'S OWN CLAIM, SAME DAY. The block above says the
+      parsers were "lifted verbatim, comments and all". THE CODE WAS; THE
+      COMMENTS WERE NOT, QUITE. Diffed against af407b3's labor-plan.ts:52-72:
+      two comment lines differ, because the moved copy drops the ", :286" line
+      citation from the midnight-close note and reflows the sentence around it —
+      the rule is no longer at :286 of that file, so keeping the citation would
+      have carried a pointer that was false on arrival. TEN EXECUTABLE LINES,
+      BYTE-IDENTICAL ON BOTH SIDES, md5 f18cf4f1f58a8e51e1baaa42ef77bcb3. The
+      claim was overstated and is corrected rather than quietly narrowed; "the
+      code is identical and two comment lines were reflowed" is what is true.
+      PROOF THAT THE EXTRACTION MOVED NOTHING, ASKED FOR BY GARY AND ANSWERED
+      WITH A DIFFERENT INSTRUMENT THAN THE ONE HE NAMED. He asked for
+      verify-labor-budget.ts byte-identical, md5 both sides, on the reasoning
+      that the predicate decides typed hours vs sales inference and so feeds the
+      open window and the day split. IT IS BYTE-IDENTICAL — md5
+      f0ce67bd3b9ddb557a974dbe7fa16914 on both sides — AND THAT PROVES NOTHING.
+      verify-labor-budget.ts imports labor-budget.ts and NOTHING ELSE; it never
+      reaches labor-plan.ts, so the predicate is not in its dependency graph.
+      Demonstrated rather than argued: with engineOpenWindow sabotaged to return
+      null for every row — every store on sales inference — the fixture still
+      emits the same bytes and the same md5. A green result from an instrument
+      that cannot detect the failure is not evidence.
+      SO THE PROOF WAS BUILT TO MATCH THE DECISION HE NAMED. A differential
+      harness ran the OLD inline predicate against the NEW shared one over
+      2,074,842 input pairs — every minute of the day against every other minute,
+      1440 x 1440, plus nulls, empty strings, "24:00", "8:00", "08:0", "abc",
+      "99:99" and "08:00:00". The old side was NOT retyped: its parsers were
+      imported from a verbatim copy of labor-plan.ts at af407b3, and its
+      admission expression was EXTRACTED FROM THAT FILE'S OWN TEXT at line 286
+      and compiled, so no transcription of mine sits on the control side. ZERO
+      DISAGREEMENTS. md5 of the full decision vector — window or SALES-INFERENCE
+      for every pair — f74111242928a692f2acf640544cd7d0 on both sides. The
+      harness was then shown SENSITIVE by flipping `e > s` to `e >= s`, which
+      diverges the md5 immediately, so its silence means something.
+      THE HARNESS WAS TEMPORARY AND IS NOT IN THE TREE. Its standing replacement
+      is verify-store-hours-engine.ts, which asserts the same predicate through
+      labor-plan's re-export on every run.
+      THE DEPLOYED SWEEP IS DONE — 2026-08-23, PRODUCTION BRANCH, ENDPOINT
+      ep-green-smoke. This discharges item (c) and the ONLY reason this row was
+      still in_progress. Read through the Neon console per the credential rule;
+      no deployed credential was pulled. Gary ran Query 1 (the row export) and
+      Query 2 (the per-store census) and transcribed both by hand.
+      THE RESULT IS CLEAN ON BOTH PREDICATES. 21 StoreHours rows across 3 of 12
+      stores. ZERO blocking. ZERO unparseable times. ZERO ENGINE DISCARDS — all
+      21 rows are admitted and the labor model plans on exactly the hours on
+      screen at those three stores. The known-discarded shapes this row was
+      written about are ABSENT FROM PRODUCTION: no overnight window, no
+      zero-length day, no one-sided row, and no midnight close either.
+      THE WINDOWS, so the measurement is legible and not just a count. Las Brisas
+      7-21 Mon-Fri, 8-21 Sat, 9-20 Sun. Southgate 8-21 Mon-Sat, 9-20 Sun. UNR
+      8-21 Mon-Fri, 10-17 Sat and Sun.
+      TWO WARNINGS, BOTH W4:close, BOTH UNR, AND NEITHER IS AN ERROR. UNR closes
+      at 17:00 on Saturday and Sunday against 21:00 the rest of the week, which
+      is more than W4's three-hour tolerance from the median of its other days.
+      That is a campus store keeping short weekend hours — exactly the shape W4
+      was built to ASK about rather than block, and the answer is yes, it is
+      deliberate. NO DATA WAS CORRECTED, per this row's standing rule. The engine
+      uses both rows regardless: a W4 warning has never had any bearing on
+      admission, and this is the first live demonstration that the two predicates
+      disagree in the harmless direction as well as the harmful one.
+      NINE OF TWELVE STORES HAVE NO StoreHours ROWS AT ALL, AND SIX OF THOSE ARE
+      LIVE. Cafe De Keva Cart, Carson, Keva Kiosk, Meadowood Mall, Rohan's
+      Restaurant, South Reno, Spanish Springs, Sparks, University Village.
+      Rohan's is unlinked (squareLocationId null, per F-4's blocker) and Keva
+      Kiosk and Cafe De Keva Cart are the seasonal pair named in
+      store-hours-validate.ts, which leaves SIX LIVE STORES — Carson, Meadowood
+      Mall, South Reno, Spanish Springs, Sparks, University Village — running
+      entirely on inferOpenWindowsByWeekday. THIS IS THE PRE-BUG-14 STATE, NOT A
+      DEFECT AND NOT A REGRESSION: it is what the whole estate looked like before
+      2026-08-23, and it is recorded here because it should be VISIBLE rather
+      than assumed from a clean sweep. A store with no rows is silent on every
+      axis this sweep measures, and that silence is not the same as being fine.
+      THE SWEEP COULD NOT SEE THEM UNTIL THIS SESSION FIXED IT (e4cc40d). Query 1
+      inner-joins Store to StoreHours, so a store with no rows contributes none
+      and the sweep counted stores from the export itself — it would have printed
+      "3 / 3" for an estate that is 3 of 12. The census is now an optional second
+      argument and the zero-row stores are named under the table.
+      GARY'S READ WAS CHECKED, NOT TAKEN, AND IT HOLDS — 21 rows, zero discarded,
+      3/12 stores with hours, all confirmed independently. HE DID NOT PREDICT THE
+      TWO W4 WARNINGS; they are the only thing the sweep found that was not in
+      the read, and they are benign.
+      THE HAND-TRANSCRIPTION WAS SHAPE-AUDITED BEFORE THE SWEEP RAN, and what
+      that can and cannot catch is worth stating. CAUGHT NOTHING, and it checked:
+      exact field names and types on all 21 rows and all 12 census entries, every
+      time matching HH:MM, dayOfWeek in 0..6, no duplicate (store, dayOfWeek)
+      pair — which would violate the schema's @@unique — all three stores holding
+      a complete Sun..Sat, no store present in the export but absent from the
+      census, and the census's hours_rows summing to exactly 21. WHAT IT CANNOT
+      CATCH is a transcription error that produces a VALID BUT WRONG value: 07:00
+      typed where the console said 17:00 is well-formed and would pass every one
+      of those checks. The sweep is therefore a measurement of the transcript,
+      and it is a point-in-time measurement of 2026-08-23.
+      STATUS FLIPPED in_progress -> staging 2026-08-23 BY GARY'S RULING, on the
+      recommendation that the work is complete and unpromoted. Every item is
+      done — (a) the shared predicate, (b) the surfacing on both surfaces, (c)
+      the deployed sweep — and nothing on this row is outstanding. What is NOT
+      true is `shipped`, which this file defines as merged to main and live in
+      prod: 66f0b59 and aa8052a are on staging only. It closes to shipped in the
+      promotion that carries them.
+      THE SURFACING IS A LATENT GUARD, AND THE CLEAN SWEEP IS NOT EVIDENCE THAT
+      IT WORKS. Zero discarded rows estate-wide means NO DATA EXISTS TODAY THAT
+      WOULD RENDER IT — not on production, not on staging, not on dev. So the
+      note has never been observed on screen and cannot be, until the data
+      changes. A CLEAN SWEEP PROVES THERE IS NOTHING TO SURFACE, NOT THAT THE
+      SURFACING RENDERS. The predicate underneath it is proven by fixture
+      (verify-store-hours-engine.ts, 24 assertions, shown failing) and the pages
+      compile, and that is the whole of what has been established. ITS FIRST REAL
+      TEST IS THE DAY SOMEONE ENTERS AN OVERNIGHT WINDOW. Anyone reading this row
+      later must not promote the sweep's cleanliness into a claim about the
+      signal; they are different claims and only one of them has been checked.
+      THE SHAPE AUDIT IS A MEASUREMENT OF THE TRANSCRIPT, NOT OF THE DATABASE.
+      Gary hand-transcribed rows.json and census.json from the Neon console, so
+      what the sweep read was a transcript and every conclusion above inherits
+      that. The audit checked field names and types, HH:MM on every time,
+      dayOfWeek in range, no duplicate (store, dayOfWeek) against the schema's
+      @@unique, a complete Sun..Sat per store, and the census summing to 21 — and
+      it caught nothing. A VALID-BUT-WRONG VALUE WOULD PASS EVERY ONE OF THOSE
+      CHECKS: 07:00 typed where the console said 17:00 is well-formed, in range,
+      unique and complete. Stated so the sweep's authority is not overread.
+      W4 FIRED ON UNR SAT AND SUN AND THE ENGINE USES THOSE ROWS ANYWAY — THE
+      FIRST LIVE CASE OF THE TWO PREDICATES DIVERGING IN THE HARMLESS DIRECTION.
+      Everything this row has recorded until now is about the harmful direction:
+      the validator silent while the engine discards. This is the mirror. UNR
+      closes 17:00 at weekends against a 21:00 midweek median, more than W4's
+      three-hour tolerance, so the editor asks a question — and admission never
+      consulted the validator, so the engine plans 10-17 regardless. BOTH
+      BEHAVIOURS ARE CORRECT AND THE PAIR IS THE POINT: "clean" and "used" are
+      independent, in both directions, and this is the first time the estate has
+      demonstrated it rather than a fixture asserting it.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
@@ -21526,6 +21880,66 @@ debt:
       (labor-plan.ts:249, :282) and gmHoursByDay stays all zeros. Recorded here
       on the row rather than as its own row: it is evidence for this row's
       claim, not a separate defect.
+  - id: DEBT-84
+    status: planned
+    title: >
+      A prepended closure note is counted as a blocker in its own right, so
+      /internal/roadmap over-states live gates even when every flag is correct
+    notes: >
+      FILED 2026-08-23 BY THE TRACK B FLAG AUDIT, AND IT IS THE FINDING THAT
+      AUDIT ACTUALLY PRODUCED. The audit went looking for P-4's defect — entries
+      closed in prose and never flagged — and found NONE. 56 blocker entries
+      across 21 phases, 22 resolved, 3 narrowed, 31 bare, and not one bare entry
+      is an unflagged closure. The full sweep is recorded on P-4. What it found
+      instead is this, and this is structural rather than a bookkeeping slip.
+      THE MECHANISM. PERM-6's convention closes a blocker by PREPENDING a note
+      ABOVE it in the same array. The note is a new ARRAY ENTRY, and the panel
+      counts array entries. So closing a blocker by the prepend convention ADDS
+      ONE to the live count at the moment it removes one — or, when the closed
+      entry is also flagged, leaves the note behind as a permanent +1. Nothing is
+      mis-flagged. The count is still wrong.
+      THE MEASUREMENT, at 2026-08-23. EIGHT of the 31 live entries are prepended
+      closure notes: F-4 carries 3 of its 5, L-2 carries 4 of its 6, IG-1 carries
+      1 of 3. So F-4 reads as five live gates when it has two gates and three
+      notes about them, and L-2 reads as six when four of them are records of
+      things that are DONE. Those three rows are 12 of the 31, and 8 of those 12
+      are notes.
+      IT IS NOT FIXABLE BY FLAGGING, WHICH IS WHY IT IS A ROW AND NOT A CHORE.
+      Every one of the eight names something still live in its own text — "that
+      half of the entry below stays open" (F-4:0), "STAGED, NOT PROMOTED"
+      (L-2:0), "ADDED, NOT YET GRANTED" (L-2:1), "covers ONE live item"
+      (HR-11c:0). RULED BY GARY 2026-08-23: leave them as-is. "Narrowing accurate
+      prose to fix a count is the wrong repair." The prose is right; the counter
+      is asking it the wrong question.
+      SO THE DEFECT IS IN THE READER, NOT THE FILE — the same shape as P-4
+      itself, one level further out. P-4's finding was that the renderer could
+      not tell a closed entry from a live one, and the fix gave entries a flag to
+      carry. THIS finding is that the renderer cannot tell a GATE from a NOTE
+      ABOUT A GATE, and both are strings in the same array. DEBT-41 is the near
+      neighbour and is NOT the same thing: it is about an entry that is PARTLY
+      closed, which `narrowed` now answers. An entry that was never a gate at all
+      has no vocabulary yet.
+      WHAT NOT TO DO, RECORDED BECAUSE IT IS THE OBVIOUS WRONG MOVE. Do not
+      detect notes by their prose. P-4 rejected prefix detection as a classifier
+      on evidence and that rejection covers this too — "Prepended" appears in
+      live entries and closure notes alike, and a matcher that guessed would fail
+      toward hiding a gate. If this is fixed, it is fixed with a field the writer
+      sets, the way `resolved` and `narrowed` were.
+      COST OF DOING NOTHING: LATENT (trigger: someone reads the blockers panel to
+      answer "what is stopping promotion" and takes the count at face value).
+      DERIVED-AT-HEAD-2026-08-23. Process, not product — it falls on Gary and on
+      Claude, never on a merchant or an operator, so it is LATENT however real
+      it is, per this file's own PRODUCT vs PROCESS line. The direction is
+      OVERSTATING, which is the safe one: a real gate never disappears, it just
+      sits among notes. That is why this is `planned` and not urgent.
+      DISCONFIRMED BY: a ruling that the count is close enough to be useful and
+      the panel should be read as "entries about blocking", not "blockers", at
+      which point this becomes a label change on the panel and not work.
+      Related: P-4 (the flag, and the audit that found this), DEBT-41 (partial
+      closure — the adjacent gap, not this one), DEBT-42 (`deferred` and `open`
+      carry resolved entries too, deliberately unfixed).
+      Audit prompt: docs/prompts/SWEEP_AND_FLAG_AUDIT.md (Track B).
+
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #

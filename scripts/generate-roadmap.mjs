@@ -160,3 +160,84 @@ const sourceNote =
 console.log(
   `[roadmap] ${phases.length} phases, ${bugs.length} bugs, ${debt.length} debt, ${rulings.length} rulings — last updated from ${sourceNote}`,
 )
+
+// ─── UNFLAGGED-CLOSURE WARNING ───────────────────────────────────────────────
+//
+// ROADMAP.yaml's header says only the `resolved:` flag is read, and P-4 built
+// the flag for exactly that reason. But PERM-6's older convention — closing a
+// blocker by PREPENDING a note above it — never went away, so for a while both
+// ran at once. An entry closed in prose and never flagged keeps counting as a
+// LIVE blocker on /internal/roadmap. R7-C carried one for a day: its second
+// entry opened "CLEARED 2026-08-22" and closed the third by the prepend
+// convention, and neither had a flag until af407b3.
+//
+// THIS IS A WARNING AND IT MUST NEVER FAIL THE BUILD. It closes nothing, it
+// decides nothing, and a false positive costs a line in a log rather than a
+// deploy.
+//
+// IT IS NOT THE PREFIX DETECTION P-4 REJECTED, AND THE DIFFERENCE IS THE JOB.
+// P-4 rejected prefix matching as a CLASSIFIER — something that reads the
+// leading words and decides an entry is closed — on the evidence that F-5's
+// LIVE blocker opens "VERIFIED STILL TRUE" and F-4's opens "CONFIRMED LIVE".
+// That rejection stands and nothing here weakens it: a classifier that is wrong
+// fails toward UNDERSTATING, which is worse than the bug it fixes, while a
+// warning that is wrong only asks a human to look.
+//
+// It is also far narrower than a prefix matcher. The closing verb must be
+// IMMEDIATELY FOLLOWED BY A DATE, so "VERIFIED STILL TRUE 2026-07-27" and
+// "CONFIRMED LIVE 2026-07-27" do not match at all — the two entries P-4 named
+// as the counter-examples are structurally out of range rather than luckily
+// missed.
+//
+// THE REMAINDER CLAUSE IS WHAT KEEPS IT QUIET. The 2026-08-23 audit found five
+// entries that announce a closure and then name something still live in their
+// own text — "that half of the entry below stays open" (F-4), "STAGED, NOT
+// PROMOTED" and "ADDED, NOT YET GRANTED" (L-2). Those are accurate prose and
+// Gary ruled them left alone; warning on them would be nagging about entries
+// that are correct as written.
+//
+// BACKTESTED BEFORE IT WAS BUILT, which is the only reason to trust the
+// silence. Against 7533613 — the commit before af407b3 — it fires ONCE, on
+// R7-C's second entry, which is precisely the over-count af407b3 found by hand.
+// Against HEAD it fires ZERO times. One true positive, no false positives, on
+// both sides of the fix.
+//
+// A NOISY CHECK WOULD BE WORSE THAN NONE. The coarse prose matcher that audit
+// opened with produced five hits and all five were false; a warning built on
+// that would have been ignored inside a week. If this one ever starts crying
+// wolf, narrow it or delete it — do not learn to scroll past it.
+const CLOSING_OPENER = /^(CLEARED|RESOLVED|CLOSED|WITHDRAWN)\s+20\d\d-\d\d-\d\d\b/i
+const SURVIVING_REMAINDER =
+  /\b(STILL OPEN|STAYS OPEN|REMAINS OPEN|STILL LIVE|STILL ABSENT|NOT CLOSED|STILL OWED|DOES NOT CLOSE|ONE LIVE ITEM|NOT YET|STILL UNRESOLVED|not a live blocker)\b/i
+
+const unflaggedClosures = []
+for (const phase of phases) {
+  const entries = Array.isArray(phase.blockers) ? phase.blockers : []
+  for (const [index, entry] of entries.entries()) {
+    // Only BARE strings are candidates. An entry already carrying `resolved:`
+    // or `narrowed:` has been classified by a human and is not this check's
+    // business.
+    if (typeof entry !== "string") continue
+    const text = entry.replace(/\s+/g, " ").trim()
+    if (!CLOSING_OPENER.test(text)) continue
+    if (SURVIVING_REMAINDER.test(text)) continue
+    unflaggedClosures.push({ id: phase.id, index, text })
+  }
+}
+
+if (unflaggedClosures.length > 0) {
+  const one = unflaggedClosures.length === 1
+  console.warn(
+    `[roadmap] WARNING — ${unflaggedClosures.length} blocker ${one ? "entry opens" : "entries open"}` +
+      ` with a closing verb and a date but ${one ? "carries" : "carry"} NO \`resolved:\` flag, so` +
+      ` /internal/roadmap counts ${one ? "it" : "them"} as LIVE:`,
+  )
+  for (const hit of unflaggedClosures) {
+    console.warn(`[roadmap]   ${hit.id} blockers[${hit.index}]: "${hit.text.slice(0, 100)}…"`)
+  }
+  console.warn(
+    "[roadmap]   Only the flag is read (see ROADMAP.yaml's header). If the entry is closed, add" +
+      " `resolved: true` without editing its prose. If something in it is still live, say so in the" +
+      " entry and this warning stops.",
+  )
+}

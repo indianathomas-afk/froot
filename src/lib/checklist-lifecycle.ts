@@ -204,8 +204,13 @@ export function zonedInstant(dateStr: string, timeStr: string, timeZone: string)
 //   OVERNIGHT (closingTime <= openingTime, e.g. 07:00–02:00). Day close reads
 //   it as a real window whose close instant falls on D+1, detected by comparing
 //   the two strings and never by date arithmetic. LABOR DOES THE OPPOSITE:
-//   src/lib/labor-plan.ts:202 accepts an explicit window only when `e > s`, so
-//   the same store silently falls through to sales inference there.
+//   the rule in src/lib/store-hours-window.ts accepts an explicit window only
+//   when `e > s`, so the same store silently falls through to sales inference
+//   there. (It stood inline in labor-plan.ts, cited here as `:202`, until
+//   2026-08-23 moved it to a module of its own so the store card could ask it;
+//   the line citation was already stale by then and is replaced with a name
+//   that cannot go stale. The MOVE CLOSED NOTHING — the two subsystems still
+//   read an overnight row differently, and DEBT-64 is still the record of it.)
 //
 //   ONE-SIDED (an opening time with no closing time, or the reverse — both are
 //   legal, and CHK-2's editor allows them deliberately because inventing the

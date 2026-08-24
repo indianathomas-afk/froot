@@ -6,6 +6,68 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## R7 closed on a stronger basis than the row anticipated — 2026-08-23 (Gary)
+
+Gary's ruling, in his words:
+
+- **R7-C's first blocker clears.** The harm it named was that both stores'
+  numbers believe the manager is on the floor at the same time. After R7-E,
+  neither store's numbers believe anything about her hours — headcount,
+  Suggested and peak have all stopped reading the band. (Gary)
+- **What's left is a label at two stores that doesn't disclose the split,
+  and that's L-4's job**, recorded on that row. (Gary)
+- **With R7-E shipped, R7 closes.** (Gary)
+- **Fix the flags while you're in there.** All three of R7-C's blocker
+  entries are bare strings with no `resolved:` flag, so the board counts a
+  blocker that cleared on 08-22 as still live. Flag it. (Gary)
+
+**THE CLAUSE WAS SATISFIED BY REMOVAL, NOT BY DISCLOSURE, AND NEITHER BRANCH IT
+NAMED IS WHAT HAPPENED.** R7-C's first blocker read: "CLEARS WHEN: L-4 lands, or
+Gary rules that the double-drawn band is acceptable and it is labelled on the
+coverage surface." L-4 has not landed. And the second branch describes a weaker
+remedy than the one that shipped — it imagines the band still feeding the
+numbers while a label warns the reader about it. **R7-E (`817b3ef`) took the
+manager out of `headcount`, out of `suggestedHours` and out of the peak.** The
+band was not disclosed; it was disconnected. (Claude)
+
+**WHY THAT DISTINCTION IS WORTH A DECISION ENTRY RATHER THAN A ROW NOTE.** A
+clause written as "acceptable and labelled" invites a future reader to conclude
+that labelling was the bar, and to clear a similar hazard by adding a caption.
+The bar that was actually met is higher and is the one to reason from: **the
+band stopped being an input.** A label makes a wrong number legible; removing
+the input means there is no wrong number. The two are not interchangeable
+remedies and the log should not leave them looking that way. (Claude)
+
+**THE MEASURED SIZE OF WHAT WAS DISCONNECTED.** The drawn band ran **46 hours a
+week at Las Brisas and 38 at UNR** against a credited 20 at each — so Suggested
+was counting 84 band-hours across the two stores for a person who works 40.
+After R7-E it counts 40. Captured before the merge, both engine versions over
+identical inputs: Las Brisas 282.0 → 256.0, UNR 117.0 → 99.0. **No hourly head
+moved at any hour at any store**, which is what makes this a correction to an
+instrument rather than a change of policy. (Claude)
+
+**WHAT IS NOT CLOSED, AND IT IS DELIBERATELY SMALL.** The band still draws at
+both stores on the same day, each legend reading "Manager expected", and neither
+discloses that she is 50/50. That residue is recorded on L-4 rather than left
+here, because it dissolves when the assignment layer knows which days she is at
+which store — it does not need a feature of its own. **It must not be solved by
+widening the label**: a per-store surface asserting a fact about another store
+is the cross-store leak the labor surfaces have otherwise avoided. (Claude)
+
+**THE FLAG DEFECT GARY CAUGHT IS THE SECOND TIME THIS EXACT COUNT HAS BEEN
+WRONG, AND THE CAUSE IS TWO CONVENTIONS RUNNING AT ONCE.** P-4 added
+`resolved: true` on 2026-08-01 precisely because closed blocker entries were
+being counted as live. R7-C then acquired a clearing note *prepended above* the
+entry it closed — the older PERM-6 convention — and no flag. Both conventions
+are documented in `ROADMAP.yaml`'s own header, which also says plainly that
+**only the flag is read**. So the prose said "CLEARED 2026-08-22" while the
+board said "live", for a day, and nothing reconciled them. All three entries now
+carry the flag; **the prose of all three is byte-identical**, verified by parsing
+the YAML before and after and diffing the rendered strings. (Claude)
+
+**R7 IS CLOSED:** R7-B withdrawn, R7-C shipped and unblocked, R7-D shipped
+(`4d0edd4`), R7-E shipped (`817b3ef`). No R7 row carries a live blocker. (Claude)
+
 ## Overnight hours are a business day cutoff, and the model is ruled now — 2026-08-23 (Gary)
 
 Gary's rulings, in his words:

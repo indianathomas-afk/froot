@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { validateStoreHours } from "@/lib/store-hours-validate"
+import { engineHoursUse, ENGINE_DISCARDED_COPY } from "@/lib/store-hours-window"
 
 // CHK-2 (S2). The editing surface for StoreHours — the table's first writer.
 // Mirrors the Edit Store dialog next to it (store-actions.tsx): a Dialog, a
@@ -186,6 +187,29 @@ export function StoreHoursButton({
                   ...validation.blocking.filter((i) => i.dayOfWeek === dayOfWeek),
                   ...validation.warnings.filter((i) => i.dayOfWeek === dayOfWeek),
                 ]
+                // BUG-14 — THE ENGINE'S PREDICATE, NOT THE EDITOR'S, AND
+                // ASKED ONLY WHERE THE EDITOR IS ALREADY SATISFIED. A
+                // half-filled day is red above on B2 and does not need a
+                // second sentence explaining a consequence of a state it
+                // cannot be saved in. WHAT NEEDS SAYING is the case where
+                // everything on this row is accepted and the model still
+                // will not read it — an overnight window, which the footer
+                // of this very dialog promises is fine. That contradiction
+                // is BUG-14 and it is stated here rather than resolved by
+                // making the validator warn, which was ruled against on
+                // 2026-08-23: it would call the hours questionable when the
+                // truth is that nothing is reading them.
+                //
+                // COMPUTED FROM THE FORM, LIKE THE VALIDATION ABOVE — the
+                // operator sees it while looking at the boxes, not after a
+                // save and a page refresh.
+                const engineDiscards =
+                  validation.blocking.every((i) => i.dayOfWeek !== dayOfWeek) &&
+                  engineHoursUse({
+                    openingTime: d.openingTime || null,
+                    closingTime: d.closingTime || null,
+                    isClosed: d.isClosed,
+                  }) === "discarded"
                 return (
                   <div key={dayOfWeek} className="space-y-1">
                     <div className="grid grid-cols-[5.5rem_1fr_1fr_auto] items-center gap-2">
@@ -232,6 +256,11 @@ export function StoreHoursButton({
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {engineDiscards && (
+                      <p className="pl-[5.75rem] text-xs text-[var(--color-warning-text)]">
+                        {ENGINE_DISCARDED_COPY.day}
+                      </p>
                     )}
                   </div>
                 )
