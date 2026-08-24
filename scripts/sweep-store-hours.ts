@@ -3,6 +3,7 @@
  *
  *   npx tsx scripts/sweep-store-hours.ts            # whatever DATABASE_URL points at
  *   npx tsx scripts/sweep-store-hours.ts rows.json  # a Neon-console export
+ *   npx tsx scripts/sweep-store-hours.ts rows.json census.json   # + Query 2
  *
  * READ-ONLY. It opens no transaction and writes nothing. It REPORTS; correcting
  * a wrong row is the operator's job in the UI, which is also the first live test
@@ -40,7 +41,7 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 type Row = StoreHoursDay & { store: string }
 
-async function fromDatabase(): Promise<{ rows: Row[]; source: string; storeCount: number }> {
+async function fromDatabase(): Promise<{ rows: Row[]; source: string; storeCount: number; census: CensusRow[] | null }> {
   const { prisma } = await import("../src/lib/prisma")
   const stores = await prisma.store.findMany({
     select: { name: true, hours: { orderBy: { dayOfWeek: "asc" } } },
@@ -58,17 +59,50 @@ async function fromDatabase(): Promise<{ rows: Row[]; source: string; storeCount
   // Host only — the credential never reaches stdout.
   const host = (process.env.DATABASE_URL ?? "").match(/@([^/]+)\//)?.[1] ?? "unknown host"
   await prisma.$disconnect()
-  return { rows, source: `live database @ ${host}`, storeCount: stores.length }
+  // The live path never needed a census — it selects every Store directly, so
+  // a store with no hours is already in `stores` with an empty `hours` array.
+  return {
+    rows,
+    source: `live database @ ${host}`,
+    storeCount: stores.length,
+    census: stores.map((st) => ({ store: st.name, hours_rows: st.hours.length })),
+  }
 }
 
-function fromFile(path: string): { rows: Row[]; source: string; storeCount: number } {
+/// A STORE WITH NO StoreHours ROWS IS INVISIBLE IN THE EXPORT, AND THAT IS THE
+/// ONE THING THE EXPORT CANNOT TELL YOU. Query 1 inner-joins Store to
+/// StoreHours, so a store that has never had hours entered contributes no rows
+/// and cannot be counted from the file — `3 / 3` would read as full coverage on
+/// an estate where nine of twelve stores have nothing. That store is not clean;
+/// it is running on sales inference, which is the pre-BUG-14 state for the whole
+/// estate and is exactly what this sweep exists to make visible.
+///
+/// So the OPTIONAL SECOND ARGUMENT is Query 2's output — the per-store row
+/// census, `[{ "store": "...", "hours_rows": 0 }, ...]` — and it is the only
+/// thing that can name the zero-row stores. Without it the sweep says so rather
+/// than quietly reporting coverage it cannot see.
+type CensusRow = { store: string; hours_rows: number }
+
+function fromFile(path: string, censusPath?: string): {
+  rows: Row[]
+  source: string
+  storeCount: number
+  census: CensusRow[] | null
+} {
   const rows = JSON.parse(readFileSync(path, "utf8")) as Row[]
-  return { rows, source: `export file ${path}`, storeCount: new Set(rows.map((r) => r.store)).size }
+  const census = censusPath ? (JSON.parse(readFileSync(censusPath, "utf8")) as CensusRow[]) : null
+  return {
+    rows,
+    source: `export file ${path}${censusPath ? ` + census ${censusPath}` : ""}`,
+    storeCount: census ? census.length : new Set(rows.map((r) => r.store)).size,
+    census,
+  }
 }
 
 async function main() {
   const arg = process.argv[2]
-  const { rows, source, storeCount } = arg ? fromFile(arg) : await fromDatabase()
+  const censusArg = process.argv[3]
+  const { rows, source, storeCount, census } = arg ? fromFile(arg, censusArg) : await fromDatabase()
 
   const byStore = new Map<string, Row[]>()
   for (const r of rows) {
@@ -129,7 +163,7 @@ async function main() {
   }
 
   console.log(`source            : ${source}`)
-  console.log(`stores with hours : ${byStore.size} / ${storeCount}`)
+  console.log(`stores with hours : ${byStore.size} / ${storeCount}${census ? "" : "  (of the stores PRESENT IN THE EXPORT — no census given, see below)"}`)
   console.log(`StoreHours rows   : ${rows.length}`)
   console.log(`blocking          : ${blockingTotal}`)
   console.log(`warnings          : ${warningTotal}`)
@@ -144,10 +178,38 @@ async function main() {
         ? "(no StoreHours rows exist on this branch)"
         : "(every row is clean AND every row is read by the engine)"
     )
+    reportStoresWithNoHours(census, byStore)
     return
   }
   console.log("store                       day   open  close  state   validator               ENGINE")
   for (const l of lines) console.log(l)
+  reportStoresWithNoHours(census, byStore)
+}
+
+/// THE STORES THAT ARE NOT IN THE TABLE ABOVE, AND WHY THEY MATTER. A store with
+/// no rows raises no blocking issue, no warning and no engine discard — it is
+/// silent on every axis this sweep measures, and silence here means "the labor
+/// model has never had hours for this store", not "this store is fine".
+function reportStoresWithNoHours(census: CensusRow[] | null, byStore: Map<string, Row[]>) {
+  console.log("")
+  if (!census) {
+    console.log("stores with NO StoreHours rows: UNKNOWN — run Query 2 and pass it as the second")
+    console.log("  argument. The export alone cannot name them; an inner join drops them.")
+    return
+  }
+  const empty = census.filter((c) => Number(c.hours_rows) === 0).map((c) => c.store).sort()
+  if (empty.length === 0) {
+    console.log("every store in the census carries at least one StoreHours row")
+    return
+  }
+  console.log(`stores with NO StoreHours rows : ${empty.length} / ${census.length}`)
+  console.log("  These are NOT clean — the labor model infers their open window from past sales.")
+  console.log("  That is the pre-BUG-14 state for the estate, not a defect introduced by anything.")
+  for (const name of empty) console.log(`    · ${name}`)
+  const missing = [...byStore.keys()].filter((s) => !census.some((c) => c.store === s)).sort()
+  if (missing.length) {
+    console.log(`  *** CENSUS MISMATCH: ${missing.length} store(s) have rows but are absent from the census: ${missing.join(", ")} ***`)
+  }
 }
 
 main().catch((e) => {
