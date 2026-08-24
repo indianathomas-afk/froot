@@ -8398,8 +8398,8 @@ phases:
   - id: R7-E
     track: labor
     size: S
-    status: in_progress
-    commits: [b62f92f]
+    status: shipped
+    commits: [b62f92f, 817b3ef]
     title: "Manager on the floor — the band is drawn as an expectation and stops feeding every number"
     notes: >
       TIER 2, display-side, built 2026-08-23 to Gary's ruling (docs/DECISIONS.md
@@ -13515,7 +13515,7 @@ bugs:
 
   - id: BUG-14
     status: in_progress
-    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4]
+    commits: [ec92e88, 5998e07, c7060f8, 4d0edd4, 817b3ef]
     title: >
       The store hours editor accepted impossible hours in silence, and a wrong
       open time lands straight in the labor forecast
