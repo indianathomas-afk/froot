@@ -486,6 +486,22 @@ phases:
       produced five hits and all five were false; a warning built on THAT would
       have cried wolf five times on every build from its first day and been
       ignored inside a week.
+      RULED BY GARY 2026-08-23, BOTH HALVES. (1) THE SIX CANDIDATES STAY AS THEY
+      ARE — "each names a live remainder in its own text; narrowing accurate
+      prose to fix a count is the wrong repair". So F-4:0, HR-11c:0, L-2:0,
+      L-2:1, L-2:3 and L-2:5 are settled, not pending, and a future audit should
+      stop re-deriving them: they are correct as written and the `narrowed` flag
+      is not the tool for them. (2) THE PREPEND INFLATION IS THE REAL DEFECT and
+      is filed as its own row, DEBT-84, rather than carried as a comment here.
+      THE GENERATOR CHECK IS BUILT — Gary's word given 2026-08-23, as proposed
+      and as backtested. scripts/generate-roadmap.mjs warns when a BARE blocker
+      entry opens with a closing verb immediately followed by a date and names no
+      surviving remainder. It warns and never throws; it runs on every build and
+      every dev start through the existing prebuild/predev hooks, so nothing has
+      to be remembered. Both output paths were exercised — singular against
+      7533613 (fires once, on R7-C:1, exit 0), plural against a synthetic
+      two-hit file — and it is silent at HEAD.
+      Recorded at 658d9db.
       Audit prompt: docs/prompts/SWEEP_AND_FLAG_AUDIT.md (Track B).
 
   - id: UX-1
@@ -21772,6 +21788,66 @@ debt:
       (labor-plan.ts:249, :282) and gmHoursByDay stays all zeros. Recorded here
       on the row rather than as its own row: it is evidence for this row's
       claim, not a separate defect.
+  - id: DEBT-84
+    status: planned
+    title: >
+      A prepended closure note is counted as a blocker in its own right, so
+      /internal/roadmap over-states live gates even when every flag is correct
+    notes: >
+      FILED 2026-08-23 BY THE TRACK B FLAG AUDIT, AND IT IS THE FINDING THAT
+      AUDIT ACTUALLY PRODUCED. The audit went looking for P-4's defect — entries
+      closed in prose and never flagged — and found NONE. 56 blocker entries
+      across 21 phases, 22 resolved, 3 narrowed, 31 bare, and not one bare entry
+      is an unflagged closure. The full sweep is recorded on P-4. What it found
+      instead is this, and this is structural rather than a bookkeeping slip.
+      THE MECHANISM. PERM-6's convention closes a blocker by PREPENDING a note
+      ABOVE it in the same array. The note is a new ARRAY ENTRY, and the panel
+      counts array entries. So closing a blocker by the prepend convention ADDS
+      ONE to the live count at the moment it removes one — or, when the closed
+      entry is also flagged, leaves the note behind as a permanent +1. Nothing is
+      mis-flagged. The count is still wrong.
+      THE MEASUREMENT, at 2026-08-23. EIGHT of the 31 live entries are prepended
+      closure notes: F-4 carries 3 of its 5, L-2 carries 4 of its 6, IG-1 carries
+      1 of 3. So F-4 reads as five live gates when it has two gates and three
+      notes about them, and L-2 reads as six when four of them are records of
+      things that are DONE. Those three rows are 12 of the 31, and 8 of those 12
+      are notes.
+      IT IS NOT FIXABLE BY FLAGGING, WHICH IS WHY IT IS A ROW AND NOT A CHORE.
+      Every one of the eight names something still live in its own text — "that
+      half of the entry below stays open" (F-4:0), "STAGED, NOT PROMOTED"
+      (L-2:0), "ADDED, NOT YET GRANTED" (L-2:1), "covers ONE live item"
+      (HR-11c:0). RULED BY GARY 2026-08-23: leave them as-is. "Narrowing accurate
+      prose to fix a count is the wrong repair." The prose is right; the counter
+      is asking it the wrong question.
+      SO THE DEFECT IS IN THE READER, NOT THE FILE — the same shape as P-4
+      itself, one level further out. P-4's finding was that the renderer could
+      not tell a closed entry from a live one, and the fix gave entries a flag to
+      carry. THIS finding is that the renderer cannot tell a GATE from a NOTE
+      ABOUT A GATE, and both are strings in the same array. DEBT-41 is the near
+      neighbour and is NOT the same thing: it is about an entry that is PARTLY
+      closed, which `narrowed` now answers. An entry that was never a gate at all
+      has no vocabulary yet.
+      WHAT NOT TO DO, RECORDED BECAUSE IT IS THE OBVIOUS WRONG MOVE. Do not
+      detect notes by their prose. P-4 rejected prefix detection as a classifier
+      on evidence and that rejection covers this too — "Prepended" appears in
+      live entries and closure notes alike, and a matcher that guessed would fail
+      toward hiding a gate. If this is fixed, it is fixed with a field the writer
+      sets, the way `resolved` and `narrowed` were.
+      COST OF DOING NOTHING: LATENT (trigger: someone reads the blockers panel to
+      answer "what is stopping promotion" and takes the count at face value).
+      DERIVED-AT-HEAD-2026-08-23. Process, not product — it falls on Gary and on
+      Claude, never on a merchant or an operator, so it is LATENT however real
+      it is, per this file's own PRODUCT vs PROCESS line. The direction is
+      OVERSTATING, which is the safe one: a real gate never disappears, it just
+      sits among notes. That is why this is `planned` and not urgent.
+      DISCONFIRMED BY: a ruling that the count is close enough to be useful and
+      the panel should be read as "entries about blocking", not "blockers", at
+      which point this becomes a label change on the panel and not work.
+      Related: P-4 (the flag, and the audit that found this), DEBT-41 (partial
+      closure — the adjacent gap, not this one), DEBT-42 (`deferred` and `open`
+      carry resolved entries too, deliberately unfixed).
+      Audit prompt: docs/prompts/SWEEP_AND_FLAG_AUDIT.md (Track B).
+
 
 # PENDING RULINGS — open decisions awaiting Gary's call. Added 2026-08-05.
 #
