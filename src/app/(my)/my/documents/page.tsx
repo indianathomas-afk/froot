@@ -65,7 +65,11 @@ export default async function MyDocumentsPage() {
     prisma.hrDocument.findMany({
       where: {
         organizationId: org.id,
-        kind: "Reference",
+        // DOC-3: a SCALAR equality before this edit, not an `in: [...]` — the
+        // easiest of the three literal kind gates to miss, because it does not
+        // look like a list. Reference and Link only: Acknowledgment documents
+        // have their own "To sign" section above and must not also appear here.
+        kind: { in: ["Reference", "Link"] },
         isActive: true,
         ...staffAudienceWhere(staffMember),
       },
