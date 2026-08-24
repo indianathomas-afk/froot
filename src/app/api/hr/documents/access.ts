@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { getCurrentUser, hrModuleAvailable, requireModule } from "@/lib/auth"
+import { HR_BLOB_HOST_SUFFIX } from "@/lib/hr-documents"
 
 // Shared guard for the HR document-library routes (requireNoteAccess pattern).
 // Availability gate first, then the per-org add-on toggle — with either off,
@@ -39,6 +40,13 @@ export async function requireHrDocumentAccess({ admin = false }: { admin?: boole
 // org's namespace — otherwise a doc/version record could be pointed at a
 // public asset or another org's file. head() with our token additionally
 // fails for any store our token doesn't own.
+//
+// DOC-3: the host suffix is now HR_BLOB_HOST_SUFFIX in lib/hr-documents.ts,
+// imported rather than repeated. This function REQUIRES that host;
+// isValidExternalDocumentUrl (same module) REFUSES it. They are the two halves
+// of one rule — a file lives on our blob store and is gated by the download
+// route, a Link lives anywhere else — and two copies of the suffix is exactly
+// how the halves would drift apart.
 export function isOrgHrBlobUrl(url: string, orgDbId: string): boolean {
   let parsed: URL
   try {
@@ -47,7 +55,7 @@ export function isOrgHrBlobUrl(url: string, orgDbId: string): boolean {
     return false
   }
   return (
-    parsed.hostname.endsWith(".private.blob.vercel-storage.com") &&
+    parsed.hostname.endsWith(HR_BLOB_HOST_SUFFIX) &&
     parsed.pathname.startsWith(`/hr/${orgDbId}/`)
   )
 }

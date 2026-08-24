@@ -30,12 +30,91 @@ export const HR_CATEGORY_STYLES: Record<HrDocumentCategory, string> = {
 // Kinds creatable through the library upload dialog. FillableForm (HR-5) is
 // deliberately NOT here — forms are built at /hr/forms, never uploaded, and
 // never appear in the all-user library.
-export const HR_DOCUMENT_KINDS = ["Reference", "Acknowledgment"] as const
+//
+// DOC-3: "Link" joined 2026-08-24. It is the one kind with NO FILE — it carries
+// an externalUrl and zero version rows (see HrDocument in schema.prisma for the
+// full invariant and why only two thirds of it is a database constraint).
+//
+// ADDING A KIND HERE DOES NOT MAKE IT VISIBLE. Three consumers widen for free
+// because they spread this constant — api/hr/documents/[id]/route.ts:30 (PATCH
+// + archive), api/hr/documents/[id]/audience/route.ts:82 (the grant surface,
+// the one a Link actually needs) and the create route's z.enum. Three more
+// carry LITERAL kind lists and must be edited by hand, and DOC-3 had to edit
+// all three: (app)/hr/documents/page.tsx:39 (the library query) and :61 (a
+// narrowing cast in the same mapping), and (my)/my/documents/page.tsx:68, which
+// is a SCALAR `kind: "Reference"` rather than an `in: [...]`. If you add a
+// fourth kind, that is the list to walk — and walk it by opening each file,
+// because a missing literal is not something you can grep for.
+export const HR_DOCUMENT_KINDS = ["Reference", "Acknowledgment", "Link"] as const
 export type HrDocumentKind = (typeof HR_DOCUMENT_KINDS)[number]
 
+// Record<HrDocumentKind, string> is load-bearing: adding a kind above without a
+// label here is a COMPILE ERROR, not a blank chip at runtime.
 export const HR_KIND_LABELS: Record<HrDocumentKind, string> = {
   Reference: "Reference",
   Acknowledgment: "Requires signature",
+  Link: "Link",
+}
+
+// ── DOC-3: external link validation, ONE definition ─────────────────────────
+//
+// Shared by POST /api/hr/documents, PATCH /api/hr/documents/[id], and the
+// upload/edit dialogs, so the client's required-ness and the server's cannot
+// drift. This module is client-safe (no node imports) — that is why the rule
+// lives here rather than beside isOrgHrBlobUrl in the route's access.ts.
+//
+// Ruling 4 (DECISIONS.md 2026-08-24): validated for SHAPE at save, never
+// checked on read. A link that 404s tomorrow is not something this function can
+// know about, and a nightly sweep is a debt row, not this one.
+export const HR_BLOB_HOST_SUFFIX = ".private.blob.vercel-storage.com"
+
+/**
+ * Shape check for an admin-supplied external URL — the `externalUrl` of a Link
+ * document, and (Gary's amendment 1, 2026-08-24) `instructionsVideoUrl` on
+ * every kind. Same rule for both: one function, two callers, no second copy.
+ *
+ * https ONLY, and that is not politeness. These URLs are rendered as an href a
+ * staff member taps, and admitting arbitrary schemes here is how `javascript:`
+ * reaches an anchor. http is refused as well — a document library that hands
+ * out plaintext links to government forms is worth refusing on its own terms.
+ *
+ * OUR OWN BLOB HOST IS REFUSED, which is the non-obvious clause. Without it an
+ * admin could paste a signed blob URL and create a "link" to a file that 404s
+ * the moment the signature expires — and, worse, one that reaches the bytes
+ * without passing the download route's audience check. A file belongs to a
+ * file kind, where the upload path puts it under the org's namespace and the
+ * download route gates it. See isOrgHrBlobUrl in
+ * app/api/hr/documents/access.ts, which enforces the mirror image of this for
+ * the file kinds and imports the same suffix constant.
+ */
+export function isValidExternalDocumentUrl(value: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== "https:") return false
+  if (parsed.hostname.endsWith(HR_BLOB_HOST_SUFFIX)) return false
+  return true
+}
+
+/** The message BOTH the API and the dialogs show, so they cannot disagree. */
+export const EXTERNAL_URL_ERROR =
+  "Enter a full https:// link to a document hosted somewhere else"
+
+/**
+ * Hostname for display under a Link's title (ruling 4: "the host is displayed
+ * under the title"). Returns null rather than throwing on a value that somehow
+ * predates validation — a row that cannot be parsed still has to render.
+ */
+export function externalUrlHost(value: string | null | undefined): string | null {
+  if (!value) return null
+  try {
+    return new URL(value).hostname.replace(/^www\./, "")
+  } catch {
+    return null
+  }
 }
 
 // ── DOC-1 B: the audience chip ──────────────────────────────────────────────

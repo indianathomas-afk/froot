@@ -133,9 +133,25 @@ export function canReadHrDocument(doc: AudienceDocument, viewer: DocumentViewer)
   // cannot read a document cannot assign it in Phase B either.
   if (viewer.role === "ADMIN") return true
 
+  // ── THIS SWITCH IS A KIND ALLOW-LIST. A NEW KIND MUST BE ADDED HERE ────────
+  // `kind` is typed `string`, so there is no exhaustiveness check and no
+  // compiler error: an unlisted kind falls to `default` and is unreadable by
+  // every non-ADMIN. It fails CLOSED, which is the right direction and is also
+  // why it is silent — the document simply is not in the list, with no error
+  // anywhere. DOC-3 shipped "Link" without this case and that is exactly what
+  // happened: the store login that was granted the I-9 could not see it, while
+  // ADMIN could, because ADMIN returns true above without reaching the switch.
+  // Found on staging 2026-08-24, after four commits and a full 4h pass.
+  //
+  // The audience fragments (staffAudienceWhere / viewerAudienceWhere) are
+  // deliberately kind-BLIND — they encode audience and nothing else — so the
+  // database returns the row and this function drops it. See the note on
+  // page.tsx's re-filter: it was built to stop the FRAGMENT being looser than
+  // the FUNCTION, and it cannot see the reverse.
   switch (doc.kind) {
     case "Reference":
     case "Acknowledgment":
+    case "Link":
       return reachesViewer(doc, viewer)
     case "FillableForm":
       // UNCHANGED FROM THE PRE-DOC-1 POLICY, DELIBERATELY. FillableForm is the

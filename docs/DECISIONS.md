@@ -6,6 +6,70 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-08-24 — DOC-3: linked documents and instructions
+
+Ratified by Gary 2026-08-24, in the planning chat that scoped the row. Recorded
+verbatim; the four numbered rulings and the split ruling below are his.
+
+> 1. A linked document is `kind: "Link"` with a nullable `externalUrl` on
+>    `HrDocument`, zero version rows. Additive only.
+> 2. The library link and the staff-record upload stay independent; DOC-2
+>    connects them. Audience for a Link uses the existing store/person grants
+>    unchanged. Role-level visibility is a separate row (DOC-4), not built here.
+> 3. Instructions reuse HR-28: sanitized rich text via `sanitizeRichText`, plus a
+>    separate video URL rendered through `canonicalYouTubeUrl`. Applies to every
+>    kind.
+> 4. Links are validated for shape at save (https, parses, not our blob host),
+>    never checked on read; the host is displayed under the title. A nightly link
+>    check, if ever, is a debt row.
+>
+> Split ruling (Gary, same date): "DOC-3 (this row): link kind + instructions,
+> audience by store/person exactly as today. The I-9 case is fully served —
+> Colorado stores get the Colorado link. No role floor. File DOC-4 as its own
+> row: visibility floor — managers-only documents. Scope it with the four places
+> it has to be honored, and say it inherits DOC-1's denominator rules. Rule on it
+> separately, because 'which staff owe a document' and 'which logins can see it'
+> are about to be two different answers and I want that written in DECISIONS.md
+> before code reads it."
+
+**Two amendments, Gary, same date, at plan approval** (the plan is
+`docs/prompts/DOC-3.md` §4 as approved; these change it):
+
+1. **`instructionsVideoUrl` is validated by the same exported validator as
+   `externalUrl`** — https, parses, not our blob host. One function, two callers,
+   not two copies. The matching gap in HR-28 — `api/hr/training/route.ts:27`
+   takes a lesson `videoUrl` with no shape validation, and
+   `training-module-view.tsx:207` renders a non-YouTube one as a plain anchor —
+   is recorded as a **COMMENT, not a fix**: DOC-3 does not touch the training
+   write paths, and closing someone else's gap inside this row would put an
+   unreviewed change to a shipped surface in a commit about documents.
+2. **The `hrdoc_link_shape` CHECK ships**, with the MIGRATIONS.md
+   § Protected indexes row and the `0_init` re-append line **in the same
+   commit** — a CHECK absent from that table is worse than no CHECK, because
+   Hazard 1 drops it silently and nothing is watching.
+
+Instructions placement stands as planned: collapsed disclosure in the admin
+library, expanded inline in the staff portal.
+
+**Claude's implementation choices under these rulings, for the record** (not
+Gary's, and reversible without a new ruling):
+
+- **Zero version rows rather than one sentinel version.** FillableForm (HR-5)
+  solved the same non-null-file-columns problem the other way, with sentinel
+  values. Ruling 1 said zero rows; the reason it is also the right shape is that
+  version rows exist to be the immutable thing an acknowledgment pins by
+  `fileHash`, and a Link can never be acknowledged. A sentinel version would be a
+  row that exists only to be skipped.
+- **The CHECK states two thirds of the invariant.** `kind = 'Link' ⇔ externalUrl
+  IS NOT NULL` is row-local and enforced in the database. `⇔ zero version rows`
+  is cross-table, which no CHECK can express — it would take a trigger — so it
+  lives in the create route. Written down because the gap looks like an oversight
+  and is not.
+- **The sanitizer permits no attributes, so instructions cannot contain a
+  hyperlink.** That is HR-28's deliberate floor (`lib/sanitize-html.ts`), now
+  load-bearing for a second feature. Not widened here; widening it is a ruling.
+
+
 ## R7 closed on a stronger basis than the row anticipated — 2026-08-23 (Gary)
 
 Gary's ruling, in his words:

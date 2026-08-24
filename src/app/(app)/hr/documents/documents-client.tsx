@@ -8,6 +8,7 @@ import {
   Archive,
   ArchiveRestore,
   Download,
+  ExternalLink,
   FileText,
   Pencil,
   PenLine,
@@ -31,17 +32,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
+  EXTERNAL_URL_ERROR,
   HR_CATEGORY_LABELS,
   HR_CATEGORY_STYLES,
   HR_DOCUMENT_CATEGORIES,
   HR_KIND_LABELS,
+  externalUrlHost,
   hrAudienceChipStyle,
   hrAudienceLabel,
   hrScanMessage,
+  isValidExternalDocumentUrl,
   type HrDocumentCategory,
   type HrDocumentKind,
 } from "@/lib/hr-documents"
 import { uploadHrFileFromBrowser } from "@/lib/hr-upload-client"
+import { RichTextEditor } from "@/components/ui/rich-text-editor"
+import { DocumentInstructions } from "@/components/hr/document-instructions"
 import { AssignAudienceDialog, type AudienceDocumentRef } from "./assign-audience-dialog"
 
 export interface HrDocumentRow {
@@ -52,6 +58,13 @@ export interface HrDocumentRow {
   fileName: string
   sizeBytes: number
   uploadedAt: string
+  // DOC-3. A Link has no version, so fileName/sizeBytes/uploadedAt are the
+  // empty-string/zero/created-at fallbacks for it and must never be RENDERED on
+  // a Link path — see DocumentRow, which branches before it reaches them.
+  createdAt: string
+  externalUrl: string | null
+  instructionsHtml: string | null
+  instructionsVideoUrl: string | null
   // DOC-1 B. Archived rows reach ADMIN only (page.tsx narrows for everyone
   // else), and the three audience fields drive the chip.
   isActive: boolean
@@ -213,10 +226,17 @@ function DocumentRow({
   onAssign: () => void
 }) {
   const category = doc.category as HrDocumentCategory
+  // DOC-3: everything about this row that differs for a link, decided once.
+  const isLink = doc.kind === "Link"
+  const host = externalUrlHost(doc.externalUrl)
   return (
-    <div className={`flex items-center gap-4 p-4 ${doc.isActive ? "" : "opacity-60"}`}>
+    <div className={`flex items-start gap-4 p-4 ${doc.isActive ? "" : "opacity-60"}`}>
       <div className="w-9 h-9 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
-        <FileText className="h-4 w-4 text-[var(--color-primary)]" />
+        {isLink ? (
+          <ExternalLink className="h-4 w-4 text-[var(--color-primary)]" />
+        ) : (
+          <FileText className="h-4 w-4 text-[var(--color-primary)]" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
@@ -228,6 +248,12 @@ function DocumentRow({
             <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">
               <PenLine className="h-3 w-3" />
               {HR_KIND_LABELS.Acknowledgment}
+            </span>
+          )}
+          {isLink && (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+              <ExternalLink className="h-3 w-3" />
+              {HR_KIND_LABELS.Link}
             </span>
           )}
           {/* ADMIN-ONLY, DELIBERATELY. The chip answers "who else can see this",
@@ -248,9 +274,26 @@ function DocumentRow({
             </span>
           )}
         </div>
+        {/* DOC-3: a Link has no file, so it gets the HOST and "Added" — never a
+            name, never a size, never "Uploaded". Rendering the file line here
+            would have shown "· 0 B · Uploaded" off the null-version fallbacks,
+            which is two surfaces disagreeing about what the row even is.
+            Ruling 4 is the reason the host is what shows: an admin should be
+            able to see where a link points without opening it. */}
         <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5 truncate">
-          {doc.fileName} · {formatSize(doc.sizeBytes)} · Uploaded {format(new Date(doc.uploadedAt), "MMM d, yyyy")}
+          {isLink
+            ? `${host ?? "External link"} · Added ${format(new Date(doc.createdAt), "MMM d, yyyy")}`
+            : `${doc.fileName} · ${formatSize(doc.sizeBytes)} · Uploaded ${format(new Date(doc.uploadedAt), "MMM d, yyyy")}`}
         </p>
+        {/* Collapsed on the admin library: this is a dense scannable list and an
+            expanded rich-text block per row would destroy the scan. The staff
+            portal takes the expanded variant of the same component. */}
+        <DocumentInstructions
+          instructionsHtml={doc.instructionsHtml}
+          instructionsVideoUrl={doc.instructionsVideoUrl}
+          title={doc.title}
+          variant="collapsed"
+        />
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {/* Sign and Download are suppressed on an archived row: it is hidden
@@ -266,7 +309,24 @@ function DocumentRow({
             Sign
           </Link>
         )}
-        {doc.isActive && (
+        {/* DOC-3: Open, not Download, for a Link. The download route would 404
+            on it (no version row) and that 404 is correct — nothing links to
+            it any more, which is what the negative grep in this row's gates
+            checks. rel carries noreferrer as well as noopener here because the
+            destination is a third party; the file branch below stays
+            noopener-only, being same-origin. */}
+        {doc.isActive && isLink && doc.externalUrl && (
+          <a
+            href={doc.externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity mr-2"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Open
+          </a>
+        )}
+        {doc.isActive && !isLink && (
           <a
             href={`/api/hr/documents/${doc.id}/download`}
             target="_blank"
@@ -333,18 +393,87 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
   const [title, setTitle] = useState("")
   const [category, setCategory] = useState<HrDocumentCategory>("Handbook")
   const [kind, setKind] = useState<HrDocumentKind>("Reference")
+  // DOC-3. externalUrl is Link-only; the two instructions fields are for every
+  // kind (ruling 3).
+  const [externalUrl, setExternalUrl] = useState("")
+  const [instructionsHtml, setInstructionsHtml] = useState("")
+  const [instructionsVideoUrl, setInstructionsVideoUrl] = useState("")
   // HR-11d 2a: the scan result, and the document it belongs to, held so the
   // dialog can end on the operator's to-do instead of on a redirect.
   const [scanNotice, setScanNotice] = useState("")
   const [createdId, setCreatedId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+  const isLink = kind === "Link"
+
+  // The instructions half of the payload, identical on both branches.
+  function instructionsPayload() {
+    return {
+      instructionsHtml: instructionsHtml.trim() || null,
+      instructionsVideoUrl: instructionsVideoUrl.trim() || null,
+    }
+  }
+
+  function resetForm() {
+    setTitle("")
+    setCategory("Handbook")
+    setKind("Reference")
+    setExternalUrl("")
+    setInstructionsHtml("")
+    setInstructionsVideoUrl("")
+    if (fileRef.current) fileRef.current.value = ""
+  }
 
   // Three-step upload: get a presigned URL, PUT the file straight to the Blob
   // store (files over ~4.5 MB would 413 if sent through our API), then
   // register the document.
+  //
+  // DOC-3: A LINK SKIPS ALL THREE. There is no file to presign, PUT or read
+  // back — it POSTs the URL directly. The `if (!file)` guard below used to fire
+  // before anything else and had to move inside the file branch, or every Link
+  // submit would have been refused by the dialog with "Choose a file to
+  // upload".
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    if (isLink) {
+      // The SAME predicate the server uses (lib/hr-documents.ts), not a
+      // second-guess at it. type="url" + required already block most of this;
+      // this catches the rest — http://, our own blob host — so the admin gets
+      // the message inline instead of a round-trip. The server still refuses
+      // independently; this is convenience, never the gate.
+      if (!isValidExternalDocumentUrl(externalUrl.trim())) {
+        setError(EXTERNAL_URL_ERROR)
+        return
+      }
+      setSaving(true)
+      setError("")
+      try {
+        const res = await fetch("/api/hr/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            category,
+            kind: "Link",
+            externalUrl: externalUrl.trim(),
+            ...instructionsPayload(),
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setError(data.error ?? "Failed to save the link")
+          return
+        }
+        resetForm()
+        setOpen(false)
+        router.refresh()
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     const file = fileRef.current?.files?.[0]
     if (!file) {
       setError("Choose a file to upload")
@@ -366,17 +495,21 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
       const res = await fetch("/api/hr/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, category, kind, url: uploaded.url, fileName: file.name }),
+        body: JSON.stringify({
+          title,
+          category,
+          kind,
+          url: uploaded.url,
+          fileName: file.name,
+          ...instructionsPayload(),
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.error ?? "Failed to save the document")
         return
       }
-      setTitle("")
-      setCategory("Handbook")
-      setKind("Reference")
-      if (fileRef.current) fileRef.current.value = ""
+      resetForm()
       // A new signature document lands on its checkpoint editor so the admin
       // can review the auto-generated defaults right away.
       //
@@ -452,14 +585,24 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* Left as per-kind prose rather than mapped from
+                      HR_DOCUMENT_KINDS: these are explanatory sentences, not
+                      label lookups, and mapping would flatten them. */}
                   <SelectItem value="Reference">Reference — read-only library document</SelectItem>
                   <SelectItem value="Acknowledgment">Signature — staff must sign &amp; acknowledge</SelectItem>
+                  <SelectItem value="Link">Link — points to a document hosted elsewhere</SelectItem>
                 </SelectContent>
               </Select>
               {kind === "Acknowledgment" && (
                 <p className="text-xs text-[var(--color-muted-foreground)]">
                   PDF only. Per-page initial checkpoints and a final acknowledgment are generated
                   automatically — you can adjust them next.
+                </p>
+              )}
+              {isLink && (
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  A link gives the person the blank form; the completed copy is uploaded to their
+                  staff record.
                 </p>
               )}
             </div>
@@ -476,22 +619,76 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
                 </SelectContent>
               </Select>
             </div>
+            {/* DOC-3: exactly one of these two renders. The File input is not
+                merely hidden on a Link — it is unmounted, so its `required`
+                cannot block a submit for a field the admin was never shown. */}
+            {/* THE `key` ON EACH BRANCH IS LOAD-BEARING, NOT DECORATION. Both
+                branches render an <input> in the same position, so React
+                reconciles them as ONE element and the file input (uncontrolled,
+                ref-based) becomes the URL input (controlled, value-bound)
+                in place — which logs "changing an uncontrolled input to be
+                controlled" and leaves the previous input's DOM state attached
+                to the new one. Caught in the browser, not by the build: it is a
+                runtime warning and typechecks perfectly. Distinct keys make
+                them two elements, which is what they are. */}
+            {isLink ? (
+              <div key="link-field" className="space-y-1.5">
+                <Label>Link *</Label>
+                <Input
+                  required
+                  type="url"
+                  value={externalUrl}
+                  onChange={(e) => setExternalUrl(e.target.value)}
+                  placeholder="https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf"
+                />
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  Must be a full https:// address. Staff see the site it points to.
+                </p>
+              </div>
+            ) : (
+              <div key="file-field" className="space-y-1.5">
+                <Label>File *</Label>
+                <Input
+                  required
+                  ref={fileRef}
+                  type="file"
+                  accept={kind === "Acknowledgment" ? ".pdf" : ".pdf,.png,.jpg,.jpeg,.doc,.docx"}
+                />
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  {kind === "Acknowledgment" ? "PDF — up to 25 MB." : "PDF, PNG, JPG, DOC, or DOCX — up to 25 MB."}
+                </p>
+              </div>
+            )}
+            {/* Ruling 3: instructions are offered on EVERY kind, not just Link. */}
             <div className="space-y-1.5">
-              <Label>File *</Label>
+              <Label>Instructions</Label>
+              <RichTextEditor
+                value={instructionsHtml}
+                onChange={setInstructionsHtml}
+                placeholder="What the person should do with this document"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Instructions video</Label>
               <Input
-                required
-                ref={fileRef}
-                type="file"
-                accept={kind === "Acknowledgment" ? ".pdf" : ".pdf,.png,.jpg,.jpeg,.doc,.docx"}
+                type="url"
+                value={instructionsVideoUrl}
+                onChange={(e) => setInstructionsVideoUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
               />
               <p className="text-xs text-[var(--color-muted-foreground)]">
-                {kind === "Acknowledgment" ? "PDF — up to 25 MB." : "PDF, PNG, JPG, DOC, or DOCX — up to 25 MB."}
+                Optional. A YouTube link plays inline; anything else shows as a link.
               </p>
             </div>
             {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving ? "Uploading..." : "Upload"}</Button>
+              {/* Nothing is uploaded on a Link path, so the button does not say
+                  so — the word is the only thing telling the admin what the
+                  submit is about to do. */}
+              <Button type="submit" disabled={saving}>
+                {isLink ? (saving ? "Saving..." : "Save Link") : saving ? "Uploading..." : "Upload"}
+              </Button>
             </DialogFooter>
           </form>
           )}
@@ -507,17 +704,36 @@ function EditDocumentButton({ doc }: { doc: HrDocumentRow }) {
   const [error, setError] = useState("")
   const [title, setTitle] = useState(doc.title)
   const [category, setCategory] = useState(doc.category as HrDocumentCategory)
+  // DOC-3 (4g). The URL is editable on a Link — unlike an uploaded file, which
+  // is immutable by design — and instructions are editable on every kind.
+  const [externalUrl, setExternalUrl] = useState(doc.externalUrl ?? "")
+  const [instructionsHtml, setInstructionsHtml] = useState(doc.instructionsHtml ?? "")
+  const [instructionsVideoUrl, setInstructionsVideoUrl] = useState(doc.instructionsVideoUrl ?? "")
   const router = useRouter()
+  const isLink = doc.kind === "Link"
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (isLink && !isValidExternalDocumentUrl(externalUrl.trim())) {
+      setError(EXTERNAL_URL_ERROR)
+      return
+    }
     setSaving(true)
     setError("")
     try {
       const res = await fetch(`/api/hr/documents/${doc.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, category }),
+        body: JSON.stringify({
+          title,
+          category,
+          // externalUrl is sent ONLY for a Link. The route 400s it on any other
+          // kind, so sending it unconditionally would break editing the title
+          // of every Reference in the library.
+          ...(isLink ? { externalUrl: externalUrl.trim() } : {}),
+          instructionsHtml: instructionsHtml.trim() || null,
+          instructionsVideoUrl: instructionsVideoUrl.trim() || null,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -563,9 +779,42 @@ function EditDocumentButton({ doc }: { doc: HrDocumentRow }) {
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-[var(--color-muted-foreground)]">
-              The uploaded file itself can&apos;t be replaced — add a new document instead.
-            </p>
+            {isLink && (
+              <div className="space-y-1.5">
+                <Label>Link *</Label>
+                <Input
+                  required
+                  type="url"
+                  value={externalUrl}
+                  onChange={(e) => setExternalUrl(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label>Instructions</Label>
+              <RichTextEditor
+                value={instructionsHtml}
+                onChange={setInstructionsHtml}
+                placeholder="What the person should do with this document"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Instructions video</Label>
+              <Input
+                type="url"
+                value={instructionsVideoUrl}
+                onChange={(e) => setInstructionsVideoUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+            </div>
+            {/* The file-immutability note is FILE-SPECIFIC and would be a lie on
+                a Link, whose whole point is that the destination can be
+                corrected without re-uploading anything (DOC-3). */}
+            {!isLink && (
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                The uploaded file itself can&apos;t be replaced — add a new document instead.
+              </p>
+            )}
             {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

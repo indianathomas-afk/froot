@@ -4873,6 +4873,396 @@ phases:
       NOT STARTED. No files, no schema expected — DOC-1 C needed none and
       this needs strictly less.
 
+  - id: DOC-3
+    track: hr
+    size: M
+    status: verified
+    title: "Linked documents + per-document instructions"
+    commits:
+      - aa4fc1b
+      - 234834f
+      - 1b7600b
+      - dc99289
+      - 4f87e22
+      - 751a24c
+      - "4708779"
+    notes: >
+      ── DOC-3 UPDATE 2026-08-24 #4 — STATUS in_progress -> verified. SECTION 4h
+      RE-RUN AND COMPLETE ON THE FIXED CODE. Prepended per preserve-and-mark;
+      NOTHING BELOW THIS BLOCK IS EDITED.
+      SHA PRECONDITION SATISFIED BEFORE ANY OBSERVATION. Local HEAD
+      4708779eaf2384595b4eb4a153f6f3067fe38ecd, origin/staging identical, and
+      `vercel inspect` on the staging alias resolving to froot-a3jextz4e - the
+      same deployment `vercel ls --meta githubCommitSha=<full>` returns.
+      THE STORE-LOGIN POSITIVE, WHICH IS THE CHECK THIS ROW TURNS ON.
+      corporate@keva.com (STORE, Las Brisas) sees the I-9 Link with Open and
+      Instructions, and no Sign, no Download, no audience chip, no versions
+      gear. THE SAME LOGIN WAS BLIND ON "4f87e22" - so this is a differential
+      against the broken build, not an assertion against nothing, and it is the
+      one check in all of 4h that could have caught the defect.
+      TYPED-URL PROBES, SIGNED IN AS ADMIN (indianathomas@live.com):
+      /hr/documents/cmt7hwu8r000004ic7o3oofw6 -> in-app 404, the detail-page
+      kind guard at (app)/hr/documents/[id]/page.tsx:72;
+      /api/hr/documents/cmt7hwu8r000004ic7o3oofw6/download -> {"error":"Document
+      not found"}, the download route's :31 on the missing version row. SIGNED
+      IN IS LOAD-BEARING: src/proxy.ts wraps non-public routes in
+      auth.protect(), which 404s an unauthenticated request, so signed out both
+      probes return the right answer for an unrelated reason.
+      SECTION 4f, BOTH HALVES. Server: a console POST with kind:"Link" and no
+      externalUrl returned 400. Client: with `required` stripped from the URL
+      input, an empty submit produced a VISIBLE ERROR AND NO ROW. Both were
+      needed - the client half cannot fail while `required` holds, and the
+      server half says nothing about what the operator sees.
+      STAGING SQL on br-square-feather: one Link row, version_rows = 0,
+      has_instructions true. The zero-versions invariant holds in the DATABASE,
+      not only in the route that writes it.
+      THE EARLIER "STORE-LOGIN WORKS" REPORT WAS MADE FROM
+      indianathomas@live.com - AN ADMIN SESSION. Confirmed by Gary. That closes
+      the question UPDATE #3 left open, and it closes it the way the code
+      predicted: ADMIN returns true at hr-documents-access.ts:133 without
+      reaching the kind switch, so the row rendered correctly for the one role
+      that could not detect the bug. The check named a role it did not exercise.
+      Recorded because the failure was not the observation - the observation was
+      real - it was the ATTRIBUTION of that observation to a role it was never
+      taken under.
+      WHAT THIS ROW SHOULD BE READ FOR LATER, beyond the feature: a verification
+      pass reported complete, a promotion entry written, and a status of
+      `verified` were all reached while the headline capability was broken for
+      every non-ADMIN. Three negatives passed and none of them could have
+      failed. The lesson is not "test more" - it is that A NEGATIVE CHECK CANNOT
+      DISTINGUISH "correctly excluded" FROM "excluded because nobody can see
+      it", so a feature whose whole point is that the RIGHT people see it must
+      be gated on a POSITIVE, taken under the exact role in question.
+      ── END UPDATE #4. UPDATE #3, #2, #1 and the original notes follow,
+      unedited. ──
+      ── DOC-3 UPDATE 2026-08-24 #3 — STATUS verified -> in_progress. A DEFECT
+      WAS FOUND ON STAGING. Prepended per preserve-and-mark; NOTHING BELOW THIS
+      BLOCK IS EDITED, including UPDATE #2's claim that every 4h check passed,
+      which is the claim this block contradicts.
+      THE DEFECT. A STORE login assigned to Las Brisas
+      (StoreUserAssignment.storeId cmrd1a4hz000004jjl91v23nm, br-square-feather)
+      could not see the I-9 Link granted to Las Brisas
+      (HrDocumentStoreAssignment, same storeId). Cause:
+      src/lib/hr-documents-access.ts:136, canReadHrDocument's `switch
+      (doc.kind)` has cases Reference | Acknowledgment | FillableForm and no
+      "Link" - so a Link fell to `default: return false` FOR EVERY NON-ADMIN.
+      ADMIN never reaches the switch: it returns true at :133, which is why
+      every ADMIN-side check passed and why the surface looked correct to the
+      person configuring it.
+      A SIXTH KIND ALLOW-LIST. The audit in the approved prompt's section 3
+      listed four sites; the section 4d table found a fifth (the audience route)
+      and called the rest kind-agnostic. This switch is a sixth, and it is the
+      one that decides READ ACCESS. It was missed while the file was open: this
+      session read canReadHrDocument during Phase 0 - at :129, :175-180 - but
+      read it for DOC-4's question (which logins can see it) and never asked
+      DOC-3's (does the kind switch admit Link). Wrong question, right file.
+      WHY IT FAILS SILENTLY, which is the transferable part. The audience
+      fragments staffAudienceWhere / viewerAudienceWhere are deliberately
+      kind-BLIND - they encode audience and nothing else - so the DATABASE
+      returns the row and the in-memory re-filter at
+      (app)/hr/documents/page.tsx:61 drops it. That re-filter's own comment says
+      it exists "so the fragment and the function cannot disagree in the
+      caller's favour". It was built to catch the FRAGMENT being LOOSER than the
+      FUNCTION. This is the reverse - function stricter than fragment - and it
+      fails closed, with no error anywhere, on a switch whose `kind` is typed
+      `string` so no compiler check exists either.
+      WHY THE 4h STORE-LOGIN CHECK DID NOT CATCH IT, and this needs stating
+      plainly because UPDATE #2 records that check as PASSED. On the code
+      deployed at "4f87e22" that outcome was NOT REACHABLE: canReadHrDocument
+      returned false for a Link for every non-ADMIN, so no store login could see
+      it under any grant. Whatever was observed, it was not a STORE login
+      reading a Link. Most likely an ADMIN session, which short-circuits at :133
+      and renders the row correctly. The reported pass and the deployed code
+      cannot both be right, and the code has now been measured.
+      AND THE NEGATIVE CHECKS PASSED FOR THE WRONG REASON - INCLUDING THE ONE
+      UPDATE #2 FLAGGED AS SUBSTITUTED. Measured against the pre-fix predicate:
+      a Link returned false for the granted store, the other store, AND
+      corporate. So the corporate-negative that was run, and the other-store
+      negative that section 4h actually asked for and did not get, would BOTH
+      have passed on the broken code. The substitution was not the problem. The
+      only check in the whole of 4h that could have detected this is the
+      store-login POSITIVE - the one whose reported result is contradicted here.
+      A negative check cannot distinguish "correctly excluded" from "excluded
+      because nobody can see it".
+      THE FIX: one case, `case "Link":` alongside Reference and Acknowledgment,
+      plus a comment on the switch naming it as a kind allow-list with no
+      exhaustiveness check. Proven with the exact reported case - store id
+      cmrd1a4hz000004jjl91v23nm, STORE login, store grant - against the real
+      exported predicate: post-fix a Link reads true for the granted store,
+      false for the other store, true for ADMIN, matching Reference and
+      Acknowledgment exactly. The same probe was run against the PRE-FIX code at
+      "751a24c" and returned false for the granted store, so the instrument can
+      fail and its pass is worth something.
+      EVERY OTHER kind SWITCH OR EQUALITY WAS AUDITED - 31 HrDocument.kind sites
+      across src/lib and src/app. ONE defect (this one). No second miss. The
+      full table with per-site verdicts is in the session report; the sites that
+      needed a judgement rather than a glance: hr-compliance.ts:291 (denominator,
+      Acknowledgment-only - Link correctly excluded, deliberate);
+      audience/route.ts:117 currentVersionBlocked (returns unblocked for
+      non-Acknowledgment, so a Link is never blocked from being granted - right);
+      audience/route.ts:296 passes doc.kind into grantedToStaff, which never
+      reads kind - harmless but DEAD; download/route.ts:47 and
+      versions/route.ts:67 are both unreachable for a Link because their routes
+      404 first on the missing version row; and document-detail-client.tsx's
+      three isSignatureDoc reads are unreachable behind the Phase 3 guard at
+      (app)/hr/documents/[id]/page.tsx:72.
+      ONE ASYMMETRY FOUND AND LEFT ALONE, recorded because it explains a
+      confusing symptom: the STAFF PORTAL does NOT re-filter through
+      canReadHrDocument - (my)/my/documents/page.tsx applies staffAudienceWhere
+      only - so it was UNAFFECTED by this defect. A person with a roster row
+      would have seen the I-9 at /my/documents and not at /hr/documents, the
+      same login, the same grant, the same document. Not changed here; the
+      portal's behaviour was correct and the library's was not.
+      THE DEPLOY_LOG ENTRY WRITTEN IN "751a24c" IS SUPERSEDED, marked in place
+      with a banner and NOT deleted. Two of its claims are now false: that a
+      Link's audience works "exactly as today", and that the granted store's
+      login was seen reading it. A rewritten entry is owed before any promotion
+      and is deliberately not written yet - the store-login check must be re-run
+      on a deployment that carries the fix.
+      ── END UPDATE #3. UPDATE #2, UPDATE #1 and the original notes follow,
+      unedited. ──
+      ── DOC-3 UPDATE 2026-08-24 #2 — STATUS in_progress -> verified. Prepended
+      per preserve-and-mark; NOTHING BELOW THIS BLOCK IS EDITED, including
+      UPDATE #1 and the original notes, and including the STILL-OWED paragraph
+      that this block discharges.
+      GARY RAN SECTION 4h ON STAGING AT "4f87e22" AND REPORTS EVERY CHECK
+      PASSED: the ADMIN row render; Open landing on uscis.gov; instructions and
+      the video embed rendering; the granted store's login seeing the document;
+      a corporate login NOT seeing it; both typed-URL 404 probes SIGNED IN; both
+      halves of the dialog-agreement check; and the SQL on br-square-feather
+      returning version_rows = 0 for the Link row. `status: verified` on that
+      basis - the same basis HR-11j carries it on, a full reproduction on
+      staging, and the call is Gary's, made by reporting these results.
+      NOT `shipped`: the promotion to main has not happened. The DEPLOY_LOG
+      entry for it is written and unpromoted in this same commit, carrying its
+      three PENDING tokens, which is a valid state rather than a mistake.
+      ONE CHECK WAS NOT THE ONE SECTION 4h SPECIFIED, and it is recorded rather
+      than smoothed over. 4h asked for the OTHER STORE'S login
+      (tommy@keva.com, STORE/MANAGER) to be confirmed blind to a document
+      granted to one store. What was run and reported is a CORPORATE login not
+      seeing it. Both are real negatives and the corporate one exercises R3's
+      exclusion, but they are different assertions: corporate-negative does not
+      demonstrate that a STORE grant scopes BY STORE, which is this row's entire
+      driving case - Colorado sees the Colorado I-9, Nevada does not. Nothing is
+      suspected broken: the store-scoping predicate is unchanged by DOC-3 and
+      long-standing (DOC-1 A), and the granted store's login WAS confirmed
+      positive. But the check that would have closed the row's own headline case
+      is the one that was substituted, so a reader counting "4h passed" should
+      know which negative was taken. If the other-store negative is wanted, it
+      is one login against an already-created Link and needs no code.
+      ── END UPDATE #2. UPDATE #1 and the original notes follow, unedited. ──
+      ── DOC-3 UPDATE 2026-08-24 (same session, after Gary's push). Prepended
+      per preserve-and-mark; NOTHING BELOW THIS BLOCK IS EDITED, including the
+      two sentences it corrects.
+      (A) PROCESS DEVIATION ON PHASE 1, RECORDED AT GARY'S INSTRUCTION. The
+      four evidence items for Phase 1 - the hrdoc_link_shape probe in both
+      directions, the _prisma_migrations ledger row, the DECISIONS.md entry as
+      written, and a green build - were pasted for review AFTER "aa4fc1b" was
+      committed, not before it as a gate. The checks themselves all RAN before
+      the commit and the commit did pass its own build gate; what did not
+      happen is the evidence being put in front of Gary while the commit was
+      still preventable. It was not re-gated retroactively: "aa4fc1b" was not
+      amended, because the row above records that SHA and amending a recorded
+      work commit invalidates it, and by then three phases sat on top of it.
+      The deviation is marked here rather than quietly closed because a gate
+      that reports after the fact is a review, and the two are not
+      interchangeable - a reviewer who reads the evidence cannot decline a
+      commit that already exists.
+      (B) TWO ITEMS FROM THE STILL-OWED LIST BELOW ARE NOW DISCHARGED. Gary
+      pushed; origin/staging is "dc99289" with zero unpushed commits. The
+      staging-SHA precondition PASSES - local HEAD
+      dc992891b190a2ddfd7699dcf9ff9d6bee927344, "vercel ls --meta
+      githubCommitSha=<full>" returns froot-7tvl2wgj2, and "vercel inspect
+      froot-git-staging-..." resolves to that same deployment
+      (dpl_2L6kLqjLnR6TWkwdAsVutmZn9moE). And THE MIGRATION REACHED THE STAGING
+      DATABASE, from that deployment's own build log: datasource host
+      ep-odd-rain-a6gr4xmm.us-west-2.aws.neon.tech (no -pooler, so BUG-3's
+      routing held), "Applying migration
+      20260824193000_doc3_document_links_and_instructions", "All migrations
+      have been successfully applied", and no P1002 advisory-lock failure.
+      (C) CORRECTION TO THE STILL-OWED PARAGRAPH BELOW, which says the ADMIN
+      gate "returns 401 before the schema is reached". IT RETURNS 404, NOT 401.
+      src/proxy.ts wraps every non-public route in auth.protect(), which 404s
+      an unauthenticated request rather than redirecting or 401ing - measured
+      on staging at dc99289: GET /hr/documents -> 404, POST
+      /api/hr/documents -> 404. THIS MATTERS FOR HOW THE REMAINING PROBES ARE
+      RUN, and it is why the correction is worth more than the fact. The two
+      typed-URL 404 probes in section 4h - /hr/documents/<link-id> and
+      /api/hr/documents/<link-id>/download - expect a 404 from the DOC-3 kind
+      guard and the missing version row respectively. Signed OUT, both return
+      404 for an entirely unrelated reason, and the two answers are
+      indistinguishable. RUN THEM SIGNED IN AS ADMIN OR THEY PROVE NOTHING;
+      run signed out they produce the right answer for the wrong reason, which
+      is the failure class CLAUDE.md's precondition sections exist to catch.
+      The same applies to the 4f server-half test: signed out it 404s and can
+      never show the 400 it is looking for.
+      (D) WHAT IS STILL OWED AFTER (B), and why this session could not do it:
+      every remaining item needs a signed-in karson@keva.com or tommy@keva.com
+      session. Claude does not enter passwords into a sign-in form, and no
+      already-authenticated browser was connected, so the ADMIN creation of the
+      I-9, the tommy other-store negative check, both typed-URL probes and the
+      4f server-half 400 are ALL still outstanding - none of them was attempted
+      and none should be read as passed. The staging SQL is likewise
+      outstanding: vercel env pull is banned repo-wide, so deployed-environment
+      reads go through the Neon console.
+      ── END UPDATE. Original notes follow, unedited. ──
+      BUILT 2026-08-24 in three phases, all three committed and NONE PUSHED
+      (Claude never pushes; CLAUDE.md Git Rules). Status in_progress at
+      "1b7600b" per the CHK-4 "in_progress at SHA" convention, and it moves to
+      staging in the session that pushes it.
+      THE RULINGS ARE IN docs/DECISIONS.md, "2026-08-24 - DOC-3: linked
+      documents and instructions", recorded VERBATIM and not paraphrased here:
+      four numbered rulings (the Link kind and its nullable externalUrl; the
+      library link and the staff-record upload staying independent with DOC-2
+      to connect them; instructions reusing HR-28's sanitizeRichText plus a
+      separate video URL through canonicalYouTubeUrl, on every kind; links
+      validated for shape at save and never checked on read), plus the split
+      ruling that filed DOC-4. Two amendments were made at plan approval and
+      are recorded in the same entry: instructionsVideoUrl takes the SAME
+      validator as externalUrl, and the hrdoc_link_shape CHECK ships with its
+      MIGRATIONS.md row in the same commit.
+      WHAT SHIPPED. Phase 1 "aa4fc1b" - three nullable columns on HrDocument
+      (externalUrl, instructionsHtml, instructionsVideoUrl), migration
+      20260824193000_doc3_document_links_and_instructions, the hrdoc_link_shape
+      CHECK, the MIGRATIONS.md entries, and the DECISIONS.md ruling. Phase 2
+      "234834f" - POST becomes a discriminated union on kind, PATCH gains the
+      three fields, HR_DOCUMENT_KINDS gains "Link", allow-lists widened. Phase
+      3 "1b7600b" - every reader, both dialogs, the shared instructions
+      component, and the detail-page kind guard.
+      THE ZERO-VERSIONS INVARIANT, AND THE PART OF IT THE DATABASE CANNOT
+      HOLD. The rule is kind='Link' <=> externalUrl IS NOT NULL <=> zero
+      HrDocumentVersion rows. The first <=> is hrdoc_link_shape, a row-local
+      CHECK, hand-written into the migration and listed in MIGRATIONS.md
+      section Protected indexes - where it is subject to Hazard 1, the
+      baseline squash that generates from the schema and silently drops every
+      object Prisma cannot express. The second <=> is CROSS-TABLE and no CHECK
+      can state it at any price; it would take a trigger, and this codebase has
+      none. It is held by the create route writing no versions.create on the
+      Link branch, and by the only other writer of version rows (POST
+      /api/hr/documents/[id]/versions) being reachable only from a surface
+      gated on kind === "Acknowledgment". If a future session tries to
+      "complete" the constraint, that is why it cannot.
+      A LINK HAS ZERO VERSION ROWS RATHER THAN ONE SENTINEL VERSION, and the
+      alternative was real: FillableForm (HR-5) solves the same non-null
+      file-columns problem the other way, with sentinel values (fileUrl "",
+      contentType application/x-froot-form-definition). Ruling 1 chose zero
+      rows. The reason it is also the right shape: version rows exist to be the
+      immutable thing an acknowledgment pins by fileHash, and a Link can never
+      be acknowledged, so a sentinel version would be a row that exists only to
+      be skipped by every reader.
+      THE LITERAL ALLOW-LISTS THAT HAD TO BE HAND-WIDENED - THREE, and the
+      split from the ones that came free is the finding worth keeping. FREE,
+      because they spread the constant: api/hr/documents/[id]/route.ts:30
+      (PATCH and archive, which is why archive works on a Link with no edit),
+      api/hr/documents/[id]/audience/route.ts:82 (the GRANT surface, the one a
+      Link actually needs, and it was NOT in the planning audit's list), and
+      the create route's z.enum. BY HAND: (app)/hr/documents/page.tsx:39, a
+      literal in: ["Reference", "Acknowledgment"]; (app)/hr/documents/page.tsx
+      :61, a narrowing cast "as Reference | Acknowledgment" in the same
+      mapping, now widened to HrDocumentKind so the next kind does not need
+      that line again; and (my)/my/documents/page.tsx:68, which was a SCALAR
+      kind: "Reference" rather than an in: [...] - the easiest of the three to
+      miss, because it does not look like a list. Widened there to
+      ["Reference", "Link"] deliberately and NOT to HR_DOCUMENT_KINDS:
+      Acknowledgment documents have their own To-sign section above the
+      Library on that page and must not also appear in it. The walk-list is
+      written into the HR_DOCUMENT_KINDS comment in lib/hr-documents.ts for
+      whoever adds a fourth kind, because a missing literal is not something a
+      grep can find.
+      DOC-2 ATTACHES A RETURNED StaffDocument TO A LINK VIA A NULLABLE FK;
+      NOTHING IN DOC-3 FORECLOSES THAT. StaffDocument (schema.prisma:1996)
+      still has no FK to HrDocument and was deliberately left that way (ruling
+      2). The Link kind adds a column to HrDocument and takes nothing away
+      from StaffDocument, so the nullable FK DOC-2 will want is still a purely
+      additive change.
+      NOT BUILT HERE, ON PURPOSE: no link between a library entry and a
+      returned StaffDocument (DOC-2), no role-level visibility floor (DOC-4,
+      filed by this session), no link checking on read and no nightly sweep
+      (ruling 4 - a nightly check, if ever, is a debt row).
+      ONE OUT-OF-SCOPE DEFECT FIXED, AND IT IS ONE THIS ROW CREATED.
+      (app)/hr/documents/[id]/page.tsx has NO kind filter - org scope and an
+      ADMIN gate, nothing else - so once Link existed, a typed URL reached the
+      versions-and-checkpoints manager for a document that has neither. It did
+      not crash, which is worse than crashing: every consumer downstream is
+      already nullable, so the admin got a plausible, empty, meaningless
+      management screen. Guarded with notFound() in Phase 3.
+      HR-28's LESSON videoUrl HAS THE SAME VALIDATION GAP AND IS DELIBERATELY
+      UNTOUCHED - Gary's amendment 1 ruled it a COMMENT, not a fix.
+      api/hr/training/route.ts:27 takes z.string().nullish() with no shape
+      check and training-module-view.tsx:207 renders it straight into an href
+      for any non-YouTube value. DOC-3 does not touch the training write paths,
+      and closing someone else's gap inside this row would put an unreviewed
+      change to a shipped surface in a commit about documents. Recorded so it
+      is a known gap rather than a missed one.
+      THE SANITIZER PERMITS NO ATTRIBUTES, SO INSTRUCTIONS CANNOT CONTAIN A
+      HYPERLINK. That is HR-28's deliberate floor (lib/sanitize-html.ts - zero
+      attributes is what makes the allowlist a floor rather than a starting
+      point), now load-bearing for a second feature. Verified by harness: an
+      <a href> loses its href entirely. Not widened here; widening it is a
+      ruling, not a refactor.
+      VERIFIED LOCALLY, NOT ON STAGING, AND THE DIFFERENCE MATTERS. Dev branch
+      br-broad-wave-a6vpjdw0 (host ep-late-water-a6k53nv2): hrdoc_link_shape
+      proven to FIRE, not merely to exist - a Link with a NULL externalUrl and
+      a Reference carrying an externalUrl were both rejected with 23514, a
+      well-formed Link was accepted and read back with zero version rows. A
+      14-case harness over isValidExternalDocumentUrl rejected both casings of
+      "javascript:", a data: URI, file://, ftp://, plain http, an unparseable
+      string, the empty string, a protocol-relative "//host/path" and both
+      forms of our own private blob host. A browser pass on a temporary public
+      /menu page confirmed in the DOM that NO anchor anywhere points at
+      /api/hr/documents/<link-id>/download, that Sign and the versions gear
+      appear on neither Link, that the instructions list survives Tailwind
+      preflight and the YouTube URL canonicalises to an /embed/ iframe, and
+      that the dialog unmounts the file input on a Link. The client URL check
+      was proven to FAIL CORRECTLY: "http://..." returns checkValidity() ===
+      true, so type="url" plus required would have passed it, and the shared
+      predicate caught it. Both harnesses and the temp page were deleted
+      before their commits.
+      STILL OWED, AND IT NEEDS GARY'S PUSH FIRST: the staging pass in the
+      approved plan's section 4h - the I-9 created as a Link granted to ONE
+      store, confirmed invisible to the other store's login
+      (tommy@keva.com, STORE/MANAGER) and visible to karson@keva.com (ADMIN);
+      Open landing on uscis.gov; no Sign, Download or versions affordance; and
+      the server half of the dialog-agreement check (a POST with kind:"Link"
+      and no externalUrl must 400), which cannot be run locally because the
+      route's ADMIN gate returns 401 before the schema is reached. Also owed:
+      the same-output SQL on staging (ep-odd-rain, br-square-feather) proving
+      the Link row has zero HrDocumentVersion rows.
+
+  - id: DOC-4
+    track: hr
+    size: M
+    status: planned
+    title: "Visibility floor — managers-only documents"
+    notes: >
+      FILED 2026-08-24 by the DOC-3 session, by explicit split ruling. Nothing
+      was built. Gary's words, from docs/DECISIONS.md "2026-08-24 - DOC-3:
+      linked documents and instructions": "File DOC-4 as its own row:
+      visibility floor - managers-only documents. Scope it with the four
+      places it has to be honored, and say it inherits DOC-1's denominator
+      rules. Rule on it separately, because 'which staff owe a document' and
+      'which logins can see it' are about to be two different answers and I
+      want that written in DECISIONS.md before code reads it."
+      THE FOUR PLACES IT MUST BE HONORED: canReadHrDocument
+      (lib/hr-documents-access.ts:129) and both *AudienceWhere fragments
+      (staffAudienceWhere:204, viewerAudienceWhere:222) in the same module;
+      the staff-portal list ((my)/my/documents); the library list
+      ((app)/hr/documents/page.tsx); and the compliance denominator
+      (lib/hr-compliance.ts) - a managers-only document granted to a store must
+      NOT count against crew who cannot see it.
+      INHERITS DOC-1's DENOMINATOR RULES: current audience, ACTIVE staff at the
+      counting layer, R3 corporate exclusion.
+      TODAY STORE AND MANAGER LOGINS DELIBERATELY SHARE ONE READ BRANCH -
+      lib/hr-documents-access.ts:175-180, whose own comment says so in
+      capitals: "MANAGER IS INCLUDED ON THE SAME BRANCH AND THAT IS A
+      DECISION, NOT AN OVERSIGHT", because managers frequently have no
+      StaffMember row and would otherwise lose read access they hold today
+      while still being able to attest for their team. A floor SEPARATES them,
+      and that is a ruling, not a refactor. (The DOC-3 prompt cited
+      :167-178 for this branch; re-measured on staging at 648e6da the comment
+      block runs :167-174 and the branch itself is :175-180.)
+      AWAITING RULING BEFORE ANY CODE READS IT.
+
   - id: HR-27
     track: hr
     size: L

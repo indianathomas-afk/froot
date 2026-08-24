@@ -56,6 +56,21 @@ export default async function HrDocumentDetailPage({
   })
   if (!doc) notFound()
 
+  // DOC-3. THIS PAGE HAS NO KIND FILTER — the query above is org-scoped and
+  // ADMIN-gated and nothing else — so before Link existed there was no kind
+  // that could reach it wrongly. Now there is: this is the versions and
+  // checkpoints manager, and a Link has neither.
+  //
+  // It did not crash without this guard, which is worse than crashing. Every
+  // consumer downstream is already nullable (currentVersionId: string | null,
+  // versions.map over an empty array, .find(...)?.fileHash ?? null), so an
+  // ADMIN typing the URL got a plausible, empty, meaningless management screen
+  // rather than an error. The library row's gear icon is kind-gated and never
+  // offers this, so a typed URL is the only way in — which is exactly the sort
+  // of path a grep for the guard's own name cannot find (CLAUDE.md, § Verifying
+  // a guard covers every path).
+  if (doc.kind === "Link") notFound()
+
   // HR-11b: anchors are per-version — the confirm UI only ever edits the CURRENT
   // version's set (historical versions keep what they were signed against).
   const currentVersion = doc.versions.find((v) => v.isCurrent) ?? doc.versions[0]

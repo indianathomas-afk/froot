@@ -8,6 +8,7 @@ import {
   resolveDocumentViewer,
   viewerAudienceWhere,
 } from "@/lib/hr-documents-access"
+import type { HrDocumentKind } from "@/lib/hr-documents"
 import { HrDocumentsClient } from "./documents-client"
 
 // HR-3 Reference Library + HR-4 signature documents. Upload/manage is
@@ -36,7 +37,11 @@ export default async function HrDocumentsPage() {
   const docs = await prisma.hrDocument.findMany({
     where: {
       organizationId: org.id,
-      kind: { in: ["Reference", "Acknowledgment"] },
+      // DOC-3: a LITERAL list, not HR_DOCUMENT_KINDS — so adding "Link" to the
+      // constant did NOT widen this, and the kind was invisible here until this
+      // line was edited by hand. FillableForm is still excluded deliberately
+      // (forms are built at /hr/forms and never appear in the library).
+      kind: { in: ["Reference", "Acknowledgment", "Link"] },
       // DOC-1 B: ADMIN SEES ARCHIVED ROWS, EVERYONE ELSE DOES NOT. Archiving
       // was already one-way in the UI — the Archive button has shipped since
       // HR-4, PATCH has always accepted isActive:true, and this filter then hid
@@ -58,10 +63,20 @@ export default async function HrDocumentsPage() {
       id: d.id,
       title: d.title,
       category: d.category,
-      kind: d.kind as "Reference" | "Acknowledgment",
+      // Widened to the shared type rather than to a longer literal union, so
+      // the NEXT kind does not need this line edited again (DOC-3).
+      kind: d.kind as HrDocumentKind,
       fileName: d.versions[0]?.fileName ?? "",
       sizeBytes: d.versions[0]?.sizeBytes ?? 0,
+      // A LINK HAS NO VERSION, so this fell back to d.createdAt and the row
+      // then labelled it "Uploaded" — true of the value, false of the word.
+      // createdAt is carried separately now and the Link path renders "Added"
+      // from it; the file path is untouched (DOC-3).
       uploadedAt: (d.versions[0]?.createdAt ?? d.createdAt).toISOString(),
+      createdAt: d.createdAt.toISOString(),
+      externalUrl: d.externalUrl,
+      instructionsHtml: d.instructionsHtml,
+      instructionsVideoUrl: d.instructionsVideoUrl,
       isActive: d.isActive,
       // The audience chip's inputs. No extra query: AUDIENCE_INCLUDE was
       // already loaded so the predicate above could be asked, and appliesTo is

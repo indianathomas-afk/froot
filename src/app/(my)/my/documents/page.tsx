@@ -1,11 +1,13 @@
 import Link from "next/link"
 import { formatInstant } from "@/lib/display-time"
 import { displayTimeZone } from "@/lib/hr"
-import { BookOpen, CheckCircle2, ChevronRight, FileText, ShieldCheck } from "lucide-react"
+import { BookOpen, CheckCircle2, ChevronRight, ExternalLink, FileText, ShieldCheck } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
+import { externalUrlHost } from "@/lib/hr-documents"
+import { DocumentInstructions } from "@/components/hr/document-instructions"
 import { Badge } from "@/components/ui/badge"
 import { MyShell } from "../my-shell"
 import { MyDenied } from "../denied"
@@ -65,11 +67,26 @@ export default async function MyDocumentsPage() {
     prisma.hrDocument.findMany({
       where: {
         organizationId: org.id,
-        kind: "Reference",
+        // DOC-3: a SCALAR equality before this edit, not an `in: [...]` — the
+        // easiest of the three literal kind gates to miss, because it does not
+        // look like a list. Reference and Link only: Acknowledgment documents
+        // have their own "To sign" section above and must not also appear here.
+        kind: { in: ["Reference", "Link"] },
         isActive: true,
         ...staffAudienceWhere(staffMember),
       },
-      select: { id: true, title: true, category: true },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        // DOC-3: the card branches on kind, so it has to be selected. Without
+        // externalUrl a Link's card would keep pointing at the download route,
+        // which 404s on a document with no version row.
+        kind: true,
+        externalUrl: true,
+        instructionsHtml: true,
+        instructionsVideoUrl: true,
+      },
       orderBy: { title: "asc" },
     }),
     // HR-7.6: manager-uploaded documents a manager chose to share with this
@@ -250,23 +267,51 @@ export default async function MyDocumentsPage() {
         <p className="text-sm text-[var(--color-muted-foreground)]">No reference documents yet.</p>
       ) : (
         <div className="space-y-2">
-          {referenceDocs.map((doc) => (
-            <a
-              key={doc.id}
-              href={`/api/hr/documents/${doc.id}/download`}
-              target="_blank"
-              rel="noopener"
-              className="flex items-center gap-3 border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-4 min-h-11"
-            >
-              <BookOpen className="h-5 w-5 shrink-0 text-[var(--color-muted-foreground)]" />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
-                {doc.category && (
-                  <p className="text-xs text-[var(--color-muted-foreground)]">{doc.category}</p>
-                )}
+          {referenceDocs.map((doc) => {
+            // DOC-3. A Link points at its destination; a Reference still goes
+            // through the authorized download route. rel gains noreferrer on
+            // the Link branch because the destination is a third party.
+            const isLink = doc.kind === "Link"
+            const href = isLink ? doc.externalUrl : `/api/hr/documents/${doc.id}/download`
+            if (isLink && !href) return null
+            return (
+              <div
+                key={doc.id}
+                className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-4"
+              >
+                {/* Instructions sit ABOVE the action, expanded, not behind a
+                    disclosure: this is one card per document, the instruction
+                    is what makes the link actionable, and a staff member on a
+                    phone should not have to discover it (Gary, 2026-08-24). */}
+                <DocumentInstructions
+                  instructionsHtml={doc.instructionsHtml}
+                  instructionsVideoUrl={doc.instructionsVideoUrl}
+                  title={doc.title}
+                  variant="expanded"
+                />
+                <a
+                  href={href!}
+                  target="_blank"
+                  rel={isLink ? "noopener noreferrer" : "noopener"}
+                  className="flex items-center gap-3 min-h-11 mt-2 first:mt-0"
+                >
+                  {isLink ? (
+                    <ExternalLink className="h-5 w-5 shrink-0 text-[var(--color-muted-foreground)]" />
+                  ) : (
+                    <BookOpen className="h-5 w-5 shrink-0 text-[var(--color-muted-foreground)]" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
+                    <p className="text-xs text-[var(--color-muted-foreground)] truncate">
+                      {[doc.category, isLink ? externalUrlHost(doc.externalUrl) : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                </a>
               </div>
-            </a>
-          ))}
+            )
+          })}
         </div>
       )}
     </MyShell>
