@@ -1637,7 +1637,7 @@ enum HrAnchorPlacement {
 model HrDocument {
   id                     String   @id @default(cuid())
   organizationId         String
-  kind                   String // Acknowledgment | FillableForm | Reference
+  kind                   String // Acknowledgment | FillableForm | Reference | Link
   title                  String
   category               String // Handbook | PayAgreement | Policy | HRManagement | Other
   // DOC-1 A: THE COMPANY-WIDE GRANT. "all" reaches every staff member in the
@@ -1656,6 +1656,48 @@ model HrDocument {
   isActive               Boolean  @default(true)
   linkedFormId           String? // Check-Out ↔ Check-In form pairing
   bodyText               String? // FillableForm: the agreement's fixed language, rendered above the fields
+  // DOC-3, ruling 1 (DECISIONS.md 2026-08-24). kind:"Link" is a document that
+  // lives somewhere else — the I-9 on uscis.gov, a state labor poster — and it
+  // carries its URL here instead of a file. Audience, archive and the grant
+  // rows work on it exactly as on any other kind; only the FILE half differs.
+  //
+  // THE INVARIANT IS THREE-WAY AND ONLY TWO THIRDS OF IT ARE IN THE DATABASE:
+  //   kind = 'Link'  ⇔  externalUrl IS NOT NULL  ⇔  zero HrDocumentVersion rows
+  // The first ⇔ is the `hrdoc_link_shape` CHECK (hand-written in
+  // 20260824…_doc3_document_links_and_instructions, listed in MIGRATIONS.md
+  // § Protected indexes — Prisma cannot express CHECK, so the baseline squash
+  // WILL drop it silently; that is Hazard 1 and the table is the watch).
+  // The second ⇔ is CROSS-TABLE and no CHECK can state it at any price — it
+  // would take a trigger, and this codebase has none. It is held by the create
+  // route writing no `versions.create` on the Link branch, and by the only
+  // other writer of version rows (POST /api/hr/documents/[id]/versions) being
+  // reachable only from a surface gated on kind === "Acknowledgment".
+  //
+  // A LINK HAS ZERO VERSIONS RATHER THAN ONE SENTINEL VERSION, AND THAT WAS A
+  // CHOICE. FillableForm (HR-5) took the other road — it keeps a version row
+  // and fills the non-null file columns with sentinels (fileUrl "",
+  // contentType application/x-froot-form-definition). That would have worked
+  // here too. Ruling 1 chose zero rows because a Link pins no bytes, so there
+  // is nothing for a version to BE: version rows exist to be the immutable
+  // thing an acknowledgment references by fileHash, and a Link can never be
+  // acknowledged. A sentinel version would be a row that exists only to be
+  // skipped by every reader.
+  externalUrl            String? // kind:"Link" only — https, never our blob host
+  // DOC-3, ruling 3. Instructions on ANY kind: what to do with this document,
+  // written by an admin, shown above the Open/Download action. HR-28's pair,
+  // reused verbatim rather than re-derived — instructionsHtml holds sanitized
+  // rich text (lib/sanitize-html.ts, one allowlist, sanitized on write AND on
+  // read), instructionsVideoUrl holds a raw URL rendered through
+  // canonicalYouTubeUrl as an embed and as a plain link otherwise.
+  //
+  // THE SANITIZER PERMITS NO ATTRIBUTES, WHICH MEANS NO href. Instructions
+  // cannot contain a clickable link, deliberately (sanitize-html.ts:37-40 —
+  // zero attributes is what makes that allowlist a floor). The link-bearing
+  // fields are the two columns above and below this comment, both validated
+  // separately. Do not widen the allowlist to work around this; that is a
+  // ruling, and DOC-3 does not need it.
+  instructionsHtml       String? // sanitized rich text (HR-28 allowlist)
+  instructionsVideoUrl   String? // https, validated by the same rule as externalUrl
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

@@ -55,9 +55,12 @@ npx prisma migrate diff --from-empty \
   --script > prisma/migrations/0_init/migration.sql
 ```
 
-> ⚠️ **After regenerating `0_init`, re-append both partial indexes by hand or
-> the baseline is wrong** — see "Protected indexes" below. `--to-schema-datamodel`
-> generates from the schema, which cannot express them.
+> ⚠️ **After regenerating `0_init`, re-append every object in the "Protected
+> indexes" table by hand — five at time of writing (three partial indexes and
+> two CHECK constraints) — or the baseline is wrong.** `--to-schema-datamodel`
+> generates from the schema, which cannot express any of them. **Count them out
+> of that table, not out of this sentence**, which said "both" from when there
+> were two until DOC-3 made it five (2026-08-24).
 
 > ⚠️ **THE CURRENT MIGRATIONS FOLDER CANNOT REBUILD THE LIVE SCHEMA, AND THIS
 > STEP WILL SILENTLY ADOPT THE DIFFERENCE RATHER THAN SURFACE IT.** Relocated
@@ -155,7 +158,7 @@ Rules:
 
 ## Protected indexes — expressible only in migration SQL, not in the schema
 
-Three unique indexes and one CHECK constraint exist in every database but
+Three unique indexes and **two** CHECK constraints exist in every database but
 **cannot be written in `prisma/schema.prisma`** — Prisma has no `WHERE` clause
 on `@@unique` and no CHECK support at all:
 
@@ -165,8 +168,28 @@ on `@@unique` and no CHECK support at all:
 | `StoreStaffAssignment_one_primary_key` | `StoreStaffAssignment` | `WHERE "isPrimary"` — one primary store per staff member | `20260729145504_build2_staff_one_primary_store` |
 | `HrDocumentStoreAssignment_staff_grant_key` | `HrDocumentStoreAssignment` | `WHERE "granteeType" = 'STAFF'` — one STAFF grant per (document, person) | `20260812171500_doc1a_document_audience_grants` |
 | `hrdoc_grant_shape` (**CHECK**, not an index) | `HrDocumentStoreAssignment` | STORE rows carry `storeId` only; STAFF rows carry `staffMemberId` only | `20260812171500_doc1a_document_audience_grants` |
+| `hrdoc_link_shape` (**CHECK**, not an index) | `HrDocument` | `("kind" = 'Link') = ("externalUrl" IS NOT NULL)` — only a Link carries a URL, and every Link carries one | `20260824193000_doc3_document_links_and_instructions` |
 
-**Read the table name in those last two rows carefully.** The Prisma model is
+**The DOC-3 row's table needs no `@@map` warning and that is worth stating,
+because the two rows above it do.** `hrdoc_link_shape` sits on `HrDocument`,
+whose Prisma model and physical table are BOTH `HrDocument` — the rename trap
+described in the next paragraph applies to `HrDocumentGrant` only.
+
+**`hrdoc_link_shape` states two thirds of an invariant, and the missing third is
+not an oversight.** DOC-3's full rule is `kind = 'Link' ⇔ externalUrl IS NOT
+NULL ⇔ zero HrDocumentVersion rows`. The first ⇔ is row-local and is the CHECK
+above. The second is CROSS-TABLE, which no CHECK can express at any price — it
+would take a trigger, and this codebase has none — so it is enforced in
+`POST /api/hr/documents` (the Link branch writes no `versions.create`) and by
+`POST /api/hr/documents/[id]/versions` being reachable only from a surface gated
+on `kind === "Acknowledgment"`. **If you are ever tempted to "complete" this
+constraint, that is the reason you cannot.**
+
+**Read the table name in the `HrDocumentStoreAssignment` rows carefully** —
+`HrDocumentStoreAssignment_staff_grant_key` and `hrdoc_grant_shape`. (Named
+rather than counted from the end: they were "the last two rows" until DOC-3
+appended one, and a positional pointer in a table that grows is a pointer that
+goes wrong silently.) The Prisma model is
 `HrDocumentGrant`; the physical table is still `HrDocumentStoreAssignment`,
 because DOC-1 A renamed the model with `@@map` rather than renaming the table
 (a rename would have been a destructive migration to fix a name). Anything
@@ -185,11 +208,20 @@ CHECK.
 ### Hazard 1 — the baseline squash silently drops them
 
 §2 rebuilds `0_init` with `migrate diff --from-empty --to-schema-datamodel`,
-which generates **from the schema**. The schema cannot express either index, so
-the regenerated baseline will **omit both**. Any database later built from
+which generates **from the schema**. The schema cannot express any of them, so
+the regenerated baseline will **omit all five**. Any database later built from
 `0_init` — a fresh environment, a rebuilt Neon branch — comes up with **no
-constraint and nothing failing loudly**. Re-append both by hand after
+constraint and nothing failing loudly**. Re-append **all five** by hand after
 regenerating, and diff the result against this table.
+
+**"Both" became "all five" as the table grew, and the wording is worth watching.**
+This paragraph said "either index" / "omit both" / "re-append both" while the
+table listed four objects, because it was written when there were two and was
+never re-counted as rows were added. A re-append instruction that names a number
+smaller than the table is the one kind of staleness this section cannot survive:
+it reads as complete, and what it silently omits is exactly what Hazard 1 drops.
+Corrected 2026-08-24 by DOC-3, which added the fifth. **If you add a sixth,
+this sentence is part of the edit.**
 
 ### Hazard 2 — the schema misinforms a reader
 
@@ -524,3 +556,46 @@ evidence, *that* it was retired is the record.
 the whole schema against the live database, so any pre-existing drift on dev would
 have appeared as extra statements in the generated file. Only these three lines
 came out, so dev was in sync with `schema.prisma` at `0e49bdb`.
+
+## 2026-08-24 — `20260824193000_doc3_document_links_and_instructions` (DOC-3 Phase 1)
+
+Applied to **dev only** so far (`ep-late-water-a6k53nv2`, direct endpoint, no
+`-pooler`; database `neondb`; `neon.branch_id` read back in the same query as
+`br-broad-wave-a6vpjdw0`). Staging and production get it via `migrate deploy` in
+the Vercel build on Gary's push — **not yet promoted at time of writing**.
+
+| Statement | Kind |
+|---|---|
+| `HrDocument.externalUrl` `TEXT` | additive, nullable, no default |
+| `HrDocument.instructionsHtml` `TEXT` | additive, nullable, no default |
+| `HrDocument.instructionsVideoUrl` `TEXT` | additive, nullable, no default |
+| `hrdoc_link_shape` CHECK | **hand-written — see § Protected indexes** |
+
+Three nullable columns plus one hand-appended CHECK. No drops, no renames, no
+type changes, and **no backfill**: every pre-existing row is a non-Link with a
+NULL `externalUrl`, so both sides of the constraint read FALSE and `FALSE =
+FALSE` is TRUE. The `ALTER` cannot fail on data, and promoting it moves no
+behaviour on its own — nothing can create a Link until DOC-3 Phase 2 ships the
+route.
+
+**The CHECK was proven to FIRE, not merely to exist**, on dev
+(`br-broad-wave-a6vpjdw0`) before the commit, because a constraint read back
+from `pg_constraint` only proves it was created:
+
+- `SELECT pg_get_constraintdef(...)` → `CHECK (((kind = 'Link'::text) = ("externalUrl" IS NOT NULL)))`
+- `INSERT` of a **Link with a NULL `externalUrl`** → rejected, **`23514`**
+- `INSERT` of a **Reference carrying an `externalUrl`** → rejected, **`23514`**
+- `INSERT` of a well-formed Link → accepted, and read back with `version_rows = 0`
+
+Both directions matter and that is why both were run: a one-sided constraint
+(`kind = 'Link' → externalUrl IS NOT NULL`) would have passed the first probe and
+silently allowed the second. Same method DOC-1 A used for `hrdoc_grant_shape`,
+whose `23514` is recorded in § Protected indexes. The harness was a temporary
+`npx tsx` script against the dev database; it deleted its own rows (`deleted
+rows: 1` — the two rejected inserts never landed) and was removed before the
+commit.
+
+**The generated half of the diff was clean.** `migrate diff` compares the whole
+schema against the live database, so any pre-existing drift on dev would have
+surfaced as extra statements. Only the three `ADD COLUMN` lines came out, so dev
+was in sync with `schema.prisma` at `648e6da`.
