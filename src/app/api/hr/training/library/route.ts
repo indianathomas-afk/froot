@@ -59,7 +59,9 @@ export async function GET() {
       storeAssignments: { select: { storeId: true } },
       _count: { select: { lessons: true, storeAssignments: true } },
     },
-    orderBy: { createdAt: "asc" },
+    // HR-29: same authored order the ADMIN list uses — the read-only
+    // library and the builder must not disagree about sequence.
+    orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
   })
 
   // Belt and braces, and the reason the function exists rather than only the

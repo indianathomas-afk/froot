@@ -62,7 +62,10 @@ export async function GET() {
   const modules = await prisma.trainingModule.findMany({
     where: { organizationId: access.org.id },
     include: moduleInclude,
-    orderBy: { createdAt: "asc" },
+    // HR-29: the authored order, GLOBAL per org (Gary, 2026-08-24). The
+    // createdAt tie-break settles rows still on the default 0 and archived
+    // rows, which a reorder never rewrites.
+    orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
   })
   return NextResponse.json(modules)
 }

@@ -34,7 +34,9 @@ export async function GET(req: Request) {
       // never travel — the import resolves by name within the target org).
       category: { select: { name: true } },
     },
-    orderBy: { createdAt: "asc" },
+    // HR-29: authored order. includeArchived=true interleaves archived
+    // rows on their stale index; the tie-break keeps that deterministic.
+    orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
   })
 
   const stamp = new Date().toISOString().slice(0, 10)

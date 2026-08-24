@@ -493,7 +493,11 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           ],
         },
         select: { id: true, title: true },
-        orderBy: { title: "asc" },
+        // HR-29: was `title asc`, which is why this picker led with
+        // "Equipment: How to assemble a Crathco Bubbler" while /hr/training
+        // led with Day 1. A flat list with no category UI — it can only
+        // ever show ONE order, which is the ruling's own reasoning.
+        orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
       }),
       prisma.user.findMany({
         where: { organizationId: member.organizationId, role: { in: ["ADMIN", "MANAGER"] } },
