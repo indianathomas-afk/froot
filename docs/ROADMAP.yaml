@@ -13936,6 +13936,61 @@ bugs:
       THE HARNESS WAS TEMPORARY AND IS NOT IN THE TREE. Its standing replacement
       is verify-store-hours-engine.ts, which asserts the same predicate through
       labor-plan's re-export on every run.
+      THE DEPLOYED SWEEP IS DONE — 2026-08-23, PRODUCTION BRANCH, ENDPOINT
+      ep-green-smoke. This discharges item (c) and the ONLY reason this row was
+      still in_progress. Read through the Neon console per the credential rule;
+      no deployed credential was pulled. Gary ran Query 1 (the row export) and
+      Query 2 (the per-store census) and transcribed both by hand.
+      THE RESULT IS CLEAN ON BOTH PREDICATES. 21 StoreHours rows across 3 of 12
+      stores. ZERO blocking. ZERO unparseable times. ZERO ENGINE DISCARDS — all
+      21 rows are admitted and the labor model plans on exactly the hours on
+      screen at those three stores. The known-discarded shapes this row was
+      written about are ABSENT FROM PRODUCTION: no overnight window, no
+      zero-length day, no one-sided row, and no midnight close either.
+      THE WINDOWS, so the measurement is legible and not just a count. Las Brisas
+      7-21 Mon-Fri, 8-21 Sat, 9-20 Sun. Southgate 8-21 Mon-Sat, 9-20 Sun. UNR
+      8-21 Mon-Fri, 10-17 Sat and Sun.
+      TWO WARNINGS, BOTH W4:close, BOTH UNR, AND NEITHER IS AN ERROR. UNR closes
+      at 17:00 on Saturday and Sunday against 21:00 the rest of the week, which
+      is more than W4's three-hour tolerance from the median of its other days.
+      That is a campus store keeping short weekend hours — exactly the shape W4
+      was built to ASK about rather than block, and the answer is yes, it is
+      deliberate. NO DATA WAS CORRECTED, per this row's standing rule. The engine
+      uses both rows regardless: a W4 warning has never had any bearing on
+      admission, and this is the first live demonstration that the two predicates
+      disagree in the harmless direction as well as the harmful one.
+      NINE OF TWELVE STORES HAVE NO StoreHours ROWS AT ALL, AND SIX OF THOSE ARE
+      LIVE. Cafe De Keva Cart, Carson, Keva Kiosk, Meadowood Mall, Rohan's
+      Restaurant, South Reno, Spanish Springs, Sparks, University Village.
+      Rohan's is unlinked (squareLocationId null, per F-4's blocker) and Keva
+      Kiosk and Cafe De Keva Cart are the seasonal pair named in
+      store-hours-validate.ts, which leaves SIX LIVE STORES — Carson, Meadowood
+      Mall, South Reno, Spanish Springs, Sparks, University Village — running
+      entirely on inferOpenWindowsByWeekday. THIS IS THE PRE-BUG-14 STATE, NOT A
+      DEFECT AND NOT A REGRESSION: it is what the whole estate looked like before
+      2026-08-23, and it is recorded here because it should be VISIBLE rather
+      than assumed from a clean sweep. A store with no rows is silent on every
+      axis this sweep measures, and that silence is not the same as being fine.
+      THE SWEEP COULD NOT SEE THEM UNTIL THIS SESSION FIXED IT (e4cc40d). Query 1
+      inner-joins Store to StoreHours, so a store with no rows contributes none
+      and the sweep counted stores from the export itself — it would have printed
+      "3 / 3" for an estate that is 3 of 12. The census is now an optional second
+      argument and the zero-row stores are named under the table.
+      GARY'S READ WAS CHECKED, NOT TAKEN, AND IT HOLDS — 21 rows, zero discarded,
+      3/12 stores with hours, all confirmed independently. HE DID NOT PREDICT THE
+      TWO W4 WARNINGS; they are the only thing the sweep found that was not in
+      the read, and they are benign.
+      THE HAND-TRANSCRIPTION WAS SHAPE-AUDITED BEFORE THE SWEEP RAN, and what
+      that can and cannot catch is worth stating. CAUGHT NOTHING, and it checked:
+      exact field names and types on all 21 rows and all 12 census entries, every
+      time matching HH:MM, dayOfWeek in 0..6, no duplicate (store, dayOfWeek)
+      pair — which would violate the schema's @@unique — all three stores holding
+      a complete Sun..Sat, no store present in the export but absent from the
+      census, and the census's hours_rows summing to exactly 21. WHAT IT CANNOT
+      CATCH is a transcription error that produces a VALID BUT WRONG value: 07:00
+      typed where the console said 17:00 is well-formed and would pass every one
+      of those checks. The sweep is therefore a measurement of the transcript,
+      and it is a point-in-time measurement of 2026-08-23.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
