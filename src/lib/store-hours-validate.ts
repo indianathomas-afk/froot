@@ -6,7 +6,7 @@
 // 08:00 to 08:00, and a Sunday opening at 01:00 on a campus store. Both saved
 // silently, and the second is not cosmetic — the GM on-floor band's real default
 // is `open.startHour -> 14:00` (DEBT-83, a hardcoded literal at
-// labor-plan.ts:284), so a 01:00 open turns a Sunday band into thirteen hours at
+// labor-plan.ts:297), so a 01:00 open turns a Sunday band into thirteen hours at
 // a store someone is 50% allocated to. A wrong open time lands in the forecast.
 // These are Froot's own rows and a Square resync never overwrites them, so there
 // is no second line of defence behind this one.
@@ -89,11 +89,18 @@ function fmt(minutes: number): string {
 ///
 /// BUT "CLEAN" HERE MEANS THE EDITOR ACCEPTS THE ROW — NOT THAT THE ENGINE USES
 /// IT, and those were assumed to be the same thing when this rule set was
-/// written. They are not. labor-plan.ts:272 admits an explicit window only when
-/// `s != null && e != null && e > s`, and an overnight row fails that test:
-/// parseHourStart("22:00") is 22, parseHourEnd("02:00") is 2. SO THE LABOR MODEL
-/// SILENTLY DISCARDS EVERY OVERNIGHT ROW and falls back to sales inference. A
-/// midnight close discards too — parseHourEnd("00:00") is 0.
+/// written. They are not. THE ADMISSION RULE LIVES IN store-hours-window.ts —
+/// moved out of labor-plan.ts on 2026-08-23 so the store card could ask the
+/// same question rather than re-derive it — and it admits an explicit window
+/// only when `s != null && e != null && e > s`. An overnight row fails that
+/// test: parseHourStart("22:00") is 22, parseHourEnd("02:00") is 2. SO THE
+/// LABOR MODEL SILENTLY DISCARDS EVERY OVERNIGHT ROW and falls back to sales
+/// inference.
+///
+/// CORRECTED 2026-08-23. The sentence that stood here also claimed "a midnight
+/// close discards too — parseHourEnd("00:00") is 0". IT NO LONGER DOES:
+/// 817b3ef ruled a midnight close to be 24:00, so 18:00-00:00 is now ADMITTED.
+/// Only the genuine overnight case still discards, and CUTOFF-1 owns it.
 ///
 /// THIS MODULE IS NOT THE PLACE TO FIX THAT and must not start warning on
 /// overnight to compensate: the promise on screen says overnight is fine, and a
