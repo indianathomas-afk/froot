@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Archive, BookOpen, CheckCircle, Copy, GraduationCap, LayoutGrid, List, ListChecks, Pencil, Plus, Tags, UsersRound } from "lucide-react"
+import { Archive, BookOpen, CheckCircle, Copy, GraduationCap, GripVertical, LayoutGrid, List, ListChecks, Pencil, Plus, Tags, UsersRound } from "lucide-react"
+// HR-29 drag-to-reorder. Same four imports, same order, as the lesson
+// reorder in training-form.tsx:14-17 — @dnd-kit is already a dependency and
+// this page must not introduce a second approach to the same problem.
+import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent, closestCenter } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import { Button } from "@/components/ui/button"
 import { badgePreset } from "@/lib/badge-presets"
 import { TrainingImportButton } from "./training-import-button"
@@ -131,6 +137,74 @@ function inTab(m: ListModule, tab: Tab): boolean {
 }
 
 const TAB_LABELS: Record<Tab, string> = { active: "Active", inactive: "Inactive", archived: "Archived" }
+
+// HR-29. The table row, made draggable. Copied from SortableLessonRow
+// (training-form.tsx:212-241): same useSortable call, same drag style, same
+// GripVertical handle with touchAction "none".
+//
+// TABLE VIEW ONLY. The card grid at the other layout renders the same order
+// but offers no handle: a 3-column grid needs rectSortingStrategy, and while
+// that is one import from the package already loaded, grid drag is materially
+// fussier to aim and HR-21's parity rule is about the RENDERED RESULT, which
+// both layouts keep. The view toggle is the route to reordering.
+function SortableModuleRow({
+  id,
+  showHandle,
+  disabled,
+  disabledReason,
+  children,
+}: {
+  id: string
+  showHandle: boolean
+  disabled: boolean
+  disabledReason: string | null
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <tr ref={setNodeRef} style={style} className={isDragging ? "bg-[var(--color-accent)]" : undefined}>
+      {/* Only when the header carries its matching <th>. A reader (STORE or
+          MANAGER) has no handle column at all, and an unmatched cell here
+          would shift every column in their table by one. */}
+      {showHandle && (
+      <td className="w-10 px-3 py-2.5 align-middle">
+        {disabled ? (
+          // Rendered but inert, with the reason on hover, rather than removed:
+          // a handle that vanishes when a chip is clicked reads as a bug.
+          <span
+            title={disabledReason ?? undefined}
+            aria-disabled="true"
+            className="inline-flex p-1 text-[var(--color-border)] cursor-not-allowed"
+          >
+            <GripVertical className="h-4 w-4" />
+          </span>
+        ) : (
+          <button
+            type="button"
+            {...listeners}
+            {...attributes}
+            aria-label="Reorder module"
+            className={`p-1 rounded text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-accent)] ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+            style={{ touchAction: "none" }}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
+      </td>
+      )}
+      {children}
+    </tr>
+  )
+}
 
 function CardSkeleton() {
   return (
@@ -262,6 +336,10 @@ export default function TrainingClient({
   const [managerOpen, setManagerOpen] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
   const [bulkAssignFor, setBulkAssignFor] = useState<ListModule | null>(null)
+  // HR-29. There is no toast component anywhere in this app (the order's §5
+  // assumed one), so a failed reorder reverts AND says so inline. A silent
+  // snap-back is indistinguishable from a broken drag.
+  const [reorderError, setReorderError] = useState<string | null>(null)
   // Duplicate composes its POST body from lessons, resources and quiz rows, so
   // it needs the full builder payload — which only ADMIN ever fetches. Held in
   // a ref rather than state because nothing renders from it.
@@ -378,6 +456,62 @@ export default function TrainingClient({
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
+
+  // HR-29 drag-to-reorder. Same sensor as the lesson reorder
+  // (training-form.tsx:464): an 8px activation distance, so a click on the
+  // handle is still a click.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  // WHEN THE HANDLE IS LIVE, AND WHY IT IS EXACTLY THIS CONDITION. orderIndex
+  // is GLOBAL across the org (Gary, 2026-08-24), and the reorder endpoint
+  // writes dense positions over the org's whole ACTIVE set. So a drag is only
+  // meaningful from a view that shows that whole set: the Active tab with no
+  // category chip narrowing it. inTab(m, "active") is `!isArchived && isActive`
+  // (:127) — byte-for-byte the endpoint's own scope — so `visible` under those
+  // two conditions IS the payload, with nothing to reconcile.
+  const reorderDisabledReason =
+    view !== "active"
+      ? "Switch to the Active tab to reorder"
+      : categoryFilter !== null
+        ? "Clear filter to reorder"
+        : null
+  const showReorderHandle = canManage && layout === "list"
+  const canReorder = showReorderHandle && reorderDisabledReason === null
+
+  async function handleModuleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id || !canReorder) return
+
+    const oldIndex = visible.findIndex((m) => m.id === active.id)
+    const newIndex = visible.findIndex((m) => m.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+
+    const reordered = arrayMove(visible, oldIndex, newIndex)
+    const movedIds = new Set(reordered.map((m) => m.id))
+    const previous = modules
+
+    // Optimistic. `visible` is derived from `modules` by filtering, which
+    // preserves array order, so putting the reordered active rows first is
+    // what makes the table repaint in the new order. Rows in the other two
+    // tabs keep their relative order among themselves.
+    setModules([...reordered, ...modules.filter((m) => !movedIds.has(m.id))])
+    setReorderError(null)
+
+    try {
+      const res = await fetch("/api/hr/training/reorder", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: reordered.map((m) => m.id) }),
+      })
+      if (!res.ok) {
+        setModules(previous)
+        setReorderError("Could not save the new order. Nothing was changed.")
+      }
+    } catch {
+      setModules(previous)
+      setReorderError("Could not save the new order. Nothing was changed.")
+    }
   }
 
   function toggleAll() {
@@ -702,6 +836,11 @@ export default function TrainingClient({
               </button>
             </div>
           )}
+          {reorderError && (
+            <div className="mb-3 rounded-md border border-[var(--color-destructive)] bg-[var(--color-card)] px-3 py-2 text-sm text-[var(--color-destructive)]">
+              {reorderError}
+            </div>
+          )}
           {layout === "card" ? (
             <div className="grid grid-cols-3 gap-4">
               {visible.map((m) => (
@@ -750,12 +889,16 @@ export default function TrainingClient({
                absorbs remaining width and truncates (w-full max-w-0), every
                other cell is nowrap, so a row cannot overflow a laptop window. */
             <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+              {/* DndContext and SortableContext both render context only, no
+                  DOM, so wrapping table/tbody keeps the markup valid. */}
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleModuleDragEnd}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--color-border)] text-left text-xs text-[var(--color-muted-foreground)]">
                     {/* The checkbox and Status columns track the card view's
                         two ADMIN-only elements, so the two layouts stay the
                         same feature set per role — HR-21's parity rule. */}
+                    {showReorderHandle && <th className="w-10 px-3 py-2" />}
                     {canManage && <th className="w-10 px-3 py-2" />}
                     <th className="px-3 py-2 font-medium">Module</th>
                     <th className="px-3 py-2 font-medium">Category</th>
@@ -765,9 +908,10 @@ export default function TrainingClient({
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
+                <SortableContext items={visible.map((m) => m.id)} strategy={verticalListSortingStrategy}>
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {visible.map((m) => (
-                    <tr key={m.id}>
+                    <SortableModuleRow key={m.id} id={m.id} showHandle={showReorderHandle} disabled={!canReorder} disabledReason={reorderDisabledReason}>
                       {canManage && (
                         <td className="px-3 py-2.5 align-middle">
                           <input type="checkbox" className="rounded" checked={selected.has(m.id)} onChange={() => toggleOne(m.id)} />
@@ -798,10 +942,12 @@ export default function TrainingClient({
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <ModuleActions module={m} canManage={canManage} canAssign={canAssign} onDuplicate={duplicate} onBulkAssign={setBulkAssignFor} />
                       </td>
-                    </tr>
+                    </SortableModuleRow>
                   ))}
                 </tbody>
+                </SortableContext>
               </table>
+              </DndContext>
             </div>
           )}
         </>
