@@ -2,6 +2,242 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## PENDING-SHA-SHORT — PENDING-DATE — R7-E: manager on the floor — the band stops feeding the numbers
+
+**Merge SHA:** `PENDING-SHA-FULL`
+**Written before the merge existed.** The heading's SHA and date and the Merge
+SHA line above are stamped by the promotion ritual from `git rev-parse` and
+`date`, never hand-typed. Three placeholder tokens, all of them on the heading
+and the Merge SHA line above and nowhere else in this entry — this entry
+deliberately never spells one out in prose, because a token written into a
+sentence is a token the stamp substitutes into that sentence. An entry still
+carrying them is written and unpromoted, which is a valid state rather than a
+mistake.
+**Payload:** 5 commits on `staging` ahead of `main` at the time of writing —
+`1b0f89d`, `b62f92f`, `7b4df17`, `e8c465c`, `d370191` — plus the commit carrying
+this entry (staging → main, `--no-ff`). `1b0f89d` is the re-level merge that
+followed the R7-D promotion and carries no work of its own.
+**Prior main tip:** `79e4bc8`
+**Diff (code):** `src/lib/labor-coverage.ts` +37/−5, `src/app/api/labor/weekly-plan/route.ts`
++19/−8, `src/lib/labor-plan.ts` +14/−1, `scripts/verify-labor-coverage.ts` +55/−2,
+`weekly-plan-client.tsx` +9/−6, `labor-coverage-card.tsx` +3/−3,
+`labor-settings-client.tsx` +2/−2. **No schema, no migration, no env var, no
+cron** — `prisma/` is absent from the diff entirely.
+
+### What shipped
+
+Gary's ruling 2026-08-23, `DECISIONS.md` § "Manager on the floor — one guaranteed
+number". Froot knows the manager is worth 20 hours a week at each of Las Brisas
+and UNR and does **not** know WHICH 20 — that is L-4. So the drawn band stays at
+its window and is demoted to an EXPECTATION, and every number reads her credited
+hours instead.
+
+- **`headcount` is HOURLY HEADS ONLY** (`labor-coverage.ts:111`). It read
+  `hourly + (gm ? 1 : 0)`.
+- **`suggestedHours` reads the day's CREDITED hours**, through a new pure export
+  `suggestedHoursForDay(points, gmCreditHours)`, threaded into
+  `buildComparison` from `plan.days` (`weekly-plan/route.ts`). It used to count
+  ONE MANAGER BODY PER DRAWN BAND HOUR.
+- **`points[].gm` is UNTOUCHED — the band still draws**, at the same window, with
+  the same shape.
+- **Peak is now the HOURLY peak.** Intended, with no compensating term.
+  **Pinned by fixture `verify-labor-coverage.ts` §11, NOT by the capture below** —
+  the capture does not assert it, and saying otherwise would overstate what was
+  measured.
+- **Six approved copy strings**, shipped exactly as Gary approved them: the
+  settings label and helper, the coverage-card legend "(incl. manager)", the band
+  legend "Manager expected {start}–{end}" at both sites, and the weekly-plan
+  footnote. **Column and field names are unchanged by ruling** — after this,
+  grepping `manager` does not find the setting that draws the band and grepping
+  `gmOnFloor` does not find any words a user sees. That seam is deliberate.
+- **A seventh string, approved separately and later:** the `supervisorGap` warning
+  now reads "No hourly supervisory position is set up for this store." on both
+  surfaces. The old wording — "No supervisory position covers the hours the GM is
+  off the floor" — had been FALSE SINCE R7-D, which made `supervisorGap` simply
+  `!hasHourlySupervisor`. That is a correction, not a rename.
+
+**DEVIATION — `parseHourEnd("00:00")` NOW RETURNS 24, AND IT BREAKS R7-E's OWN
+ZERO-DIFF RULE FOR `labor-plan.ts` ON PURPOSE.** The commissioning prompt says to
+STOP if `labor-plan.ts` needs editing beyond reading `gmCreditHours` through.
+Gary folded this fix into the phase after that prompt was written, so the STOP
+condition was overridden by a later instruction rather than ignored. An
+`18:00–00:00` day is now ADMITTED by the engine at `labor-plan.ts:286` instead of
+silently discarded. **Exactly `"00:00"` and nothing wider** — `"00:30"` still
+returns 1 and is still discarded, because that is a genuine overnight close and
+overnight needs the per-store business day cutoff, ruled and deferred to
+`CUTOFF-1`. Widening the special case would have built that cutoff by accident,
+in the one place nobody would look for it. Recorded as a deviation on R7-E
+(S5-D66), not done quietly.
+
+### THE CAPTURE — measured BEFORE the merge, against PRODUCTION store hours
+
+Both engine versions run over identical constructed inputs: pre-fix from
+`git show 79e4bc8:src/lib/labor-coverage.ts`, post-fix from the tree. **PURE — no
+database, no deployed credential, no network.** Production hours verified from
+the DB by Gary 2026-08-23 (`dayOfWeek 0 = Sunday`, cross-checked against the store
+card); weekly hourly pools are the PRODUCTION figures recorded at the R7-C
+promotion 2026-08-22.
+
+| store | B | Suggested BEFORE → AFTER | **ΔWEEK** |
+|---|---|---|---|
+| Las Brisas | 46 | 282.0 → 256.0 | **−26** |
+| UNR | 38 | 117.0 → 99.0 | **−18** |
+| a no-band store | 0 | 31 → 31 | **0** — full point arrays byte-identical |
+
+**Confirmed by two independent paths that agree exactly:** the admission checker
+run over the typed production rows, and the two-version capture.
+
+**All 14 production rows are ADMITTED by the engine — 0 discarded, 0 closed,
+every row `e > s`**, checked at `labor-plan.ts:286` using the engine's own
+`parseHourStart`/`parseHourEnd` rather than a reimplementation. Neither of
+BUG-14's known-bad rows is present at these two stores.
+
+**COMPUTED PER DAY. NEITHER STORE HAS A UNIFORM WEEK**, and that is the assumption
+that has failed repeatedly on this work:
+
+- **Las Brisas** — Sun 09:00–20:00 (band 5h) · Mon–Fri 07:00–21:00 (7h) · Sat
+  08:00–21:00 (6h). Three distinct day shapes.
+- **UNR** — Sun and Sat 10:00–17:00 (4h) · Mon–Fri 08:00–21:00 (6h). Two.
+
+### WHY THE DELTA IS TRUSTWORTHY EVEN THOUGH THE LEVELS ARE CONSTRUCTED
+
+**Δ = K − G reads nothing on the hourly side.** The capture asserts, on every day
+of both stores, that hourly heads, `points[].gm`, `usedHourlyHours`,
+`understaffedBudget` and `supervisorGap` are byte-identical between the two engine
+versions. The only thing that differs is the manager's contribution.
+
+So the demand shape and the budget set the ABSOLUTE LEVEL and cannot touch the
+DELTA. The BEFORE/AFTER totals above come from a constructed peak-at-12:00 shape
+and are illustrative; **−26 and −18 are exact, and will hold on production even
+where the levels differ.**
+
+### WHAT MANAGERS WILL SEE, AND WHAT DID NOT MOVE
+
+**Suggested falls about 9% at Las Brisas (282 → 256) and about 15% at UNR
+(117 → 99). Nothing else on the labor surfaces moves.**
+
+**RECOMMENDED HOURLY STAFFING DOES NOT CHANGE.** Not by one head, at any hour, at
+any store. **No dollars move. No hourly pool changes. No persisted figure moves.**
+`usedHourlyHours`, `understaffedBudget`, `supervisorGap`, the floor-of-one bump
+and every `labor-plan.ts` budget figure are identical before and after — asserted
+day by day in the capture, not assumed.
+
+**What fell is the figure that was crediting the manager for hours she was never
+covering.** The drawn band ran **46 hours a week at Las Brisas and 38 at UNR**
+against a credited **20** at each. Suggested was counting one manager body per
+drawn band hour, for a person who is 50% allocated to each store and works about
+eight hours on about two and a half days at each.
+
+**A SMALLER SUGGESTED DOES NOT MEAN FEWER PEOPLE ARE ALLOWED. If it is read that
+way, the ruling has been inverted.** The number did not become stricter; it
+stopped counting a body that was not there. The hours it withdrew were never
+coverage — they were the band asserting presence it could not know about, which
+is exactly what Gary's third ruling says the window must stop doing.
+
+### WHAT THE PRE-REGISTRATION GOT RIGHT AND WRONG
+
+Pre-registered at `08c2e6e`, before any engine edit, as **−29 and −22**. Actual:
+**−26 and −18.**
+
+**SURVIVED — the whole of the reasoning.** The box
+(`ΔWEEK = min(B,C) − B = −max(0, B−C)`), `ΣK = min(B,C)`, `C = 20` at both stores,
+the ten-store no-op, and **every falsifier it named**: no non-manager store moved,
+no positive delta anywhere, no R7-D figure moved, `points[].gm` unchanged.
+
+**FAILED — assumption 2's opening times, which are true Mon–Fri only.** Las Brisas
+opens 09:00 Sunday and 08:00 Saturday; UNR opens 10:00 on both weekend days. **The
+misses are exactly the weekend days: 3h at Las Brisas (Sun 2 + Sat 1) and 4h at
+UNR (Sun 2 + Sat 2).** The pre-registration's own sensitivity rule — "each hour
+later a store opens shrinks B by 7/week" — is uniform-week shaped too, and does
+not apply to a per-day deviation.
+
+**ASSUMPTION 1 SURVIVED, AND THE NOTE THAT CONTRADICTED IT WAS THE WRONG ONE.**
+Both stores DO open 7 days. An intermediate finding on R7-E claimed UNR opens 5,
+taken from dev's sales-inferred windows on a branch that holds no `StoreHours`
+rows at all; it was withdrawn the same day. Dev's inference is what the engine
+falls back to WHEN there are no hours — the opposite of evidence about what the
+hours are. The original assumption was right from the start.
+
+### S5-D10's SECOND CASE IS MEASURED NOT-LIVE
+
+`capGmFloorCredits` returns the band UNSCALED when it totals less than the ceiling
+(`labor-daily.ts:54`), which would make the window itself the credited number.
+**B is 46 and 38 against C = 20 — nowhere near the `B ≤ C` boundary.** Real as a
+mechanism, not firing today, and now measured rather than merely assumed distant.
+It remains open by D19's ruling and pinned at
+`verify-labor-position-hours.ts:146`.
+
+### Rollback
+
+```
+git revert -m 1 <merge sha>
+```
+
+**No schema, no migration, nothing to un-drop.** Reverting restores the manager
+being counted as a whole body in `headcount`, in `suggestedHours` and in the peak
+— Suggested returns to 282 at Las Brisas and 117 at UNR on the capture's inputs.
+It also restores `parseHourEnd("00:00")` to 0, so a midnight-close row goes back
+to being silently discarded, and restores the two false copy strings. **No data
+written under the new behaviour needs unwinding, because none is written** —
+`computeDailyCoverage` reaches no budget, no persisted hours figure and no dollar.
+
+### Post-deploy check
+
+A glance, not a procedure. Open `/labor` at **Las Brisas** and **UNR** for the
+current week.
+
+- **The band draws exactly as before** — same window, same shape. Its legend now
+  reads "Manager expected".
+- **Suggested is lower** by roughly 26 hours a week at Las Brisas and 18 at UNR.
+- **Hourly heads and the floor warnings are UNCHANGED from this morning.** This is
+  the one that matters.
+- **A no-band store — Carson or Sparks — is identical.**
+
+**IF HOURLY HEADS MOVED ANYWHERE, THAT IS A STOP AND A REVERT.** This change is
+display-side and touches the manager's contribution only; an hourly head that
+moves means something crossed into the plan's arithmetic that the capture did not
+catch.
+
+### Known open at promotion
+
+Read off `docs/ROADMAP.yaml` at the time of writing, not copied forward from the
+previous entry.
+
+- **BUG-14** (`in_progress`) — **the deployed sweep has still not been run, and
+  the surfacing work is still first on that row.** This promotion discharges the
+  discarded-row question for Las Brisas and UNR only: their 14 rows were checked
+  and all 14 are admitted. **The other ten stores are unswept**, and a store whose
+  typed hours the engine ignores still says nothing on screen.
+- **CUTOFF-1** (`planned`) — the per-store business day cutoff, TIER 3, waiting on
+  a store that crosses midnight, opening with the Square attribution question.
+  The `00:00` fix in this promotion is explicitly NOT that work.
+- **DEBT-83** (`planned`) — the band's real default is the hardcoded `14`, and it
+  is what set B at 46 and 38 here. **R7-E makes this matter less, not more**: the
+  band no longer feeds a number, so a wrong default now moves a drawn reminder
+  rather than a recommendation. Closes with L-4 by Gary's ruling.
+- **L-4** (`planned`) — which specific days and hours a named person works. Still
+  the answer to the question this ruling deliberately does not answer.
+- **R7-C's first blocker — the double-drawn band — IS REPORTED AND NOT FLIPPED IN
+  THIS PROMOTION.** Its clearing condition and whether this ruling satisfies it is
+  Gary's call and is outstanding at the time of writing. See the session report.
+- **BUG-4** (`planned`) — the Labor Budget card and Weekly Plan disagree on
+  schedulable hours. Untouched by this promotion and worth knowing about while
+  reading either surface.
+- **BUG-13** (`planned`) — the all-locations rollup still syncs inline.
+- **DEBT-80** (`planned`) — a saved week's day-by-day plan is not stable; the same
+  historical week can return different day hours.
+- **DEBT-81** (`planned`) — a guaranteed weekly minimum for an HOURLY person has
+  nowhere to live.
+- **DEBT-75** (`planned`) — the ruled last-year same-weekday fallback is still
+  absent.
+- **`scripts/promote.sh` remains unbuilt.** Every promotion is still a hand-run
+  ritual pasted from a session report. Not built here.
+
+**CLOSED BY THIS PROMOTION, and worth naming because the previous entry listed it
+as open:** the `:103`/`:107` ruling — whether the manager counts as a body for
+`headcount` and for the peak. Open since 2026-08-20; answered by Gary on
+2026-08-23 and shipped here. She does not, in either.
+
 ## 4d0edd4 — 2026-08-23 — R7-D: the GM no longer satisfies the floor of one body + BUG-14: store hours validation
 
 **Merge SHA:** `4d0edd4698d4f52a97d382660299e412a850d0bc`

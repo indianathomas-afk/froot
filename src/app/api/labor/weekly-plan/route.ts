@@ -4,6 +4,7 @@ import { requireLaborView, requireLaborStore } from "@/lib/labor-access"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { mondayOfWeekStr } from "@/lib/labor-week"
 import { getWeeklyDayPlan, computeDayCoverage, addDaysStr } from "@/lib/labor-plan"
+import { suggestedHoursForDay } from "@/lib/labor-coverage"
 import { can } from "@/lib/permissions"
 import { getScheduleSyncSummary, getScheduledHoursByDay } from "@/lib/labor-schedule"
 
@@ -116,7 +117,7 @@ export async function GET(req: Request) {
   })
 
   const comparison = can(ctx.actor, "labor.schedule.view")
-    ? await buildComparison(storeId, dates, covByDay)
+    ? await buildComparison(storeId, dates, covByDay, plan.days.map((d) => d.gmCreditHours))
     : undefined
 
   return NextResponse.json({
@@ -149,21 +150,31 @@ export async function GET(req: Request) {
 async function buildComparison(
   storeId: string,
   dates: string[],
-  covByDay: (Awaited<ReturnType<typeof computeDayCoverage>>)[]
+  covByDay: (Awaited<ReturnType<typeof computeDayCoverage>>)[],
+  // The manager's CREDITED hours per day, positionally aligned with `dates` —
+  // `DayPlan.gmCreditHours`, already capped to her allocation by
+  // capGmFloorCredits. Zero at every store with no allocated person.
+  gmCreditByDay: number[]
 ) {
   const sync = await getScheduleSyncSummary(storeId)
 
-  // SUGGESTED HOURS ARE Σ headcount OVER OPEN HOURS — INCLUDING THE GM
-  // (ratified 2026-08-20), because that is what the Labor Coverage card's own
-  // legend already says it is drawing ("Suggested staff on floor (incl. GM)")
-  // and what its overlay is compared against. usedHourlyHours is the wrong
-  // number here: it excludes the salaried GM, and a Square schedule does not.
+  // SUGGESTED HOURS COUNT THE WHOLE CREW INCLUDING THE MANAGER — the 2026-08-20
+  // ruling stands, and `usedHourlyHours` is still the wrong number here because it
+  // excludes her and a Square schedule does not.
+  //
+  // WHAT CHANGED 2026-08-23 IS THE INSTRUMENT, NOT THE POLICY. This used to be
+  // Σ headcount, which counted ONE MANAGER BODY PER DRAWN BAND HOUR — at the unset
+  // default that is ~6-7 hours a day across SEVEN days, for a person who works
+  // five. It now reads her CREDITED hours for the day, which are derived from her
+  // allocation and already capped to it. Froot knows she is worth 20 hours a week
+  // at each of two stores; it does not know WHICH 20, and that is L-4.
+  //
   // A day with no shape at all is null rather than 0 — no forecast is not a
   // recommendation of nobody.
   const suggested = dates.map((_, i) => {
     const cov = covByDay[i]
     if (!cov) return null
-    return cov.points.filter((p) => p.open).reduce((sum, p) => sum + p.headcount, 0)
+    return +suggestedHoursForDay(cov.points, gmCreditByDay[i] ?? 0).toFixed(2)
   })
 
   // NEVER-SYNCED READS NOTHING. Seam (c): a store we have never asked about must

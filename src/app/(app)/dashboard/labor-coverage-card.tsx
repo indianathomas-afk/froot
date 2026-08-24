@@ -283,7 +283,7 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
           <>
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <p className="text-[12.5px] text-[var(--color-muted-foreground)]">
-                Suggested staff on floor{cov!.gmWindow ? " (incl. GM)" : ""}
+                Suggested staff on floor{cov!.gmWindow ? " (incl. manager)" : ""}
               </p>
               <div className="flex items-center gap-2">
                 {canToggle && (
@@ -332,7 +332,7 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
               <div className="flex flex-col gap-1 mb-2">
                 {cov.supervisorGap && (
                   <div className="flex items-center gap-1.5 text-[12px] font-medium text-[#b42318]">
-                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> No supervisory position covers the hours the GM is off the floor.
+                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> No hourly supervisory position is set up for this store.
                   </div>
                 )}
                 {cov.understaffedBudget && (
@@ -447,7 +447,7 @@ export function LaborCoverageCard({ storeId }: { storeId: string }) {
                   )
                 })}
               {cov!.gmWindow && (
-                <span className="inline-flex items-center gap-1"><Crown className="h-3 w-3 text-[var(--color-primary)]" /> GM on floor {hourLabel(cov!.gmWindow.startHour)}–{hourLabel(cov!.gmWindow.endHour)}</span>
+                <span className="inline-flex items-center gap-1"><Crown className="h-3 w-3 text-[var(--color-primary)]" /> Manager expected {hourLabel(cov!.gmWindow.startHour)}–{hourLabel(cov!.gmWindow.endHour)}</span>
               )}
               <span>Hourly budget {cov!.hourlyBudgetHours.toFixed(1)} hrs</span>
             </div>

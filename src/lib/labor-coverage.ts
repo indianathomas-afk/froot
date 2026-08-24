@@ -1,15 +1,17 @@
 // Recommended staff-on-floor by hour (Phase 3, guidance only). PURE — turns a
 // day's HOURLY budget + demand shape into an integer headcount step line that
 // is DEMAND-SHAPED and BUDGET-CAPPED (no fixed daypart minimums). The salaried
-// GM is DRAWN on floor during their on-floor window but does NOT satisfy the
-// floor of 1 and does NOT clear supervisorGap (R7-D). Floor of 1 HOURLY head
-// while open (opener/closer). No DB — unit-testable.
+// manager is DRAWN on floor during her window but does NOT satisfy the floor of 1,
+// does NOT clear supervisorGap (R7-D), and since 2026-08-23 is NOT in `headcount`
+// either — the band is an EXPECTATION, and her CREDITED hours enter Suggested once
+// per day through suggestedHoursForDay. Floor of 1 HOURLY head while open
+// (opener/closer). No DB — unit-testable.
 
 export type HourNet = { hour: number; net: number }
 
 export type CoveragePoint = {
   hour: number
-  headcount: number // total on floor = hourly + GM (the GM is DRAWN, not credited to the floor)
+  headcount: number // HOURLY heads on floor. The manager is DRAWN (`gm`) and is NOT in this number — 2026-08-23 ruling
   hourly: number // hourly heads (what the budget pays for)
   gm: boolean // GM on floor this hour
   open: boolean
@@ -100,9 +102,17 @@ export function computeDailyCoverage({
     const isOpen = h >= openStart && h < openEnd
     const hh = isOpen ? hourly.get(h) ?? 0 : 0
     const gm = isOpen && gmAt(h)
-    points.push({ hour: h, hourly: hh, gm, headcount: hh + (gm ? 1 : 0), open: isOpen })
+    // MANAGER ON THE FLOOR (Gary, 2026-08-23) — `headcount` is HOURLY HEADS ONLY.
+    // The band still draws (`gm` below is untouched) but it no longer contributes a
+    // body to any number: Froot knows the manager is worth 20 hours a week at each
+    // of two stores and does NOT know WHICH 20 (that is L-4), so the window says
+    // when she is EXPECTED, not what she covers. Her CREDITED hours are added back
+    // once per DAY by suggestedHoursForDay below — not once per band hour.
+    points.push({ hour: h, hourly: hh, gm, headcount: hh, open: isOpen })
   }
 
+  // PEAK IS NOW THE HOURLY PEAK, and that is intended rather than incidental —
+  // `headcount` is hourly heads since the 2026-08-23 ruling. No compensating term.
   const openPts = points.filter((p) => p.open)
   const peakHeadcount = Math.max(...openPts.map((p) => p.headcount))
   const peakHours = openPts.filter((p) => p.headcount === peakHeadcount).map((p) => p.hour)
@@ -180,4 +190,26 @@ export function demandShapeSource(date: string, today: string): DemandShapeSourc
     actualsDate: date < today ? date : null,
     templateDates: [0, 7, 14, 21].map((k) => addDaysStr(cursor, -k)),
   }
+}
+
+// SUGGESTED HOURS FOR ONE DAY — the pure seam the weekly-plan route sums over.
+//
+// Suggested still counts the WHOLE CREW including the manager (Gary's 2026-08-20
+// ruling is untouched); what changed on 2026-08-23 is the INSTRUMENT. It used to
+// read one manager body per drawn band hour, which at the unset default
+// (`open.startHour` → the hardcoded 14, DEBT-83) is ~6-7 hours a day across
+// SEVEN days for a person who works five. It now reads `gmCreditHours` — the
+// day's credited hours, which `capGmFloorCredits` has already scaled so the week
+// sums to her allocation.
+//
+// THE WEEKLY IDENTITY THIS RESTS ON: Σ credited = min(B, C), where B is the drawn
+// band's weekly hours and C the ceiling from her allocation. So Suggested falls by
+// exactly max(0, B − C) — the amount the drawn band exceeded what she is credited
+// for — and does not move at all where B ≤ C (`labor-daily.ts:54` returns the band
+// unscaled; that is S5-D10's second case and it is open by ruling).
+//
+// `gmCreditHours` is 0 at every store with no allocated person (`hasGm` false, so
+// no band is ever built), which makes this a byte-for-byte no-op at ten of twelve.
+export function suggestedHoursForDay(points: CoveragePoint[], gmCreditHours: number): number {
+  return points.filter((p) => p.open).reduce((sum, p) => sum + p.headcount, 0) + gmCreditHours
 }

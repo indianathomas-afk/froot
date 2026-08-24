@@ -1067,13 +1067,13 @@ function SettingsCard({ stores }: { stores: { id: string; name: string }[] }) {
             <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Override the average hourly rate used to convert dollars to hours.</p>
           </div>
           <div>
-            <Label>GM on-floor window (optional)</Label>
+            <Label>Manager on the floor (optional)</Label>
             <div className="flex items-center gap-2">
               <Input type="time" value={gmStart} disabled={loading} onChange={(e) => setGmStart(e.target.value)} />
               <span className="text-[var(--color-muted-foreground)]">–</span>
               <Input type="time" value={gmEnd} disabled={loading} onChange={(e) => setGmEnd(e.target.value)} />
             </div>
-            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">When the salaried GM is on the floor (counts as coverage + supervisor). Blank = open→2:00p.</p>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">When the manager is expected on the floor. Shown as a band on the coverage chart — a reminder, not coverage. The manager’s guaranteed hours come from her allocation. Blank = open→2:00p.</p>
           </div>
         </div>
 
