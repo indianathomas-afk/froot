@@ -2,6 +2,161 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## PENDING-SHA-SHORT — PENDING-DATE — DOC-3: a library document can be a link, and any document can carry instructions
+
+**Merge SHA:** `PENDING-SHA-FULL`
+**Written before the merge existed.** The heading's SHA and date and the Merge
+SHA line above are stamped by the promotion ritual from `git rev-parse` and
+`date`, never hand-typed. Three placeholder tokens, all of them on the heading
+and the Merge SHA line above and nowhere else in this entry — this entry
+deliberately never spells one out in prose, because a token written into a
+sentence is a token the stamp substitutes into that sentence. An entry still
+carrying them is written and unpromoted, which is a valid state rather than a
+mistake.
+**Payload:** 6 commits on `staging` ahead of `main` at the time of writing —
+`648e6da`, `aa4fc1b`, `234834f`, `1b7600b`, `dc99289`, `4f87e22` — plus the
+commit carrying this entry (staging → main, `--no-ff`). `648e6da` is the
+re-level merge that followed the BUG-14 promotion and carries no work of its
+own; the four `aa4fc1b`…`dc99289` are DOC-3 Phases 1–4; `4f87e22` records a
+process deviation and corrects a wrong claim in the DOC-3 row.
+**Prior main tip:** `25ba98f`
+**Diff (code):** `src/app/(app)/hr/documents/documents-client.tsx` +289/−0 net
+across the row, dialog and edit dialog, `src/components/hr/document-instructions.tsx`
++157/−0 (new), `src/app/api/hr/documents/route.ts` +119/−0 net,
+`src/app/(my)/my/documents/page.tsx` +83, `src/lib/hr-documents.ts` +81,
+`src/app/api/hr/documents/[id]/route.ts` +62,
+`src/app/(app)/hr/documents/page.tsx` +19,
+`src/app/(app)/hr/documents/[id]/page.tsx` +15,
+`src/app/api/hr/documents/access.ts` +10 — 861 insertions, 53 deletions over 11
+files including `prisma/`.
+
+**THIS PROMOTION CARRIES A SCHEMA MIGRATION, AND THE PREVIOUS ONE DID NOT.**
+`prisma/migrations/20260824193000_doc3_document_links_and_instructions/` adds
+three nullable TEXT columns to `HrDocument` — `externalUrl`,
+`instructionsHtml`, `instructionsVideoUrl` — and then a hand-written CHECK,
+`hrdoc_link_shape`, below a marked line in the same file. Production applies it
+through `prisma migrate deploy` in the Vercel build, on its own Neon branch,
+exactly as staging did. **No env var, no cron.** Additive only: every column is
+nullable, no column is dropped or retyped, and no backfill runs.
+
+**THE MIGRATION CANNOT FAIL ON EXISTING DATA, and that is a property of the
+constraint rather than a hope.** `hrdoc_link_shape` asserts
+`kind = 'Link'` ⇔ `externalUrl IS NOT NULL`. Every pre-DOC-3 row is
+Acknowledgment, FillableForm or Reference with a NULL `externalUrl`, so both
+sides of the equality read FALSE, and FALSE = FALSE is TRUE. The expression is
+also total — `kind` is NOT NULL and `IS NOT NULL` never yields NULL — so there
+is no third value for the CHECK to pass silently.
+
+### What shipped
+
+DOC-3's two capabilities, link-first then instructions, and the row moves to
+`verified` in this promotion.
+
+- **A library document can be a link instead of a file.** `kind: "Link"` with a
+  nullable `externalUrl` and **zero** `HrDocumentVersion` rows. The driving case
+  is the I-9. Audience is unchanged — the existing store and person grants — so
+  a Colorado store gets the Colorado link and a Nevada roster never sees it.
+- **Any document can carry instructions**: `instructionsHtml`, sanitized
+  server-side through HR-28's `sanitizeRichText` before it is written, and
+  `instructionsVideoUrl`, rendered through `canonicalYouTubeUrl` as an embed or
+  else as a plain link. Reference, Acknowledgment and Link alike.
+- **The kind allow-lists were widened by hand in four places and for free in
+  five.** Named in the DOC-3 row; the free ones ride `[...HR_DOCUMENT_KINDS]`,
+  and the audience route was the one that mattered — without it a Link could be
+  created and never granted to anybody.
+- **`instructionsVideoUrl` and `externalUrl` share ONE exported validator**
+  (Gary's amendment at plan approval): https, parses, and not our own private
+  blob host. One function, two callers.
+- **A Link can never reach the signing ceremony**, and this needed no new code:
+  all five signing surfaces already carry `kind: "Acknowledgment"` in their
+  `where`, and `requiresAcknowledgment` derives from kind.
+- **`/hr/documents/[id]` gained a kind guard.** That page had no `kind` filter
+  at all, so an ADMIN typing a Link's id reached the versions-and-checkpoints
+  manager for a document that has neither. It did not crash — it rendered a
+  coherent, empty, meaningless management screen, which is worse.
+
+### The staging pass — Gary, on the deployment at `4f87e22`
+
+Run against `froot-git-staging-…`, whose alias resolved to
+`dpl_2L6kLqjLnR6TWkwdAsVutmZn9moE`, the same deployment
+`vercel ls --meta githubCommitSha=<full>` returned for the local tip. The
+migration is confirmed applied to the staging database from that deployment's
+own build log: datasource `ep-odd-rain-a6gr4xmm` (no `-pooler`, so BUG-3's
+routing held), `All migrations have been successfully applied`, no P1002.
+
+Passed: the ADMIN row render; **Open** landing on uscis.gov; instructions and
+the video embed rendering; the granted store's login seeing the document; a
+corporate login not seeing it; both typed-URL 404 probes **signed in**; both
+halves of the dialog-agreement check; and the SQL on `br-square-feather`
+returning `version_rows = 0` for the Link row.
+
+**THE TYPED-URL PROBES WERE RUN SIGNED IN, AND THAT IS THE LOAD-BEARING WORD.**
+`src/proxy.ts` wraps every non-public route in `auth.protect()`, which **404s**
+an unauthenticated request rather than redirecting or 401ing. Signed out,
+`/hr/documents/<link-id>` and `/api/hr/documents/<link-id>/download` both return
+404 for a reason that has nothing to do with DOC-3 — indistinguishable from the
+404 the kind guard and the missing version row are supposed to produce. Run
+signed out they are a green result from an instrument that cannot fail. The
+DOC-3 row carries the same warning for whoever re-runs them.
+
+### One §4h check was not the one §4h specified
+
+The approved plan's §4h asked for the **other store's** login
+(`tommy@keva.com`, STORE/MANAGER) to be confirmed blind to a document granted to
+one store. What was run and reported is a **corporate** login not seeing it.
+Both are real negatives and the corporate one exercises R3's exclusion, but they
+are different assertions: corporate-negative does not demonstrate that a STORE
+grant scopes BY STORE, which is the entire I-9 argument — Colorado sees it,
+Nevada does not. The store-scoping predicate itself is unchanged by this row and
+long-standing (DOC-1 A), and the granted store's login WAS confirmed positive,
+so nothing here is suspected broken. It is recorded because the check that would
+have closed the row's own driving case is the one that was substituted, and a
+future reader counting "§4h passed" should know which negative was taken.
+
+### The Phase 1 gate ran as a review, not as a gate
+
+Phase 1's four evidence items were pasted for Gary AFTER `aa4fc1b` was
+committed rather than before it. The checks all ran before the commit and it
+passed its own build gate; what did not happen is the evidence reaching Gary
+while the commit was still preventable. Not re-gated retroactively — the row
+records that SHA and three phases sat on top of it. Marked on the DOC-3 row in
+`4f87e22` rather than quietly closed, because a reviewer cannot decline a commit
+that already exists.
+
+### `hrdoc_link_shape` is invisible to the schema and a baseline squash will drop it
+
+Same hazard class as `hrdoc_grant_shape`. `0_init` is regenerated FROM
+`prisma/schema.prisma`, Prisma has no CHECK support, so a database rebuilt from
+the baseline comes up with this constraint **missing and nothing failing
+loudly**. It is listed in `docs/MIGRATIONS.md` § Protected indexes and in that
+file's `0_init` re-append checklist, both added in `aa4fc1b` — the same commit
+as the constraint, deliberately, because a CHECK absent from that table is worse
+than no CHECK.
+
+### The feature is inert in production until an admin creates a Link
+
+**No `HrDocument` row anywhere has `kind = 'Link'` on production**, because the
+kind did not exist there until this promotion. Nothing in the reader paths
+changes for any existing document: a Reference still renders its file line and
+its Download, an Acknowledgment still reaches the ceremony. **A clean production
+surface after this promotion therefore proves the migration applied and nothing
+regressed — it does NOT prove the Link path renders**, which was demonstrated on
+staging and cannot be demonstrated on production until somebody creates one. Do
+not read a quiet production as a pass for the half that has no data yet.
+
+### Rollback
+
+```bash
+git revert -m 1 <merge sha>
+```
+
+on `main`, then push. **The migration does not
+roll back with it**, and it does not need to: the three columns are nullable and
+unread by reverted code, and `hrdoc_link_shape` constrains only rows with
+`kind = 'Link'`, which reverted code can no longer create. Leave both in place;
+dropping the constraint by hand would take the re-append checklist out of sync
+with the database for no benefit.
+
 ## 6256d5f — 2026-08-23 — BUG-14: the engine's admission rule becomes shared, and a discarded row finally says so
 
 **Merge SHA:** `6256d5fe5424988b0c128b79cd5ca89c294111df`

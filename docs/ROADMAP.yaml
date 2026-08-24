@@ -4876,13 +4876,45 @@ phases:
   - id: DOC-3
     track: hr
     size: M
-    status: in_progress
+    status: verified
     title: "Linked documents + per-document instructions"
     commits:
       - aa4fc1b
       - 234834f
       - 1b7600b
+      - dc99289
+      - 4f87e22
     notes: >
+      ── DOC-3 UPDATE 2026-08-24 #2 — STATUS in_progress -> verified. Prepended
+      per preserve-and-mark; NOTHING BELOW THIS BLOCK IS EDITED, including
+      UPDATE #1 and the original notes, and including the STILL-OWED paragraph
+      that this block discharges.
+      GARY RAN SECTION 4h ON STAGING AT "4f87e22" AND REPORTS EVERY CHECK
+      PASSED: the ADMIN row render; Open landing on uscis.gov; instructions and
+      the video embed rendering; the granted store's login seeing the document;
+      a corporate login NOT seeing it; both typed-URL 404 probes SIGNED IN; both
+      halves of the dialog-agreement check; and the SQL on br-square-feather
+      returning version_rows = 0 for the Link row. `status: verified` on that
+      basis - the same basis HR-11j carries it on, a full reproduction on
+      staging, and the call is Gary's, made by reporting these results.
+      NOT `shipped`: the promotion to main has not happened. The DEPLOY_LOG
+      entry for it is written and unpromoted in this same commit, carrying its
+      three PENDING tokens, which is a valid state rather than a mistake.
+      ONE CHECK WAS NOT THE ONE SECTION 4h SPECIFIED, and it is recorded rather
+      than smoothed over. 4h asked for the OTHER STORE'S login
+      (tommy@keva.com, STORE/MANAGER) to be confirmed blind to a document
+      granted to one store. What was run and reported is a CORPORATE login not
+      seeing it. Both are real negatives and the corporate one exercises R3's
+      exclusion, but they are different assertions: corporate-negative does not
+      demonstrate that a STORE grant scopes BY STORE, which is this row's entire
+      driving case - Colorado sees the Colorado I-9, Nevada does not. Nothing is
+      suspected broken: the store-scoping predicate is unchanged by DOC-3 and
+      long-standing (DOC-1 A), and the granted store's login WAS confirmed
+      positive. But the check that would have closed the row's own headline case
+      is the one that was substituted, so a reader counting "4h passed" should
+      know which negative was taken. If the other-store negative is wanted, it
+      is one login against an already-created Link and needs no code.
+      ── END UPDATE #2. UPDATE #1 and the original notes follow, unedited. ──
       ── DOC-3 UPDATE 2026-08-24 (same session, after Gary's push). Prepended
       per preserve-and-mark; NOTHING BELOW THIS BLOCK IS EDITED, including the
       two sentences it corrects.
