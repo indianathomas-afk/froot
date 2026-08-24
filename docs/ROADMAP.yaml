@@ -8555,6 +8555,46 @@ phases:
       Any B quoted from dev is a statement about dev's sales history, not about a
       store. The capture still waits on BUG-14's deployed sweep, exactly as
       recorded above, and that part is unchanged.
+      CAPTURE TAKEN 2026-08-23 AGAINST PRODUCTION STORE HOURS — the outstanding
+      item named above is DISCHARGED, and both of Gary's figures are confirmed.
+      Full working appended to docs/prompts/MANAGER_ON_FLOOR_PREDICTION.md as
+      ADDENDUM 3. PURE: both engine versions over identical constructed inputs,
+      pre-fix from `git show 79e4bc8:`, post-fix from the tree, no database and
+      no deployed credential.
+      THE NUMBERS. Las Brisas B = 46, Suggested 282.0 -> 256.0, DeltaWEEK = -26.
+      UNR B = 38, Suggested 117.0 -> 99.0, DeltaWEEK = -18. A no-band store is
+      byte-for-byte identical, full point arrays included. Reached by two
+      independent paths that agree exactly — the admission checker over the typed
+      rows, and the two-version capture.
+      NEITHER STORE HAS A UNIFORM WEEK, which is the whole of what the
+      pre-registration got wrong. Las Brisas runs three day shapes (Sun 5h, Mon-Fri
+      7h, Sat 6h) and UNR two (Sat and Sun 4h, Mon-Fri 6h). B was computed per day.
+      THE DELTA IS EXACT AND PROVENANCE-FREE. Delta = K - G reads nothing on the
+      hourly side, and the capture asserts hourly heads, points[].gm,
+      usedHourlyHours, understaffedBudget and supervisorGap are identical between
+      versions on every day. Only the absolute BEFORE/AFTER levels depend on the
+      constructed demand shape; the deltas do not.
+      ALL 14 PRODUCTION ROWS ARE ADMITTED BY THE ENGINE — 14 admitted, 0
+      discarded, 0 closed, every row `e > s`. So the caveat recorded above, that
+      the deployed windows might be a mix of typed rows and sales inference, is
+      DISCHARGED FOR THESE TWO STORES: neither of BUG-14's known-bad rows is
+      present tonight. IT STILL STANDS FOR THE ESTATE — the other ten stores have
+      not been swept.
+      WHAT SURVIVES OF THE PRE-REGISTRATION, AND THE PART WORTH CARRYING. The
+      formula, Sigma-K = min(B,C), C = 20, the ten-store no-op, and every
+      falsifier — all held. ASSUMPTION 1 SURVIVES AND VINDICATES THE
+      PRE-REGISTRATION AGAINST THIS ROW: both stores DO open 7 days, so the
+      dev-derived "5 open days" recorded above was wrong and the original
+      assumption was right all along. What fails is assumption 2's opening times,
+      true Mon-Fri only, and therefore both magnitudes: predicted -29 and -22,
+      actual -26 and -18. The misses are exactly the weekend days, 3h and 4h.
+      S5-D10's SECOND CASE IS MEASURED NOT-LIVE. B is 46 and 38 against C = 20,
+      nowhere near the B <= C boundary. The correction above said "real as a
+      mechanism, unproven as a live condition"; on these two stores it is now
+      measured rather than unproven.
+      STATUS STAYS in_progress BECAUSE THE WORK IS COMMITTED AND NOT PUSHED, not
+      because anything is outstanding. The sentence above giving the capture as
+      the sole outstanding item was true when written and is now discharged.
       Related: R7-D (the floor gate this sits on top of), DEBT-83 (the hardcoded
       14:00 that sets the band's width and therefore B), L-4 (which 20 hours she
       actually works — the question this ruling explicitly does not answer),

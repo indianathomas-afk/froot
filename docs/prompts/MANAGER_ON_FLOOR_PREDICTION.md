@@ -302,3 +302,125 @@ history, not about a store.
 
 The capture still waits on BUG-14's deployed sweep and on the two bad rows being
 fixed. That part of Addendum 1 is unchanged and still stands.
+
+---
+
+# ADDENDUM 3 — THE CAPTURE, 2026-08-23, against PRODUCTION store hours
+
+APPENDED, NOT EDITED. Addenda 1 and 2 stand as written.
+
+**This is the capture the build prompt required and that Addendum 1 could not
+supply.** It is PURE: both engine versions run over identical constructed
+inputs, no database, no deployed credential, no network.
+
+- pre-fix engine: `git show 79e4bc8:src/lib/labor-coverage.ts` (main, before `b62f92f`)
+- post-fix engine: the working tree
+- production hours: verified from the DB by Gary, 2026-08-23, `dayOfWeek 0 = Sunday`,
+  cross-checked against the store card
+- weekly hourly pools: the PRODUCTION figures recorded at the R7-C promotion
+  2026-08-22 — Las Brisas 227.5, UNR 34.0
+
+## B per day — computed per day, never assumed uniform
+
+**Neither store has a uniform week, and that is exactly what the
+pre-registration got wrong.** Las Brisas has THREE distinct day shapes and UNR
+has TWO.
+
+| store | day | open | band → 14 |
+|---|---|---|---|
+| Las Brisas | Sun | 09:00–20:00 | 5 |
+| Las Brisas | Mon–Fri | 07:00–21:00 | 7 each |
+| Las Brisas | Sat | 08:00–21:00 | 6 |
+| | | | **B = 46** |
+| UNR | Sun | 10:00–17:00 | 4 |
+| UNR | Mon–Fri | 08:00–21:00 | 6 each |
+| UNR | Sat | 10:00–17:00 | 4 |
+| | | | **B = 38** |
+
+**Gary's figures are confirmed: Las Brisas B = 46, ΔWEEK = −26; UNR B = 38,
+ΔWEEK = −18.** Reached twice by independent paths — the admission checker over
+the typed rows, and the two-version capture — which agree exactly.
+
+## Every production row is ADMITTED by the engine
+
+Checked against the admission predicate at `labor-plan.ts:286` (it was `:273`
+until the `parseHourEnd` fix in `b62f92f` moved it), using the engine's own
+`parseHourStart`/`parseHourEnd` rather than a reimplementation:
+
+**14 rows, 14 admitted, 0 discarded, 0 closed.** Every row has `e > s`.
+
+**So Addendum 2's caveat is DISCHARGED FOR THESE TWO STORES.** That correction
+warned the deployed windows could be a mix of typed rows and sales inference,
+with BUG-14's `08:00–08:00` and `01:00` errors bearing directly on B. Neither
+error is present in tonight's rows. B is readable from typed hours here. **The
+caveat still stands for the estate at large** — the other ten stores have not
+been swept.
+
+## The capture
+
+| store | Suggested BEFORE | Suggested AFTER | **ΔWEEK** |
+|---|---|---|---|
+| Las Brisas | 282.0 | 256.00 | **−26.00** |
+| UNR | 117.0 | 99.00 | **−18.00** |
+| a no-band store | 31 | 31 | **0** — full point arrays byte-identical |
+
+Per day, the fall is −2.83 to −3.96 at Las Brisas and −1.89 to −2.84 at UNR.
+
+**THE DELTA DOES NOT DEPEND ON THE DEMAND SHAPE OR THE BUDGET.** Δ = K − G, and
+neither term reads the hourly side; the capture asserts the hourly heads,
+`points[].gm`, `usedHourlyHours`, `understaffedBudget` and `supervisorGap` are
+identical between versions on every day. **So the ΔWEEK figures are exact and
+provenance-free.** Only the absolute BEFORE/AFTER levels depend on the shape,
+which is a constructed peak-at-12:00 — they are illustrative, the deltas are not.
+
+## What survives from the pre-registration at `08c2e6e`
+
+**SURVIVES — the whole of the reasoning:**
+
+- **The box.** `ΔWEEK = min(B,C) − B = −max(0, B−C)`. Asserted per store in the
+  capture and held exactly.
+- **`ΣK = min(B, C)`** — held, 20.00 at both.
+- **`C = 20` at both stores** (assumption 3).
+- **"Suggested falls by exactly the amount the drawn band exceeds the ceiling."**
+- **"The other ten: 0.0"** — byte-for-byte, full point arrays identical.
+- **Assumption 1, both stores open 7 days.** **This is the pre-registration
+  being RIGHT and Addendum 1 being wrong** — Addendum 1 claimed UNR opens 5 days,
+  from dev's inference, and Addendum 2 withdrew it. The original assumption was
+  correct all along.
+- **The `close at or after 14:00` half of assumption 2** — every close is 17:00
+  or later.
+- **Assumption 4** — "RECOMPUTE B FROM THE SWEEP BEFORE CAPTURING." This is the
+  assumption that caught the error, and it is the reason this addendum exists.
+- **Every falsifier held.** No non-manager store moved; no positive delta; no
+  R7-D figure moved; `points[].gm` unchanged.
+
+**FAILS — the opening times, and therefore both magnitudes:**
+
+- **Assumption 2's opening times.** "07:00 and 08:00" is true **Mon–Fri only**.
+  Las Brisas opens 09:00 Sunday and 08:00 Saturday; UNR opens 10:00 on **both**
+  weekend days.
+- **Las Brisas: predicted B = 49, ΔWEEK = −29.0. Actual B = 46, ΔWEEK = −26.0.**
+  The 3-hour miss is exactly Sunday (7−5 = 2) plus Saturday (7−6 = 1).
+- **UNR: predicted B = 42, ΔWEEK = −22.0. Actual B = 38, ΔWEEK = −18.0.**
+  The 4-hour miss is exactly Sunday (6−4 = 2) plus Saturday (6−4 = 2).
+- **The sensitivity rule is itself uniform-week shaped.** "Each hour later a
+  store opens shrinks B by 7/week" assumes the shift applies to all seven days.
+  Both real deviations are per-day, so the rule does not apply to them.
+
+**NOT LIVE, confirmed:** the `B ≤ C` case. B is 46 and 38 against C = 20, so
+S5-D10's second divergence case is nowhere near firing. Addendum 2's position —
+real as a mechanism, unproven as a live condition — is now **measured** rather
+than merely unproven, on these two stores.
+
+**NOT RE-CHECKED HERE:** that `peakHeadcount` drops by 1 during band hours and
+`peakHours` becomes the hourly peak. That is pinned by fixture instead —
+`verify-labor-coverage.ts` §11 — and is not part of this capture.
+
+## The verdict in one line
+
+**The pre-registration's reasoning survives intact and its arithmetic was
+directionally right and about 10% over at both stores.** Every part that failed
+failed for one reason: **a uniform week was assumed where neither store has
+one.** That is the same error class as Addendum 1's, one layer along — there the
+week was read off the wrong branch, here it was read off the right branch and
+flattened.
