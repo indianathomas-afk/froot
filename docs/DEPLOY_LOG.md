@@ -4,6 +4,27 @@ Deploy verification: 2026-07-02T22:00:05Z
 
 ## PENDING-SHA-SHORT — PENDING-DATE — DOC-3: a library document can be a link, and any document can carry instructions
 
+> **⚠ SUPERSEDED 2026-08-24 — DO NOT PROMOTE THIS ENTRY AS WRITTEN.** A defect
+> was found on staging at `4f87e22` after this entry was written: a STORE login
+> granted the I-9 could not see it, because `canReadHrDocument`'s kind switch
+> (`src/lib/hr-documents-access.ts:136`) had no `"Link"` case and fell to
+> `default: return false` for every non-ADMIN. Marked, not deleted, per the
+> in-place correction convention this log already uses — the body below records
+> what was believed at the time, and that is the part worth keeping.
+>
+> **Two claims in the body are now false.** The "What shipped" bullet saying a
+> Link's audience works "exactly as today — a Colorado store gets the Colorado
+> link" was wrong: no non-ADMIN could read a Link at all. And the staging-pass
+> section lists "the granted store's login seeing the document" as passed; on
+> the code as deployed at `4f87e22` that outcome was not reachable. See the
+> DOC-3 row for the analysis of how the pass was recorded.
+>
+> **The fix is one case in one switch**, committed with this marking. A rewritten
+> entry — new payload, new diff, the corrected staging pass — is owed before any
+> promotion, and is deliberately NOT written yet: the row is back to
+> `in_progress` and the store-login check has to be re-run on a new deployment
+> first. Nothing below this banner has been edited.
+
 **Merge SHA:** `PENDING-SHA-FULL`
 **Written before the merge existed.** The heading's SHA and date and the Merge
 SHA line above are stamped by the promotion ritual from `git rev-parse` and

@@ -4876,7 +4876,7 @@ phases:
   - id: DOC-3
     track: hr
     size: M
-    status: verified
+    status: in_progress
     title: "Linked documents + per-document instructions"
     commits:
       - aa4fc1b
@@ -4885,6 +4885,92 @@ phases:
       - dc99289
       - 4f87e22
     notes: >
+      ── DOC-3 UPDATE 2026-08-24 #3 — STATUS verified -> in_progress. A DEFECT
+      WAS FOUND ON STAGING. Prepended per preserve-and-mark; NOTHING BELOW THIS
+      BLOCK IS EDITED, including UPDATE #2's claim that every 4h check passed,
+      which is the claim this block contradicts.
+      THE DEFECT. A STORE login assigned to Las Brisas
+      (StoreUserAssignment.storeId cmrd1a4hz000004jjl91v23nm, br-square-feather)
+      could not see the I-9 Link granted to Las Brisas
+      (HrDocumentStoreAssignment, same storeId). Cause:
+      src/lib/hr-documents-access.ts:136, canReadHrDocument's `switch
+      (doc.kind)` has cases Reference | Acknowledgment | FillableForm and no
+      "Link" - so a Link fell to `default: return false` FOR EVERY NON-ADMIN.
+      ADMIN never reaches the switch: it returns true at :133, which is why
+      every ADMIN-side check passed and why the surface looked correct to the
+      person configuring it.
+      A SIXTH KIND ALLOW-LIST. The audit in the approved prompt's section 3
+      listed four sites; the section 4d table found a fifth (the audience route)
+      and called the rest kind-agnostic. This switch is a sixth, and it is the
+      one that decides READ ACCESS. It was missed while the file was open: this
+      session read canReadHrDocument during Phase 0 - at :129, :175-180 - but
+      read it for DOC-4's question (which logins can see it) and never asked
+      DOC-3's (does the kind switch admit Link). Wrong question, right file.
+      WHY IT FAILS SILENTLY, which is the transferable part. The audience
+      fragments staffAudienceWhere / viewerAudienceWhere are deliberately
+      kind-BLIND - they encode audience and nothing else - so the DATABASE
+      returns the row and the in-memory re-filter at
+      (app)/hr/documents/page.tsx:61 drops it. That re-filter's own comment says
+      it exists "so the fragment and the function cannot disagree in the
+      caller's favour". It was built to catch the FRAGMENT being LOOSER than the
+      FUNCTION. This is the reverse - function stricter than fragment - and it
+      fails closed, with no error anywhere, on a switch whose `kind` is typed
+      `string` so no compiler check exists either.
+      WHY THE 4h STORE-LOGIN CHECK DID NOT CATCH IT, and this needs stating
+      plainly because UPDATE #2 records that check as PASSED. On the code
+      deployed at "4f87e22" that outcome was NOT REACHABLE: canReadHrDocument
+      returned false for a Link for every non-ADMIN, so no store login could see
+      it under any grant. Whatever was observed, it was not a STORE login
+      reading a Link. Most likely an ADMIN session, which short-circuits at :133
+      and renders the row correctly. The reported pass and the deployed code
+      cannot both be right, and the code has now been measured.
+      AND THE NEGATIVE CHECKS PASSED FOR THE WRONG REASON - INCLUDING THE ONE
+      UPDATE #2 FLAGGED AS SUBSTITUTED. Measured against the pre-fix predicate:
+      a Link returned false for the granted store, the other store, AND
+      corporate. So the corporate-negative that was run, and the other-store
+      negative that section 4h actually asked for and did not get, would BOTH
+      have passed on the broken code. The substitution was not the problem. The
+      only check in the whole of 4h that could have detected this is the
+      store-login POSITIVE - the one whose reported result is contradicted here.
+      A negative check cannot distinguish "correctly excluded" from "excluded
+      because nobody can see it".
+      THE FIX: one case, `case "Link":` alongside Reference and Acknowledgment,
+      plus a comment on the switch naming it as a kind allow-list with no
+      exhaustiveness check. Proven with the exact reported case - store id
+      cmrd1a4hz000004jjl91v23nm, STORE login, store grant - against the real
+      exported predicate: post-fix a Link reads true for the granted store,
+      false for the other store, true for ADMIN, matching Reference and
+      Acknowledgment exactly. The same probe was run against the PRE-FIX code at
+      "751a24c" and returned false for the granted store, so the instrument can
+      fail and its pass is worth something.
+      EVERY OTHER kind SWITCH OR EQUALITY WAS AUDITED - 31 HrDocument.kind sites
+      across src/lib and src/app. ONE defect (this one). No second miss. The
+      full table with per-site verdicts is in the session report; the sites that
+      needed a judgement rather than a glance: hr-compliance.ts:291 (denominator,
+      Acknowledgment-only - Link correctly excluded, deliberate);
+      audience/route.ts:117 currentVersionBlocked (returns unblocked for
+      non-Acknowledgment, so a Link is never blocked from being granted - right);
+      audience/route.ts:296 passes doc.kind into grantedToStaff, which never
+      reads kind - harmless but DEAD; download/route.ts:47 and
+      versions/route.ts:67 are both unreachable for a Link because their routes
+      404 first on the missing version row; and document-detail-client.tsx's
+      three isSignatureDoc reads are unreachable behind the Phase 3 guard at
+      (app)/hr/documents/[id]/page.tsx:72.
+      ONE ASYMMETRY FOUND AND LEFT ALONE, recorded because it explains a
+      confusing symptom: the STAFF PORTAL does NOT re-filter through
+      canReadHrDocument - (my)/my/documents/page.tsx applies staffAudienceWhere
+      only - so it was UNAFFECTED by this defect. A person with a roster row
+      would have seen the I-9 at /my/documents and not at /hr/documents, the
+      same login, the same grant, the same document. Not changed here; the
+      portal's behaviour was correct and the library's was not.
+      THE DEPLOY_LOG ENTRY WRITTEN IN "751a24c" IS SUPERSEDED, marked in place
+      with a banner and NOT deleted. Two of its claims are now false: that a
+      Link's audience works "exactly as today", and that the granted store's
+      login was seen reading it. A rewritten entry is owed before any promotion
+      and is deliberately not written yet - the store-login check must be re-run
+      on a deployment that carries the fix.
+      ── END UPDATE #3. UPDATE #2, UPDATE #1 and the original notes follow,
+      unedited. ──
       ── DOC-3 UPDATE 2026-08-24 #2 — STATUS in_progress -> verified. Prepended
       per preserve-and-mark; NOTHING BELOW THIS BLOCK IS EDITED, including
       UPDATE #1 and the original notes, and including the STILL-OWED paragraph
