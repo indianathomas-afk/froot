@@ -4876,7 +4876,7 @@ phases:
   - id: DOC-3
     track: hr
     size: M
-    status: in_progress
+    status: verified
     title: "Linked documents + per-document instructions"
     commits:
       - aa4fc1b
@@ -4884,7 +4884,57 @@ phases:
       - 1b7600b
       - dc99289
       - 4f87e22
+      - 751a24c
+      - "4708779"
     notes: >
+      ── DOC-3 UPDATE 2026-08-24 #4 — STATUS in_progress -> verified. SECTION 4h
+      RE-RUN AND COMPLETE ON THE FIXED CODE. Prepended per preserve-and-mark;
+      NOTHING BELOW THIS BLOCK IS EDITED.
+      SHA PRECONDITION SATISFIED BEFORE ANY OBSERVATION. Local HEAD
+      4708779eaf2384595b4eb4a153f6f3067fe38ecd, origin/staging identical, and
+      `vercel inspect` on the staging alias resolving to froot-a3jextz4e - the
+      same deployment `vercel ls --meta githubCommitSha=<full>` returns.
+      THE STORE-LOGIN POSITIVE, WHICH IS THE CHECK THIS ROW TURNS ON.
+      corporate@keva.com (STORE, Las Brisas) sees the I-9 Link with Open and
+      Instructions, and no Sign, no Download, no audience chip, no versions
+      gear. THE SAME LOGIN WAS BLIND ON "4f87e22" - so this is a differential
+      against the broken build, not an assertion against nothing, and it is the
+      one check in all of 4h that could have caught the defect.
+      TYPED-URL PROBES, SIGNED IN AS ADMIN (indianathomas@live.com):
+      /hr/documents/cmt7hwu8r000004ic7o3oofw6 -> in-app 404, the detail-page
+      kind guard at (app)/hr/documents/[id]/page.tsx:72;
+      /api/hr/documents/cmt7hwu8r000004ic7o3oofw6/download -> {"error":"Document
+      not found"}, the download route's :31 on the missing version row. SIGNED
+      IN IS LOAD-BEARING: src/proxy.ts wraps non-public routes in
+      auth.protect(), which 404s an unauthenticated request, so signed out both
+      probes return the right answer for an unrelated reason.
+      SECTION 4f, BOTH HALVES. Server: a console POST with kind:"Link" and no
+      externalUrl returned 400. Client: with `required` stripped from the URL
+      input, an empty submit produced a VISIBLE ERROR AND NO ROW. Both were
+      needed - the client half cannot fail while `required` holds, and the
+      server half says nothing about what the operator sees.
+      STAGING SQL on br-square-feather: one Link row, version_rows = 0,
+      has_instructions true. The zero-versions invariant holds in the DATABASE,
+      not only in the route that writes it.
+      THE EARLIER "STORE-LOGIN WORKS" REPORT WAS MADE FROM
+      indianathomas@live.com - AN ADMIN SESSION. Confirmed by Gary. That closes
+      the question UPDATE #3 left open, and it closes it the way the code
+      predicted: ADMIN returns true at hr-documents-access.ts:133 without
+      reaching the kind switch, so the row rendered correctly for the one role
+      that could not detect the bug. The check named a role it did not exercise.
+      Recorded because the failure was not the observation - the observation was
+      real - it was the ATTRIBUTION of that observation to a role it was never
+      taken under.
+      WHAT THIS ROW SHOULD BE READ FOR LATER, beyond the feature: a verification
+      pass reported complete, a promotion entry written, and a status of
+      `verified` were all reached while the headline capability was broken for
+      every non-ADMIN. Three negatives passed and none of them could have
+      failed. The lesson is not "test more" - it is that A NEGATIVE CHECK CANNOT
+      DISTINGUISH "correctly excluded" FROM "excluded because nobody can see
+      it", so a feature whose whole point is that the RIGHT people see it must
+      be gated on a POSITIVE, taken under the exact role in question.
+      ── END UPDATE #4. UPDATE #3, #2, #1 and the original notes follow,
+      unedited. ──
       ── DOC-3 UPDATE 2026-08-24 #3 — STATUS verified -> in_progress. A DEFECT
       WAS FOUND ON STAGING. Prepended per preserve-and-mark; NOTHING BELOW THIS
       BLOCK IS EDITED, including UPDATE #2's claim that every 4h check passed,
