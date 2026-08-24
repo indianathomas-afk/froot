@@ -5562,6 +5562,135 @@ phases:
       this correction supersedes; the file itself is a claim wholesale and
       stays unedited.
 
+  - id: HR-29
+    track: hr
+    size: M
+    status: staging
+    commits: ["47dbb00", "a5799d3", "f70ae90"]
+    title: "TrainingModule display order — orderIndex, an ADMIN reorder endpoint, and every consuming surface reading it"
+    notes: >
+      2026-08-24. ROW CREATED BY THIS SESSION, NOT FLIPPED. No row existed for
+      this work; the order's §7 said "this work's row -> staging" and presumed
+      one. The Phase 0 audit ran the search, got NO MATCH, and failed to report
+      it — recorded in the addendum §4.
+
+      RULING (Gary, 2026-08-24, docs/DECISIONS.md, verbatim): "TrainingModule
+      orderIndex is GLOBAL across the org, not per-category. One order, every
+      surface. The Assign dialog is a flat list with no category UI and cannot
+      show two numbering spaces."
+
+      BACKFILL SEED: createdAt asc, PARTITION BY "organizationId", with ", id
+      ASC" appended to make ROW_NUMBER() total — the file runs separately per
+      environment and two modules from one import can share a millisecond. It
+      lives IN the migration (20260824210000_hr29_training_module_order_index)
+      so migrate deploy seeds each branch exactly once, and so the NOT NULL
+      DEFAULT 0 window where every row in an org is tied never exists. Seeding
+      from createdAt asc preserves what admins see on /hr/training today, so
+      nothing visibly reorders until somebody drags.
+
+      DATABASE EVIDENCE IS DEV ONLY. Applied and proved on
+      ep-late-water-a6k53nv2 (Neon dev) — two orgs, each seeded from 0, which
+      demonstrates the organizationId partition rather than asserting it. The
+      br-square-feather (ep-odd-rain) figure is NOT in this session's reach:
+      CLAUDE.md § Environment Variables puts every deployed-environment read
+      through the Neon console. It arrives when Gary runs the query after the
+      deploy.
+
+      SCOPE OF THE ENDPOINT, STATED RATHER THAN INFERRED. PATCH
+      /api/hr/training/reorder writes dense positions over the org's whole
+      ACTIVE set. /hr/training filters twice — category chip and tab — so no
+      view shows every module at once; one read of the active scope rejects a
+      foreign-org id, an archived/inactive id, and a MISSING active id alike,
+      and any of them kills the whole request. inTab(m, "active") is
+      `!isArchived && isActive`, byte-for-byte the endpoint's scope, so the
+      handle is live only on the Active tab with no chip filter and `visible`
+      IS the payload.
+
+      CONSEQUENCE ACCEPTED, NOT MECHANISED: un-archiving a module drops it
+      wherever its stale index falls in the live list rather than at the end,
+      because a reorder never rewrites archived rows. One drag fixes it.
+
+      DEVIATION FROM THE ORDER, NAMED: the drag handle is TABLE VIEW ONLY. The
+      card grid reads the new order and renders it but offers no handle. HR-21's
+      parity rule is about the rendered result, which both layouts keep.
+
+      COMMENT ITEMS, recorded here rather than as rows (DEBT-84). (1) The
+      order's §1 table misattributes assignments/bulk/route.ts:225, which orders
+      TrainingAssignment for race-loser detection; bulk assign carries a single
+      module id and renders no module list, so there was nothing to edit. (2)
+      The order's §3 backfill SQL says "orgId"; the column is "organizationId"
+      and as written it would have errored. (3) The order's §5 says to revert a
+      failed drag "with the page's existing toast" — this app has no toast
+      component at all, so the revert carries an inline message instead.
+
+      NOT UI-VERIFIED. The drag has never been performed in a browser. The
+      order's §6 staging pass is the gate and is blocked on Gary's deploy.
+      Audit: docs/prompts/2026-08-24_HR-TrainingModule_Order_AUDIT.md, corrected
+      by ..._AUDIT_ADDENDUM.md alongside it, which wins wherever the two
+      disagree. Cross-refs: HR-30 (sequence enforcement, filed not built),
+      HR-31 (the assignment-ordered surfaces, split out of this row).
+
+  - id: HR-30
+    track: hr
+    size: M
+    status: planned
+    title: "Training sequence enforcement — module N+1 stays locked until N is complete"
+    notes: >
+      2026-08-24. FILED, DELIBERATELY NOT BUILT. The order that produced HR-29
+      names this in its §1 "Not this row" and instructs that it be filed with
+      its open questions instead.
+
+      Depends on HR-29: orderIndex is the sequence this would enforce. Sorting
+      makes the order visible and consistent; it does not stop a trainee opening
+      module 5 first. Trainee-facing only.
+
+      OPEN QUESTIONS, none of them answered here. (a) What happens to someone
+      MID-SEQUENCE when an admin reorders — does an already-completed module
+      that moves ahead of them re-lock? (b) Is there a trainer override, and is
+      it per-assignment or per-person? (c) Does a locked module still appear,
+      greyed, or vanish? (d) For a trainee assigned only modules 2 and 5, does
+      the lock follow assignment order or module order? (e) One sequence per
+      org, inheriting HR-29's GLOBAL ruling, or something per-category?
+
+      NOT IN SCOPE: any change to who may see or assign a module.
+
+  - id: HR-31
+    track: hr
+    size: S
+    status: planned
+    title: "Assignment lists follow module order, not assignment createdAt — /my/training and the staff record"
+    blockers:
+      - >
+        No STAFF-role test account exists. /my/training is gated by
+        getActiveStaffSelf(), which resolves a StaffMember rather than a role,
+        and every named staging principal is a login: karson@keva.com is ADMIN
+        and tommy@keva.com is STORE/MANAGER. The one-line fix is not the hard
+        part; verifying it is.
+    notes: >
+      2026-08-24. SPLIT OUT OF HR-29 BY GARY. Two surfaces order a staff
+      member's assignments by ASSIGNMENT createdAt desc — newest-assigned
+      first — rather than by the module order HR-29 introduces:
+      src/app/(my)/my/training/page.tsx:34 (the trainee's own list) and
+      src/app/(app)/staff/[id]/page.tsx:483 (an admin's view of the same list).
+
+      THE FIX IS ONE LINE EACH: orderBy [{ trainingModule: { orderIndex: "asc" }
+      }, { trainingModule: { createdAt: "asc" } }]. Prisma orders through a
+      to-one relation natively, so no extra query.
+
+      THEY STAY TOGETHER ON PURPOSE. staff/[id]:483 IS verifiable today as
+      karson@keva.com and could ship alone — but shipping it alone would leave
+      the admin's view of Tommy's list on module order while Tommy's own view
+      stays on assignment order, which is a NEW inconsistency of exactly the
+      kind HR-29 exists to remove. Better both or neither.
+
+      WHY IT IS NOT IN HR-29, and the correction behind it: the Phase 0 audit
+      claimed /my/training was compelled into scope because the order's §6 check
+      3 ("tommy@keva.com: staff-facing training surface") could not otherwise
+      pass. That was wrong — the audit never checked tommy's role. He is
+      STORE/MANAGER (ROADMAP.yaml:5041, :5224; DEPLOY_LOG.md:295), so check 3
+      runs through api/hr/training/library/route.ts, which HR-29 already fixed.
+      Full correction: the HR-29 audit addendum §1.
+
   - id: HR-11d
     track: hr
     size: M

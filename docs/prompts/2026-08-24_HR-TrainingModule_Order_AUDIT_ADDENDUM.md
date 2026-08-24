@@ -271,3 +271,36 @@ a STAFF-role test account.
 | 6 | *(unknown at the time)* | Claude cannot touch the staging DB. Backfill proof on `dev` + a Neon-console query for Gary (§6) |
 
 **RULING = GLOBAL** (Gary, 2026-08-24, `docs/DECISIONS.md`) carries through every phase.
+
+---
+
+## 10 · A seventh correction, found during Phase 2 — `TrainingCategory.sortOrder` already exists
+
+The audit's §4 argued against PER_CATEGORY partly on this ground:
+
+> *"`/my/training` must then impose a category order on top of the module order […] and now
+> **category ordering is a new unruled problem** (alphabetical? a `sortOrder` on
+> `TrainingCategory`? another schema column, another row)."*
+
+**It is not a new problem and it is not unruled.** `TrainingCategory.sortOrder` already exists
+and is already the primary sort on the categories route:
+
+```
+$ sed -n '/model TrainingCategory {/,/^}/p' prisma/schema.prisma | grep sortOrder
+  sortOrder      Int      @default(0)
+
+src/app/api/hr/training/categories/route.ts:20
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+```
+
+So a PER_CATEGORY design would have had a defined outer sort available to it, and the audit
+overstated that leg of its case by inventing a schema decision that was already made.
+
+**The ruling is unaffected**, and it is worth being precise about why rather than waving it
+through. Gary's own stated reason — *"The Assign dialog is a flat list with no category UI and
+cannot show two numbering spaces"* — does not depend on this leg at all. That picker
+(`staff/[id]/page.tsx:496`) selects `{ id, title }` and renders one flat list; an outer category
+sort existing in the database does not give that component anything to render it with. The
+argument stands on its own, and stands better than the version the audit built around it.
+
+**Recorded, not corrected in place:** the audit stays unedited. This section is the correction.
