@@ -422,6 +422,71 @@ phases:
       `open` carry the same defect, deliberately unfixed by Gary's ruling since
       no count on the page reads them).
       Session prompt: docs/prompts/P-4_blockers_panel_status.md
+      RE-AUDITED 2026-08-23 — THE WHOLE FILE, EVERY BLOCKER ENTRY, AND THE ANSWER
+      IS ZERO. Appended per preserve-and-mark; nothing above is edited. The
+      question was how many entries besides R7-C's carry the old PERM-6
+      convention — closed in prose, never flagged — and so count LIVE on
+      /internal/roadmap. 56 entries across 21 phases: 22 resolved, 3 narrowed,
+      31 bare. NOT ONE bare entry is an unambiguous unflagged closure, so
+      NOTHING WAS FLAGGED THIS SESSION and the file is unchanged apart from this
+      note.
+      THE INVERSE — an entry FLAGGED resolved whose prose does not support it,
+      which is the direction that HIDES a live blocker — ALSO CAME BACK ZERO.
+      Ten flagged entries tripped a still-live-language matcher and all ten read
+      clean on inspection. Six were "CLEARS WHEN ..." originals sitting under a
+      flag added later, which is the convention working exactly as the header
+      describes: the prose is never edited, so a correctly-flagged entry KEEPS
+      language that sounds live, and the closure lives in a separate entry
+      prepended above it. PERM-6:2 is the sharpest case — its own text says "this
+      blocker STAYS OPEN" and it is nonetheless correctly flagged, because
+      PERM-6:0 closes it. A matcher reading entries in isolation would call that
+      a false flag; it is not.
+      THE FIVE PROSE HITS ARE ALL AMBIGUOUS AND ARE LISTED FOR RULING, NOT
+      FLAGGED. F-4:0, HR-11c:0, L-2:0, L-2:1, L-2:3 and L-2:5 each open by
+      announcing something closed and then NAME A SURVIVING REMAINDER in their
+      own text — "that half of the entry below stays open" (F-4:0), "covers ONE
+      live item" (HR-11c:0), "STAGED, NOT PROMOTED" (L-2:0), "ADDED, NOT YET
+      GRANTED" (L-2:1). Flagging any of them would silence a live fact, which is
+      the failure mode a blocker exists to prevent. They are candidates for
+      NARROWED, which is a ruling, not a bookkeeping fix.
+      L-2:4 WAS CHECKED ITEM BY ITEM AND IS CORRECTLY LIVE. Its "CLEARS WHEN all
+      four are done" names LABOR-0 (done, L-2:3), the version bump (done, L-2:0),
+      the labor scopes (added, L-2:1) and EVERY MERCHANT RE-CONSENTS — which has
+      not happened, and L-2:1 says so in terms. Three of four is not four.
+      THE REAL OVER-COUNT HAS A DIFFERENT CAUSE THAN THIS ROW ASSUMED, AND IT IS
+      STRUCTURAL RATHER THAN A MISSING FLAG. Eight of the 31 live entries are
+      PREPENDED CLOSURE NOTES — F-4 carries 3 of its 5, L-2 carries 4 of its 6,
+      IG-1 carries 1 of 3. Each is a note written to close something below it,
+      and each is counted as a blocker in its own right. So F-4 reads as five
+      live gates when it has two, plus three notes about them. The prepend
+      convention inflates the count even when every flag is correct. NOT FIXED
+      HERE, and not fixable by flagging: the notes carry live remainders too.
+      WHAT WOULD STOP IT RECURRING — PROPOSED, NOT BUILT, awaiting Gary. A check
+      in the roadmap generator that WARNS when a bare entry OPENS with a closing
+      verb and a date and names no remainder. It runs on every `npm run build`
+      and every `npm run dev` via the existing prebuild/predev hooks, so it needs
+      nobody to remember it, which the promotion-checklist grep would.
+      IT IS NOT THE PREFIX DETECTION THIS ROW REJECTED, and the difference is the
+      job it does. This row rejected prefix matching as a CLASSIFIER — something
+      that decides an entry is closed — on the evidence that F-5's live blocker
+      opens "VERIFIED STILL TRUE" and F-4's opens "CONFIRMED LIVE". That
+      rejection stands and nothing here weakens it. A WARNING never closes
+      anything; it asks a human to look, and it fails toward asking rather than
+      toward understating, which is the direction this row cares about. It is
+      also far narrower: it requires a closing verb IMMEDIATELY FOLLOWED BY A
+      DATE, so "VERIFIED STILL TRUE 2026-07-27" and "CONFIRMED LIVE 2026-07-27"
+      do not match it at all.
+      BACKTESTED BEFORE PROPOSING. Against 7533613 — the commit before af407b3
+      flagged R7-C's three — it fires ONCE, on R7-C:1, which is exactly the entry
+      af407b3's message names as having been over-counted since 2026-08-22.
+      Against HEAD it fires ZERO times, and suppresses F-4:0 on the remainder
+      clause. One true positive, no false positives, on both sides of the fix.
+      A NOISY CHECK WOULD BE WORSE THAN NONE, which is why it was backtested
+      rather than reasoned about. The coarse prose matcher this audit opened with
+      produced five hits and all five were false; a warning built on THAT would
+      have cried wolf five times on every build from its first day and been
+      ignored inside a week.
+      Audit prompt: docs/prompts/SWEEP_AND_FLAG_AUDIT.md (Track B).
 
   - id: UX-1
     track: platform
