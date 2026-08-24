@@ -13808,6 +13808,53 @@ bugs:
       RECORDED AT 66f0b59. The work commit; this line is its recorder, per the
       two-commit pattern. Item (c)'s ENGINE column rides the same SHA and is
       unrun against deployed data.
+      COPY APPROVED BY GARY 2026-08-23, WITH ONE CHANGE, AND THE CONDITION HE SET
+      RESOLVED AGAINST THE STRING. He approved the three proposed strings and
+      asked that "Saved, but " be dropped from the dialog line UNLESS it renders
+      only after a successful save. IT DOES THE OPPOSITE, twice over: the flag is
+      computed from FORM state inside the render, so it appears while the
+      operator is still typing, and a successful save calls setOpen(false), so
+      the line is never on screen after one. Dropped. The dialog now reads "The
+      Weekly Labor Model will not use this day — coverage is inferred from past
+      sales instead." The reasoning is recorded in the constant's own comment so
+      nobody restores the prefix on the assumption it was a post-save notice.
+      CORRECTION TO THIS ROW'S OWN CLAIM, SAME DAY. The block above says the
+      parsers were "lifted verbatim, comments and all". THE CODE WAS; THE
+      COMMENTS WERE NOT, QUITE. Diffed against af407b3's labor-plan.ts:52-72:
+      two comment lines differ, because the moved copy drops the ", :286" line
+      citation from the midnight-close note and reflows the sentence around it —
+      the rule is no longer at :286 of that file, so keeping the citation would
+      have carried a pointer that was false on arrival. TEN EXECUTABLE LINES,
+      BYTE-IDENTICAL ON BOTH SIDES, md5 f18cf4f1f58a8e51e1baaa42ef77bcb3. The
+      claim was overstated and is corrected rather than quietly narrowed; "the
+      code is identical and two comment lines were reflowed" is what is true.
+      PROOF THAT THE EXTRACTION MOVED NOTHING, ASKED FOR BY GARY AND ANSWERED
+      WITH A DIFFERENT INSTRUMENT THAN THE ONE HE NAMED. He asked for
+      verify-labor-budget.ts byte-identical, md5 both sides, on the reasoning
+      that the predicate decides typed hours vs sales inference and so feeds the
+      open window and the day split. IT IS BYTE-IDENTICAL — md5
+      f0ce67bd3b9ddb557a974dbe7fa16914 on both sides — AND THAT PROVES NOTHING.
+      verify-labor-budget.ts imports labor-budget.ts and NOTHING ELSE; it never
+      reaches labor-plan.ts, so the predicate is not in its dependency graph.
+      Demonstrated rather than argued: with engineOpenWindow sabotaged to return
+      null for every row — every store on sales inference — the fixture still
+      emits the same bytes and the same md5. A green result from an instrument
+      that cannot detect the failure is not evidence.
+      SO THE PROOF WAS BUILT TO MATCH THE DECISION HE NAMED. A differential
+      harness ran the OLD inline predicate against the NEW shared one over
+      2,074,842 input pairs — every minute of the day against every other minute,
+      1440 x 1440, plus nulls, empty strings, "24:00", "8:00", "08:0", "abc",
+      "99:99" and "08:00:00". The old side was NOT retyped: its parsers were
+      imported from a verbatim copy of labor-plan.ts at af407b3, and its
+      admission expression was EXTRACTED FROM THAT FILE'S OWN TEXT at line 286
+      and compiled, so no transcription of mine sits on the control side. ZERO
+      DISAGREEMENTS. md5 of the full decision vector — window or SALES-INFERENCE
+      for every pair — f74111242928a692f2acf640544cd7d0 on both sides. The
+      harness was then shown SENSITIVE by flipping `e > s` to `e >= s`, which
+      diverges the md5 immediately, so its silence means something.
+      THE HARNESS WAS TEMPORARY AND IS NOT IN THE TREE. Its standing replacement
+      is verify-store-hours-engine.ts, which asserts the same predicate through
+      labor-plan's re-export on every run.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.

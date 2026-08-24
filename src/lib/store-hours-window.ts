@@ -120,6 +120,10 @@ export const ENGINE_DISCARDED_COPY = {
   /// The store card, when some are. `days` arrives rendered, e.g. "Wed, Fri".
   some: (days: string) =>
     `The Weekly Labor Model is not using these hours on ${days} — coverage on those days is inferred from past sales instead.`,
-  /// The editor, against the one row that caused it.
-  day: "Saved, but the Weekly Labor Model will not use this day — coverage is inferred from past sales instead.",
+  /// The editor, against the one row that caused it. NOT "Saved, but ..." —
+  /// Gary, 2026-08-23, on condition it only rendered after a successful save.
+  /// IT DOES THE OPPOSITE: it is computed from FORM state inside the render and
+  /// appears while the operator is still typing, and a successful save CLOSES
+  /// the dialog, so this line is never on screen after one.
+  day: "The Weekly Labor Model will not use this day — coverage is inferred from past sales instead.",
 } as const
