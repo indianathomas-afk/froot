@@ -5569,6 +5569,58 @@ phases:
     commits: ["47dbb00", "a5799d3", "f70ae90"]
     title: "TrainingModule display order — orderIndex, an ADMIN reorder endpoint, and every consuming surface reading it"
     notes: >
+      ── HR-29 STAGING PASS 2026-08-24 — prepended per preserve-and-mark;
+      NOTHING BELOW THIS BLOCK IS EDITED. Deployed and verified at
+      2438fef~staging. All six of the order's §6 checks pass.
+
+      CHECK 1 FAILED ON FIRST OBSERVATION AND THE CAUSE WAS A STALE BROWSER TAB,
+      not a code defect. The drag-handle column did not render; a hard refresh
+      fixed it, and nothing was changed to make it pass. Recorded because it cost
+      a full diagnosis round: the next person who sees a new column "missing" on
+      an HR surface should reload the tab before reading the code. What that
+      diagnosis did establish, and it is worth keeping: the four hypotheses put
+      to it — the ADMIN gate, whether the All chip counts as an active filter,
+      list-versus-grid emission, and a build-time condition — all returned
+      negative, and the gate was traced intact into the minified bundle
+      (am=a&&"list"===E for showReorderHandle, am&&(0 for its th). A probe render
+      of the real TrainingClient on a public route showed 8 columns and two live
+      "Reorder module" handles, and a drag swapped the rows. The diagnosis
+      concluded the served bundle predated the code and named a build that fails
+      after a successful migrate deploy as the likely mechanism. The true cause
+      was narrower — one stale tab — so that conclusion was the right class and
+      the wrong instance.
+
+      THE SIX CHECKS, after the refresh. (1) Modules dragged on /hr/training and
+      the order persisted across a reload. (2) The Assign dialog picker showed
+      the new order — the surface whose title-asc sort was the visible symptom
+      this row exists to remove. (3) tommy@keva.com saw the new order on the
+      read-only library. (4) Export and bulk assign matched. (5) MANAGER against
+      PATCH /api/hr/training/reorder returned 403. (6) A fabricated id returned
+      400 with the database order unchanged.
+
+      DEVIATION FROM §6, recorded rather than silently substituted: checks 1 and
+      2 ran as Gary's own ADMIN account, not karson@keva.com as §6 names. Same
+      role, different principal.
+
+      STAGING DATABASE EVIDENCE NOW EXISTS AND SUPERSEDES THE "DATABASE EVIDENCE
+      IS DEV ONLY" PARAGRAPH BELOW, which is left standing unedited. Neon
+      br-square-feather (ep-odd-rain), console branch selector confirmed by Gary:
+      five rows, orderIndex 0 to 4 in createdAt order, one organizationId. The
+      backfill is good on staging, and the dev-branch figure below is no longer
+      the only measurement this row rests on.
+
+      DEPLOY_LOG.md IS DELIBERATELY NOT WRITTEN, AND THAT IS THE RULE RATHER THAN
+      AN OMISSION. docs/WORKFLOW.md §1 is the staging flow and it ends at line 21
+      with "git push origin staging"; it contains no DEPLOY_LOG step. The
+      DEPLOY_LOG entry belongs to §2, Promote to production, where lines 33-36
+      put it between the merge to main and the push ("write the entry NOW, and
+      commit it, BEFORE the push") and line 50 repeats it. HR-29 is on staging
+      and unpromoted, so no entry is due; it falls due when this work merges to
+      main.
+
+      PROMOTION STATE: 47dbb00, a5799d3 and f70ae90, plus this recorder commit,
+      are on staging and not on main.
+
       2026-08-24. ROW CREATED BY THIS SESSION, NOT FLIPPED. No row existed for
       this work; the order's §7 said "this work's row -> staging" and presumed
       one. The Phase 0 audit ran the search, got NO MATCH, and failed to report
