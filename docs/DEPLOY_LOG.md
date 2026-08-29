@@ -2,6 +2,114 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## PENDING-SHA-SHORT — PENDING-DATE — PERM-8: the Square staff import becomes grantable to specific managers
+
+**Merge SHA:** `PENDING-SHA-FULL`
+**Written before the merge existed**, per the ritual — the heading's two tokens
+and the Merge SHA line's one are stamped from `git rev-parse` and `date`, never
+hand-typed. One occurrence each, on those two lines and nowhere else in this
+entry; this entry never spells one out in prose, because a token written into a
+sentence is a token the stamp substitutes into that sentence. An entry still
+carrying them is written and unpromoted, which is a valid state.
+
+**READ THIS FIRST IF YOU ARE ROLLING BACK.** This promotion carries a
+PERMISSIONS change and an ADDITIVE MIGRATION. The migration is one `ADD COLUMN`
+on `User` and reverting the code leaves it unread and harmless — do NOT drop it
+(WORKFLOW.md § Rolling a promotion back). The permissions change is the part to
+understand: it introduces the product's first mechanism for granting a user
+MORE than their role allows.
+
+**Payload:** **2 commits** on `staging` ahead of `main` — the work commit
+`4e2d7e0` and its roadmap recorder — plus the promotion merge itself (staging →
+main, `--no-ff`). **Prior main tip is `2a0e67a`.**
+
+### What it does
+
+`staff.sync.square` gated two routes that had to move in opposite directions:
+the import READ, which Gary wanted grantable to a named manager, and the bulk
+re-sync, which TERMINATES staff members and overwrites store assignments
+org-wide and had to stay admin-only. One capability cannot be granted and
+not-granted for the same person, so it split.
+
+- **NEW `staff.import.square`** (ADMIN_ONLY) — the import read, the Import
+  button, and the grid label "Import team members from Square". It is the sole
+  entry in `GRANTABLE_CAPABILITIES`, grantable to **MANAGER only**.
+- **`staff.sync.square`** keeps the bulk re-sync, stays ADMIN_ONLY, is **not
+  grantable**, and is relabelled "Re-sync staff from Square".
+
+**No role's baseline moved.** Both capabilities are ADMIN_ONLY, so nobody gains
+anything from the deploy itself — only from an admin subsequently issuing a
+grant in Edit User.
+
+### The grant model, and the invariant it amends
+
+`User.grantedCapabilities` (new column) plus an elevation branch in `can()`.
+Precedence: **denied wins, otherwise baseline OR grant.** The denial check was
+moved ABOVE the baseline test so that ordering is structural rather than
+remembered.
+
+PERM-1's rule — *"nothing here or in later phases may grant a user something
+their role does not already allow today"* — stood absolute from 2026-07-25 until
+this promotion. It is now narrowed, not deleted: elevation is possible ONLY for
+a capability named in `GRANTABLE_CAPABILITIES` and ONLY for a role that list
+names against it. **Appending to that list is a security change with the weight
+of a baseline change.** The old comment in `permissions.ts` promising no such
+code path was replaced rather than edited — it had become a security claim that
+was false.
+
+Pre-existing call sites are unaffected: a `{ role }` caller carries no grants
+and cannot reach the elevation branch's true case.
+
+### Enforcement, and what to test if this looks wrong in production
+
+Enforcement is at the ROUTES, not the buttons:
+
+| Route | Capability | A granted MANAGER |
+|---|---|---|
+| `GET /api/square/team-members` | `staff.import.square` | **200** |
+| `POST /api/staff` | `staff.manage` | 201, own stores only |
+| `POST /api/staff/sync-square` | `staff.sync.square` | **403** |
+
+`PATCH /api/users/[id]` validates grants with the same `isGrantable()` that
+`can()` consults, returning 400 on unregistered, not-grantable, or wrong-role —
+so a hand-rolled request cannot write a grant the grid will not offer.
+
+### Diff (code)
+
+| file | + | − |
+|---|---|---|
+| `src/lib/permissions.ts` | 185 | — |
+| `scripts/verify-perm8-grants.ts` | 117 | 0 |
+| `src/app/(app)/users/user-actions.tsx` | 100 | — |
+| `src/app/api/users/[id]/route.ts` | 61 | — |
+| `src/app/(app)/staff/page.tsx` | 47 | — |
+| `src/app/api/square/team-members/route.ts` | 32 | — |
+| `src/lib/auth.ts` | 19 | — |
+| `prisma/schema.prisma` | 18 | 0 |
+| `src/app/api/staff/sync-square/route.ts` | 12 | 0 |
+| `src/app/(app)/users/page.tsx` | 2 | 0 |
+| `prisma/migrations/…_perm8_user_granted_capabilities/migration.sql` | 2 | 0 |
+
+15 files, 966 insertions, 63 deletions including docs. **Schema: yes — one
+additive `ADD COLUMN`. No env var, no cron.**
+
+### Precondition checked before the work was built
+
+The split would have WIDENED access for anyone already carrying
+`staff.sync.square` as a denial: they would keep the sync denial but regain the
+import read. **Zero such users exist on any branch.** Gary captured Neon console
+evidence 2026-08-29 for `br-square-feather` (preview/staging) and
+`br-sparkling-block` (production), branch identity visible in the same capture
+as the result; dev (`br-broad-wave-a6vpjdw0`) measured 0 of 7 User rows.
+
+### Verification status at the time of writing
+
+`npm run build` green in the commit gate chain. `scripts/verify-perm8-grants.ts`
+— 20 pure assertions, all green. COMP-1's `scripts/verify-comp-confidential.ts`
+re-run green and untouched. **NO STAGING PASS HAD BEEN RUN WHEN THIS WAS
+WRITTEN** — the five-part protocol against a MANAGER account is in the session
+report and was unrun. Nothing here claims a deployed observation.
+
 ## 607926b — 2026-08-24 — DOC-3: a library document can be a link, and any document can carry instructions
 
 **Merge SHA:** `607926bb5f9d0201b9f60c706eddb03ca4588abc`

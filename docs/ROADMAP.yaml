@@ -9509,6 +9509,60 @@ phases:
   # migration are labor surfaces. Its third part is a permissions capability and
   # closes PERM-5C's ruling 5 — cross-referenced there rather than filed twice.
 
+  - id: COMP-2
+    track: labor
+    size: S
+    status: planned
+    title: "PROPOSED, UNRULED — roster sync defaults NEW SquareTeamMemberWage rows to compConfidential = true"
+    notes: >
+      DEVIATION S5-D75 — `status: planned`, NOT `proposed`. Gary asked for
+      `status: proposed`; `PhaseStatus` in src/lib/roadmap.ts:13-31 has no such
+      value (planned | in_progress | staging | shipped | verified | withdrawn)
+      and the build type-errors on one. `planned` is the nearest fit and
+      `withdrawn` would be actively wrong — that means retracted, and this is
+      not. BECAUSE `planned` CAN BE READ AS "AGREED, JUST NOT STARTED", WHICH IS
+      EXACTLY WHAT THIS IS NOT, the title carries PROPOSED, UNRULED and this
+      paragraph leads the notes. Adding a `proposed` value to the union was NOT
+      done — that is a roadmap-schema change nobody ruled on, and it would touch
+      BOARD_COLUMNS and isResolvedDebt.
+      FILED 2026-08-29 BY PERM-8, NOT IMPLEMENTED, AND NOT RULED. Gary's
+      instruction at the PERM-8 Phase B approval: file the real version of an
+      idea that PERM-8 could not carry, and implement no part of it this
+      session. Nothing in this row has been built.
+      WHERE IT CAME FROM. PERM-8 ratified an addition defaulting newly imported
+      SALARIED people to `compConfidential = ON`, so that a granted manager
+      running the Square staff import while Gary was away could not create a
+      visible salary he was not there to flag. The PERM-8 audit
+      (docs/prompts/PERM-8_AUDIT.md, Finding 4) proved the rule had no object on
+      that path: the import writes StaffMember and StoreStaffAssignment only,
+      the team-members payload has `wage_setting` stripped server-side, and
+      `compConfidential` lives on SquareTeamMemberWage — a table the import
+      never touches. The import cannot determine salaried status at import time
+      and has no row on which to set the flag. Gary withdrew the addition and
+      asked for it to be re-aimed here.
+      THE ACTUAL PROPOSAL. `writeRoster()` in src/lib/labor-roster.ts omits
+      `compConfidential` from BOTH its INSERT column list and its DO UPDATE SET
+      list, so a NEW wage row takes the schema default of false and a resync
+      preserves whatever an admin set. The proposal is to change the NEW-ROW
+      default to true — confidential until an admin opens it — while leaving the
+      DO UPDATE omission exactly as it is. THAT SECOND HALF IS NOT OPTIONAL:
+      adding the column to the DO UPDATE list would silently UNHIDE every
+      confidential salary in the org on the next sync, which is the failure mode
+      labor-roster.ts:238-253 exists to warn about.
+      WHY IT NEEDS ITS OWN RULING RATHER THAN BEING AN OBVIOUS SAFETY WIN. It is
+      a COMP-1 surface and it INVERTS a COMP-1 default that Gary chose. It would
+      make every newly-synced person confidential by default, which changes what
+      managers see the day a new hire lands and turns admin action into a
+      prerequisite for ordinary visibility rather than a protection. It also
+      does not distinguish salaried from hourly, whereas the withdrawn PERM-8
+      addition was scoped to salaried people only — so the scope question (all
+      new rows, or only `payType = SALARY`?) is itself unruled.
+      NOT A GAP AND NOT URGENT — say this first so the row is not read as one.
+      Nothing is currently leaking: `compConfidential` is preserved correctly by
+      the sync today, verified structurally by PERM-8's audit, and COMP-1's
+      redaction is unchanged. This row is a proposed change of DEFAULT, not a
+      fix.
+
   - id: COMP-1
     track: labor
     size: M
@@ -12260,6 +12314,122 @@ phases:
         CODE (already_a_member_in_organization, organization_invitation_not_unique
         — both HTTP 400) via isClerkAPIResponseError, not on message text.
 
+
+  - id: PERM-8
+    track: permissions
+    size: M
+    status: staging
+    commits: ["4e2d7e0"]
+    title: "Square staff import grantable to specific managers — the first per-user grant ABOVE a role baseline, and the capability split that made it possible"
+    notes: >
+      COMMITTED ON `staging` AND NOT PUSHED, AS OF 2026-08-29. NOTHING IS
+      DEPLOYED AND NO ACCEPTANCE EVIDENCE EXISTS YET — read `status: staging`
+      the way COMP-1's row asks it to be read: "the commits are on the staging
+      BRANCH", not HR-29's sense of deployed-and-verified. Deviation S5-D69
+      records that the vocabulary has no "built, awaiting push" value. The
+      five-part test protocol against Kelton runs on STAGING and is in the
+      session report, unrun.
+      CROSS-REFERENCE COMP-1 (a1c4e14), whose confidentiality flag this work was
+      audited against and does not disturb.
+      WHAT SHIPPED. `staff.sync.square` gated two routes that had to move in
+      opposite directions — the import READ, which Gary wanted grantable to a
+      named manager, and the bulk re-sync, which TERMINATES staff members and
+      overwrites store assignments org-wide and had to stay admin-only. One
+      capability cannot be granted and not-granted for the same person, so it
+      split: NEW `staff.import.square` (ADMIN_ONLY) takes the import read, the
+      Import button and the grid label "Import team members from Square";
+      `staff.sync.square` keeps the destructive half, stays ADMIN_ONLY and NOT
+      grantable, and is relabelled "Re-sync staff from Square". NO BASELINE
+      MOVED — both are ADMIN_ONLY, so no role gained anything on the day this
+      was built.
+      THE GRANT MODEL. `User.grantedCapabilities` (additive migration
+      20260829110000_perm8_user_granted_capabilities, one ADD COLUMN, shape
+      byte-identical to PERM-5's `deniedCapabilities`) plus an elevation branch
+      in `can()` gated on GRANTABLE_CAPABILITIES — ONE ENTRY TODAY,
+      `staff.import.square` for MANAGER only. Precedence, ruled by Gary and
+      structural rather than remembered: DENIED WINS, otherwise baseline OR
+      grant. The denial check was moved ABOVE the baseline test to make that so.
+      PRE-PERM-8 BEHAVIOUR IS UNCHANGED and this was reasoned case by case, not
+      assumed: a `{ role }` call site carries no grants, so it cannot reach the
+      elevation branch's true case, and the reordered denial check is
+      outcome-identical (under the old order a denial was only reachable when
+      the baseline already allowed it; in every other case both versions return
+      false). Cases 17-20 of the fixture pin this.
+      THE PERM-1 INVARIANT IS AMENDED, NARROWLY, AND THE HEADER SAYS SO. "Nothing
+      here or in later phases may grant a user something their role does not
+      already allow today" stood absolute from PERM-1 until 2026-08-29. It now
+      reads: a stored set may elevate ONLY for a capability named in
+      GRANTABLE_CAPABILITIES and ONLY for a role that list names against it.
+      THE OLD SEAM COMMENT WAS REPLACED, NOT EDITED — it promised "there is no
+      code path by which an override turns false into true", and that path now
+      exists by ruling. Leaving the sentence would have made permissions.ts's
+      THIRD case of documentation that lied (after templates.manage and
+      square.manage) and the first one that was a security claim.
+      THE COST IS RECORDED WHERE IT IS PAID. Before this, "a MANAGER cannot do
+      X" was provable from one unreachable branch in `can()`. It now also
+      requires checking GRANTABLE_CAPABILITIES. An append to that list is a
+      security change with the same weight as a baseline change and needs the
+      same kind of ruling — written into the header and into this row because
+      the next person to want a grant will not read the chat that decided it.
+      ENFORCEMENT IS AT THE ROUTES, WHICH WAS THE ACCEPTANCE STANDARD Gary set
+      ("the route refusing with a 403, not a hidden button"). GET
+      /api/square/team-members asks the new capability; POST
+      /api/staff/sync-square keeps the old one and still 403s a GRANTED manager.
+      PATCH /api/users/[id] validates grants with the SAME `isGrantable()` that
+      `can()` consults — 400 on unregistered, on not-grantable, and on
+      wrong-role — so the write gate and the read gate cannot drift apart, and a
+      hand-rolled request cannot write what the grid will not offer. Redundant
+      grants (the role already has it at baseline) are DROPPED rather than
+      rejected, mirroring the denial normalisation, so a later demotion cannot
+      strand a live elevation.
+      THE ONE LINE THAT WIDENS ACCESS is `canImport` in staff/page.tsx, which
+      drops the `isAdmin &&` that PERM-5C put there deliberately. It is safe
+      ONLY because `staff.import.square` is ADMIN_ONLY at baseline — `can()`
+      still answers false for an ungranted manager, so the removal widens nobody
+      by itself. The comment at that line says exactly this and says what breaks
+      if the tier ever moves; fixture case 2 fails if it does.
+      PRECONDITION, CHECKED BEFORE ANY FILE WAS EDITED. The split would have
+      WIDENED access for anyone already carrying `staff.sync.square` as a
+      denial, since they would keep the sync denial but regain the import read.
+      Zero such users exist anywhere. Gary captured Neon console evidence
+      2026-08-29 for `br-square-feather` (preview/staging) and
+      `br-sparkling-block` (production) with branch identity visible in the same
+      capture as the result; Claude measured `br-broad-wave-a6vpjdw0` (dev) at 0
+      of 7 User rows. A nonzero result would have been record-and-report on dev
+      and a stop on the other two.
+      THE AUDIT IS THE ARTIFACT. docs/prompts/PERM-8_AUDIT.md, written before
+      the Phase A report and unedited since. It carries the five findings, the
+      full call-site enumeration, and the three build options Gary chose between.
+      WITHDRAWN DURING THE SESSION, AND THIS IS THE INTERESTING PART. Gary
+      ratified an addition defaulting newly imported SALARIED people to
+      `compConfidential = ON`, guarding against a granted manager creating a
+      visible salary while he was away. The audit proved it has no object: the
+      import writes StaffMember and StoreStaffAssignment ONLY, the team-members
+      payload has `wage_setting` stripped server-side (DEBT-10's allow-list),
+      and `compConfidential` lives on SquareTeamMemberWage, whose only bulk
+      writer is behind `square.manage` and unreachable from the import. The
+      import cannot determine salaried status at import time and has no row to
+      set the flag on. Gary withdrew it 2026-08-29 and re-filed the real version
+      as COMP-2.
+      ACCEPTED LIMITATIONS, both in DECISIONS.md and both Gary's call: (1) an
+      import may attach a person's NAME to an already-visible wage row created
+      by a prior roster sync — no figure and no flag changes, the identity does;
+      (2) the roster read is ORG-WIDE, so a granted manager sees every Square
+      team member's name and email across the org while still importing only
+      into their own stores. (2) predates this work — it is DEBT-10's surface.
+      VERIFICATION. `npm run build` green in the commit gate chain.
+      scripts/verify-perm8-grants.ts — 20 pure assertions, all green, covering
+      the grant list by role, denial-beating-grant, the not-on-the-list refusal,
+      and the unchanged pre-PERM-8 paths. COMP-1's
+      scripts/verify-comp-confidential.ts re-run green and left untouched as the
+      regression net. NONE OF THIS PROVES A ROUTE CALLS `can()` — the 403/400
+      tests on staging are for that and are unrun.
+      DEVIATION S5-D74 (ratified) — the route-split ruling. Gary chose Option 1
+      of three presented at the Phase B stop: a new capability on the import
+      half. Rejected were the mirror-image split (new id on the destructive
+      half, same cost but the more dangerous meaning-change direction) and an
+      inline `isAdmin &&` at the sync route, which needed no new id and no grid
+      change but would have left the asymmetry invisible from the registry.
   # ---- Security ----
 
   - id: SEC-1
