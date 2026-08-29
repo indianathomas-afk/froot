@@ -9509,6 +9509,66 @@ phases:
   # migration are labor surfaces. Its third part is a permissions capability and
   # closes PERM-5C's ruling 5 — cross-referenced there rather than filed twice.
 
+  - id: F1
+    track: labor
+    size: S
+    status: planned
+    title: "PROPOSED, UNRULED — GET /api/labor/positions returns defaultHourlyRate with no canSeeWages gate"
+    notes: >
+      NOT `F-1`. There is a SEPARATE, UNRELATED row with the id `F-1` in this
+      file (Forecasting — sales-data foundation, shipped 2026-07-08). The two ids
+      differ by one hyphen and nothing else. This row keeps the unhyphenated
+      `F1` because that is the identifier COMP-1's notes and PERM-8's prompt of
+      record already cite; renaming it would break both references and orphan the
+      finding, which is the state this row exists to end. Check the hyphen before
+      citing either.
+
+      DEVIATION S5-D76 applies here too — `status: planned` rather than a
+      "proposed"/"open" value, because PhaseStatus has neither (see COMP-2 and
+      S5-D75 for the same constraint and the same workaround). The title carries
+      PROPOSED, UNRULED so `planned` is not misread as agreed-and-scheduled.
+
+      FILED 2026-08-29 BY CLOSEOUT-2, NOT FIXED, NOT RULED. LOW PRIORITY by
+      Gary's own framing, and this row does not argue otherwise — it exists so
+      the finding is triageable, not so it gets built next.
+
+      THE FINDING, carried over verbatim in substance from COMP-1's out-of-scope
+      block: GET /api/labor/positions returns `LaborPosition.defaultHourlyRate`
+      with NO `canSeeWages` gate, while the roster and salaried routes both
+      require it. So the three sibling routes do not agree about whether a pay
+      figure needs a gate.
+
+      WHY IT IS NOT SIMPLY A LEAK, and why the answer needs a ruling rather than
+      a patch. A LaborPosition is an ARCHETYPE, not a person — "Shift Lead", not
+      Jane — so no individual's confidentiality is breached by returning its
+      default rate, and that is the reason it was left ungated in the first
+      place. The problem is arithmetic: a SALARIED archetype carries
+      `defaultHourlyRate` x `impliedWeeklyHours`, and at a store with ONE GM that
+      product is that GM's pay in two columns. The archetype stops being
+      anonymous exactly when the store has one of them.
+
+      WHY IT WAS DEFERRED TWICE RATHER THAN FIXED IN PASSING. COMP-1 ruled it out
+      of scope 2026-08-28 (its own prompt's out-of-scope rule, restated by Gary)
+      and PERM-8's prompt named it out of scope again 2026-08-29. Neither
+      deferral was an oversight; both sessions had a reason not to widen. The
+      cost of the second deferral is that the finding lived only inside another
+      phase's notes for a day, which is how findings stop being triaged — the
+      reason it is a row now.
+
+      WHAT A RULING HAS TO DECIDE, so the next session does not re-derive it: is
+      an archetype rate a wage for gating purposes? Gate the whole route behind
+      canSeeWages (simplest, and takes position defaults away from anyone who
+      cannot see wages — which may break UI that legitimately needs the
+      archetype); strip only `defaultHourlyRate` from the payload for ungated
+      viewers (matches AL-3's absence-not-hiding discipline); or gate only when
+      the archetype is SALARIED (narrowest, and the only option that targets the
+      actual arithmetic — but it makes the rule conditional on data rather than
+      on role, which nothing else in the permissions model does).
+
+      UNTIL IT IS RULED, no session may claim "no confidential number appears in
+      any payload" without qualifying it with this route. That sentence is the
+      concrete reason the row is worth carrying: it is a caveat on a claim future
+      work will want to make.
   - id: COMP-2
     track: labor
     size: S
@@ -9566,10 +9626,75 @@ phases:
   - id: COMP-1
     track: labor
     size: M
-    status: staging
-    commits: ["a1c4e14"]
+    status: shipped
+    shipped: 2026-08-28
+    commits: ["a1c4e14", "3f917e5", "2a0e67a"]
     title: "Compensation confidentiality — a per-person admin-set flag, server-side redaction on every person-comp surface, and labor.access closing PERM-5C's deferral"
     notes: >
+      CLOSED 2026-08-29 BY CLOSEOUT-2. PROMOTED TO PRODUCTION 2026-08-28 in
+      merge `2a0e67a` (`Merge branch 'staging'`, 2026-08-28 21:03:26). Verified
+      before this row was touched, not taken on trust: `2a0e67a` is a two-parent
+      merge, is an ancestor of `origin/main`, and its second parent is `3f917e5`
+      — COMP-1's own recorder commit. That it is the merge which FIRST carried
+      COMP-1 to main was proved separately, because a later merge containing the
+      work would satisfy the ancestry test just as well: `a1c4e14` is an
+      ancestor of `2a0e67a` (exit 0) and is NOT an ancestor of the preceding
+      merge `607926b` (exit 1).
+
+      DEVIATION S5-D76 — `status: shipped`, NOT `done`. Gary asked for
+      `status: done`; `PhaseStatus` (src/lib/roadmap.ts:13-31) has no such value
+      — planned | in_progress | staging | shipped | verified | withdrawn — and
+      the build type-errors on one, the same way `proposed` failed on COMP-2
+      (S5-D75). `shipped` is the correct fit and carries the `shipped:` date
+      field, documented as "the work reached main/prod". **`verified` WAS
+      DELIBERATELY NOT USED**: that value means verified IN PRODUCTION, and no
+      CAPTURED production acceptance evidence exists for COMP-1 — see the
+      paragraph on the superseded prompt below, which asserts a production spot
+      check that was never written down anywhere. This session ran none; it is a
+      docs session. Claiming `verified` on an uncaptured assertion would have
+      manufactured the exact evidence the paperwork exists to record.
+
+      THIS ROW'S STATUS WAS STALE AND THE STALENESS WAS CAUGHT BY A LATER
+      SESSION, WHICH IS THE FAILURE WORKFLOW.md RULE 4 NAMES. The field read
+      `status: staging` from 2026-08-28 until today while the code was live in
+      production — the DEBT-72 shape exactly, and the twelfth instance of it in
+      the log's history. PERM-8's build triage flagged it 2026-08-29 and
+      correctly did not fix it (PERM-8 did not move this code); this closeout is
+      where it is fixed. The dated prose below is UNTOUCHED and remains true as
+      a claim about 2026-08-28 — only the status FIELD, which is current-truth
+      rather than a dated claim, was wrong. That distinction is why nothing
+      below is deleted.
+
+      SUPERSEDES docs/prompts/COMP-1_closeout.md, WHICH IS A PROMPT AND NOT A
+      SESSION RECORD — say that plainly, because the filename invites the other
+      reading. It is the instruction file for a closeout that Gary reports
+      stopped correctly on an unpromoted main and was never resumed; the file
+      itself records no outcome, so the account of what that session did comes
+      from Gary (2026-08-29), not from the document. It is committed with this
+      closeout unedited, per the pointers-vs-claims rule — a prompt is a claim
+      wholesale.
+
+      THAT PROMPT ASSERTS PRODUCTION VERIFICATION THIS SESSION COULD NOT
+      CORROBORATE, and the gap is why `shipped` was chosen over `verified`. Its
+      Context section states COMP-1 was "staging-tested (all eight acceptance
+      steps passed), promoted to production, and spot-checked on production
+      against real data." If that is accurate, `verified` is the correct status
+      and Gary can say so in one word. But no session ever WROTE DOWN those
+      results — not in this row, not in DEPLOY_LOG, not in an artifact — so what
+      exists is an assertion in an instruction file rather than captured
+      evidence. DEBT-37's rule is that an observation living only in a
+      transcript does not exist; the same applies to one living only in a
+      prompt's preamble. `shipped` is the value that claims exactly what is
+      provable (the code is in production, verified by SHA) and no more.
+      FLAGGED FOR GARY rather than decided here.
+
+      F1 IS NOW FILED AS ITS OWN ROW rather than living only in this row's
+      deferred list — see F1 in this file. It was ruled out of COMP-1's scope
+      2026-08-28 and stayed out of PERM-8's; an unfixed finding that lives only
+      inside another phase's notes is one nobody triages.
+
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
+
       COMMITTED ON `staging` AND NOT PUSHED, AS OF 2026-08-28. NOTHING IS
       DEPLOYED AND NO ACCEPTANCE EVIDENCE EXISTS YET — read `status: staging` as
       "the commits are on the staging BRANCH", not as HR-29's usage of the same
