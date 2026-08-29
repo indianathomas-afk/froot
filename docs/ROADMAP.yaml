@@ -12443,10 +12443,86 @@ phases:
   - id: PERM-8
     track: permissions
     size: M
-    status: staging
-    commits: ["4e2d7e0"]
+    status: shipped
+    shipped: 2026-08-29
+    commits: ["4e2d7e0", "c3f08e6", "849e410"]
     title: "Square staff import grantable to specific managers — the first per-user grant ABOVE a role baseline, and the capability split that made it possible"
     notes: >
+      CLOSED 2026-08-29 BY CLOSEOUT-2. PROMOTED TO PRODUCTION 2026-08-29 in
+      merge `849e410` ("Promote PERM-8: grantable Square import for managers",
+      15:13:24). Verified before this row was touched: two-parent merge, ancestor
+      of `origin/main`, and its SECOND PARENT IS EXACTLY
+      `c3f08e6e6c6ebc7d30f7c83a60c3cf3686ea188d` — the staging HEAD the tests
+      below were run against. That last check is the one that matters here: it
+      proves the tested tree and the promoted tree are the same tree, which is
+      the § Staging Verification precondition satisfied at promotion scale
+      rather than at test scale.
+
+      DEVIATION S5-D76 — `status: shipped`, NOT `done`. Gary asked for `done`;
+      PhaseStatus has no such value and the build type-errors on one (see COMP-1,
+      which took the same deviation today, and COMP-2/S5-D75 for the earlier
+      instance of the same constraint). `verified` was NOT used: the pass below
+      ran on STAGING, and `verified` means verified in production. No production
+      observation of PERM-8 exists.
+
+      ── STAGING PASS, 2026-08-29 — WHAT WAS ACTUALLY RUN ──
+
+      PRECONDITION MET FIRST: the deployed SHA was confirmed as `c3f08e6` from
+      the Vercel deployment list BEFORE any test was run. Without that the whole
+      pass is void, passes included, and it is recorded first for that reason.
+
+      TEST PRINCIPAL — READ THIS BEFORE READING THE RESULTS.
+      `tommythomas` / `corporate@keva.com` was DELIBERATELY SET TO MANAGER for
+      this pass. **Historically this account is the STORE test principal** — it
+      is the account PERM-8's own build report named for the STORE-side padlock
+      test, and a future reader who remembers it that way would see a GRANTABLE
+      chip on Tommy and read it as a defect. It is not one; the role was changed
+      on purpose. Evidence that it held MANAGER at test time is the modal render
+      itself: GRANTABLE chip on Import, padlock plus "Not granted by this role"
+      on Re-sync — a STORE account would have shown the padlock on BOTH.
+      Clerk instance `verified-snapper-7`, org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`.
+
+      ROUTE-LEVEL RESULTS (browser console, so the gate is proven at the route
+      and not merely at the button — Gary's stated acceptance standard):
+      grant ON  → GET /api/square/team-members = 200;
+      grant ON  → POST /api/staff/sync-square  = 403;
+      grant OFF → GET /api/square/team-members = 403.
+      The middle line is the whole point of the capability split: the SAME
+      granted manager who may import is refused the bulk re-sync, which
+      terminates staff and overwrites assignments org-wide.
+
+      MODAL RENDER: Edit User shows the GRANTABLE chip on "Import team members
+      from Square" and the padlock with "Not granted by this role" on "Re-sync
+      staff from Square". Screenshot held by Gary, not in the repo.
+
+      NEON PRECONDITION CAPTURES (taken at build time, restated here so the row
+      is self-contained): `br-square-feather` (preview/staging) and
+      `br-sparkling-block` (production) — ZERO rows carrying `staff.sync.square`
+      in `deniedCapabilities`; dev `br-broad-wave-a6vpjdw0` — 0 of 7 User rows.
+      This is what made the capability split safe: anyone holding that denial
+      would have REGAINED the import read when the read moved to a new
+      capability. Nobody held it on any branch.
+
+      DELIBERATELY SKIPPED, AND RECORDED AS SKIPPED RATHER THAN PASSED: the
+      hand-rolled `PATCH /api/users/[id]` 400 test (unregistered /
+      not-grantable / wrong-role). SKIPPED-WITH-COVER — the same refusals are
+      asserted at the code level by scripts/verify-perm8-grants.ts cases 10-13,
+      which prove `can()` refuses a stored grant for a capability not on
+      GRANTABLE_CAPABILITIES or not grantable to that role. **THE COVER IS NOT
+      EQUIVALENT AND THE DIFFERENCE IS NAMED SO NOBODY LATER READS IT AS
+      EQUIVALENT:** the fixture proves the EVALUATION refuses; it does not prove
+      the ROUTE returns 400, because a unit fixture cannot exercise a route. The
+      write-side backstop at PATCH is therefore untested on a deployed
+      environment. It is cheap to run later and worth running.
+
+      NO LIVE STORE ACCOUNT WAS EXERCISED THIS ROUND — a direct consequence of
+      switching Tommy to MANAGER, since he was the STORE principal. The
+      STORE-side padlock is covered at code level by fixture cases 5, 6 and 12
+      (import not grantable to STORE; a STORE with a stored grant still refused).
+      Same caveat as above: code-level cover, not a deployed observation.
+
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
+
       COMMITTED ON `staging` AND NOT PUSHED, AS OF 2026-08-29. NOTHING IS
       DEPLOYED AND NO ACCEPTANCE EVIDENCE EXISTS YET — read `status: staging`
       the way COMP-1's row asks it to be read: "the commits are on the staging

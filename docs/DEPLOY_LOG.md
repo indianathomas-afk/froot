@@ -2,9 +2,9 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## PENDING-SHA-SHORT — PENDING-DATE — PERM-8: the Square staff import becomes grantable to specific managers
+## 849e410 — 2026-08-29 — PERM-8: the Square staff import becomes grantable to specific managers
 
-**Merge SHA:** `PENDING-SHA-FULL`
+**Merge SHA:** `849e41016d3a902500d1ca1227c153b10632fc9a`
 **Written before the merge existed**, per the ritual — the heading's two tokens
 and the Merge SHA line's one are stamped from `git rev-parse` and `date`, never
 hand-typed. One occurrence each, on those two lines and nowhere else in this
@@ -109,6 +109,17 @@ as the result; dev (`br-broad-wave-a6vpjdw0`) measured 0 of 7 User rows.
 re-run green and untouched. **NO STAGING PASS HAD BEEN RUN WHEN THIS WAS
 WRITTEN** — the five-part protocol against a MANAGER account is in the session
 report and was unrun. Nothing here claims a deployed observation.
+
+**ADDENDUM, 2026-08-29 (CLOSEOUT-2), stamping this entry.** The paragraph above
+is a dated claim and stands: no staging pass existed when it was written. One
+was run before the promotion, and **the results live in the PERM-8 row of
+`docs/ROADMAP.yaml`** rather than being restated here. In short: the deployed
+SHA was confirmed as `c3f08e6` before testing; a MANAGER account was refused at
+the route with the grant off (403) and admitted with it on (200); and the bulk
+re-sync route refused that same granted manager (403), which is the split this
+promotion exists to create. **One protocol item was NOT run** — the hand-rolled
+`PATCH` 400 — and is recorded as skipped-with-cover, not as passed. The row
+carries the detail and the caveats.
 
 ## 2a0e67a — 2026-08-28 — COMP-1: compensation confidentiality, plus the HR-29 training reorder
 
