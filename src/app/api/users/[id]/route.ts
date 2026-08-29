@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { requireUsersManage } from "../access"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { ENFORCED_CAPABILITIES, can, isCapability, type Capability } from "@/lib/permissions"
+import { ENFORCED_CAPABILITIES, can, isCapability, isGrantable, type Capability } from "@/lib/permissions"
 import { findStaffMemberForUser } from "@/lib/hr"
 import { validateDefaultStore } from "@/lib/default-store"
 
@@ -24,6 +24,10 @@ const patchSchema = z.object({
   // reasoning above. Validated against the registry below, not here, so the
   // 400 can name what was wrong.
   deniedCapabilities: z.array(z.string()).optional(),
+  // PERM-8. Same optional-not-defaulted reasoning as deniedCapabilities above:
+  // absent means "this caller did not touch grants" and the stored set is left
+  // alone. Validated below against BOTH the registry and GRANTABLE_CAPABILITIES.
+  grantedCapabilities: z.array(z.string()).optional(),
 })
 
 // Clerk memberships only distinguish admin vs member — MANAGER / STORE / STAFF
@@ -52,7 +56,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
-  const { role, storeIds, defaultStoreId, deniedCapabilities } = parsed.data
+  const { role, storeIds, defaultStoreId, deniedCapabilities, grantedCapabilities } = parsed.data
 
   // PERM-5. Three rules, and they fail differently on purpose.
   //
@@ -104,6 +108,49 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     nextDenied = registered.filter((c) => can({ role }, c))
   }
 
+  // PERM-8 — THE GRANT SIDE, and it is the ONLY place a request can raise
+  // someone above their role baseline. It mirrors the denial block above rule
+  // for rule, because the two failure modes are the same shape:
+  //
+  //   * UNREGISTERED → 400. A string can() can never match; storing it would be
+  //     a grant that silently does nothing forever.
+  //   * NOT ON GRANTABLE_CAPABILITIES, or on it but NOT FOR THIS ROLE → 400.
+  //     THIS IS THE SECURITY CHECK, and it is here rather than only in the
+  //     modal for exactly the reason DENIABLE is: the grid cannot produce such a
+  //     request, but a hand-rolled one can, and without this line the column
+  //     would accept `users.manage` for a STAFF account. isGrantable() is the
+  //     SAME function can() consults, so the write gate and the read gate can
+  //     never drift apart — the failure the two-hand-written-lists shape
+  //     invites.
+  //   * REDUNDANT (the role already has it at baseline) → DROPPED, not
+  //     rejected. Granting an ADMIN staff.import.square is a no-op today and a
+  //     landmine tomorrow: demote them later and a stale grant would quietly
+  //     survive as a real elevation. Filtered against the role this request
+  //     WILL PRODUCE, exactly as nextDenied is.
+  //
+  // Checked against `role` — the RESULTING role — so a promotion or demotion in
+  // the same request is evaluated against where the user lands, never where
+  // they started.
+  let nextGranted: Capability[] | undefined
+  if (grantedCapabilities !== undefined) {
+    const unknown = grantedCapabilities.filter((c) => !isCapability(c))
+    if (unknown.length > 0) {
+      return NextResponse.json(
+        { error: `Unknown capability: ${unknown.join(", ")}` },
+        { status: 400 }
+      )
+    }
+    const registered = [...new Set(grantedCapabilities.filter(isCapability))]
+    const notGrantable = registered.filter((c) => !isGrantable(c, role))
+    if (notGrantable.length > 0) {
+      return NextResponse.json(
+        { error: `Capability is not grantable to ${role}: ${notGrantable.join(", ")}` },
+        { status: 400 }
+      )
+    }
+    nextGranted = registered.filter((c) => !can({ role }, c))
+  }
+
   const existing = await prisma.user.findFirst({ where: { id, organizationId: org.id } })
   if (!existing) {
     return NextResponse.json({ error: "User not found in this organization" }, { status: 404 })
@@ -121,7 +168,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   //
   //   1. An admin can never deny THEMSELVES. This early return refuses the
   //      whole request when caller === target, before any write — including the
-  //      deniedCapabilities write computed above.
+  //      deniedCapabilities write computed above, and (PERM-8) the
+  //      grantedCapabilities write beside it. No admin can self-grant either,
+  //      which is why the grant layer needs no lockout guard of its own.
   //   2. So an admin who denies ANOTHER admin necessarily still holds
   //      users.manage: they used it to make the call.
   //   3. A denied admin cannot retaliate — requireUsersManage() now refuses
@@ -134,6 +183,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   //      produce, and users.manage is ADMIN_ONLY — so demoting a denied admin
   //      drops the stored entry instead of preserving a landmine for a future
   //      re-promotion.
+  //   6. PERM-8 adds no lockout surface. A grant can only ADD a capability, and
+  //      users.manage is not on GRANTABLE_CAPABILITIES — so no grant can create
+  //      or destroy a holder of it, and the invariant below is untouched.
   //
   // Invariant: at every reachable step at least one ADMIN holds users.manage.
   // No additional guard exists because none is needed; if you weaken rule 1 or
@@ -249,6 +301,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // Same omit-when-unsent rule as defaultStoreId: a caller that only
       // changes the role must not silently clear overrides it never mentioned.
       ...(nextDenied !== undefined ? { deniedCapabilities: nextDenied } : {}),
+      // PERM-8, same omit-when-unsent rule: a caller that only changes the role
+      // must not silently clear grants it never mentioned.
+      ...(nextGranted !== undefined ? { grantedCapabilities: nextGranted } : {}),
       storeAssignments: {
         deleteMany: {},
         create: storeIds.map((storeId: string) => ({ storeId })),

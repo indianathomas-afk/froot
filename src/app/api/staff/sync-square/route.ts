@@ -22,6 +22,18 @@ export async function POST() {
   // ADMIN — but an inline check is invisible to PERM-5's SCOPE_OVERRIDES layer,
   // so on the day someone is granted staff.sync.square by override, this write
   // would 403 while its paired read (square/team-members) worked.
+  //
+  // THAT DAY CAME, AND THE ANSWER WAS TO SPLIT THE CAPABILITY, NOT TO SHARE IT
+  // (PERM-8, Gary 2026-08-29, deviation S5-D74). The read half moved to
+  // staff.import.square, which IS grantable to a MANAGER. THIS ROUTE KEEPS
+  // staff.sync.square, which is ADMIN_ONLY and deliberately absent from
+  // GRANTABLE_CAPABILITIES — so a granted manager passes the read and is
+  // refused here, by design rather than by the accident DEBT-20 predicted.
+  //
+  // WHY THIS HALF IS NOT GRANTABLE: the loop below TERMINATES every member
+  // Square reports INACTIVE (revoking their Clerk login) and deletes and
+  // rebuilds every imported member's store assignments — org-wide, with no
+  // store scoping. That is not an import, and it is not a manager's to run.
   const { actor } = await getUserStoreScope()
   if (!can(actor, "staff.sync.square")) return NextResponse.json({ error: "Admin access required" }, { status: 403 })
 
