@@ -24,6 +24,20 @@
 //   above it: a future stored permission set may remove capabilities from a
 //   role's baseline below, but nothing here or in later phases may grant a
 //   user something their role does not already allow today.
+//
+//   AMENDED BY PERM-8 (Gary, 2026-08-29), and the amendment is NARROW. The rule
+//   above stood absolute from PERM-1 until this commit. It now reads: a stored
+//   set may elevate above the role baseline ONLY for a capability named in
+//   GRANTABLE_CAPABILITIES, and ONLY for a role that list names against it.
+//   Everything not on that list is still governed by the sentence above, and
+//   the list is one entry long today (staff.import.square → MANAGER).
+//
+//   THE COST OF THIS AMENDMENT IS PAID BY EVERY FUTURE READER, so it is stated
+//   rather than buried: before PERM-8 you could prove "a MANAGER cannot do X"
+//   from one unreachable branch in can(). Now you must also check that X is not
+//   on GRANTABLE_CAPABILITIES. Adding an entry to that list is therefore a
+//   security change with the same weight as changing a baseline, and must be
+//   ruled on the same way — never appended for convenience.
 // - can()/scope() sit BESIDE the other enforcement layers, not above them:
 //   module gates (requireModule, hrModuleAvailable, laborModuleAvailable),
 //   org scoping, store scoping (getUserStoreScope and friends), self-scope
@@ -55,6 +69,11 @@ export type PermissionUser = {
   // inline role checks onto can() incrementally, and an unthreaded call site
   // must not change behaviour on the day this ships.
   overrides?: CapabilityOverride | null
+  // PERM-8. Per-user grants ABOVE the role baseline, loaded from
+  // User.grantedCapabilities. ABSENT means "no grant layer consulted", which is
+  // the same answer as "no grants" — see grantsFrom() for why this one is a
+  // bare set where overrides needs three states.
+  grants?: ReadonlySet<Capability> | null
 }
 
 // The full registry from docs/PERMISSIONS_INVENTORY.md §5. A typo is a build
@@ -76,6 +95,7 @@ export type Capability =
   | "staff.view"
   | "staff.manage"
   | "staff.sync.square"
+  | "staff.import.square"
   | "staff.documents.manage"
   | "staff.notes.use"
   | "reports.view"
@@ -169,6 +189,23 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   "users.manage": ADMIN_ONLY,
   "staff.view": MANAGE, // §2 #6: GET /api/staff currently serves any member — needs ruling at migration
   "staff.manage": MANAGE, // §2 #1: POST /api/staff currently unguarded — needs ruling at migration
+  // PERM-8 (Gary, 2026-08-29, route-split ruling — deviation S5-D74). SPLIT OUT
+  // of staff.sync.square, which was gating two routes that had to move in
+  // opposite directions: the import READ becomes grantable to a MANAGER, while
+  // the bulk re-sync must stay ADMIN because it TERMINATES staff members and
+  // wipes store assignments org-wide (api/staff/sync-square/route.ts:57-93).
+  // One capability cannot be granted and not-granted for the same person, so
+  // the capability had to split before the grant could exist.
+  //
+  // THE BASELINE DOES NOT MOVE. ADMIN_ONLY is exactly who reached
+  // GET /api/square/team-members before this commit, so no role gains anything
+  // on the day this ships. What is new is that this is the FIRST capability
+  // listed in GRANTABLE_CAPABILITIES — see that list and can()'s elevation
+  // branch below.
+  "staff.import.square": ADMIN_ONLY,
+  // PERM-8 narrowed what this covers: the bulk re-sync only. The import read
+  // moved to staff.import.square above. STAYS ADMIN_ONLY AND STAYS OUT OF
+  // GRANTABLE_CAPABILITIES — this is the destructive half.
   "staff.sync.square": ADMIN_ONLY,
   "staff.documents.manage": MANAGE,
   "staff.notes.use": MANAGE, // delete = author or ADMIN (PL-21)
@@ -388,34 +425,120 @@ export function overridesFrom(stored: string[] | null | undefined): CapabilityOv
   return { loaded: true, denied: new Set((stored ?? []).filter(isCapability)) }
 }
 
+// PERM-8. The grant-side twin of overridesFrom(), and it is DELIBERATELY A
+// BARE SET rather than the three-state CapabilityOverride shape.
+//
+// DO NOT "FIX" THIS BY SYMMETRY. overridesFrom needs three states because []
+// and "the load failed" mean OPPOSITE things for a denial: [] restores the full
+// baseline, a failed load must restrict. For a GRANT the two mean the SAME
+// thing — no extra access — so both collapse to the empty set, and the empty
+// set is the fail-closed answer. A three-state grant type would add a
+// distinction with no consequence and invite someone to give the "failed" case
+// a permissive reading, which is the only way this could ever go wrong.
+//
+// So: an unselected column (undefined), a pre-migration row (null) and a
+// genuinely empty list all yield NO GRANTS. Unregistered strings are dropped,
+// matching overridesFrom — a renamed capability must not grant anything.
+//
+// This is NOT the last line of defence: can() re-checks GRANTABLE_CAPABILITIES
+// on every read, so even a correctly-parsed entry grants nothing unless the
+// list still allows it for that role.
+export function grantsFrom(stored: string[] | null | undefined): ReadonlySet<Capability> {
+  return new Set((stored ?? []).filter(isCapability))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PERM-8 — THE GRANTABLE LIST. The ONLY capabilities that may be held above a
+// role's baseline, and the only roles that may hold each one.
+//
+// THIS LIST IS THE AMENDED INVARIANT (see the header). Everything absent from
+// it is still governed by PERM-1's original rule — the ceiling is absolute.
+// Every entry is a deliberate, ruled exception to that rule, so:
+//
+//   * An append here is a SECURITY CHANGE, not a configuration change. It needs
+//     the same ruling a baseline change needs. Convenience is not a reason.
+//   * NAME THE ROLES EXPLICITLY. There is no "all roles" spelling on purpose:
+//     STORE accounts are shared iPad logins (see labor.costs.view's note) and
+//     STAFF is the widest tier in the product. Neither should ever acquire a
+//     capability this way by a wildcard nobody re-read.
+//   * can() consults this on EVERY READ, not just at write time. A stored grant
+//     for a capability later removed from this list stops working immediately,
+//     with no backfill and no cleanup migration required.
+//
+// staff.import.square → MANAGER is Gary's PERM-8 ruling (2026-08-29): an admin
+// may grant a SPECIFIC manager the ability to import team members from Square.
+// The bulk re-sync (staff.sync.square) is deliberately NOT here — it terminates
+// staff members and wipes assignments org-wide, and stays ADMIN-only.
+const GRANTABLE_CAPABILITIES: Partial<Record<Capability, readonly PermissionRole[]>> = {
+  "staff.import.square": ["MANAGER"],
+}
+
+// Whether `capability` may be granted to `role` above its baseline. Exported
+// because three call sites need the SAME answer and must not each re-derive it:
+// can() (evaluation), PATCH /api/users/[id] (the 400 on a bad grant), and the
+// Edit User modal (whether to render a grantable toggle or a padlock).
+export function isGrantable(capability: Capability, role: unknown): boolean {
+  if (!isPermissionRole(role)) return false
+  return GRANTABLE_CAPABILITIES[capability]?.includes(role) ?? false
+}
+
 // Boolean capability check. Deny by default: unknown role or unregistered
 // capability → false.
 //
-// PERM-5 — THE SEAM. Read the order of the returns below, because it is the
-// enforcement of THE ONE RULE (a stored set restricts below the Clerk role
-// ceiling and never elevates above it) and it is structural, not conventional:
+// PERM-5 — THE SEAM, REOPENED BY PERM-8. The order of the returns below is the
+// enforcement of the (now amended) ONE RULE, and it is structural rather than
+// conventional. Read it in order:
 //
-//   * The CEILING is evaluated FIRST and returns before any override is read.
-//   * The only `return true` in this function sits AFTER the ceiling check.
-//   * The override block below contains no `true` literal at all — it can
-//     return false, or defer to a set-membership test whose true case is
-//     reachable only once the ceiling has already said yes.
+//   1. DENIAL IS EVALUATED FIRST AND IS ABSOLUTE. It returns false before the
+//      baseline or a grant is consulted, so "denied beats granted" is not a
+//      rule anyone has to remember — there is no path that reaches a `true`
+//      after a denial has been seen.
+//   2. THE ROLE BASELINE. Unchanged from PERM-1.
+//   3. THE ELEVATION BRANCH — the one PERM-1 forbade, added 2026-08-29 under
+//      Gary's PERM-8 ruling. It is the ONLY `return` in this function that can
+//      turn a baseline `false` into `true`, it is the LAST thing evaluated, and
+//      it is gated on GRANTABLE_CAPABILITIES so it cannot elevate a capability
+//      nobody ruled on.
 //
-// So there is no code path by which an override turns false into true. Adding
-// one would mean adding a `return true` above the ceiling check, which is a
-// visible, reviewable act rather than an accident. scope() calls can() first,
-// so this single insertion covers the scoped/valued path too.
+// WHAT THE OLD COMMENT SAID, AND WHY IT IS GONE RATHER THAN EDITED. It read:
+// "there is no code path by which an override turns false into true. Adding one
+// would mean adding a `return true` above the ceiling check, which is a
+// visible, reviewable act rather than an accident." That act has now happened,
+// deliberately and with a ruling, and it is the branch at the bottom of this
+// function. Leaving the old sentence in place would make this file the third
+// case of documentation that lied (see templates.manage and square.manage) —
+// and the most dangerous one, because it would be a security claim.
+//
+// BEHAVIOUR IS UNCHANGED FOR EVERY PRE-PERM-8 CALLER. A call site that passes
+// `{ role }` or an actor without grants cannot reach the elevation branch's
+// true case: `user.grants` is undefined, so it resolves false and the function
+// answers exactly as it did before. The reordering of the denial check is
+// likewise outcome-identical — under the old order a denial was only reachable
+// when the baseline already allowed it, and in every other case both versions
+// return false.
+//
+// scope() calls can() first, so all of this covers the scoped/valued path too.
 export function can(user: PermissionUser, capability: Capability): boolean {
-  // ── Ceiling. Every return below this line is false. ──
   if (!isPermissionRole(user.role)) return false
-  const granted = GRANTS[capability]
-  if (!granted) return false
-  if (!granted.includes(user.role)) return false
-  // ── The role allows it. From here an override may only SUBTRACT. ──
+  const baseline = GRANTS[capability]
+  if (!baseline) return false
+
+  // ── 1. Denial. Absolute, and evaluated before anything that can say yes. ──
   const override = user.overrides
-  if (!override) return true // absent → pure role baseline
-  if (!override.loaded) return false // fail closed: a failed load restricts
-  return !override.denied.has(capability)
+  if (override) {
+    if (!override.loaded) return false // fail closed: a failed load restricts
+    if (override.denied.has(capability)) return false
+  }
+
+  // ── 2. The role baseline. ──
+  if (baseline.includes(user.role)) return true
+
+  // ── 3. PERM-8 — THE ELEVATION BRANCH. See GRANTABLE_CAPABILITIES above.
+  //      The amended invariant in one line: the ceiling is absolute EXCEPT for
+  //      the capability/role pairs that list names. Both halves are required —
+  //      a stored grant for an unlisted capability, or for a role the list does
+  //      not name against it, elevates nothing. ──
+  return isGrantable(capability, user.role) && (user.grants?.has(capability) ?? false)
 }
 
 // Scoped/valued capability — returns the LIMIT, not a yes/no. Most granted
@@ -554,11 +677,29 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Add and edit staff members",
     removes: "Creating staff records.",
   },
+  // PERM-8 — THE FIRST GRANTABLE ROW IN THIS GRID. For ADMIN it behaves like
+  // every other row (on by baseline, switch it off to deny). For MANAGER it is
+  // the inverse: off by baseline, switch it on to GRANT. The modal renders the
+  // two cases differently — see user-actions.tsx.
+  //
+  // THE LABEL MOVED HERE FROM staff.sync.square, which used to carry it while
+  // gating both halves. The copy below describes the import READ only, which is
+  // all this capability now governs.
+  {
+    capability: "staff.import.square",
+    area: "Staff",
+    label: "Import team members from Square",
+    removes: "Reading the Square team list and the Import from Square dialog.",
+  },
+  // PERM-8 narrowed this row to the destructive half and relabelled it to match.
+  // It was "Import team members from Square" while it gated both routes; that
+  // name now belongs to the row above. NOT GRANTABLE — see GRANTABLE_CAPABILITIES.
   {
     capability: "staff.sync.square",
     area: "Staff",
-    label: "Import team members from Square",
-    removes: "Reading the Square team list and running the staff sync.",
+    label: "Re-sync staff from Square",
+    removes:
+      "The bulk re-sync — overwriting every imported member's store assignments from Square, and terminating members Square reports inactive. The Import dialog is unaffected.",
   },
   // PERM-5C appends. Both had ZERO call sites when B wrote the list — the state
   // ruling 5 calls worse than no toggle — and both became load-bearing through

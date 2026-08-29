@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { findStaffMemberForUser } from "@/lib/hr"
-import { overridesFrom, type PermissionUser } from "@/lib/permissions"
+import { overridesFrom, grantsFrom, type PermissionUser } from "@/lib/permissions"
 
 export async function getOrgId(): Promise<string> {
   const { orgId } = await auth()
@@ -120,9 +120,22 @@ export async function getCurrentUser() {
 // unselected column (overridesFrom's `undefined` case) in one place instead of
 // depending on every caller's `select`.
 export function actorFor(
-  dbUser: { role: string; deniedCapabilities?: string[] | null } | null | undefined
+  dbUser:
+    | { role: string; deniedCapabilities?: string[] | null; grantedCapabilities?: string[] | null }
+    | null
+    | undefined
 ): PermissionUser {
-  return { role: dbUser?.role, overrides: dbUser ? overridesFrom(dbUser.deniedCapabilities) : undefined }
+  return {
+    role: dbUser?.role,
+    overrides: dbUser ? overridesFrom(dbUser.deniedCapabilities) : undefined,
+    // PERM-8. Unlike overrides, an unselected column here needs no special
+    // case: grantsFrom maps undefined to the empty set, which is the
+    // fail-closed answer for a grant. A `select` that forgets
+    // grantedCapabilities therefore under-grants (the user falls back to their
+    // role baseline) rather than over-granting — the safe direction, and the
+    // mirror of why overridesFrom has to be loud about the same omission.
+    grants: dbUser ? grantsFrom(dbUser.grantedCapabilities) : undefined,
+  }
 }
 
 export async function requireAdmin() {

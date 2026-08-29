@@ -20,9 +20,9 @@ const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | nu
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
+  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
@@ -62,6 +62,37 @@ async function getStaffData() {
   // changes who enforces, never who is allowed. AND-ing only ever subtracts, so
   // a denied ADMIN stops being shown a button whose request now 403s.
   const canManage = isAdmin && can(actor, "staff.manage")
+
+  // ── PERM-8. THE ONE LINE IN THIS SESSION THAT WIDENS ACCESS. ──────────────
+  //
+  // canImport DELIBERATELY OMITS `isAdmin &&`, and it is the only affordance on
+  // this page that does. Every other flag here keeps the AND because the
+  // paragraph above is right about them: those capabilities are MANAGE-tier, so
+  // dropping isAdmin would hand the button to EVERY manager at once.
+  //
+  // THIS ONE IS DIFFERENT, AND THE DIFFERENCE IS THE WHOLE RULING.
+  // staff.import.square is ADMIN_ONLY at baseline, so can() still answers false
+  // for an ordinary manager — dropping isAdmin widens NOBODY by itself. The
+  // only way a MANAGER reaches true here is if an admin granted them the
+  // capability by name in Edit User (GRANTABLE_CAPABILITIES, MANAGER only).
+  // Keeping `isAdmin &&` would make that grant unreachable, which is precisely
+  // the bug PERM-8 exists to fix.
+  //
+  // SO THE SUBTRACTION PROPERTY THE OLD COMMENT RELIED ON IS PRESERVED BY THE
+  // CAPABILITY'S TIER, not by the AND: an ungranted manager is refused by
+  // can(), and a denied admin is refused by their denial. Verify that claim
+  // against permissions.ts before touching this line — if staff.import.square
+  // is ever moved off ADMIN_ONLY, this line silently hands Import to every
+  // manager in the org and nothing on screen will say so.
+  //
+  // The API agrees, which is what makes this safe rather than merely tidy:
+  // GET /api/square/team-members asks the SAME capability, so an ungranted
+  // manager who hand-rolls the request gets a 403, not a hidden button.
+  const canImport = can(actor, "staff.import.square")
+
+  // canSync KEEPS `isAdmin &&` and keeps the ADMIN-only capability. It gates
+  // the bulk re-sync, which terminates staff and overwrites assignments
+  // org-wide — Gary's ruling is that this stays admin-only and is not grantable.
   const canSync = isAdmin && can(actor, "staff.sync.square")
 
   // AL-3 vision item 2 — PAY RATES, MANAGER/ADMIN ONLY (Gary's words).
@@ -85,7 +116,7 @@ async function getStaffData() {
     ? await getPayForStaff(org, staff.map((s) => ({ id: s.id, squareTeamMemberId: s.squareTeamMemberId })), actor)
     : NO_PAY
 
-  return { staff, stores, isAdmin, canManage, canSync, hrActive, summaries, pay, showPay }
+  return { staff, stores, isAdmin, canManage, canImport, canSync, hrActive, summaries, pay, showPay }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -268,7 +299,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, canManage, canSync, hrActive, summaries, pay, showPay } = await getStaffData()
+  const { staff, stores, isAdmin, canManage, canImport, canSync, hrActive, summaries, pay, showPay } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -340,10 +371,10 @@ export default async function StaffPage() {
               : `Everyone assigned to your ${stores.length} store${stores.length !== 1 ? "s" : ""}, including staff based at another location.`}
           </p>
         </div>
-        {(canSync || canManage) && (
+        {(canSync || canImport || canManage) && (
           <div className="flex gap-2">
             {canSync && <SyncStaffButton />}
-            {canSync && <ImportStaffButton stores={storeProps} />}
+            {canImport && <ImportStaffButton stores={storeProps} />}
             {canManage && <AddStaffButton stores={storeProps} />}
           </div>
         )}
@@ -356,9 +387,9 @@ export default async function StaffPage() {
           </div>
           <p className="font-medium text-[var(--color-foreground)] mb-1">No Staff Members</p>
           <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Add team members to track who completes each task.</p>
-          {(canSync || canManage) && (
+          {(canImport || canManage) && (
             <div className="flex gap-2 justify-center">
-              {canSync && <ImportStaffButton stores={storeProps} />}
+              {canImport && <ImportStaffButton stores={storeProps} />}
               {canManage && <AddStaffButton stores={storeProps} />}
             </div>
           )}

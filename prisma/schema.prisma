@@ -154,6 +154,24 @@ model User {
   // on a NEW clerkUserId — which restricted mode (production, ON since
   // 2026-08-04) makes an admin-visible event rather than a silent duplicate.
   deniedCapabilities String[]
+  // PERM-8: capabilities ADDED to this user's role baseline — the first
+  // above-baseline grant in the product, and the reason can()'s ceiling is no
+  // longer absolute. Empty (the default for every existing row) = pure role
+  // baseline, so this column changes nothing until an admin writes to it.
+  //
+  // CONSTRAINED, NOT FREE. A grant is honoured only for a capability listed in
+  // GRANTABLE_CAPABILITIES (src/lib/permissions.ts) AND only for a role that
+  // list names — today staff.import.square for MANAGER, nothing else. can()
+  // re-checks that list on every read, so a stale entry here (the list changed,
+  // or a hand-rolled request slipped one in) grants nothing.
+  //
+  // DENIAL ALWAYS BEATS GRANT. deniedCapabilities above is evaluated FIRST and
+  // returns false, so revoking is never ambiguous and never depends on which
+  // column an admin edited last.
+  //
+  // Survives membership churn on the same clerkUserId for the same reason
+  // deniedCapabilities does — the webhook's UPDATE branch writes `email` only.
+  grantedCapabilities String[]
   createdAt          DateTime @default(now())
 
   organization         Organization          @relation(fields: [organizationId], references: [id])

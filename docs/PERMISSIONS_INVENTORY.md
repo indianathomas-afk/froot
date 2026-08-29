@@ -310,7 +310,7 @@ display restriction, not a confidentiality one".
 | SQ-3 | `square/disconnect` POST | Clear Square tokens | ADMIN *(SEC-1; was any member)* | handler |
 | SQ-4 | `square/status` GET | Connection status | Any member | handler |
 | SQ-5a | `square/locations` GET | Square location list for the store import dialog and the Edit Store location picker | ADMIN (`stores.manage`) *(PERM-6 Task 4; was **any member** with the entire Square object spread to the client — now an explicit field allow-list)* | handler |
-| SQ-5b | `square/team-members` GET | Square team-member reads for the staff import dialog | ADMIN (`staff.sync.square`) *(DEBT-10, 2026-07-28; was **any member** with the entire Square team-member object spread to the client — now an explicit field allow-list. `email_address` is retained because the import dialog writes it to `StaffMember.email`; `phone_number` and every untyped remainder are dropped. First call site of `staff.sync.square`)* | handler |
+| SQ-5b | `square/team-members` GET | Square team-member reads for the staff import dialog | ADMIN (`staff.import.square` since PERM-8, 2026-08-29 — same tier, and **grantable to a specific MANAGER**; was `staff.sync.square`, which now covers the bulk re-sync only) *(DEBT-10, 2026-07-28; was **any member** with the entire Square team-member object spread to the client — now an explicit field allow-list. `email_address` is retained because the import dialog writes it to `StaffMember.email`; `phone_number` and every untyped remainder are dropped. First call site of `staff.sync.square`)* | handler |
 | SQ-5c | `stores/[id]/resync-square` POST | Re-pull ONE store's Square location record onto its mirrored fields (name, address, phone, timezone, contactEmail) | ADMIN (`stores.manage`) | handler |
 | SQ-6 | `square/catalog/sync`, `square/sales-items/sync` POST | Catalog syncs | ADMIN + inventory module | handler |
 | SQ-7 | `square/catalog/status` GET | Catalog sync status | Any member + module | handler |
@@ -454,7 +454,8 @@ Deny-by-default: unknown capability → `false`.
 | `users.manage` | ADMIN | NV-6, PG-8, PL-14 |
 | `staff.view` | ADMIN, MANAGER (scoped) | NV-7, PG-9/10, PL-15 |
 | `staff.manage` | ADMIN, MANAGER (in-scope) | PL-16, PL-17 |
-| `staff.sync.square` | ADMIN | PL-18 |
+| `staff.sync.square` | ADMIN. Bulk re-sync only since PERM-8 (2026-08-29) split the import read out. **Not grantable** — it terminates staff and overwrites assignments org-wide | PL-18 |
+| `staff.import.square` | ADMIN baseline, and **the first per-user GRANTABLE capability in the product** — an admin may grant it to a specific MANAGER via Edit User (`GRANTABLE_CAPABILITIES`, MANAGER only; PERM-8, 2026-08-29). Split out of `staff.sync.square` | SQ-5b |
 | `staff.documents.manage` | ADMIN, MANAGER (in-scope) | PL-19, PL-20 |
 | `staff.notes.use` | ADMIN, MANAGER (in-scope; delete author-or-ADMIN) | PL-21 |
 | `reports.view` | ADMIN, MANAGER | NV-8, PG-11 |

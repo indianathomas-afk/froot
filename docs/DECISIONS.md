@@ -6,6 +6,67 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-08-29 — PERM-8: the Square import becomes grantable to specific managers
+
+Ratified by Gary 2026-08-29 in chat, and recorded verbatim below. An earlier
+draft of this entry was held during Phase A and is **superseded** — it carried a
+clause defaulting newly imported salaried people to `compConfidential = ON`,
+which Gary withdrew once the audit proved the import path has no wage data to
+act on. This text, including the accepted-limitation paragraphs, is the one that
+lands.
+
+PERM-8 (2026-08-29): "Import team members from Square" becomes per-user
+grantable to MANAGER accounts via a generalized grant model:
+grantedCapabilities on User, evaluated as denied → no, otherwise role
+baseline OR grant. Denial always beats grant. Grants are constrained by
+GRANTABLE_CAPABILITIES (initially the import capability, MANAGER only),
+enforced at the API route. Baseline stays ADMIN; STORE/STAFF cannot be
+granted. The import control is split from the bulk re-sync: a granted
+manager can import, but bulk re-sync (termination + assignment overwrite)
+stays admin-only. The earlier addition "newly imported salaried people
+default to compConfidential = ON" is withdrawn — audit proved the import
+path carries no wage data and writes no wage rows, so the rule has no
+object; the underlying idea is re-filed as COMP-2 (roster-sync default),
+unruled. Accepted limitation: an import may attach a person's name to an
+already-visible wage row created by a prior roster sync; no compensation
+figures or confidentiality flags change.
+
+Accepted limitation: the import dialog's roster read
+(GET /api/square/team-members) is org-wide, not store-scoped — a
+granted manager sees every Square team member's name and email
+address across the organization, while remaining able to import
+only into their own stores. This PII surface predates PERM-8
+(see DEBT-10) and is accepted as-is for this feature; store-scoping
+the roster read would be separate work.
+
+**Route-split ruling (deviation S5-D74), 2026-08-29.** Achieving the above
+required splitting the capability, because `staff.sync.square` gated both the
+import read and the bulk re-sync and the two had to move in opposite
+directions. Gary chose Option 1 of three presented: a new `staff.import.square`
+(ADMIN_ONLY, grantable to MANAGER) takes the import read and the grid label
+"Import team members from Square"; `staff.sync.square` keeps the bulk re-sync,
+stays ADMIN_ONLY and not grantable, and is relabelled "Re-sync staff from
+Square". The rejected options were a mirror-image split (new id on the
+destructive half) and an inline `isAdmin &&` at the sync route, which was
+cheaper but would have left the asymmetry invisible from the registry.
+
+**Precondition for the split, checked before building.** Option 1 would have
+widened access for anyone already denied `staff.sync.square`, since they would
+keep the sync denial but regain the import read. Zero such users exist: Gary
+captured Neon console evidence 2026-08-29 for `br-square-feather`
+(preview/staging) and `br-sparkling-block` (production), branch identity visible
+in the same capture as the result; Claude measured `br-broad-wave-a6vpjdw0`
+(dev) — 0 of 7 User rows. The widening applies to nobody on any branch.
+
+**The PERM-1 invariant is amended, narrowly.** "Nothing here or in later phases
+may grant a user something their role does not already allow today" stood
+absolute from PERM-1 until this ruling. It now reads: a stored set may elevate
+above the role baseline ONLY for a capability named in GRANTABLE_CAPABILITIES,
+and ONLY for a role that list names against it. Appending to that list is a
+security change with the same weight as changing a baseline, and needs the same
+kind of ruling.
+
+
 ## 2026-08-28 — COMP-1: compensation confidentiality and Labor page access
 
 Ratified by Gary 2026-08-28, in the chat that approved the Phase A audit.

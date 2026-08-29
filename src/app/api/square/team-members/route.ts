@@ -12,23 +12,33 @@ export async function GET() {
   // DEBT-10, the same two-part shape PERM-6 Task 4 applied to square/locations.
   // This route had NO role gate — only auth() — so any authenticated org member
   // including STORE and STAFF could read the org's whole Square roster. Gated at
-  // staff.sync.square (ADMIN_ONLY): the sole caller is the staff import dialog
-  // (staff/staff-buttons.tsx:167), which renders only under isAdmin at
-  // staff/page.tsx:96 and :111, so this matches today's surface exactly rather
-  // than widening it. Deliberately NOT staff.manage (MANAGE) — no manager page
-  // requests this payload, and narrowing later is the hard direction.
-  //
-  // Note this is the FIRST call site of staff.sync.square. Its obvious sibling,
-  // POST /api/staff/sync-square, still gates with an inline isAdmin check
-  // (staff/sync-square/route.ts:20-21) — same tier, so not a gap; recorded as a
-  // consistency item rather than changed here.
+  // ADMIN_ONLY — at staff.sync.square when DEBT-10 wrote this, at
+  // staff.import.square since PERM-8 split the two halves apart (the tier is
+  // identical either way; see the PERM-8 note at the gate itself). The sole
+  // caller is the staff import dialog (staff/staff-buttons.tsx:167).
+  // Deliberately NOT staff.manage (MANAGE) — no manager page requests this
+  // payload, and narrowing later is the hard direction.
   //
   // The gap was API-SURFACE ONLY, not a live UI path: /api/square/team-members
   // is not in proxy.ts's isPublicRoute, so a Clerk session was always required,
   // and no non-admin button ever called it. A STORE or STAFF account could still
   // reach it by hand from any signed-in page.
+  // PERM-8 (2026-08-29, deviation S5-D74): the capability changed from
+  // staff.sync.square to staff.import.square. The TIER DID NOT CHANGE — both
+  // are ADMIN_ONLY, so no role gains access here on the day this ships. What
+  // changed is that staff.import.square is GRANTABLE to a MANAGER
+  // (GRANTABLE_CAPABILITIES), so a specifically-granted manager now passes this
+  // gate while the bulk re-sync route keeps staff.sync.square and keeps
+  // refusing them. That separation is the whole point of the split: one
+  // capability could not be granted here and withheld there.
+  //
+  // ACCEPTED AND RULED (Gary, 2026-08-29): this payload is ORG-WIDE, not
+  // store-scoped, so a granted manager sees every Square team member's name and
+  // email across the organisation. The WRITE they can perform is still scoped
+  // to their own stores (api/staff/route.ts:81-83). This PII surface predates
+  // PERM-8 — it is DEBT-10's — and store-scoping it would be separate work.
   const { actor } = await getUserStoreScope()
-  if (!can(actor, "staff.sync.square")) {
+  if (!can(actor, "staff.import.square")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

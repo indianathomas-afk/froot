@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import {
-  can, ENFORCED_CAPABILITIES, ENFORCED_CAPABILITY_AREAS, type Capability,
+  can, isGrantable, ENFORCED_CAPABILITIES, ENFORCED_CAPABILITY_AREAS, type Capability,
 } from "@/lib/permissions"
 
 type Store = { id: string; name: string; storeNumber: string | null }
@@ -143,6 +143,7 @@ export function EditUserButton({
   currentStoreIds,
   currentDefaultStoreId,
   currentDeniedCapabilities,
+  currentGrantedCapabilities,
   stores,
   userName,
 }: {
@@ -152,6 +153,8 @@ export function EditUserButton({
   currentDefaultStoreId: string | null
   // PERM-5. The capabilities currently subtracted from this user's role.
   currentDeniedCapabilities: string[]
+  // PERM-8. The capabilities currently ADDED above this user's role baseline.
+  currentGrantedCapabilities: string[]
   stores: Store[]
   userName: string
 }) {
@@ -163,6 +166,12 @@ export function EditUserButton({
   // BUILD-2. "" is the wire form of null — see handleSave.
   const [defaultStore, setDefaultStore] = useState(currentDefaultStoreId ?? "")
   const [denied, setDenied] = useState<Set<string>>(new Set(currentDeniedCapabilities))
+  // PERM-8. Kept as a SEPARATE set rather than folded into `denied` with a
+  // tri-state value: the two write to different columns, fail in opposite
+  // directions, and denial beats grant. One set with three states would put
+  // that precedence in the UI, where it would be a second implementation of
+  // can()'s rule and free to disagree with it.
+  const [granted, setGranted] = useState<Set<string>>(new Set(currentGrantedCapabilities))
   // UX-1: shown when a close is attempted with unsaved edits.
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const router = useRouter()
@@ -176,6 +185,7 @@ export function EditUserButton({
     setSelectedStores(new Set(currentStoreIds))
     setDefaultStore(currentDefaultStoreId ?? "")
     setDenied(new Set(currentDeniedCapabilities))
+    setGranted(new Set(currentGrantedCapabilities))
     setError("")
   }
 
@@ -184,7 +194,8 @@ export function EditUserButton({
     role !== currentRole ||
     !sameSet(selectedStores, currentStoreIds) ||
     (currentDefaultStoreId ?? "") !== defaultStore ||
-    !sameSet(denied, currentDeniedCapabilities)
+    !sameSet(denied, currentDeniedCapabilities) ||
+    !sameSet(granted, currentGrantedCapabilities)
 
   // UX-1: every close path routes through here — the X, the overlay, Escape
   // and the Cancel button — so none of them can silently discard edits.
@@ -220,6 +231,24 @@ export function EditUserButton({
     (e) => denied.has(e.capability) && can({ role }, e.capability)
   ).map((e) => e.capability)
 
+  // PERM-8. The grant-side twin of effectiveDenied: send only grants the
+  // SELECTED role may actually hold. Switching this modal to ADMIN (which has
+  // the capability at baseline) or to STORE (which may never be granted it)
+  // makes a stored grant meaningless, and the server drops or rejects it
+  // respectively — so drop it here rather than submitting a set the server has
+  // to rewrite or refuse.
+  const effectiveGranted = ENFORCED_CAPABILITIES.filter(
+    (e) => granted.has(e.capability) && isGrantable(e.capability, role) && !can({ role }, e.capability)
+  ).map((e) => e.capability)
+
+  function toggleGranted(capability: Capability) {
+    setGranted((prev) => {
+      const next = new Set(prev)
+      next.has(capability) ? next.delete(capability) : next.add(capability)
+      return next
+    })
+  }
+
   function toggleDenied(capability: Capability) {
     setDenied((prev) => {
       const next = new Set(prev)
@@ -253,6 +282,7 @@ export function EditUserButton({
           storeIds: Array.from(selectedStores),
           defaultStoreId: effectiveDefault || null,
           deniedCapabilities: effectiveDenied,
+          grantedCapabilities: effectiveGranted,
         }),
       })
       if (!res.ok) {
@@ -345,15 +375,23 @@ export function EditUserButton({
                 </select>
               </div>
             )}
-            {/* PERM-5 — the override grid. Restrict-only, and the UI is where
-                that is made obvious: a capability the role grants renders as a
-                switchable toggle, one it does NOT grant renders locked and
-                disabled. There is no control on this screen that grants. */}
+            {/* PERM-5 — the override grid, EXTENDED BY PERM-8. It was
+                restrict-only, and the sentence "there is no control on this
+                screen that grants" stood here until 2026-08-29. It is no longer
+                true: a row marked Grantable IS such a control. The copy below
+                and the per-row rendering both say which kind of row is which,
+                because an admin who cannot tell a denial from a grant will
+                eventually make one believing they made the other. */}
             <div className="space-y-1.5 border-t border-[var(--color-border)] pt-4">
               <Label>Capability overrides</Label>
               <p className="text-xs text-[var(--color-muted-foreground)]">
-                Turn things off for this person only. You can restrict below what their role
-                allows, never above it — to give more access, change the role.
+                Turn things off for this person only. Most access can be restricted below what
+                their role allows, but not raised above it — to give more access, change the role.
+              </p>
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                A few rows are marked <strong>Grantable</strong>. Those sit above this role&rsquo;s
+                normal access and are off unless you switch them on, giving this one person
+                something their role does not normally have. Switching a grant back off removes it.
               </p>
               <p className="text-xs text-[var(--color-muted-foreground)]">
                 Overrides follow this user to <strong>every</strong> location they are assigned to;
@@ -368,28 +406,54 @@ export function EditUserButton({
                     </p>
                     {ENFORCED_CAPABILITIES.filter((e) => e.area === area).map((e) => {
                       const grantedByRole = can({ role }, e.capability)
-                      const on = grantedByRole && !denied.has(e.capability)
+                      // PERM-8. A row is now one of THREE kinds, and which one
+                      // decides both what the checkbox means and which column
+                      // it writes to:
+                      //
+                      //   baseline  — the role has it. Checked = on; unchecking
+                      //               DENIES (writes deniedCapabilities).
+                      //   grantable — the role does not have it, but an admin
+                      //               may grant it to this role. Unchecked by
+                      //               default; checking GRANTS (writes
+                      //               grantedCapabilities).
+                      //   locked    — neither. Padlock, disabled, as before.
+                      //
+                      // `grantable` is deliberately computed with the SAME
+                      // isGrantable() the server and can() use, so this screen
+                      // cannot offer a toggle the API would then 400.
+                      const grantable = !grantedByRole && isGrantable(e.capability, role)
+                      const locked = !grantedByRole && !grantable
+                      const on = grantedByRole ? !denied.has(e.capability) : grantable && granted.has(e.capability)
                       return (
                         <label
                           key={e.capability}
                           className={`flex items-start gap-2 p-2 rounded text-sm ${
-                            grantedByRole ? "hover:bg-[var(--color-accent)] cursor-pointer" : "opacity-60"
+                            locked ? "opacity-60" : "hover:bg-[var(--color-accent)] cursor-pointer"
                           }`}
                         >
                           <input
                             type="checkbox"
                             className="mt-0.5"
                             checked={on}
-                            disabled={!grantedByRole}
-                            onChange={() => toggleDenied(e.capability)}
+                            disabled={locked}
+                            onChange={() => (grantedByRole ? toggleDenied(e.capability) : toggleGranted(e.capability))}
                           />
                           <span className="flex-1">
                             <span className="flex items-center gap-1.5">
                               {e.label}
-                              {!grantedByRole && <Lock className="h-3 w-3 text-[var(--color-muted-foreground)]" />}
+                              {locked && <Lock className="h-3 w-3 text-[var(--color-muted-foreground)]" />}
+                              {grantable && (
+                                <span className="text-[10px] uppercase tracking-wide rounded px-1 py-0.5 bg-[var(--color-accent)] text-[var(--color-muted-foreground)]">
+                                  Grantable
+                                </span>
+                              )}
                             </span>
                             <span className="block text-xs text-[var(--color-muted-foreground)]">
-                              {grantedByRole ? e.removes : "Not granted by this role"}
+                              {grantedByRole
+                                ? e.removes
+                                : grantable
+                                  ? `Above this role's normal access. Switch on to give this person only: ${e.removes}`
+                                  : "Not granted by this role"}
                             </span>
                           </span>
                         </label>
@@ -401,6 +465,14 @@ export function EditUserButton({
               {effectiveDenied.length > 0 && (
                 <p className="text-xs text-[var(--color-muted-foreground)]">
                   {effectiveDenied.length} capabilit{effectiveDenied.length === 1 ? "y" : "ies"} removed
+                </p>
+              )}
+              {/* PERM-8. Counted SEPARATELY from the removals rather than
+                  netted into one number: "1 removed, 1 granted" and "0 changes"
+                  are very different states and must never render alike. */}
+              {effectiveGranted.length > 0 && (
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  {effectiveGranted.length} capabilit{effectiveGranted.length === 1 ? "y" : "ies"} granted above this role
                 </p>
               )}
             </div>
