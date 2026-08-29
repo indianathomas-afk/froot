@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { Store, User } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, laborModuleAvailable, squareLaborAvailable, actorFor } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 
 type Organization = NonNullable<Awaited<ReturnType<typeof prisma.organization.findUnique>>>
 
@@ -56,6 +57,23 @@ export async function requireLaborView(): Promise<LaborContext | { error: NextRe
 // gates above PLUS RBAC. Viewing and writing are both ADMIN + MANAGER (the
 // Labor v1 decision — unlike Forecasting, where writes are ADMIN-only).
 // STORE/STAFF get read-only dashboard cards (requireLaborView), not these.
+//
+// COMP-1 (Gary, 2026-08-28, ruling 2) — THIS IS THE CHOKE POINT, and that is why
+// the capability check landed here rather than in fourteen route files. Every
+// /settings/labor read and write passes through this function: settings,
+// positions, positions/[id], salaried, forecast, job-colors, day-hours and
+// daypart/[id]. One insertion covers all of them, which is what makes a
+// permission change this small.
+//
+// IT IS ADDED BESIDE THE ROLE TEST, NEVER IN PLACE OF IT. The role test is the
+// Clerk-role ceiling; can() is the per-user override layer beneath it. Replacing
+// the first with the second would change who is allowed — a widening — and
+// PERM-5's one rule is that an override may restrict below the ceiling and never
+// elevate above it. Both must pass.
+//
+// requireLaborView() IS DELIBERATELY LEFT ALONE. Ruling 3 scopes this to
+// /settings/labor and its write routes; the Weekly Plan, the budget card and the
+// coverage overlay all enter through requireLaborView and are untouched.
 export async function requireLaborContext(
   opts: { write?: boolean } = {}
 ): Promise<LaborContext | { error: NextResponse }> {
@@ -64,6 +82,12 @@ export async function requireLaborContext(
 
   const isManager = ctx.dbUser?.role === "MANAGER"
   if (!ctx.isAdmin && !isManager) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  }
+  // ctx.actor and NOT ctx.dbUser.role — see the LaborContext.actor note above.
+  // A route reconstructing { role } from dbUser would ignore every PERM-5
+  // override, which is the bug that field exists to make unavailable.
+  if (!can(ctx.actor, "labor.access")) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
   }
   // write === read for Labor (ADMIN + MANAGER both allowed); opts.write is kept

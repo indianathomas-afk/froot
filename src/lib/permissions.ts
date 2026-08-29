@@ -100,6 +100,7 @@ export type Capability =
   | "inventory.adjustments.record"
   | "inventory.analytics.view"
   | "labor.view"
+  | "labor.access"
   | "labor.actuals.view"
   | "labor.schedule.view"
   | "labor.costs.view"
@@ -245,7 +246,43 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // ALL adds the nav entry; the guard stays read-only for non-managers
   // (labor.manage below is unchanged, and §3 #7 stays deliberately
   // unharmonized).
+  //
+  // WHAT labor.view ACTUALLY GATES, CORRECTED BY COMP-1 (2026-08-28). The
+  // sentence above and its twin at AL-2 below both said it gates "the Labor nav
+  // entry, the /labor page and every /api/labor route". IT GATES THE FIRST ONLY.
+  // Measured by sweeping every can() call site on a labor capability: labor.view
+  // appears nowhere outside the sidebar's data-driven nav filter
+  // (sidebar.tsx). requireLaborView() checks the two feature gates and never
+  // calls can() at all, and the page guards ask for labor.manage.
+  //
+  // THE CORRECTION IS LOAD-BEARING RATHER THAN TIDY-UP: that false sentence is
+  // the reason COMP-1 was asked whether to repurpose this entry, and acting on
+  // it would have produced exactly the defect the registry forbids — a toggle
+  // that hides a nav link over pages and routes that keep answering. The Labor
+  // page's real front door is labor.access, declared immediately below.
+  //
+  // THE VALUE IS UNCHANGED AND SO IS THE BEHAVIOUR. This edit corrects
+  // documentation that lied — the same species as templates.manage's note above
+  // — and moves nothing.
   "labor.view": ALL,
+  // COMP-1 (Gary, 2026-08-28, ruling 2) — THE LABOR PAGE'S FRONT DOOR, and it
+  // CLOSES THE PERM-5C DEFERRAL. PERM-5C ruling 5 held labor.manage out of the
+  // override grid because "/api/labor/* still enforces inline, so a denial would
+  // hide this page while those endpoints answered". That blocker is the work
+  // COMP-1 does: requireLaborContext() now asks for this capability, so the
+  // denial reaches the routes and not only the nav.
+  //
+  // WHY A NEW CAPABILITY RATHER THAN REPURPOSING labor.view. labor.view is ALL —
+  // it is the read-only Weekly Plan viewer's entry, STAFF included, and it is
+  // deliberately unenforced beyond the sidebar. Enforcing it would take the
+  // Weekly Plan away from STAFF and STORE, which is a WIDENING of restriction
+  // that no ruling asked for. This entry restricts nobody on the day it ships:
+  // MANAGE is exactly who reaches /settings/labor today.
+  //
+  // .access MATCHES THE HOUSE WORD FOR A MODULE'S FRONT DOOR — hr.access and
+  // my.access are the precedent. It is the only `.access` in the Labor area, and
+  // that is because it is the only front door Labor has.
+  "labor.access": MANAGE,
   // AL-2 (Gary's Q-V ruling, 2026-08-19): actual labor % on the dashboard is
   // visible to ADMIN, MANAGER and STORE alike — the same tier that already sees
   // the weekly labor BUDGET in dollars on the same page — and must be DENIABLE
@@ -254,8 +291,7 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // WHY A NEW CAPABILITY RATHER THAN WIRING IT TO labor.view. The ruling said to
   // use labor.view if it supports per-user overrides. It does not: overrides are
   // only expressible for capabilities in ENFORCED_CAPABILITIES, and labor.view
-  // is not one — nor can it be added cheaply, because it gates the Labor nav
-  // entry, the /labor page and every /api/labor route, so denying it to hide one
+  // is not one — nor can it be added cheaply, because denying it to hide one
   // percentage would take the whole module with it. labor.manage is held out of
   // the grid for a related reason PERM-5C recorded ("Labor governance is its own
   // ruling"). This entry is the smallest change that puts the PERCENTAGE — and
@@ -607,9 +643,35 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Raise and edit purchase orders",
     removes: "Creating, editing, submitting and cancelling POs, and invoice uploads. Viewing and receiving are unaffected.",
   },
-  // AL-2 append — the first Labor row in the grid, and deliberately the ONLY
-  // one. labor.view and labor.manage stay out (see the note at
-  // "labor.actuals.view" in GRANTS, and PERM-5C's held-out list).
+  // COMP-1 append (Gary, 2026-08-28, ruling 2) — THE LABOR PAGE'S ACCESS ROW,
+  // and the answer PERM-5C ruling 5 deferred.
+  //
+  // IT IS ENFORCED IN TWO PLACES AND THAT IS THE WHOLE POINT OF IT EXISTING.
+  // requireLaborContext() (labor-access.ts) is the single choke point every
+  // /settings/labor read and write passes through, and the page guard itself
+  // (settings/labor/page.tsx) ANDs it alongside labor.manage. A hidden sidebar
+  // link is not enforcement — this registry's own founding rule is that a toggle
+  // which does nothing is worse than no toggle, which is exactly why labor.view
+  // was NOT the capability used here.
+  //
+  // labor.manage STAYS OUT of the grid. COMP-1 answers PERM-5C with a new
+  // capability rather than by promoting labor.manage, so that held-out list and
+  // its reasoning both stay true.
+  //
+  // THE WEEKLY PLAN IS NOT BEHIND THIS (ruling 3). /labor keeps labor.view and
+  // keeps serving STAFF and STORE read-only; denying this row costs a user the
+  // Labor CONFIG hub, not their schedule.
+  {
+    capability: "labor.access",
+    area: "Labor",
+    label: "Access the Labor page",
+    removes:
+      "The Labor entry in the sidebar, the /settings/labor page, and every labor settings API route behind it — settings, positions, salaried people, forecast entry, job colours, day hours and daypart edits. The Weekly Plan, the dashboard labor cards and the weekly budget are unaffected.",
+  },
+  // AL-2 append — the first Labor row in the grid. labor.view and labor.manage
+  // stay out (see the note at "labor.actuals.view" in GRANTS, and PERM-5C's
+  // held-out list). It was "deliberately the ONLY one" until COMP-1 added the
+  // access row above; the held-out list is unchanged.
   {
     capability: "labor.actuals.view",
     area: "Labor",

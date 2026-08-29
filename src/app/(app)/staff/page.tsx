@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
 import { formatPay } from "@/lib/labor-costs"
 import { getPayForStaff } from "@/lib/labor-roster"
+import { CONFIDENTIAL_DASH, CONFIDENTIAL_TITLE } from "@/lib/comp-confidential"
 import { getStaffComplianceSummaries, type StaffComplianceSummary } from "@/lib/hr-compliance"
 import { Badge } from "@/components/ui/badge"
 
@@ -15,7 +16,7 @@ const NO_SUMMARIES = new Map<string, StaffComplianceSummary>()
 /// it is a constant rather than a fresh Map() is the same reason NO_SUMMARIES is:
 /// an empty map is the only value this page ever holds for a denied viewer, so
 /// allocating one per request would only make the two paths look different.
-const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null }>()
+const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null; compMasked: boolean }>()
 
 async function getStaffData() {
   const { orgId } = await auth()
@@ -77,7 +78,11 @@ async function getStaffData() {
   // as it looked before AL-3 (Gary's Q2 ruling, 2026-08-19).
   const showPay = canSeeWages(org, actor)
   const pay = showPay
-    ? await getPayForStaff(org, staff.map((s) => ({ id: s.id, squareTeamMemberId: s.squareTeamMemberId })))
+    // COMP-1 — a second, narrower gate INSIDE the query the outer gate decided
+    // to run. canSeeWages says whether this viewer sees any pay; the actor
+    // threaded here says whether they see a CONFIDENTIAL person's pay. Same
+    // absence rule: the number never reaches these props or the flight payload.
+    ? await getPayForStaff(org, staff.map((s) => ({ id: s.id, squareTeamMemberId: s.squareTeamMemberId })), actor)
     : NO_PAY
 
   return { staff, stores, isAdmin, canManage, canSync, hrActive, summaries, pay, showPay }
@@ -113,7 +118,16 @@ function PayCell({
   pay,
   isSquareLinked,
 }: {
-  pay?: { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null }
+  /// COMP-1 — compMasked is REQUIRED here, not optional. Optional would let a
+  /// future caller build a pay object without it and silently render a masked
+  /// salary as "Not set in Square"; required makes that a build error.
+  pay?: {
+    payType: string | null
+    hourlyRate: number | null
+    annualRate: number | null
+    jobTitle: string | null
+    compMasked: boolean
+  }
   isSquareLinked: boolean
 }) {
   if (!pay) {
@@ -131,6 +145,16 @@ function PayCell({
     )
   }
   const text = formatPay(pay)
+  // COMP-1 — the dash carries its explanation, the same one the roster card and
+  // the salaried card use. Without it a masked salary is silently identical to
+  // the "no Square team member linked" dash a few lines above.
+  if (pay.compMasked) {
+    return (
+      <span className="text-[var(--color-muted-foreground)] cursor-help" title={CONFIDENTIAL_TITLE}>
+        {CONFIDENTIAL_DASH}
+      </span>
+    )
+  }
   if (text === "Not set in Square") {
     return (
       <span
@@ -171,7 +195,16 @@ function StaffRow({
   /// without the Advanced Labor overlay — in both cases `pay` is undefined
   /// because the query never ran.
   showPay: boolean
-  pay?: { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null }
+  /// COMP-1 — compMasked is REQUIRED here, not optional. Optional would let a
+  /// future caller build a pay object without it and silently render a masked
+  /// salary as "Not set in Square"; required makes that a build error.
+  pay?: {
+    payType: string | null
+    hourlyRate: number | null
+    annualRate: number | null
+    jobTitle: string | null
+    compMasked: boolean
+  }
 }) {
   return (
     <tr className="border-b border-[var(--color-border)] last:border-0">

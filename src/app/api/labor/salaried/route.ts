@@ -5,6 +5,7 @@ import { requireLaborContext } from "@/lib/labor-access"
 import { canSeeWages } from "@/lib/labor-dashboard"
 import { getUserStoreScope } from "@/lib/auth"
 import { validateAllocationSet, seedWeeklyCostFromAnnual, FULL_ALLOCATION_BPS } from "@/lib/labor-salaried"
+import { compVisibleForMember } from "@/lib/comp-confidential"
 
 // R7-C — salaried people and their store allocations. ADMIN + MANAGER, PLUS the
 // wage gate: these rows carry a person's weekly pay, so the same viewer who may
@@ -47,24 +48,53 @@ export async function GET() {
   const { actor } = await getUserStoreScope()
   if (!canSeeWages(ctx.org, actor)) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const people = await prisma.laborSalariedPerson.findMany({
-    where: { organizationId: ctx.org.id },
-    orderBy: { displayName: "asc" },
-    include: { allocations: { select: { storeId: true, allocationBps: true } } },
+  // COMP-1 ruling 6 — the flag lives on SquareTeamMemberWage and is read across
+  // the shared (organizationId, squareTeamMemberId) key. Every wage row in the
+  // org, not just the salaried ones: "no row" has to mean no row, because
+  // absent FAILS CLOSED below.
+  const [people, flags] = await Promise.all([
+    prisma.laborSalariedPerson.findMany({
+      where: { organizationId: ctx.org.id },
+      orderBy: { displayName: "asc" },
+      include: { allocations: { select: { storeId: true, allocationBps: true } } },
+    }),
+    prisma.squareTeamMemberWage.findMany({
+      where: { organizationId: ctx.org.id },
+      select: { squareTeamMemberId: true, compConfidential: true },
+    }),
+  ])
+  const flagBySquareId = new Map(flags.map((f) => [f.squareTeamMemberId, f.compConfidential]))
+
+  // Ruling 3 / Option B — THE TOTAL IS COMPUTED FROM THE REAL VALUES AND STAYS
+  // VISIBLE. Masked numbers still feed it, which is the whole of Option B, and
+  // it is computed here rather than summed in the browser because a browser
+  // summing the masked rows below would silently under-report the estate by
+  // exactly the confidential people's pay.
+  const estateWeeklyTotal = people
+    .filter((p) => p.exempt !== true && p.allocations.length > 0)
+    .reduce((t, p) => t + Number(p.weeklyCost), 0)
+
+  return NextResponse.json({
+    estateWeeklyTotal,
+    people: people.map((p) => {
+      const visible = compVisibleForMember(actor, flagBySquareId.get(p.squareTeamMemberId))
+      return {
+        id: p.id,
+        squareTeamMemberId: p.squareTeamMemberId,
+        displayName: p.displayName,
+        // ABSENT, NOT ZERO. null here is the same "no value in the payload" the
+        // loader uses; the card draws the lock from compConfidential, never from
+        // the null, so a masked person is not confused with an unentered one.
+        weeklyCost: visible ? Number(p.weeklyCost) : null,
+        weeklyHours: p.weeklyHours,
+        exempt: p.exempt,
+        squareAnnualRateSeen: !visible || p.squareAnnualRateSeen === null ? null : Number(p.squareAnnualRateSeen),
+        compConfidential: flagBySquareId.get(p.squareTeamMemberId) !== false,
+        allocations: p.allocations,
+        totalBps: p.allocations.reduce((t, a) => t + a.allocationBps, 0),
+      }
+    }),
   })
-  return NextResponse.json(
-    people.map((p) => ({
-      id: p.id,
-      squareTeamMemberId: p.squareTeamMemberId,
-      displayName: p.displayName,
-      weeklyCost: Number(p.weeklyCost),
-      weeklyHours: p.weeklyHours,
-      exempt: p.exempt,
-      squareAnnualRateSeen: p.squareAnnualRateSeen === null ? null : Number(p.squareAnnualRateSeen),
-      allocations: p.allocations,
-      totalBps: p.allocations.reduce((t, a) => t + a.allocationBps, 0),
-    }))
-  )
 }
 
 export async function PUT(req: Request) {
@@ -76,6 +106,31 @@ export async function PUT(req: Request) {
   const parsed = putSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 })
   const { squareTeamMemberId, displayName, weeklyCost, annualRate, weeklyHours, exempt, allocations } = parsed.data
+
+  // COMP-1 — A HOLE THIS FEATURE ITSELF OPENS, CLOSED HERE.
+  //
+  // Masking weeklyCost on the GET means a MANAGER now sees a confidential
+  // person's cost as blank. Blank is an editable state: without this check they
+  // could not READ the salary but could OVERWRITE it, and would then watch the
+  // estate total move by the difference — a write-side version of exactly the
+  // subtraction ruling 3 accepted only as a read-side limitation.
+  //
+  // Ruling 2 is that confidential comp is ADMIN-only, and that governs the write
+  // as well as the read: a figure you may not see is a figure you may not set.
+  // The flag is read across the shared key and FAILS CLOSED (ruling 6), so a
+  // person with no wage row is admin-only to write too.
+  if (!ctx.isAdmin) {
+    const flag = await prisma.squareTeamMemberWage.findUnique({
+      where: { organizationId_squareTeamMemberId: { organizationId: ctx.org.id, squareTeamMemberId } },
+      select: { compConfidential: true },
+    })
+    if (!compVisibleForMember(actor, flag?.compConfidential)) {
+      return NextResponse.json(
+        { error: "This person's compensation is confidential and is edited by an administrator." },
+        { status: 403 }
+      )
+    }
+  }
 
   // EXEMPT IS OUTSIDE THE SYSTEM, NOT ALLOCATED 0%. A person marked exempt who
   // also carries allocations is a contradiction, and it is refused rather than
@@ -156,7 +211,28 @@ export async function PUT(req: Request) {
     return p
   })
 
-  return NextResponse.json({ id: person.id, squareTeamMemberId, displayName, weeklyCost: Number(person.weeklyCost), weeklyHours, exempt, allocations })
+  // COMP-1 — THE WRITE ROUTE ECHOES A NUMBER TOO, AND IT IS A REAL LEAK PATH.
+  // weeklyCost is optional on update: a MANAGER could PUT a confidential person
+  // with the field omitted (keeping the stored value) and read the stored figure
+  // straight back out of this response. Masked on the same rule as the GET.
+  const echoVisible = compVisibleForMember(
+    actor,
+    (
+      await prisma.squareTeamMemberWage.findUnique({
+        where: { organizationId_squareTeamMemberId: { organizationId: ctx.org.id, squareTeamMemberId } },
+        select: { compConfidential: true },
+      })
+    )?.compConfidential
+  )
+  return NextResponse.json({
+    id: person.id,
+    squareTeamMemberId,
+    displayName,
+    weeklyCost: echoVisible ? Number(person.weeklyCost) : null,
+    weeklyHours,
+    exempt,
+    allocations,
+  })
 }
 
 // DELETE ?squareTeamMemberId= — remove a person record entirely. Allocations
@@ -170,6 +246,23 @@ export async function DELETE(req: Request) {
 
   const squareTeamMemberId = new URL(req.url).searchParams.get("squareTeamMemberId") ?? ""
   if (!squareTeamMemberId) return NextResponse.json({ error: "Invalid body" }, { status: 400 })
+
+  // COMP-1 — SAME RULE AS THE PUT, AND DELETE NEEDS IT FOR THE SAME REASON.
+  // Removing a confidential person drops their allocation, and the estate total
+  // then falls by exactly their weekly pay: a manager who cannot read the figure
+  // could still measure it by deleting the record and reading the difference.
+  if (!ctx.isAdmin) {
+    const flag = await prisma.squareTeamMemberWage.findUnique({
+      where: { organizationId_squareTeamMemberId: { organizationId: ctx.org.id, squareTeamMemberId } },
+      select: { compConfidential: true },
+    })
+    if (!compVisibleForMember(actor, flag?.compConfidential)) {
+      return NextResponse.json(
+        { error: "This person's compensation is confidential and is edited by an administrator." },
+        { status: 403 }
+      )
+    }
+  }
 
   const deleted = await prisma.laborSalariedPerson.deleteMany({
     where: { organizationId: ctx.org.id, squareTeamMemberId },
