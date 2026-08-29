@@ -9504,6 +9504,186 @@ phases:
       reads open.startHour and would move with any cutoff), L-3 (sales inference,
       which is what every discarded row falls through to).
 
+  # ---- Compensation confidentiality (COMP-) ----
+  # COMP- is its own prefix, filed here because two of its three parts and its
+  # migration are labor surfaces. Its third part is a permissions capability and
+  # closes PERM-5C's ruling 5 — cross-referenced there rather than filed twice.
+
+  - id: COMP-1
+    track: labor
+    size: M
+    status: staging
+    commits: ["a1c4e14"]
+    title: "Compensation confidentiality — a per-person admin-set flag, server-side redaction on every person-comp surface, and labor.access closing PERM-5C's deferral"
+    notes: >
+      COMMITTED ON `staging` AND NOT PUSHED, AS OF 2026-08-28. NOTHING IS
+      DEPLOYED AND NO ACCEPTANCE EVIDENCE EXISTS YET — read `status: staging` as
+      "the commits are on the staging BRANCH", not as HR-29's usage of the same
+      value, which meant deployed and verified there. The vocabulary has no
+      "built, awaiting push" value; deviation S5-D69 records the choice. Every
+      test in the prompt, INCLUDING THE MANDATORY NETWORK-TAB TEST, runs on
+      staging after Gary pushes, and this block is prepended to when it does.
+
+      WHY THE ROW EXISTS. On the first manager rollout a MANAGER on
+      /settings/labor could see every person's compensation on the Positions
+      roster, Administrator and Manager salaries included. The existing "See pay
+      rates and tips" permission is all-or-nothing across PEOPLE: a manager needs
+      it ON to run their store, and ON exposes everyone. The missing granularity
+      was on the person, not the viewer.
+
+      RULINGS ARE IN docs/DECISIONS.md, VERBATIM (six of them, Gary,
+      2026-08-28). Audit: docs/prompts/COMP-1_AUDIT.md, read at bd99d98. Prompt
+      of record: docs/prompts/COMP-1_comp_confidentiality.md. This row does not
+      restate the rulings; it records what was built and what is still owed.
+
+      PART 1 — THE FLAG, AND IT IS NOT ON THE STAFF RECORD. The prompt's default
+      lean was StaffMember and the audit disproved it: getStoreRoster reads
+      SquareTeamMemberWage as its ROW SOURCE and only left-joins StaffMember for
+      a display name, so a Square member Froot never imported ("Not in Froot",
+      staffMemberId null) still carries a wage on that row. A flag on the staff
+      record would have left exactly those people permanently non-confidential
+      with no admin control — uncoverable for the people Froot knows least about.
+      compConfidential Boolean @default(false) therefore sits on
+      SquareTeamMemberWage in the FROOT-OWNED block beside weeklyHoursOverride
+      and isSupervisory, and the "not in Froot" hole the prompt said to STOP on
+      does not exist for this shape. THE SYNC NEEDED NO CHANGE AND THAT WAS
+      VERIFIED RATHER THAN ASSUMED: writeRoster's INSERT and DO UPDATE lists are
+      both explicit and enumerated, so a new column takes its DB default on
+      insert and survives a resync. Adding it to either list would not merely
+      lose a setting — it would silently UNHIDE every confidential salary in the
+      org on the next sync, with nothing on screen to say so. That warning is now
+      in the code at the list.
+
+      MIGRATION 20260828120000_comp1_comp_confidential — one additive ADD COLUMN
+      plus two backfill UPDATEs, seeding ON for salaried people and for admins
+      who have a synced wage row. BOTH ARE POSITIVE TESTS OVER NULLABLE COLUMNS,
+      DELIBERATELY: payType is String? and annualRate is Decimal?, and a negation
+      over either is not NULL-aware in SQL — the exact defect recorded at length
+      in labor-salaried.ts for LaborSalariedPerson.exempt, where `exempt <> true`
+      silently dropped every NOT-REVIEWED person. THE BACKFILL TOUCHED ZERO ROWS
+      ON DEV and that is an ABSENCE OF DATA, NOT A PASS: br-broad-wave-a6vpjdw0
+      holds zero SquareTeamMemberWage rows and zero orgs with squareLaborEnabled,
+      so the whole Square-labor surface is dark there. The DDL is proven (column
+      probe: boolean / NOT NULL / default false, branch named in the same
+      output); the SEED is not, and its evidence is a staging row count after
+      deploy. applied_steps_count is 0, expected with the hand-authored flow.
+
+      PART 2 — REDACTION IN THE PAYLOAD, NEVER IN THE MARKUP. One helper
+      (src/lib/comp-confidential.ts) that four surfaces defer to, so the answer
+      exists once. THREE EXITS WERE FIXED THAT THE PHASE A MAP DID NOT CARRY, and
+      two of them would have failed the Network-tab test: (a) the /settings/labor
+      PAGE ITSELF server-renders per-person weeklyCost into client props, which
+      leaves in the RSC flight payload and shows in the Network tab exactly like
+      JSON — the audit enumerated /staff as the server-rendered exit but not this
+      one; (b) PUT /api/labor/salaried ECHOES the stored weeklyCost, and
+      weeklyCost is optional on update, so a manager could PUT with the field
+      omitted and read the real figure straight back out; (c) a hole THIS CHANGE
+      ITSELF OPENED — masking the cost makes a manager's edit box arrive BLANK,
+      and blank is editable, so they could overwrite a salary they cannot read
+      and then measure it from the estate total. PUT and DELETE now refuse
+      non-admins on a confidential person (ruling 6) and the Edit button is
+      disabled with the reason in its title.
+
+      OPTION B WAS ALREADY STRUCTURALLY TRUE AND THE WORK WAS NOT TO BREAK IT.
+      computeWeeklyLaborBudget has always run server-side, with salaried people
+      collapsed into one synthetic position before the engine sees them, and the
+      budget route returns only the aggregate. The prompt anticipated moving that
+      math and there was none to move — the single largest reduction in this
+      row's cost against what was scoped. THE ONE GENUINE CLIENT-SIDE AGGREGATE
+      was the estate weekly total, summed in the browser from per-person rows
+      (labor-settings-client.tsx). Left alone it would have silently
+      under-reported the estate by exactly the confidential people's pay: a WRONG
+      NUMBER THAT LOOKS RIGHT, and the subtraction limitation ruling 3 accepted
+      handed to the manager for free rather than merely tolerated. It is computed
+      server-side now, over unmasked values, and the client sum is deleted with a
+      comment saying why it may not come back.
+
+      PART 3 — labor.access AT MANAGE, AND IT CLOSES PERM-5C'S RULING 5. That
+      ruling held labor.manage out of the override grid because "/api/labor/*
+      still enforces inline, so a denial would hide this page while those
+      endpoints answered". THAT BLOCKER WAS THE WORK. requireLaborContext() is
+      the single choke point every /settings/labor read and write passes through
+      — settings, positions, positions/[id], salaried, forecast, job-colors,
+      day-hours, daypart/[id] — so ONE check there reaches all of them, which is
+      why a permission change is this small. Enforced in BOTH places the prompt
+      required: that choke point and the page guard, ANDed with the existing
+      labor.manage rather than replacing it (AND-ing only ever subtracts).
+      labor.manage STILL stays out of the grid: COMP-1 answers ruling 5 with a
+      NEW capability rather than by promoting it, so the held-out list and its
+      reasoning stay true. THE MODAL NEEDED NO BESPOKE UI — confirmed, not
+      assumed: the grid maps over ENFORCED_CAPABILITY_AREAS and DENIABLE derives
+      from the same list, so the append is the whole UI job.
+
+      labor.view WAS NOT REPURPOSED, AND THE REASON IS A CORRECTION. Its own
+      comments claimed it gated the Labor nav entry, the /labor page AND every
+      /api/labor route. IT GATES THE FIRST ONLY — swept every can() call site on
+      a labor capability and labor.view appears at none of them outside the
+      sidebar's data-driven nav filter; requireLaborView never calls can() at
+      all. Acting on that false sentence would have produced exactly what the
+      registry forbids ("a toggle that does nothing is WORSE than no toggle"): a
+      hidden link over pages and routes that keep answering. The comments are
+      corrected in place; the VALUE IS UNCHANGED and no role's access moves.
+      Deviation S5-D73. THE WEEKLY PLAN IS DELIBERATELY NOT BEHIND THE NEW
+      CAPABILITY (ruling 4) — /labor keeps labor.view at ALL and STAFF keeps
+      seeing their own schedule, verified with labor.access denied.
+
+      EVIDENCE, AND WHAT EACH INSTRUMENT COULD HAVE CAUGHT. Build gate green
+      (179/179 pages). Column probe names the branch on every row. Capability
+      reaches the grid, DENIABLE and can() at MANAGE, deniable per-user, with
+      STAFF's labor.view unaffected. scripts/verify-comp-confidential.ts pins the
+      decision and WAS DEMONSTRATED TO FAIL when the fail-closed defect is
+      restored (case 6 flips) rather than merely to pass as written. NO BROWSER
+      EVIDENCE WAS TAKEN AND THAT IS DELIBERATE: dev has no wage rows and the
+      overlay is off for every org, so canSeeWages is false for everyone
+      including admins and the roster and salaried cards do not mount — a green
+      local screenshot would be an instrument that cannot detect the failure.
+      THE FIXTURE CANNOT PROVE ANY ROUTE CALLS THE HELPER; only the staging
+      Network-tab test can, and it is owed.
+
+      DEVIATIONS S5-D69..S5-D73, all Claude implementation choices inside Gary's
+      rulings. S5-D69 — `status: staging` on a row that is committed and not
+      pushed, the vocabulary having no value for that state; the notes carry the
+      precision. S5-D70 — TWO NAMES FOR TWO QUESTIONS: getStoreRoster returns the
+      RAW flag as compConfidential (the roster card manages it, so an ADMIN must
+      see the lock AND the real number and derives "masked for me" itself), while
+      getPayForStaff returns VIEWER-RELATIVE compMasked (that surface manages
+      nothing and the flag's only job is explaining a dash). One name meaning
+      both is how a viewer-relative value gets rendered as an absolute one — hit
+      mid-build, where the raw flag briefly dashed out the ADMIN's own view.
+      S5-D71 — the confidentiality lookup for salaried people is its OWN
+      org-wide query rather than a column added to the salaried-filtered wages
+      query, so that "no wage row" means no row; read off the filtered set, an
+      HOURLY person would look ABSENT and fail closed into being masked when
+      nobody marked them. S5-D72 — the admin-only key list is exported from the
+      schema module (ADMIN_ONLY_ROSTER_PATCH_KEYS) and asserted at the route,
+      rather than splitting a second route: a Zod schema cannot express "this key
+      needs a higher role than that key", and a second route would duplicate the
+      org-scoped composite lookup and give one fact two write paths. 403 rather
+      than a silent key-strip, so an admin's card cannot report a save that never
+      happened. S5-D73 — the labor.view comment correction above.
+
+      OUT OF SCOPE, RECORDED AND NOT FIXED (ruling of the prompt's out-of-scope
+      rule, restated by Gary): GET /api/labor/positions returns
+      LaborPosition.defaultHourlyRate with NO canSeeWages gate, while the roster
+      and salaried routes both require it. A position is an ARCHETYPE rather than
+      a person, so no individual's confidentiality is breached by it — but a
+      SALARIED archetype carries defaultHourlyRate x impliedWeeklyHours, which at
+      a store with one GM is that GM's pay in two columns. Its own row; it needs
+      a ruling before any future session can claim "no confidential number in any
+      payload" without qualification. Also untouched, per the prompt: DOC-4's
+      visibility-floor question, the global labor toggle in /settings, and all
+      Square-side pay behaviour.
+
+      STILL OWED. (1) Gary pushes; migrate deploy runs in the Vercel build. (2)
+      The full staging pass, the Network-tab test first among them. (3) The
+      §7.1 audit question on br-square-feather — whether any salaried person has
+      no StaffMember row. It NO LONGER BLOCKS, because the flag sits on the wage
+      row and every roster row has one by construction, but the answer is worth
+      having. (4) Which staging login carries MANAGER, for test 2. (5) The
+      DEPLOY_LOG entry, composed and handed over as pasteable commands, to be
+      written at promotion time rather than now — the payload line cannot be
+      known until Gary promotes.
+
   # ---- Schedule/actual overlay (labor-schedule) ----
   # Session split ratified 2026-08-20: S1 discovery -> S1b probe -> S2 ingest
   # -> S3 card overlay -> S4 /labor comparison. One phase per session.
