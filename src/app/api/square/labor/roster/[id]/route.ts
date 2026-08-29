@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { requireSquareLabor } from "@/lib/labor-access"
 import { canSeeWages } from "@/lib/labor-dashboard"
-import { rosterRowPatchSchema } from "@/lib/labor-roster-hours"
+import { rosterRowPatchSchema, ADMIN_ONLY_ROSTER_PATCH_KEYS } from "@/lib/labor-roster-hours"
 
 // AL-3 — THE TWO FROOT-OWNED FIELDS ON A SQUARE ROSTER ROW.
 // PATCH /api/square/labor/roster/[squareTeamMemberId]
@@ -50,6 +50,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Invalid body" }, { status: 400 })
   }
 
+  // COMP-1 ruling 2 — CONFIDENTIAL COMP IS ADMIN-SET, AND THE CHECK IS PER-KEY.
+  //
+  // This route sits at canSeeWages (MANAGE), which is the right tier for WK HRS
+  // and SUP and the wrong one for this. Rather than split a second route — which
+  // would duplicate the org-scoped composite lookup below and give the same
+  // fact two write paths — the extra role requirement is asserted for the one
+  // key that carries it. A MANAGER may still send the other two in the same
+  // request shape they always could; only a body naming a confidentiality key is
+  // refused, so nothing a manager could do yesterday breaks today.
+  //
+  // 403, NOT A SILENT DROP. Quietly stripping the key would leave the admin's
+  // card reporting a save that never happened.
+  const adminOnlyKeys = ADMIN_ONLY_ROSTER_PATCH_KEYS.filter((k) => k in parsed.data)
+  if (adminOnlyKeys.length > 0 && !ctx.isAdmin) {
+    return NextResponse.json(
+      { error: "Confidential compensation is set by an administrator." },
+      { status: 403 }
+    )
+  }
+
   // Org-scoped by the composite key rather than by a bare id: the same real
   // Square employee can be mirrored by more than one tenant, so a global lookup
   // would be cross-tenant reachable.
@@ -62,10 +82,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const updated = await prisma.squareTeamMemberWage.update({
     where: { id: existing.id },
     data: parsed.data,
-    select: { squareTeamMemberId: true, weeklyHoursOverride: true, isSupervisory: true },
+    select: { squareTeamMemberId: true, weeklyHoursOverride: true, isSupervisory: true, compConfidential: true },
   })
   // NO WAGE IN THE RESPONSE. The caller already has what it may see; echoing a
   // pay rate back from a write route is how a field ends up on a surface nobody
-  // reviewed.
+  // reviewed. compConfidential is NOT a wage — it is the flag, which every
+  // viewer already receives on the roster row — so echoing it is safe and lets
+  // the card confirm the toggle landed rather than assume it.
   return NextResponse.json(updated)
 }

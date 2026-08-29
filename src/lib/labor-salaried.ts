@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma"
+import type { PermissionUser } from "@/lib/permissions"
+import { compVisibleForMember } from "@/lib/comp-confidential"
 
 // R7-C — THE ONE RESOLUTION POINT for per-person salaried allocation. Every path
 // that needs "what salaried cost and hours does THIS store carry" comes through
@@ -201,8 +203,25 @@ export function seedWeeklyCostFromAnnual(annualRate: number): number {
 /// IT LISTS PEOPLE WITH NO FROOT RECORD TOO, which is how Kelton, Karson and
 /// Taylin become markable at all — none of them needs a StaffMember row, because
 /// the key throughout is squareTeamMemberId.
-export async function getSalariedPeopleForSettings(organizationId: string): Promise<
-  {
+/// COMP-1 — `viewer` IS REQUIRED, and this loader masks rather than the page.
+/// These rows are server-rendered straight into LaborSettingsClient's props, so
+/// they leave the server in the RSC FLIGHT PAYLOAD, which the Network tab shows
+/// exactly like a JSON API response. Masking in the card would leave the real
+/// weekly cost sitting in the page's own payload.
+///
+/// `estateWeeklyTotal` IS RETURNED ALONGSIDE THE ROWS BECAUSE THE CARD MAY NO
+/// LONGER SUM THEM. Ruling 4 (Gary, 2026-08-28) and Option B (ruling 3): the
+/// masked numbers still feed the total, and the total stays visible to managers.
+/// It is computed HERE over the REAL values, before any masking, so a manager
+/// sees the same estate figure an admin does. Summing the returned rows in the
+/// browser would drop every confidential person and quietly under-report the
+/// estate by exactly their pay — a wrong number that looks right, and the
+/// subtraction attack ruling 3 accepted handed over for free.
+export async function getSalariedPeopleForSettings(
+  organizationId: string,
+  viewer: PermissionUser
+): Promise<{
+  people: {
     id: string | null
     squareTeamMemberId: string
     displayName: string
@@ -211,10 +230,12 @@ export async function getSalariedPeopleForSettings(organizationId: string): Prom
     exempt: boolean | null
     squareAnnualRate: number | null
     squareAnnualRateSeen: number | null
+    compConfidential: boolean
     allocations: { storeId: string; allocationBps: number }[]
   }[]
-> {
-  const [wages, records, staff] = await Promise.all([
+  estateWeeklyTotal: number
+}> {
+  const [wages, records, staff, flags] = await Promise.all([
     prisma.squareTeamMemberWage.findMany({
       where: { organizationId, OR: [{ payType: "SALARY" }, { annualRate: { not: null } }] },
       select: { squareTeamMemberId: true, annualRate: true, jobTitle: true, status: true },
@@ -227,27 +248,65 @@ export async function getSalariedPeopleForSettings(organizationId: string): Prom
       where: { organizationId, squareTeamMemberId: { not: null } },
       select: { squareTeamMemberId: true, displayName: true },
     }),
+    // COMP-1 — THE FLAG MAP IS ITS OWN QUERY, OVER EVERY WAGE ROW IN THE ORG,
+    // and not a column added to `wages` above. `wages` is filtered to salaried
+    // rows, so reading the flag from it would make an HOURLY person's wage row
+    // look ABSENT — and absent fails closed (ruling 6), which would mask people
+    // nobody marked confidential. This query is what makes "no wage row" mean
+    // what it says.
+    prisma.squareTeamMemberWage.findMany({
+      where: { organizationId },
+      select: { squareTeamMemberId: true, compConfidential: true },
+    }),
   ])
 
   const byRecord = new Map(records.map((r) => [r.squareTeamMemberId, r]))
   const nameBySquareId = new Map(staff.map((s) => [s.squareTeamMemberId!, s.displayName]))
+  const flagBySquareId = new Map(flags.map((f) => [f.squareTeamMemberId, f.compConfidential]))
 
   // A Froot record may exist for someone the mirror no longer returns (a leaver,
   // or a wage sync that has not run). Those rows are still listed — dropping them
   // would hide an allocation that is still charging a store.
   const ids = new Set([...wages.map((w) => w.squareTeamMemberId), ...records.map((r) => r.squareTeamMemberId)])
 
-  return [...ids]
+  // THE TOTAL IS COMPUTED OVER THE REAL VALUES, BEFORE MASKING. It mirrors the
+  // card's own former predicate exactly — a person participates when they are
+  // not exempt AND carry at least one allocation — so moving the arithmetic
+  // server-side changed where it runs and not what it says.
+  //
+  // `exempt !== true` IS CORRECT HERE AND IS NOT THE NULLABLE-BOOLEAN TRAP.
+  // This is JavaScript over already-loaded rows, where `null !== true` is plain
+  // `true`; the trap is Prisma emitting `exempt <> true` into SQL, where NULL
+  // compares to NULL. See resolveStoreSalariedFor above, whose `where` keeps an
+  // explicit OR for exactly that reason and must keep it.
+  const estateWeeklyTotal = records
+    .filter((r) => r.exempt !== true && r.allocations.length > 0)
+    .reduce((t, r) => t + Number(r.weeklyCost), 0)
+
+  const people = [...ids]
     .map((sqId) => {
       const rec = byRecord.get(sqId)
       const wage = wages.find((w) => w.squareTeamMemberId === sqId)
+      // COMP-1 ruling 6 — read across the shared key, and FAIL CLOSED. An
+      // undefined flag means this person has no SquareTeamMemberWage row at all
+      // (a leaver the mirror dropped, or a Froot record entered ahead of the
+      // sync) and that is MASKED, not visible.
+      const flag = flagBySquareId.get(sqId)
+      const visible = compVisibleForMember(viewer, flag)
+      // THE SAME FAIL-CLOSED READING, STATED ONCE AS A FACT ABOUT THE PERSON
+      // rather than about the viewer: `!== false` is true both for a flagged
+      // person and for one with no wage row. An ADMIN therefore still sees the
+      // lock (they see the numbers too), which is how they can tell WHO is
+      // masked for their managers — `!visible` would have read false for every
+      // row an admin looked at and shown them nothing.
+      const confidential = flag !== false
       return {
         id: rec?.id ?? null,
         squareTeamMemberId: sqId,
         // The Froot record's snapshot wins, then the StaffMember name, then the
         // Square id — so an unmapped person is still identifiable on the card.
         displayName: rec?.displayName ?? nameBySquareId.get(sqId) ?? (wage?.jobTitle ? `${wage.jobTitle} (unmatched)` : sqId),
-        weeklyCost: rec ? Number(rec.weeklyCost) : null,
+        weeklyCost: visible && rec ? Number(rec.weeklyCost) : null,
         // NULL WHEN THERE IS NO FROOT RECORD, not 40. This used to invent a 40
         // for a person nobody had entered, which made "has no values at all"
         // undetectable from the payload — and that emptiness is what the
@@ -255,10 +314,16 @@ export async function getSalariedPeopleForSettings(organizationId: string): Prom
         // owns its own form placeholder; the loader must not invent data.
         weeklyHours: rec?.weeklyHours ?? null,
         exempt: rec?.exempt ?? null,
-        squareAnnualRate: wage?.annualRate == null ? null : Number(wage.annualRate),
-        squareAnnualRateSeen: rec?.squareAnnualRateSeen == null ? null : Number(rec.squareAnnualRateSeen),
+        squareAnnualRate: !visible || wage?.annualRate == null ? null : Number(wage.annualRate),
+        squareAnnualRateSeen: !visible || rec?.squareAnnualRateSeen == null ? null : Number(rec.squareAnnualRateSeen),
+        // Sent to every viewer — the number is the secret, not its existence.
+        // The card keys the lock on this, which is what keeps a masked person
+        // distinguishable from one who simply has no figures entered.
+        compConfidential: confidential,
         allocations: rec?.allocations ?? [],
       }
     })
     .sort((a, b) => (a.displayName < b.displayName ? -1 : a.displayName > b.displayName ? 1 : 0))
+
+  return { people, estateWeeklyTotal }
 }

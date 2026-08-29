@@ -69,7 +69,14 @@ const navItems: NavItem[] = [
   { href: "/labor", label: "Weekly Plan", icon: CalendarRange, capability: "labor.view", requiresLabor: true },
   // Config hub for the Weekly Labor Model — ADMIN/MANAGER only, gated on both
   // Labor feature flags (available in this env AND org toggle on).
-  { href: "/settings/labor", label: "Labor", icon: Clock, capability: "labor.manage", requiresLabor: true },
+  //
+  // COMP-1 — labor.access, NOT labor.manage. Both are MANAGE so no role's nav
+  // changes, but only labor.access is in the override grid AND enforced on the
+  // page and the routes. Pointing the link at labor.manage would leave a denied
+  // user still seeing the entry, and pointing it at a capability the server does
+  // not check would hide the link over a page that still answers — the two
+  // halves of the defect this row exists to avoid.
+  { href: "/settings/labor", label: "Labor", icon: Clock, capability: "labor.access", requiresLabor: true },
 ]
 
 // STAFF-1: inventory is not part of the staff experience — STAFF removed from

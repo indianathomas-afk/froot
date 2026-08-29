@@ -17,6 +17,8 @@
 // sentences. A single "$0.00" would say all three at once, and would say the one
 // thing that is never true.
 
+import { CONFIDENTIAL_DASH } from "@/lib/comp-confidential"
+
 // ─── FORMATTING ───────────────────────────────────────────────────────────────
 
 /// What a Square wage setting says a person is paid. RETURNED AS A SENTENCE,
@@ -28,11 +30,25 @@
 /// zero seam (c) forbids. Measured 2026-08-19: 99 of 99 Keva members carry one,
 /// so this branch is the exception — which is exactly why it must be a sentence
 /// and not a fallback value nobody notices.
+/// COMP-1 — THE CONFIDENTIAL BRANCH IS FIRST, and payText() in
+/// labor-settings-client.tsx carries the identical branch in the identical
+/// position. A masked person arrives with BOTH rates null, which is
+/// indistinguishable from "Square has not been told" unless the flag is asked
+/// about first; printing "Not set in Square" over a real salary would be the
+/// silent-zero failure this file exists to prevent, wearing different words.
+///
+/// compMasked IS OPTIONAL so that every pre-COMP-1 caller keeps compiling
+/// and keeps its exact behaviour — `undefined` is falsy and falls through to the
+/// branches below. THAT IS SAFE ONLY BECAUSE THIS FUNCTION IS NOT THE GATE: the
+/// numbers are dropped server-side before they reach any formatter, so a caller
+/// that forgets the flag renders the wrong SENTENCE, never the wrong NUMBER.
 export function formatPay(pay: {
   payType: string | null
   hourlyRate: number | null
   annualRate: number | null
+  compMasked?: boolean
 }): string {
+  if (pay.compMasked) return CONFIDENTIAL_DASH
   if (pay.payType === "SALARY" && pay.annualRate !== null) {
     return `${usdWhole(pay.annualRate)}/yr`
   }

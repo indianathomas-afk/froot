@@ -2796,7 +2796,7 @@ model SquareTeamMemberWage {
   wageVersion        Int?
   squareUpdatedAt    DateTime?
 
-  /// ── FROOT-OWNED. THE SYNC'S DO UPDATE NEVER TOUCHES THESE TWO. ──
+  /// ── FROOT-OWNED. THE SYNC'S DO UPDATE NEVER TOUCHES THESE THREE. ──
   /// Same discipline StaffMember.fullNameLocked already encodes: a resync must
   /// not clobber a value a human set. WK HRS and SUP are Froot concepts (vision
   /// item 10) and Square has no opinion about either.
@@ -2811,6 +2811,27 @@ model SquareTeamMemberWage {
   /// is HOURLY. Any title-based guess is wrong for someone, so the default is
   /// false and a human sets it.
   isSupervisory       Boolean?
+  /// COMP-1 — CONFIDENTIAL COMPENSATION. True means this person's pay is
+  /// visible to ADMIN ONLY; every other viewer gets the field ABSENT from the
+  /// payload (never hidden in the markup), with the flag itself sent so the UI
+  /// can draw the lock.
+  ///
+  /// IT LIVES HERE AND NOT ON StaffMember, and that is the ruling rather than a
+  /// convenience. getStoreRoster reads THIS table as its row source and only
+  /// left-joins StaffMember for a display name, so a Square member Froot has
+  /// never imported ("Not in Froot", staffMemberId null) still carries a wage on
+  /// this row. A flag on the staff record would leave exactly those people
+  /// permanently non-confidential with no admin control.
+  ///
+  /// NON-NULL BY DESIGN. @default(false) means `not: true` and `equals: false`
+  /// are both safe here — unlike LaborSalariedPerson.exempt, whose nullability
+  /// caused the silently-dropped-rows defect recorded in labor-salaried.ts. Do
+  /// not make this nullable.
+  ///
+  /// LaborSalariedPerson HAS NO FLAG OF ITS OWN and reads this one across the
+  /// shared (organizationId, squareTeamMemberId) key, so one admin toggle
+  /// governs both surfaces. That lookup FAILS CLOSED — see comp-confidential.ts.
+  compConfidential    Boolean   @default(false)
 
   /// Freshness for the whole roster — see the health note above.
   syncedAt  DateTime

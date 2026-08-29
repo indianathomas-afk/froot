@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Pencil, Trash2, Plus, ShieldCheck } from "lucide-react"
+import { Pencil, Trash2, Plus, ShieldCheck, Lock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,6 +51,8 @@ type Position = {
   active: boolean
 }
 
+import { CONFIDENTIAL_DASH, CONFIDENTIAL_TITLE } from "@/lib/comp-confidential"
+
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -83,6 +85,8 @@ export function LaborSettingsClient({
   initialPositions,
   stores,
   salariedPeople,
+  salariedEstateWeekly,
+  isAdmin = false,
   showRoster = false,
 }: {
   initialPositions: Position[]
@@ -90,7 +94,19 @@ export function LaborSettingsClient({
   /// R7-C. Every salaried member of the Square roster, joined to their Froot
   /// record where one exists. Members with no record yet arrive with
   /// weeklyCost null and no allocations, so the card can offer to seed them.
+  ///
+  /// COMP-1: a CONFIDENTIAL person arrives with weeklyCost null as well, and the
+  /// two states are told apart by compConfidential — never by the null.
   salariedPeople: SalariedPerson[]
+  /// COMP-1 ruling 4 — COMPUTED SERVER-SIDE OVER THE REAL VALUES and passed in,
+  /// because this card can no longer derive it. Summing the rows here would drop
+  /// every masked person and under-report the estate by exactly their pay.
+  salariedEstateWeekly: number
+  /// COMP-1 ruling 2 — confidential comp is ADMIN-only, and the confidentiality
+  /// toggle on the roster is admin-only with it. This drives the RENDER; the
+  /// route enforces it independently (roster/[id], 403), so a hidden toggle is
+  /// never the only thing standing between a manager and the write.
+  isAdmin?: boolean
   /// AL-3. True only when the Advanced Labor overlay is on AND the viewer holds
   /// labor.costs.view. False makes PositionsCard render exactly as it did before
   /// AL-3 — the segmented control is not mounted and no roster fetch is issued.
@@ -99,12 +115,18 @@ export function LaborSettingsClient({
   return (
     <div className="space-y-6 max-w-3xl">
       <SettingsCard stores={stores} />
-      <PositionsCard initial={initialPositions} stores={stores} showRoster={showRoster} />
+      <PositionsCard initial={initialPositions} stores={stores} showRoster={showRoster} isAdmin={isAdmin} />
       {/* R7-C: the per-STORE declaration card is UNMOUNTED (retired 2026-08-22).
           Its component and dialog remain below, marked, per the preserve-and-mark
           ruling — a route left mounted is a route that still writes rows, so the
           mount is what comes out, not the code. */}
-      <SalariedPeopleCard initial={salariedPeople} stores={stores} canEdit={showRoster} />
+      <SalariedPeopleCard
+        initial={salariedPeople}
+        stores={stores}
+        canEdit={showRoster}
+        estateWeekly={salariedEstateWeekly}
+        isAdmin={isAdmin}
+      />
       <DaySplitCard stores={stores} />
       <DaypartsCard />
       <JobColorsCard />
@@ -150,6 +172,11 @@ export type SalariedPerson = {
   /// What Square said when weeklyCost was seeded. A difference from
   /// squareAnnualRate is shown and never acted on.
   squareAnnualRateSeen: number | null
+  /// COMP-1. TRUE MEANS THE MONEY FIELDS ABOVE ARRIVED NULL BECAUSE THEY WERE
+  /// WITHHELD, not because nobody entered them — and only this flag can tell the
+  /// two apart. Never infer masking from a null; never render a masked person as
+  /// "not entered", which would invite an operator to type over a real salary.
+  compConfidential: boolean
   allocations: SalariedAllocation[]
 }
 
@@ -160,10 +187,20 @@ function SalariedPeopleCard({
   initial,
   stores,
   canEdit,
+  estateWeekly,
+  isAdmin,
 }: {
   initial: SalariedPerson[]
   stores: { id: string; name: string }[]
   canEdit: boolean
+  /// COMP-1 — needed because compConfidential is a fact about the PERSON, not
+  /// about the viewer: it is true on an admin's screen too (that is how an admin
+  /// sees which people are masked for their managers). "Is this row masked FOR
+  /// ME" is `compConfidential && !isAdmin`, and only that may disable an editor.
+  isAdmin: boolean
+  /// COMP-1 ruling 4 — SERVER-COMPUTED, over the real values, and NOT derivable
+  /// from `initial` any more. See LaborSettingsClient's prop note.
+  estateWeekly: number
 }) {
   const [people, setPeople] = useState<SalariedPerson[]>(initial)
   const [editing, setEditing] = useState<SalariedPerson | null>(null)
@@ -183,7 +220,14 @@ function SalariedPeopleCard({
 
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? id
   const allocated = people.filter((p) => p.exempt !== true && p.allocations.length > 0)
-  const estateWeekly = allocated.reduce((t, p) => t + (p.weeklyCost ?? 0), 0)
+  // COMP-1 — THE ESTATE TOTAL IS NO LONGER SUMMED HERE. It used to be
+  // `allocated.reduce((t, p) => t + (p.weeklyCost ?? 0), 0)`, which is unsafe the
+  // moment any weeklyCost can be withheld: `?? 0` would silently drop every
+  // confidential person and the total would fall by exactly their pay. That is
+  // worse than a leak — it is a wrong number that looks right, and the drop
+  // itself hands a manager the subtraction ruling 3 accepted. The real total now
+  // arrives as a prop, computed server-side over unmasked values.
+  // DO NOT REINTRODUCE A CLIENT-SIDE SUM OVER weeklyCost.
 
   return (
     <Card>
@@ -207,6 +251,18 @@ function SalariedPeopleCard({
         {people.map((p) => {
           const total = p.allocations.reduce((t, a) => t + a.allocationBps, 0)
           const complete = total === 10000
+          // COMP-1 — "MASKED FOR ME", DERIVED ONCE. compConfidential describes
+          // the PERSON and is true on an admin's screen as well, because an
+          // admin needs to see who is hidden from their managers. Only THIS
+          // boolean may substitute a dash for a value; using the raw flag would
+          // blank out the very numbers ruling 2 says an admin always sees.
+          const masked = p.compConfidential && !isAdmin
+          // COMP-1 — NO EXTRA GUARD IS NEEDED HERE AND THAT IS WORTH SAYING.
+          // Both figures are masked to null server-side for a confidential
+          // person, and both null-checks below already fail closed on null, so a
+          // masked viewer simply never sees a divergence line. Adding
+          // `!p.compConfidential` would be a second, weaker copy of a guard the
+          // server already made structural.
           const diverged =
             p.squareAnnualRate != null &&
             p.squareAnnualRateSeen != null &&
@@ -234,14 +290,35 @@ function SalariedPeopleCard({
                         save coerce NULL to false; that would put a value in a
                         column the operator never touched. The badge disappears
                         because data arrived, not because the column was tidied. */}
-                    {p.weeklyCost == null && p.weeklyHours == null && p.allocations.length === 0 && (
-                      <Badge variant="outline">Not reviewed</Badge>
+                    {/* COMP-1 — `!p.compConfidential` GUARDS THIS BADGE because
+                        a masked viewer cannot tell "nothing entered" from
+                        "withheld": weeklyCost arrives null in both cases. Badging
+                        a confidential person "Not reviewed" would invite an
+                        operator to type over a salary that is already there. */}
+                    {!masked &&
+                      p.weeklyCost == null &&
+                      p.weeklyHours == null &&
+                      p.allocations.length === 0 && <Badge variant="outline">Not reviewed</Badge>}
+                    {p.compConfidential && (
+                      <Badge variant="outline" title={CONFIDENTIAL_TITLE}>
+                        <Lock className="h-3 w-3 mr-1" /> Confidential
+                      </Badge>
                     )}
                   </div>
                   <div className="text-[12px] text-[var(--color-muted-foreground)] mt-0.5">
-                    {p.weeklyCost != null
-                      ? `${usdW(p.weeklyCost)}/wk${p.weeklyHours != null ? ` · ${p.weeklyHours} hrs/wk` : ""}`
-                      : "Nothing entered yet"}
+                    {/* THREE STATES, THREE SENTENCES, and the order is the point:
+                        confidential is tested FIRST because it is the only one
+                        the null cannot tell you about. */}
+                    {masked ? (
+                      <span title={CONFIDENTIAL_TITLE}>
+                        {CONFIDENTIAL_DASH}
+                        {p.weeklyHours != null ? ` · ${p.weeklyHours} hrs/wk` : ""}
+                      </span>
+                    ) : p.weeklyCost != null ? (
+                      `${usdW(p.weeklyCost)}/wk${p.weeklyHours != null ? ` · ${p.weeklyHours} hrs/wk` : ""}`
+                    ) : (
+                      "Nothing entered yet"
+                    )}
                   </div>
                   {/* DIVERGENCE IS SHOWN AND NEVER ACTED ON. Square cannot move a
                       Froot-owned figure; a human decides whether to follow it. */}
@@ -252,7 +329,19 @@ function SalariedPeopleCard({
                     </div>
                   )}
                 </div>
-                <Button size="sm" variant="outline" onClick={() => setEditing(p)}>
+                {/* COMP-1 — DISABLED, NOT HIDDEN, and the route refuses the
+                    write independently (PUT/DELETE /api/labor/salaried, 403).
+                    A masked person's cost box would open BLANK for a manager,
+                    and blank is editable: they could overwrite a salary they
+                    cannot read and then measure it from the estate total. The
+                    title says why, so a manager sees a rule rather than a bug. */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={masked}
+                  title={masked ? CONFIDENTIAL_TITLE : undefined}
+                  onClick={() => setEditing(p)}
+                >
                   <Pencil className="h-4 w-4 mr-1" /> Edit
                 </Button>
               </div>
@@ -279,7 +368,17 @@ function SalariedPeopleCard({
                                 {(a.allocationBps / 100).toFixed(2).replace(/\.00$/, "")}%
                               </td>
                               <td className="py-1 text-[var(--color-muted-foreground)]">
-                                {usdW(cost)}/wk · {(+hrs.toFixed(2)).toString()} hrs
+                                {/* COMP-1 — `?? 0` ABOVE MAKES cost READ $0.00
+                                    FOR A MASKED PERSON, which is a number nobody
+                                    should believe. The dash replaces it; the
+                                    HOURS are not compensation and still show, so
+                                    the percentage stays checkable. */}
+                                {masked ? (
+                                  <span title={CONFIDENTIAL_TITLE}>{CONFIDENTIAL_DASH}</span>
+                                ) : (
+                                  `${usdW(cost)}/wk`
+                                )}{" "}
+                                · {(+hrs.toFixed(2)).toString()} hrs
                               </td>
                             </tr>
                           )
@@ -292,14 +391,31 @@ function SalariedPeopleCard({
                           <td className="pt-1.5">
                             {complete ? (
                               <span className="text-[var(--color-muted-foreground)]">
-                                {usdW(p.weeklyCost ?? 0)}/wk · {p.weeklyHours ?? 0} hrs — fully allocated
+                                {masked ? (
+                                  <span title={CONFIDENTIAL_TITLE}>{CONFIDENTIAL_DASH}</span>
+                                ) : (
+                                  `${usdW(p.weeklyCost ?? 0)}/wk`
+                                )}{" "}
+                                · {p.weeklyHours ?? 0} hrs — fully allocated
                               </span>
                             ) : (
                               // LOUD, per invariant 2. Nothing is normalised, so
                               // the shortfall is real money no store is carrying.
+                              //
+                              // COMP-1 — THE WARNING SURVIVES MASKING, ONLY ITS
+                              // DOLLAR FIGURE GOES. The under-allocation is a
+                              // data-entry fault a manager must still be able to
+                              // see and escalate; hiding the whole sentence
+                              // because the amount is confidential would trade a
+                              // confidentiality rule for a silent accounting hole.
                               <span className="font-semibold">
-                                Must total 100% — {usdW(((p.weeklyCost ?? 0) * (10000 - total)) / 10000)}/wk of this
-                                person is not carried by any store
+                                Must total 100% —{" "}
+                                {masked ? (
+                                  <span title={CONFIDENTIAL_TITLE}>{CONFIDENTIAL_DASH}</span>
+                                ) : (
+                                  `${usdW(((p.weeklyCost ?? 0) * (10000 - total)) / 10000)}/wk`
+                                )}{" "}
+                                of this person is not carried by any store
                               </span>
                             )}
                           </td>
@@ -1127,10 +1243,14 @@ function PositionsCard({
   initial,
   stores,
   showRoster,
+  isAdmin,
 }: {
   initial: Position[]
   stores: { id: string; name: string }[]
   showRoster: boolean
+  /// COMP-1 — drives whether the confidentiality column is EDITABLE. Passed
+  /// through to the roster view; the route enforces the same rule independently.
+  isAdmin: boolean
 }) {
   const [positions, setPositions] = useState<Position[]>(initial)
   const [editing, setEditing] = useState<Position | Omit<Position, "id"> | null>(null)
@@ -1201,7 +1321,7 @@ function PositionsCard({
           </p>
         )}
 
-        {tab === "roster" && <TeamRosterView stores={stores} />}
+        {tab === "roster" && <TeamRosterView stores={stores} isAdmin={isAdmin} />}
 
         {tab === "legend" &&
           (positions.length === 0 ? (
@@ -1320,6 +1440,8 @@ type RosterRow = {
   squareWeeklyHours: number | null
   weeklyHoursOverride: number | null
   isSupervisory: boolean | null
+  /// COMP-1. Sent to every viewer; the numbers beside it are not.
+  compConfidential: boolean
   jobAssignmentCount: number
 }
 
@@ -1333,7 +1455,23 @@ type RosterPayload = {
 
 /// Mirrors formatPay in src/lib/labor-costs.ts. NULL IS A SENTENCE, NEVER $0 —
 /// the two must agree, because /staff and this card show the same person's pay.
-function payText(r: RosterRow): string {
+///
+/// COMP-1 — THE CONFIDENTIAL BRANCH IS FIRST, AND IT MUST BE. A masked row
+/// arrives with hourlyRate and annualRate BOTH null, which is byte-identical to
+/// a person Square holds no wage settings for. Testing the nulls first would
+/// print "Not set in Square" over a real salary — a false statement about the
+/// data, and one that invites someone to go "fix" it in Square.
+///
+/// THIS FUNCTION IS NOT THE REDACTION. The numbers are already gone by the time
+/// a row reaches it (labor-roster.ts, getStoreRoster). This only decides the
+/// wording, exactly as labor-costs.ts's header describes for its own half.
+///
+/// `masked` IS PASSED IN RATHER THAN READ OFF THE ROW. r.compConfidential is a
+/// fact about the PERSON and is true on an admin's screen too — that is how an
+/// admin sees who is hidden from their managers — so branching on it directly
+/// would blank out the numbers ruling 2 says an admin always sees.
+function payText(r: RosterRow, masked: boolean): string {
+  if (masked) return CONFIDENTIAL_DASH
   if (r.payType === "SALARY" && r.annualRate !== null) {
     return r.annualRate.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) + "/yr"
   }
@@ -1343,7 +1481,7 @@ function payText(r: RosterRow): string {
 
 type RowStatus = "saving" | "saved" | "error"
 
-function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) {
+function TeamRosterView({ stores, isAdmin }: { stores: { id: string; name: string }[]; isAdmin: boolean }) {
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "")
   const [data, setData] = useState<RosterPayload | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -1415,7 +1553,11 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
   /// failed — `void patchRow(...)` discarded the only fact worth showing.
   async function patchRow(
     id: string,
-    patch: { weeklyHoursOverride?: number | null; isSupervisory?: boolean | null }
+    // COMP-1 — compConfidential rides the SAME patch path as the other two
+    // Froot-owned fields; it is the ROUTE that requires ADMIN for this key, and
+    // a 403 lands in the catch below like any other failure, reloading the row
+    // so the optimistic flip is undone rather than left on screen.
+    patch: { weeklyHoursOverride?: number | null; isSupervisory?: boolean | null; compConfidential?: boolean }
   ): Promise<boolean> {
     // Optimistic, then reconciled by the response — a two-field edit that has to
     // wait for a round trip to show a tick reads as broken.
@@ -1579,7 +1721,16 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
                 <th className="py-2 pr-3 font-semibold">Position (Square)</th>
                 <th className="py-2 pr-3 font-semibold">Pay</th>
                 <th className="py-2 pr-3 font-semibold">Wk hrs</th>
-                <th className="py-2 pr-0 font-semibold">Sup.</th>
+                <th className="py-2 pr-3 font-semibold">Sup.</th>
+                {/* COMP-1 — THE COLUMN IS ADMIN-ONLY, header and all. A manager
+                    sees no column rather than a disabled switch: a control they
+                    can see but not use reads as a bug, and the fact that a
+                    setting exists is not information they need. */}
+                {isAdmin && (
+                  <th className="py-2 pr-0 font-semibold" title={CONFIDENTIAL_TITLE}>
+                    Confid.
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -1604,12 +1755,19 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
                   </td>
                   <td
                     className={
-                      payText(r) === "Not set in Square"
+                      payText(r, r.compConfidential && !isAdmin) === "Not set in Square"
                         ? "py-2.5 pr-3 text-[var(--color-warning,#efa201)]"
                         : "py-2.5 pr-3 text-[var(--color-foreground)]"
                     }
+                    title={r.compConfidential ? CONFIDENTIAL_TITLE : undefined}
                   >
-                    {payText(r)}
+                    {/* THE LOCK IS DRAWN FOR BOTH VIEWERS AND THE DASH FOR ONLY
+                        ONE. An admin sees lock + real figure, which is how they
+                        can tell at a glance what a manager would not see. */}
+                    {r.compConfidential && (
+                      <Lock className="h-3 w-3 mr-1 inline-block align-[-1px] text-[var(--color-muted-foreground)]" />
+                    )}
+                    {payText(r, r.compConfidential && !isAdmin)}
                   </td>
                   <td className="py-2.5 pr-3">
                     <WeeklyHoursCell
@@ -1629,13 +1787,26 @@ function TeamRosterView({ stores }: { stores: { id: string; name: string }[] }) 
                       onSave={() => saveRow(r)}
                     />
                   </td>
-                  <td className="py-2.5 pr-0">
+                  <td className="py-2.5 pr-3">
                     <Switch
                       checked={r.isSupervisory === true}
                       onCheckedChange={(v) => void patchRow(r.squareTeamMemberId, { isSupervisory: v })}
                       aria-label={`Supervisory — ${r.displayName ?? r.squareTeamMemberId}`}
                     />
                   </td>
+                  {/* COMP-1 ruling 1 — THE PER-PERSON ADMIN-SET FLAG. The
+                      migration seeds it ON for salaried people and admins so
+                      coverage exists on day one; from then on it is this switch
+                      and nothing automatic. There is no role rule behind it. */}
+                  {isAdmin && (
+                    <td className="py-2.5 pr-0">
+                      <Switch
+                        checked={r.compConfidential}
+                        onCheckedChange={(v) => void patchRow(r.squareTeamMemberId, { compConfidential: v })}
+                        aria-label={`Confidential compensation — ${r.displayName ?? r.squareTeamMemberId}`}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

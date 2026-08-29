@@ -51,10 +51,15 @@ export async function GET(req: Request) {
     select: { squareLocationId: true },
   })
 
+  // COMP-1 — the viewer is threaded in so the two money fields are dropped at
+  // the row build for a non-ADMIN. THE REDACTION IS IN THE PAYLOAD, NOT THE
+  // CLIENT: `actor` is the same object canSeeWages was just asked about, so the
+  // wage gate and the confidentiality gate cannot disagree about who is asking.
   const roster = await getStoreRoster(
     ctx.org,
     store.squareLocationId,
-    linked.map((s) => s.squareLocationId!).filter(Boolean)
+    linked.map((s) => s.squareLocationId!).filter(Boolean),
+    actor
   )
 
   return NextResponse.json({

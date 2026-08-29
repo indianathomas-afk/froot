@@ -2,6 +2,8 @@ import { randomUUID } from "crypto"
 import { Prisma } from "@prisma/client"
 import type { Organization } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
+import type { PermissionUser } from "@/lib/permissions"
+import { compVisibleOnRow } from "@/lib/comp-confidential"
 import { getSquareClient } from "@/lib/square"
 
 // AL-3 — ADVANCED LABOR PHASE 3. Design record: docs/ADVANCED_LABOR.md § Phase 3.
@@ -77,6 +79,12 @@ export type RosterRow = {
   /// FROOT-OWNED, and nothing reads them yet — see the schema note.
   weeklyHoursOverride: number | null
   isSupervisory: boolean | null
+  /// COMP-1. Sent to EVERY viewer, deliberately — the numbers beside it are the
+  /// secret, not the fact that a secret exists. The card needs it to draw the
+  /// lock, and without it a masked row is indistinguishable from a person with
+  /// no wage settings in Square (see hourlyRate's "null is a sentence" rule,
+  /// which this flag exists to keep true).
+  compConfidential: boolean
   /// > 1 means Square carries more than one job for this person and the row
   /// above shows the first. Surfaced rather than truncated silently.
   jobAssignmentCount: number
@@ -227,12 +235,22 @@ async function fetchTeamMemberWages(
 /// shape, the same one writeTimecards uses. Rows are sorted by id so every
 /// writer takes its locks in the same order.
 ///
-/// THE DO UPDATE LIST DELIBERATELY OMITS weeklyHoursOverride AND isSupervisory.
+/// THE DO UPDATE LIST DELIBERATELY OMITS weeklyHoursOverride, isSupervisory AND
+/// compConfidential.
 /// They are Froot-owned (vision item 10: "WK HRS and SUP stay Froot-adjustable")
-/// and Square has no opinion about either, so a resync must not clobber a value
-/// a human set — the discipline StaffMember.fullNameLocked already encodes for
-/// the legal name. IF A LATER EDIT ADDS THEM TO THIS LIST, every supervisory
+/// and Square has no opinion about any of them, so a resync must not clobber a
+/// value a human set — the discipline StaffMember.fullNameLocked already encodes
+/// for the legal name. IF A LATER EDIT ADDS THEM TO THIS LIST, every supervisory
 /// flag in the org is erased by the next sync, silently.
+///
+/// COMP-1 MAKES THAT RULE LOAD-BEARING FOR CONFIDENTIALITY, NOT JUST FOR DATA.
+/// compConfidential is absent from the INSERT column list below (so a new row
+/// takes the column DEFAULT of false) and absent from the DO UPDATE SET list (so
+/// a resync preserves what an admin set). Adding it to either does not merely
+/// lose a setting — it silently UNHIDES every confidential salary in the org on
+/// the next sync, with no error and nothing on screen to say it happened.
+/// VERIFIED RATHER THAN ASSUMED: both lists below are explicit and enumerated,
+/// so the omission is structural and not a default anyone has to remember.
 async function writeRoster(
   org: Organization,
   members: SquareRosterMember[],
@@ -318,6 +336,13 @@ function moneyToDollars(m: SquareMoney): number | null {
 /// call site is behind the gate. It is not a second gate and must never be
 /// mistaken for one.
 ///
+/// COMP-1 — IT *IS* THE SECOND GATE FOR CONFIDENTIAL COMP, and that is the one
+/// exception to the paragraph above. `viewer` is REQUIRED rather than optional
+/// on purpose: an optional viewer defaults to "show everything" at any call site
+/// that forgets to thread it, which is precisely the leak this parameter exists
+/// to close. The masking happens HERE, at the row build, so a confidential
+/// number never reaches the route, the props or the flight payload.
+///
 /// Store membership comes from Square's own assigned_locations, never from
 /// StaffMember.primaryStore: DEBT-9's boundary, confirmed 2026-08-02 and
 /// restated by AL-1. A member flagged allLocations belongs to EVERY store, which
@@ -325,7 +350,8 @@ function moneyToDollars(m: SquareMoney): number | null {
 export async function getStoreRoster(
   org: Organization,
   squareLocationId: string | null,
-  knownLocationIds: string[]
+  knownLocationIds: string[],
+  viewer: PermissionUser
 ): Promise<RosterResult> {
   const rows = await prisma.squareTeamMemberWage.findMany({
     where: { organizationId: org.id, status: "ACTIVE" },
@@ -356,6 +382,16 @@ export async function getStoreRoster(
 
   const out: RosterRow[] = mine.map((r) => {
     const match = staffBySquareId.get(r.squareTeamMemberId)
+    // COMP-1. THE TWO MONEY FIELDS ARE DROPPED, NOTHING ELSE IS. Name, job
+    // title, status, WK HRS and SUP are not compensation and stay visible — the
+    // ruling hides the pay, not the person.
+    //
+    // payType SURVIVES DELIBERATELY. Nulling it would collide with a meaning
+    // that column already has ("not set in Square", schema.prisma), making a
+    // confidential person indistinguishable from a person Square holds no wage
+    // settings for. compConfidential below is what the card keys the lock on,
+    // which is why the flag is sent and the numbers are not.
+    const visible = compVisibleOnRow(viewer, r)
     return {
       squareTeamMemberId: r.squareTeamMemberId,
       staffMemberId: match?.id ?? null,
@@ -364,11 +400,12 @@ export async function getStoreRoster(
       isOwner: r.isOwner,
       jobTitle: r.jobTitle,
       payType: r.payType,
-      hourlyRate: r.hourlyRate === null ? null : Number(r.hourlyRate),
-      annualRate: r.annualRate === null ? null : Number(r.annualRate),
+      hourlyRate: !visible || r.hourlyRate === null ? null : Number(r.hourlyRate),
+      annualRate: !visible || r.annualRate === null ? null : Number(r.annualRate),
       squareWeeklyHours: r.squareWeeklyHours,
       weeklyHoursOverride: r.weeklyHoursOverride,
       isSupervisory: r.isSupervisory,
+      compConfidential: r.compConfidential,
       jobAssignmentCount: r.jobAssignmentCount,
     }
   })
@@ -395,17 +432,25 @@ export async function getStoreRoster(
 /// AGAIN: THE CALLER HAS ALREADY PASSED canSeeWages. Every one of the three call
 /// sites gates before calling, and the /staff page does not even build the id
 /// list when the gate is closed.
+///
+/// COMP-1 — /staff IS THE SECOND DOOR TO THE SAME NUMBER, and it is masked here
+/// for that reason. The roster card and /staff read the SAME
+/// SquareTeamMemberWage row, so redacting only the roster would hide a salary on
+/// /settings/labor and hand it over on /staff — confidentiality that leaks
+/// through a second door is not confidentiality. `viewer` is required, not
+/// optional, for the reason given on getStoreRoster.
 export async function getPayForStaff(
   org: Organization,
-  staff: { id: string; squareTeamMemberId: string | null }[]
-): Promise<Map<string, { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null }>> {
-  const out = new Map<string, { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null }>()
+  staff: { id: string; squareTeamMemberId: string | null }[],
+  viewer: PermissionUser
+): Promise<Map<string, { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null; compMasked: boolean }>> {
+  const out = new Map<string, { payType: string | null; hourlyRate: number | null; annualRate: number | null; jobTitle: string | null; compMasked: boolean }>()
   const squareIds = staff.map((s) => s.squareTeamMemberId).filter((v): v is string => v !== null)
   if (squareIds.length === 0) return out
 
   const rows = await prisma.squareTeamMemberWage.findMany({
     where: { organizationId: org.id, squareTeamMemberId: { in: squareIds } },
-    select: { squareTeamMemberId: true, payType: true, hourlyRate: true, annualRate: true, jobTitle: true },
+    select: { squareTeamMemberId: true, payType: true, hourlyRate: true, annualRate: true, jobTitle: true, compConfidential: true },
   })
   const bySquareId = new Map(rows.map((r) => [r.squareTeamMemberId, r]))
 
@@ -413,11 +458,25 @@ export async function getPayForStaff(
     if (!s.squareTeamMemberId) continue
     const row = bySquareId.get(s.squareTeamMemberId)
     if (!row) continue
+    // COMP-1 — same two fields, same reasoning as getStoreRoster. jobTitle and
+    // payType are not compensation and survive.
+    //
+    // `compMasked`, NOT `compConfidential`, AND THE DIFFERENT NAME IS THE POINT.
+    // getStoreRoster returns the RAW FLAG because the roster card manages it —
+    // an admin must see the lock AND the real number there, so the card derives
+    // "masked for me" itself from isAdmin. /staff manages nothing: the flag's
+    // only job here is to explain a dash. So this field answers the narrower
+    // question directly and is FALSE FOR AN ADMIN, who therefore keeps seeing
+    // real figures. One name meaning two different things across two exported
+    // functions in the same file is how a viewer-relative value gets rendered as
+    // an absolute one.
+    const visible = compVisibleOnRow(viewer, row)
     out.set(s.id, {
       payType: row.payType,
-      hourlyRate: row.hourlyRate === null ? null : Number(row.hourlyRate),
-      annualRate: row.annualRate === null ? null : Number(row.annualRate),
+      hourlyRate: !visible || row.hourlyRate === null ? null : Number(row.hourlyRate),
+      annualRate: !visible || row.annualRate === null ? null : Number(row.annualRate),
       jobTitle: row.jobTitle,
+      compMasked: !visible,
     })
   }
   return out

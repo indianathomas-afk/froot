@@ -42,7 +42,23 @@ export default async function LaborSettingsPage() {
   // labor.manage stays OUT of the override grid: Labor governance is its own
   // ruling (ruling 5), and /api/labor/* still enforces inline, so a denial
   // would hide this page while those endpoints answered.
-  if (!can(actor, "labor.manage")) {
+  //
+  // COMP-1 (Gary, 2026-08-28, ruling 2) CLOSES THAT DEFERRAL, and the AND below
+  // is the second of the two enforcement points it requires. The blocker the
+  // paragraph above names — "/api/labor/* still enforces inline" — is no longer
+  // true: requireLaborContext() now asks for labor.access, so a denial reaches
+  // every labor settings route AND this page together. A hidden sidebar link
+  // with a page that still renders is exactly the defect this AND prevents.
+  //
+  // AND-ING ONLY SUBTRACTS, which is the discipline staff/page.tsx already
+  // records. labor.access is MANAGE and labor.manage is MANAGE, so on the day
+  // this ships nobody's access changes; only the override grid gains a switch
+  // that now actually does something.
+  //
+  // labor.manage STILL stays out of the grid — COMP-1 answers ruling 5 with a
+  // NEW capability rather than by promoting labor.manage, so the sentence above
+  // remains true rather than being superseded.
+  if (!can(actor, "labor.manage") || !can(actor, "labor.access")) {
     redirect("/dashboard")
   }
 
@@ -79,7 +95,13 @@ export default async function LaborSettingsPage() {
   // and their percentages are the same in every week, which is what replaced the
   // week-scoped per-store view. Nothing here reads a trailing window or a
   // forecast, so this card cannot drift between page loads (DEBT-80).
-  const salariedPeople = await getSalariedPeopleForSettings(org.id)
+  // COMP-1 — `actor` is threaded in so the per-person money fields are masked
+  // BEFORE they reach LaborSettingsClient's props. These props travel to the
+  // browser in the RSC flight payload, which the Network tab shows exactly like
+  // a JSON response, so masking in the card would leave the real figure sitting
+  // in the page's own payload. The estate total comes back computed over the
+  // REAL values (ruling 4) — the card may no longer sum the rows itself.
+  const { people: salariedPeople, estateWeeklyTotal } = await getSalariedPeopleForSettings(org.id, actor)
 
   return (
     <div>
@@ -101,6 +123,8 @@ export default async function LaborSettingsPage() {
         stores={stores}
         showRoster={showRoster}
         salariedPeople={salariedPeople}
+        salariedEstateWeekly={estateWeeklyTotal}
+        isAdmin={isAdmin}
         initialPositions={positions.map((p) => ({
           id: p.id,
           name: p.name,

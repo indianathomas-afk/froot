@@ -10,6 +10,7 @@ import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
 import { formatPay } from "@/lib/labor-costs"
 import { getPayForStaff } from "@/lib/labor-roster"
+import { CONFIDENTIAL_TITLE } from "@/lib/comp-confidential"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -129,7 +130,9 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // labor overlay on, holding labor.costs.view — four gates, none of them
   // redundant with another.
   const pay = canSeeWages(org, actor)
-    ? (await getPayForStaff(org, [{ id: member.id, squareTeamMemberId: member.squareTeamMemberId }])).get(member.id)
+    // COMP-1 — the fifth gate, and the narrowest: even a MANAGER who clears all
+    // four above gets the money fields dropped when this person is confidential.
+    ? (await getPayForStaff(org, [{ id: member.id, squareTeamMemberId: member.squareTeamMemberId }], actor)).get(member.id)
     : undefined
 
   // HR-7 self-service state: linked login / invite still pending. Gated with
@@ -761,6 +764,9 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                         ? "text-[var(--color-warning,#efa201)] font-medium"
                         : "text-[var(--color-foreground)] font-medium"
                     }
+                    // COMP-1 — formatPay already returns the dash; this only
+                    // supplies the sentence that says WHY it is a dash.
+                    title={pay.compMasked ? CONFIDENTIAL_TITLE : undefined}
                   >
                     {formatPay(pay)}
                     {pay.jobTitle && (

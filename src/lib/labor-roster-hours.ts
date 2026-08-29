@@ -126,8 +126,16 @@ export function pendingCommitIds<T extends { id: string; draft: string; persiste
 /// is something the route is willing to accept — the two used to be able to
 /// drift apart silently, which is the failure this whole fix is about.
 ///
-/// Still exactly two keys. Nothing Square owns is writable; see the route's
-/// header for why that is a rule rather than an omission.
+/// Three keys now, and still nothing Square owns; see the route's header for why
+/// that is a rule rather than an omission. All three are FROOT-OWNED columns the
+/// roster sync's DO UPDATE deliberately skips.
+///
+/// COMP-1 — compConfidential IS ADMITTED BY THIS SCHEMA BUT IS NOT AUTHORISED BY
+/// IT. The schema says what shape a body may have; the ROUTE decides who may
+/// send this particular key, and it is ADMIN-only (ruling 2) while WK HRS and
+/// SUP stay at the MANAGE tier the card already renders behind. A schema cannot
+/// express "this key needs a higher role than that key", so the check lives at
+/// the route and is named there rather than implied here.
 export const rosterRowPatchSchema = z
   .object({
     // Null clears the override and falls back to Square's own weekly_hours.
@@ -135,7 +143,16 @@ export const rosterRowPatchSchema = z
     // statement, not an absence. See MIN_WEEKLY_HOURS.
     weeklyHoursOverride: z.number().int().min(MIN_WEEKLY_HOURS).max(MAX_WEEKLY_HOURS).nullable(),
     isSupervisory: z.boolean().nullable(),
+    // NOT NULLABLE — the column is NOT NULL with a default of false, so "off" is
+    // `false` and there is no third state to express. Admitting null here would
+    // invent one the database cannot store.
+    compConfidential: z.boolean(),
   })
   .partial()
+
+/// The keys in a roster patch that only an ADMIN may send. Exported so the route
+/// and any fixture ask the SAME question rather than two descriptions of it —
+/// the A13 lesson this module already exists to encode for the WK HRS field.
+export const ADMIN_ONLY_ROSTER_PATCH_KEYS = ["compConfidential"] as const
 
 export type RosterRowPatch = z.infer<typeof rosterRowPatchSchema>

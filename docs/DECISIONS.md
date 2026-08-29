@@ -6,6 +6,78 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-08-28 — COMP-1: compensation confidentiality and Labor page access
+
+Ratified by Gary 2026-08-28, in the chat that approved the Phase A audit.
+Recorded verbatim; the six numbered rulings below are his and are not reworded
+here.
+
+> 2026-08-28 — Compensation confidentiality (COMP-1). Ruled by Gary: (1)
+> Confidential comp is marked by a per-person admin-set flag
+> (compConfidential) on SquareTeamMemberWage — not an automatic role rule.
+> The migration seeds it ON for salaried people and for admins who have a
+> synced Square wage row; admins with no wage row have no roster comp to
+> hide, and that narrowing is deliberate. (2) Confidential comp is visible
+> to Admin only. Redaction is server-side and covers every person-comp
+> surface, including /staff and server-rendered payloads — page access
+> scoping applies to the Labor page capability, not to redaction. payType
+> stays visible; the number is the secret, not the classification. (3)
+> Option B shape confirmed: masked numbers still feed the weekly budget, and
+> estate/budget totals stay visible to managers and are computed
+> server-side. Accepted limitation: at a store with exactly one confidential
+> person, a manager can infer the hidden salary by subtraction. (4) Labor
+> page access is a per-user Edit User permission (labor.access, MANAGE
+> tier), default ON for MANAGER, scoped to /settings/labor and its API
+> routes; the Weekly Plan is deliberately not behind it. (5) Confidentiality
+> lookups fail closed: a salaried person with no wage row to consult renders
+> masked, not visible. (6) Non-admins cannot edit or delete a confidential
+> person's comp — a writable blank over a hidden number would allow
+> overwrite-and-measure.
+
+**Ruling 4 closes the deferral PERM-5C recorded.** PERM-5C ruling 5 held
+`labor.manage` out of the override grid because "Labor governance is its own
+ruling", and named the blocker: `/api/labor/*` enforced inline, so a denial
+would hide the page while the endpoints kept answering. `labor.access` is that
+ruling. The blocker was the work: `requireLaborContext()` is the single choke
+point every `/settings/labor` read and write passes through, so one check there
+reaches the routes and the page together. `labor.manage` still stays out of the
+grid — COMP-1 answers PERM-5C with a NEW capability rather than by promoting it,
+so that held-out list and its reasoning both stay true.
+
+**`labor.view` was NOT repurposed, and the reason is a correction.** Its own
+comments claimed it gated the Labor nav entry, the `/labor` page and every
+`/api/labor` route. It gates the first only — swept, and it appears at no
+`can()` call site outside the sidebar's nav filter. Acting on that false
+sentence would have produced exactly what the registry forbids: a toggle that
+hides a link over pages and routes that keep answering. The comments are
+corrected in `permissions.ts`; the value is unchanged.
+
+**Ruling 5's fail-closed lookup is a positive test, deliberately.**
+`compVisibleForMember` returns `flag === false`, never `!flag` — `!undefined` is
+true, and `undefined` is what a person with no `SquareTeamMemberWage` row
+returns, so the tidy-looking form hands every unmatched person's weekly pay to a
+manager. `scripts/verify-comp-confidential.ts` pins it, and was demonstrated to
+FAIL when the defect is restored rather than merely to pass as written.
+
+**Ruling 3's Option B was already structurally true and the work was not to
+break it.** `computeWeeklyLaborBudget` has always run server-side, with salaried
+people collapsed into one synthetic position before the engine sees them. The
+one genuine client-side aggregate — the estate weekly total, summed in the
+browser from per-person rows — is what moved, per ruling 3's "computed
+server-side". Left alone it would have silently under-reported the estate by
+exactly the confidential people's pay: a wrong number that looks right, and the
+subtraction limitation handed over for free rather than merely accepted.
+
+**Out of scope and recorded, not fixed:** `GET /api/labor/positions` returns
+`LaborPosition.defaultHourlyRate` with no `canSeeWages` gate. A position is an
+archetype rather than a person, so no individual's confidentiality is breached —
+but a SALARIED archetype at a single-GM store is that GM's pay in two columns.
+Its own row, per the out-of-scope rule.
+
+Audit: `docs/prompts/COMP-1_AUDIT.md`, read at `bd99d98`. Prompt of record:
+`docs/prompts/COMP-1_comp_confidentiality.md`.
+
+
 ## TrainingModule `orderIndex` is GLOBAL across the org — 2026-08-24 (Gary)
 
 Ratified by Gary 2026-08-24 in the planning chat that approved the Phase 0 audit,
