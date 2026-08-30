@@ -13657,7 +13657,7 @@ phases:
     track: platform
     size: M
     status: in_progress
-    commits: [f1e9833]
+    commits: ["f1e9833", "e2ed2d0"]
     title: "Engagement tracking — last activity, daily page rollups, coarse location, ADMIN-only view"
     notes: >
       STATUS IS in_progress AND NOT staging: f1e9833 is LOCAL AND NOT PUSHED
@@ -13777,6 +13777,16 @@ phases:
       (untouched by this phase — its restructure is confined to sidebar.tsx),
       PERM-5 (the actor/override seam every can() here uses) and DEBT-70b (the
       timezone chain orgLocalDate() follows).
+      THE TWO SHAs ARE WORK THEN DOCS — f1e9833 built it, e2ed2d0 recorded it.
+      The commit that ADDED e2ed2d0 to this line is a third one and is
+      deliberately not cited: a row cannot contain the SHA of the commit that
+      writes it, which is exactly why the phase SHA is recorded by a SECOND
+      commit and never by amending the first (amending the recorded work commit
+      would invalidate the SHA this row cites). PERM-8 and COMP-1 carry the same
+      shape with a promotion SHA appended later still. QUOTED, per the house
+      convention every shipped row uses: an unquoted short SHA that happens to
+      be all digits parses as an integer and one like 1e9833 as a float, so the
+      quotes are a correctness rule rather than a style one.
 
 
 bugs:
