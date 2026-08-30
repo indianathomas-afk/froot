@@ -3492,3 +3492,10 @@ carried, which had no entries of their own.
 - **Post-promote:** enabled Labor in prod (`LABOR_MODULE_AVAILABLE=true` added to the **Production** env scope + org `activeModules` "labor" toggle); HR left dark. Prod forecast plan was regenerated (see `DECISIONS.md` — it was stale per-environment data, unrelated to this promotion).
 
 > **Renamed 2026-07-22:** was `STAGING_DEPLOY_LOG.md`; renamed to `DEPLOY_LOG.md` (DOCS-1 consolidation) since it records both staging and production events. Splitting into separate staging/prod logs remains a future option if the mixed log gets noisy.
+
+## 2026-08-30 — NAV-1 promotion <SHA>
+Sidebar regrouped 15 → 9 top-level (Checklists/Stores/Forecasting groups,
+INVENTORY pattern reused). Daily Tasks button added to /dashboard → /checklists.
+No route, schema, or API changes. Per-role URL sets verified identical
+(work a005cba); /settings/labor hidden without labor.access per NAV-1 ruling.
+Rollback: git revert -m 1 <SHA>
