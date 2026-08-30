@@ -20,7 +20,7 @@ async function getDashboardData() {
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
   if (!org) return null
 
-  const { isAdmin, storeIds, actor } = await getUserStoreScope()
+  const { isAdmin, storeIds, role, actor } = await getUserStoreScope()
 
   const stores = await prisma.store.findMany({
     where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
@@ -77,13 +77,31 @@ async function getDashboardData() {
   // dead-ends in a redirect. Absent, not disabled.
   const canViewForecasting = can(actor, "forecasting.view")
 
-  return { stores, countRecency, laborEnabled, canViewForecasting }
+  // NAV-1: the Daily Tasks button in the page header. It asks EXACTLY what the
+  // sidebar's /checklists entry asks and nothing more — checklists.view, plus
+  // STAFF-1's store-proxy, which is the only reason that link can be absent for
+  // a role that holds the capability. No new capability is introduced, and the
+  // rule it implements is "if a role cannot see the sidebar link, it does not
+  // see the button". The count is the same query the app layout already runs
+  // for the sidebar (src/app/(app)/layout.tsx) — duplicated rather than shared
+  // because the two run in different render trees; if a third caller appears,
+  // lift it into src/lib.
+  let canViewChecklists = can(actor, "checklists.view")
+  if (canViewChecklists && role === "STAFF") {
+    canViewChecklists =
+      storeIds.length > 0 &&
+      (await prisma.checklist.count({
+        where: { storeId: { in: storeIds }, status: { in: ["Pending", "In Progress"] } },
+      })) > 0
+  }
+
+  return { stores, countRecency, laborEnabled, canViewForecasting, canViewChecklists }
 }
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
   if (!data) return null
-  const { stores, countRecency, laborEnabled, canViewForecasting } = data
+  const { stores, countRecency, laborEnabled, canViewForecasting, canViewChecklists } = data
 
   return (
     <>
@@ -92,6 +110,7 @@ export default async function DashboardPage() {
         countRecency={countRecency}
         laborEnabled={laborEnabled}
         canViewForecasting={canViewForecasting}
+        canViewChecklists={canViewChecklists}
       />
       <BuildInfo />
     </>
