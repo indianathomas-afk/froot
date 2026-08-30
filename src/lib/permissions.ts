@@ -98,6 +98,7 @@ export type Capability =
   | "staff.import.square"
   | "staff.documents.manage"
   | "staff.notes.use"
+  | "engagement.view"
   | "reports.view"
   | "forecasting.view"
   | "forecasting.edit"
@@ -243,6 +244,28 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // ADMIN-only, matching this value rather than the old one.
   "square.manage": ADMIN_ONLY,
   "settings.access": ADMIN_ONLY,
+  // ENG-1 (Gary, 2026-08-30) — /staff/engagement: who is actually using Froot.
+  //
+  // ADMIN_ONLY, AND NOT GRANTABLE. It is absent from GRANTABLE_CAPABILITIES
+  // below and Gary ruled it stays absent: appending there is a security change
+  // with the weight of a baseline change (see this file's header), and nobody
+  // asked for a manager who can read every login's activity and location.
+  //
+  // ALSO DELIBERATELY ABSENT FROM ENFORCED_CAPABILITIES (Gary's D1 ruling,
+  // 2026-08-30), which means it cannot be DENIED to an admin from the /users
+  // grid. That is the same shape seven other ADMIN_ONLY capabilities already
+  // have (instagram.manage, square.manage, settings.access, inventory.import,
+  // labor.toggle, hr.toggle, hr.forms.manage). Admin-denies-admin is a real
+  // access decision and would need its own ruling; this phase does not make one.
+  //
+  // IT IS ENFORCED IN TWO PLACES AND BOTH ARE REQUIRED — the page
+  // ((app)/staff/engagement/page.tsx) and the route it reads
+  // (api/staff/engagement/route.ts). The ROUTE is the one that proves the
+  // capability refuses: /staff/engagement inherits (app)/staff/layout.tsx, whose
+  // staff.view check bounces a MANAGER before this capability is ever consulted,
+  // so a page-only test can go green without exercising this line at all.
+  // COMP-1's F3 finding is the standing warning here (docs/DECISIONS.md:138).
+  "engagement.view": ADMIN_ONLY,
   // PERM-2 §3 #5 (Gary, 2026-07-26): inventory is not one permission — it
   // splits by DATA SENSITIVITY. Operational data (counts, adjustments, pars,
   // item names and units — what a person on the floor with a clipboard needs)

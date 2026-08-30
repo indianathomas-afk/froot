@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import Link from "next/link"
+import { Activity } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
@@ -20,9 +21,9 @@ const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | nu
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
+  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
@@ -95,6 +96,15 @@ async function getStaffData() {
   // org-wide — Gary's ruling is that this stays admin-only and is not grantable.
   const canSync = isAdmin && can(actor, "staff.sync.square")
 
+  // ENG-1. NO `isAdmin &&`, and for the same reason canImport above drops it:
+  // engagement.view is ADMIN_ONLY at baseline, so can() already answers false
+  // for every non-admin and the AND would subtract nothing. Unlike canImport
+  // this capability is NOT grantable, so there is no elevation path either —
+  // the tier is the whole gate. THE LINK IS NOT THE GATE: GET
+  // /api/staff/engagement asks the same capability and 403s, so hiding this
+  // link removes an affordance, not an access.
+  const canViewEngagement = can(actor, "engagement.view")
+
   // AL-3 vision item 2 — PAY RATES, MANAGER/ADMIN ONLY (Gary's words).
   //
   // THE GATE DECIDES WHETHER TO RUN THE QUERY, not whether to render the cell.
@@ -116,7 +126,7 @@ async function getStaffData() {
     ? await getPayForStaff(org, staff.map((s) => ({ id: s.id, squareTeamMemberId: s.squareTeamMemberId })), actor)
     : NO_PAY
 
-  return { staff, stores, isAdmin, canManage, canImport, canSync, hrActive, summaries, pay, showPay }
+  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, hrActive, summaries, pay, showPay }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -299,7 +309,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, canManage, canImport, canSync, hrActive, summaries, pay, showPay } = await getStaffData()
+  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, hrActive, summaries, pay, showPay } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -371,8 +381,17 @@ export default async function StaffPage() {
               : `Everyone assigned to your ${stores.length} store${stores.length !== 1 ? "s" : ""}, including staff based at another location.`}
           </p>
         </div>
-        {(canSync || canImport || canManage) && (
+        {(canViewEngagement || canSync || canImport || canManage) && (
           <div className="flex gap-2">
+            {canViewEngagement && (
+              <Link
+                href="/staff/engagement"
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+              >
+                <Activity className="h-4 w-4" />
+                Engagement
+              </Link>
+            )}
             {canSync && <SyncStaffButton />}
             {canImport && <ImportStaffButton stores={storeProps} />}
             {canManage && <AddStaffButton stores={storeProps} />}
