@@ -9509,6 +9509,66 @@ phases:
   # migration are labor surfaces. Its third part is a permissions capability and
   # closes PERM-5C's ruling 5 — cross-referenced there rather than filed twice.
 
+  - id: F1
+    track: labor
+    size: S
+    status: planned
+    title: "PROPOSED, UNRULED — GET /api/labor/positions returns defaultHourlyRate with no canSeeWages gate"
+    notes: >
+      NOT `F-1`. There is a SEPARATE, UNRELATED row with the id `F-1` in this
+      file (Forecasting — sales-data foundation, shipped 2026-07-08). The two ids
+      differ by one hyphen and nothing else. This row keeps the unhyphenated
+      `F1` because that is the identifier COMP-1's notes and PERM-8's prompt of
+      record already cite; renaming it would break both references and orphan the
+      finding, which is the state this row exists to end. Check the hyphen before
+      citing either.
+
+      DEVIATION S5-D76 applies here too — `status: planned` rather than a
+      "proposed"/"open" value, because PhaseStatus has neither (see COMP-2 and
+      S5-D75 for the same constraint and the same workaround). The title carries
+      PROPOSED, UNRULED so `planned` is not misread as agreed-and-scheduled.
+
+      FILED 2026-08-29 BY CLOSEOUT-2, NOT FIXED, NOT RULED. LOW PRIORITY by
+      Gary's own framing, and this row does not argue otherwise — it exists so
+      the finding is triageable, not so it gets built next.
+
+      THE FINDING, carried over verbatim in substance from COMP-1's out-of-scope
+      block: GET /api/labor/positions returns `LaborPosition.defaultHourlyRate`
+      with NO `canSeeWages` gate, while the roster and salaried routes both
+      require it. So the three sibling routes do not agree about whether a pay
+      figure needs a gate.
+
+      WHY IT IS NOT SIMPLY A LEAK, and why the answer needs a ruling rather than
+      a patch. A LaborPosition is an ARCHETYPE, not a person — "Shift Lead", not
+      Jane — so no individual's confidentiality is breached by returning its
+      default rate, and that is the reason it was left ungated in the first
+      place. The problem is arithmetic: a SALARIED archetype carries
+      `defaultHourlyRate` x `impliedWeeklyHours`, and at a store with ONE GM that
+      product is that GM's pay in two columns. The archetype stops being
+      anonymous exactly when the store has one of them.
+
+      WHY IT WAS DEFERRED TWICE RATHER THAN FIXED IN PASSING. COMP-1 ruled it out
+      of scope 2026-08-28 (its own prompt's out-of-scope rule, restated by Gary)
+      and PERM-8's prompt named it out of scope again 2026-08-29. Neither
+      deferral was an oversight; both sessions had a reason not to widen. The
+      cost of the second deferral is that the finding lived only inside another
+      phase's notes for a day, which is how findings stop being triaged — the
+      reason it is a row now.
+
+      WHAT A RULING HAS TO DECIDE, so the next session does not re-derive it: is
+      an archetype rate a wage for gating purposes? Gate the whole route behind
+      canSeeWages (simplest, and takes position defaults away from anyone who
+      cannot see wages — which may break UI that legitimately needs the
+      archetype); strip only `defaultHourlyRate` from the payload for ungated
+      viewers (matches AL-3's absence-not-hiding discipline); or gate only when
+      the archetype is SALARIED (narrowest, and the only option that targets the
+      actual arithmetic — but it makes the rule conditional on data rather than
+      on role, which nothing else in the permissions model does).
+
+      UNTIL IT IS RULED, no session may claim "no confidential number appears in
+      any payload" without qualifying it with this route. That sentence is the
+      concrete reason the row is worth carrying: it is a caveat on a claim future
+      work will want to make.
   - id: COMP-2
     track: labor
     size: S
@@ -9566,10 +9626,75 @@ phases:
   - id: COMP-1
     track: labor
     size: M
-    status: staging
-    commits: ["a1c4e14"]
+    status: shipped
+    shipped: 2026-08-28
+    commits: ["a1c4e14", "3f917e5", "2a0e67a"]
     title: "Compensation confidentiality — a per-person admin-set flag, server-side redaction on every person-comp surface, and labor.access closing PERM-5C's deferral"
     notes: >
+      CLOSED 2026-08-29 BY CLOSEOUT-2. PROMOTED TO PRODUCTION 2026-08-28 in
+      merge `2a0e67a` (`Merge branch 'staging'`, 2026-08-28 21:03:26). Verified
+      before this row was touched, not taken on trust: `2a0e67a` is a two-parent
+      merge, is an ancestor of `origin/main`, and its second parent is `3f917e5`
+      — COMP-1's own recorder commit. That it is the merge which FIRST carried
+      COMP-1 to main was proved separately, because a later merge containing the
+      work would satisfy the ancestry test just as well: `a1c4e14` is an
+      ancestor of `2a0e67a` (exit 0) and is NOT an ancestor of the preceding
+      merge `607926b` (exit 1).
+
+      DEVIATION S5-D76 — `status: shipped`, NOT `done`. Gary asked for
+      `status: done`; `PhaseStatus` (src/lib/roadmap.ts:13-31) has no such value
+      — planned | in_progress | staging | shipped | verified | withdrawn — and
+      the build type-errors on one, the same way `proposed` failed on COMP-2
+      (S5-D75). `shipped` is the correct fit and carries the `shipped:` date
+      field, documented as "the work reached main/prod". **`verified` WAS
+      DELIBERATELY NOT USED**: that value means verified IN PRODUCTION, and no
+      CAPTURED production acceptance evidence exists for COMP-1 — see the
+      paragraph on the superseded prompt below, which asserts a production spot
+      check that was never written down anywhere. This session ran none; it is a
+      docs session. Claiming `verified` on an uncaptured assertion would have
+      manufactured the exact evidence the paperwork exists to record.
+
+      THIS ROW'S STATUS WAS STALE AND THE STALENESS WAS CAUGHT BY A LATER
+      SESSION, WHICH IS THE FAILURE WORKFLOW.md RULE 4 NAMES. The field read
+      `status: staging` from 2026-08-28 until today while the code was live in
+      production — the DEBT-72 shape exactly, and the twelfth instance of it in
+      the log's history. PERM-8's build triage flagged it 2026-08-29 and
+      correctly did not fix it (PERM-8 did not move this code); this closeout is
+      where it is fixed. The dated prose below is UNTOUCHED and remains true as
+      a claim about 2026-08-28 — only the status FIELD, which is current-truth
+      rather than a dated claim, was wrong. That distinction is why nothing
+      below is deleted.
+
+      SUPERSEDES docs/prompts/COMP-1_closeout.md, WHICH IS A PROMPT AND NOT A
+      SESSION RECORD — say that plainly, because the filename invites the other
+      reading. It is the instruction file for a closeout that Gary reports
+      stopped correctly on an unpromoted main and was never resumed; the file
+      itself records no outcome, so the account of what that session did comes
+      from Gary (2026-08-29), not from the document. It is committed with this
+      closeout unedited, per the pointers-vs-claims rule — a prompt is a claim
+      wholesale.
+
+      THAT PROMPT ASSERTS PRODUCTION VERIFICATION THIS SESSION COULD NOT
+      CORROBORATE, and the gap is why `shipped` was chosen over `verified`. Its
+      Context section states COMP-1 was "staging-tested (all eight acceptance
+      steps passed), promoted to production, and spot-checked on production
+      against real data." If that is accurate, `verified` is the correct status
+      and Gary can say so in one word. But no session ever WROTE DOWN those
+      results — not in this row, not in DEPLOY_LOG, not in an artifact — so what
+      exists is an assertion in an instruction file rather than captured
+      evidence. DEBT-37's rule is that an observation living only in a
+      transcript does not exist; the same applies to one living only in a
+      prompt's preamble. `shipped` is the value that claims exactly what is
+      provable (the code is in production, verified by SHA) and no more.
+      FLAGGED FOR GARY rather than decided here.
+
+      F1 IS NOW FILED AS ITS OWN ROW rather than living only in this row's
+      deferred list — see F1 in this file. It was ruled out of COMP-1's scope
+      2026-08-28 and stayed out of PERM-8's; an unfixed finding that lives only
+      inside another phase's notes is one nobody triages.
+
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
+
       COMMITTED ON `staging` AND NOT PUSHED, AS OF 2026-08-28. NOTHING IS
       DEPLOYED AND NO ACCEPTANCE EVIDENCE EXISTS YET — read `status: staging` as
       "the commits are on the staging BRANCH", not as HR-29's usage of the same
@@ -12318,10 +12443,86 @@ phases:
   - id: PERM-8
     track: permissions
     size: M
-    status: staging
-    commits: ["4e2d7e0"]
+    status: shipped
+    shipped: 2026-08-29
+    commits: ["4e2d7e0", "c3f08e6", "849e410"]
     title: "Square staff import grantable to specific managers — the first per-user grant ABOVE a role baseline, and the capability split that made it possible"
     notes: >
+      CLOSED 2026-08-29 BY CLOSEOUT-2. PROMOTED TO PRODUCTION 2026-08-29 in
+      merge `849e410` ("Promote PERM-8: grantable Square import for managers",
+      15:13:24). Verified before this row was touched: two-parent merge, ancestor
+      of `origin/main`, and its SECOND PARENT IS EXACTLY
+      `c3f08e6e6c6ebc7d30f7c83a60c3cf3686ea188d` — the staging HEAD the tests
+      below were run against. That last check is the one that matters here: it
+      proves the tested tree and the promoted tree are the same tree, which is
+      the § Staging Verification precondition satisfied at promotion scale
+      rather than at test scale.
+
+      DEVIATION S5-D76 — `status: shipped`, NOT `done`. Gary asked for `done`;
+      PhaseStatus has no such value and the build type-errors on one (see COMP-1,
+      which took the same deviation today, and COMP-2/S5-D75 for the earlier
+      instance of the same constraint). `verified` was NOT used: the pass below
+      ran on STAGING, and `verified` means verified in production. No production
+      observation of PERM-8 exists.
+
+      ── STAGING PASS, 2026-08-29 — WHAT WAS ACTUALLY RUN ──
+
+      PRECONDITION MET FIRST: the deployed SHA was confirmed as `c3f08e6` from
+      the Vercel deployment list BEFORE any test was run. Without that the whole
+      pass is void, passes included, and it is recorded first for that reason.
+
+      TEST PRINCIPAL — READ THIS BEFORE READING THE RESULTS.
+      `tommythomas` / `corporate@keva.com` was DELIBERATELY SET TO MANAGER for
+      this pass. **Historically this account is the STORE test principal** — it
+      is the account PERM-8's own build report named for the STORE-side padlock
+      test, and a future reader who remembers it that way would see a GRANTABLE
+      chip on Tommy and read it as a defect. It is not one; the role was changed
+      on purpose. Evidence that it held MANAGER at test time is the modal render
+      itself: GRANTABLE chip on Import, padlock plus "Not granted by this role"
+      on Re-sync — a STORE account would have shown the padlock on BOTH.
+      Clerk instance `verified-snapper-7`, org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`.
+
+      ROUTE-LEVEL RESULTS (browser console, so the gate is proven at the route
+      and not merely at the button — Gary's stated acceptance standard):
+      grant ON  → GET /api/square/team-members = 200;
+      grant ON  → POST /api/staff/sync-square  = 403;
+      grant OFF → GET /api/square/team-members = 403.
+      The middle line is the whole point of the capability split: the SAME
+      granted manager who may import is refused the bulk re-sync, which
+      terminates staff and overwrites assignments org-wide.
+
+      MODAL RENDER: Edit User shows the GRANTABLE chip on "Import team members
+      from Square" and the padlock with "Not granted by this role" on "Re-sync
+      staff from Square". Screenshot held by Gary, not in the repo.
+
+      NEON PRECONDITION CAPTURES (taken at build time, restated here so the row
+      is self-contained): `br-square-feather` (preview/staging) and
+      `br-sparkling-block` (production) — ZERO rows carrying `staff.sync.square`
+      in `deniedCapabilities`; dev `br-broad-wave-a6vpjdw0` — 0 of 7 User rows.
+      This is what made the capability split safe: anyone holding that denial
+      would have REGAINED the import read when the read moved to a new
+      capability. Nobody held it on any branch.
+
+      DELIBERATELY SKIPPED, AND RECORDED AS SKIPPED RATHER THAN PASSED: the
+      hand-rolled `PATCH /api/users/[id]` 400 test (unregistered /
+      not-grantable / wrong-role). SKIPPED-WITH-COVER — the same refusals are
+      asserted at the code level by scripts/verify-perm8-grants.ts cases 10-13,
+      which prove `can()` refuses a stored grant for a capability not on
+      GRANTABLE_CAPABILITIES or not grantable to that role. **THE COVER IS NOT
+      EQUIVALENT AND THE DIFFERENCE IS NAMED SO NOBODY LATER READS IT AS
+      EQUIVALENT:** the fixture proves the EVALUATION refuses; it does not prove
+      the ROUTE returns 400, because a unit fixture cannot exercise a route. The
+      write-side backstop at PATCH is therefore untested on a deployed
+      environment. It is cheap to run later and worth running.
+
+      NO LIVE STORE ACCOUNT WAS EXERCISED THIS ROUND — a direct consequence of
+      switching Tommy to MANAGER, since he was the STORE principal. The
+      STORE-side padlock is covered at code level by fixture cases 5, 6 and 12
+      (import not grantable to STORE; a STORE with a stored grant still refused).
+      Same caveat as above: code-level cover, not a deployed observation.
+
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
+
       COMMITTED ON `staging` AND NOT PUSHED, AS OF 2026-08-29. NOTHING IS
       DEPLOYED AND NO ACCEPTANCE EVIDENCE EXISTS YET — read `status: staging`
       the way COMP-1's row asks it to be read: "the commits are on the staging
@@ -13357,6 +13558,100 @@ phases:
       NOT VERIFIED IN PRODUCTION — `shipped` states where the code is, not that
       anyone has looked at it. It is display-only on a card that is on the
       dashboard's first screen, so the check is a glance, not a procedure.
+
+
+  - id: NAV-1
+    track: platform
+    size: S
+    status: in_progress
+    commits: [a005cba]
+    title: "Sidebar restructured into collapsible groups + Daily Tasks button on the dashboard header"
+    notes: >
+      STATUS IS in_progress AND NOT staging: a005cba is LOCAL AND NOT PUSHED
+      (pushes are Gary's), per WORKFLOW.md § Session completion rules 4, which
+      sets `staging` only for a row whose code was PUSHED during the session.
+      The value becomes `staging` on Gary's push, along with the docs commit
+      that carries this row.
+      WHAT SHIPPED. The flat sidebar became Dashboard / Checklists (group:
+      Checklists, Start Daily Checklist -> /store-view, Templates) / Messages /
+      Stores (group: Stores, Users, Staff) / Reports / Forecasting (group:
+      Forecasting, Weekly Plan -> /labor, Labor -> /settings/labor) / HR /
+      INVENTORY (group, unchanged) / Settings. Group headers are BUTTONS AND
+      NEVER NAVIGATE, which is why the first child of a group repeats its
+      label. NO ROUTE WAS CREATED, RENAMED OR REMOVED — every href already
+      existed as a flat entry, and /store-view was relabelled only.
+      THE DONE CRITERION WAS A URL-SET DIFF, NOT A BUTTON TEST, and it is
+      pinned in code rather than asserted here: scripts/verify-nav1-url-sets.ts
+      parses the item literals out of the pre-NAV-1 sidebar (baseline 10439b3)
+      and the current one WITH THE SAME PARSER, filters both through the REAL
+      can() from src/lib/permissions.ts, and diffs per role. 16 role/scenario
+      comparisons, ALL IDENTICAL — ADMIN 26 URLs, MANAGER 23, STORE 12, STAFF
+      6 — holding across Instagram-not-connected, STAFF-with-no-open-checklist
+      and a per-user labor.access denial. THE BASELINE SHA IS PINNED ON PURPOSE:
+      it was HEAD during the session, and the moment the work committed, HEAD
+      became the after side and the fixture would have gone vacuously green
+      forever. Do not "update" it to make a red run pass.
+      PERMISSION FILTERING IS PER ITEM, NEVER PER GROUP. Every entry kept the
+      exact capability it carried in the flat list; a group has no capability
+      of its own and hides itself when all its children are filtered out. One
+      isVisible() is the only place filtering can happen, which is how the rule
+      is enforced rather than merely written down. Verified in a local render:
+      STORE gets no STORES header at all, STAFF gets neither STORES nor
+      INVENTORY.
+      TWO ITEMS THE PROMPT'S STRUCTURE BLOCK OMITTED AND THIS PHASE KEPT.
+      (a) /instagram is not in it — a real entry that stays invisible until an
+      org connects Instagram, which is almost certainly why it was missing from
+      the mockup the structure was drawn from. Dropping it would have been a
+      lost URL and a failure of this row's own criterion; it sits between the
+      Forecasting group and HR, its prior relative position. (b) STAFF-1's
+      /hr -> /my/documents "My Documents" relabel, preserved through HR's move
+      to a top-level item.
+      AUTO-OPEN IS ONE-WAY. The group holding the current route expands on load
+      and on navigation into it, but it only ever OPENS — a user who collapses
+      the group they are standing in keeps it collapsed until they navigate
+      again, and the stored preference is never overwritten by it. Open state
+      persists per group in localStorage; INVENTORY KEEPS ITS EXISTING
+      "froot-inventory-nav-open" KEY VERBATIM, because renaming it would
+      silently reset the stored preference of every user who has one.
+      INVENTORY'S ELEVEN CHILDREN ARE BYTE-IDENTICAL — same hrefs, same order,
+      same capabilities; only the enclosing group's rendering became shared.
+      Recorded because it cost a second pass: those children have never had
+      icons while the rail is expanded (they borrow Package only in the 60px
+      rail), and the first version of the shared renderer handed all eleven a
+      Package glyph they never had. Caught in the local render, not by a gate.
+      DAILY TASKS BUTTON. Solid --color-primary, primary-foreground text,
+      --radius-md, immediately left of the store selector, which was neither
+      moved nor restyled. Plain navigation to /checklists. NO NEW CAPABILITY:
+      it asks checklists.view plus STAFF-1's store-proxy — exactly what decides
+      whether the sidebar shows the Checklists link — so a role that cannot see
+      the link cannot see the button. The proxy count is duplicated from
+      src/app/(app)/layout.tsx rather than shared because the two run in
+      different render trees; a third caller should lift it into src/lib.
+      MESSAGES HAS NO UNREAD BADGE, AND THAT IS A FINDING RATHER THAN AN
+      OMISSION. The approved treatment is weight 600, a persistent soft-primary
+      tint and a hairline primary border (deliberately lighter than the
+      active-page state), plus a count badge "only when the count is > 0". The
+      only unread count in the tree is /api/dashboard/comms, which is PER-STORE
+      and requires a storeId the sidebar does not have — so there is no
+      sidebar-wide source, the prompt said not to build a counter, and none was
+      built. Filed as COMMENT, not as a row: building it means deciding what
+      "unread across stores" means for a multi-store user, which is a Gary
+      question and not a nav question.
+      NOT VERIFIED ON STAGING. The prompt's Evidence section asks for a
+      per-role capture there; Claude never pushes (CLAUDE.md § Git Rules), so
+      staging does not have this code and that capture is Gary's to run after
+      the push. What exists instead is the fixture above plus a local render of
+      all four roles through a temporary public /menu harness (deleted before
+      the work commit), which read back link lists identical to the fixture's,
+      collapsed group headers without navigating, survived a reload with the
+      preference scoped to its own group, rendered the 60px rail's headers as
+      icon toggles, and measured the Daily Tasks button at 36px against the
+      selector's 36px with href=/checklists. ONE BEHAVIOUR IS UNEXERCISED
+      ANYWHERE BUT IN A DIFF READ: auto-open cannot fire on the harness,
+      because no group owns /menu.
+      RULING RATIFIED: docs/DECISIONS.md 2026-08-30 — /settings/labor is hidden
+      entirely without labor.access, never locked or disabled. It ratifies
+      behaviour that already existed rather than changing any.
 
 
 bugs:

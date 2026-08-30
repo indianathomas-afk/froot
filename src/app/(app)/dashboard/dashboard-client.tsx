@@ -174,6 +174,7 @@ export function DashboardClient({
   countRecency,
   laborEnabled = false,
   canViewForecasting = false,
+  canViewChecklists = false,
 }: {
   stores: { id: string; name: string; location: string }[]
   countRecency: { storeId: string; storeName: string; days: number | null }[]
@@ -181,6 +182,10 @@ export function DashboardClient({
   // PERM-3: gates the "Forecasting →" links. Defaults false so a caller that
   // forgets to pass it hides the link rather than leaking it.
   canViewForecasting?: boolean
+  // NAV-1: gates the Daily Tasks button. Same default-false reasoning as
+  // canViewForecasting — a caller that forgets to pass it hides the button
+  // rather than showing a door that redirects.
+  canViewChecklists?: boolean
 }) {
   const savedStoreId = useSavedStoreId()
   const storeId =
@@ -304,20 +309,34 @@ export function DashboardClient({
             {isRollup ? " · All locations" : store ? ` · ${store.name}${store.location ? ` — ${store.location}` : ""}` : ""}
           </p>
         </div>
-        {stores.length > 1 && (
-          <Select value={storeId} onValueChange={setStoreId}>
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="Select store" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_STORES}>All locations</SelectItem>
-              {stores.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {(canViewChecklists || stores.length > 1) && (
+          <div className="flex items-center gap-3">
+            {/* NAV-1: Daily Tasks sits immediately left of the store selector.
+                Plain navigation to /checklists — no new route, no new logic,
+                and no new capability: it renders on exactly the check that
+                decides whether the sidebar shows the Checklists link. The
+                selector below is untouched. */}
+            {canViewChecklists && (
+              <Button asChild>
+                <Link href="/checklists">Daily Tasks</Link>
+              </Button>
+            )}
+            {stores.length > 1 && (
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Select store" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_STORES}>All locations</SelectItem>
+                  {stores.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         )}
       </div>
 

@@ -2,9 +2,9 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## PENDING-SHA-SHORT — PENDING-DATE — PERM-8: the Square staff import becomes grantable to specific managers
+## 849e410 — 2026-08-29 — PERM-8: the Square staff import becomes grantable to specific managers
 
-**Merge SHA:** `PENDING-SHA-FULL`
+**Merge SHA:** `849e41016d3a902500d1ca1227c153b10632fc9a`
 **Written before the merge existed**, per the ritual — the heading's two tokens
 and the Merge SHA line's one are stamped from `git rev-parse` and `date`, never
 hand-typed. One occurrence each, on those two lines and nowhere else in this
@@ -109,6 +109,144 @@ as the result; dev (`br-broad-wave-a6vpjdw0`) measured 0 of 7 User rows.
 re-run green and untouched. **NO STAGING PASS HAD BEEN RUN WHEN THIS WAS
 WRITTEN** — the five-part protocol against a MANAGER account is in the session
 report and was unrun. Nothing here claims a deployed observation.
+
+**ADDENDUM, 2026-08-29 (CLOSEOUT-2), stamping this entry.** The paragraph above
+is a dated claim and stands: no staging pass existed when it was written. One
+was run before the promotion, and **the results live in the PERM-8 row of
+`docs/ROADMAP.yaml`** rather than being restated here. In short: the deployed
+SHA was confirmed as `c3f08e6` before testing; a MANAGER account was refused at
+the route with the grant off (403) and admitted with it on (200); and the bulk
+re-sync route refused that same granted manager (403), which is the split this
+promotion exists to create. **One protocol item was NOT run** — the hand-rolled
+`PATCH` 400 — and is recorded as skipped-with-cover, not as passed. The row
+carries the detail and the caveats.
+
+## 2a0e67a — 2026-08-28 — COMP-1: compensation confidentiality, plus the HR-29 training reorder
+
+**Merge SHA:** `2a0e67a11893b370b975ec5656f3f6a4faece58e`
+**WRITTEN RETROSPECTIVELY, 2026-08-29, BY CLOSEOUT-2 — and that is the defect
+this entry records as much as it is the entry.** Every other promotion entry in
+this log was written between the merge and the push, per WORKFLOW.md §2. This
+one was not: the session that promoted COMP-1 did not write it, the closeout
+that would have (`docs/prompts/COMP-1_closeout.md`) ran before the promotion
+existed and correctly stopped, and nobody resumed it. So the log had no record
+of this promotion for a full day, and the ROADMAP row read `status: staging`
+while the code was live in production. **The heading SHA and date here were
+derived from git and verified, not remembered** — see the verification note
+below, which exists because a retrospective entry cannot lean on the ritual that
+normally guarantees them.
+
+**Verification of the SHA, since this entry was not written by the promotion
+itself.** `2a0e67a` is a two-parent merge; it is an ancestor of `origin/main`;
+its second parent is `3f917e5`, COMP-1's own recorder commit. That it is the
+merge which FIRST carried COMP-1 to main was proved separately, because any
+later merge containing the work would satisfy an ancestry test equally well:
+`a1c4e14` is an ancestor of `2a0e67a` and is NOT an ancestor of the preceding
+merge `607926b`.
+
+**READ THIS FIRST IF YOU ARE ROLLING BACK.** This promotion carries **TWO
+ADDITIVE MIGRATIONS, BOTH WITH BACKFILLS**. Reverting the code leaves both
+columns unread and harmless — **do NOT drop either** (WORKFLOW.md § Rolling a
+promotion back). The backfills matter more than the columns:
+`20260828120000_comp1_comp_confidential` SEEDS `compConfidential = true` for
+salaried people and for admins, and `20260824210000_hr29_training_module_order_index`
+seeds `orderIndex` from each org's existing `createdAt` order. A revert-then-
+re-promote would re-run neither (both are already recorded in the ledger), and
+both are idempotent by construction anyway — the COMP-1 backfill only ever sets
+true, and the HR-29 one recomputes the same ROW_NUMBER from an immutable column.
+
+**THE PROMOTION CARRIED MORE THAN COMP-1**, which the merge's own generic
+message (`Merge branch 'staging'`) does not say. Seven non-merge commits:
+
+| commit | what |
+|---|---|
+| `a1c4e14` | **COMP-1** — compensation confidentiality + `labor.access` |
+| `3f917e5` | COMP-1's roadmap recorder |
+| `f70ae90` · `a5799d3` · `47dbb00` | **HR-29** — TrainingModule `orderIndex`, endpoint, drag-to-reorder |
+| `2438fef` · `bd99d98` | HR-29 roadmap records |
+| `04a4bf4` | the previous promotion's own DEPLOY_LOG entry |
+
+**Prior main tip was `607926b`.** 33 files, 3675 insertions, 90 deletions.
+
+### What COMP-1 does
+
+A per-person, admin-set confidentiality flag on compensation, plus the
+capability that closes PERM-5C's Labor deferral.
+
+- **`SquareTeamMemberWage.compConfidential`** — true means that person's pay is
+  visible to ADMIN only. It lives on the WAGE row rather than on `StaffMember`
+  deliberately: `getStoreRoster` reads the wage table as its row source, so a
+  Square member Froot never imported still carries a wage and still needs a
+  flag.
+- **Redaction is server-side and by ABSENCE, not by hiding** — the number never
+  reaches the payload, the props or the flight response. The flag itself IS
+  sent, so the UI can draw the lock.
+- **`labor.access`** — a new capability, MANAGE tier, gating the `/settings/labor`
+  page and every labor settings route behind `requireLaborContext()`. It answers
+  PERM-5C ruling 5 with a new capability rather than by promoting `labor.manage`,
+  so that held-out list stays true.
+
+**Why it existed:** on the first manager rollout, a MANAGER on `/settings/labor`
+could see every person's compensation on the Positions roster — Administrator
+and Manager salaries included. "See pay rates and tips" is all-or-nothing across
+PEOPLE: a manager needs it ON to run their store, and ON exposed everyone. The
+missing granularity was on the person, not the viewer.
+
+Six rulings, Gary, 2026-08-28, verbatim in `docs/DECISIONS.md`. Audit:
+`docs/prompts/COMP-1_AUDIT.md`.
+
+### What HR-29 does
+
+`TrainingModule.orderIndex` — a GLOBAL per-org ordering (never per-category,
+Gary's ruling 2026-08-24) with drag-to-reorder on `/hr/training`. The backfill
+seeds from today's `createdAt asc`, so the deploy changed no visible order
+anywhere until somebody dragged.
+
+### Diff (code), the COMP-1 half
+
+| file | ± |
+|---|---|
+| `src/app/(app)/settings/labor/labor-settings-client.tsx` | 215 |
+| `src/app/api/labor/salaried/route.ts` | 129 |
+| `src/lib/labor-roster.ts` | 85 |
+| `src/lib/labor-salaried.ts` | 81 |
+| `src/lib/permissions.ts` | 72 |
+| `src/lib/comp-confidential.ts` | 65 (new) |
+| `src/app/(app)/staff/page.tsx` | 41 |
+| `src/app/api/square/labor/roster/[id]/route.ts` | 28 |
+| `src/lib/labor-access.ts` | 24 (new) |
+| `src/lib/labor-roster-hours.ts` | 21 |
+| `src/lib/labor-costs.ts` | 16 |
+| `src/app/(app)/staff/[id]/page.tsx` | 14 |
+
+**Schema: yes — one additive `ADD COLUMN` + backfill. No env var, no cron.**
+
+### Verification status — stated honestly, because this entry is retrospective
+
+**COMP-1'S ACCEPTANCE RESULTS WERE ASSERTED BUT NEVER CAPTURED, and this entry
+will not launder the one into the other.** `docs/prompts/COMP-1_closeout.md` —
+the prompt for the closeout that never ran — states in its Context section that
+COMP-1 was *"staging-tested (all eight acceptance steps passed), promoted to
+production, and spot-checked on production against real data."* No session ever
+wrote those results down: not in the ROADMAP row, not in this log, not in an
+artifact. So what exists is an assertion in an instruction file, not evidence.
+DEBT-37's rule — an observation living only in a transcript does not exist —
+applies equally to one living only in a prompt's preamble.
+
+The ROADMAP row is therefore closed at `shipped`, **not `verified`**. If the
+spot check did happen as the prompt says, `verified` is right and Gary can say
+so; this entry records the gap rather than resolving it in either direction.
+A retrospective entry is precisely where someone would be tempted to promote an
+assertion into a finding.
+
+What IS known: the code is in production (SHA verification above), and
+`migrate deploy` ran in the Vercel build as part of this promotion, which is how
+both columns reached the production database.
+
+**The COMP-1 fixture `scripts/verify-comp-confidential.ts` was re-run green on
+2026-08-29** during the PERM-8 build, against the same code that is in
+production. That is a code-level regression net, not a production observation,
+and the distinction is the point.
 
 ## 607926b — 2026-08-24 — DOC-3: a library document can be a link, and any document can carry instructions
 
