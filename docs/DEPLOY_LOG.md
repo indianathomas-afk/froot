@@ -2,6 +2,66 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## 8c25084 — 2026-08-30 — ENG-1: engagement tracking
+
+**Merge SHA:** `8c250846a43a3c4d05df3c569b9188690c5549a3`
+**Written before the merge existed**, per the ritual — the heading's two tokens
+and the Merge SHA line's one are stamped from `git rev-parse` and `date`,
+never hand-typed.
+
+**READ THIS FIRST IF YOU ARE ROLLING BACK.** This promotion carries an ADDITIVE
+MIGRATION and a NEW CAPABILITY. The migration
+(`20260830120000_eng1_engagement_tracking`) is two nullable `ADD COLUMN`s on
+`User` plus one new table `UsageDaily`. Reverting the code leaves all three
+unread and harmless — do NOT drop them (WORKFLOW.md § Rolling a promotion back).
+Nothing existing reads or writes them.
+
+**Blast radius is small and one-directional.** No existing query changed, no
+existing route changed behaviour, no permission baseline moved. The new
+capability `engagement.view` is ADMIN_ONLY, is not grantable and is not
+deniable, so no role gains or loses anything on promotion day. The one edit to a
+shipped surface is a link added to `/staff`'s header and an icon added to each
+`/stores` row, both behind `can(actor, "engagement.view")` — invisible to
+everyone but an admin.
+
+**What is new.** `POST /api/usage` (a beacon written by every authenticated
+page view), `GET /api/staff/engagement` (ADMIN-only read), `/staff/engagement`
+(the page), `GET /api/cron/engagement-prune` (retention), and a client beacon
+mounted in both the `(app)` and `(my)` shells.
+
+**The one thing to watch on the first day.** `POST /api/usage` fires on every
+client-side route change for every authenticated user, so it is the highest-QPS
+write this app has. It is one indexed upsert against
+`@@unique([userId, path, date])` plus, at most once per user per 15 minutes, one
+`User` update. If Neon connection pressure shows up after this promotion, that
+is the first place to look — and the safe mitigation is to stop mounting
+`<UsageBeacon />` in `src/app/(app)/layout.tsx` and `src/app/(my)/layout.tsx`,
+which disables collection without touching the schema or any read path.
+
+**A new cron.** `/api/cron/engagement-prune` at `0 12 * * *`, deleting
+`UsageDaily` rows older than 180 days. Vercel crons fire on Production only, so
+this promotion is its first live run. `CRON_SECRET` is unchanged and already
+held.
+
+**Verified before the push, on the dev branch** (`ep-late-water-a6k53nv2`):
+prune end-to-end (401 without the secret, deleted exactly a seeded 200-day-old
+row and kept today's), the rollup incrementing rather than duplicating, path
+normalization collapsing two staff ids onto one row, the 15-minute throttle
+writing once, and 28 fixture checks. NOT verified on staging by that session —
+Claude does not push.
+
+**Still open after this promotion.** The per-role 403 capture by request, and
+the geo headers, which cannot appear under `next dev` and are only observable on
+a Vercel-served request. Expect `lastSeenLocation` to stay null for every row
+until the first real Vercel traffic.
+
+## 2026-08-30 — NAV-1 promotion e6149f8
+Sidebar regrouped 15 → 9 top-level (Checklists/Stores/Forecasting groups,
+INVENTORY pattern reused). Daily Tasks button added to /dashboard → /checklists.
+No route, schema, or API changes. Per-role URL sets verified identical
+(work a005cba); /settings/labor hidden without labor.access per NAV-1 ruling.
+Rollback: git revert -m 1 e6149f8
+
 ## 849e410 — 2026-08-29 — PERM-8: the Square staff import becomes grantable to specific managers
 
 **Merge SHA:** `849e41016d3a902500d1ca1227c153b10632fc9a`
@@ -3492,10 +3552,3 @@ carried, which had no entries of their own.
 - **Post-promote:** enabled Labor in prod (`LABOR_MODULE_AVAILABLE=true` added to the **Production** env scope + org `activeModules` "labor" toggle); HR left dark. Prod forecast plan was regenerated (see `DECISIONS.md` — it was stale per-environment data, unrelated to this promotion).
 
 > **Renamed 2026-07-22:** was `STAGING_DEPLOY_LOG.md`; renamed to `DEPLOY_LOG.md` (DOCS-1 consolidation) since it records both staging and production events. Splitting into separate staging/prod logs remains a future option if the mixed log gets noisy.
-
-## 2026-08-30 — NAV-1 promotion <SHA>
-Sidebar regrouped 15 → 9 top-level (Checklists/Stores/Forecasting groups,
-INVENTORY pattern reused). Daily Tasks button added to /dashboard → /checklists.
-No route, schema, or API changes. Per-role URL sets verified identical
-(work a005cba); /settings/labor hidden without labor.access per NAV-1 ruling.
-Rollback: git revert -m 1 <SHA>
