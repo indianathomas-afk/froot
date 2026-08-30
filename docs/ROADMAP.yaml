@@ -13653,6 +13653,141 @@ phases:
       entirely without labor.access, never locked or disabled. It ratifies
       behaviour that already existed rather than changing any.
 
+  - id: ENG-1
+    track: platform
+    size: M
+    status: in_progress
+    commits: ["f1e9833", "e2ed2d0"]
+    title: "Engagement tracking — last activity, daily page rollups, coarse location, ADMIN-only view"
+    notes: >
+      STATUS IS in_progress AND NOT staging: f1e9833 is LOCAL AND NOT PUSHED
+      (pushes are Gary's), per WORKFLOW.md § Session completion rules 4, which
+      sets `staging` only for a row whose code was PUSHED during the session.
+      NAV-1's row immediately above is the precedent and the same sentence.
+      WHAT SHIPPED. Three layers. (1) User.lastSeenAt / User.lastSeenLocation,
+      stamped by a beacon on real navigation and throttled to 15 minutes —
+      LAST ACTIVITY, NOT LAST SIGN-IN, which is the distinction the phase
+      exists for: on a shared store iPad Clerk's last sign-in is whenever
+      someone was last logged out, which can be months before the device was
+      last used. (2) UsageDaily, a COUNTED DAILY ROLLUP keyed
+      @@unique([userId, path, date]) — forty dashboard visits on a Tuesday are
+      one row with count 40, never forty rows. (3) City/region from
+      x-vercel-ip-* headers. Surfaced at /staff/engagement behind a new
+      engagement.view capability, linked from /staff and per store from
+      /stores. No Square surface, no change to AuditLog.
+      THE BOUNDED-GROWTH CLAIM IS THE WHOLE DESIGN and it lives in
+      normalizePath() (src/lib/engagement.ts). `path` is never a URL: it is
+      matched against a CLOSED list of the app's 68 route patterns and anything
+      else collapses to "/other", so the row space is exactly
+      (users x 68 paths x days retained) and NOTHING A CLIENT SENDS CAN WIDEN
+      IT. A regex heuristic over "anything cuid-shaped" was considered and
+      REJECTED: it is unbounded the moment a segment shape nobody anticipated
+      arrives, which is precisely the failure this table exists to avoid. The
+      function is total by construction and never returns its input — it is the
+      only thing standing between an attacker-controlled string and a primary
+      key, which makes totality a security property rather than tidiness.
+      THE PATTERN LIST IS KEPT HONEST BY THE FIXTURE, NOT BY DISCIPLINE.
+      scripts/verify-eng1-engagement.ts case 26 walks src/app for page.tsx,
+      derives the same list from the filesystem and diffs it both ways. A page
+      added without an entry would otherwise roll up as "/other" — green
+      everywhere and wrong on the report. That test is the only reason a
+      hand-maintained list is acceptable here.
+      engagement.view IS ENFORCED TWICE, AND THAT IS COMP-1's F3 LESSON
+      APPLIED. labor.view's own comments claimed it gated a page and its routes
+      when it gated only a sidebar link; denying it would have hidden a link
+      over pages that kept answering. So this page renders a SHELL and every
+      number comes from GET /api/staff/engagement asking the SAME capability
+      (Gary's D2 ruling, 2026-08-30). A capability whose only consumer is a
+      link is the defect, not the feature.
+      THE ROUTE IS THE GATE THAT PROVES THE CAPABILITY, per Gary's Evidence-1
+      amendment, and the gate-by-gate trace is why it was needed:
+      /staff/engagement sits under (app)/staff/layout.tsx, whose staff.view
+      (MANAGE) check bounces STORE and STAFF BEFORE engagement.view is ever
+      consulted — so for those two roles a green page test proves nothing about
+      the new capability. MANAGER is the one role the page itself refuses on
+      engagement.view. API routes inherit no page layout, so the route refuses
+      all three non-admin roles on engagement.view itself. Do not read "the
+      page redirected" as evidence this capability works.
+      NOT GRANTABLE and NOT DENIABLE. Absent from GRANTABLE_CAPABILITIES —
+      appending there is a security change with the weight of a baseline change
+      (permissions.ts header) — and absent from ENFORCED_CAPABILITIES per
+      Gary's D1 ruling, so it cannot be denied admin-to-admin from the /users
+      grid; that would be a real access decision and nobody asked for one.
+      Seven other ADMIN_ONLY capabilities already sit off that list. Fixture
+      cases 5-9 pin both.
+      NO RAW IP, ANYWHERE, AND IT IS A TEST RATHER THAN A PROMISE (ruling 1).
+      geoLocationFrom() reads exactly two x-vercel-ip-* headers and has no
+      third arm; fixture case 27 greps every file this phase adds for
+      requestIp(), x-forwarded-for, x-real-ip and ipAddress with both comment
+      styles stripped. The HR e-signature tables DO store an IP deliberately
+      (court defensibility, FormSubmission.ipAddress and friends) — a different
+      record with different retention, and it must not be borrowed here.
+      THE BEACON MOUNTS IN TWO SHELLS, and the second is the point (Gary's D3
+      ruling). A STAFF user with a linked StaffMember is redirected out of the
+      admin shell to /my ((app)/layout.tsx), so a beacon mounted only in (app)
+      would never fire for them and the page would report daily users as
+      dormant. Fire-and-forget: sendBeacon with a keepalive-fetch fallback, no
+      await, no retries, no error UI. The route catches everything and returns
+      204 regardless — writeAuditLog's philosophy (src/lib/audit.ts) applied to
+      a route, because a broken engagement tracker must never break a working
+      store.
+      A PREDICTION IN THE AUDIT WAS WRONG AND THE MEASURED VALUE IS RECORDED IN
+      THE CODE. Phase A reasoned from @clerk/nextjs's handleUnauthenticated()
+      that an unauthenticated POST would be refused 404. Measured against next
+      dev it is 307 to /sign-in, uniformly across /api/usage, /api/staff,
+      /api/staff/engagement and /api/stores — isPageRequest()'s
+      isPagePathAvailable() arm is truthy in this configuration. Evidence 2 was
+      reworded with Gary's approval. WHAT IS UNCHANGED IS THE PART THAT
+      MATTERS: the handler is never reached and no row is written. The route
+      keeps its own 401 as defence in depth, and /api/usage was deliberately
+      NOT added to src/proxy.ts's public matcher to make a status code come out
+      nicer — that would open a write route to unauthenticated callers.
+      MIGRATION 20260830120000_eng1_engagement_tracking, hand-authored via
+      migrate diff per CLAUDE.md § Database and applied to the DEV branch only
+      (ep-late-water-a6k53nv2-pooler); staging and production ride
+      prisma migrate deploy in the Vercel build. PURELY ADDITIVE: two nullable
+      columns (no table rewrite), one table, three indexes, three foreign keys,
+      no drops. UsageDaily CASCADES on User delete and SET NULLS on Store
+      delete — deleting a store must not silently erase the usage history of
+      the people who worked at it.
+      RETENTION IS WHAT MAKES THE DAY DIMENSION SAFE (ruling 2).
+      /api/cron/engagement-prune, registered in vercel.json at "0 12 * * *",
+      deletes rows older than 180 days. VERIFIED END-TO-END against dev, which
+      was possible without a session because /api/cron is public in proxy.ts
+      and self-authenticates on CRON_SECRET: 401 with no secret and with a
+      wrong one; with the real secret it deleted exactly the seeded
+      200-day-old row and kept today's.
+      ONE DEFECT FOUND AND FIXED DURING VERIFICATION, on a temporary /menu
+      render harness removed before the commit. A signed-out fetch does NOT
+      arrive as !r.ok: the proxy 307s to /sign-in, fetch follows it
+      transparently, and the resulting 200 HTML body made r.json() throw
+      "Unexpected token '<'" straight into the page. The client now checks the
+      content type and reports an expired session. It would have hit any admin
+      whose session lapsed while the page was open, and only the render harness
+      could have caught it — the build and the fixture both stayed green.
+      NOT VERIFIED ON STAGING. Claude never pushes, so staging does not have
+      this code. Gary's after the push: the per-role 403 capture by request
+      with the real principals (Karson ADMIN, Tommy Thomas MANAGER — MANAGER
+      deliberately since PERM-8, do not "fix" — the STORE login and a STAFF
+      login), and the geo headers on a Vercel-served request, which cannot
+      appear under next dev at all. The fixture, the DB evidence and the local
+      render are the substitute, not a replacement.
+      BUILDS ON: PERM-8 (the grant model this capability deliberately stays out
+      of), COMP-1 (the F3 finding that shaped the two-layer enforcement), NAV-1
+      (untouched by this phase — its restructure is confined to sidebar.tsx),
+      PERM-5 (the actor/override seam every can() here uses) and DEBT-70b (the
+      timezone chain orgLocalDate() follows).
+      THE TWO SHAs ARE WORK THEN DOCS — f1e9833 built it, e2ed2d0 recorded it.
+      The commit that ADDED e2ed2d0 to this line is a third one and is
+      deliberately not cited: a row cannot contain the SHA of the commit that
+      writes it, which is exactly why the phase SHA is recorded by a SECOND
+      commit and never by amending the first (amending the recorded work commit
+      would invalidate the SHA this row cites). PERM-8 and COMP-1 carry the same
+      shape with a promotion SHA appended later still. QUOTED, per the house
+      convention every shipped row uses: an unquoted short SHA that happens to
+      be all digits parses as an integer and one like 1e9833 as a float, so the
+      quotes are a correctness rule rather than a style one.
+
 
 bugs:
   - id: BUG-1

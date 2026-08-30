@@ -125,6 +125,7 @@ model Organization {
   squareScheduledShifts         SquareScheduledShift[]
   squareScheduleSyncStates      SquareScheduleSyncState[]
   squareJobColors               SquareJobColor[]
+  usageDaily                    UsageDaily[]
 }
 
 model User {
@@ -172,6 +173,30 @@ model User {
   // Survives membership churn on the same clerkUserId for the same reason
   // deniedCapabilities does — the webhook's UPDATE branch writes `email` only.
   grantedCapabilities String[]
+  // ENG-1 (Gary, 2026-08-30). LAST ACTIVITY, NOT LAST SIGN-IN — the distinction
+  // is the whole reason this column exists rather than a Clerk API read. Clerk
+  // knows when a session was created; on a shared store iPad that is whenever
+  // someone last got logged out, which can be months before the device was last
+  // used. This is stamped by the /api/usage beacon on real navigation, so it
+  // answers "is this login actually being used", which is the question.
+  //
+  // THROTTLED TO 15 MINUTES at the write site, so a heavy user costs one UPDATE
+  // per quarter hour rather than one per page. The rollup below is unthrottled;
+  // only this pair is.
+  lastSeenAt         DateTime?
+  // "City, Region" resolved from the edge geo headers — NEVER AN IP ADDRESS.
+  // That is ENG-1 ruling 1 and it is structural here: nothing in the beacon's
+  // read path calls requestIp() (src/lib/training.ts:232) or touches
+  // x-forwarded-for, and this column is a display string with no precision to
+  // lose. The HR e-signature tables DO store an IP on purpose (court
+  // defensibility, FormSubmission.ipAddress and friends); that is a different
+  // record with a different retention, and this column must never be "upgraded"
+  // to match it.
+  //
+  // NULL IS THE NORMAL LOCAL/PREVIEW VALUE. The x-vercel-ip-* headers exist only
+  // on Vercel-served requests, so under `next dev` this stays null forever and
+  // the page renders a dash. Absent is not broken.
+  lastSeenLocation   String?
   createdAt          DateTime @default(now())
 
   organization         Organization          @relation(fields: [organizationId], references: [id])
@@ -185,6 +210,7 @@ model User {
   messageReads         MessageRead[]
   corporateUpdates     CorporateUpdate[]
   staffMember          StaffMember?
+  usageDaily           UsageDaily[]
 }
 
 model Store {
@@ -244,6 +270,7 @@ model Store {
   squareLaborSyncState      SquareLaborSyncState?
   squareScheduledShifts     SquareScheduledShift[]
   squareScheduleSyncState   SquareScheduleSyncState?
+  usageDaily                UsageDaily[]
 }
 
 // CHK-2 (S2) gave this table its first writer; CHK-3 (S3) gives it the key that
@@ -723,6 +750,77 @@ model PaceAlertLog {
   store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, month])
+}
+
+// ─── ENG-1: ENGAGEMENT TRACKING ──────────────────────────────────────────────
+// Gary, 2026-08-30. Who is actually USING Froot — one row per user x normalized
+// path x org-local day, carrying a COUNT. A user who opens the dashboard forty
+// times on Tuesday is ONE ROW WITH count: 40.
+//
+// A ROLLUP, NEVER AN EVENT LOG, and the unique key is what makes that true
+// rather than aspirational. There is no per-event table anywhere in this phase
+// and none is to be added later without its own ruling (ENG-1 ruling 2): a raw
+// stream would answer "when exactly did they click" — a question nobody asked —
+// at unbounded cost, and it is the shape that turns an operational usage view
+// into the surveillance record ruling 3 says this is not.
+//
+// BOUNDED BY CONSTRUCTION, which is the design's whole load-bearing claim.
+// `path` is NOT a URL. It is the output of normalizePath() (src/lib/engagement.ts),
+// which matches the request against a fixed list of the app's route patterns and
+// collapses everything else to "/other" — so the row space is exactly
+// (users x 68 known paths x days retained), and NOTHING a client sends can widen
+// it. Storing raw pathnames instead would key rows per ENTITY (/staff/<cuid>),
+// which is the unbounded-growth failure this table exists to avoid.
+//
+// PRUNED AT 180 DAYS by /api/cron/engagement-prune (ENG-1 ruling 2). That is the
+// only reason the day dimension is safe to keep.
+//
+// CONTRAST WITH AuditLog, which is deliberately NOT reused: that table is
+// per-event, permanent, tamper-evident and answers "who changed this goal". This
+// one is counted, pruned, and answers "is this login being used". Same verb,
+// different record — see the ENG-1 audit for why merging them was rejected.
+model UsageDaily {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  // The user's home store AT WRITE TIME, denormalized so the /stores filter is
+  // one indexed read rather than a join through assignments that may since have
+  // churned. NULLABLE AND OFTEN NULL: an ADMIN has no StoreUserAssignment rows
+  // at all (see User.defaultStoreId's note), and a multi-store MANAGER has no
+  // single home. A STORE device login always has exactly one — which is the case
+  // ENG-1 ruling 4 cares about, since that account's usage IS the store's.
+  storeId        String?
+  // The ORG-LOCAL day (Organization.timezone -> DEFAULT_TIME_ZONE), stored as a
+  // bare date at UTC midnight — the same @db.Date convention PaceAlertLog.month
+  // and the sales caches use. Org-local rather than store-local so every row in
+  // an org shares one day boundary and the page can sum across stores without
+  // two rows meaning different Tuesdays.
+  date           DateTime @db.Date
+  // Normalized route pattern, e.g. "/staff/[id]". Never a raw pathname, never a
+  // query string. See the bounded-by-construction note above.
+  path           String
+  count          Int      @default(0)
+  lastAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  // Cascade: engagement rows describe a login and have no meaning once it is
+  // gone. Nothing else reads them, so there is nothing to orphan.
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // SetNull, NOT Cascade — deleting a store must not silently erase the usage
+  // history of the people who worked at it. The rows survive with storeId null
+  // and still count toward the org-wide view.
+  store        Store?       @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  // THE IDEMPOTENCY KEY, and the reason this is a rollup. The beacon upserts
+  // against it, so a second beacon for the same (user, path, day) increments
+  // rather than inserting. organizationId is deliberately NOT in this key: a
+  // User belongs to exactly one org (User.organizationId), so adding it would
+  // widen the key without making any new row representable.
+  @@unique([userId, path, date])
+  // Serves the page's default view: the org's rows, most recent first.
+  @@index([organizationId, lastAt])
+  // Serves the per-store filter (/staff/engagement?store=<id>) over a date range.
+  @@index([organizationId, storeId, date])
 }
 
 enum Role {

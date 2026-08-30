@@ -6,6 +6,73 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-08-30 — ENG-1: Froot tracks engagement, ADMIN-only, with no raw IP
+
+Wording drafted in the ENG-1 session prompt
+(`docs/prompts/ENG-1_engagement_tracking.md` § Rulings) and recorded here
+verbatim. Gary confirms the wording at commit.
+
+ENG-1 (2026-08-30): Froot tracks engagement — last activity, page usage as
+daily rollups, and coarse location — for every login, viewable by ADMIN only
+via the `engagement.view` capability, which is not grantable. (1) Location is
+city/region from edge geo headers only; the raw IP address is never stored.
+(2) `UsageDaily` rollups are retained 180 days and pruned by cron; there is no
+raw per-event log. (3) The feature is named Engagement, not Compliance — it is
+an operational usage view, not an HR/legal record. (4) A store's engagement IS
+its shared STORE account's usage: each store runs Froot on shared iPads under
+the store login, and that account's activity is tracked as the store's, without
+attribution to the individual holding the device. (5) Handbook disclosure of
+usage tracking is Gary's item, outside the repo.
+
+**Ruling 1 is structural, not a preference, and the code is shaped to make it
+checkable.** `geoLocationFrom()` reads exactly two `x-vercel-ip-*` headers and
+has no third arm; `scripts/verify-eng1-engagement.ts` case 27 greps every file
+this phase adds for `requestIp()`, `x-forwarded-for`, `x-real-ip` and
+`ipAddress` with comments stripped. The contrast worth stating: the HR
+e-signature tables **do** store an IP on purpose (court defensibility —
+`FormSubmission.ipAddress`, `HrDocumentAcknowledgment.ipAddress`, via
+`requestIp()` in `src/lib/training.ts`). That is a different record with a
+different retention and a different reason to exist. Ruling 1 does not
+contradict it and must not be read as licence to borrow it.
+
+**Ruling 3 is a naming decision with teeth.** "Engagement" is what the
+capability, the route, the table and the page are all called. The alternative
+name would have invited the feature to grow session durations, time-on-page and
+per-click streams — all four are explicitly out of scope, and ruling 2's "there
+is no raw per-event log" is what keeps the table from becoming one.
+
+**Four decisions Gary made on 2026-08-30 when approving Phase B**, recorded
+because they shaped the build and each closes an argument that would otherwise
+be re-litigated:
+
+- **D1 — `engagement.view` is NOT deniable.** It stays off
+  `ENFORCED_CAPABILITIES`, so an admin cannot deny it to another admin from the
+  `/users` grid. Admin-denies-admin is a real access decision and nobody asked
+  for one; seven other `ADMIN_ONLY` capabilities already sit off that list.
+  Separate from, and narrower than, "not grantable" in the ruling above.
+- **D2 — the page renders a shell; the data comes from a real route.**
+  `/staff/engagement` fetches `GET /api/staff/engagement`, and both ask
+  `engagement.view`. This exists to avoid reproducing COMP-1's F3 finding: a
+  capability whose only consumer is a link is the defect, not the feature.
+- **D3 — the beacon mounts in the `(my)` portal too.** A STAFF user with a
+  linked StaffMember never enters the admin shell, so a single mount in `(app)`
+  would have reported daily users as dormant.
+- **D4 — the unauthenticated refusal is the proxy's, and its status is not
+  401.** Phase A predicted 404 from Clerk's `auth.protect()`. **Measured, it is
+  307 to `/sign-in`**, uniformly across every protected API route in this app.
+  Gary accepted the correction and reworded the evidence criterion. The route
+  keeps its own 401 as defence in depth. `/api/usage` was deliberately NOT
+  added to `src/proxy.ts`'s public matcher to make a status code come out
+  nicer — that would open a write route to unauthenticated callers.
+
+**Gary's Evidence-1 amendment, recorded because it changes what counts as
+proof.** `/staff/engagement` inherits `(app)/staff/layout.tsx`, whose
+`staff.view` (MANAGE) check refuses **STORE and STAFF before `engagement.view`
+is ever consulted** — so for those roles a green "the page redirected" test says
+nothing about the new capability. MANAGER is the one role the page itself
+refuses on `engagement.view`. API routes inherit no page layout, so the route's
+403 is the proof for all three. The page test is corroboration.
+
 ## 2026-08-30 — NAV-1 / COMP-1 follow-on: the Labor sidebar link is hidden, not locked
 
 Wording drafted in the NAV-1 session prompt

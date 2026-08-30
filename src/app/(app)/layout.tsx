@@ -6,6 +6,7 @@ import { OrganizationList } from "@clerk/nextjs"
 import Image from "next/image"
 import { prisma } from "@/lib/prisma"
 import { hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
+import { UsageBeacon } from "@/components/usage-beacon"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { orgId, userId } = await auth()
@@ -123,6 +124,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         staffHasChecklists={staffHasChecklists}
       />
       <AppShell>{children}</AppShell>
+      {/* ENG-1. Renders nothing; beacons the pathname on every route change.
+          Mounted here rather than inside AppShell so it is unaffected by the
+          sidebar-collapse state AppShell owns. */}
+      <UsageBeacon />
     </div>
   )
 }

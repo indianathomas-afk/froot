@@ -1,4 +1,4 @@
-import { MapPin, Clock, Mail, Phone, CheckCircle, Link2, Tablet, ShieldAlert, AlertTriangle } from "lucide-react"
+import { MapPin, Clock, Mail, Phone, CheckCircle, Link2, Tablet, ShieldAlert, AlertTriangle, Activity } from "lucide-react"
 import Link from "next/link"
 import { StoreActions } from "./store-actions"
 import { StoreHoursButton } from "./store-hours-button"
@@ -6,6 +6,7 @@ import { AddStoreButton } from "./add-store-button"
 import { ImportSquareButton } from "./import-square-button"
 import { CreateDeviceLoginButton } from "./create-device-login-button"
 import { getUserStoreScope } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { isDeviceLogin, isAboveStore } from "@/lib/device-login"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@clerk/nextjs/server"
@@ -101,10 +102,15 @@ function formatHours(hours: HoursRow[]) {
 
 async function getStores() {
   const { orgId } = await auth()
-  if (!orgId) return { stores: [], isAdmin: false, orgStoreCount: 0, takenEmails: [] as string[] }
+  if (!orgId) return { stores: [], isAdmin: false, canViewEngagement: false, orgStoreCount: 0, takenEmails: [] as string[] }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { stores: [], isAdmin: false, orgStoreCount: 0, takenEmails: [] as string[] }
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  if (!org) return { stores: [], isAdmin: false, canViewEngagement: false, orgStoreCount: 0, takenEmails: [] as string[] }
+  // ENG-1 threads `actor` so the per-store engagement icon can ask a capability
+  // rather than reuse isAdmin. The two coincide today — engagement.view is
+  // ADMIN_ONLY — but asking the capability is what keeps this link and the route
+  // it points at answering the same question.
+  const { isAdmin, storeIds, actor } = await getUserStoreScope()
+  const canViewEngagement = can(actor, "engagement.view")
   const stores = await prisma.store.findMany({
     where: {
       organizationId: org.id,
@@ -148,11 +154,11 @@ async function getStores() {
     .filter(Boolean)
     .map((e) => e.toLowerCase())
 
-  return { stores, isAdmin, orgStoreCount, takenEmails }
+  return { stores, isAdmin, canViewEngagement, orgStoreCount, takenEmails }
 }
 
 export default async function StoresPage() {
-  const { stores, isAdmin, orgStoreCount, takenEmails } = await getStores()
+  const { stores, isAdmin, canViewEngagement, orgStoreCount, takenEmails } = await getStores()
   // One instant for the whole page, so two store cards cannot be evaluated
   // against different "today"s.
   const now = new Date()
@@ -294,6 +300,16 @@ export default async function StoresPage() {
                         orgStoreCount={orgStoreCount}
                         takenEmails={takenEmails}
                       />
+                    )}
+                    {canViewEngagement && (
+                      <Link
+                        href={`/staff/engagement?store=${store.id}`}
+                        title={`Engagement for ${store.name} — who is using Froot here`}
+                        aria-label={`Engagement for ${store.name}`}
+                        className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                      >
+                        <Activity className="h-4 w-4" />
+                      </Link>
                     )}
                     {isAdmin && (
                       <StoreActions
