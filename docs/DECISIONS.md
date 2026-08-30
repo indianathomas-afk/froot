@@ -6,6 +6,36 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-08-30 — NAV-1 / COMP-1 follow-on: the Labor sidebar link is hidden, not locked
+
+Wording drafted in the NAV-1 session prompt
+(`docs/prompts/NAV-1_sidebar_restructure.md` § "Ruling to ratify") and
+recorded here verbatim. Gary confirms the wording at commit; if he changes a
+word it is an edit to this entry, not a retraction of the behaviour, which is
+already what the code did before NAV-1 and is unchanged by it.
+
+NAV-1 / COMP-1 follow-on: The sidebar link to /settings/labor is hidden
+entirely for logins without the labor.access capability. We do not show a
+locked or disabled state — a visible lock on a compensation page advertises
+what COMP-1 exists to keep confidential. Server-side enforcement at the
+route is unchanged and remains the actual gate.
+
+**This ruling ratifies existing behaviour rather than changing any.** The flat
+sidebar already filtered `/settings/labor` on `labor.access` and already
+rendered nothing when the check failed; NAV-1 moved the entry into the
+Forecasting group and wrote the reasoning down. The NAV-1 URL-set fixture
+(`scripts/verify-nav1-url-sets.ts`) exercises the denial case explicitly and
+reports the same set before and after — which is the evidence that this entry
+describes the code and not an intention.
+
+**What the ruling does NOT say**, stated because the absence is the load-bearing
+part: it does not make the nav an access control. Hiding a link protects
+nobody. `requireLaborContext()` and the route guards are the gate, and a denied
+user who types the URL is refused there exactly as before. The nav is hidden so
+that a denied user is not shown a door that 403s — and, per COMP-1, so that the
+door's existence is not itself the disclosure.
+
+
 ## 2026-08-29 — PERM-8: the Square import becomes grantable to specific managers
 
 Ratified by Gary 2026-08-29 in chat, and recorded verbatim below. An earlier

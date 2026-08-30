@@ -13560,6 +13560,100 @@ phases:
       dashboard's first screen, so the check is a glance, not a procedure.
 
 
+  - id: NAV-1
+    track: platform
+    size: S
+    status: in_progress
+    commits: [a005cba]
+    title: "Sidebar restructured into collapsible groups + Daily Tasks button on the dashboard header"
+    notes: >
+      STATUS IS in_progress AND NOT staging: a005cba is LOCAL AND NOT PUSHED
+      (pushes are Gary's), per WORKFLOW.md § Session completion rules 4, which
+      sets `staging` only for a row whose code was PUSHED during the session.
+      The value becomes `staging` on Gary's push, along with the docs commit
+      that carries this row.
+      WHAT SHIPPED. The flat sidebar became Dashboard / Checklists (group:
+      Checklists, Start Daily Checklist -> /store-view, Templates) / Messages /
+      Stores (group: Stores, Users, Staff) / Reports / Forecasting (group:
+      Forecasting, Weekly Plan -> /labor, Labor -> /settings/labor) / HR /
+      INVENTORY (group, unchanged) / Settings. Group headers are BUTTONS AND
+      NEVER NAVIGATE, which is why the first child of a group repeats its
+      label. NO ROUTE WAS CREATED, RENAMED OR REMOVED — every href already
+      existed as a flat entry, and /store-view was relabelled only.
+      THE DONE CRITERION WAS A URL-SET DIFF, NOT A BUTTON TEST, and it is
+      pinned in code rather than asserted here: scripts/verify-nav1-url-sets.ts
+      parses the item literals out of the pre-NAV-1 sidebar (baseline 10439b3)
+      and the current one WITH THE SAME PARSER, filters both through the REAL
+      can() from src/lib/permissions.ts, and diffs per role. 16 role/scenario
+      comparisons, ALL IDENTICAL — ADMIN 26 URLs, MANAGER 23, STORE 12, STAFF
+      6 — holding across Instagram-not-connected, STAFF-with-no-open-checklist
+      and a per-user labor.access denial. THE BASELINE SHA IS PINNED ON PURPOSE:
+      it was HEAD during the session, and the moment the work committed, HEAD
+      became the after side and the fixture would have gone vacuously green
+      forever. Do not "update" it to make a red run pass.
+      PERMISSION FILTERING IS PER ITEM, NEVER PER GROUP. Every entry kept the
+      exact capability it carried in the flat list; a group has no capability
+      of its own and hides itself when all its children are filtered out. One
+      isVisible() is the only place filtering can happen, which is how the rule
+      is enforced rather than merely written down. Verified in a local render:
+      STORE gets no STORES header at all, STAFF gets neither STORES nor
+      INVENTORY.
+      TWO ITEMS THE PROMPT'S STRUCTURE BLOCK OMITTED AND THIS PHASE KEPT.
+      (a) /instagram is not in it — a real entry that stays invisible until an
+      org connects Instagram, which is almost certainly why it was missing from
+      the mockup the structure was drawn from. Dropping it would have been a
+      lost URL and a failure of this row's own criterion; it sits between the
+      Forecasting group and HR, its prior relative position. (b) STAFF-1's
+      /hr -> /my/documents "My Documents" relabel, preserved through HR's move
+      to a top-level item.
+      AUTO-OPEN IS ONE-WAY. The group holding the current route expands on load
+      and on navigation into it, but it only ever OPENS — a user who collapses
+      the group they are standing in keeps it collapsed until they navigate
+      again, and the stored preference is never overwritten by it. Open state
+      persists per group in localStorage; INVENTORY KEEPS ITS EXISTING
+      "froot-inventory-nav-open" KEY VERBATIM, because renaming it would
+      silently reset the stored preference of every user who has one.
+      INVENTORY'S ELEVEN CHILDREN ARE BYTE-IDENTICAL — same hrefs, same order,
+      same capabilities; only the enclosing group's rendering became shared.
+      Recorded because it cost a second pass: those children have never had
+      icons while the rail is expanded (they borrow Package only in the 60px
+      rail), and the first version of the shared renderer handed all eleven a
+      Package glyph they never had. Caught in the local render, not by a gate.
+      DAILY TASKS BUTTON. Solid --color-primary, primary-foreground text,
+      --radius-md, immediately left of the store selector, which was neither
+      moved nor restyled. Plain navigation to /checklists. NO NEW CAPABILITY:
+      it asks checklists.view plus STAFF-1's store-proxy — exactly what decides
+      whether the sidebar shows the Checklists link — so a role that cannot see
+      the link cannot see the button. The proxy count is duplicated from
+      src/app/(app)/layout.tsx rather than shared because the two run in
+      different render trees; a third caller should lift it into src/lib.
+      MESSAGES HAS NO UNREAD BADGE, AND THAT IS A FINDING RATHER THAN AN
+      OMISSION. The approved treatment is weight 600, a persistent soft-primary
+      tint and a hairline primary border (deliberately lighter than the
+      active-page state), plus a count badge "only when the count is > 0". The
+      only unread count in the tree is /api/dashboard/comms, which is PER-STORE
+      and requires a storeId the sidebar does not have — so there is no
+      sidebar-wide source, the prompt said not to build a counter, and none was
+      built. Filed as COMMENT, not as a row: building it means deciding what
+      "unread across stores" means for a multi-store user, which is a Gary
+      question and not a nav question.
+      NOT VERIFIED ON STAGING. The prompt's Evidence section asks for a
+      per-role capture there; Claude never pushes (CLAUDE.md § Git Rules), so
+      staging does not have this code and that capture is Gary's to run after
+      the push. What exists instead is the fixture above plus a local render of
+      all four roles through a temporary public /menu harness (deleted before
+      the work commit), which read back link lists identical to the fixture's,
+      collapsed group headers without navigating, survived a reload with the
+      preference scoped to its own group, rendered the 60px rail's headers as
+      icon toggles, and measured the Daily Tasks button at 36px against the
+      selector's 36px with href=/checklists. ONE BEHAVIOUR IS UNEXERCISED
+      ANYWHERE BUT IN A DIFF READ: auto-open cannot fire on the harness,
+      because no group owns /menu.
+      RULING RATIFIED: docs/DECISIONS.md 2026-08-30 — /settings/labor is hidden
+      entirely without labor.access, never locked or disabled. It ratifies
+      behaviour that already existed rather than changing any.
+
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
