@@ -13563,10 +13563,40 @@ phases:
   - id: NAV-1
     track: platform
     size: S
-    status: in_progress
-    commits: [a005cba]
+    status: shipped
+    shipped: 2026-08-30
+    commits: ["a005cba", "16f6f6b", "e6149f8"]
     title: "Sidebar restructured into collapsible groups + Daily Tasks button on the dashboard header"
     notes: >
+      CLOSED 2026-08-30 BY THE ENG-1 CLOSEOUT, not by a NAV-1 session — this row
+      was left at in_progress when NAV-1 was promoted and was found stale while
+      closing ENG-1. PROMOTED TO PRODUCTION 2026-08-30 in merge `e6149f8`
+      ("promote: NAV-1 — grouped sidebar + Daily Tasks button (work a005cba)").
+      Verified the same way as ENG-1: two-parent merge, ancestor of
+      `origin/main`, second parent exactly
+      `16f6f6b7d802a304128a43c5c15ed66c3e75ba78` — NAV-1's staging HEAD.
+      SHAs ARE NOW QUOTED, which they were not: `commits: [a005cba]` relied on
+      the leading letter to parse as a string. An all-digit short SHA parses as
+      an integer and one shaped like 1e9833 as a float, so the quotes are a
+      correctness rule. Work a005cba, docs 16f6f6b, promotion e6149f8. A fourth
+      NAV-1 commit exists and is deliberately NOT in that list — `5421762`
+      committed docs/prompts/NAV-1-CHECK_prepush.md, the session record NAV-1's
+      docs commit omitted; the list carries work/docs/promotion, as PERM-8's and
+      COMP-1's do.
+      ITS DEPLOY_LOG ENTRY CARRIED TWO UNSUBSTITUTED `<SHA>` PLACEHOLDERS until
+      `b65a76b` — in the heading and in `Rollback: git revert -m 1 <SHA>`, the
+      second being a rollback instruction that could not be run at the one moment
+      the log is consulted. The entry had also landed at the BOTTOM of the file,
+      below the 2026-07-22 rename footer, while every other entry is newest-first
+      from line 5. Both fixed there; its six lines of prose are unchanged.
+      `shipped`, NOT `verified` — no production observation, and the per-role
+      sidebar capture the NAV-1 prompt asked for was never run.
+      EVERYTHING BELOW THIS LINE WAS WRITTEN BEFORE THE PUSH and is preserved
+      unedited per preserve-and-mark. It says the work is local and unpushed and
+      that the value "becomes `staging` on Gary's push"; that was true when
+      written and is NO LONGER THE STATE. The row went in_progress -> shipped
+      without passing through `staging`.
+      ── ORIGINAL ROW, AS WRITTEN 2026-08-30 ──
       STATUS IS in_progress AND NOT staging: a005cba is LOCAL AND NOT PUSHED
       (pushes are Gary's), per WORKFLOW.md § Session completion rules 4, which
       sets `staging` only for a row whose code was PUSHED during the session.
@@ -13656,10 +13686,40 @@ phases:
   - id: ENG-1
     track: platform
     size: M
-    status: in_progress
-    commits: ["f1e9833", "e2ed2d0"]
+    status: shipped
+    shipped: 2026-08-30
+    commits: ["f1e9833", "e2ed2d0", "8c25084"]
     title: "Engagement tracking — last activity, daily page rollups, coarse location, ADMIN-only view"
     notes: >
+      CLOSED 2026-08-30. PROMOTED TO PRODUCTION 2026-08-30 in merge `8c25084`
+      ("Promote ENG-1: engagement tracking — staff, managers, store devices").
+      Verified before this row was touched, the check the PERM-8 closeout
+      established: two-parent merge, ancestor of `origin/main`, and its SECOND
+      PARENT IS EXACTLY `835b213ea6227169d5b050c0c3c4a5d3d2b7fb45` — the staging
+      HEAD the PRE-PUSH-CHECK session ran its Step 3 against. The checked tree
+      and the promoted tree are the same tree.
+      `shipped`, NOT `verified`. `verified` means smoke-tested against real store
+      data in production, and NO PRODUCTION OBSERVATION OF ENG-1 EXISTS. Nor is
+      there a staging pass: unlike PERM-8, this phase was promoted without one,
+      so the per-role 403 capture by request is still outstanding at both tiers.
+      The migration reaching production IS attested — `vercel-build` is
+      `prisma migrate deploy && npm run build`, so the Ready deployment on
+      `8c25084` could not have been produced by a failed migration — but no row
+      in the production `UsageDaily` has been read by anyone.
+      THE DEPLOY_LOG ENTRY WAS NOT WRITTEN AT PROMOTION TIME and was recovered
+      afterwards in `b65a76b` on main. The promotion ran, then
+      `git add docs/DEPLOY_LOG.md && git commit` answered "nothing to commit,
+      working tree clean" — because the pasteable commands in
+      docs/prompts/ENG-1_deploy_log_draft.md had not been run and the file was
+      untouched. Recorded because the failure was SUCCESS-SHAPED: that sentence
+      is also exactly what git says when the work is already done.
+      EVERYTHING BELOW THIS LINE WAS WRITTEN BEFORE THE PUSH and is preserved
+      unedited per preserve-and-mark. Its opening sentences say the work is local
+      and unpushed and that the status is deliberately not `staging`; that was
+      true when written and is NO LONGER THE STATE. The row never passed through
+      `staging` as a value — it went in_progress -> shipped, because the push and
+      the promotion happened in the same sitting.
+      ── ORIGINAL ROW, AS WRITTEN 2026-08-30 ──
       STATUS IS in_progress AND NOT staging: f1e9833 is LOCAL AND NOT PUSHED
       (pushes are Gary's), per WORKFLOW.md § Session completion rules 4, which
       sets `staging` only for a row whose code was PUSHED during the session.
