@@ -21,18 +21,16 @@ would settle it.
 
 ## The short version
 
-Nine of the ten questions are answered from the repo. The tenth — **question A,
-the blocking one — is not fully answerable here, and I am not going to pretend
-otherwise.**
+All ten questions are now answered. Nine came from the repo; **question A, the
+blocking one, needed a request against production — Gary ran it on 2026-09-04
+and it came back `200`.**
 
 The four things that actually change the shape of the phase:
 
-1. **The matcher does not protect `.png`.** Mechanically tested, not eyeballed.
-   As configured, a request for `/guide/dashboard-01.png` never reaches
-   `auth.protect()`. What the repo cannot prove is the *deployed* behaviour —
-   one command settles it (§ A). Either way the recommendation in § J is the
-   same, so **the phase is not blocked on running it**, which is the one piece
-   of good news in this section.
+1. **Static assets are public — verified, not inferred.** `/guide/*.png` never
+   reaches `auth.protect()`, and production confirms it: `200`, no redirect.
+   `public/guide/` is off the table, and every guide image goes behind an
+   authenticated route reusing the HR-3 private Blob pattern (§ A, § J).
 2. **The redaction risk list in the prompt was wrong in both directions.**
    `/labor` renders no person data at all, and four surfaces nobody flagged do —
    including `/dashboard`, which every one of the four roles can reach (§ C).
@@ -44,16 +42,20 @@ The four things that actually change the shape of the phase:
    `AppShell` rather than in page headers, which are hand-rolled 78 times over
    (§ D.4).
 
-Two forks were closed by ruling during the session — the exemption list, and
-how mixed-gate articles behave (§ B.3). Six remain open and are listed in
-§ Decision forks at the end; none of them blocks writing the build prompt.
+A fifth thing is worth pulling up out of § J, because it is the finding most
+likely to be missed: **per-request capability filtering is now needed on three
+separate surfaces** — the search index, article sections, and image delivery.
+They must share one helper. Three implementations of "what may this reader see"
+will eventually disagree, and every direction of disagreement is a
+confidentiality failure rather than a cosmetic bug.
 
-**Question A is the only thing here that a repo cannot finish.** Everything else
-is settled or is a stated choice.
+Three forks were closed by ruling during the session — the exemption list, how
+mixed-gate articles behave, and image storage. Five remain open and are listed
+in § Decision forks at the end; none of them blocks writing the build prompt.
 
 ---
 
-## A — do static assets require auth? **(blocking — partially answered)**
+## A — do static assets require auth? **(blocking — CLOSED, verified)**
 
 ### The matcher, verbatim
 
@@ -100,52 +102,36 @@ declares only `serverExternalPackages` (no `headers`, `redirects` or
 `rewrites`), `vercel.json` declares only `crons`, and a file in `public/` is
 served as a static asset with no route handler in front of it.
 
-### The answer
+### The answer — VERIFIED
 
-**Excluded — as configured.** A file at `public/guide/dashboard-01.png` is
-served without a session check, per the middleware configuration committed at
-HEAD.
+**EXCLUDED. Static assets are public.** Confirmed by Gary against production on
+2026-09-04: the request returned **`200`** with an empty redirect target. A file
+at `public/guide/dashboard-01.png` is served to anyone who guesses the URL, with
+no session.
 
-**But the deployed fact is not verified, and I am flagging that rather than
-rounding it up to a finding.** Two honest gaps:
+This matches the configured reading derived above, and it closes the question
+that the rest of the phase was waiting on.
 
-- **Vercel Deployment Protection is not repo state.** It is a dashboard
-  setting. If it is on for an environment, everything on that deployment
-  requires auth regardless of what the matcher says, and nothing in the repo
-  can tell me.
-- **The repo's own working evidence exercises a different arm of the same
-  lookahead.** `/logo.png` renders on `src/app/page.tsx` and on both
-  sign-in/sign-up pages — all public, all reached with no session — so
-  signed-out visitors demonstrably load it. That is tempting as proof, and it
-  is not: `next/image` requests go out as `/_next/image?url=%2Flogo.png`, which
-  is excluded by the **`_next`** alternative, not the extension alternative. So
-  the sign-in page working proves the `_next` arm serves unauthenticated. It
-  corroborates but does not establish the extension arm, which is the one that
-  governs `/guide/*.png` at its direct path.
+**What the verification adds that the repo could not.** The two gaps I flagged
+are both now resolved by the same observation: Vercel Deployment Protection is
+not gating production, and the extension arm of the lookahead behaves as the
+`_next` arm does. I had declined to treat the sign-in-page logo as proof of the
+extension arm — that caution turned out not to change the answer, but it was the
+right posture: the evidence genuinely did not reach, and it happened to point the
+same way.
 
-I have deliberately not used `docs/PERMISSIONS_INVENTORY.md`'s `/robots.txt`
-reasoning as evidence anywhere above. That note labels itself unverified, and
-it argues the same mechanism in the opposite direction (`.txt` absent from the
-list ⇒ protected). Leaning on it would make this section that note's inference
-wearing a finding's clothes.
+I did not use `docs/PERMISSIONS_INVENTORY.md`'s `/robots.txt` reasoning as
+evidence at any point. That note labels itself unverified and argues the same
+mechanism in the opposite direction (`.txt` absent from the list ⇒ protected).
 
-### What would settle it — for you to run, not this session
+**Consequence, and it is now a fact rather than a risk: `public/guide/` is off
+the table entirely.** Any screenshot placed there is world-readable at a
+guessable URL. § J is rewritten accordingly.
 
-One request against a **production** deployment while signed out, for a file
-that exists in `public/` at its **direct** path (not through `next/image`):
-
-```bash
-curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' https://<production-host>/logo.png
-```
-
-`200` with an empty redirect target ⇒ **excluded**, static assets are public,
-and § J's recommendation stands as written. `307` to sign-in ⇒ **matched**, and
-`public/guide/` becomes viable for PII-bearing articles (though § J still
-recommends against it for a second reason).
-
-Run it against production specifically — a staging alias can answer differently
-because of Deployment Protection, which is exactly the trap that made the
-`/robots.txt` note wrong the first time.
+*(Prior to verification this section read "excluded — as configured, deployed
+behaviour unverified", and named this exact request as what would settle it.
+Recorded here so the reasoning that produced the prediction stays legible, not
+just the confirmed answer.)*
 
 ### Incidental finding, and it is a real one
 
@@ -844,6 +830,14 @@ ruling 3 is decorative.
 `preview` flag from ruling 2 — so "can they see it" and "do they see it as a
 preview" are answered together, in the one place, and cannot drift apart.
 
+**Superseded in scope by § J.** Since this section was written, two more
+surfaces turned out to need the same filtering — article sections (§ B.3's
+ruling) and image delivery (§ J's). `visibleArticles()` should therefore be one
+method on a single `helpScope(actor, org)` helper rather than a standalone
+function; the shape is in § J. The argument here is unchanged and is the reason
+that helper exists — there must be exactly one answer to "what may this reader
+see", and it is now consumed in three places rather than one.
+
 ---
 
 ## G — the generator
@@ -1109,89 +1103,177 @@ by the route count.
 
 ## J — image storage
 
-### The recommendation
+**RULED (Gary, 2026-09-04): ALL guide images go behind an authenticated route.
+No split by risk bucket. Reuse the HR-3 private Blob route pattern rather than
+inventing a mechanism. Images stay out of git.**
 
-**Vercel Blob, private, served through an authenticated route** — for the
-PII-bearing and Conditional articles from § C. `public/guide/` is acceptable
-**only** for articles in the Structurally clean bucket, and only if you want
-the split.
+### Why no split
 
-**Simplest defensible answer: put all guide images in Blob and have no split at
-all.** The split saves nothing operationally and creates a classification
-decision per image, which is a decision that will eventually be made wrong at
-speed.
+§ A came back `200` — `public/` is world-readable at guessable URLs. That alone
+disqualifies `public/guide/` for the 17 PII-bearing and 4 Conditional articles.
 
-### Why this follows from § A
+The ruling goes further and refuses the split, which is the right call for a
+reason worth writing down: **the risk buckets in § C are a judgement about page
+content, and they were already wrong twice in this audit.** My first sweep
+mis-scored `/store-view/checklist/[id]` and `/hr/signed-records` as clean
+because the pattern omitted `displayName`/`fullName`. A storage architecture
+that depends on that classification being right inherits every future
+mis-scoring, silently — and the failure mode is a PII screenshot at a public URL
+that nobody notices because the file is where the rules said to put it.
 
-§ A's answer is **excluded (as configured), deployed behaviour unverified**.
-Both branches lead here:
+A single authenticated route has no classification step, so it cannot be
+classified wrongly. It also means a *later* change — a page that starts
+rendering a name it did not render before — does not silently move an existing
+image into the wrong bucket.
 
-- **If excluded** (the configured reading, and the likely one): `public/guide/`
-  is world-readable at guessable URLs. `/guide/staff-01.png` is a trivial guess.
-  For the 9 PII-bearing and 6 Conditional articles that is disqualifying on its
-  own.
-- **If it turns out matched**: `public/guide/` would require a session — but
-  **git history is still permanent**. A missed redaction committed once is in
-  the repo forever, recoverable by anyone who can clone it, and no auth setting
-  reaches backwards into history. That is the second, independent reason, and it
-  is the one that does not depend on § A at all.
+### The mechanism — HR-3, reused
 
-Which is why **the phase is not blocked on the curl**: the recommendation does
-not change either way. Run it to close the question, not to unblock the build.
+`src/lib/hr-files.ts` (HR-3, shipped 2026-07-21, `1a03dca`…) already implements
+exactly this, and its header states the invariant:
 
-`@vercel/blob` `^2.5.0` is already a dependency and is already used for
-staff-document uploads, so the authenticated-download precedent exists in this
-repo: **PL-20**, `staff/[id]/documents/[docId]/download` — manage-tier, or the
-staff member themself when `teamVisible`. A guide-image route is the same shape
-with a simpler check: `getCurrentUser()` → `actor` → `can()` against the owning
-article's capability → stream from Blob. It reuses § F.4's
-`visibleArticles(actor, org)` so an image cannot be reachable by someone who
-cannot reach its article.
+> *"A stored blob URL is not fetchable on its own: every read goes through an app
+> route that authorizes the viewer and then mints a short-lived signed URL.
+> Server-side only — the RW token must never reach the client."*
 
-The cost is honest and should be said: Blob images are not statically
-optimisable the way `public/` assets are, so they will be slower and will not
-benefit from `next/image`'s build-time work. For screenshots in a help article
-that is an acceptable trade.
+What the pattern provides, all of it reusable:
+
+| Element | HR-3 today | For guide images |
+|---|---|---|
+| store | private Blob, `access: "private"` | same, private |
+| token | `HR_BLOB_READ_WRITE_TOKEN`, server-only | its own token (see below) |
+| read path | route authorizes → 307 to a signed URL, TTL 5 min | same |
+| same-origin option | `?stream=1` proxies bytes, Content-Type preserved, inline disposition | **this is the one `<img>` should use** |
+| delegation | token issued for 10 min, cached until 1 min before expiry — one control-plane call per ~9 min | unchanged, and it is what makes per-image auth affordable |
+| allowed types | already includes `image/png` and `image/jpeg` | no change needed |
+| refusal semantics | unknown id → 404 (don't leak existence); real-but-forbidden → 403 | **404 for both** (see below) |
+
+The canonical consumer to copy is
+`src/app/api/hr/documents/[id]/download/route.ts`: resolve the owning record,
+apply the access policy, then stream or redirect. Same authorization on both
+paths — a property worth preserving, since it is what stops `?stream=1` becoming
+an accidental bypass.
+
+**Separate store, same pattern.** I would give guide images their own private
+store (`froot-guide`, `GUIDE_BLOB_READ_WRITE_TOKEN`) with a `src/lib/guide-files.ts`
+mirroring `hr-files.ts`, rather than putting screenshots in `froot-hr`. The
+pattern is reused; the blast radius is not shared. A leaked guide token should
+not expose signed employment records. Small fork — say the word if you would
+rather have one store.
+
+### The capability check — and the leak it prevents
+
+**Signed-in is not sufficient. The image route must apply the same capability
+check as the article that owns the image.** Otherwise ruling 6 leaks: a section
+hidden from a STORE login renders nothing in the HTML, but if its screenshot is
+served to any signed-in session, that reader fetches the picture of the section
+they were not allowed to see. The prose would be absent and the image would say
+it anyway.
+
+**One refinement, because ruling 6 made the gate finer than "the article".** With
+section-level capabilities, an image inside a gated section is governed by the
+**section's** capability, which may be stricter than the article's. The
+Ingredients article is visible to STORE; its "Restoring a deleted ingredient"
+section is not; a screenshot inside that section must be refused to STORE even
+though the *article* is permitted.
+
+So the rule is: **an image is governed by the capability of the narrowest
+enclosing scope — its section if it sits in one, otherwise its article.** Gating
+on the article alone would be correct for most images and wrong for exactly the
+ones the section ruling exists to protect.
+
+Two consequences:
+
+- **Refuse with 404, not 403.** HR's download route returns 403 for
+  real-but-forbidden because the caller was plausibly shown the id by a stale
+  page. Here the opposite holds: a 403 confirms that an image — and therefore a
+  hidden section — exists. 404 for both unknown and forbidden. This is the same
+  reasoning as the `/settings/labor` nav ruling, one layer down.
+- **Cache `private`, never shared.** HR uses `private, no-store`. Guide
+  screenshots are re-read often enough that `no-store` is wasteful, but a shared
+  or CDN cache would serve a capability-gated image to the wrong reader.
+  `Cache-Control: private, max-age=<short>` — browser-only — is the correct
+  middle, and `private` is load-bearing rather than decorative.
+
+### Third surface — one shared helper
+
+**Per-request capability filtering is now needed in three places, and this is
+the finding to act on:**
+
+| # | Surface | Section | What it filters |
+|---|---|---|---|
+| 1 | the search index | § F.4 | which articles appear |
+| 2 | article sections | § B.3 ruling | which sections render at all |
+| 3 | **guide images** | this section | which images are served |
+
+Three implementations of "what may this reader see" will disagree eventually,
+and every direction of disagreement is a confidentiality failure rather than a
+cosmetic bug. The precedent is already in the repo twice: NAV-1's single
+`isVisible()` pass, and PERM-5C's rule that a hidden page must never sit over an
+API that still answers.
+
+**Recommend one helper, `src/lib/help-access.ts`, and all three call it:**
+
+```ts
+// The ONE place that answers "what may this reader see" for the help surface.
+// Every consumer — index, sections, images — goes through it. A second
+// implementation of this question is a confidentiality bug waiting to happen.
+export type HelpScope = {
+  articles: VisibleArticle[]                 // ruling 3 + ruling 2 preview flag
+  canReadArticle(id: string): boolean
+  canReadSection(articleId: string, sectionId: string): boolean
+  canReadImage(imageId: string): boolean     // resolves image → section → article
+}
+
+export async function helpScope(actor: PermissionUser, org: Org): Promise<HelpScope>
+```
+
+The load-bearing property is that **`canReadImage` is not a separate policy** —
+it resolves the image to its narrowest enclosing scope and defers to the same
+check the section and article use. There is one mapping from help resource to
+governing capability, and three callers of it.
+
+It takes `actor`, so it consults the PERM-5 denials and PERM-8 grants that
+`getCurrentUser()` already loaded (§ F.1) — no extra query, and per-user
+overrides move all three surfaces together.
 
 ### The capture workflow
 
-Designed so a missed redaction is caught **before** it can enter history — the
-`.gitignore` doing the work rather than a human remembering.
+Simpler than the earlier draft, because nothing is ever a tracked file and
+therefore nothing needs classifying:
 
 1. **Capture to an ignored directory.** Add `/docs/guide/_raw/` to `.gitignore`
-   in the same commit that creates the directory. Unredacted production
-   screenshots land here and **cannot be committed by accident** — not by
-   `git add -A`, not by a wildcard. This is the single most important step; it
-   is the only one that is structural rather than procedural.
-2. **Redact into a sibling.** Redacted output goes to `docs/guide/_review/`,
-   also gitignored. Redaction is by hand per ruling 1.
-3. **Normalise the extension.** Lowercase every `.PNG` to `.png` at this step.
-   Per § A this changes the auth posture of the file, and macOS screenshot
-   tooling produces both. Two files that differ only in case must not end up on
-   two sides of the middleware boundary.
-4. **Review pass against the § C bucket.** For each image, name the article and
-   its bucket. PII-bearing and Conditional images get a second look with the
-   specific condition from § C in hand — *"the forecasting audit log shows an
-   email when the name is null"* is a thing a reviewer must be told, because it
-   is not visible as a risk when you are looking at a chart.
-5. **Upload to Blob from `_review/`.** The image reaches the app without ever
-   being a tracked file. `docs/guide/*.md` references it by its Blob key in the
-   `images:` frontmatter.
-6. **Nothing in `docs/guide/` is a binary.** Only `.md` files are tracked there.
-   That is checkable in one line, and worth adding to the generator as a warning
-   so it stays true.
+   in the commit that creates it. Unredacted production screenshots land here
+   and cannot be committed by accident — not by `git add -A`, not by a
+   wildcard. This is the only structural step; the rest are procedural.
+2. **Redact into `docs/guide/_review/`**, also gitignored. By hand, per
+   ruling 1.
+3. **Normalise the extension to lowercase.** macOS produces `.PNG`; per § A the
+   case changes which middleware arm applies. It no longer changes the auth
+   posture — nothing is in `public/` any more — but two files differing only in
+   case is a footgun regardless, and `safeFileName()` in `hr-files.ts` already
+   lowercases extensions, so the pattern agrees.
+4. **Review pass with § C in hand.** For each image name the owning article and
+   section. The § C conditions are the checklist — *"the forecasting audit log
+   shows an email when the name is null"* is something a reviewer must be told,
+   because it is not visible as a risk while looking at a chart.
+5. **Upload from `_review/` via a server-side script** using the RW token. The
+   frontmatter references the returned blob id, never a path.
+6. **`docs/guide/` holds `.md` only.** Checkable in one line, and worth a
+   generator warning so it stays true.
 
-Steps 1 and 6 together mean **a redaction failure is a live-site bug you can
-fix, not a history rewrite.** That is the whole point of the workflow, and it is
-the property `public/guide/` cannot have at any level of care.
+Steps 1 and 6 mean a redaction miss is a **live-site bug you can fix, not a
+history rewrite**. That is the whole point, and it is the property no
+`public/`-based arrangement can have at any level of care — now doubly so, since
+§ A confirmed `public/` is world-readable.
 
 ---
 
 ## Decision forks
 
-Two closed by Gary in session on 2026-09-04; six still open, with my lean on
-each. None of the six blocks writing the build prompt — they are choices the
-build prompt should state, not questions it has to wait on.
+Three closed by Gary in session on 2026-09-04; six still open, with my lean on
+each (fork 9 is new, raised by § J's ruling). None of the six blocks writing the
+build prompt — they are choices the build prompt should state, not questions it
+has to wait on.
 
 | # | Fork | Status / my lean |
 |---|---|---|
@@ -1202,7 +1284,8 @@ build prompt should state, not questions it has to wait on.
 | 5 | Upgrade card: extract the shared component first vs make a 15th copy | **extract**, separate commit (§ H.2) |
 | 6 | Search: adopt `cmdk` for the palette UI vs plain substring filter | either; no search library (§ I) |
 | ~~7~~ | ~~Mixed-gate articles~~ | **CLOSED** — section-level capabilities, articles not split, hidden sections render nothing (Gary, 2026-09-04) |
-| 8 | Blob for all guide images vs split clean-to-`public/` | **all Blob** (§ J) |
+| ~~8~~ | ~~Image storage~~ | **CLOSED** — all images authenticated, no split by bucket, HR-3 pattern reused, gated at the narrowest enclosing scope (Gary, 2026-09-04) |
+| 9 | Guide images: own private store + token (`froot-guide`) vs sharing `froot-hr` | **own store** — shared pattern, unshared blast radius (§ J) |
 
 ---
 
@@ -1237,10 +1320,10 @@ Triaged per the ceremony: FIX NOW / RULING NOW / COMMENT / ROW.
    not follow the theme. Cosmetic, found incidentally while counting headers in
    § D.4.
 
-**RULING NOW:** none outstanding. Six rulings now govern this phase — the four
-from the prompt plus the two Gary made in session on 2026-09-04 (section-level
-capabilities with absent rendering; the exemption list). All six are drafted
-below.
+**RULING NOW:** none outstanding. Seven rulings now govern this phase — the four
+from the prompt plus the three Gary made in session on 2026-09-04 (section-level
+capabilities with absent rendering; the exemption list; authenticated image
+delivery gated at the narrowest enclosing scope). All seven are drafted below.
 
 **FIX NOW:** none. This session wrote no application code.
 
@@ -1254,9 +1337,10 @@ below.
 > should cite these as ratified. Per the log's own convention, the wording is
 > drafted here and confirmed by Gary at commit.
 >
-> **Six drafts, not four.** Rulings 1–4 came from the session prompt. Rulings 5
-> and 6 are decisions Gary made in chat on 2026-09-04, during this session, in
-> response to findings in § B.3 — they are drafted here on the same terms.
+> **Seven drafts, not four.** Rulings 1–4 came from the session prompt. Rulings
+> 5–7 are decisions Gary made in chat on 2026-09-04, during this session, in
+> response to findings in § B.3 and § J — they are drafted here on the same
+> terms.
 
 ---
 
@@ -1405,11 +1489,56 @@ this usually die.
 
 ---
 
+## 2026-09-04 — HELP-1: all guide images are served authenticated, gated at the section
+
+HELP-1 (2026-09-04): Every help screenshot is served through an **authenticated
+app route**, with no split by risk bucket and nothing in `public/`. (1) Images
+live in a private Blob store and reach the reader the way HR document files
+already do — the route authorizes the viewer, then streams the bytes or mints a
+short-lived signed URL; the stored blob URL is never exposed and is not fetchable
+on its own. (2) **Being signed in is not sufficient.** The image route applies the
+same capability check as the content that owns the image — the section's
+capability where the image sits in a gated section, otherwise the article's.
+(3) A refused image returns **404, not 403**: a 403 confirms the image exists and
+therefore that a hidden section exists. (4) Guide images are never tracked in
+git; raw and redacted captures live in gitignored directories and reach the app
+by upload.
+
+**Ruling 2 exists because without it the section ruling leaks through image
+URLs.** A section hidden from a STORE login renders nothing in the HTML — but if
+its screenshot were served to any signed-in session, that reader could fetch the
+picture of the section they were not allowed to see. The prose would be absent
+and the image would say it anyway. Gating images at the article level is correct
+for most of them and wrong for exactly the ones the section ruling exists to
+protect, which is why the gate is the **narrowest enclosing scope**, not the
+article.
+
+**Ruling 1 reuses HR-3 rather than inventing a mechanism.** `src/lib/hr-files.ts`
+already implements private-store delivery with authorize-then-presign, a 5-minute
+signed-URL TTL, a cached 10-minute delegation token, and a same-origin
+`?stream=1` path with identical authorization on both routes. PNG and JPEG are
+already permitted types. Guide images get their own store and token so a leaked
+guide credential cannot reach signed employment records — the pattern is shared,
+the blast radius is not.
+
+**This is the third surface needing per-request capability filtering** — the
+search index, article sections, and now images — **and they must share one
+helper.** Three implementations of "what may this reader see" will eventually
+disagree, and every direction of disagreement is a confidentiality failure rather
+than a cosmetic bug. `canReadImage()` is not a separate policy: it resolves the
+image to its owning section or article and defers to the same check. One mapping
+from help resource to governing capability, three callers. The precedent is
+NAV-1's single `isVisible()` pass and PERM-5C's rule that a hidden page must
+never sit over an API that still answers.
+
+---
+
 *End of audit. A–J complete. No application code, schema, sidebar or `(my)`
 layout was touched; `BASELINE_REV` in `scripts/verify-nav1-url-sets.ts` was not
 edited; `docs/PERMISSIONS_INVENTORY.md` was not edited — its four uncovered
 routes are a ROW, not this session's work.*
 
-*One question is not closed and cannot be closed from a repo: **§ A**. It needs
-one logged-out request against production, which is Gary's to run. Everything
-else here is either settled or a stated choice.*
+*All ten questions are answered. § A was closed by Gary's production check on
+2026-09-04 (`200` — static assets are public), which is the one fact in this
+document that a repo could not have supplied. Everything else here is either
+settled or a stated choice.*
