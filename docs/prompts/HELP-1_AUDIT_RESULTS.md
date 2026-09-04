@@ -44,8 +44,12 @@ The four things that actually change the shape of the phase:
    `AppShell` rather than in page headers, which are hand-rolled 78 times over
    (§ D.4).
 
-The decision forks I am deliberately leaving open for you are listed in
-§ Decision forks at the end.
+Two forks were closed by ruling during the session — the exemption list, and
+how mixed-gate articles behave (§ B.3). Six remain open and are listed in
+§ Decision forks at the end; none of them blocks writing the build prompt.
+
+**Question A is the only thing here that a repo cannot finish.** Everything else
+is settled or is a stated choice.
 
 ---
 
@@ -240,7 +244,8 @@ phantom refs:   none
 | `/print/template/[id]` | print view — Gary's ruling: print routes get none |
 | `/` | public marketing landing; not an in-app surface |
 
-`/` is my call, not yours — you ruled only on print. Flagged as fork 1 below.
+**Confirmed by Gary, 2026-09-04:** `/` exempt, print exempt, and sign-in/sign-up
+combined into one article (number 11 below) rather than exempted. Fork 1 closed.
 
 #### The mapping
 
@@ -327,30 +332,54 @@ point**:
 | 28 Ingredients | STORE and up | `/ingredients/deleted`, `/duplicates` | ADMIN+MANAGER (PG-22) |
 | 35 Purchase orders | STORE and up | both `/new` routes | ADMIN+MANAGER (PG-22) |
 
-**This did not exist under the route-based model and needs a ruling.** Under
-ruling 3 an article is hidden from someone who cannot reach the page it
-describes — but a task article describes *several* pages with *different*
-gates. A STORE login can reach `/inventory/ingredients` and so sees the
-Ingredients article, which contains a section on restoring deleted ingredients
-they cannot do.
+**RULED (Gary, 2026-09-04): section-level capabilities in frontmatter. The four
+articles are NOT split. A section the reader lacks the capability for renders
+NOTHING — no heading, no greyed text, no "access required" note. Absent.**
 
-Three options, in ascending cost:
+This did not exist under the route-based model. Under ruling 3 an article is
+hidden from someone who cannot reach the page it describes — but a task article
+describes *several* pages with *different* gates. A STORE login reaches
+`/inventory/ingredients` and so sees the Ingredients article, which contains a
+section on restoring deleted ingredients they cannot do.
 
-1. **Gate on the entry point; write around the gaps.** The article is visible
-   if its entry route is, and the prose simply does not promise the reader can
-   do the manager-only parts. Cheapest; relies on the writer being careful.
-2. **Gate on the entry point; hide sections per capability.** The article body
-   carries per-section capabilities and renders only the ones the reader can
-   act on. Honest, and reuses `visibleArticles()`'s machinery at section
-   granularity.
-3. **Split the mixed articles.** Four articles become eight; the task ruling
-   gets partially undone in exactly the places it was most useful.
+The ruling resolves it at section granularity rather than article granularity:
 
-**Recommendation: option 2**, because it is the only one where the help surface
-cannot promise something ruling 3 forbids, and the per-section capability is a
-field in the frontmatter (§ G.2) rather than new machinery. Option 1 is
-defensible if you would rather not carry section-level metadata; option 3 is
-not, since it re-fragments precisely the tasks that most needed grouping.
+| Article | Section gated away from | Because |
+|---|---|---|
+| 22 The document library | anyone without ADMIN | `/hr/documents/[id]` is ADMIN (PG-25) |
+| 25 Building training modules | — (`/preview` is *looser*, ADMIN+MANAGER, PG-29) | no section hidden; noted for completeness |
+| 28 Ingredients | STORE | `/ingredients/deleted`, `/duplicates` are ADMIN+MANAGER (PG-22) |
+| 35 Purchase orders | STORE | both `/new` routes are ADMIN+MANAGER (PG-22) |
+
+**The absence condition is the load-bearing half, and it follows a precedent
+already ratified in `docs/DECISIONS.md`.** The NAV-1 / COMP-1 follow-on entry
+rules that the `/settings/labor` sidebar link is *"hidden entirely for logins
+without the labor.access capability. We do not show a locked or disabled state —
+a visible lock on a compensation page advertises what COMP-1 exists to keep
+confidential."*
+
+The same reasoning transfers exactly. A section heading reading "Restoring a
+deleted ingredient", greyed out, tells a STORE login that deletion is
+recoverable and that someone above them can do it. **A visible section title is
+itself a disclosure.** The help surface would be leaking the shape of the
+permission model to precisely the readers ruling 3 exists to keep it from.
+
+Three implementation consequences worth being explicit about, because "renders
+nothing" is easy to implement almost-correctly:
+
+1. **The section must be removed server-side, not hidden with CSS.** A
+   `display: none` heading is in the DOM and readable in devtools — the same
+   failure mode that forced the search index to be per-request in § F.
+2. **Its text must not reach the search index.** § F.3's index carries titles,
+   summaries and keywords; if a section heading feeds keywords, a hidden
+   section becomes searchable and the ruling is undone by the search box. The
+   index must be built from the reader's *filtered* article, not the raw file.
+3. **Anchors and any table of contents must renumber.** A "3." with no "2."
+   above it discloses that a section was removed, which is a weaker leak than a
+   visible title but the same kind.
+
+Section filtering reuses `visibleArticles()`'s `actor` (§ F.4) — one place, one
+`can()` call per section, no second implementation.
 
 ### B.4 — totals
 
@@ -866,7 +895,8 @@ order: 30                           # required — sort within its section
 keywords: [po, vendor, receiving]   # optional — search synonyms
 sections:                           # optional — only for mixed-gate articles
   - heading: Creating a purchase order
-    capability: inventory.po.manage # hidden from readers without it (§ B.3)
+    capability: inventory.po.manage # RULED: renders NOTHING without it —
+                                    # no heading, no greyed text, no note (§ B.3)
 images:                             # optional
   - src: purchase-orders-01.png
     alt: A draft purchase order with three line items
@@ -883,6 +913,11 @@ Four schema rulings I would build in rather than leave to convention:
   stricter (§ B.3's four mixed-gate articles); that is what `sections` is for.
   Deriving the article's capability from the strictest claimed route would hide
   the Ingredients article from every STORE login over two admin sub-pages.
+- **A `sections` entry without a `capability` is a parse error, not an
+  ungated section.** The whole point of the block is gating; an entry that
+  forgot its capability would render to everyone, which is the failure
+  direction the absence ruling exists to prevent. Ungated prose simply lives
+  outside `sections`.
 - **`capability` and `module` are required, with an explicit `null`** rather
   than omittable. An absent key and a deliberate "this page is unrestricted"
   look identical otherwise, and the difference is exactly ruling 3's blast
@@ -1152,33 +1187,42 @@ the property `public/guide/` cannot have at any level of care.
 
 ---
 
-## Decision forks — left open on purpose
+## Decision forks
 
-| # | Fork | My lean |
+Two closed by Gary in session on 2026-09-04; six still open, with my lean on
+each. None of the six blocks writing the build prompt — they are choices the
+build prompt should state, not questions it has to wait on.
+
+| # | Fork | Status / my lean |
 |---|---|---|
-| 1 | Which routes are exempt from coverage. You ruled print gets none; I also exempted `/` (marketing landing). Sign-in/sign-up I gave an article. | confirm or overrule the two I decided |
+| ~~1~~ | ~~Exemptions~~ | **CLOSED** — `/` exempt, print exempt, sign-in/sign-up one combined article (Gary, 2026-09-04) |
 | 2 | `/my/*` articles: visible to all roles with a staff link, or STAFF-only in help | all roles — matches PG-33 |
 | 3 | Help sidebar entry: parseable literal (fixture governs, run goes red) vs hand-written JSX (fixture blind) | **literal** (§ E.3) |
 | 4 | Contextual `?`: mount once in `AppShell` vs extract a `PageHeader` and edit 78 sites | **`AppShell`** (§ D.4) |
 | 5 | Upgrade card: extract the shared component first vs make a 15th copy | **extract**, separate commit (§ H.2) |
 | 6 | Search: adopt `cmdk` for the palette UI vs plain substring filter | either; no search library (§ I) |
-| 7 | Mixed-gate articles (4): gate on entry point and write around gaps, hide sections per capability, or split | **hide sections per capability** (§ B.3) |
+| ~~7~~ | ~~Mixed-gate articles~~ | **CLOSED** — section-level capabilities, articles not split, hidden sections render nothing (Gary, 2026-09-04) |
 | 8 | Blob for all guide images vs split clean-to-`public/` | **all Blob** (§ J) |
 
 ---
 
 ## Out-of-scope findings
 
-Triaged per the ceremony. **No rows filed** — a row is the last resort and
-nothing here earns one.
+Triaged per the ceremony: FIX NOW / RULING NOW / COMMENT / ROW.
 
-**COMMENT (not a row):**
+**ROW (1)** — filed by Gary's call, 2026-09-04:
 
 1. **`PERMISSIONS_INVENTORY.md` has drifted from the page surface.** Four
    reachable routes have zero mentions: `/internal/roadmap`, `/labor/inspector`,
    `/staff/engagement`, `/reports/operations`. Three post-date the survey, so
-   this is expected drift, but the doc can no longer be used as a complete
-   index — which is how this audit was tempted to use it in § B.2.
+   this is drift rather than an error — but the doc can no longer be used as a
+   complete index of what is reachable, which is exactly how this audit was
+   tempted to use it in § B.2. **Not this session's work**; no edit to that file
+   was made or attempted here. The row should cover surveying the four routes to
+   the PG- rows' existing standard, not a general re-audit.
+
+**COMMENT (not a row) (4):**
+
 2. **The upgrade card is duplicated 14 times** with identical structure. Noted
    in § H.1; the extraction is § H.2's recommendation and belongs to HELP-1 if
    H2-a is chosen, or to nobody in particular if H2-b is.
@@ -1186,16 +1230,19 @@ nothing here earns one.
    § I lands on the plain-filter option it should probably be removed rather
    than left as a decoy.
 4. **`/inventory/orders/new` has no parent `/inventory/orders` page.** The only
-   route in the tree with no ancestor. Possibly an unlinked leftover; worth a
-   look independent of HELP-1.
+   route in the tree with no ancestor. HELP-1 no longer needs a ruling on it
+   (article 35 claims it), but it may still be an unlinked leftover worth
+   deleting.
 5. **One `<h1>` uses `text-gray-900` instead of the CSS variable**, so it will
    not follow the theme. Cosmetic, found incidentally while counting headers in
    § D.4.
 
-**RULING NOW:** none — the four rulings below are the phase's rulings and are
-already drafted.
+**RULING NOW:** none outstanding. Six rulings now govern this phase — the four
+from the prompt plus the two Gary made in session on 2026-09-04 (section-level
+capabilities with absent rendering; the exemption list). All six are drafted
+below.
 
-**FIX NOW:** none. This session writes no application code.
+**FIX NOW:** none. This session wrote no application code.
 
 ---
 
@@ -1206,6 +1253,10 @@ already drafted.
 > rewrites them in his own words in `docs/DECISIONS.md`.** Nothing in the repo
 > should cite these as ratified. Per the log's own convention, the wording is
 > drafted here and confirmed by Gary at commit.
+>
+> **Six drafts, not four.** Rulings 1–4 came from the session prompt. Rulings 5
+> and 6 are decisions Gary made in chat on 2026-09-04, during this session, in
+> response to findings in § B.3 — they are drafted here on the same terms.
 
 ---
 
@@ -1295,5 +1346,70 @@ over an API that still answers.
 
 ---
 
-*End of audit. No application code, schema, sidebar or `(my)` layout was
-touched. `BASELINE_REV` in `scripts/verify-nav1-url-sets.ts` was not edited.*
+## 2026-09-04 — HELP-1: help articles map to tasks, and gated sections are absent
+
+HELP-1 (2026-09-04): Help articles map to **user tasks, not to routes**. A list
+page, its detail page and its `/new` sibling are normally one article; print
+routes get no article at all. (1) An article **claims** a set of routes, and the
+build-time coverage gate checks that every route is claimed by *some* article —
+not that every route has its own. (2) Where an article claims routes with
+different capability gates, the article is gated on its **entry point** and the
+stricter parts are handled as gated **sections**, rather than by splitting the
+article back into one-per-route. (3) A section the reader lacks the capability
+for **renders nothing** — no heading, no greyed text, no "access required" note.
+It is absent. (4) Exempt from coverage: the marketing landing page and both
+print views. Sign-in and sign-up are covered by one combined article.
+
+**Ruling 3 is the same reasoning as the `/settings/labor` nav entry and should
+be read as an extension of it, not a new idea.** That entry is hidden entirely
+rather than locked because a visible lock on a compensation page advertises what
+COMP-1 exists to keep confidential. A section heading is the same disclosure at
+smaller scale: "Restoring a deleted ingredient", greyed out, tells a STORE login
+both that deletion is recoverable and that someone above them can do it. **A
+visible section title is itself a disclosure.**
+
+**"Renders nothing" is a server-side condition, not a CSS one.** A hidden
+heading that is still in the DOM is readable in devtools — the same failure that
+forced the search index to be per-request. Three things follow: the section is
+removed before the page is sent; its text never reaches the search index, or a
+hidden section becomes findable by search and the ruling is undone by the search
+box; and any table of contents renumbers, since a "3." with no "2." above it
+discloses that something was removed.
+
+---
+
+## 2026-09-04 — HELP-1: the coverage gate warns, and only a phantom route fails
+
+HELP-1 (2026-09-04): The build-time help coverage gate **warns and does not fail**
+for missing coverage, and hard-fails on exactly one condition. (1) A route
+claimed by no article, a route claimed by two articles, and an exempt route
+claimed anyway are all **warnings** — each is a legitimate mid-phase state.
+(2) An article claiming a route that **does not exist** is a **build failure**:
+it is a typo or a deleted page, it cannot be a work-in-progress, and it produces
+a help article pointing at a 404. (3) The exempt-route list lives in the
+generator, not in article frontmatter, so an article cannot exempt a route by
+declining to mention it.
+
+**Ruling 1 follows the precedent `scripts/generate-roadmap.mjs` already set and
+wrote down**: *"a warning that is wrong only asks a human to look"*, and *"A
+NOISY CHECK WOULD BE WORSE THAN NONE."* A gate that fails on missing coverage
+turns every future route-adding phase into a route-adding-plus-article-writing
+phase, and the pressure it creates is to write a stub article that satisfies the
+gate and teaches nothing — which defeats the gate rather than passing it.
+
+**It also means the gate needs no special handling on day one.** With zero
+articles written it warns about all 65 claimable routes, which is accurate and
+is the phase's own to-do list rendered by the build. There is no threshold to
+tune and no escape hatch to remember to remove — which is the moment gates like
+this usually die.
+
+---
+
+*End of audit. A–J complete. No application code, schema, sidebar or `(my)`
+layout was touched; `BASELINE_REV` in `scripts/verify-nav1-url-sets.ts` was not
+edited; `docs/PERMISSIONS_INVENTORY.md` was not edited — its four uncovered
+routes are a ROW, not this session's work.*
+
+*One question is not closed and cannot be closed from a repo: **§ A**. It needs
+one logged-out request against production, which is Gary's to run. Everything
+else here is either settled or a stated choice.*
