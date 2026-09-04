@@ -36,8 +36,10 @@ The four things that actually change the shape of the phase:
 2. **The redaction risk list in the prompt was wrong in both directions.**
    `/labor` renders no person data at all, and four surfaces nobody flagged do —
    including `/dashboard`, which every one of the four roles can reach (§ C).
-3. **The article surface is 41, not 26.** The nav's 26 is the *nav*, not the
-   reachable surface. Fifteen more pages are reachable and real (§ B).
+3. **68 routes, 44 articles.** The nav's 26 is the *nav*, not the reachable
+   surface. Under your task ruling an article claims a set of routes, so the
+   coverage gate checks that every route is **claimed by some article** — 65
+   claimed, 3 exempt, 0 unclaimed (§ B.3).
 4. **The `?` is one edit, not thirty-five** — but only if it mounts in
    `AppShell` rather than in page headers, which are hand-rolled 78 times over
    (§ D.4).
@@ -202,98 +204,181 @@ index of the page surface and HELP-1 should not treat it as one. *(Filed under
 row. No nav entry points at a route that does not exist.
 
 **One structural oddity:** `/inventory/orders/new` has a page but there is no
-`/inventory/orders` parent page. It is the only route in the tree with no
-ancestor to fold into. It needs either its own article or an explicit ruling
-that it is an unlinked leftover.
+`/inventory/orders` parent page — the only route in the tree with no ancestor.
+Under the task ruling this stops being a problem: it is part of the
+purchase-order task and is claimed by article 35 (§ B.3). It may still be an
+unlinked leftover worth deleting, but HELP-1 no longer needs a ruling on it.
 
-### B.3 — the proposed article list
+### B.3 — the article list and the route→article mapping
 
-Granularity rule: **one article per route that has its own `page.tsx`**, with
-`[id]` / `new` / `edit` / `preview` variants folded into their parent, and
-landing/auth/print routes excluded. Derived mechanically:
+**Granularity ruling (Gary, 2026-09-04): articles map to user tasks, not to
+routes. A list page, its detail page and its `/new` sibling are normally one
+article. Print routes get none.**
 
-- 68 page routes
-- −5 excluded (`/`, `/sign-in/*`, `/sign-up/*`, `/print/checklist/[id]`, `/print/template/[id]`)
-- −21 folded into a parent article
-- −1 orphan variant needing a ruling (`/inventory/orders/new`)
-- = **41 articles**
+This changes the mapping from one-to-one to **one-to-many**: an article *claims*
+a set of routes. The coverage gate in § G.3 therefore checks that **every route
+is claimed by some article**, not that every route has its own — which is a
+weaker and more honest condition, and the only one compatible with task-shaped
+articles.
 
-| # | Route | Capability / roles | Module | ADMIN | MGR | STORE | STAFF |
-|---|---|---|---|:-:|:-:|:-:|:-:|
-| 1 | `/dashboard` | `dashboard.view` | — | ✓ | ✓ | ✓ | ✓ |
-| 2 | `/checklists` | `checklists.view` | — | ✓ | ✓ | ✓ | ✓ |
-| 3 | `/store-view` | `storeview.access` | — | ✓ | ✓ | ✓ | · |
-| 4 | `/templates` | `templates.manage` | — | ✓ | · | · | · |
-| 5 | `/messages` | `messages.use` | — | ✓ | ✓ | ✓ | ✓ |
-| 6 | `/stores` | `stores.view` | — | ✓ | ✓ | · | · |
-| 7 | `/users` | `users.manage` | — | ✓ | · | · | · |
-| 8 | `/staff` | `staff.view` | — | ✓ | ✓ | · | · |
-| 9 | `/staff/engagement` | `engagement.view` (+ `staff.view` layout) | — | ✓ | · | · | · |
-| 10 | `/reports` | `reports.view` | — | ✓ | ✓ | · | · |
-| 11 | `/reports/operations` | `reports.view` (layout only) | — | ✓ | ✓ | · | · |
-| 12 | `/forecasting` | `forecasting.view` | — | ✓ | ✓ | · | · |
-| 13 | `/labor` | `labor.view` | labor | ✓ | ✓ | ✓ | ✓ |
-| 14 | `/labor/inspector` | `labor.manage` (+ Square-labor gates) | labor | ✓ | ✓ | · | · |
-| 15 | `/settings` | `settings.access` | — | ✓ | · | · | · |
-| 16 | `/settings/labor` | `labor.access` | labor | ✓ | ✓ | · | · |
-| 17 | `/instagram` | `instagram.view` (+ connected) | — | ✓ | ✓ | ✓ | ✓ |
-| 18 | `/hr` | `hr.access` | hr | ✓ | ✓ | ✓ | ✓ |
-| 19 | `/hr/compliance` | ADMIN / MANAGER (PG-31) | hr | ✓ | ✓ | · | · |
-| 20 | `/hr/documents` | `hr.access`, audience-scoped (PG-24) | hr | ✓ | ✓ | ✓ | ✓ |
-| 21 | `/hr/forms` | ADMIN (PG-26) | hr | ✓ | · | · | · |
-| 22 | `/hr/signed-records` | ADMIN (PG-30) | hr | ✓ | · | · | · |
-| 23 | `/hr/training` | ADMIN (PG-28) | hr | ✓ | · | · | · |
-| 24 | `/items` | any member (PG-19) | inventory | ✓ | ✓ | ✓ | ✓ |
-| 25 | `/internal/roadmap` | ADMIN (`requireAdmin()`) | — | ✓ | · | · | · |
-| 26 | `/inventory/ingredients` | `inventory.nav.view` | inventory | ✓ | ✓ | ✓ | · |
-| 27 | `/inventory/sales-items` | `inventory.nav.view` | inventory | ✓ | ✓ | ✓ | · |
-| 28 | `/inventory/recipes` | `inventory.assets.manage` | inventory | ✓ | ✓ | · | · |
-| 29 | `/inventory/storage-areas` | `inventory.storage.manage` | inventory | ✓ | ✓ | · | · |
-| 30 | `/inventory/counts` | `inventory.nav.view` | inventory | ✓ | ✓ | ✓ | · |
-| 31 | `/inventory/adjustments` | `inventory.nav.view` | inventory | ✓ | ✓ | ✓ | · |
-| 32 | `/inventory/vendors` | `inventory.assets.manage` | inventory | ✓ | ✓ | · | · |
-| 33 | `/inventory/purchase-orders` | `inventory.po.view` | inventory | ✓ | ✓ | ✓ | · |
-| 34 | `/inventory/expected` | `inventory.analytics.view` | inventory | ✓ | ✓ | · | · |
-| 35 | `/inventory/alerts` | `inventory.analytics.view` | inventory | ✓ | ✓ | · | · |
-| 36 | `/inventory/reports` | `inventory.analytics.view` | inventory | ✓ | ✓ | · | · |
-| 37 | `/my` | linked ACTIVE staff (PG-33) | — | ✓ | ✓ | ✓ | ✓ |
-| 38 | `/my/documents` | linked ACTIVE staff (PG-33) | hr | ✓ | ✓ | ✓ | ✓ |
-| 39 | `/my/messages` | linked ACTIVE staff (PG-33) | — | ✓ | ✓ | ✓ | ✓ |
-| 40 | `/my/training` | linked ACTIVE staff (PG-33) | hr | ✓ | ✓ | ✓ | ✓ |
-| 41 | `/my/instagram` | linked ACTIVE staff (PG-33, + connected) | — | ✓ | ✓ | ✓ | ✓ |
+Derived by running the mapping against the filesystem route list:
 
-Titles are left blank on purpose — writing article titles is content, and
-content is out of scope for HELP-1 per the prompt's own scope line.
+```
+ROUTES:   68
+ARTICLES: 44
+coverage: 68 routes = 65 claimed + 3 exempt + 0 UNCLAIMED
+unclaimed:      none
+double-claimed: none
+phantom refs:   none
+```
 
-The capability column is the **nav** capability where one exists and the **page
-guard** otherwise. Where the two disagree the page guard is the truth, and § F.4
-depends on the help system asking the same question the page asks.
+**Exempt — claimed by no article, deliberately (3):**
 
-### B.4 — totals and per-role visible counts
+| Route | Why |
+|---|---|
+| `/print/checklist/[id]` | print view — Gary's ruling: print routes get none |
+| `/print/template/[id]` | print view — Gary's ruling: print routes get none |
+| `/` | public marketing landing; not an in-app surface |
 
-Computed by calling the real `can()` from `src/lib/permissions.ts` against each
-row, not by counting the table by hand:
+`/` is my call, not yours — you ruled only on print. Flagged as fork 1 below.
 
-**Total articles: 41.**
+#### The mapping
+
+`•` marks the article's entry point (the route the `?` and search results link
+to). Titles are placeholders for shape, not content — content is out of scope.
+
+| # | Article | Routes claimed | Gate | Module | A | M | S | St |
+|---|---|---|---|:-:|:-:|:-:|:-:|:-:|
+| 1 | Running the daily checklist | • `/store-view`<br>`/store-view/checklist/[id]` | `storeview.access` | — | ✓ | ✓ | ✓ | · |
+| 2 | Reviewing completed checklists | • `/checklists` | `checklists.view` | — | ✓ | ✓ | ✓ | ✓ |
+| 3 | Building checklist templates | • `/templates`<br>`/templates/[id]`<br>`/templates/[id]/edit`<br>`/templates/new` | `templates.manage` | — | ✓ | · | · | · |
+| 4 | The dashboard | • `/dashboard` | `dashboard.view` | — | ✓ | ✓ | ✓ | ✓ |
+| 5 | Team messages | • `/messages` | `messages.use` | — | ✓ | ✓ | ✓ | ✓ |
+| 6 | Managing stores | • `/stores` | `stores.view` | — | ✓ | ✓ | · | · |
+| 7 | Managing logins and invitations | • `/users` | `users.manage` | — | ✓ | · | · | · |
+| 8 | The staff directory | • `/staff`<br>`/staff/[id]` | `staff.view` | — | ✓ | ✓ | · | · |
+| 9 | Staff engagement | • `/staff/engagement` | `engagement.view` | — | ✓ | · | · | · |
+| 10 | Settings and modules | • `/settings` | `settings.access` | — | ✓ | · | · | · |
+| 11 | Signing in and accepting an invitation | • `/sign-in/[[...sign-in]]`<br>`/sign-up/[[...sign-up]]` | public | — | ✓ | ✓ | ✓ | ✓ |
+| 12 | The internal roadmap page | • `/internal/roadmap` | ADMIN | — | ✓ | · | · | · |
+| 13 | Sales reports | • `/reports` | `reports.view` | — | ✓ | ✓ | · | · |
+| 14 | Operations reports | • `/reports/operations` | `reports.view` | — | ✓ | ✓ | · | · |
+| 15 | Forecasting and goals | • `/forecasting` | `forecasting.view` | — | ✓ | ✓ | · | · |
+| 16 | The weekly labor plan | • `/labor` | `labor.view` | labor | ✓ | ✓ | ✓ | ✓ |
+| 17 | Inspecting a day's labor | • `/labor/inspector` | `labor.manage` | labor | ✓ | ✓ | · | · |
+| 18 | Configuring the labor model | • `/settings/labor` | `labor.access` | labor | ✓ | ✓ | · | · |
+| 19 | The Instagram feed | • `/instagram` | `instagram.view` | — | ✓ | ✓ | ✓ | ✓ |
+| 20 | The HR hub | • `/hr` | `hr.access` | hr | ✓ | ✓ | ✓ | ✓ |
+| 21 | Signing a document | • `/hr/acknowledge/[documentId]` | self or attest (PG-32) | hr | ✓ | ✓ | ✓ | ✓ |
+| 22 | The document library | • `/hr/documents`<br>`/hr/documents/[id]` ⚠ | `hr.access` | hr | ✓ | ✓ | ✓ | ✓ |
+| 23 | Building forms | • `/hr/forms`<br>`/hr/forms/[id]` | ADMIN | hr | ✓ | · | · | · |
+| 24 | Running a supervised form | • `/hr/forms/[id]/submit` | ADMIN+MANAGER | hr | ✓ | ✓ | · | · |
+| 25 | Building training modules | • `/hr/training`<br>`/hr/training/new`<br>`/hr/training/[id]/edit`<br>`/hr/training/[id]/preview` ⚠ | ADMIN | hr | ✓ | · | · | · |
+| 26 | Signed records | • `/hr/signed-records` | ADMIN | hr | ✓ | · | · | · |
+| 27 | The compliance rollup | • `/hr/compliance` | ADMIN+MANAGER | hr | ✓ | ✓ | · | · |
+| 28 | Ingredients | • `/inventory/ingredients`<br>`/inventory/ingredients/deleted` ⚠<br>`/inventory/ingredients/duplicates` ⚠ | `inventory.nav.view` | inventory | ✓ | ✓ | ✓ | · |
+| 29 | Sales items | • `/inventory/sales-items` | `inventory.nav.view` | inventory | ✓ | ✓ | ✓ | · |
+| 30 | Recipes | • `/inventory/recipes`<br>`/inventory/recipes/[id]` | `inventory.assets.manage` | inventory | ✓ | ✓ | · | · |
+| 31 | Storage areas | • `/inventory/storage-areas` | `inventory.storage.manage` | inventory | ✓ | ✓ | · | · |
+| 32 | Running a count | • `/inventory/counts`<br>`/inventory/counts/[id]` | `inventory.nav.view` | inventory | ✓ | ✓ | ✓ | · |
+| 33 | Adjustments — waste, transfers, comps | • `/inventory/adjustments` | `inventory.nav.view` | inventory | ✓ | ✓ | ✓ | · |
+| 34 | Vendors | • `/inventory/vendors` | `inventory.assets.manage` | inventory | ✓ | ✓ | · | · |
+| 35 | Purchase orders — creating, sending, receiving | • `/inventory/purchase-orders`<br>`/inventory/purchase-orders/[id]`<br>`/inventory/purchase-orders/new` ⚠<br>`/inventory/orders/new` ⚠ | `inventory.po.view` | inventory | ✓ | ✓ | ✓ | · |
+| 36 | Expected stock | • `/inventory/expected` | `inventory.analytics.view` | inventory | ✓ | ✓ | · | · |
+| 37 | Low-stock alerts | • `/inventory/alerts` | `inventory.analytics.view` | inventory | ✓ | ✓ | · | · |
+| 38 | Inventory reports | • `/inventory/reports` | `inventory.analytics.view` | inventory | ✓ | ✓ | · | · |
+| 39 | Menu items | • `/items` | any member (PG-19) | inventory | ✓ | ✓ | ✓ | ✓ |
+| 40 | The staff portal | • `/my` | linked staff (PG-33) | — | ✓ | ✓ | ✓ | ✓ |
+| 41 | My documents | • `/my/documents`<br>`/my/documents/[documentId]`<br>`/my/documents/records/[recordId]` | linked staff | hr | ✓ | ✓ | ✓ | ✓ |
+| 42 | My training | • `/my/training`<br>`/my/training/[assignmentId]` | linked staff | hr | ✓ | ✓ | ✓ | ✓ |
+| 43 | My messages | • `/my/messages` | linked staff | — | ✓ | ✓ | ✓ | ✓ |
+| 44 | My Instagram | • `/my/instagram` | linked staff | — | ✓ | ✓ | ✓ | ✓ |
+
+**The task ruling resolved the orphan.** `/inventory/orders/new` had no parent
+page to fold into under the route-based model and needed a ruling of its own.
+Under the task model it is simply part of the purchase-order task, claimed by
+article 35. Fork 7 is closed by the ruling rather than by a decision.
+
+**Three groupings are judgement calls, not mechanical:**
+
+- **Articles 1 and 2** split `/store-view` from `/checklists`. Running a
+  checklist and reviewing completed ones are different tasks by different people
+  — and the roles differ (STAFF reaches `/checklists`, not `/store-view`).
+- **Articles 23 and 24** split building a form from running one on a staff
+  member. Different task, different audience, different guard (PG-26 ADMIN vs
+  PG-27 ADMIN+MANAGER). The `/new`-sibling rule would have merged them; the
+  task rule separates them.
+- **Article 21** keeps the signing ceremony separate from the document library.
+  Signing is the single most common task any staff member performs, and it is
+  reached from `/my/documents` as often as from `/hr`.
+
+Merge any of these and the count drops accordingly; they are the three places
+where a different reading of "task" gives a different number.
+
+#### ⚠ Mixed-gate articles (4) — a new consequence of the task ruling
+
+Four articles claim routes whose guards are **stricter than the article's entry
+point**:
+
+| Article | Entry point reachable by | But also claims | Which requires |
+|---|---|---|---|
+| 22 The document library | any member with `hr.access` | `/hr/documents/[id]` | ADMIN (PG-25) |
+| 25 Building training modules | ADMIN | `/hr/training/[id]/preview` | ADMIN **+ MANAGER** (PG-29 — *looser*, not stricter) |
+| 28 Ingredients | STORE and up | `/ingredients/deleted`, `/duplicates` | ADMIN+MANAGER (PG-22) |
+| 35 Purchase orders | STORE and up | both `/new` routes | ADMIN+MANAGER (PG-22) |
+
+**This did not exist under the route-based model and needs a ruling.** Under
+ruling 3 an article is hidden from someone who cannot reach the page it
+describes — but a task article describes *several* pages with *different*
+gates. A STORE login can reach `/inventory/ingredients` and so sees the
+Ingredients article, which contains a section on restoring deleted ingredients
+they cannot do.
+
+Three options, in ascending cost:
+
+1. **Gate on the entry point; write around the gaps.** The article is visible
+   if its entry route is, and the prose simply does not promise the reader can
+   do the manager-only parts. Cheapest; relies on the writer being careful.
+2. **Gate on the entry point; hide sections per capability.** The article body
+   carries per-section capabilities and renders only the ones the reader can
+   act on. Honest, and reuses `visibleArticles()`'s machinery at section
+   granularity.
+3. **Split the mixed articles.** Four articles become eight; the task ruling
+   gets partially undone in exactly the places it was most useful.
+
+**Recommendation: option 2**, because it is the only one where the help surface
+cannot promise something ruling 3 forbids, and the per-section capability is a
+field in the frontmatter (§ G.2) rather than new machinery. Option 1 is
+defensible if you would rather not carry section-level metadata; option 3 is
+not, since it re-fragments precisely the tasks that most needed grouping.
+
+### B.4 — totals
+
+**68 routes. 44 articles.** 65 routes claimed, 3 exempt, 0 unclaimed, 0
+double-claimed.
 
 | Role | Visible articles | of which module-gated (upgrade previews under ruling 2) |
 |---|---|---|
-| ADMIN | **41** | 23 |
-| MANAGER | **33** | 20 |
-| STORE | **19** | 11 |
-| STAFF | **13** | 6 |
+| ADMIN | **44** | 25 |
+| MANAGER | **36** | 22 |
+| STORE | **21** | 12 |
+| STAFF | **15** | 7 |
 
-Under ruling 2 the module is **not** a filter — a module-gated article is
-visible as a preview to an org without the module — so these counts are the same
-whether the org has bought the modules or not. Under ruling 3 the capability
-**is** a filter, and it is what produces the 41 → 33 → 19 → 13 taper.
+Computed by calling the real `can()` per article, not counted by hand. Under
+ruling 2 the module is not a filter, so these hold whether or not the org has
+bought the modules; under ruling 3 the capability is, and it produces the
+44 → 36 → 21 → 15 taper.
 
-The four `/my/*` rows are the soft spot in this table. PG-33 gates them on
-*being a linked ACTIVE staff member*, which is orthogonal to role — an ADMIN
-with a staff link reaches them and an ADMIN without one does not. I have scored
-them as visible to all four roles, which is the generous reading. If you would
-rather they be STAFF-only in the help surface, STAFF drops 13 → 13 (no change,
-they are STAFF's whole portal) and ADMIN/MANAGER/STORE each drop by 5. Flagged
+For comparison, the route-based model this replaces gave 41 articles and
+41/33/19/13. The task model is *more* articles, not fewer, because it claims
+the 27 routes the route model had folded away or excluded — the consolidation
+it performs is more than offset by the coverage it gains.
+
+The five `/my/*` articles remain the soft spot. PG-33 gates them on *being a
+linked ACTIVE staff member*, which is orthogonal to role — an ADMIN with a staff
+link reaches them and an ADMIN without one does not. I have scored them visible
+to all four roles, the generous reading. Making them STAFF-only in the help
+surface drops ADMIN/MANAGER/STORE by 5 each and leaves STAFF unchanged. Flagged
 as a fork rather than resolved.
 
 ---
@@ -318,65 +403,93 @@ which is the result worth having.
 So five of six confirmed, one wrong. And four surfaces the prompt did not list
 are person-bearing.
 
-### PII-bearing (9)
+### Buckets, in article terms (44 articles)
 
-A screenshot of these shows real names, wages, compliance state or contact
-details as a matter of course, not as an edge case.
+Re-expressed against the task-based article list. **A second sweep found two
+things the first one missed** — my original pattern did not include
+`displayName` / `fullName`, which is how this codebase names people. Both
+corrections are below and both move an article *toward* risk, which is the
+direction that matters:
 
-| Article | What renders | Location |
+- **`/store-view/checklist/[id]` renders a staff picker** — `{s.displayName}`
+  over every staff member at the store (`checklist-execution-client.tsx:423`).
+  That moves article 1 from Conditional to **PII-bearing**: assigning a task to
+  a person is core to the task the article documents, so the names are not an
+  edge case, they are the screenshot.
+- **`/hr/signed-records` selects `displayName` and `fullName`**
+  (`signed-records/page.tsx:31`) — **PII-bearing**, not clean as first scored.
+
+(The same sweep threw 71 hits across `/inventory/*`, all false positives:
+`displayName` there is the *ingredient* or *sales-item* name, not a person.
+Inventory stays clean.)
+
+### PII-bearing (17)
+
+Real names, wages, compliance state or contact details render as a matter of
+course.
+
+| # | Article | What renders |
 |---|---|---|
-| `/staff` | names, wages, Square link state | `staff/page.tsx` |
-| `/users` | display name, full name, **email** | `users/page.tsx:68` |
-| `/staff/engagement` | `{r.name ?? r.email}` **and** the email on the next line | `engagement-client.tsx:131,143` |
-| `/settings/labor` | name + `defaultHourlyRate` roster | `settings/labor/page.tsx:130` |
-| `/hr/compliance` | per-person compliance rollup by name | `compliance-staff-table.tsx:119` |
-| `/labor/inspector` | **named person's whole day** + paid hours | `day-inspector-client.tsx:420` |
-| `/messages` | `{message.author.name}` on every message + free-text bodies | `messages-client.tsx:1051` |
-| `/hr` (acknowledge, forms/submit, training assign, documents/[id]) | signer names, signatures, audience lists | 11 + 10 + 9 + 4 hits across those files |
-| `/my/*` portal | the signed-in person's own documents, training, records | PG-33, self-scoped |
+| 1 | Running the daily checklist | staff assignment picker by name; handoff-note authors |
+| 5 | Team messages | author name on every message + free-text bodies |
+| 7 | Managing logins and invitations | display name, full name, **email** |
+| 8 | The staff directory | names, wages (`canSeeWages`), Square link state |
+| 9 | Staff engagement | `{r.name ?? r.email}` **and** the email beneath it |
+| 17 | Inspecting a day's labor | a named person's whole day + paid hours |
+| 18 | Configuring the labor model | name + `defaultHourlyRate` roster |
+| 21 | Signing a document | signer name, legal name, signature |
+| 22 | The document library | audience assignment lists |
+| 24 | Running a supervised form | the staff member being walked through |
+| 25 | Building training modules | bulk-assign staff lists |
+| 26 | Signed records | `displayName` + `fullName` per record |
+| 27 | The compliance rollup | per-person compliance state by name |
+| 40 | The staff portal | greets the reader by name — *"Hi, {displayName}"* |
+| 41 | My documents | the reader's own documents and legal name |
+| 42 | My training | the reader's own assignments |
+| 43 | My messages | author names |
 
-`/labor/inspector` deserves a note: its own header comment says *"this page puts
-a named person's whole day on screen. Wages, rates, tips and pay data NEVER
-appear here."* So it is names-and-hours, not names-and-money — still
-PII-bearing, but a redactor should know the pay columns are already absent
-rather than hunting for them.
+`/labor/inspector` (17) deserves a note: its own header says *"this page puts a
+named person's whole day on screen. Wages, rates, tips and pay data NEVER appear
+here."* Names-and-hours, not names-and-money — a redactor should know the pay
+columns are already absent rather than hunting for them.
 
-`/messages` is the one I would most expect to be under-rated. It is reachable by
-**all four roles**, every message carries an author name, and the bodies are
-free text staff wrote — which can contain anything. A "here is the Messages
-page" screenshot is a screenshot of real people saying real things.
+Article 5 is the one I would most expect to be under-rated: reachable by **all
+four roles**, an author name on every message, and bodies that are free text
+staff wrote, which can contain anything.
 
-### Conditional (6) — the bucket that matters
+### Conditional (4) — the bucket that matters
 
-Clean in general; shows person data in a specific state. Each condition named.
+Clean in general; shows person data in a named state.
 
-| Article | Condition | Location |
+| # | Article | Condition |
 |---|---|---|
-| **`/dashboard`** | the labor-coverage card's **"on floor" popover** lists real staff names + job title + clock-in time. Closed by default, so a plain dashboard screenshot is clean and a screenshot *demonstrating that card* is not. | `labor-coverage-card.tsx:627` |
-| **`/dashboard`** | corporate-updates feed renders `{m.author.name}` when any update exists | `dashboard-client.tsx:721` |
-| **`/forecasting`** | the **F-5 edit-history audit log** renders `{e.user?.name \|\| e.user?.email \|\| "Unknown user"}` with a timestamp. Falls back to an **email address** when the name is null. | `forecasting-client.tsx:354` |
-| **`/store-view`** | the checklist detail's **handoff notes** render `{n.author.name}` with a coloured avatar, per note | `store-view/checklist/[id]/handoff-notes.tsx:79` |
-| **`/inventory/counts`** | the **submitted-count summary view** renders `{c.userName}` — who performed the count — when non-null | `counts/[id]/summary-view.tsx:205` |
-| **`/stores`** | store `contactEmail` / `phoneNumber` are business fields that in practice hold a manager's personal mobile or address | `store-actions.tsx:275-280` |
+| 4 | The dashboard | the labor-coverage card's **"on floor" popover** lists staff names + title + clock-in time (`labor-coverage-card.tsx:627`). Closed by default — a plain dashboard shot is clean, a shot *demonstrating that card* is not. Separately, the corporate-updates feed renders `{m.author.name}` whenever an update exists (`dashboard-client.tsx:721`). |
+| 6 | Managing stores | `contactEmail` / `phoneNumber` are business fields that in practice hold a manager's personal mobile (`store-actions.tsx:275-280`) |
+| 15 | Forecasting and goals | the **F-5 edit-history audit log** renders `{e.user?.name \|\| e.user?.email \|\| "Unknown user"}` with a timestamp (`forecasting-client.tsx:354`) |
+| 32 | Running a count | the submitted-count **summary view** renders `{c.userName}` — who performed the count — when non-null (`counts/[id]/summary-view.tsx:205`) |
 
-**`/dashboard` and `/forecasting` are the two that would have shipped.** Neither
-is a staff page, neither is in the prompt's predicted list, both put a real
-identity in a corner of the frame, and `/dashboard` is the single most likely
-page to be screenshotted first because it is where every other guard redirects
-to. The `/forecasting` one is worse than it looks: the fallback chain reaches
-for `email` when `name` is null, so the *less* configured the org, the *more*
+**Articles 4 and 15 are the two that would have shipped.** Neither is a staff
+page, neither was in the prompt's predicted list, both put a real identity in a
+corner of the frame, and the dashboard is the single most likely page to be
+screenshotted first because it is where every other guard redirects to.
+
+The forecasting one is worse than it looks: the fallback chain reaches for
+**`email`** when `name` is null, so the *less* configured the org, the *more*
 identifying the screenshot.
 
-### Structurally clean (26)
+### Structurally clean (23)
 
-No person-identifying data renders under any org state: `/checklists`,
-`/reports`, `/reports/operations`, `/templates`, `/items`, `/instagram`,
-`/internal/roadmap`, `/labor`, `/settings`, `/my` (chrome only), and all eleven
-`/inventory/*` list pages other than `/inventory/counts`.
+No person-identifying data under any org state: 2 (reviewing checklists), 3
+(templates), 10 (settings), 11 (signing in), 12 (roadmap), 13 (sales reports),
+14 (operations reports), 16 (weekly labor plan), 19 (Instagram), 20 (HR hub),
+23 (building forms), 28–31 and 33–38 (all ten remaining inventory articles),
+39 (menu items), 44 (My Instagram).
 
 Verified rather than assumed — `/checklists` and `/reports` came back with store
-names only under a deliberately broad sweep for `author|user.|staff.|member|
-assignee|employee`.
+names only under a deliberately broad sweep, and the `displayName` re-sweep
+above cleared inventory explicitly.
+
+**17 + 4 + 23 = 44.** Every article is in exactly one bucket.
 
 ---
 
@@ -664,15 +777,15 @@ type HelpIndexRow = {
 }
 ```
 
-Measured, not estimated — 41 rows with realistic prose entropy:
+Measured, not estimated — 44 rows with realistic prose entropy:
 
 | | bytes | |
 |---|---|---|
-| raw JSON | 15,428 | 15.1 KB |
-| gzipped | 5,325 | **5.2 KB** |
+| raw JSON | 16,707 | 16.3 KB |
+| gzipped | 5,676 | **5.5 KB** |
 | per article | ~380 raw | |
 
-**5.2 KB on the wire for the full ADMIN index.** Smaller for every other role.
+**5.5 KB on the wire for the full ADMIN index.** Smaller for every other role.
 That is a rounding error against any page in this app.
 
 Bodies are fetched per article through the same `can()` check on a second
@@ -728,26 +841,48 @@ is obtainable only at build time too.
 
 `docs/guide/` does not exist yet.
 
+**The task ruling changes this schema in one structural way: `route` becomes
+`routes`, a list.** An article claims a set of routes, and that list is what
+the § G.3 gate unions and diffs. A singular `route:` cannot express the mapping
+and would make the gate uncheckable.
+
 ```yaml
 ---
-route: /inventory/purchase-orders   # required — the join key to the article list
-title: Purchase Orders              # required
+id: inv-po                          # required — stable slug, the article's identity
+title: Purchase orders — creating, sending, receiving
+entry: /inventory/purchase-orders   # required — where the ? and search results link
+routes:                             # required — EVERY route this article claims
+  - /inventory/purchase-orders
+  - /inventory/purchase-orders/[id]
+  - /inventory/purchase-orders/new
+  - /inventory/orders/new
 summary: >                          # required — the search snippet, ~160 chars
   Create a purchase order against a vendor, send it, then receive it line
   by line so expected stock stays accurate.
 roles: [ADMIN, MANAGER, STORE]      # required — informational; can() is the truth
-capability: inventory.po.view       # required, or `null` for an unrestricted page
+capability: inventory.po.view       # required, or `null` — the ENTRY point's gate
 module: inventory                   # required, or `null`
 order: 30                           # required — sort within its section
 keywords: [po, vendor, receiving]   # optional — search synonyms
+sections:                           # optional — only for mixed-gate articles
+  - heading: Creating a purchase order
+    capability: inventory.po.manage # hidden from readers without it (§ B.3)
 images:                             # optional
   - src: purchase-orders-01.png
     alt: A draft purchase order with three line items
 ---
 ```
 
-Two schema rulings I would build in rather than leave to convention:
+Four schema rulings I would build in rather than leave to convention:
 
+- **`routes` is the gate's input and `entry` is the UI's.** They are different
+  questions — "what does this article cover" and "where does the button go" —
+  and collapsing them is what forces one-to-one mapping back in. `entry` must
+  be a member of `routes`; fail the parse if it is not.
+- **`capability` is the ENTRY point's gate, not the union.** Sub-routes may be
+  stricter (§ B.3's four mixed-gate articles); that is what `sections` is for.
+  Deriving the article's capability from the strictest claimed route would hide
+  the Ingredients article from every STORE login over two admin sub-pages.
 - **`capability` and `module` are required, with an explicit `null`** rather
   than omittable. An absent key and a deliberate "this page is unrestricted"
   look identical otherwise, and the difference is exactly ruling 3's blast
@@ -777,26 +912,43 @@ Applied here:
   actionable, survives the zero-article day, and cannot be gamed by a stub.
 
 **How it is introduced without blocking its own phase** — the warn form needs no
-special handling at all. On day one it prints all 41 routes as uncovered, which
-is accurate and is the phase's own to-do list rendered by the build. It shrinks
-as articles land. There is no threshold to tune, no `--allow-empty` escape
-hatch to remember to remove, and no moment where the gate has to be disabled and
-then re-enabled — which is the moment such gates usually die.
+special handling at all. On day one it prints all 65 claimable routes as
+unclaimed, which is accurate and is the phase's own to-do list rendered by the
+build. It shrinks as articles land. There is no threshold to tune, no
+`--allow-empty` escape hatch to remember to remove, and no moment where the gate
+has to be disabled and then re-enabled — which is the moment such gates usually
+die.
 
 Mirror the existing warning's format so the build log stays consistent:
 
 ```
-[guide] WARNING — 41 routes in the article list have no docs/guide/*.md article,
-[guide]   so the Help index will not list them:
-[guide]   /dashboard
-[guide]   /checklists
+[guide] WARNING — 12 of 65 claimable routes are not claimed by any article,
+[guide]   so a reader on those pages gets no help:
+[guide]   /inventory/counts/[id]        (nearest article: inv-counts)
+[guide]   /templates/new                (nearest article: templates)
 [guide]   …
+[guide]   3 routes are exempt by ruling and not counted: /print/…, /
 ```
 
-The one thing that **should** hard-fail is the mirror of the roadmap
-generator's single `throw`: an article whose `route:` matches **no** route in
-the article list. That is a typo or a deleted page, it is unambiguous, and it
-produces a help article pointing at a 404 — worse than a missing article.
+**The gate checks claiming, not one-to-one coverage** — that is what your
+ruling requires. Each article's frontmatter carries a `routes:` list; the
+generator unions them and diffs against the filesystem route list. Concretely
+it needs four checks, and only the last is fatal:
+
+| Check | Severity | Why |
+|---|---|---|
+| a route is claimed by **no** article | **warn** | the reader gets no help there — the day-one state, and the phase's to-do list |
+| a route is claimed by **two** articles | **warn** | ambiguous `?` target; usually a copy-paste, occasionally deliberate |
+| an exempt route is claimed anyway | **warn** | the ruling and the frontmatter disagree; a human should say which is right |
+| an article claims a route that **does not exist** | **FAIL** | typo or deleted page; produces a help article pointing at a 404 |
+
+Only the last hard-fails, mirroring the roadmap generator's single `throw`. A
+phantom route is unambiguous and cannot be a work-in-progress state; the other
+three all describe legitimate mid-phase conditions.
+
+The exempt list lives in the generator, not in frontmatter — an article cannot
+exempt a route by declining to mention it, or the gate would be satisfied by
+forgetting.
 
 ---
 
@@ -906,10 +1058,10 @@ Two caveats, both worth stating plainly:
   116 KB; the shipped runtime is a fraction of that, but it is not free). The
   honest framing is "already approved and vendored", not "already paid for".
 - **Even `cmdk` is more than the data needs.** Per § F.3 the full ADMIN index is
-  **41 rows / 5.2 KB gzipped**. A `String.prototype.includes()` filter over
-  title + summary + keywords is O(41) per keystroke and will feel instant.
+  **44 rows / 5.5 KB gzipped**. A `String.prototype.includes()` filter over
+  title + summary + keywords is O(44) per keystroke and will feel instant.
   MiniSearch and FlexSearch are built for thousands-to-millions of documents;
-  at 41 they are pure overhead — the index-building cost exceeds the search cost.
+  at 44 they are pure overhead — the index-building cost exceeds the search cost.
 
 So: **no search library.** Use `cmdk` if you want the palette *UI* (⌘K, keyboard
 nav, a11y roles) and are willing to adopt the dependency properly; use a plain
@@ -1004,13 +1156,13 @@ the property `public/guide/` cannot have at any level of care.
 
 | # | Fork | My lean |
 |---|---|---|
-| 1 | Article granularity: 41 (own-page) vs 26 (nav only) vs 62 (every route) | **41**, as derived in § B.3 |
+| 1 | Which routes are exempt from coverage. You ruled print gets none; I also exempted `/` (marketing landing). Sign-in/sign-up I gave an article. | confirm or overrule the two I decided |
 | 2 | `/my/*` articles: visible to all roles with a staff link, or STAFF-only in help | all roles — matches PG-33 |
 | 3 | Help sidebar entry: parseable literal (fixture governs, run goes red) vs hand-written JSX (fixture blind) | **literal** (§ E.3) |
 | 4 | Contextual `?`: mount once in `AppShell` vs extract a `PageHeader` and edit 78 sites | **`AppShell`** (§ D.4) |
 | 5 | Upgrade card: extract the shared component first vs make a 15th copy | **extract**, separate commit (§ H.2) |
 | 6 | Search: adopt `cmdk` for the palette UI vs plain substring filter | either; no search library (§ I) |
-| 7 | `/inventory/orders/new` — orphan route with no parent page: own article, or delete | needs your ruling |
+| 7 | Mixed-gate articles (4): gate on entry point and write around gaps, hide sections per capability, or split | **hide sections per capability** (§ B.3) |
 | 8 | Blob for all guide images vs split clean-to-`public/` | **all Blob** (§ J) |
 
 ---
