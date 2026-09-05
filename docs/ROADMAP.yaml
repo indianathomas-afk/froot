@@ -13901,10 +13901,34 @@ phases:
       taken deliberately before the exception was added — otherwise the
       exception is unfalsifiable, since a parser that silently matched nothing
       would look identical to a pass.
+      VERIFIED ON STAGING 2026-09-04, BOTH DIRECTIONS, and this is the half the
+      route-level assertions could not reach. Deployment froot-dps824xdv was
+      SHA-matched to origin/staging (256e453) before either observation, per the
+      staging-SHA precondition. An ADMIN login rendered THREE articles; a STORE
+      login (corporate@keva.com, identified as STORE by a sidebar carrying no
+      Settings, Reports, Stores, Staff or Users) rendered ONE — Ingredients,
+      the only one of the three gated at OPERATIONAL rather than MANAGE. That
+      is evidence 1 reproduced against a real database and real logins rather
+      than the synthetic actors verify-help-access.ts uses.
+      ORG ID NOT CAPTURED for either observation, so per the Browser Evidence
+      precondition neither is citable as formal evidence — recorded here as a
+      confirmation, not as a proof. Staging holds several orgs answering to
+      similar names.
+      SECTION-LEVEL RENDERING (ruling 6) IS STILL UNSEEN IN A BROWSER. It is
+      asserted green route-level in both directions, but nobody has opened the
+      Ingredients article as a STORE login to confirm the contents list
+      renumbers 1-3 with no gap where the gated section was.
     blockers:
-      - The froot-guide private Blob store is NOT PROVISIONED. Code, route and policy are complete and the policy half asserts green, but nothing serves bytes until the store and GUIDE_BLOB_READ_WRITE_TOKEN exist in all three environments. Evidence item 4's bytes half is unverified for that reason.
+      - The froot-guide private Blob store is NOT PROVISIONED. Code, route, policy and scripts/upload-guide-image.mjs are complete and the policy half asserts green, but nothing serves bytes until the store and GUIDE_BLOB_READ_WRITE_TOKEN exist in all three environments. Evidence item 4's bytes half is unverified for that reason.
       - DECISIONS.md entries are NOT WRITTEN. Seven of the eight rulings exist only as Claude-worded drafts in HELP-1_AUDIT_RESULTS.md and must be ratified in Gary's own words before anything cites them. Fork 9 is the exception — Gary ruled it in session on 2026-09-04.
-      - The four /help routes are themselves unclaimed by any article and warn on every build. Whether the help surface documents itself or joins the exempt list is a ruling nobody has made.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-04 (b01ec1e) — the four /help routes are exempt by
+          ruling; the help surface does not document itself. "The coverage gate
+          is a to-do list of undocumented product surfaces; help documenting
+          itself is a hall of mirrors and would sit in the warn list forever
+          teaching nothing." Coverage is now 72 routes, 6 claimed, 7 exempt,
+          59 unclaimed.
     deferred:
       - The other 41 articles (HELP-1b), the onboarding first-run card, and any animated content
       - PERMISSIONS_INVENTORY.md's four uncovered routes — a ROW, filed, untouched by this session
