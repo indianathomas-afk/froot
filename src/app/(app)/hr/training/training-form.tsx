@@ -38,6 +38,9 @@ interface Lesson {
   title: string
   info: string
   videoUrl: string
+  // HR-32: "" means no linked document, matching videoUrl's convention in this
+  // form — the payload maps it back to null on save.
+  linkedHrDocumentId: string
   resources: LessonResource[]
 }
 
@@ -64,9 +67,25 @@ interface TrainingCategoryOption {
   colorKey: string
 }
 
+// HR-32: the org's active kind:"Link" documents, server-fetched by the page and
+// passed as a prop — the same pattern as `stores` and `categories`, and the
+// reason there is no new API route: a route would be a new permission surface
+// for a list two ADMIN-only pages already have a query for.
+//
+// isActive rides along because the EDIT page widens its query to include any
+// document this module's lessons already point at, even a deactivated one. Such
+// an option renders marked "(inactive)" rather than silently clearing — see the
+// select below, and note that saving it will 400 by design.
+interface LinkedDocumentOption {
+  id: string
+  title: string
+  isActive: boolean
+}
+
 interface TrainingFormProps {
   stores?: Store[]
   categories?: TrainingCategoryOption[]
+  linkedDocuments?: LinkedDocumentOption[]
   initialData?: {
     id: string
     title: string
@@ -80,6 +99,7 @@ interface TrainingFormProps {
       title: string
       info: string | null
       videoUrl: string | null
+      linkedHrDocumentId: string | null
       resources: LessonResource[]
     }[]
     quiz: { passThreshold: number; questions: QuizQuestion[] } | null
@@ -193,6 +213,60 @@ function ResourceEditor({ kept, onRemoveKept, pending, setPending, label, setLab
         </div>
       )}
       {error && <p className="text-xs text-[var(--color-destructive)]">{error}</p>}
+    </div>
+  )
+}
+
+// ─── HR-32: linked document picker ────────────────────────────────────────────
+//
+// ONE COMPONENT, USED BY BOTH LESSON EDITORS — the same shape as ResourceEditor
+// above, which exists because this form has two lesson forms and a control that
+// appears in one of them is a control that is missing from the other.
+//
+// Radix SelectItem rejects an empty value, so "none" is the sentinel, exactly as
+// the category picker below does it.
+function LinkedDocumentSelect({
+  documents,
+  value,
+  onChange,
+}: {
+  documents: LinkedDocumentOption[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">Linked document (optional)</Label>
+      {documents.length === 0 ? (
+        // An empty library says where to go rather than offering an empty menu.
+        <Select value="none" disabled>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No link documents yet — add one at /hr/documents</SelectItem>
+          </SelectContent>
+        </Select>
+      ) : (
+        <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue placeholder="No linked document" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No linked document</SelectItem>
+            {documents.map((d) => (
+              <SelectItem key={d.id} value={d.id}>
+                {/* A document deactivated since this lesson was written stays
+                    visible and marked, rather than silently clearing itself.
+                    Saving it WILL be refused by the write route — that is the
+                    correct loud outcome, and the form surfaces the route's
+                    message. */}
+                {d.isActive ? d.title : `${d.title} (inactive)`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </div>
   )
 }
@@ -413,7 +487,7 @@ function QuestionCard({ question: q, idx, update, remove }: QuestionCardProps) {
 
 // ─── Main form ────────────────────────────────────────────────────────────────
 
-export function TrainingForm({ initialData, stores = [], categories = [] }: TrainingFormProps) {
+export function TrainingForm({ initialData, stores = [], categories = [], linkedDocuments = [] }: TrainingFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
   const [saving, setSaving] = useState(false)
@@ -434,6 +508,7 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
       title: l.title,
       info: l.info ?? "",
       videoUrl: l.videoUrl ?? "",
+      linkedHrDocumentId: l.linkedHrDocumentId ?? "",
       resources: l.resources,
     }))
   )
@@ -447,14 +522,14 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
 
   // New-lesson form state
   const [showAddLesson, setShowAddLesson] = useState(false)
-  const [newLesson, setNewLesson] = useState({ title: "", info: "", videoUrl: "" })
+  const [newLesson, setNewLesson] = useState({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "" })
   const [newFiles, setNewFiles] = useState<PendingFile[]>([])
   const [newFileLabel, setNewFileLabel] = useState("")
   const [newFileError, setNewFileError] = useState("")
 
   // Inline lesson edit state
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
-  const [editDraft, setEditDraft] = useState({ title: "", info: "", videoUrl: "" })
+  const [editDraft, setEditDraft] = useState({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "" })
   const [editKeptResources, setEditKeptResources] = useState<LessonResource[]>([])
   const [editNewFiles, setEditNewFiles] = useState<PendingFile[]>([])
   const [editFileLabel, setEditFileLabel] = useState("")
@@ -478,7 +553,7 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
     const id = localId()
     setLessons((p) => [...p, { id, ...newLesson, resources: [] }])
     if (newFiles.length) setPendingResources((p) => ({ ...p, [id]: newFiles }))
-    setNewLesson({ title: "", info: "", videoUrl: "" })
+    setNewLesson({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "" })
     setNewFiles([])
     setNewFileLabel("")
     setNewFileError("")
@@ -496,7 +571,12 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
 
   function startEditLesson(lesson: Lesson) {
     setEditingLessonId(lesson.id)
-    setEditDraft({ title: lesson.title, info: lesson.info, videoUrl: lesson.videoUrl })
+    setEditDraft({
+      title: lesson.title,
+      info: lesson.info,
+      videoUrl: lesson.videoUrl,
+      linkedHrDocumentId: lesson.linkedHrDocumentId,
+    })
     setEditKeptResources(lesson.resources)
     setEditNewFiles(pendingResources[lesson.id] ?? [])
     setEditFileLabel("")
@@ -633,6 +713,7 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
           title: l.title,
           info: l.info || null,
           videoUrl: l.videoUrl || null,
+          linkedHrDocumentId: l.linkedHrDocumentId || null,
           orderIndex: i,
         })),
         quiz: quizResult.quiz,
@@ -708,6 +789,11 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
         <Label className="text-xs">Video URL (optional — YouTube, Vimeo, etc.)</Label>
         <Input className="h-8 text-sm" type="url" placeholder="https://..." value={editDraft.videoUrl} onChange={(e) => setEditDraft((p) => ({ ...p, videoUrl: e.target.value }))} />
       </div>
+      <LinkedDocumentSelect
+        documents={linkedDocuments}
+        value={editDraft.linkedHrDocumentId}
+        onChange={(v) => setEditDraft((p) => ({ ...p, linkedHrDocumentId: v }))}
+      />
       <ResourceEditor
         kept={editKeptResources}
         onRemoveKept={(rid) => setEditKeptResources((prev) => prev.filter((r) => r.id !== rid))}
@@ -923,6 +1009,11 @@ export function TrainingForm({ initialData, stores = [], categories = [] }: Trai
                   <Label className="text-xs">Video URL (optional — YouTube, Vimeo, etc.)</Label>
                   <Input className="h-8 text-sm" type="url" placeholder="https://..." value={newLesson.videoUrl} onChange={(e) => setNewLesson((p) => ({ ...p, videoUrl: e.target.value }))} />
                 </div>
+                <LinkedDocumentSelect
+                  documents={linkedDocuments}
+                  value={newLesson.linkedHrDocumentId}
+                  onChange={(v) => setNewLesson((p) => ({ ...p, linkedHrDocumentId: v }))}
+                />
                 <ResourceEditor
                   kept={[]}
                   onRemoveKept={() => {}}

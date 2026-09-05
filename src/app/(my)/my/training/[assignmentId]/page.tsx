@@ -8,6 +8,7 @@ import { selfFilesServed } from "@/lib/training"
 import {
   TrainingModuleView,
   toClientQuizQuestions,
+  toLinkedDocument,
 } from "@/components/hr/training-module-view"
 import { MyShell } from "../../my-shell"
 import { MyDenied } from "../../denied"
@@ -40,7 +41,18 @@ export default async function MyModulePage({
           description: true,
           lessons: {
             orderBy: { orderIndex: "asc" },
-            include: { resources: { orderBy: { orderIndex: "asc" } } },
+            include: {
+              resources: { orderBy: { orderIndex: "asc" } },
+              // HR-32: joined UNCONDITIONALLY here, and that is the ruling, not
+              // an oversight. Gary, 2026-09-05: STORE suppression is scoped to
+              // browsing the library, not to a person's own assigned training —
+              // a trainee working the module assigned to them sees the linked
+              // document whatever their login's role is. This page is
+              // role-blind by design (getActiveStaffSelf resolves a StaffMember,
+              // never a role), and a role test here would remove the Day 1 I-9
+              // from the one surface this row exists to serve.
+              linkedHrDocument: { select: { title: true, externalUrl: true, isActive: true } },
+            },
           },
           quizzes: true,
         },
@@ -68,10 +80,15 @@ export default async function MyModulePage({
       <TrainingModuleView
         title={mod.title}
         description={mod.description}
-        lessons={mod.lessons}
+        lessons={mod.lessons.map((l) => ({ ...l, linkedDocument: toLinkedDocument(l) }))}
         timeZone={displayTimeZone(self.staffMember, self.org)}
         quiz={quiz ? { passThreshold: quiz.passThreshold, questions: quizQuestions } : null}
         resourcesAvailable={selfFilesServed(assignment)}
+        // HR-32. Files stop when the module is complete (HR-25); the linked
+        // document does not. It is an external URL with no Froot-side grant to
+        // withdraw, and a refresher that has lost its I-9 link is a refresher
+        // missing the thing it pointed at.
+        linkedDocumentsAvailable
         mode={{
           kind: "execute",
           assignmentId: assignment.id,

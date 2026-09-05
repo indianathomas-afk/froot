@@ -1,7 +1,8 @@
 import { formatInstant } from "@/lib/display-time"
-import { Award, CheckCircle2, FileDown, PlayCircle } from "lucide-react"
+import { Award, CheckCircle2, ExternalLink, FileDown, PlayCircle } from "lucide-react"
 import { z } from "zod"
 import { canonicalYouTubeUrl, youTubeVideoId } from "@/lib/messages"
+import { externalUrlHost } from "@/lib/hr-documents"
 import { looksLikeHtml } from "@/lib/rich-text"
 import { sanitizeRichText } from "@/lib/sanitize-html"
 import { quizQuestionSchema } from "@/app/api/hr/training/schemas"
@@ -22,6 +23,13 @@ export type TrainingViewLesson = {
   info: string | null
   videoUrl: string | null
   resources: { id: string; label: string }[]
+  // HR-32: THE JOINED DOCUMENT, NEVER THE RAW ID — and that is what makes the
+  // STORE suppression structural rather than a conditional. A page that does
+  // not join the relation has literally nothing to render here, and this type
+  // forces every call site to say which it is. A Link's externalUrl is
+  // non-null by the hrdoc_link_shape CHECK, but it is modelled as a joined
+  // object so a NULL can never reach an href.
+  linkedDocument: { title: string; externalUrl: string } | null
 }
 
 export type TrainingViewMode =
@@ -48,6 +56,26 @@ export type TrainingViewMode =
   // implies an action: no progress bar, no complete button, no quiz.
   | { kind: "read" }
 
+// HR-32: the ONE mapping from a joined HrDocument row to what the renderer
+// takes, shared by both call sites so they cannot disagree about what counts.
+//
+// TWO RULES LIVE HERE, BOTH DELIBERATELY SERVER-SIDE. An INACTIVE document
+// renders nothing — Prisma cannot put a WHERE on a to-one include, so isActive
+// is selected and answered in this function rather than filtered in the query.
+// And a null externalUrl yields null rather than an href: the hrdoc_link_shape
+// CHECK makes that unreachable for a Link, but the type says String? and an
+// href is not the place to find out.
+//
+// A page that suppresses the document does not join it at all and never calls
+// this — see the preview page's include.
+export function toLinkedDocument(lesson: {
+  linkedHrDocument?: { title: string; externalUrl: string | null; isActive: boolean } | null
+}): { title: string; externalUrl: string } | null {
+  const doc = lesson.linkedHrDocument
+  if (!doc || !doc.isActive || !doc.externalUrl) return null
+  return { title: doc.title, externalUrl: doc.externalUrl }
+}
+
 // Strip correctOptionIds before anything reaches the client — the quiz
 // payload must never carry the answer key (rule shared by both modes so the
 // preview can't diverge from what a trainee is sent).
@@ -70,6 +98,14 @@ export function toClientQuizQuestions(questions: unknown): MyQuizQuestion[] {
 // lesson in full and says the files are no longer available; the resource
 // download route refuses independently — this prop is the UI half, never the
 // gate.
+//
+// HR-32: `linkedDocumentsAvailable` is REQUIRED for the same reason, and the
+// reason is worth restating rather than inherited — a fourth tier added to this
+// renderer must ANSWER whether it may be shown a lesson's linked document, not
+// acquire it by default. It is not the gate: STORE is suppressed at the page's
+// own query, which does not join the document at all, so a STORE payload
+// carries nothing to leak. This prop is the second lock on a door that is
+// already locked, which is what HR-25 bought and why it is copied here.
 export function TrainingModuleView({
   title,
   description,
@@ -77,6 +113,7 @@ export function TrainingModuleView({
   quiz,
   mode,
   resourcesAvailable,
+  linkedDocumentsAvailable,
   timeZone,
 }: {
   title: string
@@ -85,6 +122,7 @@ export function TrainingModuleView({
   quiz: { passThreshold: number; questions: MyQuizQuestion[] } | null
   mode: TrainingViewMode
   resourcesAvailable: boolean
+  linkedDocumentsAvailable: boolean
   /**
    * DEBT-70b: the trainee's display zone. REQUIRED, not defaulted — this
    * component is shared by the admin preview and /my/training, and a default
@@ -171,6 +209,13 @@ export function TrainingModuleView({
           const progress = progressByLesson.get(lesson.id)
           const video = lesson.videoUrl ? canonicalYouTubeUrl(lesson.videoUrl) : null
           const videoId = video ? youTubeVideoId(video) : null
+          // HR-32, DOC-3 ruling 4: "the host is displayed under the title".
+          // externalUrlHost is the same helper the document library uses and
+          // returns null rather than throwing on a value that somehow predates
+          // validation — this renderer serves a store iPad and must not crash
+          // on one bad row.
+          const linkedDoc = linkedDocumentsAvailable ? lesson.linkedDocument : null
+          const linkedHost = linkedDoc ? externalUrlHost(linkedDoc.externalUrl) : null
           return (
             <div
               key={lesson.id}
@@ -214,6 +259,38 @@ export function TrainingModuleView({
                   Watch video
                 </a>
               ) : null}
+
+              {/* HR-32. LINK ONLY, AND DELIBERATELY BARE: the document's own
+                  instructionsHtml and instructionsVideoUrl are NOT rendered
+                  here. The lesson has its own body and its own video, and
+                  repeating the document's instructions inside it is the
+                  opposite of what this row is for.
+
+                  NOTHING RENDERS WHEN THIS VIEWER IS NOT SERVED, and that is
+                  the difference from the files block below. A trainee whose
+                  files have stopped HAD those files and is owed a sentence
+                  saying so; a viewer suppressed here was never offered this
+                  document and — because the page did not join it — there is no
+                  title to name in a sentence anyway. */}
+              {linkedDoc && (
+                <div className="mb-3 rounded-md border border-[var(--color-border)] p-3">
+                  <p className="text-sm font-medium text-[var(--color-foreground)]">
+                    {linkedDoc.title}
+                  </p>
+                  {linkedHost && (
+                    <p className="text-xs text-[var(--color-muted-foreground)]">{linkedHost}</p>
+                  )}
+                  <a
+                    href={linkedDoc.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] min-h-11"
+                  >
+                    <ExternalLink className="h-4 w-4 shrink-0" />
+                    Open
+                  </a>
+                </div>
+              )}
 
               {lesson.resources.length > 0 &&
                 (resourcesAvailable ? (
