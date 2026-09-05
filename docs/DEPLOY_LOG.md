@@ -2,6 +2,92 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — staging only — 2026-09-04 — HELP-1a: the in-app help machine
+
+**Merge SHA:** _not yet — this entry is WRITTEN AND UNPROMOTED, which the ritual
+treats as a valid state._ The heading's SHA slot and this line are stamped from
+`git rev-parse` and `date` at promotion, never hand-typed, and neither token is
+spelled out anywhere in the prose below — a token written into a sentence is a
+token the stamp substitutes into that sentence.
+
+**⚠ DO NOT PROMOTE THIS TO PRODUCTION YET, AND THE REASON IS SPECIFIC.** The
+private `froot-guide` Blob store is not provisioned. One article — Ingredients —
+references a screenshot inside its gated section, so on production an ADMIN or
+MANAGER opening that article would get a **broken image**: the `<img>` points at
+`/api/help/image/…`, the route cannot mint a signed URL without
+`GUIDE_BLOB_READ_WRITE_TOKEN`, and it returns 404 by design rather than
+erroring. No data is exposed and nothing else on the page degrades — the refusal
+path and the not-provisioned path are deliberately indistinguishable — but it is
+a visible defect on a customer-facing surface. **Provision the store and upload
+the image, or remove that one `images:` block, before promoting.** Staging is
+unaffected in practice because the same 404 is what a STORE login is supposed to
+receive.
+
+**Payload:** **5 commits** on `staging`. Two are already deployed to staging
+(the machinery and its roadmap recorder, pushed 2026-09-04); three are not yet
+pushed at the time of writing. **No schema change, no migration, no cron, no
+Square call, no writes to any existing table.**
+
+**Rollback is clean and needs no database step.** Nothing here writes a row and
+nothing alters an existing one, so reverting the code removes the surface
+entirely. The one thing to know: a new capability `help.view` is added, granted
+to ALL. Reverting removes it along with the nav entry that reads it, and no
+existing capability's role tier moved.
+
+### What it does
+
+Adds an in-app help surface: a pinned Help entry in both shells, an article
+list, article pages, a per-request search index, and an authenticated image
+route. Content is authored as `docs/guide/*.md` and compiled to a gitignored
+module by a `prebuild`/`predev` generator, following the roadmap generator.
+
+**Three articles ship, of a mapped 44.** That is deliberate — one per branch of
+the machinery, so every path is exercised by real content rather than compiled
+and assumed. The build log prints the remaining 59 routes on every build; that
+list is HELP-1b's scope and it shrinks as articles land.
+
+**What a reader sees is decided in exactly one place**, `src/lib/help-access.ts`,
+which the search index, the section filter and the image route all defer to.
+Three implementations of "what may this reader see" eventually disagree, and
+every direction of disagreement leaks rather than merely looking wrong.
+
+### The permissions change, stated plainly
+
+**One new capability, `help.view`, granted to ALL.** The help surface itself is
+for everyone; the articles inside it are what the confidentiality ruling gates,
+one at a time, on the capability of the page each describes. No existing role
+baseline moved.
+
+It exists as a real capability rather than being ungated because
+`scripts/verify-nav1-url-sets.ts` skips any nav item without one — an item with
+no capability is invisible to the fixture, and a Help entry the fixture cannot
+see could silently lose a role later with nothing reporting it. The nav item is
+therefore a parseable literal and the fixture reports it as a gain for all four
+roles, sanctioned explicitly in `SANCTIONED_ADDITIONS`. `BASELINE_REV` was not
+edited.
+
+### Verified
+
+- Per-role article sets, section absence, search-index absence and image scope
+  all asserted in `scripts/verify-help-access.ts` — green, both directions on
+  every check.
+- `scripts/verify-nav1-url-sets.ts` green.
+- `npm run build` green.
+- **On staging, SHA-matched first:** an ADMIN login rendered three articles and
+  a STORE login rendered one. Recorded as a confirmation rather than formal
+  evidence — no org id was captured, and the Browser Evidence precondition
+  requires one.
+
+### Not verified — read this before trusting the list above
+
+- **The image route has never served bytes.** No Blob store exists. Its refusal
+  path is asserted; its success path is not.
+- **Section-level rendering has never been seen in a browser.** It is asserted
+  green route-level in both directions, but nobody has opened the Ingredients
+  article as a STORE login to watch the contents list renumber.
+- Nothing here proves browser rendering generally, and the assertions exercise
+  the policy functions the routes call rather than HTTP responses over the wire.
+
 ## 849e410 — 2026-08-29 — PERM-8: the Square staff import becomes grantable to specific managers
 
 **Merge SHA:** `849e41016d3a902500d1ca1227c153b10632fc9a`
