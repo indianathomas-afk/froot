@@ -2,13 +2,16 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — staging only — 2026-09-04 — HELP-1a: the in-app help machine
+## f863259 — 2026-09-05 — HELP-1a: the in-app help machine
 
-**Merge SHA:** _not yet — this entry is WRITTEN AND UNPROMOTED, which the ritual
-treats as a valid state._ The heading's SHA slot and this line are stamped from
-`git rev-parse` and `date` at promotion, never hand-typed, and neither token is
-spelled out anywhere in the prose below — a token written into a sentence is a
-token the stamp substitutes into that sentence.
+**Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
+**Promoted 2026-09-05.** Written on 2026-09-04 in the unpromoted state and
+stamped here from `git rev-parse` at promotion, never hand-typed. The entry sat
+unpromoted for a day, which the ritual treats as a valid state.
+
+**This promotion carried HELP-1b as well** — see the entry below it, which cites
+the same merge. One merge, two phases: the machine and the first two batches of
+articles written into it.
 
 **⚠ THE PROMOTION BLOCKER THIS ENTRY OPENED WITH IS CLEARED (2026-09-05).**
 It read: do not promote, because `froot-guide` held no image and the document
@@ -92,6 +95,63 @@ edited.
   article as a STORE login to watch the contents list renumber.
 - Nothing here proves browser rendering generally, and the assertions exercise
   the policy functions the routes call rather than HTTP responses over the wire.
+
+## f863259 — 2026-09-05 — HELP-1b: eleven help articles (HR and checklists batches)
+
+**Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
+**Same merge as the HELP-1a entry above.** One promotion carried both — the
+machine and the first two batches of articles written into it. Recorded as a
+separate entry because they are separate phases with separate rows and separate
+rollback consequences.
+
+**Payload:** content plus two new verification scripts. **No schema, no
+migration, no cron, no Square call, no writes to any existing table.** Rolling
+this back removes articles from a help surface that keeps working.
+
+### What ships to readers
+
+Eleven articles across HR and checklists, plus the three from HELP-1a. Per-role
+visibility: **ADMIN 14, MANAGER 12, STORE 7, STAFF 6.** The checklists batch was
+weighted at STORE deliberately — it was the thinnest-covered role at 3, and the
+store view, checklist review, dashboard and messages are a STORE login's whole
+shift.
+
+Coverage: 72 routes, 24 claimed, 7 exempt, **41 unclaimed**. That warn list is
+the remaining scope and shrinks per batch; it is not a defect.
+
+### Two bugs this phase found in production-bound code, both by looking
+
+Neither was visible to any assertion in the repo, and both had shipped to
+staging before a human opened the page.
+
+- **The guide image 404'd** because the code read `GUIDE_BLOB_READ_WRITE_TOKEN`
+  while Vercel had created `GUIDE_READ_WRITE_TOKEN` — Blob stores auto-name from
+  the prefix chosen at connect time. It worked locally because `.env` had been
+  hand-typed with the name the code expected, so the mismatch existed only where
+  nothing tested. `GUIDE_READ_WRITE_TOKEN` is set for Production; the resolution
+  now accepts either name and lives in one exported function.
+- **A bullet wrapped across source lines ended its list**, rendering the tail as
+  a full-width paragraph. It affected five of nine articles at the time.
+
+### What is knowingly open
+
+- **Two `pending:` claims** warn on every build — a handoff-scope claim and
+  "a Missed checklist cannot be submitted late". Both were drafted, judged
+  unverified, and PULLED from the prose rather than shipped hedged. No unverified
+  statement reaches a reader; the warning is the to-do.
+- **Three rulings in `DECISIONS.md` are Claude-drafted and await Gary's wording** —
+  section absence, the permanent-warn coverage gate, and all-images-authenticated.
+  They govern shipped code. Their prose must not be quoted as his.
+- **DEBT-85, 86, 87, 88** filed and open. 85 and 87 both make help articles
+  stricter than the pages they document — help hides more than the product shows,
+  the safe direction. 86 is the deployed-env gap the image bug came through.
+
+### Rollback
+
+`git revert -m 1 f863259` — parent 1 is `main`, verified after the merge rather
+than assumed. Pair it with `git checkout HEAD -- docs/DEPLOY_LOG.md` per
+WORKFLOW.md: that revert conflicts on this file for the same structural reason
+this merge did, and keeping the log is the correct resolution both times.
 
 ## 8c25084 — 2026-08-30 — ENG-1: engagement tracking
 
