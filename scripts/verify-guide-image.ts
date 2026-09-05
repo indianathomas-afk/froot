@@ -16,8 +16,8 @@
 // passes half of evidence 4 while being completely broken:
 //   1. bytes go in and the same bytes come back out through presignUrl (the
 //      ADMIN-side success path, end to end against the real store)
-//   2. canReadImage refuses STORE for an image inside the gated section, while
-//      allowing the article that contains it (the refusal path)
+//   2. canReadImage refuses a non-ADMIN for an image inside the gated section,
+//      while allowing the article that contains it (the refusal path)
 
 import { createHash } from "node:crypto"
 import { del, head, presignUrl, issueSignedToken, put } from "@vercel/blob"
@@ -40,7 +40,7 @@ if (!token) {
 const ARTICLES = GUIDE_ARTICLES as GuideArticle[]
 const ORG = { activeModules: ["inventory", "hr", "labor", "nutrition"] }
 const actor = (role: string): PermissionUser => ({ role })
-const GATED_IMAGE = "inv-ingredients/deleted-01.png"
+const GATED_IMAGE = "hr-documents/document-detail-01.png"
 
 let failures = 0
 function assert(label: string, ok: boolean, detail = "") {
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
 
   // ─── 2. IS THE REAL SCREENSHOT THERE? ─────────────────────────────────────
 
-  console.log("\n── The Ingredients gated-section screenshot ──────────────────────────────────\n")
+  console.log("\n── The document-library gated-section screenshot ─────────────────────────────\n")
 
   let realImagePresent = false
   try {
@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     realImagePresent = true
     console.log(`  present — ${GATED_IMAGE} (${(meta.size / 1024).toFixed(0)} KB, ${meta.contentType})`)
   } catch {
-    console.log(`  NOT UPLOADED — ${GATED_IMAGE} is referenced by the Ingredients article's`)
+    console.log(`  NOT UPLOADED — ${GATED_IMAGE} is referenced by the document library's`)
     console.log("  gated section but does not exist in the store.")
     console.log("  Capture and redact per ruling 1 (from production, by hand, into docs/guide/_review/),")
     console.log(`  then: node scripts/upload-guide-image.mjs docs/guide/_review/<file> ${GATED_IMAGE}`)
@@ -141,7 +141,7 @@ async function main(): Promise<void> {
   assert("ADMIN may read the image inside the gated section", adminScope.canReadImage(GATED_IMAGE))
   assert(
     "STORE may NOT — although STORE may read the article that contains it",
-    !storeScope.canReadImage(GATED_IMAGE) && storeScope.canReadArticle("inv-ingredients")
+    !storeScope.canReadImage(GATED_IMAGE) && storeScope.canReadArticle("hr-documents")
   )
   assert("an unknown image id is refused for everyone", !adminScope.canReadImage("nope/none.png"))
 

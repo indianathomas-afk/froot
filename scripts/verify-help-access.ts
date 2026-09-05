@@ -8,9 +8,9 @@
 // helper this script is checking.
 //
 // WHAT THIS PROVES: what a given actor may see. WHAT IT DOES NOT PROVE:
-// anything about browser rendering, and anything about the image route (which
-// needs a Blob store and is covered separately). A green run here is evidence
-// about the policy, not about the pixels.
+// anything about browser rendering, and anything about the image route's BYTES
+// (scripts/verify-guide-image.ts covers that against the real Blob store). A
+// green run here is evidence about the policy, not about the pixels.
 
 import { helpScope, searchIndex, type GuideArticle } from "../src/lib/help-access"
 import { GUIDE_ARTICLES } from "../src/generated/guide"
@@ -25,6 +25,29 @@ const ORG_ALL = { activeModules: ["inventory", "hr", "labor", "nutrition"] }
 const ORG_NONE = { activeModules: [] as string[] }
 
 const actor = (role: string): PermissionUser => ({ role })
+const scopeFor = (role: string, org = ORG_ALL) =>
+  helpScope(actor(role), org, ARTICLES, { surface: "app" })
+
+// The gated-section article. hr-documents replaced inv-ingredients on
+// 2026-09-04: the inventory module is on hold and has no data in any
+// environment, so the Ingredients article documented a feature nobody runs and
+// its screenshot would have been of an empty page.
+//
+// The replacement is a STRICTER exerciser, not merely an available one. Its
+// entry (hr.documents.view) is ALL while its sub-route /hr/documents/[id] is
+// ADMIN-only, so the section is hidden from THREE roles rather than one, and
+// the per-role table stops having a zero row.
+const ARTICLE = "hr-documents"
+const GATED_SECTION = "versions-and-fields"
+const GATED_HEADING = "Versions, detected fields and audience"
+
+// Terms that appear ONLY inside the gated section. Verified against the
+// generated article: none of these occur in the summary, keywords, body or
+// surviving routes. Two of them had to be REMOVED from the article during the
+// swap — "audience" was in the frontmatter keywords and the summary said "set
+// who it goes to" — which is the same leak class as the route disclosure below,
+// arriving through fields nobody thinks of as permission surfaces.
+const SECTION_ONLY = ["audience", "Version", "version", "detected", "ceremony", "pinned"]
 
 let failures = 0
 function assert(label: string, condition: boolean, detail = "") {
@@ -41,10 +64,7 @@ function assert(label: string, condition: boolean, detail = "") {
 console.log("\n── Evidence 1: visible article sets per role (surface: app) ─────────────────\n")
 
 const sets = new Map<string, string[]>()
-for (const role of ROLES) {
-  const scope = helpScope(actor(role), ORG_ALL, ARTICLES, { surface: "app" })
-  sets.set(role, scope.articles.map((a) => a.id))
-}
+for (const role of ROLES) sets.set(role, scopeFor(role).articles.map((a) => a.id))
 
 const allIds = ARTICLES.map((a) => a.id).sort()
 const width = Math.max(...allIds.map((id) => id.length), 8)
@@ -60,135 +80,137 @@ console.log("")
 assert("ADMIN sees all 3 articles", sets.get("ADMIN")!.length === 3, sets.get("ADMIN")!.join(", "))
 assert("MANAGER sees all 3 articles", sets.get("MANAGER")!.length === 3, sets.get("MANAGER")!.join(", "))
 assert(
-  "STORE sees only inv-ingredients (inventory.nav.view is OPERATIONAL)",
-  sets.get("STORE")!.length === 1 && sets.get("STORE")![0] === "inv-ingredients",
+  "STORE sees only hr-documents (reports.view and staff.view are MANAGE)",
+  sets.get("STORE")!.length === 1 && sets.get("STORE")![0] === ARTICLE,
   sets.get("STORE")!.join(", ")
 )
-assert("STAFF sees none of the three (all are MANAGE or OPERATIONAL)", sets.get("STAFF")!.length === 0)
+assert(
+  "STAFF sees only hr-documents (hr.documents.view is ALL)",
+  sets.get("STAFF")!.length === 1 && sets.get("STAFF")![0] === ARTICLE,
+  sets.get("STAFF")!.join(", ")
+)
 
 // The (my) surface is empty for every role this phase — all three articles are
-// (app) articles. This is the assertion behind the portal's empty state.
+// (app) articles. This is the assertion behind the portal's empty state, and it
+// still holds after the swap: hr-documents' entry is /hr/documents, not /my/*.
 for (const role of ROLES) {
   const my = helpScope(actor(role), ORG_ALL, ARTICLES, { surface: "my" })
   assert(`(my) surface is empty for ${role} (no /my/* articles ship in HELP-1a)`, my.articles.length === 0)
 }
 
-// ─── EVIDENCE 2 — the gated section is absent from a STORE payload ───────────
+// ─── EVIDENCE 2 — the gated section is absent from a non-ADMIN payload ───────
 
-console.log("\n── Evidence 2: the gated section is absent from a STORE article payload ─────\n")
+console.log("\n── Evidence 2: the gated section is absent from non-ADMIN article payloads ──\n")
 
-const GATED_SECTION = "housekeeping"
-const GATED_HEADING = "Duplicates and deleted ingredients"
-
-const storeArticle = helpScope(actor("STORE"), ORG_ALL, ARTICLES, { surface: "app" }).article("inv-ingredients")
-const adminArticle = helpScope(actor("ADMIN"), ORG_ALL, ARTICLES, { surface: "app" }).article("inv-ingredients")
-
-assert("STORE can read the Ingredients article at all", storeArticle !== null)
-assert("ADMIN can read the Ingredients article", adminArticle !== null)
+const adminArticle = scopeFor("ADMIN").article(ARTICLE)
+assert("ADMIN can read the article", adminArticle !== null)
 assert(
   "ADMIN payload CONTAINS the gated section",
   adminArticle!.sections.some((s) => s.id === GATED_SECTION),
   `sections: ${adminArticle!.sections.map((s) => s.id).join(", ") || "(none)"}`
 )
-assert(
-  "STORE payload does NOT contain the gated section",
-  !storeArticle!.sections.some((s) => s.id === GATED_SECTION),
-  `sections: ${storeArticle!.sections.map((s) => s.id).join(", ") || "(none)"}`
-)
 
-// Absent, not merely unrendered. The heading and the prose must not be anywhere
-// in the serialized payload — a section removed from `sections` but still
-// present in `body` would pass the check above and fail the ruling.
-const storeJson = JSON.stringify(storeArticle)
-const adminJson = JSON.stringify(adminArticle)
-for (const term of [GATED_HEADING, "Restore", "restored", "View Deleted", "Duplicates"]) {
+// THREE roles, not one. This is what the swap bought: the section is gated on
+// hr.documents.manage (ADMIN_ONLY), so MANAGER, STORE and STAFF must each be
+// refused it while still reading the article that contains it.
+for (const role of ["MANAGER", "STORE", "STAFF"]) {
+  const scope = scopeFor(role)
+  const article = scope.article(ARTICLE)
+  assert(`${role} can read the article itself`, article !== null)
   assert(
-    `STORE payload contains no "${term}" anywhere in the serialized article`,
-    !storeJson.includes(term)
+    `${role} payload does NOT contain the gated section`,
+    !article!.sections.some((s) => s.id === GATED_SECTION),
+    `sections: ${article!.sections.map((s) => s.id).join(", ") || "(none)"}`
   )
+  // Absent, not merely unrendered. A section dropped from `sections` but left
+  // in `body` would pass the check above and still fail the ruling.
+  const json = JSON.stringify(article)
+  for (const term of [GATED_HEADING, ...SECTION_ONLY]) {
+    assert(`${role} payload contains no "${term}" anywhere in the serialized article`, !json.includes(term))
+  }
+  assert(`canReadSection: ${role} no`, !scope.canReadSection(ARTICLE, GATED_SECTION))
 }
-assert("ADMIN payload DOES contain the restore prose (both directions checked)", adminJson.includes("restored"))
-assert("canReadSection: ADMIN yes", helpScope(actor("ADMIN"), ORG_ALL, ARTICLES, { surface: "app" }).canReadSection("inv-ingredients", GATED_SECTION))
-assert("canReadSection: STORE no", !helpScope(actor("STORE"), ORG_ALL, ARTICLES, { surface: "app" }).canReadSection("inv-ingredients", GATED_SECTION))
+
+assert(
+  "ADMIN payload DOES contain the gated prose (both directions checked)",
+  JSON.stringify(adminArticle).includes("pinned")
+)
+assert("canReadSection: ADMIN yes", scopeFor("ADMIN").canReadSection(ARTICLE, GATED_SECTION))
 
 // ─── EVIDENCE 3 — the gated section's text is absent from the SEARCH INDEX ───
 //
 // THE ASSERTION THAT PROVES RULING 6 END TO END. A hidden section that is still
-// findable by search is defeated silently: the prose is absent from the page
-// and the search box says it exists anyway. Findable-but-invisible fails the
-// ruling exactly as loudly as visible would, and much more quietly.
+// findable by search is defeated silently: the prose is absent from the page and
+// the search box says it exists anyway. Findable-but-invisible fails the ruling
+// exactly as loudly as visible would, and much more quietly.
 
-console.log("\n── Evidence 3: the gated section's text is absent from a STORE search index ──\n")
+console.log("\n── Evidence 3: the gated section's text is absent from non-ADMIN indexes ────\n")
 
-const storeIndex = searchIndex(helpScope(actor("STORE"), ORG_ALL, ARTICLES, { surface: "app" }))
-const adminIndex = searchIndex(helpScope(actor("ADMIN"), ORG_ALL, ARTICLES, { surface: "app" }))
-const storeIndexJson = JSON.stringify(storeIndex)
+const adminIndex = searchIndex(scopeFor("ADMIN"))
 const adminIndexJson = JSON.stringify(adminIndex)
-
-console.log(`  STORE index: ${storeIndex.length} rows, ${Buffer.byteLength(storeIndexJson)} bytes`)
-console.log(`  ADMIN index: ${adminIndex.length} rows, ${Buffer.byteLength(adminIndexJson)} bytes\n`)
-
-for (const term of [GATED_HEADING, "deleted", "Deleted", "duplicates", "Duplicates", "restore", "Restore"]) {
-  assert(`STORE search index contains no "${term}"`, !storeIndexJson.includes(term))
+console.log(`  ADMIN index: ${adminIndex.length} rows, ${Buffer.byteLength(adminIndexJson)} bytes`)
+for (const role of ["MANAGER", "STORE", "STAFF"]) {
+  const index = searchIndex(scopeFor(role))
+  const json = JSON.stringify(index)
+  console.log(`  ${role.padEnd(7)} index: ${index.length} rows, ${Buffer.byteLength(json)} bytes`)
+  for (const term of [GATED_HEADING, ...SECTION_ONLY]) {
+    assert(`${role} search index contains no "${term}"`, !json.includes(term))
+  }
+  // Named explicitly because this was a REGRESSION CAUGHT BY THIS SCRIPT, not by
+  // review: adding `routes` to the index row for the contextual "?" shipped the
+  // gated sub-route to readers who cannot reach it. A route string discloses
+  // that a page exists just as a section heading does.
+  const row = index.find((r) => r.id === ARTICLE)
+  assert(
+    `${role} index row carries ONLY the routes ${role} can reach`,
+    JSON.stringify(row?.routes) === JSON.stringify(["/hr/documents"]),
+    JSON.stringify(row?.routes)
+  )
 }
 assert(
   "ADMIN search index DOES contain the gated section heading (both directions checked)",
   adminIndexJson.includes(GATED_HEADING),
-  `keywords: ${JSON.stringify(adminIndex.find((r) => r.id === "inv-ingredients")?.keywords)}`
-)
-// Named explicitly because this was a REGRESSION CAUGHT BY THIS SCRIPT, not by
-// review: adding `routes` to the index row for the contextual "?" shipped
-// /inventory/ingredients/deleted to STORE readers. A route string discloses
-// that a page exists just as a section heading does.
-const storeRow = storeIndex.find((r) => r.id === "inv-ingredients")
-const adminRow = adminIndex.find((r) => r.id === "inv-ingredients")
-assert(
-  "STORE index row carries ONLY the routes STORE can reach",
-  JSON.stringify(storeRow?.routes) === JSON.stringify(["/inventory/ingredients"]),
-  JSON.stringify(storeRow?.routes)
+  `keywords: ${JSON.stringify(adminIndex.find((r) => r.id === ARTICLE)?.keywords)}`
 )
 assert(
-  "ADMIN index row carries all three routes",
-  (adminRow?.routes.length ?? 0) === 3,
-  JSON.stringify(adminRow?.routes)
+  "ADMIN index row carries both routes",
+  (adminIndex.find((r) => r.id === ARTICLE)?.routes.length ?? 0) === 2,
+  JSON.stringify(adminIndex.find((r) => r.id === ARTICLE)?.routes)
 )
 assert(
   "no article BODY reaches the search index",
-  !storeIndexJson.includes("What you buy and count — the raw goods") &&
-    !adminIndexJson.includes("What you buy and count — the raw goods")
+  !adminIndexJson.includes("everything your team is expected to read or sign")
 )
 
 // ─── EVIDENCE 4 (policy half) — image access by narrowest enclosing scope ────
 //
 // The image sits INSIDE the gated section, so it is governed by the SECTION's
-// capability, not the article's. STORE can read the Ingredients article and
-// must still be refused this image — which is the case gating at the article
-// level would get wrong, and the only case ruling 7's "narrowest enclosing
-// scope" wording exists for.
+// capability, not the article's. Every non-ADMIN role can read the article and
+// must still be refused this image — the case that gating at the article level
+// would get wrong, and the only case ruling 7's "narrowest enclosing scope"
+// wording exists for.
 //
-// WHAT THIS DOES NOT PROVE: that the route returns bytes. That needs the
-// froot-guide Blob store, which is not provisioned. See the report.
+// The BYTES half needs the real Blob store: scripts/verify-guide-image.ts.
 
 console.log("\n── Evidence 4 (policy half): image access resolves to the narrowest scope ────\n")
 
-const GATED_IMAGE = "inv-ingredients/deleted-01.png"
-const adminScope = helpScope(actor("ADMIN"), ORG_ALL, ARTICLES, { surface: "app" })
-const storeScope = helpScope(actor("STORE"), ORG_ALL, ARTICLES, { surface: "app" })
-
-assert("ADMIN may read the image inside the gated section", adminScope.canReadImage(GATED_IMAGE))
+const GATED_IMAGE = "hr-documents/document-detail-01.png"
+assert("ADMIN may read the image inside the gated section", scopeFor("ADMIN").canReadImage(GATED_IMAGE))
+for (const role of ["MANAGER", "STORE", "STAFF"]) {
+  const scope = scopeFor(role)
+  assert(
+    `${role} may NOT read it — though ${role} may read the article containing it`,
+    !scope.canReadImage(GATED_IMAGE) && scope.canReadArticle(ARTICLE)
+  )
+}
+assert("an unknown image id is refused for everyone", !scopeFor("ADMIN").canReadImage("nope/none.png"))
 assert(
-  "STORE may NOT read it — even though STORE may read the article that contains it",
-  !storeScope.canReadImage(GATED_IMAGE) && storeScope.canReadArticle("inv-ingredients"),
-  "if this fails in the second clause the test is checking the wrong thing"
-)
-assert("an unknown image id is refused for everyone", !adminScope.canReadImage("nope/none.png"))
-assert(
-  "the image is absent from the STORE payload entirely",
-  !JSON.stringify(storeScope.article("inv-ingredients")).includes(GATED_IMAGE)
+  "the image is absent from a STORE payload entirely",
+  !JSON.stringify(scopeFor("STORE").article(ARTICLE)).includes(GATED_IMAGE)
 )
 assert(
   "and present in the ADMIN payload",
-  JSON.stringify(adminScope.article("inv-ingredients")).includes(GATED_IMAGE)
+  JSON.stringify(adminArticle).includes(GATED_IMAGE)
 )
 
 // ─── RULING 2 — the module is not a filter ───────────────────────────────────
@@ -202,19 +224,16 @@ assert(
   noModules.articles.map((a) => a.id).join(", ")
 )
 assert(
-  "the inventory article is flagged as a preview when inventory is not active",
-  noModules.articles.find((a) => a.id === "inv-ingredients")?.preview === true
+  "the hr article is flagged as a preview when hr is not active",
+  noModules.articles.find((a) => a.id === ARTICLE)?.preview === true
 )
 assert(
-  "it is NOT a preview when inventory IS active",
-  helpScope(actor("ADMIN"), ORG_ALL, ARTICLES, { surface: "app" }).articles.find(
-    (a) => a.id === "inv-ingredients"
-  )?.preview === false
+  "it is NOT a preview when hr IS active",
+  scopeFor("ADMIN").articles.find((a) => a.id === ARTICLE)?.preview === false
 )
 assert(
   "a non-module article is never a preview",
-  helpScope(actor("ADMIN"), ORG_NONE, ARTICLES, { surface: "app" }).articles.find((a) => a.id === "staff")
-    ?.preview === false
+  noModules.articles.find((a) => a.id === "staff")?.preview === false
 )
 
 // ─── PERM-5 / PERM-8 — per-user overrides move the article with the page ─────

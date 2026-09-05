@@ -11,17 +11,23 @@ spelled out anywhere in the prose below — a token written into a sentence is a
 token the stamp substitutes into that sentence.
 
 **⚠ DO NOT PROMOTE THIS TO PRODUCTION YET, AND THE REASON IS SPECIFIC.** The
-private `froot-guide` Blob store is not provisioned. One article — Ingredients —
-references a screenshot inside its gated section, so on production an ADMIN or
-MANAGER opening that article would get a **broken image**: the `<img>` points at
-`/api/help/image/…`, the route cannot mint a signed URL without
-`GUIDE_BLOB_READ_WRITE_TOKEN`, and it returns 404 by design rather than
-erroring. No data is exposed and nothing else on the page degrades — the refusal
-path and the not-provisioned path are deliberately indistinguishable — but it is
-a visible defect on a customer-facing surface. **Provision the store and upload
-the image, or remove that one `images:` block, before promoting.** Staging is
-unaffected in practice because the same 404 is what a STORE login is supposed to
+`froot-guide` store now exists and its round-trip asserts green, but the
+**screenshot has not been uploaded**. One article — the document library —
+references an image inside its gated section, so on production an ADMIN opening
+that article would get a **broken image**: the `<img>` points at
+`/api/help/image/…`, the route finds no such blob, and it returns 404 by design
+rather than erroring. No data is exposed and nothing else on the page degrades —
+the refusal path and the missing-file path are deliberately indistinguishable —
+but it is a visible defect on a customer-facing surface. **Upload the redacted
+capture, or remove that one `images:` block, before promoting.** Non-ADMIN
+readers are unaffected either way: the same 404 is what they are supposed to
 receive.
+
+**The gated-section article changed after this entry was first written.**
+Ingredients was replaced by the document library on 2026-09-04 — the inventory
+module is on hold with no data in any environment, so that article documented a
+feature nobody runs. The replacement gates its section on ADMIN rather than
+MANAGE, so the section is hidden from three roles instead of one.
 
 **Payload:** **5 commits** on `staging`. Two are already deployed to staging
 (the machinery and its roadmap recorder, pushed 2026-09-04); three are not yet

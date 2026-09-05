@@ -13873,7 +13873,8 @@ phases:
       threshold, no escape hatch, following generate-roadmap.mjs's precedent
       that "A NOISY CHECK WOULD BE WORSE THAN NONE". Day one: 72 routes, 6
       claimed, 3 exempt, 63 warned. That list is HELP-1b's to-do list rendered
-      by the build and shrinks as articles land.
+      by the build and shrinks as articles land. After the article swap the
+      figures are 72 routes, 5 claimed, 7 exempt, 60 unclaimed.
       A ROUTE LEAK WAS FOUND BY THE EVIDENCE SCRIPT, NOT BY REVIEW, and is the
       finding most worth carrying forward. Adding `routes` to the search-index
       row (needed so the contextual "?" could match a pathname without importing
@@ -13895,6 +13896,39 @@ phases:
       takes a `surface` and the reader's presence on a surface is the evidence
       of which shell they can reach — no second copy of the redirect rule, and
       no staffMember added to getCurrentUser()'s shared include.
+      THE GATED-SECTION ARTICLE WAS SWAPPED 2026-09-04, AFTER the machinery was
+      built. Ingredients was chosen because the audit used it as the worked
+      example throughout — but the inventory module is on hold and has no data
+      in any environment, so the article documented a feature nobody runs and
+      its screenshot would have been of an empty page. Purchase orders, the
+      other inventory candidate, fails identically. The document library
+      (/hr/documents) replaced it, and is a STRICTER exerciser rather than
+      merely an available one: its entry is hr.documents.view (ALL) while
+      /hr/documents/[id] is ADMIN-only, so the gated section is hidden from
+      THREE roles instead of one and the per-role table stops having a zero row
+      (3/3/1/1 rather than 3/3/1/0).
+      THE SWAP FOUND TWO MORE LEAKS OF THE SAME KIND AS THE ROUTE ONE, both in
+      the new article before it shipped: "audience" was in the frontmatter
+      KEYWORDS and the SUMMARY read "set who it goes to". Both fields are
+      article-level, so both would have reached the three roles the section is
+      hidden from. That makes three distinct article-level fields — routes,
+      keywords, summary — through which a gated section can leak, and none of
+      them looks like a permission surface while you are writing it.
+      TWO GATES THIS PHASE THAT permissions.ts CANNOT SEE, and two is a pattern
+      rather than a coincidence. (1) HR-7 in (app)/layout.tsx redirects a linked
+      STAFF login out of the whole admin shell wherever HR is active — a SHELL
+      gate. (2) /hr/documents/[id] guards on a raw `dbUser?.role !== "ADMIN"`
+      check, not on can(), so the help section's gate (hr.documents.manage) and
+      the page's gate are equivalent today by coincidence rather than by
+      construction — a ROLE-STRING gate. Both are invisible to can(), and
+      HELP-1b will meet more of them across 41 more articles.
+      helpScope() IS WHERE THAT KNOWLEDGE BELONGS. It already carries the shell
+      dimension as `surface`; the role-string case is currently unmodelled and
+      merely happens to agree. The divergence runs in the SAFE direction here —
+      a per-user denial of hr.documents.manage would hide the help section from
+      an ADMIN who could still open the page, so help hides more than the page
+      shows — but the opposite pairing would be a leak, and nothing in the code
+      would report it.
       NAV-1 FIXTURE: Help is a PARSEABLE NavItem literal specifically so the
       fixture governs it, paid for with a SANCTIONED_ADDITIONS entry that
       suppresses GAINED and never LOST. BASELINE_REV untouched. The red run was
@@ -13919,7 +13953,17 @@ phases:
       Ingredients article as a STORE login to confirm the contents list
       renumbers 1-3 with no gap where the gated section was.
     blockers:
-      - The froot-guide private Blob store is NOT PROVISIONED. Code, route, policy and scripts/upload-guide-image.mjs are complete and the policy half asserts green, but nothing serves bytes until the store and GUIDE_BLOB_READ_WRITE_TOKEN exist in all three environments. Evidence item 4's bytes half is unverified for that reason.
+      - >
+        froot-guide IS PROVISIONED (2026-09-04) and the store round-trip asserts
+        green — a private blob is written, its bare URL is confirmed NOT
+        fetchable without credentials, and an authorized read returns
+        byte-identical bytes. What is still missing is the SCREENSHOT.
+        hr-documents/document-detail-01.png is referenced by the gated section
+        and not yet uploaded, because the capture-and-redact pass (ruling 1,
+        manual by design) has not been done. Evidence item 4 is therefore 7 of 8
+        assertions green with one red. The document library is PII-bearing per
+        audit section C (audience assignment lists), so this redaction is a real
+        one, unlike Ingredients would have been.
       - DECISIONS.md entries are NOT WRITTEN. Seven of the eight rulings exist only as Claude-worded drafts in HELP-1_AUDIT_RESULTS.md and must be ratified in Gary's own words before anything cites them. Fork 9 is the exception — Gary ruled it in session on 2026-09-04.
       - resolved: true
         text: >
