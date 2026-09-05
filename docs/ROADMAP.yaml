@@ -13977,6 +13977,75 @@ phases:
       - The other 41 articles (HELP-1b), the onboarding first-run card, and any animated content
       - PERMISSIONS_INVENTORY.md's four uncovered routes — a ROW, filed, untouched by this session
 
+  - id: HELP-1b-HR
+    track: platform
+    size: M
+    status: verified
+    shipped: 2026-09-05
+    commits: ["4524d5c"]
+    title: "Help articles — HR batch: six articles, unclaimed routes 60 to 50"
+    notes: >
+      FIRST HELP-1b BATCH. A ROW PER BATCH, not one row for the phase — a row
+      that stays open for twenty articles tells you nothing about progress.
+      Six articles against the live HR module: the hub, signing a document,
+      agreement forms, running a form with someone, training modules (with one
+      gated section), and the compliance rollup. Ten routes claimed; unclaimed
+      fell 60 to 50, exactly the number predicted in Phase A and asserted by the
+      generator rather than eyeballed.
+      GARY'S STANDING RULE FOR THE PHASE, set during this batch's correction
+      pass: EXPLAIN HOW THE SOFTWARE BEHAVES, DO NOT EXPLAIN WHY THINGS HAPPEN
+      OPERATIONALLY. The second is where a help article gets someone in trouble.
+      Three passages were cut outright — a compliance diagnosis ("a single store
+      lagging usually means a manager hasn't sat down with new starters") that
+      would have sent a reader chasing the wrong cause, a training convention
+      Keva does not use, and an opinion about form length. Applying the rule to
+      all six rather than only the three flagged found six more and removed 268
+      words. Every one was Claude explaining Gary's operation back to him.
+      ARTICLE 25'S ROLE ROW IN THE AUDIT IS WRONG, AND THIS IS THE CORRECTION OF
+      RECORD. HELP-1_AUDIT_RESULTS.md §B.3 scores "Building training modules" as
+      gate ADMIN, roles ✓···. The code admits ADMIN, MANAGER **and STORE** to
+      /hr/training (training/page.tsx:48) and to /hr/training/[id]/preview
+      (preview/page.tsx:68) — only STAFF is redirected. The correct row is
+      ✓✓✓·. The audit itself is NOT edited: it lives in docs/prompts/ and is a
+      claim wholesale (CLAUDE.md § Where documents live), so the correction is
+      recorded here where a later batch will meet it.
+      THE ARTICLE STILL UNDER-SHOWS TO STORE, BY RULING. No HR capability is
+      OPERATIONAL — they are ALL, MANAGE or ADMIN_ONLY with nothing between — so
+      hr.training.manage (MANAGE) is the closest expressible gate and STORE
+      loses an article for a page they can genuinely open read-only. Gary's
+      call: "STORE losing an article beats STAFF gaining one." Adding an
+      OPERATIONAL capability would fix it properly and is a permissions change,
+      which is TIER 3 and not this batch.
+      BOTH VERIFIERS ARE NOW TABLE-DRIVEN, which is the change that makes the
+      remaining batches cheap. A batch adds a row to GATED (verify-help-access)
+      or IMAGES (verify-guide-image) rather than rewriting assertions. The
+      gated-section table states each section's denied roles and its own
+      vocabulary explicitly, so a wrong expectation FAILS rather than quietly
+      agreeing with the code, and index leak checks are scoped to the article's
+      own row so an unrelated summary using an ordinary word cannot make the
+      assertion lie in either direction.
+      UPLOAD SCRIPT GAINED --force, AND BARE OVERWRITE NOW FAILS. Found in use:
+      Gary captured the wrong screen, uploaded it, and could not replace it. The
+      failure worth designing against is the opposite one — a wrong capture
+      silently replacing a good one, where nothing errors, the article keeps
+      rendering, and the only signal is that the picture is of the wrong screen.
+      head() runs first so the refusal names what is about to be lost (size and
+      upload date), and every upload now reads its bytes back and compares
+      sha256 — on a replace that is the only way to know the new bytes landed
+      rather than the old ones surviving.
+      EVIDENCE, all green before commit: verify-help-access.ts 114 assertions;
+      verify-guide-image.ts 15 including both images present and byte-identical;
+      verify-nav1-url-sets.ts 16/16 IDENTICAL; npm run build. Per-role visible
+      articles ADMIN 9, MANAGER 8, STORE 3, STAFF 3.
+      NOT VERIFIED: browser rendering of any of the six. The assertions exercise
+      the policy functions the routes call, not HTTP responses over the wire,
+      and nobody has opened these articles in a browser.
+    deferred:
+      - Article 26 (Signed records, /hr/signed-records) — the page is ADMIN-only but both records capabilities are MANAGE, so no capability expresses its gate without showing the article to MANAGERs who then get a 404. Lands with the role-string conversion row.
+      - The /my portal articles (40-44) and the remaining live-module batches — checklists, stores, staff, users, reports, forecasting, messages, settings.
+      - Every module inventory article. On hold with the module; not a gap to be filled.
+
+
 
 
 bugs:
@@ -23534,6 +23603,57 @@ debt:
 # exhaustion rather than by migration, and there is no second list to link to.
 # New DECISIONS go here; the six stay debt rows because what remains on each is
 # work or a latent record.
+
+  - id: DEBT-85
+    status: planned
+    title: >
+      HR's eleven pages gate on raw role strings; none call can(), so ruling 3
+      clause 2 is not literally true for any HR help article
+    notes: >
+      FILED 2026-09-05 BY THE HELP-1b HR BATCH, which had to choose a
+      `capability:` for six articles whose pages do not check a capability at
+      all.
+      MEASURED, NOT SAMPLED. Every page under src/app/(app)/hr/ was read: /hr,
+      /hr/acknowledge/[documentId], /hr/compliance, /hr/forms, /hr/forms/[id],
+      /hr/forms/[id]/submit, /hr/documents, /hr/documents/[id],
+      /hr/signed-records, /hr/training, /hr/training/new,
+      /hr/training/[id]/edit, /hr/training/[id]/preview. NOT ONE calls can().
+      Every one compares dbUser.role to a string literal, e.g.
+      `if (dbUser?.role !== "ADMIN") notFound()`.
+      WHY IT MATTERS RATHER THAN BEING TIDY-UP. DECISIONS.md's hidden-articles
+      ruling, clause 2, says help visibility "is decided by can(actor, …) — the
+      same call the page itself makes". For HR that sentence is false. Every
+      `capability:` written into an HR article's frontmatter is an APPROXIMATION
+      of a role check, correct today only because the capability's role tier
+      happens to match the page's string comparison. A PERM-5 per-user denial
+      moves the ARTICLE and leaves the PAGE open; a PERM-8 grant does the
+      reverse. Nothing in the code reports either.
+      THE DIVERGENCE RUNS SAFE TODAY AND THAT IS LUCK, NOT DESIGN. Where the
+      tiers matched, help hides at least as much as the page does. The one place
+      they do not match is article 26 below, and there the only expressible
+      options were wrong in the leaking direction, which is why that article is
+      unwritten rather than approximated.
+      TWO CONSEQUENCES ARE ALREADY LIVE. (1) Article 26 (Signed records,
+      /hr/signed-records) CANNOT BE WRITTEN: the page is `role !== "ADMIN"`, but
+      hr.records.view and hr.records.download are both MANAGE, so either choice
+      shows the article to MANAGERs who then get a 404 — the hidden-articles
+      ruling failing in the unsafe direction. No ADMIN-only records capability
+      exists and borrowing an unrelated one would be a lie in the frontmatter.
+      (2) /hr/training admits ADMIN, MANAGER and STORE, but no HR capability is
+      OPERATIONAL, so its article under-shows to STORE by ruling.
+      SCOPE OF THE FIX: convert the thirteen HR page guards to can() against
+      capabilities that mean what the page means, adding an ADMIN-only records
+      capability and an OPERATIONAL training-view capability where none exists
+      today. That is a permissions change and therefore TIER 3. It unblocks
+      article 26 and removes the under-showing, and it makes the ruling's
+      clause 2 true rather than coincidentally satisfied.
+      RELATED, AND THE REASON THIS IS A PATTERN RATHER THAN AN INCIDENT: HR-7 in
+      (app)/layout.tsx is a SHELL-level gate that can() also cannot see, and it
+      is modelled in helpScope as `surface`. The role-string case is unmodelled
+      and merely happens to agree. Two gates that permissions.ts cannot see were
+      found in HELP-1a and HELP-1b respectively; HELP-1b has 20 more articles to
+      write across the rest of the app and should expect more.
+
 rulings:
   - id: R1
     status: ruled
