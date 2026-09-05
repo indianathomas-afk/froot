@@ -6,6 +6,101 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-05 — HR-32: linked document on a training lesson
+
+Ratified by Gary 2026-09-05, in the planning chat that scoped the row. Recorded
+verbatim; the block quote below is his wording and was copied out of
+`docs/prompts/HR-29.md` §3 rather than retyped.
+
+> Attaching a document to a lesson grants read on that document to anyone
+> assigned the module, scoped to the lesson — it opens from the lesson, it does
+> not appear in their document library, and it counts toward no compliance
+> denominator. A lesson grant is always subordinate to a DOC-4 visibility floor:
+> denial beats grant.
+
+**The row id is HR-32 and the ruling text is untouched by that.** The session
+prompt (`docs/prompts/HR-29.md` §3) ordered this heading written with the id
+`HR-29`, which was already taken — `docs/ROADMAP.yaml:5565`, TrainingModule
+display order, shipped 2026-08-24, cited in-tree by name and depended on by
+HR-30 and HR-31. Gary, 2026-09-05: *"It really doesn't matter, so call it HR-32
+if that's easier."* The heading is the only thing that moved. The ratified
+wording above carries no row id, so the no-rewording instruction is intact.
+
+**Why the ruling stands even though Link-only makes it nearly free today.** A
+Link's target is an external URL, so no code has to consult a grant to serve
+one — `canReadHrDocument` is not on any path this row touches. The ruling is the
+governing rule for whoever later widens this to `Reference`, and the DOC-4
+subordination clause has to be on the record before any code reads it, which was
+Gary's stated reason for splitting DOC-4 out in the first place.
+
+### The Phase 0 stop — 2026-09-05
+
+**Ruled by Gary: STORE suppression is scoped to browsing, not to assigned
+training.** The operative rule is that suppression applies to browsing the
+training library (`read` mode) and not to a person's own assigned training — a
+trainee working through the module assigned to them sees the linked document
+regardless of their login's role.
+
+**That sentence is planning chat's wording, not Gary's, and
+`docs/prompts/HR-32_ADDENDUM.md` §3 presents it as a block quote from him.**
+That attribution is wrong; do not re-quote it as his. What he said, ratifying
+the rule:
+
+> That's fine because I can put a note in the training saying 'optional, only do
+> this if that'.
+
+The rule follows the ratified ruling's own words — *"anyone assigned the
+module"* — and `read` mode is precisely the mode with no assignment. So the
+block renders where there is an assignment (`execute` mode on `/my/training`) or
+an admin judging one (`preview`), and not on the library read surface.
+`/my/training` is role-blind by design (`src/lib/auth.ts:178`) and a role test
+there would remove the I-9 from the surface this row exists to serve. The line
+lands exactly where `TrainingViewMode` already draws it: the `read` member
+carries no assignment.
+
+**MANAGER sees the linked document — a recommendation adopted at approval, not a
+ruling of Gary's.** He was never asked this question and did not answer it. The
+Phase 0 audit recommended `role !== "STORE"` and it was adopted unobjected;
+it is reversible without a new ruling, and nothing in this paragraph should be
+cited as his. The reasoning: HR-26 moved MANAGER from preview mode to read mode
+on 2026-08-12, so the "manager previewing a module" tier the prompt wrote for no
+longer exists; the gate mirrors `filesServed` at `preview/page.tsx:74` rather
+than inventing a second shape; and ruling read-mode-wide instead would have
+taken the linked document away from MANAGER purely as a side effect of HR-26's
+mode reshuffle.
+
+**This is a display decision, not an access decision**, and that is why it was
+safe to adopt at approval rather than escalate: nothing server-side is enforced
+by it today, because a Link is an external URL.
+
+**One approved rider** (Gary, 2026-09-05: *"Fix it now"*): `duplicate()` in
+`training-client.tsx` ignores its response, and this row makes a 400 newly
+reachable there. Fixed inline in the Phase 2 commit that creates the hazard.
+Nothing else joins it.
+
+**Claude's implementation choices under this ruling, for the record** (not
+Gary's, and reversible without a new ruling):
+
+- **The suppression is at the payload, not in the renderer.** The page that
+  serves a STORE login does not join the document at all, so there is nothing to
+  leak and nothing for a future refactor to un-hide. The renderer takes the
+  joined document, never the raw id.
+- **The renderer block is gated on a required prop**, following HR-25's pattern
+  rather than on a `mode` conditional — a future fourth tier cannot inherit the
+  block by default; it has to answer.
+- **The JSON export joins `title` and `externalUrl`** rather than emitting the
+  bare cuid the column would otherwise export for free. That route's own comment
+  says ids are branch-specific and never travel; an exported
+  `linkedHrDocumentId` alone is a dangling pointer into another environment's
+  database. Note that a JSON export → CSV import round trip still drops the
+  link: the import reads the fixed CSV column list only.
+- **The kind invariant is held by two write routes and nothing else** — no
+  CHECK, no trigger, no FK predicate, because it is cross-table. Stated at
+  length in the schema comment so the next reader does not conclude a constraint
+  is missing.
+
+---
+
 ## 2026-09-04 — HELP-1 / HELP-1a: eleven rulings, all ratified
 
 **ALL ELEVEN ARE NOW IN GARY'S WORDING.** Recorded on 2026-09-04 as an interim
