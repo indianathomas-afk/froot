@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { sanitizeRichText } from "@/lib/sanitize-html"
-import { requireHrTrainingAccess } from "../access"
+import { requireHrTrainingAccess, validateLessonLinks } from "../access"
 import { quizSchema } from "../schemas"
 
 const lessonSchema = z.object({
@@ -11,6 +11,9 @@ const lessonSchema = z.object({
   info: z.string().nullish(),
   videoUrl: z.string().nullish(),
   orderIndex: z.number().int().min(0).default(0),
+  // HR-32: shape only — the org/kind/isActive rule is validateLessonLinks,
+  // called below, because it is cross-table.
+  linkedHrDocumentId: z.string().nullish(),
 })
 
 const updateSchema = z.object({
@@ -107,6 +110,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!category) return NextResponse.json({ error: "Invalid category" }, { status: 400 })
   }
 
+  // HR-32: the kind invariant, on the second and last write path. Before the
+  // transaction, not inside it — a 400 is the answer, not a rollback.
+  const linkError = await validateLessonLinks(data.lessons, access.org.id)
+  if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
+
   try {
     const existingLessonIds = new Set(
       (
@@ -128,6 +136,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       info: l.info || null,
       videoUrl: l.videoUrl || null,
       orderIndex: l.orderIndex,
+      // HR-32. lessonData() feeds BOTH halves of the diff — the update loop
+      // and the create list below — so this one line covers both, and a
+      // cleared select arrives as null rather than being left behind.
+      linkedHrDocumentId: l.linkedHrDocumentId || null,
     })
 
     const existingQuiz = await prisma.trainingQuiz.findFirst({

@@ -6,6 +6,7 @@ import {
   isOrgTrainingBlobUrl,
   requireHrTrainingAccess,
   TRAINING_RESOURCES_PER_LESSON,
+  validateLessonLinks,
   validateTrainingResourceMeta,
 } from "./access"
 import { quizSchema } from "./schemas"
@@ -26,6 +27,10 @@ const lessonSchema = z.object({
   info: z.string().nullish(),
   videoUrl: z.string().nullish(),
   orderIndex: z.number().int().min(0).default(0),
+  // HR-32: the ONE document this lesson points at. Shape only here — the
+  // org/kind/isActive rule is cross-table and cannot be a zod refinement
+  // either; it is validateLessonLinks below.
+  linkedHrDocumentId: z.string().nullish(),
   resources: z.array(resourceSchema).max(TRAINING_RESOURCES_PER_LESSON).default([]),
 })
 
@@ -134,6 +139,12 @@ export async function POST(req: Request) {
     if (!category) return NextResponse.json({ error: "Invalid category" }, { status: 400 })
   }
 
+  // HR-32: same class as the two checks above, and the ONLY thing holding the
+  // kind invariant on this path — a linked document must be an active Link in
+  // this org. Anything else is a 400, never a silent null.
+  const linkError = await validateLessonLinks(body.lessons, org.id)
+  if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
+
   const created = await prisma.trainingModule.create({
     data: {
       organizationId: org.id,
@@ -153,6 +164,7 @@ export async function POST(req: Request) {
           info: l.info || null,
           videoUrl: l.videoUrl || null,
           orderIndex: l.orderIndex,
+          linkedHrDocumentId: l.linkedHrDocumentId || null,
           resources: l.resources.length
             ? {
                 create: l.resources.map((r) => ({

@@ -196,3 +196,44 @@ export function isOrgTrainingBlobUrl(url: string, orgDbId: string): boolean {
     parsed.pathname.startsWith(`/hr/${orgDbId}/training/`)
   )
 }
+
+// ── HR-32: the kind invariant the database cannot hold ──────────────────────
+//
+// A lesson's linkedHrDocumentId must resolve to an HrDocument in THIS org with
+// kind "Link" and isActive — see TrainingLesson in schema.prisma for why no
+// CHECK can state that (it is cross-table, the same wall DOC-3 hit with its
+// zero-versions invariant). This function and the two callers below it are the
+// whole enforcement; there is nothing else holding it anywhere.
+//
+// TWO CALLERS AND THERE IS NO THIRD. POST /api/hr/training (builder create and
+// Duplicate, which composes a full POST body client-side) and
+// PATCH /api/hr/training/[id] (builder save). The CSV import route cannot
+// carry the field — csv.ts declares a fixed four-field lesson shape and builds
+// it from named columns — so it writes NULL and cannot violate the rule. It
+// needs no edit and must not get one.
+//
+// ONE QUERY, NOT ONE PER LESSON: the distinct non-null ids across the whole
+// payload, compared by count, exactly the shape of the store-id rider in
+// route.ts. Returns an error string or null, matching
+// validateTrainingResourceMeta above.
+//
+// ONE MESSAGE FOR ALL THREE FAILURE MODES, deliberately — wrong kind, inactive,
+// and another org's document are indistinguishable in the response, so this
+// never confirms that an id exists somewhere else.
+export async function validateLessonLinks(
+  lessons: { linkedHrDocumentId?: string | null }[],
+  orgDbId: string
+): Promise<string | null> {
+  const ids = [
+    ...new Set(lessons.map((l) => l.linkedHrDocumentId).filter((v): v is string => !!v)),
+  ]
+  if (!ids.length) return null
+
+  const found = await prisma.hrDocument.count({
+    where: { id: { in: ids }, organizationId: orgDbId, kind: "Link", isActive: true },
+  })
+  if (found !== ids.length) {
+    return "Linked document must be an active Link document in this organization"
+  }
+  return null
+}

@@ -42,6 +42,9 @@ type TrainingLesson = {
   info: string | null
   videoUrl: string | null
   orderIndex: number
+  // HR-32: the raw id, because this shape exists to be re-POSTed by Duplicate
+  // and the write route takes an id. Nothing in this file renders it.
+  linkedHrDocumentId: string | null
   resources: TrainingResource[]
 }
 
@@ -339,7 +342,12 @@ export default function TrainingClient({
   // HR-29. There is no toast component anywhere in this app (the order's §5
   // assumed one), so a failed reorder reverts AND says so inline. A silent
   // snap-back is indistinguishable from a broken drag.
-  const [reorderError, setReorderError] = useState<string | null>(null)
+  //
+  // HR-32 RENAMED THIS FROM reorderError. Duplicate now has a reachable 400 and
+  // needs the same banner, which is list-level rather than reorder-specific.
+  // Renamed rather than joined by a second state, so two list actions cannot
+  // stack two banners on the same list.
+  const [listError, setListError] = useState<string | null>(null)
   // Duplicate composes its POST body from lessons, resources and quiz rows, so
   // it needs the full builder payload — which only ADMIN ever fetches. Held in
   // a ref rather than state because nothing renders from it.
@@ -496,7 +504,7 @@ export default function TrainingClient({
     // what makes the table repaint in the new order. Rows in the other two
     // tabs keep their relative order among themselves.
     setModules([...reordered, ...modules.filter((m) => !movedIds.has(m.id))])
-    setReorderError(null)
+    setListError(null)
 
     try {
       const res = await fetch("/api/hr/training/reorder", {
@@ -506,11 +514,11 @@ export default function TrainingClient({
       })
       if (!res.ok) {
         setModules(previous)
-        setReorderError("Could not save the new order. Nothing was changed.")
+        setListError("Could not save the new order. Nothing was changed.")
       }
     } catch {
       setModules(previous)
-      setReorderError("Could not save the new order. Nothing was changed.")
+      setListError("Could not save the new order. Nothing was changed.")
     }
   }
 
@@ -549,7 +557,7 @@ export default function TrainingClient({
     const m = fullModules.current.get(row.id)
     if (!m) return
     const quiz = m.quizzes[0]
-    await fetch("/api/hr/training", {
+    const res = await fetch("/api/hr/training", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -565,6 +573,11 @@ export default function TrainingClient({
           info: l.info,
           videoUrl: l.videoUrl,
           orderIndex: l.orderIndex,
+          // HR-32. Same org by construction, so the copy cannot cross an org
+          // boundary — but it still goes through the route's validation, which
+          // is what makes a since-deactivated document a 400 rather than a
+          // silently dropped link.
+          linkedHrDocumentId: l.linkedHrDocumentId,
           resources: l.resources.map((r) => ({
             label: r.label,
             fileUrl: r.fileUrl,
@@ -576,6 +589,17 @@ export default function TrainingClient({
         quiz: quiz ? { passThreshold: quiz.passThreshold, questions: quiz.questions } : null,
       }),
     })
+    // HR-32 RIDER (Gary, 2026-09-05: "Fix it now"). This response was ignored,
+    // which was harmless only while every 400 on the route was unreachable from
+    // a valid module. The linked-document check makes one reachable:
+    // duplicating a module whose linked document was deactivated after this
+    // page loaded now 400s, and a silent no-op — list reloads, no copy, no
+    // message — is indistinguishable from a broken button.
+    if (!res.ok) {
+      setListError("Could not duplicate this module. Nothing was created.")
+      return
+    }
+    setListError(null)
     await load()
   }
 
@@ -836,9 +860,9 @@ export default function TrainingClient({
               </button>
             </div>
           )}
-          {reorderError && (
+          {listError && (
             <div className="mb-3 rounded-md border border-[var(--color-destructive)] bg-[var(--color-card)] px-3 py-2 text-sm text-[var(--color-destructive)]">
-              {reorderError}
+              {listError}
             </div>
           )}
           {layout === "card" ? (
