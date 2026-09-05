@@ -13848,6 +13848,68 @@ phases:
       be all digits parses as an integer and one like 1e9833 as a float, so the
       quotes are a correctness rule rather than a style one.
 
+  - id: HELP-1a
+    track: platform
+    size: L
+    status: shipped
+    shipped: 2026-09-04
+    commits: ["1641d1e"]
+    title: "In-app help — the machine: access helper, generator, two shells, search index, authenticated images"
+    notes: >
+      THE MACHINERY ONLY, plus exactly three real articles so every branch of it
+      is exercised by something real rather than compiled and assumed: Reports
+      (clean, no images), the Staff directory (PII-bearing, two routes), and
+      Ingredients (one gated section). Design document is
+      docs/prompts/HELP-1_AUDIT_RESULTS.md; the build prompt is
+      docs/prompts/HELP-1a_BUILD.md.
+      src/lib/help-access.ts IS THE LOAD-BEARING PIECE and was built first. One
+      mapping from help resource to governing capability, three callers — the
+      search index, the section filter, and the image route. Built last, three
+      near-copies of the policy would have existed before it did, and three
+      implementations of "what may this reader see" eventually disagree in a
+      direction that leaks rather than merely looking wrong.
+      THE COVERAGE GATE WARNS PERMANENTLY and hard-fails on exactly one
+      condition — an article claiming a route that does not exist. No flip, no
+      threshold, no escape hatch, following generate-roadmap.mjs's precedent
+      that "A NOISY CHECK WOULD BE WORSE THAN NONE". Day one: 72 routes, 6
+      claimed, 3 exempt, 63 warned. That list is HELP-1b's to-do list rendered
+      by the build and shrinks as articles land.
+      A ROUTE LEAK WAS FOUND BY THE EVIDENCE SCRIPT, NOT BY REVIEW, and is the
+      finding most worth carrying forward. Adding `routes` to the search-index
+      row (needed so the contextual "?" could match a pathname without importing
+      the generated articles into a client component) shipped
+      /inventory/ingredients/deleted to STORE readers. A route string discloses
+      that a page exists exactly as a greyed-out section heading does. A gated
+      section now owns the sub-routes it documents and they are removed with it.
+      THE AUDIT'S ARTICLE 16 WAS DROPPED FROM THE THREE after verification.
+      /labor IS in STAFF's six nav URLs and has no capability gate at all
+      (labor.view is ALL and gates the nav entry only — the COMP-1 correction at
+      permissions.ts:310), but HR-7 in (app)/layout.tsx redirects any LINKED
+      STAFF login out of the whole app shell wherever HR is active, which is
+      staging and production. So a portal STAFF reader cannot open it, and an
+      article about it would have been ruling 3 failing quietly. Reports took
+      the clean slot.
+      can() ALONE IS NOT SUFFICIENT FOR HELP VISIBILITY, which is the general
+      form of that finding and matters for HELP-1b's 36 (app) articles: HR-7 is
+      a SHELL-level gate and permissions.ts knows nothing about it. helpScope
+      takes a `surface` and the reader's presence on a surface is the evidence
+      of which shell they can reach — no second copy of the redirect rule, and
+      no staffMember added to getCurrentUser()'s shared include.
+      NAV-1 FIXTURE: Help is a PARSEABLE NavItem literal specifically so the
+      fixture governs it, paid for with a SANCTIONED_ADDITIONS entry that
+      suppresses GAINED and never LOST. BASELINE_REV untouched. The red run was
+      taken deliberately before the exception was added — otherwise the
+      exception is unfalsifiable, since a parser that silently matched nothing
+      would look identical to a pass.
+    blockers:
+      - The froot-guide private Blob store is NOT PROVISIONED. Code, route and policy are complete and the policy half asserts green, but nothing serves bytes until the store and GUIDE_BLOB_READ_WRITE_TOKEN exist in all three environments. Evidence item 4's bytes half is unverified for that reason.
+      - DECISIONS.md entries are NOT WRITTEN. Seven of the eight rulings exist only as Claude-worded drafts in HELP-1_AUDIT_RESULTS.md and must be ratified in Gary's own words before anything cites them. Fork 9 is the exception — Gary ruled it in session on 2026-09-04.
+      - The four /help routes are themselves unclaimed by any article and warn on every build. Whether the help surface documents itself or joins the exempt list is a ruling nobody has made.
+    deferred:
+      - The other 41 articles (HELP-1b), the onboarding first-run card, and any animated content
+      - PERMISSIONS_INVENTORY.md's four uncovered routes — a ROW, filed, untouched by this session
+
+
 
 bugs:
   - id: BUG-1
