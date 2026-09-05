@@ -43,6 +43,19 @@ const EXEMPT_ROUTES = new Set([
   "/", // public marketing landing; not an in-app surface
   "/print/checklist/[id]", // print view — ruling 5
   "/print/template/[id]", // print view — ruling 5
+  // RULED (Gary, 2026-09-04): the help surface does not document itself. "The
+  // coverage gate is a to-do list of undocumented product surfaces; help
+  // documenting itself is a hall of mirrors and would sit in the warn list
+  // forever teaching nothing."
+  //
+  // Note these four appeared in the warn list the moment HELP-1a created them,
+  // which is the gate behaving correctly — it discovered new routes with no
+  // article. The ruling is that they are not product surfaces a reader needs
+  // help ON, so they are exempt rather than owed an article.
+  "/help",
+  "/help/[slug]",
+  "/my/help",
+  "/my/help/[slug]",
 ])
 
 /**

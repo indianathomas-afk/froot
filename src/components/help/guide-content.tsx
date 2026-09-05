@@ -311,26 +311,25 @@ export function GuideArticleList({
 
 // THE EMPTY STATE, AND ITS COPY IS LOAD-BEARING.
 //
-// It must read identically whether the list is empty because no article has
+// RULED (Gary, 2026-09-04): one sentence, and nothing else. No search hint, no
+// "check back later", no explanation.
+//
+// It must read IDENTICALLY whether the list is empty because no article has
 // been written for this surface yet (HELP-1a: all three articles are (app)
 // articles, so the portal renders this for every reader) or because the
 // reader's capabilities filtered every article away.
 //
-// "Coming soon" would be true today and would become a DISCLOSURE in HELP-1b —
-// a reader who could see nothing would be told that content exists and is being
-// withheld, turning the empty state itself into the visible lock ruling 3
-// forbids. So it says what is true in both cases and distinguishes neither.
-//
-// ⚠️ PLACEHOLDER COPY — Gary's wording pending. The constraint above is the
-// thing to preserve when it is rewritten; the sentences are not his.
+// THAT IS WHY THERE IS NOTHING ELSE HERE. "Coming soon" would be true today and
+// would become a DISCLOSURE in HELP-1b — a reader who could see nothing would
+// be told that content exists and is being withheld. Any copy that hints at
+// filtering is the visible lock ruling 3 forbids, and an explanation is exactly
+// where such a hint gets added by someone trying to be helpful. The sentence
+// below is true in both cases and distinguishes neither.
 export function GuideEmptyState() {
   return (
     <div className="max-w-2xl rounded-lg border border-dashed border-[var(--color-border)] p-8 text-center">
       <HelpCircle className="mx-auto mb-3 h-8 w-8 text-[var(--color-muted-foreground)]" />
-      <p className="font-semibold text-[var(--color-foreground)]">No help articles here yet</p>
-      <p className="mx-auto mt-1 max-w-sm text-sm text-[var(--color-muted-foreground)]">
-        There is nothing to show on this page at the moment.
-      </p>
+      <p className="text-[var(--color-foreground)]">There aren&apos;t any help articles here yet.</p>
     </div>
   )
 }
