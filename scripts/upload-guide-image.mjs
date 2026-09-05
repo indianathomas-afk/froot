@@ -38,7 +38,8 @@
 import { readFileSync, statSync } from "node:fs"
 import { basename, dirname, extname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { put } from "@vercel/blob"
+import { createHash } from "node:crypto"
+import { head, issueSignedToken, presignUrl, put } from "@vercel/blob"
 
 // LOAD .env OURSELVES rather than requiring `node --env-file=.env`.
 //
@@ -60,10 +61,16 @@ try {
   // which is how this runs anywhere that is not a laptop.
 }
 
-const [, , source, target] = process.argv
+// --force may appear anywhere; everything else is positional.
+const argv = process.argv.slice(2)
+const force = argv.includes("--force")
+const [source, target] = argv.filter((a) => a !== "--force")
 
 if (!source) {
-  console.error("usage: node scripts/upload-guide-image.mjs <file> [<target-pathname>]")
+  console.error(
+    "usage: node scripts/upload-guide-image.mjs <file> [<target-pathname>] [--force]\n" +
+      "  --force  replace an image that already exists at that pathname"
+  )
   process.exit(1)
 }
 
@@ -101,19 +108,80 @@ if (size > MAX_BYTES) {
 
 const pathname = target ?? basename(source, ext).toLowerCase() + ext
 
+// ─── OVERWRITE IS EXPLICIT ───────────────────────────────────────────────────
+//
 // addRandomSuffix is DELIBERATELY OFF, unlike hr-files.ts. An HR document needs
 // a unique key per upload because two people may upload files of the same name.
 // A guide image's pathname is written into frontmatter by hand and must be
 // predictable and re-uploadable in place — replacing a screenshot should not
 // orphan the old one and require a frontmatter edit.
+//
+// BUT BARE OVERWRITING MUST FAIL, and that is what --force is for. The failure
+// worth designing against is a WRONG capture silently replacing a GOOD one:
+// nothing errors, the article keeps rendering, and the only signal is that the
+// picture is now of the wrong screen. Re-uploading is a normal thing to want —
+// a first capture is often the wrong screen — so the answer is to make
+// replacement deliberate rather than to make it hard.
+//
+// We check with head() first rather than letting put() raise, so the message
+// names what is about to be lost (size and upload date) instead of an SDK
+// error string.
+let existing = null
+try {
+  existing = await head(pathname, { token })
+} catch {
+  // Not there — a first upload. Nothing to protect.
+}
+
+if (existing && !force) {
+  console.error(
+    `${pathname} already exists — ${(existing.size / 1024).toFixed(0)} KB, uploaded ${existing.uploadedAt}.\n\n` +
+      "Refusing to replace it silently. If this capture is meant to supersede that one, re-run with --force:\n" +
+      `  node scripts/upload-guide-image.mjs ${source} ${pathname} --force`
+  )
+  process.exit(1)
+}
+
+if (existing) {
+  console.log(
+    `replacing  ${pathname}  (was ${(existing.size / 1024).toFixed(0)} KB from ${existing.uploadedAt})`
+  )
+}
+
 const blob = await put(pathname, bytes, {
   access: "private",
   addRandomSuffix: false,
+  allowOverwrite: force,
   contentType,
   token,
 })
 
+// READ IT BACK AND COMPARE. An upload that reported success and stored
+// something else is the failure this catches — and on a replace it is the only
+// way to know the new bytes landed rather than the old ones surviving.
+const sentHash = createHash("sha256").update(bytes).digest("hex")
+const delegation = await issueSignedToken({
+  operations: ["get"],
+  validUntil: Date.now() + 5 * 60 * 1000,
+  token,
+})
+const { presignedUrl } = await presignUrl(delegation, {
+  operation: "get",
+  pathname: blob.pathname,
+  access: "private",
+  validUntil: Date.now() + 5 * 60 * 1000,
+})
+const readBack = Buffer.from(await (await fetch(presignedUrl)).arrayBuffer())
+const backHash = createHash("sha256").update(readBack).digest("hex")
+if (backHash !== sentHash) {
+  console.error(
+    `VERIFY FAILED — the stored bytes do not match the file on disk.\n  sent ${sentHash}\n  got  ${backHash}`
+  )
+  process.exit(1)
+}
+
 console.log(`uploaded  ${source}  ->  ${blob.pathname}  (${(size / 1024).toFixed(0)} KB, ${contentType})`)
+console.log(`verified  read back byte-identical  sha256 ${backHash.slice(0, 16)}…`)
 console.log("")
 console.log("Reference it in the article's frontmatter as:")
 console.log("")

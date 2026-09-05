@@ -62,7 +62,29 @@ if (!token) {
 const ARTICLES = GUIDE_ARTICLES as GuideArticle[]
 const ORG = { activeModules: ["inventory", "hr", "labor", "nutrition"] }
 const actor = (role: string): PermissionUser => ({ role })
-const GATED_IMAGE = "hr-documents/document-detail-01.png"
+// Every image referenced by any article, and the scope that governs it.
+// A batch extends this by adding a row. `governedBy` is stated rather than
+// derived so a wrong expectation fails instead of quietly agreeing with the
+// code — the same reason the gated-section table in verify-help-access.ts
+// spells out its denied roles.
+const IMAGES = [
+  {
+    path: "hr-documents/document-detail-01.png",
+    article: "hr-documents",
+    governedBy: "section versions-and-fields (hr.documents.manage)",
+    allowed: ["ADMIN"],
+    refused: ["MANAGER", "STORE", "STAFF"],
+  },
+  {
+    path: "hr-forms/form-builder-01.png",
+    article: "hr-forms",
+    // Article-level, in an ADMIN-only article: the ARTICLE is the narrowest
+    // enclosing scope here, which is ruling 7's other half.
+    governedBy: "article hr-forms (hr.forms.manage)",
+    allowed: ["ADMIN"],
+    refused: ["MANAGER", "STORE", "STAFF"],
+  },
+] as const
 
 let failures = 0
 function assert(label: string, ok: boolean, detail = "") {
@@ -132,22 +154,24 @@ async function main(): Promise<void> {
     }
   }
 
-  // ─── 2. IS THE REAL SCREENSHOT THERE? ─────────────────────────────────────
+  // ─── 2. IS EVERY REFERENCED SCREENSHOT THERE? ─────────────────────────────
 
-  console.log("\n── The document-library gated-section screenshot ─────────────────────────────\n")
+  console.log("\n── Referenced screenshots ────────────────────────────────────────────────────\n")
 
-  let realImagePresent = false
-  try {
-    const meta = await head(GATED_IMAGE, { token })
-    realImagePresent = true
-    console.log(`  present — ${GATED_IMAGE} (${(meta.size / 1024).toFixed(0)} KB, ${meta.contentType})`)
-  } catch {
-    console.log(`  NOT UPLOADED — ${GATED_IMAGE} is referenced by the document library's`)
-    console.log("  gated section but does not exist in the store.")
-    console.log("  Capture and redact per ruling 1 (from production, by hand, into docs/guide/_review/),")
-    console.log(`  then: node scripts/upload-guide-image.mjs docs/guide/_review/<file> ${GATED_IMAGE}`)
+  for (const img of IMAGES) {
+    let present = false
+    try {
+      const meta = await head(img.path, { token })
+      present = true
+      console.log(`  present — ${img.path} (${(meta.size / 1024).toFixed(0)} KB, ${meta.contentType})`)
+    } catch {
+      console.log(`  NOT UPLOADED — ${img.path}`)
+      console.log(`    referenced by ${img.article}, governed by ${img.governedBy}`)
+      console.log("    Capture from PRODUCTION and redact by hand into docs/guide/_review/ (ruling 1),")
+      console.log(`    then: node scripts/upload-guide-image.mjs docs/guide/_review/<file> ${img.path}`)
+    }
+    assert(`${img.path} exists in the store`, present)
   }
-  assert("the referenced guide image exists in the store", realImagePresent)
 
   // ─── 3. THE REFUSAL HALF ──────────────────────────────────────────────────
   //
@@ -157,15 +181,24 @@ async function main(): Promise<void> {
 
   console.log("\n── Evidence 4 (refusal half): the gate is the narrowest enclosing scope ──────\n")
 
-  const adminScope = helpScope(actor("ADMIN"), ORG, ARTICLES, { surface: "app" })
-  const storeScope = helpScope(actor("STORE"), ORG, ARTICLES, { surface: "app" })
-
-  assert("ADMIN may read the image inside the gated section", adminScope.canReadImage(GATED_IMAGE))
+  for (const img of IMAGES) {
+    for (const role of img.allowed) {
+      assert(
+        `${role} may read ${img.path} (${img.governedBy})`,
+        helpScope(actor(role), ORG, ARTICLES, { surface: "app" }).canReadImage(img.path)
+      )
+    }
+    for (const role of img.refused) {
+      assert(
+        `${role} may NOT read ${img.path}`,
+        !helpScope(actor(role), ORG, ARTICLES, { surface: "app" }).canReadImage(img.path)
+      )
+    }
+  }
   assert(
-    "STORE may NOT — although STORE may read the article that contains it",
-    !storeScope.canReadImage(GATED_IMAGE) && storeScope.canReadArticle("hr-documents")
+    "an unknown image id is refused for everyone",
+    !helpScope(actor("ADMIN"), ORG, ARTICLES, { surface: "app" }).canReadImage("nope/none.png")
   )
-  assert("an unknown image id is refused for everyone", !adminScope.canReadImage("nope/none.png"))
 
   console.log(failures === 0 ? "\nPASS — all assertions held\n" : `\nFAIL — ${failures} assertion(s) failed\n`)
 }
