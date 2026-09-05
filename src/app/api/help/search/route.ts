@@ -28,7 +28,19 @@ export async function GET(request: NextRequest) {
   try {
     if (surface === "my") {
       const self = await getActiveStaffSelf()
-      if (!self.ok) return NextResponse.json({ rows: [] }, { status: 200 })
+      // EVERY return carries headers(), including the empty ones. Two of these
+      // paths omitted it until 2026-09-05 and answered 200 with NO
+      // Cache-Control — found by scripts/verify-help-routes.ts on its first run,
+      // which is the entire argument for that file existing.
+      //
+      // An empty index is not itself a disclosure, so this is not a leak. It is
+      // worse in a quieter way: a response with no cache directive is subject
+      // to heuristic caching, so an EMPTY index could be cached under this URL
+      // and then served to a reader who is entitled to a full one — help search
+      // silently returning nothing, with no error anywhere. And the catch below
+      // is exactly the path a misconfigured environment takes, which is the
+      // state staging was in for the whole of the image bug.
+      if (!self.ok) return NextResponse.json({ rows: [] }, headers())
       const scope = myHelpScope(self.dbUser, self.org)
       return NextResponse.json({ rows: searchIndex(scope) }, headers())
     }
@@ -37,7 +49,7 @@ export async function GET(request: NextRequest) {
   } catch {
     // Unauthenticated or no org — an empty index, not an error. There is
     // nothing here to leak and nothing worth a stack trace.
-    return NextResponse.json({ rows: [] }, { status: 200 })
+    return NextResponse.json({ rows: [] }, headers())
   }
 }
 

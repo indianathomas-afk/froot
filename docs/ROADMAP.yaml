@@ -23654,6 +23654,62 @@ debt:
       found in HELP-1a and HELP-1b respectively; HELP-1b has 20 more articles to
       write across the rest of the app and should expect more.
 
+  - id: DEBT-86
+    status: planned
+    title: >
+      Nothing checks a deployed environment's variables against the names the
+      code reads — the gap that let the guide image 404 on staging while every
+      local instrument was green
+    notes: >
+      FILED 2026-09-05 after two rendering bugs on /help/hr-forms that no
+      assertion in the repo could see. Gary found both by opening the page.
+      TWO GAPS WERE NAMED. GAP 1 IS CLOSED BY THIS SESSION; GAP 2 IS THIS ROW.
+      GAP 1 — no instrument issued an HTTP request to any help route. Every
+      check called a function directly: verify-help-access called helpScope,
+      verify-help-render called components, verify-guide-image called the Blob
+      store. All green while the route served a broken image.
+      CLOSED by scripts/verify-help-routes.ts, which invokes the real exported
+      GET handlers with real NextRequest objects. IT FOUND A BUG ON ITS FIRST
+      RUN: two of the search route's return paths — the not-ok early return and
+      the catch — omitted the cache headers entirely and answered 200 with no
+      Cache-Control. An empty index is not a disclosure, so this was not a leak;
+      it is worse in a quieter way, because a response with no cache directive
+      is subject to heuristic caching, so an EMPTY index could be cached under
+      that URL and served to a reader entitled to a full one — help search
+      silently returning nothing, with nothing in any log. And the catch is
+      exactly the path a misconfigured environment takes, which is the state
+      staging was in throughout the image bug.
+      That file also now asserts a security property nothing had checked: the
+      404 for a REAL image and the 404 for an UNKNOWN one are byte-identical in
+      status, headers and body. Ruling 7 chose 404-not-403 so a refusal cannot
+      confirm that an image, and therefore a hidden section, exists — a
+      guarantee worth nothing if the two responses differ in any other
+      observable way.
+      GAP 2, WHICH IS THIS ROW. Nothing compares the environment variables a
+      DEPLOYED environment actually holds against the names the code reads. The
+      image bug was exactly this: the code read GUIDE_BLOB_READ_WRITE_TOKEN
+      while Vercel had created GUIDE_READ_WRITE_TOKEN, because connecting a Blob
+      store auto-names <PREFIX>_READ_WRITE_TOKEN from the prefix chosen at
+      connect time. It worked locally because .env had been hand-typed with the
+      name the code expected, so the mismatch existed ONLY in the environments
+      nothing tested.
+      NO LOCAL INSTRUMENT CAN CLOSE THIS, and that is the point. The value
+      differs per environment by design, so a local check either reads the local
+      value (and passes) or reads nothing (and cannot distinguish "absent here"
+      from "absent everywhere"). The check has to run against a deployment.
+      WHAT WOULD ACTUALLY CLOSE IT: an authenticated smoke check against a
+      deployed URL — a real session, a real GET of /api/help/image/<id>,
+      asserting 200 and image/* rather than the 404 the same request returns
+      when a token is missing. That also closes the other half verify-help-routes
+      cannot reach: the AUTHENTICATED success path. Every assertion in that file
+      today runs the unauthenticated branch, so "bytes are served to an entitled
+      reader" remains unproven by anything except a person looking.
+      SCOPE NOTE: this is not help-specific. HR_BLOB_READ_WRITE_TOKEN only looks
+      like it follows a convention because that store's prefix happened to be
+      HR_BLOB. Any future Blob store, or any variable created by a platform
+      integration rather than typed by hand, carries the same trap.
+
+
 rulings:
   - id: R1
     status: ruled
