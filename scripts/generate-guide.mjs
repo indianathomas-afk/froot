@@ -199,6 +199,9 @@ function parseArticle(file) {
   }
 
   return {
+    // `pending` is deliberately NOT returned. It is an authoring marker, not
+    // article data, and must never reach a payload or an index — see the warn
+    // block below, which is where it surfaces instead.
     id: front.id,
     title: front.title,
     entry: front.entry,
@@ -292,6 +295,28 @@ const articles = files
 // threshold to tune and no escape hatch to remember to remove, which is the
 // moment gates like this usually die.
 
+// ─── PENDING CLAIMS ──────────────────────────────────────────────────────────
+//
+// An article may carry a `pending:` list in frontmatter: a claim that was
+// drafted, JUDGED UNVERIFIED, and PULLED before shipping rather than shipped
+// with a hedge. The marker lives in frontmatter so it cannot render, and it is
+// dropped from the article object so it cannot reach a payload or the search
+// index.
+//
+// IT WARNS ON EVERY BUILD BECAUSE THE ALTERNATIVE IS FORGETTING. A claim held
+// back for verification is invisible the moment the session that held it ends —
+// the prose reads fine without it, nothing is broken, and nobody knows a
+// sentence is owed. This is the same reasoning as the unclaimed-route warning:
+// a to-do the build states out loud rather than a note in a document.
+const pendingClaims = []
+for (const file of files.filter((f) => f.endsWith(".md"))) {
+  const raw = readFileSync(join(SOURCE_DIR, file), "utf8")
+  const { front } = splitFrontmatter(raw, file)
+  for (const claim of front.pending ?? []) {
+    pendingClaims.push({ file, claim: String(claim).replace(/\s+/g, " ").trim() })
+  }
+}
+
 const routes = discoverRoutes().sort()
 const routeSet = new Set(routes)
 
@@ -339,6 +364,17 @@ if (unclaimed.length > 0) {
       `claimed by any article, so a reader on those pages gets no help:`,
   )
   for (const route of unclaimed) console.warn(`[guide]   ${route}`)
+}
+
+if (pendingClaims.length > 0) {
+  const one = pendingClaims.length === 1
+  console.warn(
+    `[guide] WARNING — ${pendingClaims.length} drafted claim${one ? " is" : "s are"} held back pending` +
+      ` verification, so ${one ? "an article is" : "articles are"} shipping without ${one ? "it" : "them"}:`,
+  )
+  for (const p of pendingClaims) {
+    console.warn(`[guide]   ${p.file}: ${p.claim.slice(0, 140)}${p.claim.length > 140 ? "…" : ""}`)
+  }
 }
 
 if (doubleClaimed.length > 0) {

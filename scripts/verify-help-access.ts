@@ -33,7 +33,13 @@ const scopeFor = (role: string, org = ORG_ALL) =>
 // Expected visible article counts per role. Updated per batch; a wrong number
 // here fails loudly rather than drifting, which is the point of writing it down
 // instead of printing whatever comes out.
-const EXPECTED: Record<string, number> = { ADMIN: 9, MANAGER: 8, STORE: 3, STAFF: 3 }
+const EXPECTED: Record<string, number> = { ADMIN: 14, MANAGER: 12, STORE: 7, STAFF: 6 }
+
+// The checklists batch was weighted at STORE deliberately: that role was the
+// thinnest covered at 3 of 9, and the store view, the checklist review, the
+// dashboard and messages are the whole of a STORE login's shift. It went 3 -> 7.
+// Asserted rather than described, so a later batch cannot quietly undo it.
+const STORE_MUST_SEE = ["store-view", "checklists", "dashboard", "messages"]
 
 // ─── THE GATED-SECTION TABLE ─────────────────────────────────────────────────
 //
@@ -108,6 +114,10 @@ for (const role of ROLES) {
     sets.get(role)!.length === EXPECTED[role],
     sets.get(role)!.join(", ")
   )
+}
+
+for (const id of STORE_MUST_SEE) {
+  assert(`STORE sees ${id} — the mid-shift loop`, sets.get("STORE")!.includes(id))
 }
 
 // The (my) surface is still empty for every role — no /my/* article has been
@@ -221,6 +231,16 @@ assert(
   noModules.articles.length === EXPECTED.ADMIN,
   noModules.articles.map((a) => a.id).join(", ")
 )
+// The checklists batch is module: null throughout, so it must NEVER preview —
+// a non-module article flagged as a preview would put an upgrade banner on a
+// page every org already has.
+for (const id of ["store-view", "checklists", "templates", "dashboard", "messages"]) {
+  assert(
+    `${id} is module-free and never previews`,
+    noModules.articles.find((a) => a.id === id)?.preview === false
+  )
+}
+
 for (const id of ["hr-documents", "hr-training", "hr-hub"]) {
   assert(`${id} is flagged as a preview when hr is not active`, noModules.articles.find((a) => a.id === id)?.preview === true)
   assert(`${id} is NOT a preview when hr IS active`, scopeFor("ADMIN").articles.find((a) => a.id === id)?.preview === false)

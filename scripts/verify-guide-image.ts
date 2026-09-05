@@ -100,6 +100,15 @@ const IMAGES = [
     allowed: ["ADMIN"],
     refused: ["MANAGER", "STORE", "STAFF"],
   },
+  {
+    path: "templates/template-builder-01.png",
+    article: "templates",
+    // Article-level in an ADMIN-only article, like hr-forms: the ARTICLE is the
+    // narrowest enclosing scope.
+    governedBy: "article templates (templates.manage)",
+    allowed: ["ADMIN"],
+    refused: ["MANAGER", "STORE", "STAFF"],
+  },
 ] as const
 
 let failures = 0
@@ -171,10 +180,32 @@ async function main(): Promise<void> {
   }
 
   // ─── 2. IS EVERY REFERENCED SCREENSHOT THERE? ─────────────────────────────
+  //
+  // THE LIST IS DERIVED FROM THE ARTICLES, NOT FROM THE TABLE ABOVE. The table
+  // states EXPECTATIONS; the articles state FACTS. When those were the same
+  // hand-maintained list, adding an image to an article and forgetting to add
+  // it here made the new image invisible — the script passed while a referenced
+  // screenshot did not exist, which is the exact failure it is here to catch.
+  // Caught on 2026-09-05 when the checklists batch added templates/
+  // template-builder-01.png and this run went green anyway.
+  //
+  // So: every referenced image must exist in the store, AND every referenced
+  // image must appear in the expectations table. The second is what makes
+  // adding an image a decision rather than an omission.
+  const referenced = GUIDE_ARTICLES.flatMap((a) => [
+    ...a.images.map((i) => ({ path: i.id, article: a.id })),
+    ...a.sections.flatMap((sec) => sec.images.map((i) => ({ path: i.id, article: a.id }))),
+  ])
 
-  console.log("\n── Referenced screenshots ────────────────────────────────────────────────────\n")
+  for (const r of referenced) {
+    assert(
+      `${r.path} is covered by the expectations table`,
+      IMAGES.some((i) => i.path === r.path),
+      `referenced by ${r.article} but absent from IMAGES — add it, with the scope that governs it`
+    )
+  }
 
-  for (const img of IMAGES) {
+  for (const img of referenced) {
     let present = false
     try {
       const meta = await head(img.path, { token: TOKEN })
@@ -182,7 +213,7 @@ async function main(): Promise<void> {
       console.log(`  present — ${img.path} (${(meta.size / 1024).toFixed(0)} KB, ${meta.contentType})`)
     } catch {
       console.log(`  NOT UPLOADED — ${img.path}`)
-      console.log(`    referenced by ${img.article}, governed by ${img.governedBy}`)
+      console.log(`    referenced by ${img.article}`)
       console.log("    Capture from PRODUCTION and redact by hand into docs/guide/_review/ (ruling 1),")
       console.log(`    then: node scripts/upload-guide-image.mjs docs/guide/_review/<file> ${img.path}`)
     }
