@@ -1817,11 +1817,15 @@ model HrDocument {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  organization Organization           @relation(fields: [organizationId], references: [id])
-  versions     HrDocumentVersion[]
-  checkpoints  HrDocumentCheckpoint[]
-  formFields   FormField[]
-  grants       HrDocumentGrant[]
+  organization  Organization           @relation(fields: [organizationId], references: [id])
+  versions      HrDocumentVersion[]
+  checkpoints   HrDocumentCheckpoint[]
+  formFields    FormField[]
+  grants        HrDocumentGrant[]
+  // HR-32 back-relation. A document may be linked from many lessons; the
+  // "one document per lesson" rule is the scalar column's cardinality on
+  // TrainingLesson, not a uniqueness claim about the document.
+  linkedLessons TrainingLesson[]
 
   @@index([organizationId])
 }
@@ -2243,16 +2247,43 @@ model TrainingModuleStoreAssignment {
 }
 
 model TrainingLesson {
-  id               String  @id @default(cuid())
-  trainingModuleId String
-  title            String
-  info             String?
-  videoUrl         String?
-  orderIndex       Int     @default(0)
+  id                 String  @id @default(cuid())
+  trainingModuleId   String
+  title              String
+  info               String?
+  videoUrl           String?
+  orderIndex         Int     @default(0)
+  // HR-32: the ONE document a lesson may point at, from the Document Library.
+  // Link kind ONLY — the I-9 on uscis.gov, a state labor poster. A Link's
+  // target is an external URL, so this column touches no file-delivery path:
+  // GET /api/hr/documents/[id]/download and its canReadHrDocument gate are not
+  // on any route that reads it. WIDENING THIS TO Reference IS A ROUTE-TIER
+  // CHANGE ON THAT DOWNLOAD ROUTE, NOT A SCHEMA CHANGE — the FK already points
+  // at HrDocument; what is missing is a tier on the gate that resolves
+  // lesson → module → assignment. That is why HR-32 scoped it out.
+  //
+  // THE KIND INVARIANT IS NOT IN THIS DATABASE AND CANNOT BE. The rule is
+  // `linkedHrDocumentId → HrDocument WHERE organizationId = the module's org
+  // AND kind = 'Link' AND isActive`, which is CROSS-TABLE: no CHECK can state
+  // it at any price — the same wall DOC-3 hit with its zero-versions invariant
+  // (see HrDocument above, and docs/MIGRATIONS.md § Protected indexes). It is
+  // held by the two builder write routes — POST /api/hr/training and
+  // PATCH /api/hr/training/[id] — and NOWHERE ELSE. The CSV import route never
+  // names the column, so it writes NULL and cannot violate it. If you are
+  // tempted to "complete" this constraint, that is the reason you cannot.
+  //
+  // onDelete: Restrict matches TrainingModule.category above, the one
+  // nullable-FK precedent in this file. It is inert in practice — DOC-1
+  // ruling 8 hides documents via isActive and no route hard-deletes one — and
+  // it refuses to silently orphan a lesson if that ever changes.
+  linkedHrDocumentId String?
 
-  trainingModule TrainingModule           @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
-  resources      TrainingResource[]
-  progress       TrainingLessonProgress[]
+  trainingModule   TrainingModule           @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+  linkedHrDocument HrDocument?              @relation(fields: [linkedHrDocumentId], references: [id], onDelete: Restrict)
+  resources        TrainingResource[]
+  progress         TrainingLessonProgress[]
+
+  @@index([linkedHrDocumentId])
 }
 
 // Downloadable attachments per lesson (UI caps at 4/lesson).
