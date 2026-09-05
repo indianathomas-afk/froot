@@ -126,13 +126,44 @@ const env: Env = {
 
 let failures = 0
 
+// ─── NAV-1 SANCTIONED ADDITIONS ──────────────────────────────────────────────
+//
+// The URL-set comparison is otherwise ABSOLUTE: a gained URL is a defect. This
+// list is the one exception, and it exists because HELP-1a adds a pinned Help
+// entry to every role's nav — a GAIN FOR ALL FOUR ROLES BY DESIGN.
+//
+// IT CANNOT BE EXPRESSED AS A SCENARIO, which is why a new mechanism was
+// needed rather than a fifth compare() call. The /settings/labor exception
+// works by applying the SAME denial to BOTH revisions, so the URL drops out of
+// the before set and the after set together and they stay identical. That
+// symmetry is unavailable here: the baseline revision has no Help item under
+// any env, any denied list, any scenario, so no symmetric condition makes it
+// appear on the before side. compare() had no vocabulary for "this URL is new
+// and that is correct."
+//
+// THIS LIST IS NOT A PLACE TO PUT A URL THAT WENT MISSING. It suppresses
+// GAINED and never LOST — see the filter below, where `lost` is deliberately
+// untouched. A lost URL still fails, which is the regression this fixture was
+// built to catch, and that asymmetry is the whole safety of the mechanism.
+//
+// Adding an entry here is a RULING, not a fix: it asserts that a human decided
+// this destination should appear for these roles. One line per URL, naming the
+// phase that sanctioned it.
+//
+// BASELINE_REV is NOT touched by this mechanism and must not be edited to make
+// a run go green — moving the baseline forward would retire every regression
+// the fixture currently protects, silently.
+const SANCTIONED_ADDITIONS: Record<string, string> = {
+  "/help": "HELP-1a — pinned help entry, all four roles, docs/DECISIONS.md 2026-09-04",
+}
+
 function compare(label: string, denied: string[], e: Env) {
   console.log(`── ${label} ─────────────────────────────────────────`)
   for (const role of ROLES) {
     const b = visible(before, role, denied, e)
     const a = visible(after, role, denied, e)
     const lost = b.filter((u) => !a.includes(u))
-    const gained = a.filter((u) => !b.includes(u))
+    const gained = a.filter((u) => !b.includes(u) && !(u in SANCTIONED_ADDITIONS))
     const ok = lost.length === 0 && gained.length === 0
     if (!ok) failures++
     console.log(

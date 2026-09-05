@@ -80,6 +80,7 @@ export type PermissionUser = {
 // error. Derived from what the code enforces TODAY — no speculative entries.
 export type Capability =
   | "dashboard.view"
+  | "help.view"
   | "dashboard.goal.edit"
   | "checklists.view"
   | "checklists.execute"
@@ -153,6 +154,19 @@ const ADMIN_ONLY: readonly PermissionRole[] = ["ADMIN"]
 // header); the entry here is the ROLE tier only.
 const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   "dashboard.view": ALL,
+  // HELP-1a. THE HELP SURFACE ITSELF IS FOR EVERYONE; the ARTICLES INSIDE IT
+  // are what ruling 3 gates, one by one, on the capability of the page each
+  // one describes. So this is ALL and is expected to stay ALL.
+  //
+  // WHY A NEW CAPABILITY RATHER THAN REUSING dashboard.view. The NavItem type
+  // requires a capability and scripts/verify-nav1-url-sets.ts SKIPS any item
+  // without one (`if (!cap) continue`), so an item with no capability is
+  // invisible to the fixture — the exact shape audit §E.3 refuses, because a
+  // Help entry the fixture cannot see is one that can silently lose a role
+  // later with nothing reporting it. Borrowing dashboard.view would work today
+  // and would become a lie the moment dashboard.view is denied to anyone:
+  // help would vanish for a login that is merely barred from the dashboard.
+  "help.view": ALL,
   // PERM-2 §3 #6 (Gary, 2026-07-26): was MANAGE. A manager could set the
   // dashboard goal that overrides the Forecasting plan they cannot touch
   // (forecasting.edit is ADMIN-only), so the weaker permission won and the

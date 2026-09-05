@@ -46,5 +46,16 @@ next-env.d.ts
 # build/dev start — see src/app/(app)/internal/roadmap
 /src/generated/roadmap.ts
 
+# generated from docs/guide/*.md by scripts/generate-guide.mjs on every
+# build/dev start — see src/lib/help-access.ts
+/src/generated/guide.ts
+
+# HELP-1 ruling 1 (2026-09-04): raw and redacted help screenshots NEVER enter
+# git history. They land here, are redacted here, and reach the app by upload
+# to the private Blob store — so a missed redaction is a live-site bug that can
+# be fixed, not a permanent history entry that cannot.
+/docs/guide/_raw/
+/docs/guide/_review/
+
 # large binary test fixtures — recoverable from history at 72e4adc / eab6254
 docs/test_docs/*.pdf
