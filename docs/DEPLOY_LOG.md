@@ -2,6 +2,69 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — staging only — 2026-09-05 — HR-32: a training lesson can point at one library document
+
+**Merge SHA:** _not yet — WRITTEN AND UNPROMOTED, which the ritual treats as a
+valid state._ The heading's SHA slot and this line are stamped at promotion,
+never hand-typed.
+
+**Payload:** **5 commits** on `staging`, none of them pushed at the time of
+writing. **One migration**, `20260905203838_hr32_lesson_linked_document`:
+additive only — one nullable column, one index, one FK. No backfill, no drop, no
+rewrite; every existing row is valid with NULL. No cron, no Square call, no
+Clerk change, no new capability, no new API route.
+
+**What it does.** A lesson in the training builder can point at one document
+from the Document Library, and only a `kind: "Link"` — the I-9 on uscis.gov, a
+state labor poster. The trainee opens it from the lesson. The driving case: an
+employee filling out an I-9 on Day 1, where the form was already in the library
+but the lesson had no way to point at it.
+
+**Rollback needs no database step, and the column may stay.** Reverting the code
+removes every surface; the column goes back to being unread. It is nullable with
+no default and nothing else joins on it, so leaving the migration applied is
+safe and is the cheaper path. If it is dropped instead, drop the FK constraint
+and the index with it.
+
+**The visibility rule, stated plainly.** A STORE login browsing the training
+library does not see the block, and the suppression is in the QUERY — that
+page's include does not join the document at all, so the title and the URL are
+never in the payload. MANAGER and ADMIN see it. A trainee working their own
+assigned module at `/my/training` sees it whatever their login's role is; that
+was Gary's ruling on 2026-09-05 and it is the case the row exists for. Nothing
+about document library membership, compliance denominators, or acknowledgments
+changed — see `docs/DECISIONS.md`, 2026-09-05.
+
+### Verified
+
+- `npm run build` green before each of the five commits.
+- Scoped `npx eslint` on every touched file: 0 errors. The warnings that remain
+  are pre-existing and were checked against HEAD, not assumed.
+- **Validator, fired against Neon branch `dev` / `br-broad-wave-a6vpjdw0`:**
+  active Link same org → pass; Acknowledgment → 400; inactive Link → 400; Link
+  under a different org id → 400; nonexistent id → 400; mixed payload → 400.
+  The positive is what proves the check is not simply refusing everything.
+- **Payload suppression, same branch:** with the STORE branch taken, the joined
+  key is ABSENT from the lesson row entirely. With it not taken, the document is
+  present and maps through. A deactivated document joins but maps to null.
+- Probe documents were created for those runs and deleted after; Link rows
+  remaining on `dev`: 0.
+
+### Not verified — read this before trusting the list above
+
+- **Nothing has run on the staging database.** The migration applies in the
+  Vercel build, which has not happened, so the column does not exist there yet.
+- **The route-level 400 has never been fired over HTTP.** It is proven at the
+  function the routes call, not through `PATCH /api/hr/training/[id]` with a
+  session. Route-level, signed in, is the check that counts — a signed-out probe
+  404s at the proxy and answers the right thing for the wrong reason.
+- **No browser has rendered the block.** Not the trainee's view, not the admin
+  preview, and not the STORE case.
+- **The STORE check, when taken, must be a POSITIVE under the role:** the same
+  login seeing the lesson and its video while not seeing the linked-document
+  block. A blank page cannot tell "correctly suppressed" from "this login sees
+  nothing here at all".
+
 ## UNPROMOTED — staging only — 2026-09-04 — HELP-1a: the in-app help machine
 
 **Merge SHA:** _not yet — this entry is WRITTEN AND UNPROMOTED, which the ritual
