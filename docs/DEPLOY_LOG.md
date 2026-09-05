@@ -2,6 +2,97 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — staging only — 2026-09-04 — HELP-1a: the in-app help machine
+
+**Merge SHA:** _not yet — this entry is WRITTEN AND UNPROMOTED, which the ritual
+treats as a valid state._ The heading's SHA slot and this line are stamped from
+`git rev-parse` and `date` at promotion, never hand-typed, and neither token is
+spelled out anywhere in the prose below — a token written into a sentence is a
+token the stamp substitutes into that sentence.
+
+**⚠ THE PROMOTION BLOCKER THIS ENTRY OPENED WITH IS CLEARED (2026-09-05).**
+It read: do not promote, because `froot-guide` held no image and the document
+library references one inside its gated section, so an ADMIN on production would
+have seen a broken image — the route returning 404 by design, indistinguishable
+from a legitimate refusal and therefore reporting nothing. The store is now
+provisioned and the redacted capture is uploaded
+(`hr-documents/document-detail-01.png`, 126 KB). Evidence item 4 passes 8 of 8.
+**Marked rather than deleted**, per the in-place correction convention this log
+uses: the blocker was real, it was the reason to hold, and a reader
+reconstructing why this sat unpromoted needs to find it rather than a gap.
+
+**The gated-section article changed after this entry was first written.**
+Ingredients was replaced by the document library on 2026-09-04 — the inventory
+module is on hold with no data in any environment, so that article documented a
+feature nobody runs. The replacement gates its section on ADMIN rather than
+MANAGE, so the section is hidden from three roles instead of one.
+
+**Payload:** **5 commits** on `staging`. Two are already deployed to staging
+(the machinery and its roadmap recorder, pushed 2026-09-04); three are not yet
+pushed at the time of writing. **No schema change, no migration, no cron, no
+Square call, no writes to any existing table.**
+
+**Rollback is clean and needs no database step.** Nothing here writes a row and
+nothing alters an existing one, so reverting the code removes the surface
+entirely. The one thing to know: a new capability `help.view` is added, granted
+to ALL. Reverting removes it along with the nav entry that reads it, and no
+existing capability's role tier moved.
+
+### What it does
+
+Adds an in-app help surface: a pinned Help entry in both shells, an article
+list, article pages, a per-request search index, and an authenticated image
+route. Content is authored as `docs/guide/*.md` and compiled to a gitignored
+module by a `prebuild`/`predev` generator, following the roadmap generator.
+
+**Three articles ship, of a mapped 44.** That is deliberate — one per branch of
+the machinery, so every path is exercised by real content rather than compiled
+and assumed. The build log prints the remaining 59 routes on every build; that
+list is HELP-1b's scope and it shrinks as articles land.
+
+**What a reader sees is decided in exactly one place**, `src/lib/help-access.ts`,
+which the search index, the section filter and the image route all defer to.
+Three implementations of "what may this reader see" eventually disagree, and
+every direction of disagreement leaks rather than merely looking wrong.
+
+### The permissions change, stated plainly
+
+**One new capability, `help.view`, granted to ALL.** The help surface itself is
+for everyone; the articles inside it are what the confidentiality ruling gates,
+one at a time, on the capability of the page each describes. No existing role
+baseline moved.
+
+It exists as a real capability rather than being ungated because
+`scripts/verify-nav1-url-sets.ts` skips any nav item without one — an item with
+no capability is invisible to the fixture, and a Help entry the fixture cannot
+see could silently lose a role later with nothing reporting it. The nav item is
+therefore a parseable literal and the fixture reports it as a gain for all four
+roles, sanctioned explicitly in `SANCTIONED_ADDITIONS`. `BASELINE_REV` was not
+edited.
+
+### Verified
+
+- Per-role article sets, section absence, search-index absence and image scope
+  all asserted in `scripts/verify-help-access.ts` — green, both directions on
+  every check.
+- `scripts/verify-nav1-url-sets.ts` green.
+- `npm run build` green.
+- **On staging, SHA-matched first:** an ADMIN login rendered three articles and
+  a STORE login rendered one. Recorded as a confirmation rather than formal
+  evidence — no org id was captured, and the Browser Evidence precondition
+  requires one.
+
+### Not verified — read this before trusting the list above
+
+- ~~The image route has never served bytes.~~ **CLOSED 2026-09-05** — the store
+  round-trip asserts byte-identical delivery, and the stored blob URL is
+  confirmed not fetchable without credentials.
+- **Section-level rendering has never been seen in a browser.** It is asserted
+  green route-level in both directions, but nobody has opened the Ingredients
+  article as a STORE login to watch the contents list renumber.
+- Nothing here proves browser rendering generally, and the assertions exercise
+  the policy functions the routes call rather than HTTP responses over the wire.
+
 ## 8c25084 — 2026-08-30 — ENG-1: engagement tracking
 
 **Merge SHA:** `8c250846a43a3c4d05df3c569b9188690c5549a3`

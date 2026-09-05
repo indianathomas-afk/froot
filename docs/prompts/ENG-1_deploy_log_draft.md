@@ -119,7 +119,11 @@ head -4 docs/DEPLOY_LOG.md > /tmp/eng1-new.md && cat /tmp/eng1-entry.md >> /tmp/
 grep -c '^## ' docs/DEPLOY_LOG.md
 ```
 
-Expect `40` — 39 before this entry, plus this one. **A count of 1 means the
+Expect `41`. CORRECTED 2026-08-30: this line read `40` (39 before, plus this
+one) when the draft was written. NAV-1's entry landed between the drafting and
+the run, so the log held 40 and the splice took it to 41. CONSUMED 2026-08-30 —
+these commands were run for real in `b65a76b`; the chunk counts 18 / 34 / 51 and
+the zero-placeholder check held exactly as written. **A count of 1 means the
 splice ate the file: restore with `git checkout docs/DEPLOY_LOG.md` and start
 again.** Then `head -8 docs/DEPLOY_LOG.md` to eyeball the stamped heading.
 

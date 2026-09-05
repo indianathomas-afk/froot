@@ -16,6 +16,7 @@ import {
   Eye,
   MessageSquare,
   Settings,
+  HelpCircle,
   LogOut,
   TrendingUp,
   PanelLeftClose,
@@ -117,6 +118,22 @@ const inventoryNavItems: NavItem[] = [
 // capability it carried in the flat list. A group has no capability of its own —
 // it renders when at least one child survives filtering and hides when none do,
 // so an empty accordion cannot appear.
+// HELP-1a — the pinned Help destination.
+//
+// DELIBERATELY A LITERAL OF THE SAME SHAPE the items in navStructure use, and
+// deliberately on ONE LINE, because scripts/verify-nav1-url-sets.ts parses this
+// file as TEXT with a line-oriented regex. Reformatting this declaration across
+// several lines would make the fixture stop seeing it — silently, and with a
+// GREEN run, which is the failure mode the fixture's own parser guard
+// (`before.length < 20 || after.length < 20`) exists to prevent. If you split
+// it, the fixture no longer governs the one nav entry every role has.
+//
+// It is NOT a member of navStructure: it renders pinned below the nav rather
+// than inside the accordion (audit §D.1). The parser does not care where a
+// literal is used, only that it is here to be read — which is what lets Help be
+// both pinned and governed.
+const HELP_ITEM: NavItem = { href: "/help", label: "Help", icon: HelpCircle, capability: "help.view" }
+
 const navStructure: NavEntry[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, capability: "dashboard.view" },
   {
@@ -277,6 +294,8 @@ export function Sidebar({
   // else. Keep it derived rather than hand-maintained.
   const allVisibleItems = visibleStructure.flatMap((entry) => (isGroup(entry) ? entry.items : [entry]))
 
+  const canSeeHelp = can(actor, "help.view")
+  const helpActive = pathname === "/help" || pathname.startsWith("/help/")
   const canSeeSettings = can(actor, "settings.access")
   // Settings owns /settings, but a more specific nav item (e.g. Labor at
   // /settings/labor) takes precedence — otherwise both would highlight.
@@ -470,6 +489,52 @@ export function Sidebar({
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {visibleStructure.map((entry) => (isGroup(entry) ? renderGroup(entry) : renderItem(entry)))}
       </nav>
+
+      {/* HELP-1a — the pinned Help entry.
+          POSITION: between the nav's close and Settings, per audit §D.1. It is
+          outside the accordion groups so it cannot be collapsed away, above
+          Settings, and above the user block. It is the only position that is
+          pinned and always visible.
+
+          SHAPE: the destination is declared as HELP_ITEM — a PARSEABLE NavItem
+          LITERAL — and this JSX consumes it. That is deliberate and it is the
+          whole of audit §E.3. Settings below is hand-written JSX with no
+          literal, so scripts/verify-nav1-url-sets.ts is BLIND to it and has to
+          hard-code it. Writing Help the same way would have been the tempting
+          move, because it dodges the red fixture run entirely — and that is
+          precisely the reason to refuse it. A nav entry the URL-set fixture
+          cannot see is one that can silently lose a role later with nothing
+          reporting it, and Help is pinned for EVERY role, so it has the widest
+          blast radius of any entry if it regresses. Settings is hand-written
+          for a reason that does not apply here: its bespoke active-state
+          precedence over /settings/labor. Help has no sub-routes.
+
+          The literal is therefore parsed by the fixture, which reports it as a
+          GAIN FOR ALL FOUR ROLES — and that gain is sanctioned explicitly in
+          SANCTIONED_ADDITIONS rather than hidden by choosing a shape the
+          parser cannot read. */}
+      {canSeeHelp && (
+        <div className="px-2 py-2">
+          <Link
+            href={HELP_ITEM.href}
+            title={collapsed ? HELP_ITEM.label : undefined}
+            className={cn(
+              linkBase,
+              collapsed ? "justify-center px-2" : "",
+              helpActive
+                ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium"
+                : "text-[var(--color-foreground)] hover:bg-[var(--color-accent)]"
+            )}
+          >
+            {/* The rail collapses to 60px and suppresses every label, so a
+                pinned item MUST carry its own glyph — a 60px rail with no
+                glyph is a blank. Only the inventory children may omit `icon`,
+                because they fall back to their group's. */}
+            <HelpCircle className={cn("h-4 w-4 shrink-0", helpActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)]")} />
+            {!collapsed && HELP_ITEM.label}
+          </Link>
+        </div>
+      )}
 
       {/* Settings */}
       {canSeeSettings && (

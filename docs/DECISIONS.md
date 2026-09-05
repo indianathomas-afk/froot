@@ -6,6 +6,326 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-04 — HELP-1 / HELP-1a: eleven rulings — ⚠️ THREE NOT YET IN GARY'S WORDING
+
+**INTERIM ENTRY, AND THE STATUS IS PER-RULING RATHER THAN PER-SECTION.** Recorded
+now rather than later because the code implementing these shipped in `1641d1e`,
+`b01ec1e` and `4d969e6`, and a ruling that governs shipped code while living
+only in a session transcript is a ruling nobody can check. Gary's call,
+2026-09-04: *"nothing recorded nowhere while code implements it."*
+
+Each entry below carries its own provenance line. Three are explicitly awaiting
+Gary's own wording and say so; four are Gary's words verbatim from the session;
+four are Claude-drafted and accepted as standing, on Gary's reasoning that they
+*"describe what the code does rather than constrain what a future phase may
+do."*
+
+**A CLAUDE-DRAFTED ENTRY IS NOT A WEAKER RULING — it is a ruling whose WORDING
+has not been ratified.** The distinction matters in one direction only: do not
+quote the drafted prose as Gary's, and do not treat a phrase in it as
+load-bearing where the code and the prose disagree. The three awaiting rewrite
+are the three that constrain future phases, which is why they are the three
+being rewritten.
+
+Design document: `docs/prompts/HELP-1_AUDIT_RESULTS.md`. Build prompt:
+`docs/prompts/HELP-1a_BUILD.md`. The build prompt's own count of eight rulings
+is WRONG in both directions — it split one audit draft in two and promoted an
+open fork to a ruling — and its numbering should not be cited anywhere.
+
+---
+
+### 2026-09-04 — HELP-1: help screenshots come from production, redacted by hand
+
+*Claude-drafted from `HELP-1_AUDIT_RESULTS.md`. Gary accepted as standing
+2026-09-04, unrewritten.*
+
+HELP-1 (2026-09-04): Help article screenshots are captured from **production**
+and redacted by hand. They are not generated from a seeded staging org.
+(1) Production is the only environment whose screens show what a customer
+actually sees — a seeded org produces screenshots that teach the seed data
+rather than the product, and its emptiness is itself misleading. (2) Redaction
+is manual per image; there is no automated redaction step and none should be
+introduced, because a redactor that is wrong fails silently and invisibly.
+(3) Raw captures never enter git history: they land in a gitignored directory,
+are redacted into a second gitignored directory, and reach the app by upload —
+so a missed redaction is a live-site bug that can be fixed, not a permanent
+history entry that cannot.
+
+**Ruling 3 is structural and is the reason the other two are safe.** Manual
+redaction will eventually miss something; that is a property of manual work, not
+a reason to avoid it. What makes the miss survivable is that no unredacted file
+is ever a tracked file. `docs/guide/` holds `.md` only — checkable in one line,
+and `scripts/generate-guide.mjs` warns when it stops being true.
+
+---
+
+### 2026-09-04 — HELP-1: module-gated articles render as upgrade previews
+
+*Claude-drafted from `HELP-1_AUDIT_RESULTS.md`, amended by Gary's fork-5 ruling
+below. Accepted as standing 2026-09-04, unrewritten.*
+
+HELP-1 (2026-09-04): An article for a module the org has not bought is
+**visible**, framed as an upgrade preview with a path to plans. Inventory
+articles are readable by an org without Inventory. (1) The module is not a
+filter on the help surface — module-gated articles appear in search and in the
+article list for every org. (2) The preview renders the article's prose **in
+full**, with the upgrade banner above it; a preview that shows only a paywall
+teaches nothing and defeats the purpose of showing it at all. (3) Links from a
+preview article into the gated routes render inert rather than navigating to a
+page the reader cannot use.
+
+**This ruling is about sales, not permissions, and the distinction is the whole
+point.** Module gating answers "has this org paid for it"; capability gating
+answers "is this person allowed to know it". They point in opposite directions
+here — the first opens the help surface up and the second closes it down — and
+they must stay separate mechanisms, exactly as nav visibility and API access are
+kept separate in `permissions.ts`.
+
+---
+
+### 2026-09-04 — HELP-1: capability-gated articles stay hidden
+
+*Claude-drafted from `HELP-1_AUDIT_RESULTS.md`, with clause 4 added by the
+HELP-1a build. Accepted as standing 2026-09-04, unrewritten.*
+
+HELP-1 (2026-09-04): An article describing a page a login cannot reach is
+**hidden from that login entirely** — absent from search, absent from the
+article list, and not fetchable by route. A STORE or STAFF login does not find
+compensation articles by searching. (1) There is no locked state, no greyed
+entry and no "ask your administrator" placeholder; a visible lock advertises
+what COMP-1 exists to keep confidential, which is the same reasoning already
+ruled for the `/settings/labor` nav entry under NAV-1. (2) Visibility is decided
+by `can(actor, …)` — the same call the page itself makes — so a per-user
+override or grant moves the page and its article together. (3) The article
+**body** re-runs the check on fetch; the index filtering the list is not
+sufficient, because an index the client holds can be read past. (4) Capability
+is necessary but **not sufficient**: an article whose entry point the reader
+cannot reach is hidden even where `can()` allows it.
+
+**Clause 4 was added by the build and is the one a future phase will trip
+over.** `can()` cannot see a SHELL-level gate, and HR-7 in
+`src/app/(app)/layout.tsx` is one — it redirects a STAFF login that is linked to
+a StaffMember out of the entire admin shell wherever HR is active, which is
+staging and production. `/labor` is the worked example: it has no capability
+guard at all and `labor.view` is granted to everyone, yet a linked STAFF login
+still cannot open it. An article offered on capability alone would have been
+readable with an entry point that bounces — ruling 3 failing quietly. This
+decided which three articles HELP-1a shipped and it governs all 36 admin-shell
+articles in HELP-1b.
+
+**This ruling is also why the search index is per-request and cannot be a build
+artifact.** `labor.access` is one of 26 capabilities deniable per user, so two
+managers in the same org with the same role and the same modules can have
+different visible article sets.
+
+---
+
+### 2026-09-04 — HELP-1: search covers everything the reader can see
+
+*Claude-drafted from `HELP-1_AUDIT_RESULTS.md`, clause 3 extended by the
+HELP-1a build. Accepted as standing 2026-09-04, unrewritten.*
+
+HELP-1 (2026-09-04): Help search covers the **whole org-purchasable surface**,
+minus what the reader's capabilities exclude. (1) Module-gated articles are in
+scope and searchable regardless of what the org has bought, per the upgrade
+preview ruling. (2) Capability-hidden articles are out of scope and unsearchable
+for that reader, per the hidden-articles ruling. (3) Search matches titles,
+summaries, keywords **and the routes the reader can reach** — never bodies,
+which are fetched per article through the same check, so what is searchable and
+what is readable can never disagree. (4) Filtering happens in exactly one place,
+shared by the index, the article list, the section filter and the image route;
+there is no second implementation of who-sees-what.
+
+**Ruling 4 is the operative one.** Two places that decide visibility will
+eventually disagree, and the direction of the disagreement is a confidentiality
+failure rather than a cosmetic bug — the precedent is NAV-1's single
+`isVisible()` pass and PERM-5C's rule that a hidden page must never sit over an
+API that still answers. `src/lib/help-access.ts` is that one place and was built
+first for this reason; built last, three near-copies of the policy would have
+existed before it did.
+
+---
+
+### ⚠️ 2026-09-04 — HELP-1: help articles map to tasks, and gated sections are absent
+
+*⚠️ **CLAUDE-DRAFTED — NOT GARY'S WORDING, AWAITING HIS REWRITE.** Do not quote
+this prose as his. The ruling stands; the sentences do not.*
+
+HELP-1 (2026-09-04): Help articles map to **user tasks, not to routes**. A list
+page, its detail page and its `/new` sibling are normally one article; print
+routes get no article at all. (1) An article **claims** a set of routes, and the
+build-time coverage gate checks that every route is claimed by *some* article —
+not that every route has its own. (2) Where an article claims routes with
+different capability gates, the article is gated on its **entry point** and the
+stricter parts are handled as gated **sections**, rather than by splitting the
+article back into one-per-route. (3) A section the reader lacks the capability
+for **renders nothing** — no heading, no greyed text, no "access required" note,
+no image, and **no route**. It is absent. (4) Exempt from coverage: the
+marketing landing page and both print views. Sign-in and sign-up are covered by
+one combined article.
+
+**Ruling 3 is the same reasoning as the `/settings/labor` nav entry and should
+be read as an extension of it, not a new idea.** That entry is hidden entirely
+rather than locked because a visible lock on a compensation page advertises what
+COMP-1 exists to keep confidential. A section heading is the same disclosure at
+smaller scale: "Restoring a deleted ingredient", greyed out, tells a STORE login
+both that deletion is recoverable and that someone above them can do it. **A
+visible section title is itself a disclosure.**
+
+**"AND NO ROUTE" WAS ADDED BY THE BUILD, AND IT WAS FOUND BY THE EVIDENCE SCRIPT
+RATHER THAN BY REVIEW.** The search-index row gained a `routes` field so the
+contextual "?" could match a pathname without shipping every article body into
+the client bundle. That put `/inventory/ingredients/deleted` into the payload of
+every STORE reader. The prose was absent, the heading was absent, and the URL
+said it anyway. **A route string discloses that a page exists exactly as a
+heading does.** A gated section now declares the sub-routes it documents and
+they are removed along with it. Nothing in that diff looked like a permission
+change, which is the argument for the assertion existing at all.
+
+**"Renders nothing" is a server-side condition, not a CSS one.** A hidden
+heading still in the DOM is readable in devtools. Three things follow: the
+section is removed before the page is sent; its text never reaches the search
+index, or a hidden section becomes findable by search and the ruling is undone
+by the search box; and the contents list renumbers, since a "3." with no "2."
+above it discloses that something was removed.
+
+---
+
+### ⚠️ 2026-09-04 — HELP-1: the coverage gate warns, and only a phantom route fails
+
+*⚠️ **CLAUDE-DRAFTED — NOT GARY'S WORDING, AWAITING HIS REWRITE.** Do not quote
+this prose as his. The ruling stands; the sentences do not.*
+
+HELP-1 (2026-09-04): The build-time help coverage gate **warns and does not
+fail** for missing coverage, **permanently — not as a temporary concession** —
+and hard-fails on exactly one condition. (1) A route claimed by no article, a
+route claimed by two articles, and an exempt route claimed anyway are all
+**warnings**; each is a legitimate mid-phase state. (2) An article claiming a
+route that **does not exist** is a **build failure**: it is a typo or a deleted
+page, it cannot be a work-in-progress, and it produces a help article pointing
+at a 404. (3) The exempt-route list lives in the generator, not in article
+frontmatter, so an article cannot exempt a route by declining to mention it.
+
+**Ruling 1 follows the precedent `scripts/generate-roadmap.mjs` already set and
+wrote down**: *"a warning that is wrong only asks a human to look"*, and *"A
+NOISY CHECK WOULD BE WORSE THAN NONE."* A gate that fails on missing coverage
+turns every future route-adding phase into a route-adding-plus-article-writing
+phase, and the pressure it creates is to write a stub article that satisfies the
+gate and teaches nothing — which defeats the gate rather than passing it.
+
+**There is no flip and no threshold, and that is the load-bearing half.** The
+warn form needs no special handling on day one: with three articles written it
+warns about 59 routes, which is accurate and is HELP-1b's to-do list rendered by
+the build. A "warn now, fail later" arrangement would need a moment where the
+gate is disabled and re-enabled, and that moment is when gates like this die.
+
+---
+
+### ⚠️ 2026-09-04 — HELP-1: all guide images are served authenticated, gated at the narrowest scope
+
+*⚠️ **CLAUDE-DRAFTED — NOT GARY'S WORDING, AWAITING HIS REWRITE.** Do not quote
+this prose as his. The ruling stands; the sentences do not.*
+
+HELP-1 (2026-09-04): Every help screenshot is served through an **authenticated
+app route**, with no split by risk bucket and nothing in `public/`. (1) Images
+live in a private Blob store and reach the reader the way HR document files
+already do — the route authorizes the viewer, then streams the bytes or mints a
+short-lived signed URL; the stored blob URL is never exposed and is not
+fetchable on its own. (2) **Being signed in is not sufficient.** The image route
+applies the same capability check as the content that owns the image — the
+section's capability where the image sits in a gated section, otherwise the
+article's. (3) A refused image returns **404, not 403**: a 403 confirms the
+image exists and therefore that a hidden section exists. (4) `Cache-Control` is
+`private`, never shared. (5) Guide images are never tracked in git; raw and
+redacted captures live in gitignored directories and reach the app by upload.
+
+**Ruling 2 exists because without it the section ruling leaks through image
+URLs.** A section hidden from a STORE login renders nothing in the HTML — but if
+its screenshot were served to any signed-in session, that reader could fetch the
+picture of the section they were not allowed to see. The prose would be absent
+and the image would say it anyway. Gating images at the article level is correct
+for most of them and wrong for exactly the ones the section ruling exists to
+protect, which is why the gate is the **narrowest enclosing scope**.
+
+**`public/` is disqualified by measurement, not by caution.** Verified against
+production 2026-09-04: a file at `public/guide/x.png` returns `200` to anyone
+who guesses the URL, with no session — the proxy matcher's negative lookahead
+lists `png`, so the request never reaches `auth.protect()`. **And the split by
+risk bucket is refused because the buckets were wrong twice during the audit
+itself**, mis-scoring `/store-view/checklist/[id]` and `/hr/signed-records` as
+clean. A single authenticated route has no classification step, so it cannot be
+classified wrongly.
+
+---
+
+### 2026-09-04 — HELP-1a: guide images get their own store and token
+
+*Gary's wording, given in session 2026-09-04. Recorded verbatim.*
+
+> "Fork 9 — separate `froot-guide` store and token. Pattern shared, blast radius
+> not."
+
+**Recorded with a note about how it nearly went the other way.** The HELP-1a
+build prompt listed this as "ruling 8" among eight rulings. It was not a ruling:
+the audit had it as **open fork 9**, with "own store" as Claude's lean and the
+explicit line *"say the word if you would rather have one store."* The build
+stopped on it rather than implementing a lean dressed as a decision. A leaned
+preference promoted to a ruling is how something nobody decided becomes
+load-bearing.
+
+---
+
+### 2026-09-04 — HELP-1a: the upgrade preview is a banner, not an interstitial
+
+*Gary's wording, given in session 2026-09-04. Recorded verbatim.*
+
+> "Fork 5 — not a fork. The article preview is a banner on a readable article,
+> not a full-page interstitial for a blocked route. Different component. Build
+> it; do not touch the 14, and do not extract a shared card this phase."
+
+**This dissolves the fork rather than picking a side of it.** The audit framed
+it as extract-the-shared-card versus make-a-fifteenth-copy, and both answers
+assumed one component doing both jobs. The interstitial answers "you cannot open
+this page"; the banner answers "you can read this, and the screens unlock when
+you buy it." The 14 existing copies were never candidates for reuse here, so the
+extraction that looked like the careful option was simply unrelated work.
+
+---
+
+### 2026-09-04 — HELP-1a: the help surface does not document itself
+
+*Gary's wording, given in session 2026-09-04. Recorded verbatim.*
+
+> "Exempt all four `/help` routes. The coverage gate is a to-do list of
+> undocumented product surfaces; help documenting itself is a hall of mirrors
+> and would sit in the warn list forever teaching nothing."
+
+**The four routes entered the warn list the moment HELP-1a created them, and
+that was the gate working.** It swept `src/app`, found four routes with no
+article, and said so. The exemption states that they are not product surfaces a
+reader needs help *on* — it is not a concession that the gate was noisy. The
+list lives in the generator with the other exempt routes, per the coverage-gate
+ruling's clause 3.
+
+---
+
+### 2026-09-04 — HELP-1a: the help empty state is one sentence
+
+*Gary's wording, given in session 2026-09-04. Recorded verbatim.*
+
+> "There aren't any help articles here yet." Nothing else: no search hint, no
+> "check back later", no explanation. It must read identically whether nothing
+> is written or the reader's capabilities filtered everything away. Any copy
+> that hints at filtering is the visible lock ruling 3 forbids.
+
+**The ruling forbids the explanation, not a particular sentence, and that is the
+part to preserve if the wording ever changes.** "Coming soon" is true today and
+becomes a disclosure the moment articles exist: a reader who can see nothing
+would be told that content exists and is being withheld. An explanation is
+exactly where such a hint gets added later, in good faith, by someone trying to
+be helpful — on the one screen nobody thinks of as a permission surface.
+
+---
 ## 2026-08-30 — ENG-1: Froot tracks engagement, ADMIN-only, with no raw IP
 
 Wording drafted in the ENG-1 session prompt

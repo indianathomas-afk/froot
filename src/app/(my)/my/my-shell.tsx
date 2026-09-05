@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { SignOutButton } from "@clerk/nextjs"
-import { FileText, Home, MessageSquare } from "lucide-react"
+import { FileText, Home, HelpCircle, MessageSquare } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 
 // HR-7 staff portal chrome: slim header + fixed bottom tab bar (mobile-first,
@@ -39,11 +39,27 @@ export function MyShell({
           </div>
           <span className="font-semibold text-[var(--color-foreground)]">froot</span>
         </Link>
-        <SignOutButton redirectUrl="/sign-in">
-          <button className="min-h-11 px-4 rounded-md text-sm text-[var(--color-muted-foreground)]">
-            Sign out
-          </button>
-        </SignOutButton>
+        {/* HELP-1a — help lives in the HEADER, not the tab bar (audit §D.3).
+            The bar is flex-1 across its items and already flexes between 3 and
+            4 tabs depending on whether Instagram is connected; a fifth tab
+            makes each one ~20% narrower on the smallest phone this portal is
+            explicitly built for. A "?" beside Sign out costs no tab width and
+            matches where the "?" sits in the admin shell. */}
+        <div className="flex items-center gap-1">
+          <Link
+            href="/my/help"
+            aria-label="Help"
+            title="Help"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--color-muted-foreground)]"
+          >
+            <HelpCircle className="h-5 w-5" />
+          </Link>
+          <SignOutButton redirectUrl="/sign-in">
+            <button className="min-h-11 px-4 rounded-md text-sm text-[var(--color-muted-foreground)]">
+              Sign out
+            </button>
+          </SignOutButton>
+        </div>
       </header>
 
       <main className="flex-1 px-4 pb-24">{children}</main>

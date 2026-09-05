@@ -13563,10 +13563,40 @@ phases:
   - id: NAV-1
     track: platform
     size: S
-    status: in_progress
-    commits: [a005cba]
+    status: shipped
+    shipped: 2026-08-30
+    commits: ["a005cba", "16f6f6b", "e6149f8"]
     title: "Sidebar restructured into collapsible groups + Daily Tasks button on the dashboard header"
     notes: >
+      CLOSED 2026-08-30 BY THE ENG-1 CLOSEOUT, not by a NAV-1 session — this row
+      was left at in_progress when NAV-1 was promoted and was found stale while
+      closing ENG-1. PROMOTED TO PRODUCTION 2026-08-30 in merge `e6149f8`
+      ("promote: NAV-1 — grouped sidebar + Daily Tasks button (work a005cba)").
+      Verified the same way as ENG-1: two-parent merge, ancestor of
+      `origin/main`, second parent exactly
+      `16f6f6b7d802a304128a43c5c15ed66c3e75ba78` — NAV-1's staging HEAD.
+      SHAs ARE NOW QUOTED, which they were not: `commits: [a005cba]` relied on
+      the leading letter to parse as a string. An all-digit short SHA parses as
+      an integer and one shaped like 1e9833 as a float, so the quotes are a
+      correctness rule. Work a005cba, docs 16f6f6b, promotion e6149f8. A fourth
+      NAV-1 commit exists and is deliberately NOT in that list — `5421762`
+      committed docs/prompts/NAV-1-CHECK_prepush.md, the session record NAV-1's
+      docs commit omitted; the list carries work/docs/promotion, as PERM-8's and
+      COMP-1's do.
+      ITS DEPLOY_LOG ENTRY CARRIED TWO UNSUBSTITUTED `<SHA>` PLACEHOLDERS until
+      `b65a76b` — in the heading and in `Rollback: git revert -m 1 <SHA>`, the
+      second being a rollback instruction that could not be run at the one moment
+      the log is consulted. The entry had also landed at the BOTTOM of the file,
+      below the 2026-07-22 rename footer, while every other entry is newest-first
+      from line 5. Both fixed there; its six lines of prose are unchanged.
+      `shipped`, NOT `verified` — no production observation, and the per-role
+      sidebar capture the NAV-1 prompt asked for was never run.
+      EVERYTHING BELOW THIS LINE WAS WRITTEN BEFORE THE PUSH and is preserved
+      unedited per preserve-and-mark. It says the work is local and unpushed and
+      that the value "becomes `staging` on Gary's push"; that was true when
+      written and is NO LONGER THE STATE. The row went in_progress -> shipped
+      without passing through `staging`.
+      ── ORIGINAL ROW, AS WRITTEN 2026-08-30 ──
       STATUS IS in_progress AND NOT staging: a005cba is LOCAL AND NOT PUSHED
       (pushes are Gary's), per WORKFLOW.md § Session completion rules 4, which
       sets `staging` only for a row whose code was PUSHED during the session.
@@ -13656,10 +13686,40 @@ phases:
   - id: ENG-1
     track: platform
     size: M
-    status: in_progress
-    commits: ["f1e9833", "e2ed2d0"]
+    status: shipped
+    shipped: 2026-08-30
+    commits: ["f1e9833", "e2ed2d0", "8c25084"]
     title: "Engagement tracking — last activity, daily page rollups, coarse location, ADMIN-only view"
     notes: >
+      CLOSED 2026-08-30. PROMOTED TO PRODUCTION 2026-08-30 in merge `8c25084`
+      ("Promote ENG-1: engagement tracking — staff, managers, store devices").
+      Verified before this row was touched, the check the PERM-8 closeout
+      established: two-parent merge, ancestor of `origin/main`, and its SECOND
+      PARENT IS EXACTLY `835b213ea6227169d5b050c0c3c4a5d3d2b7fb45` — the staging
+      HEAD the PRE-PUSH-CHECK session ran its Step 3 against. The checked tree
+      and the promoted tree are the same tree.
+      `shipped`, NOT `verified`. `verified` means smoke-tested against real store
+      data in production, and NO PRODUCTION OBSERVATION OF ENG-1 EXISTS. Nor is
+      there a staging pass: unlike PERM-8, this phase was promoted without one,
+      so the per-role 403 capture by request is still outstanding at both tiers.
+      The migration reaching production IS attested — `vercel-build` is
+      `prisma migrate deploy && npm run build`, so the Ready deployment on
+      `8c25084` could not have been produced by a failed migration — but no row
+      in the production `UsageDaily` has been read by anyone.
+      THE DEPLOY_LOG ENTRY WAS NOT WRITTEN AT PROMOTION TIME and was recovered
+      afterwards in `b65a76b` on main. The promotion ran, then
+      `git add docs/DEPLOY_LOG.md && git commit` answered "nothing to commit,
+      working tree clean" — because the pasteable commands in
+      docs/prompts/ENG-1_deploy_log_draft.md had not been run and the file was
+      untouched. Recorded because the failure was SUCCESS-SHAPED: that sentence
+      is also exactly what git says when the work is already done.
+      EVERYTHING BELOW THIS LINE WAS WRITTEN BEFORE THE PUSH and is preserved
+      unedited per preserve-and-mark. Its opening sentences say the work is local
+      and unpushed and that the status is deliberately not `staging`; that was
+      true when written and is NO LONGER THE STATE. The row never passed through
+      `staging` as a value — it went in_progress -> shipped, because the push and
+      the promotion happened in the same sitting.
+      ── ORIGINAL ROW, AS WRITTEN 2026-08-30 ──
       STATUS IS in_progress AND NOT staging: f1e9833 is LOCAL AND NOT PUSHED
       (pushes are Gary's), per WORKFLOW.md § Session completion rules 4, which
       sets `staging` only for a row whose code was PUSHED during the session.
@@ -13787,6 +13847,269 @@ phases:
       convention every shipped row uses: an unquoted short SHA that happens to
       be all digits parses as an integer and one like 1e9833 as a float, so the
       quotes are a correctness rule rather than a style one.
+
+  - id: HELP-1a
+    track: platform
+    size: L
+    status: verified
+    shipped: 2026-09-04
+    commits: ["1641d1e"]
+    title: "In-app help — the machine: access helper, generator, two shells, search index, authenticated images"
+    notes: >
+      THE MACHINERY ONLY, plus exactly three real articles so every branch of it
+      is exercised by something real rather than compiled and assumed: Reports
+      (clean, no images), the Staff directory (PII-bearing, two routes), and
+      Ingredients (one gated section). Design document is
+      docs/prompts/HELP-1_AUDIT_RESULTS.md; the build prompt is
+      docs/prompts/HELP-1a_BUILD.md.
+      src/lib/help-access.ts IS THE LOAD-BEARING PIECE and was built first. One
+      mapping from help resource to governing capability, three callers — the
+      search index, the section filter, and the image route. Built last, three
+      near-copies of the policy would have existed before it did, and three
+      implementations of "what may this reader see" eventually disagree in a
+      direction that leaks rather than merely looking wrong.
+      THE COVERAGE GATE WARNS PERMANENTLY and hard-fails on exactly one
+      condition — an article claiming a route that does not exist. No flip, no
+      threshold, no escape hatch, following generate-roadmap.mjs's precedent
+      that "A NOISY CHECK WOULD BE WORSE THAN NONE". Day one: 72 routes, 6
+      claimed, 3 exempt, 63 warned. That list is HELP-1b's to-do list rendered
+      by the build and shrinks as articles land. After the article swap the
+      figures are 72 routes, 5 claimed, 7 exempt, 60 unclaimed.
+      A ROUTE LEAK WAS FOUND BY THE EVIDENCE SCRIPT, NOT BY REVIEW, and is the
+      finding most worth carrying forward. Adding `routes` to the search-index
+      row (needed so the contextual "?" could match a pathname without importing
+      the generated articles into a client component) shipped
+      /inventory/ingredients/deleted to STORE readers. A route string discloses
+      that a page exists exactly as a greyed-out section heading does. A gated
+      section now owns the sub-routes it documents and they are removed with it.
+      THE AUDIT'S ARTICLE 16 WAS DROPPED FROM THE THREE after verification.
+      /labor IS in STAFF's six nav URLs and has no capability gate at all
+      (labor.view is ALL and gates the nav entry only — the COMP-1 correction at
+      permissions.ts:310), but HR-7 in (app)/layout.tsx redirects any LINKED
+      STAFF login out of the whole app shell wherever HR is active, which is
+      staging and production. So a portal STAFF reader cannot open it, and an
+      article about it would have been ruling 3 failing quietly. Reports took
+      the clean slot.
+      can() ALONE IS NOT SUFFICIENT FOR HELP VISIBILITY, which is the general
+      form of that finding and matters for HELP-1b's 36 (app) articles: HR-7 is
+      a SHELL-level gate and permissions.ts knows nothing about it. helpScope
+      takes a `surface` and the reader's presence on a surface is the evidence
+      of which shell they can reach — no second copy of the redirect rule, and
+      no staffMember added to getCurrentUser()'s shared include.
+      THE GATED-SECTION ARTICLE WAS SWAPPED 2026-09-04, AFTER the machinery was
+      built. Ingredients was chosen because the audit used it as the worked
+      example throughout — but the inventory module is on hold and has no data
+      in any environment, so the article documented a feature nobody runs and
+      its screenshot would have been of an empty page. Purchase orders, the
+      other inventory candidate, fails identically. The document library
+      (/hr/documents) replaced it, and is a STRICTER exerciser rather than
+      merely an available one: its entry is hr.documents.view (ALL) while
+      /hr/documents/[id] is ADMIN-only, so the gated section is hidden from
+      THREE roles instead of one and the per-role table stops having a zero row
+      (3/3/1/1 rather than 3/3/1/0).
+      THE SWAP FOUND TWO MORE LEAKS OF THE SAME KIND AS THE ROUTE ONE, both in
+      the new article before it shipped: "audience" was in the frontmatter
+      KEYWORDS and the SUMMARY read "set who it goes to". Both fields are
+      article-level, so both would have reached the three roles the section is
+      hidden from. That makes three distinct article-level fields — routes,
+      keywords, summary — through which a gated section can leak, and none of
+      them looks like a permission surface while you are writing it.
+      TWO GATES THIS PHASE THAT permissions.ts CANNOT SEE, and two is a pattern
+      rather than a coincidence. (1) HR-7 in (app)/layout.tsx redirects a linked
+      STAFF login out of the whole admin shell wherever HR is active — a SHELL
+      gate. (2) /hr/documents/[id] guards on a raw `dbUser?.role !== "ADMIN"`
+      check, not on can(), so the help section's gate (hr.documents.manage) and
+      the page's gate are equivalent today by coincidence rather than by
+      construction — a ROLE-STRING gate. Both are invisible to can(), and
+      HELP-1b will meet more of them across 41 more articles.
+      helpScope() IS WHERE THAT KNOWLEDGE BELONGS. It already carries the shell
+      dimension as `surface`; the role-string case is currently unmodelled and
+      merely happens to agree. The divergence runs in the SAFE direction here —
+      a per-user denial of hr.documents.manage would hide the help section from
+      an ADMIN who could still open the page, so help hides more than the page
+      shows — but the opposite pairing would be a leak, and nothing in the code
+      would report it.
+      NAV-1 FIXTURE: Help is a PARSEABLE NavItem literal specifically so the
+      fixture governs it, paid for with a SANCTIONED_ADDITIONS entry that
+      suppresses GAINED and never LOST. BASELINE_REV untouched. The red run was
+      taken deliberately before the exception was added — otherwise the
+      exception is unfalsifiable, since a parser that silently matched nothing
+      would look identical to a pass.
+      VERIFIED ON STAGING 2026-09-04, BOTH DIRECTIONS, and this is the half the
+      route-level assertions could not reach. Deployment froot-dps824xdv was
+      SHA-matched to origin/staging (256e453) before either observation, per the
+      staging-SHA precondition. An ADMIN login rendered THREE articles; a STORE
+      login (corporate@keva.com, identified as STORE by a sidebar carrying no
+      Settings, Reports, Stores, Staff or Users) rendered ONE — Ingredients,
+      the only one of the three gated at OPERATIONAL rather than MANAGE. That
+      is evidence 1 reproduced against a real database and real logins rather
+      than the synthetic actors verify-help-access.ts uses.
+      ORG ID NOT CAPTURED for either observation, so per the Browser Evidence
+      precondition neither is citable as formal evidence — recorded here as a
+      confirmation, not as a proof. Staging holds several orgs answering to
+      similar names.
+      SECTION-LEVEL RENDERING (ruling 6) IS STILL UNSEEN IN A BROWSER. It is
+      asserted green route-level in both directions, but nobody has opened the
+      Ingredients article as a STORE login to confirm the contents list
+      renumbers 1-3 with no gap where the gated section was.
+    blockers:
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-05 — evidence item 4 passes 8 of 8 and the production
+          promotion blocker is CLEARED. froot-guide is provisioned, the redacted
+          capture is uploaded at hr-documents/document-detail-01.png (126 KB),
+          and the full round-trip asserts green: a private blob is written, its
+          bare URL is confirmed NOT fetchable without credentials, an authorized
+          read returns byte-identical bytes, and the refusal half holds in both
+          directions — ADMIN may read the image inside the gated section while
+          MANAGER, STORE and STAFF may not, though all three may read the
+          article containing it. Verified independently of Gary's own run.
+      - DECISIONS.md entries are NOT WRITTEN. Seven of the eight rulings exist only as Claude-worded drafts in HELP-1_AUDIT_RESULTS.md and must be ratified in Gary's own words before anything cites them. Fork 9 is the exception — Gary ruled it in session on 2026-09-04.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-04 (b01ec1e) — the four /help routes are exempt by
+          ruling; the help surface does not document itself. "The coverage gate
+          is a to-do list of undocumented product surfaces; help documenting
+          itself is a hall of mirrors and would sit in the warn list forever
+          teaching nothing." Coverage is now 72 routes, 6 claimed, 7 exempt,
+          59 unclaimed.
+    deferred:
+      - The other 41 articles (HELP-1b), the onboarding first-run card, and any animated content
+      - PERMISSIONS_INVENTORY.md's four uncovered routes — a ROW, filed, untouched by this session
+
+  - id: HELP-1b-HR
+    track: platform
+    size: M
+    status: verified
+    shipped: 2026-09-05
+    commits: ["4524d5c"]
+    title: "Help articles — HR batch: six articles, unclaimed routes 60 to 50"
+    notes: >
+      FIRST HELP-1b BATCH. A ROW PER BATCH, not one row for the phase — a row
+      that stays open for twenty articles tells you nothing about progress.
+      Six articles against the live HR module: the hub, signing a document,
+      agreement forms, running a form with someone, training modules (with one
+      gated section), and the compliance rollup. Ten routes claimed; unclaimed
+      fell 60 to 50, exactly the number predicted in Phase A and asserted by the
+      generator rather than eyeballed.
+      GARY'S STANDING RULE FOR THE PHASE, set during this batch's correction
+      pass: EXPLAIN HOW THE SOFTWARE BEHAVES, DO NOT EXPLAIN WHY THINGS HAPPEN
+      OPERATIONALLY. The second is where a help article gets someone in trouble.
+      Three passages were cut outright — a compliance diagnosis ("a single store
+      lagging usually means a manager hasn't sat down with new starters") that
+      would have sent a reader chasing the wrong cause, a training convention
+      Keva does not use, and an opinion about form length. Applying the rule to
+      all six rather than only the three flagged found six more and removed 268
+      words. Every one was Claude explaining Gary's operation back to him.
+      ARTICLE 25'S ROLE ROW IN THE AUDIT IS WRONG, AND THIS IS THE CORRECTION OF
+      RECORD. HELP-1_AUDIT_RESULTS.md §B.3 scores "Building training modules" as
+      gate ADMIN, roles ✓···. The code admits ADMIN, MANAGER **and STORE** to
+      /hr/training (training/page.tsx:48) and to /hr/training/[id]/preview
+      (preview/page.tsx:68) — only STAFF is redirected. The correct row is
+      ✓✓✓·. The audit itself is NOT edited: it lives in docs/prompts/ and is a
+      claim wholesale (CLAUDE.md § Where documents live), so the correction is
+      recorded here where a later batch will meet it.
+      THE ARTICLE STILL UNDER-SHOWS TO STORE, BY RULING. No HR capability is
+      OPERATIONAL — they are ALL, MANAGE or ADMIN_ONLY with nothing between — so
+      hr.training.manage (MANAGE) is the closest expressible gate and STORE
+      loses an article for a page they can genuinely open read-only. Gary's
+      call: "STORE losing an article beats STAFF gaining one." Adding an
+      OPERATIONAL capability would fix it properly and is a permissions change,
+      which is TIER 3 and not this batch.
+      BOTH VERIFIERS ARE NOW TABLE-DRIVEN, which is the change that makes the
+      remaining batches cheap. A batch adds a row to GATED (verify-help-access)
+      or IMAGES (verify-guide-image) rather than rewriting assertions. The
+      gated-section table states each section's denied roles and its own
+      vocabulary explicitly, so a wrong expectation FAILS rather than quietly
+      agreeing with the code, and index leak checks are scoped to the article's
+      own row so an unrelated summary using an ordinary word cannot make the
+      assertion lie in either direction.
+      UPLOAD SCRIPT GAINED --force, AND BARE OVERWRITE NOW FAILS. Found in use:
+      Gary captured the wrong screen, uploaded it, and could not replace it. The
+      failure worth designing against is the opposite one — a wrong capture
+      silently replacing a good one, where nothing errors, the article keeps
+      rendering, and the only signal is that the picture is of the wrong screen.
+      head() runs first so the refusal names what is about to be lost (size and
+      upload date), and every upload now reads its bytes back and compares
+      sha256 — on a replace that is the only way to know the new bytes landed
+      rather than the old ones surviving.
+      EVIDENCE, all green before commit: verify-help-access.ts 114 assertions;
+      verify-guide-image.ts 15 including both images present and byte-identical;
+      verify-nav1-url-sets.ts 16/16 IDENTICAL; npm run build. Per-role visible
+      articles ADMIN 9, MANAGER 8, STORE 3, STAFF 3.
+      NOT VERIFIED: browser rendering of any of the six. The assertions exercise
+      the policy functions the routes call, not HTTP responses over the wire,
+      and nobody has opened these articles in a browser.
+    deferred:
+      - Article 26 (Signed records, /hr/signed-records) — the page is ADMIN-only but both records capabilities are MANAGE, so no capability expresses its gate without showing the article to MANAGERs who then get a 404. Lands with the role-string conversion row.
+      - The /my portal articles (40-44) and the remaining live-module batches — checklists, stores, staff, users, reports, forecasting, messages, settings.
+      - Every module inventory article. On hold with the module; not a gap to be filled.
+
+  - id: HELP-1b-CHK
+    track: platform
+    size: M
+    status: verified
+    shipped: 2026-09-05
+    commits: ["0ccd243"]
+    title: "Help articles — checklists batch: five articles, STORE coverage 3 to 7"
+    notes: >
+      SECOND HELP-1b BATCH, WEIGHTED AT STORE on Gary's instruction. STORE was
+      the thinnest-covered role at 3 of 9 articles and checklists is where a
+      STORE login spends its shift. It goes 3 to 7, and the four it gains —
+      store-view, checklists, dashboard, messages — are the mid-shift loop and
+      are ASSERTED BY NAME in verify-help-access.ts so a later batch cannot
+      quietly undo the weighting. Final: ADMIN 14, MANAGER 12, STORE 7, STAFF 6.
+      Nine routes claimed, unclaimed 50 to 41 — exactly the Phase A number after
+      Instagram was deferred, asserted by the generator rather than eyeballed.
+      THE BATCH ANSWERED THE QUESTION IT WAS ASKED. DEBT-85 could not tell
+      whether HR's raw-role-string gating was a quirk or the house style. It is a
+      quirk: /dashboard calls can(actor, "dashboard.view") inline and /templates
+      plus its three children sit under ONE layout calling
+      can(actor, "templates.manage"). DEBT-85 is rescoped accordingly, with that
+      layout named as the exemplar.
+      BUT THE CHECKLIST FAMILY HAS ITS OWN PROBLEM, filed SEPARATELY as DEBT-87
+      per Gary's call rather than folded in: /store-view, /checklists and
+      /messages have NO page gate at all and scope data instead. permissions.ts
+      line 236 already confesses it. A fourth shape is recorded there too —
+      /store-view/checklist/[id] guards per ROW, which no capability can express.
+      ARTICLE 19 (Instagram) WAS DEFERRED, and the second article blocked this
+      way is what turned it into DEBT-88. Instagram is org-integration state, not
+      a module, so neither the hidden-articles ruling nor the upgrade-preview
+      ruling reaches it; an article would be visible to orgs that get redirected
+      away. Article 16 was dropped from HELP-1a for the same shape. Gary: "don't
+      invent a third category inside a content batch."
+      TWO CLAIMS DRAFTED AND PULLED rather than shipped with a hedge — that a
+      handoff note travels with the checklist rather than the person, and that a
+      Missed checklist cannot be submitted late. Both readings came from code
+      comments and neither was verified. They are recorded as a `pending:` block
+      in frontmatter, which the generator DROPS so it cannot reach a payload or
+      index, and WARNS about on every build. A held claim is otherwise invisible
+      the moment the session ends: the prose reads fine without it, nothing is
+      broken, and nobody knows a sentence is owed. GARY IS VERIFYING THE MISSED
+      ONE ON STAGING; if a Missed checklist CAN be submitted late, the "If the
+      day closes first" section needs rewording, not just the pulled sentence.
+      THE IMAGE VERIFIER WAS SILENTLY BLIND AND IS FIXED, which is the tooling
+      finding worth carrying. Its IMAGES table was hand-maintained, so the
+      template-builder reference added by this batch was invisible to it — a
+      referenced screenshot did not exist and the run went GREEN. The list is now
+      derived from the articles, and a referenced image absent from the
+      expectations table is itself a failure. The general lesson for the
+      remaining batches: a table-driven check silently skips whatever you forget
+      to add to the table, so the table must state EXPECTATIONS while the list of
+      things to check is DERIVED.
+      EVIDENCE, all green before commit: verify-help-access 123,
+      verify-help-render 102, verify-help-routes 18, verify-guide-image 23 with
+      all three images present and byte-identical, verify-nav1-url-sets 16/16,
+      npm run build.
+      NOT VERIFIED: browser rendering of any of the five. The render assertions
+      exercise components in isolation, not a page in a browser.
+    deferred:
+      - Article 19 (the Instagram feed) — blocked on DEBT-88's ruling about org-integration state
+      - The /my portal articles (40-44) and the remaining live-module batches — stores, staff, users, reports, forecasting, settings
+      - Every module inventory article. On hold with the module; not a gap to be filled.
+
+
+
 
 
 bugs:
@@ -23344,6 +23667,211 @@ debt:
 # exhaustion rather than by migration, and there is no second list to link to.
 # New DECISIONS go here; the six stay debt rows because what remains on each is
 # work or a latent record.
+
+  - id: DEBT-85
+    status: planned
+    title: >
+      HR IS THE OUTLIER — its thirteen pages gate on raw role strings while the
+      rest of the app uses can(); ruling 3 clause 2 is not true for any HR
+      help article
+    notes: >
+      FILED 2026-09-05 BY THE HELP-1b HR BATCH, which had to choose a
+      `capability:` for six articles whose pages do not check a capability at
+      all.
+      RESCOPED 2026-09-05 BY THE CHECKLISTS BATCH, AND THE RESCOPE IS THE
+      IMPORTANT PART. The HR batch could not tell whether role-string gating was
+      an HR quirk or the house style. It is a quirk. The checklist family was
+      read page by page and uses can() properly: /dashboard calls
+      can(actor, "dashboard.view") inline, and /templates plus its three
+      children are covered by ONE layout calling can(actor, "templates.manage").
+      THE TEMPLATES LAYOUT IS THE EXEMPLAR and any conversion of HR should copy
+      its shape rather than inventing one — src/app/(app)/templates/layout.tsx,
+      one gate covering four routes, with redirect() deliberately outside the
+      try so a thrown NEXT_REDIRECT cannot be swallowed by the catch and render
+      the page to a denied user. Its comment also records that it once admitted
+      MANAGER, who could then open detail and edit pages where every action
+      403'd — the same shape of drift this row exists to remove from HR.
+      SO THIS ROW IS SMALLER THAN IT FIRST LOOKED: convert thirteen HR pages to
+      a pattern the app already has two working examples of. It is not an
+      app-wide migration. A SEPARATE and unrelated problem — pages with no gate
+      at all — is DEBT-87 and must not be folded in here.
+      MEASURED, NOT SAMPLED. Every page under src/app/(app)/hr/ was read: /hr,
+      /hr/acknowledge/[documentId], /hr/compliance, /hr/forms, /hr/forms/[id],
+      /hr/forms/[id]/submit, /hr/documents, /hr/documents/[id],
+      /hr/signed-records, /hr/training, /hr/training/new,
+      /hr/training/[id]/edit, /hr/training/[id]/preview. NOT ONE calls can().
+      Every one compares dbUser.role to a string literal, e.g.
+      `if (dbUser?.role !== "ADMIN") notFound()`.
+      WHY IT MATTERS RATHER THAN BEING TIDY-UP. DECISIONS.md's hidden-articles
+      ruling, clause 2, says help visibility "is decided by can(actor, …) — the
+      same call the page itself makes". For HR that sentence is false. Every
+      `capability:` written into an HR article's frontmatter is an APPROXIMATION
+      of a role check, correct today only because the capability's role tier
+      happens to match the page's string comparison. A PERM-5 per-user denial
+      moves the ARTICLE and leaves the PAGE open; a PERM-8 grant does the
+      reverse. Nothing in the code reports either.
+      THE DIVERGENCE RUNS SAFE TODAY AND THAT IS LUCK, NOT DESIGN. Where the
+      tiers matched, help hides at least as much as the page does. The one place
+      they do not match is article 26 below, and there the only expressible
+      options were wrong in the leaking direction, which is why that article is
+      unwritten rather than approximated.
+      TWO CONSEQUENCES ARE ALREADY LIVE. (1) Article 26 (Signed records,
+      /hr/signed-records) CANNOT BE WRITTEN: the page is `role !== "ADMIN"`, but
+      hr.records.view and hr.records.download are both MANAGE, so either choice
+      shows the article to MANAGERs who then get a 404 — the hidden-articles
+      ruling failing in the unsafe direction. No ADMIN-only records capability
+      exists and borrowing an unrelated one would be a lie in the frontmatter.
+      (2) /hr/training admits ADMIN, MANAGER and STORE, but no HR capability is
+      OPERATIONAL, so its article under-shows to STORE by ruling.
+      SCOPE OF THE FIX: convert the thirteen HR page guards to can() against
+      capabilities that mean what the page means, adding an ADMIN-only records
+      capability and an OPERATIONAL training-view capability where none exists
+      today. That is a permissions change and therefore TIER 3. It unblocks
+      article 26 and removes the under-showing, and it makes the ruling's
+      clause 2 true rather than coincidentally satisfied.
+      RELATED, AND THE REASON THIS IS A PATTERN RATHER THAN AN INCIDENT: HR-7 in
+      (app)/layout.tsx is a SHELL-level gate that can() also cannot see, and it
+      is modelled in helpScope as `surface`. The role-string case is unmodelled
+      and merely happens to agree. Two gates that permissions.ts cannot see were
+      found in HELP-1a and HELP-1b respectively; HELP-1b has 20 more articles to
+      write across the rest of the app and should expect more.
+
+  - id: DEBT-86
+    status: planned
+    title: >
+      Nothing checks a deployed environment's variables against the names the
+      code reads — the gap that let the guide image 404 on staging while every
+      local instrument was green
+    notes: >
+      FILED 2026-09-05 after two rendering bugs on /help/hr-forms that no
+      assertion in the repo could see. Gary found both by opening the page.
+      TWO GAPS WERE NAMED. GAP 1 IS CLOSED BY THIS SESSION; GAP 2 IS THIS ROW.
+      GAP 1 — no instrument issued an HTTP request to any help route. Every
+      check called a function directly: verify-help-access called helpScope,
+      verify-help-render called components, verify-guide-image called the Blob
+      store. All green while the route served a broken image.
+      CLOSED by scripts/verify-help-routes.ts, which invokes the real exported
+      GET handlers with real NextRequest objects. IT FOUND A BUG ON ITS FIRST
+      RUN: two of the search route's return paths — the not-ok early return and
+      the catch — omitted the cache headers entirely and answered 200 with no
+      Cache-Control. An empty index is not a disclosure, so this was not a leak;
+      it is worse in a quieter way, because a response with no cache directive
+      is subject to heuristic caching, so an EMPTY index could be cached under
+      that URL and served to a reader entitled to a full one — help search
+      silently returning nothing, with nothing in any log. And the catch is
+      exactly the path a misconfigured environment takes, which is the state
+      staging was in throughout the image bug.
+      That file also now asserts a security property nothing had checked: the
+      404 for a REAL image and the 404 for an UNKNOWN one are byte-identical in
+      status, headers and body. Ruling 7 chose 404-not-403 so a refusal cannot
+      confirm that an image, and therefore a hidden section, exists — a
+      guarantee worth nothing if the two responses differ in any other
+      observable way.
+      GAP 2, WHICH IS THIS ROW. Nothing compares the environment variables a
+      DEPLOYED environment actually holds against the names the code reads. The
+      image bug was exactly this: the code read GUIDE_BLOB_READ_WRITE_TOKEN
+      while Vercel had created GUIDE_READ_WRITE_TOKEN, because connecting a Blob
+      store auto-names <PREFIX>_READ_WRITE_TOKEN from the prefix chosen at
+      connect time. It worked locally because .env had been hand-typed with the
+      name the code expected, so the mismatch existed ONLY in the environments
+      nothing tested.
+      NO LOCAL INSTRUMENT CAN CLOSE THIS, and that is the point. The value
+      differs per environment by design, so a local check either reads the local
+      value (and passes) or reads nothing (and cannot distinguish "absent here"
+      from "absent everywhere"). The check has to run against a deployment.
+      WHAT WOULD ACTUALLY CLOSE IT: an authenticated smoke check against a
+      deployed URL — a real session, a real GET of /api/help/image/<id>,
+      asserting 200 and image/* rather than the 404 the same request returns
+      when a token is missing. That also closes the other half verify-help-routes
+      cannot reach: the AUTHENTICATED success path. Every assertion in that file
+      today runs the unauthenticated branch, so "bytes are served to an entitled
+      reader" remains unproven by anything except a person looking.
+      SCOPE NOTE: this is not help-specific. HR_BLOB_READ_WRITE_TOKEN only looks
+      like it follows a convention because that store's prefix happened to be
+      HR_BLOB. Any future Blob store, or any variable created by a platform
+      integration rather than typed by hand, carries the same trap.
+
+  - id: DEBT-87
+    status: planned
+    title: >
+      /store-view, /checklists and /messages have no page gate at all and rely
+      on data scoping; permissions.ts line 236 already confesses it
+    notes: >
+      FILED 2026-09-05 BY THE HELP-1b CHECKLISTS BATCH. DELIBERATELY SEPARATE
+      FROM DEBT-85 (Gary's call): that row is now "HR is the outlier", a
+      thirteen-page conversion to a pattern the app already has. This is a
+      different and larger question — pages that check nothing.
+      MEASURED. /store-view, /checklists and /messages contain no capability
+      check, no role check and no layout guard. They call getUserStoreScope()
+      and scope the DATA to the reader's stores, which is a different thing from
+      gating the page: any authenticated member of the org can open them, and
+      what they see is whatever their store assignments allow.
+      THE REGISTRY ALREADY SAYS SO. src/lib/permissions.ts:236 reads
+      `"storeview.access": OPERATIONAL, // §2 #10: page itself serves any member
+      — needs ruling at migration`. So the capability gates the NAV ENTRY and
+      nothing else, and this was known and recorded rather than discovered here.
+      checklists.view (ALL) and messages.use (ALL) are the same shape; their
+      tiers happen to be ALL, so the gap is invisible for them today and would
+      appear the moment either tier narrowed.
+      WHY IT MATTERS FOR HELP. Every article for these pages is gated STRICTER
+      than the page it documents. That runs in the safe direction — help hides
+      more than the product shows — but it is not what the hidden-articles
+      ruling claims, and it means /store-view's article is hidden from STAFF who
+      can actually open the page.
+      WHY IT MATTERS BEYOND HELP, which is the real reason for the row: this is
+      PERM-5C's rule one layer over. That rule says a hidden PAGE must never sit
+      over an API that still answers. Here a nav entry hidden by capability sits
+      over a PAGE that still answers. Narrowing storeview.access below
+      OPERATIONAL today would remove the link and change nothing about who can
+      reach the page by typing the URL.
+      A THIRD GATE SHAPE, RECORDED SO IT IS NOT MISTAKEN FOR THE SAME THING:
+      /store-view/checklist/[id] guards per ROW —
+      `!isAdmin && !storeIds.includes(checklist.storeId)` — which is correct and
+      is not expressible as a capability at all. Whatever ruling this row
+      produces should say what happens to row-scoped routes, since a help
+      article can only ever claim them under a parent's gate.
+
+  - id: DEBT-88
+    status: planned
+    title: >
+      Help visibility cannot express ORG-INTEGRATION STATE — an article for an
+      unconnected integration is shown to orgs that would be redirected away
+    notes: >
+      FILED 2026-09-05. SECOND ARTICLE BLOCKED THIS WAY, WHICH IS WHY IT IS A
+      ROW RATHER THAN A NOTE.
+      THE SHAPE. helpScope knows two things about visibility: CAPABILITY (ruling
+      3 — hide the article) and MODULE (ruling 2 — show it as an upgrade
+      preview). Org-integration state is neither. Instagram is not in
+      activeModules; it is the Square-style per-org connection, gated by
+      `!org.instagramAccessToken || !org.instagramEnabled` → redirect. So
+      instagram.view is ALL, every role passes it, and an article for /instagram
+      would be visible to every org including those with no Instagram connected
+      — describing a page they are redirected away from.
+      THE TWO ARTICLES IT HAS NOW BLOCKED. Article 16 (the weekly labor plan)
+      was dropped from HELP-1a for the same shape one layer over: a linked STAFF
+      login is redirected out of the app shell entirely. Article 19 (the
+      Instagram feed) was deferred from the HELP-1b checklists batch on
+      2026-09-05 — Gary: "same failure as article 16. Don't invent a third
+      category inside a content batch."
+      WHAT A RULING WOULD HAVE TO DECIDE, stated so whoever picks this up is not
+      re-deriving the options: is an article describing an UNCONNECTED
+      integration (a) HIDDEN, like a capability-gated article; (b) SHOWN AS A
+      PREVIEW, like a module-gated one, with a connect-this-first banner in
+      place of the upgrade banner; or (c) SHOWN PLAINLY, on the reasoning that
+      the article explains how to connect it and is therefore most useful to an
+      org that has not?
+      (b) IS THE OBVIOUS ANSWER AND IS NOT OBVIOUSLY RIGHT. The upgrade preview
+      exists to sell a module the org can buy. An unconnected integration is not
+      a purchase — it is a setup step the org can do today for free — so reusing
+      the preview shape would put a sales affordance on a configuration task.
+      (c) has the opposite problem: an article whose every deep link redirects.
+      SCOPE. Instagram now; Square is the same shape and is documented in no
+      article yet; any future connect-this-first page inherits it. The ruling
+      should be about ORG-INTEGRATION STATE generally, not about Instagram, or
+      the next integration re-opens it.
+
+
+
 rulings:
   - id: R1
     status: ruled
