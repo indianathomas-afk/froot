@@ -20,19 +20,41 @@
 //      while allowing the article that contains it (the refusal path)
 
 import { createHash } from "node:crypto"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { del, head, presignUrl, issueSignedToken, put } from "@vercel/blob"
 import { helpScope, type GuideArticle } from "../src/lib/help-access"
 import { GUIDE_ARTICLES } from "../src/generated/guide"
 import type { PermissionUser } from "../src/lib/permissions"
 
+// LOAD .env OURSELVES rather than requiring `npx tsx --env-file=.env`.
+//
+// Recorded 2026-09-05 after the documented command failed as written. Neither
+// plain `node` nor `npx tsx` reads .env, so this exited on "token is not set"
+// while the token sat in .env the whole time — an accurate error message
+// attached to a wrong instruction, which sends you to check the one thing that
+// is already fine.
+//
+// Fixing the SCRIPT rather than the INSTRUCTIONS is deliberate: a documented
+// flag is a flag someone forgets, and the failure it produces is
+// indistinguishable from a genuinely missing credential. A real environment
+// variable still wins over the file, so CI is unaffected.
+try {
+  process.loadEnvFile(join(dirname(fileURLToPath(import.meta.url)), "..", ".env"))
+} catch {
+  // No .env — the variable may come from the real environment instead.
+}
+
 const token = process.env.GUIDE_BLOB_READ_WRITE_TOKEN
 if (!token) {
   console.error(
-    "GUIDE_BLOB_READ_WRITE_TOKEN is not set.\n\n" +
-      "It is set in the three Vercel environments but must ALSO be in your local .env to run\n" +
-      "this — the same way HR_BLOB_READ_WRITE_TOKEN and BLOB_READ_WRITE_TOKEN already are.\n" +
-      "Paste it from your password manager. `vercel env pull` is banned repo-wide (CLAUDE.md)\n" +
-      "and a Sensitive Vercel var cannot be read back, which is why it was saved at creation."
+    "GUIDE_BLOB_READ_WRITE_TOKEN is not set, and .env does not supply it either.\n\n" +
+      "It must be in your local .env, the same way HR_BLOB_READ_WRITE_TOKEN and\n" +
+      "BLOB_READ_WRITE_TOKEN already are. Connecting a Blob store to a Vercel project\n" +
+      "creates the variable in the DEPLOYED environments only — nothing injects it locally,\n" +
+      "and there is no password-manager copy to find unless you made one. Read it from the\n" +
+      "Vercel dashboard: Storage -> froot-guide -> the connect / .env.local snippet.\n" +
+      "`vercel env pull` is banned repo-wide (CLAUDE.md)."
   )
   process.exit(1)
 }

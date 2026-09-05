@@ -5,8 +5,23 @@
 // The frontmatter references the pathname this prints — never a local path, and
 // never the stored blob URL.
 //
-//   node scripts/upload-guide-image.mjs docs/guide/_review/deleted-01.png \
-//     inv-ingredients/deleted-01.png
+//   node scripts/upload-guide-image.mjs docs/guide/_review/hr-doc-detail.png \
+//     hr-documents/document-detail-01.png
+//
+// CHECK THE HOST BEFORE YOU SHOOT. Ruling 1 says screenshots come from
+// PRODUCTION. Staging renders identically — same code, same layout, same
+// chrome — and the only thing distinguishing them is a URL badge that is easy
+// to miss, which is exactly what happened on 2026-09-04 when the first attempt
+// at this capture began on staging.
+//
+// THE COST OF GETTING IT WRONG IS NOT COSMETIC, and that is why this warning is
+// here rather than in a doc nobody opens. Staging is a Neon branch forked from
+// production, so its rows are real-looking and may be stale production data. A
+// staging capture therefore ships a screenshot that LOOKS right, teaches the
+// wrong state of the product, and carries person data whose provenance nobody
+// can reconstruct afterwards — a redaction pass cannot catch what it cannot
+// tell apart. The URL is the only signal, so read it deliberately, before the
+// shutter and not after.
 //
 // WHY A SCRIPT AND NOT AN UPLOAD UI. Guide images are authored, not
 // user-submitted: they are captured from production by a human, redacted by a
@@ -21,8 +36,29 @@
 // point.
 
 import { readFileSync, statSync } from "node:fs"
-import { basename, extname } from "node:path"
+import { basename, dirname, extname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { put } from "@vercel/blob"
+
+// LOAD .env OURSELVES rather than requiring `node --env-file=.env`.
+//
+// Recorded 2026-09-05 after the documented command failed as written: plain
+// `node` and `npx tsx` do not read .env, so both this script and the verifier
+// exited on "token is not set" while the token was sitting in .env the whole
+// time. The error message was accurate and the instruction was wrong, which is
+// the worst combination — it sends you to check the thing that is already fine.
+//
+// Fixing the SCRIPT rather than the INSTRUCTIONS is deliberate. A documented
+// flag is a flag someone forgets, and the failure it produces is
+// indistinguishable from a genuinely missing credential. Loading here means the
+// script works the way a person expects it to, and CI still wins because a real
+// environment variable takes precedence over the file.
+try {
+  process.loadEnvFile(join(dirname(fileURLToPath(import.meta.url)), "..", ".env"))
+} catch {
+  // No .env — fine. The variable may come from the real environment instead,
+  // which is how this runs anywhere that is not a laptop.
+}
 
 const [, , source, target] = process.argv
 

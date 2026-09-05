@@ -13851,7 +13851,7 @@ phases:
   - id: HELP-1a
     track: platform
     size: L
-    status: shipped
+    status: verified
     shipped: 2026-09-04
     commits: ["1641d1e"]
     title: "In-app help — the machine: access helper, generator, two shells, search index, authenticated images"
@@ -13953,17 +13953,17 @@ phases:
       Ingredients article as a STORE login to confirm the contents list
       renumbers 1-3 with no gap where the gated section was.
     blockers:
-      - >
-        froot-guide IS PROVISIONED (2026-09-04) and the store round-trip asserts
-        green — a private blob is written, its bare URL is confirmed NOT
-        fetchable without credentials, and an authorized read returns
-        byte-identical bytes. What is still missing is the SCREENSHOT.
-        hr-documents/document-detail-01.png is referenced by the gated section
-        and not yet uploaded, because the capture-and-redact pass (ruling 1,
-        manual by design) has not been done. Evidence item 4 is therefore 7 of 8
-        assertions green with one red. The document library is PII-bearing per
-        audit section C (audience assignment lists), so this redaction is a real
-        one, unlike Ingredients would have been.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-05 — evidence item 4 passes 8 of 8 and the production
+          promotion blocker is CLEARED. froot-guide is provisioned, the redacted
+          capture is uploaded at hr-documents/document-detail-01.png (126 KB),
+          and the full round-trip asserts green: a private blob is written, its
+          bare URL is confirmed NOT fetchable without credentials, an authorized
+          read returns byte-identical bytes, and the refusal half holds in both
+          directions — ADMIN may read the image inside the gated section while
+          MANAGER, STORE and STAFF may not, though all three may read the
+          article containing it. Verified independently of Gary's own run.
       - DECISIONS.md entries are NOT WRITTEN. Seven of the eight rulings exist only as Claude-worded drafts in HELP-1_AUDIT_RESULTS.md and must be ratified in Gary's own words before anything cites them. Fork 9 is the exception — Gary ruled it in session on 2026-09-04.
       - resolved: true
         text: >

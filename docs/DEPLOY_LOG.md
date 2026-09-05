@@ -10,18 +10,16 @@ treats as a valid state._ The heading's SHA slot and this line are stamped from
 spelled out anywhere in the prose below — a token written into a sentence is a
 token the stamp substitutes into that sentence.
 
-**⚠ DO NOT PROMOTE THIS TO PRODUCTION YET, AND THE REASON IS SPECIFIC.** The
-`froot-guide` store now exists and its round-trip asserts green, but the
-**screenshot has not been uploaded**. One article — the document library —
-references an image inside its gated section, so on production an ADMIN opening
-that article would get a **broken image**: the `<img>` points at
-`/api/help/image/…`, the route finds no such blob, and it returns 404 by design
-rather than erroring. No data is exposed and nothing else on the page degrades —
-the refusal path and the missing-file path are deliberately indistinguishable —
-but it is a visible defect on a customer-facing surface. **Upload the redacted
-capture, or remove that one `images:` block, before promoting.** Non-ADMIN
-readers are unaffected either way: the same 404 is what they are supposed to
-receive.
+**⚠ THE PROMOTION BLOCKER THIS ENTRY OPENED WITH IS CLEARED (2026-09-05).**
+It read: do not promote, because `froot-guide` held no image and the document
+library references one inside its gated section, so an ADMIN on production would
+have seen a broken image — the route returning 404 by design, indistinguishable
+from a legitimate refusal and therefore reporting nothing. The store is now
+provisioned and the redacted capture is uploaded
+(`hr-documents/document-detail-01.png`, 126 KB). Evidence item 4 passes 8 of 8.
+**Marked rather than deleted**, per the in-place correction convention this log
+uses: the blocker was real, it was the reason to hold, and a reader
+reconstructing why this sat unpromoted needs to find it rather than a gap.
 
 **The gated-section article changed after this entry was first written.**
 Ingredients was replaced by the document library on 2026-09-04 — the inventory
@@ -86,8 +84,9 @@ edited.
 
 ### Not verified — read this before trusting the list above
 
-- **The image route has never served bytes.** No Blob store exists. Its refusal
-  path is asserted; its success path is not.
+- ~~The image route has never served bytes.~~ **CLOSED 2026-09-05** — the store
+  round-trip asserts byte-identical delivery, and the stored blob URL is
+  confirmed not fetchable without credentials.
 - **Section-level rendering has never been seen in a browser.** It is asserted
   green route-level in both directions, but nobody has opened the Ingredients
   article as a STORE login to watch the contents list renumber.
