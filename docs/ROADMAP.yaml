@@ -14045,6 +14045,70 @@ phases:
       - The /my portal articles (40-44) and the remaining live-module batches — checklists, stores, staff, users, reports, forecasting, messages, settings.
       - Every module inventory article. On hold with the module; not a gap to be filled.
 
+  - id: HELP-1b-CHK
+    track: platform
+    size: M
+    status: verified
+    shipped: 2026-09-05
+    commits: ["0ccd243"]
+    title: "Help articles — checklists batch: five articles, STORE coverage 3 to 7"
+    notes: >
+      SECOND HELP-1b BATCH, WEIGHTED AT STORE on Gary's instruction. STORE was
+      the thinnest-covered role at 3 of 9 articles and checklists is where a
+      STORE login spends its shift. It goes 3 to 7, and the four it gains —
+      store-view, checklists, dashboard, messages — are the mid-shift loop and
+      are ASSERTED BY NAME in verify-help-access.ts so a later batch cannot
+      quietly undo the weighting. Final: ADMIN 14, MANAGER 12, STORE 7, STAFF 6.
+      Nine routes claimed, unclaimed 50 to 41 — exactly the Phase A number after
+      Instagram was deferred, asserted by the generator rather than eyeballed.
+      THE BATCH ANSWERED THE QUESTION IT WAS ASKED. DEBT-85 could not tell
+      whether HR's raw-role-string gating was a quirk or the house style. It is a
+      quirk: /dashboard calls can(actor, "dashboard.view") inline and /templates
+      plus its three children sit under ONE layout calling
+      can(actor, "templates.manage"). DEBT-85 is rescoped accordingly, with that
+      layout named as the exemplar.
+      BUT THE CHECKLIST FAMILY HAS ITS OWN PROBLEM, filed SEPARATELY as DEBT-87
+      per Gary's call rather than folded in: /store-view, /checklists and
+      /messages have NO page gate at all and scope data instead. permissions.ts
+      line 236 already confesses it. A fourth shape is recorded there too —
+      /store-view/checklist/[id] guards per ROW, which no capability can express.
+      ARTICLE 19 (Instagram) WAS DEFERRED, and the second article blocked this
+      way is what turned it into DEBT-88. Instagram is org-integration state, not
+      a module, so neither the hidden-articles ruling nor the upgrade-preview
+      ruling reaches it; an article would be visible to orgs that get redirected
+      away. Article 16 was dropped from HELP-1a for the same shape. Gary: "don't
+      invent a third category inside a content batch."
+      TWO CLAIMS DRAFTED AND PULLED rather than shipped with a hedge — that a
+      handoff note travels with the checklist rather than the person, and that a
+      Missed checklist cannot be submitted late. Both readings came from code
+      comments and neither was verified. They are recorded as a `pending:` block
+      in frontmatter, which the generator DROPS so it cannot reach a payload or
+      index, and WARNS about on every build. A held claim is otherwise invisible
+      the moment the session ends: the prose reads fine without it, nothing is
+      broken, and nobody knows a sentence is owed. GARY IS VERIFYING THE MISSED
+      ONE ON STAGING; if a Missed checklist CAN be submitted late, the "If the
+      day closes first" section needs rewording, not just the pulled sentence.
+      THE IMAGE VERIFIER WAS SILENTLY BLIND AND IS FIXED, which is the tooling
+      finding worth carrying. Its IMAGES table was hand-maintained, so the
+      template-builder reference added by this batch was invisible to it — a
+      referenced screenshot did not exist and the run went GREEN. The list is now
+      derived from the articles, and a referenced image absent from the
+      expectations table is itself a failure. The general lesson for the
+      remaining batches: a table-driven check silently skips whatever you forget
+      to add to the table, so the table must state EXPECTATIONS while the list of
+      things to check is DERIVED.
+      EVIDENCE, all green before commit: verify-help-access 123,
+      verify-help-render 102, verify-help-routes 18, verify-guide-image 23 with
+      all three images present and byte-identical, verify-nav1-url-sets 16/16,
+      npm run build.
+      NOT VERIFIED: browser rendering of any of the five. The render assertions
+      exercise components in isolation, not a page in a browser.
+    deferred:
+      - Article 19 (the Instagram feed) — blocked on DEBT-88's ruling about org-integration state
+      - The /my portal articles (40-44) and the remaining live-module batches — stores, staff, users, reports, forecasting, settings
+      - Every module inventory article. On hold with the module; not a gap to be filled.
+
+
 
 
 
@@ -23607,12 +23671,30 @@ debt:
   - id: DEBT-85
     status: planned
     title: >
-      HR's eleven pages gate on raw role strings; none call can(), so ruling 3
-      clause 2 is not literally true for any HR help article
+      HR IS THE OUTLIER — its thirteen pages gate on raw role strings while the
+      rest of the app uses can(); ruling 3 clause 2 is not true for any HR
+      help article
     notes: >
       FILED 2026-09-05 BY THE HELP-1b HR BATCH, which had to choose a
       `capability:` for six articles whose pages do not check a capability at
       all.
+      RESCOPED 2026-09-05 BY THE CHECKLISTS BATCH, AND THE RESCOPE IS THE
+      IMPORTANT PART. The HR batch could not tell whether role-string gating was
+      an HR quirk or the house style. It is a quirk. The checklist family was
+      read page by page and uses can() properly: /dashboard calls
+      can(actor, "dashboard.view") inline, and /templates plus its three
+      children are covered by ONE layout calling can(actor, "templates.manage").
+      THE TEMPLATES LAYOUT IS THE EXEMPLAR and any conversion of HR should copy
+      its shape rather than inventing one — src/app/(app)/templates/layout.tsx,
+      one gate covering four routes, with redirect() deliberately outside the
+      try so a thrown NEXT_REDIRECT cannot be swallowed by the catch and render
+      the page to a denied user. Its comment also records that it once admitted
+      MANAGER, who could then open detail and edit pages where every action
+      403'd — the same shape of drift this row exists to remove from HR.
+      SO THIS ROW IS SMALLER THAN IT FIRST LOOKED: convert thirteen HR pages to
+      a pattern the app already has two working examples of. It is not an
+      app-wide migration. A SEPARATE and unrelated problem — pages with no gate
+      at all — is DEBT-87 and must not be folded in here.
       MEASURED, NOT SAMPLED. Every page under src/app/(app)/hr/ was read: /hr,
       /hr/acknowledge/[documentId], /hr/compliance, /hr/forms, /hr/forms/[id],
       /hr/forms/[id]/submit, /hr/documents, /hr/documents/[id],
@@ -23708,6 +23790,86 @@ debt:
       like it follows a convention because that store's prefix happened to be
       HR_BLOB. Any future Blob store, or any variable created by a platform
       integration rather than typed by hand, carries the same trap.
+
+  - id: DEBT-87
+    status: planned
+    title: >
+      /store-view, /checklists and /messages have no page gate at all and rely
+      on data scoping; permissions.ts line 236 already confesses it
+    notes: >
+      FILED 2026-09-05 BY THE HELP-1b CHECKLISTS BATCH. DELIBERATELY SEPARATE
+      FROM DEBT-85 (Gary's call): that row is now "HR is the outlier", a
+      thirteen-page conversion to a pattern the app already has. This is a
+      different and larger question — pages that check nothing.
+      MEASURED. /store-view, /checklists and /messages contain no capability
+      check, no role check and no layout guard. They call getUserStoreScope()
+      and scope the DATA to the reader's stores, which is a different thing from
+      gating the page: any authenticated member of the org can open them, and
+      what they see is whatever their store assignments allow.
+      THE REGISTRY ALREADY SAYS SO. src/lib/permissions.ts:236 reads
+      `"storeview.access": OPERATIONAL, // §2 #10: page itself serves any member
+      — needs ruling at migration`. So the capability gates the NAV ENTRY and
+      nothing else, and this was known and recorded rather than discovered here.
+      checklists.view (ALL) and messages.use (ALL) are the same shape; their
+      tiers happen to be ALL, so the gap is invisible for them today and would
+      appear the moment either tier narrowed.
+      WHY IT MATTERS FOR HELP. Every article for these pages is gated STRICTER
+      than the page it documents. That runs in the safe direction — help hides
+      more than the product shows — but it is not what the hidden-articles
+      ruling claims, and it means /store-view's article is hidden from STAFF who
+      can actually open the page.
+      WHY IT MATTERS BEYOND HELP, which is the real reason for the row: this is
+      PERM-5C's rule one layer over. That rule says a hidden PAGE must never sit
+      over an API that still answers. Here a nav entry hidden by capability sits
+      over a PAGE that still answers. Narrowing storeview.access below
+      OPERATIONAL today would remove the link and change nothing about who can
+      reach the page by typing the URL.
+      A THIRD GATE SHAPE, RECORDED SO IT IS NOT MISTAKEN FOR THE SAME THING:
+      /store-view/checklist/[id] guards per ROW —
+      `!isAdmin && !storeIds.includes(checklist.storeId)` — which is correct and
+      is not expressible as a capability at all. Whatever ruling this row
+      produces should say what happens to row-scoped routes, since a help
+      article can only ever claim them under a parent's gate.
+
+  - id: DEBT-88
+    status: planned
+    title: >
+      Help visibility cannot express ORG-INTEGRATION STATE — an article for an
+      unconnected integration is shown to orgs that would be redirected away
+    notes: >
+      FILED 2026-09-05. SECOND ARTICLE BLOCKED THIS WAY, WHICH IS WHY IT IS A
+      ROW RATHER THAN A NOTE.
+      THE SHAPE. helpScope knows two things about visibility: CAPABILITY (ruling
+      3 — hide the article) and MODULE (ruling 2 — show it as an upgrade
+      preview). Org-integration state is neither. Instagram is not in
+      activeModules; it is the Square-style per-org connection, gated by
+      `!org.instagramAccessToken || !org.instagramEnabled` → redirect. So
+      instagram.view is ALL, every role passes it, and an article for /instagram
+      would be visible to every org including those with no Instagram connected
+      — describing a page they are redirected away from.
+      THE TWO ARTICLES IT HAS NOW BLOCKED. Article 16 (the weekly labor plan)
+      was dropped from HELP-1a for the same shape one layer over: a linked STAFF
+      login is redirected out of the app shell entirely. Article 19 (the
+      Instagram feed) was deferred from the HELP-1b checklists batch on
+      2026-09-05 — Gary: "same failure as article 16. Don't invent a third
+      category inside a content batch."
+      WHAT A RULING WOULD HAVE TO DECIDE, stated so whoever picks this up is not
+      re-deriving the options: is an article describing an UNCONNECTED
+      integration (a) HIDDEN, like a capability-gated article; (b) SHOWN AS A
+      PREVIEW, like a module-gated one, with a connect-this-first banner in
+      place of the upgrade banner; or (c) SHOWN PLAINLY, on the reasoning that
+      the article explains how to connect it and is therefore most useful to an
+      org that has not?
+      (b) IS THE OBVIOUS ANSWER AND IS NOT OBVIOUSLY RIGHT. The upgrade preview
+      exists to sell a module the org can buy. An unconnected integration is not
+      a purchase — it is a setup step the org can do today for free — so reusing
+      the preview shape would put a sales affordance on a configuration task.
+      (c) has the opposite problem: an article whose every deep link redirects.
+      SCOPE. Instagram now; Square is the same shape and is documented in no
+      article yet; any future connect-this-first page inherits it. The ruling
+      should be about ORG-INTEGRATION STATE generally, not about Instagram, or
+      the next integration re-opens it.
+
 
 
 rulings:
