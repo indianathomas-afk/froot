@@ -27,10 +27,12 @@ capability, not merely a session; the section filter runs server-side. Those
 paragraphs are labelled as description of the code, not as ruling text, and must
 not be quoted as his.
 
-**ONE DISAGREEMENT BETWEEN A RULING AND THE CODE IS RECORDED AND UNRESOLVED** —
-see the coverage-gate entry. The gate hard-fails on a phantom route; the ruling
-says it does not fail. Left in place pending Gary, and flagged rather than
-quietly kept.
+**NO DISAGREEMENT BETWEEN A RULING AND THE CODE REMAINS.** One was recorded on
+2026-09-05: the coverage gate hard-fails on a phantom route while the ruling as
+first written said it does not fail. Gary amended the ruling the same day to name
+the exception and say why it does not undermine the rest. The entry records that
+it was amended rather than presenting the final text as though it had always
+read that way.
 
 Design document: `docs/prompts/HELP-1_AUDIT_RESULTS.md`. Build prompt:
 `docs/prompts/HELP-1a_BUILD.md`. The build prompt's own count of eight rulings is
@@ -192,29 +194,32 @@ through the search-index row rather than through any prose.
 
 ### 2026-09-05 — HELP-1: the coverage gate warns
 
-*Gary's wording, 2026-09-05, replacing the Claude-drafted entry that stood here.*
+*Gary's wording, 2026-09-05. Amended the same day to settle the one point where
+the first version and the code disagreed; no disagreement remains.*
 
-> The coverage gate warns and does not fail. Don't change it to fail — we'd end
-> up writing stub articles to get past the build.
+> The coverage gate warns and does not fail for missing coverage. Don't change
+> that to fail — we'd end up writing stub articles to get past the build.
+>
+> One thing does fail: an article claiming a route that doesn't exist. That's a
+> typo or a deleted page, not work in progress, and it ships an article whose
+> link 404s. No stub could satisfy it, so it can't create the pressure the rest
+> of this ruling guards against.
 
-**⚠️ ONE POINT WHERE THE CODE AND THIS RULING DISAGREE, RECORDED RATHER THAN
-RESOLVED.** The gate as built hard-fails on exactly one condition: an article
-claiming a route that does not exist in `src/app`. Everything else warns —
-unclaimed routes, double-claimed routes, exempt routes claimed anyway.
-
-The Claude-drafted entry this replaces carried that exception; Gary's wording
-does not mention it. Read literally, "warns and does not fail" forbids it.
-
-**It is left in place pending a ruling, and the argument for keeping it is
-narrow:** a phantom route is not a mid-phase state. It is a typo or a deleted
-page, it cannot be work-in-progress, and it ships a help article whose link
-404s — so failing on it does not create the stub-article pressure the ruling
-exists to prevent, because there is no stub that would satisfy it. Whether that
-survives contact with the ruling is Gary's call, not this file's.
+**What the code does under this ruling** — implementation, not ruling text.
+Three conditions warn: a route claimed by no article, a route claimed by two,
+and an exempt route claimed anyway. Each is a legitimate mid-phase state. The
+one hard failure is the phantom route, which throws and stops the build.
 
 **The exempt-route list lives in the generator, not in article frontmatter**, so
 an article cannot exempt a route by declining to mention it — a gate satisfied
 by forgetting is worse than no gate.
+
+**The warn form needs no special handling on day one**, which is what makes the
+"don't change it to fail" half durable. With three articles written it warned
+about 59 routes; that was accurate, and it was the phase's own to-do list
+rendered by the build. There is no threshold to tune and no escape hatch to
+remember to remove — and no moment where the gate is disabled and re-enabled,
+which is when gates like this usually die.
 
 ---
 
