@@ -37,14 +37,37 @@ const SIGNED_URL_TTL_MS = 5 * 60 * 1000
 const DELEGATION_TTL_MS = 10 * 60 * 1000
 const DELEGATION_REFRESH_MARGIN_MS = 60 * 1000
 
-function guideBlobToken(): string {
-  const token = process.env.GUIDE_BLOB_READ_WRITE_TOKEN
+// THE ONE PLACE the guide token is resolved. Exported so the verification
+// scripts resolve it the same way the route does — reading process.env
+// themselves is how a script proves the STORE works while the ROUTE cannot
+// reach it, which is exactly what happened on 2026-09-05.
+//
+// GUIDE_READ_WRITE_TOKEN IS THE PLATFORM'S NAME AND IS LISTED FIRST. Connecting
+// a Blob store on Vercel auto-creates `<PREFIX>_READ_WRITE_TOKEN` from the
+// prefix chosen at connect time; froot-guide was connected with prefix GUIDE,
+// so the deployed variable is GUIDE_READ_WRITE_TOKEN. HR's store was connected
+// with prefix HR_BLOB, which is the only reason HR_BLOB_READ_WRITE_TOKEN looks
+// like it follows a convention — it does not, it is a coincidence of prefix.
+//
+// GUIDE_BLOB_READ_WRITE_TOKEN is accepted as a fallback because that is the
+// name a local .env was set up with by hand before the mismatch was found. Both
+// resolve; neither is required to be the one present.
+export function guideBlobToken(): string {
+  const token = process.env.GUIDE_READ_WRITE_TOKEN ?? process.env.GUIDE_BLOB_READ_WRITE_TOKEN
   if (!token) {
     throw new Error(
-      "GUIDE_BLOB_READ_WRITE_TOKEN is not set — connect the private froot-guide Blob store (see CLAUDE.md)"
+      "No guide Blob token — set GUIDE_READ_WRITE_TOKEN (the name Vercel creates for the " +
+        "froot-guide store) or GUIDE_BLOB_READ_WRITE_TOKEN. See CLAUDE.md § Environment Variables."
     )
   }
   return token
+}
+
+/** Which variable supplied the token, for diagnostics. Never the value. */
+export function guideBlobTokenSource(): string | null {
+  if (process.env.GUIDE_READ_WRITE_TOKEN) return "GUIDE_READ_WRITE_TOKEN"
+  if (process.env.GUIDE_BLOB_READ_WRITE_TOKEN) return "GUIDE_BLOB_READ_WRITE_TOKEN"
+  return null
 }
 
 export function validateGuideImageMeta(contentType: string, sizeBytes: number): void {

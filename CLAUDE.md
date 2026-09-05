@@ -1040,6 +1040,7 @@ INSTAGRAM_REDIRECT_URI=        # optional — defaults to ${NEXT_PUBLIC_APP_URL}
 HR_MODULE_AVAILABLE=           # optional — "true" makes the HR module exist in this environment (staging/preview yes, production unset until launch)
 HR_INTERNAL_ORG_IDS=           # optional — comma-separated Clerk org IDs allowed HR in production before launch (dogfooding)
 HR_BLOB_READ_WRITE_TOKEN=      # RW token for the PRIVATE froot-hr Blob store (HR documents) — distinct from BLOB_READ_WRITE_TOKEN (public store). Injected by the store connection on Vercel; src/lib/hr-files.ts passes it explicitly on every Blob call.
+GUIDE_READ_WRITE_TOKEN=        # RW token for the PRIVATE froot-guide Blob store (help screenshots). NOTE THE NAME: Vercel creates <PREFIX>_READ_WRITE_TOKEN from the prefix chosen when the store is connected, and froot-guide used the prefix GUIDE — so it is NOT "GUIDE_BLOB_...". HR_BLOB_READ_WRITE_TOKEN only looks like a convention because that store's prefix was HR_BLOB. src/lib/guide-files.ts accepts GUIDE_BLOB_READ_WRITE_TOKEN as a fallback. Deployed in Preview + Production only; add it to local .env by hand from Storage -> froot-guide -> connect snippet.
 LABOR_MODULE_AVAILABLE=        # optional — "true" makes the Weekly Labor Model exist in this environment (staging/preview yes, production unset until launch). See docs/LABOR.md.
 LABOR_INTERNAL_ORG_IDS=        # optional — comma-separated Clerk org IDs allowed Labor in production before launch (dogfooding), mirrors HR_INTERNAL_ORG_IDS
 ```

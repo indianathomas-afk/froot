@@ -23,6 +23,7 @@ import { createHash } from "node:crypto"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { del, head, presignUrl, issueSignedToken, put } from "@vercel/blob"
+import { guideBlobToken, guideBlobTokenSource } from "../src/lib/guide-files"
 import { helpScope, type GuideArticle } from "../src/lib/help-access"
 import { GUIDE_ARTICLES } from "../src/generated/guide"
 import type { PermissionUser } from "../src/lib/permissions"
@@ -45,19 +46,34 @@ try {
   // No .env — the variable may come from the real environment instead.
 }
 
-const token = process.env.GUIDE_BLOB_READ_WRITE_TOKEN
+// RESOLVED THROUGH guide-files.ts, NOT process.env. Reading the variable here
+// is what let this script pass while the deployed route 404'd: it proved the
+// STORE was reachable with a token this file happened to name, and never that
+// the ROUTE could find one. The name the runtime reads is now the name the
+// verifier reads, because it is the same function.
+let token: string | null = null
+try {
+  token = guideBlobToken()
+  console.log(`token resolved from ${guideBlobTokenSource()}`)
+} catch {
+  token = null
+}
 if (!token) {
   console.error(
-    "GUIDE_BLOB_READ_WRITE_TOKEN is not set, and .env does not supply it either.\n\n" +
-      "It must be in your local .env, the same way HR_BLOB_READ_WRITE_TOKEN and\n" +
-      "BLOB_READ_WRITE_TOKEN already are. Connecting a Blob store to a Vercel project\n" +
-      "creates the variable in the DEPLOYED environments only — nothing injects it locally,\n" +
-      "and there is no password-manager copy to find unless you made one. Read it from the\n" +
-      "Vercel dashboard: Storage -> froot-guide -> the connect / .env.local snippet.\n" +
+    "No guide Blob token in the environment or .env.\n\n" +
+      "The deployed name is GUIDE_READ_WRITE_TOKEN — Vercel creates\n" +
+      "<PREFIX>_READ_WRITE_TOKEN from the prefix chosen when the store was connected,\n" +
+      "and froot-guide used the prefix GUIDE. GUIDE_BLOB_READ_WRITE_TOKEN also works.\n" +
+      "Read it from the Vercel dashboard: Storage -> froot-guide -> the connect snippet.\n" +
       "`vercel env pull` is banned repo-wide (CLAUDE.md)."
   )
   process.exit(1)
 }
+
+// Bound to a const after the guard above: `token` is a `let`, so TypeScript
+// discards the null-narrowing inside the async closure below, where a let could
+// in principle have been reassigned.
+const TOKEN: string = token
 
 const ARTICLES = GUIDE_ARTICLES as GuideArticle[]
 const ORG = { activeModules: ["inventory", "hr", "labor", "nutrition"] }
@@ -114,7 +130,7 @@ async function main(): Promise<void> {
       access: "private",
       addRandomSuffix: false,
       contentType: "image/png",
-      token,
+      token: TOKEN,
     })
     uploaded = true
     assert("a private blob can be written to froot-guide", blob.pathname === fixturePath, blob.pathname)
@@ -132,7 +148,7 @@ async function main(): Promise<void> {
     const delegation = await issueSignedToken({
       operations: ["get"],
       validUntil: Date.now() + 5 * 60 * 1000,
-      token,
+      token: TOKEN,
     })
     const { presignedUrl } = await presignUrl(delegation, {
       operation: "get",
@@ -149,7 +165,7 @@ async function main(): Promise<void> {
     assert("the bytes returned are byte-identical to the bytes stored", backHash === sentHash)
   } finally {
     if (uploaded) {
-      await del(fixturePath, { token })
+      await del(fixturePath, { token: TOKEN })
       console.log(`  (cleaned up ${fixturePath})`)
     }
   }
@@ -161,7 +177,7 @@ async function main(): Promise<void> {
   for (const img of IMAGES) {
     let present = false
     try {
-      const meta = await head(img.path, { token })
+      const meta = await head(img.path, { token: TOKEN })
       present = true
       console.log(`  present — ${img.path} (${(meta.size / 1024).toFixed(0)} KB, ${meta.contentType})`)
     } catch {

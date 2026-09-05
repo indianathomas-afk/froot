@@ -77,10 +77,15 @@ if (!source) {
 const TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" }
 const MAX_BYTES = 5 * 1024 * 1024
 
-const token = process.env.GUIDE_BLOB_READ_WRITE_TOKEN
+// MIRRORS src/lib/guide-files.ts's guideBlobToken(), which is authoritative.
+// Duplicated only because this file is .mjs and cannot import the TS module;
+// the RUNTIME path is single-sourced there. GUIDE_READ_WRITE_TOKEN is the name
+// Vercel creates from the store's connect-time prefix (GUIDE); the _BLOB_ form
+// is accepted because a local .env was set up with it by hand.
+const token = process.env.GUIDE_READ_WRITE_TOKEN ?? process.env.GUIDE_BLOB_READ_WRITE_TOKEN
 if (!token) {
   console.error(
-    "GUIDE_BLOB_READ_WRITE_TOKEN is not set.\n" +
+    "No guide Blob token (GUIDE_READ_WRITE_TOKEN or GUIDE_BLOB_READ_WRITE_TOKEN).\n" +
       "The private froot-guide store must exist and its token must be in your local .env.\n" +
       "It is a SEPARATE store from froot-hr by ruling (Gary, 2026-09-04): pattern shared, blast radius not."
   )

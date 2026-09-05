@@ -140,8 +140,23 @@ export function GuideMarkdown({ source, inert = false }: { source: string; inert
     } else if (line.trim() === "") {
       flushParagraph()
       flushBullets()
+    } else if (bullets.length > 0) {
+      // CONTINUATION OF THE CURRENT BULLET, not a new paragraph.
+      //
+      // Without this, a bullet wrapped across source lines ENDED THE LIST at
+      // the wrap and rendered its own tail as a full-width paragraph below —
+      // "which you supply comma-separated. Use" closing the item and "this
+      // wherever the answer should be…" escaping it. Found by looking at
+      // /help/hr-forms, not by any assertion: every check in this repo reads
+      // the payload, and the payload was correct. The bug was entirely in the
+      // rendering of correct data.
+      //
+      // Matches CommonMark lazy continuation: any non-blank line that is not a
+      // new bullet or heading belongs to the open item. Our files always leave
+      // a blank line before a following paragraph, which is what keeps that
+      // rule from swallowing one.
+      bullets[bullets.length - 1] += ` ${line.trim()}`
     } else {
-      flushBullets()
       paragraph.push(line.trim())
     }
   }
