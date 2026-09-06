@@ -295,6 +295,88 @@ phases:
       Built 7-23; prod via 942bc59. ROADMAP_ARCHIVE still says "staging pass
       pending" — no prod smoke test recorded, hence shipped, not verified.
 
+  - id: STAFF-2
+    track: platform
+    size: S
+    status: staging
+    commits: ["77f7ca3"]
+    title: "Location filter on /staff — a dropdown narrowing which store cards render"
+    notes: >
+      THE ID IS STAFF-2, NOT STAFF-1, AND THAT IS A DEVIATION FROM THE PROMPT.
+      The session was briefed as "STAFF-1" and that id is already spent: it is
+      the shipped 2026-07-23 staff-role phase directly above this row
+      (2081401, baf4cef, prod via 942bc59). Reusing it would put two unrelated
+      phases under one key, and /internal/roadmap renders by id — the collision
+      would be invisible in the YAML and visible only as a duplicate card.
+      Recorded here rather than silently renumbered, so the next reader of the
+      prompt (docs/prompts/STAFF-1_location_filter.md, saved under the briefed
+      name because a saved prompt is a claim wholesale and is never edited) can
+      see why the two names differ. IF GARY WANTS A DIFFERENT ID IT IS A
+      ONE-LINE CHANGE HERE PLUS THE COMMIT TRAILER.
+      STATUS IS `staging` AND IS ONE STEP AHEAD OF THE TRUTH AT WRITING, on
+      TPL-2's precedent, stated rather than implied. "77f7ca3" is committed on
+      the local `staging` branch and NOT PUSHED, so no Vercel preview carries
+      it yet; the value becomes true on Gary's push. Claude never pushes
+      (CLAUDE.md § Git Rules).
+      WHAT IT IS. /staff renders one card per store. This adds a dropdown,
+      left-aligned directly beneath the page subtitle, that narrows which cards
+      are on screen. "All locations" is the default and renders precisely what
+      the page rendered before. TIER 2 throughout: no schema, no migration, no
+      new route, no permission change, no query change.
+      THE OPTIONS AND THE CARDS COME FROM ONE ARRAY, and that single fact is the
+      whole access argument. The `stores.filter(...)` that has always decided
+      which cards render (page.tsx:412-413 after this change; it was :418 before
+      it, and the prompt's ":118" was stale by three hundred lines) now also
+      produces the option list. A MANAGER's dropdown can therefore list only the
+      stores their page already shows — there is no second source for a store
+      they cannot see to arrive from. A fresh store query here, or `stores`
+      unfiltered, would each have been such a source.
+      WHAT DID NOT CHANGE, which is most of the point. getStaffData is
+      untouched: same two queries, same store scope, same staff set, every
+      member fetched before is still fetched. The grouping key is untouched —
+      members are still grouped by primary store and DEBT-13's visiting-member
+      handling is byte-for-byte what it was. This phase does not fix DEBT-13 and
+      does not claim to. Corporate staff are not special-cased. getUserStoreScope
+      and every capability check are untouched.
+      STATE SHAPE: a new client component src/app/(app)/staff/staff-location-filter.tsx
+      holding plain useState. The header pieces, each store card and the
+      Corporate/Unassigned blocks reach it as ALREADY-RENDERED SERVER NODES, so
+      no Prisma model, no wage and no compliance summary crosses the client
+      boundary and the cards are built by the same server code that built them
+      before. AL-3's absence rule — a wage the viewer may not see is never
+      selected, never mind never rendered — is therefore untouched by the split.
+      The page itself stays a server component and /staff still builds as a
+      dynamic server-rendered route. The component is a client component only
+      because the selection spans two places in the layout: the dropdown under
+      the subtitle, and the card list below it, which is also why the header's
+      h1/subtitle/button-row were lifted into consts rather than left inline.
+      NO PERSISTENCE, DELIBERATELY. The Dashboard's selector saves to
+      localStorage under "froot.dashboard.store" and broadcasts it; this one
+      holds component state that resets on reload. Sharing that key would make a
+      Dashboard store choice silently narrow the Staff roster. The PATTERN
+      (shadcn/Radix Select, check on the current choice) and the exact string
+      "All locations" are reused verbatim from dashboard-client.tsx:330; the
+      storage is not.
+      A NEW SELECTOR SITE FOR UX-2 TO ABSORB. This is a new picker of family (a)
+      in UX-2's taxonomy — plain useState, no persistence — and it did not exist
+      when UX-2's surface was measured on 2026-07-29 or re-confirmed on
+      2026-08-06. UX-2 unifies the selector sites; this deliberately does not
+      pre-empt that, and it does mean UX-2's census is one site light. A pointer
+      has been appended to UX-2's own notes so the sweep cannot miss it, since a
+      sweep is only as complete as the shape it searches for.
+      Picking a store hides the Corporate and Unassigned blocks, which belong to
+      no store — "renders only that store's card". Where those members are
+      grouped is unchanged. The dropdown renders whenever there is at least one
+      card, including for a caller with a single store; no single-store shortcut.
+      The zero-staff empty state keeps its original header and renders no
+      dropdown, since there are no cards to narrow.
+      GATE: scoped eslint on both touched files, then bare `npm run build`
+      (no pipes, DEBT-33). Both green. NOT verified in a browser — no staging
+      deployment carries it, so the staging-SHA precondition cannot be met yet.
+      Related rows, named here rather than in a `links:` field because Phase has
+      no such key (src/lib/roadmap.ts:95-124 — it exists on RULINGS only, and the
+      build's typecheck is what caught the mistake): UX-2, DEBT-13, STAFF-1.
+
   - id: DOCS-1
     track: platform
     size: S
@@ -649,6 +731,17 @@ phases:
       (493175e) and landed src/lib/default-store.ts; BUILD-2's own outstanding
       items are verification, not build, so they gate nothing here. Piece (a)
       ships alone with no schema and no refactor.
+      NEW SELECTOR SITE APPENDED 2026-09-06 — the census above is a CLAIM from
+      2026-07-29 and is preserved unedited; this line is the correction pattern,
+      not a rewrite of it. STAFF-2 ("77f7ca3", committed on local `staging`,
+      unpushed at writing) added a NINETEENTH picker site and a TWENTY-FIRST
+      selector widget: src/app/(app)/staff/staff-location-filter.tsx, family (a)
+      — plain useState, no persistence, sentinel "all" for its All-locations
+      option. It deliberately did NOT share "froot.dashboard.store", so piece
+      (b) inherits it as a straight swap with no coupling to preserve. Written
+      down because a sweep is only as complete as the shape it searches for, and
+      a site created after the measurement is exactly the one the measurement
+      cannot contain.
 
   - id: TPL-1
     track: platform
