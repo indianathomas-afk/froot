@@ -9,6 +9,7 @@ import { STORE_LIBRARY_WHERE, canReadTrainingModule, managerLibraryWhere } from 
 import {
   TrainingModuleView,
   toClientQuizQuestions,
+  toLinkedDocument,
 } from "@/components/hr/training-module-view"
 
 // HR-17 read-only preview: renders the module through TrainingModuleView —
@@ -72,6 +73,18 @@ export default async function TrainingPreviewPage({
   const isReader = !isAdmin
   // R-g (c) is STORE's alone — MANAGER keeps the file access HR-17 gave it.
   const filesServed = role !== "STORE"
+  // HR-32 (Gary, 2026-09-05): STORE suppression is scoped to BROWSING the
+  // library, which is exactly this surface in read mode. It is deliberately the
+  // same rule and the same shape as filesServed one line above rather than a
+  // second invention — a linked document is the same class of thing as an
+  // attached file. MANAGER sees it: HR-26 moved MANAGER from preview mode to
+  // read mode on 2026-08-12, and ruling read-mode-wide would take the document
+  // away from MANAGER purely as a side effect of that reshuffle. That was a
+  // recommendation adopted at approval, not Gary's ruling — see DECISIONS.md.
+  //
+  // A trainee's own assigned training is NOT suppressed and is not this page —
+  // see /my/training/[assignmentId], which is role-blind by design.
+  const linkedDocsServed = role !== "STORE"
   const storeIds = dbUser!.storeAssignments.map((a) => a.storeId)
 
   const trainingModule = await prisma.trainingModule.findFirst({
@@ -90,7 +103,17 @@ export default async function TrainingPreviewPage({
     include: {
       lessons: {
         orderBy: { orderIndex: "asc" },
-        include: { resources: { orderBy: { orderIndex: "asc" } } },
+        include: {
+          resources: { orderBy: { orderIndex: "asc" } },
+          // HR-32: THE SUPPRESSION IS THIS LINE. A STORE login's query does not
+          // join the document at all, so the payload this page hands the
+          // renderer cannot carry one — there is nothing to leak and nothing
+          // for a later refactor to un-hide. A client-side conditional would
+          // have put the title and the URL in the HTML and then hidden them.
+          linkedHrDocument: linkedDocsServed
+            ? { select: { title: true, externalUrl: true, isActive: true } }
+            : false,
+        },
       },
       quizzes: true,
       // HR-26: the MANAGER branch of the policy function reads these.
@@ -154,7 +177,15 @@ export default async function TrainingPreviewPage({
         <TrainingModuleView
           title={trainingModule.title}
           description={trainingModule.description}
-          lessons={trainingModule.lessons}
+          lessons={trainingModule.lessons.map((l) => ({
+            ...l,
+            // HR-32: an inactive document renders nothing, decided HERE rather
+            // than in the renderer. Prisma cannot put a WHERE on a to-one
+            // include, so isActive is selected and answered in this mapping —
+            // still server-side, still before anything reaches the browser.
+            // The externalUrl guard is what keeps a NULL out of an href.
+            linkedDocument: toLinkedDocument(l),
+          }))}
           timeZone={displayTimeZone(null, org)}
           quiz={quiz ? { passThreshold: quiz.passThreshold, questions: quizQuestions } : null}
           mode={isReader ? { kind: "read" } : { kind: "preview" }}
@@ -166,6 +197,11 @@ export default async function TrainingPreviewPage({
           // ruled 2026-08-11 — so it answers false and the renderer draws no
           // link rather than one that 404s.
           resourcesAvailable={filesServed}
+          // HR-25's required-prop pattern, copied by HR-32. False here would
+          // already render nothing, because a STORE query joins no document —
+          // this answers the prop explicitly rather than letting a tier inherit
+          // the block.
+          linkedDocumentsAvailable={linkedDocsServed}
         />
       </div>
     </div>

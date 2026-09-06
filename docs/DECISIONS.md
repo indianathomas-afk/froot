@@ -6,31 +6,133 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
-## 2026-09-04 — HELP-1 / HELP-1a: eleven rulings — ⚠️ THREE NOT YET IN GARY'S WORDING
+## 2026-09-05 — HR-32: linked document on a training lesson
 
-**INTERIM ENTRY, AND THE STATUS IS PER-RULING RATHER THAN PER-SECTION.** Recorded
-now rather than later because the code implementing these shipped in `1641d1e`,
-`b01ec1e` and `4d969e6`, and a ruling that governs shipped code while living
-only in a session transcript is a ruling nobody can check. Gary's call,
-2026-09-04: *"nothing recorded nowhere while code implements it."*
+Ratified by Gary 2026-09-05, in the planning chat that scoped the row. Recorded
+verbatim; the block quote below is his wording and was copied out of
+`docs/prompts/HR-29.md` §3 rather than retyped.
 
-Each entry below carries its own provenance line. Three are explicitly awaiting
-Gary's own wording and say so; four are Gary's words verbatim from the session;
-four are Claude-drafted and accepted as standing, on Gary's reasoning that they
-*"describe what the code does rather than constrain what a future phase may
-do."*
+> Attaching a document to a lesson grants read on that document to anyone
+> assigned the module, scoped to the lesson — it opens from the lesson, it does
+> not appear in their document library, and it counts toward no compliance
+> denominator. A lesson grant is always subordinate to a DOC-4 visibility floor:
+> denial beats grant.
 
-**A CLAUDE-DRAFTED ENTRY IS NOT A WEAKER RULING — it is a ruling whose WORDING
-has not been ratified.** The distinction matters in one direction only: do not
-quote the drafted prose as Gary's, and do not treat a phrase in it as
-load-bearing where the code and the prose disagree. The three awaiting rewrite
-are the three that constrain future phases, which is why they are the three
-being rewritten.
+**The row id is HR-32 and the ruling text is untouched by that.** The session
+prompt (`docs/prompts/HR-29.md` §3) ordered this heading written with the id
+`HR-29`, which was already taken — `docs/ROADMAP.yaml:5565`, TrainingModule
+display order, shipped 2026-08-24, cited in-tree by name and depended on by
+HR-30 and HR-31. Gary, 2026-09-05: *"It really doesn't matter, so call it HR-32
+if that's easier."* The heading is the only thing that moved. The ratified
+wording above carries no row id, so the no-rewording instruction is intact.
+
+**Why the ruling stands even though Link-only makes it nearly free today.** A
+Link's target is an external URL, so no code has to consult a grant to serve
+one — `canReadHrDocument` is not on any path this row touches. The ruling is the
+governing rule for whoever later widens this to `Reference`, and the DOC-4
+subordination clause has to be on the record before any code reads it, which was
+Gary's stated reason for splitting DOC-4 out in the first place.
+
+### The Phase 0 stop — 2026-09-05
+
+**Ruled by Gary: STORE suppression is scoped to browsing, not to assigned
+training.** The operative rule is that suppression applies to browsing the
+training library (`read` mode) and not to a person's own assigned training — a
+trainee working through the module assigned to them sees the linked document
+regardless of their login's role.
+
+**That sentence is planning chat's wording, not Gary's, and
+`docs/prompts/HR-32_ADDENDUM.md` §3 presents it as a block quote from him.**
+That attribution is wrong; do not re-quote it as his. What he said, ratifying
+the rule:
+
+> That's fine because I can put a note in the training saying 'optional, only do
+> this if that'.
+
+The rule follows the ratified ruling's own words — *"anyone assigned the
+module"* — and `read` mode is precisely the mode with no assignment. So the
+block renders where there is an assignment (`execute` mode on `/my/training`) or
+an admin judging one (`preview`), and not on the library read surface.
+`/my/training` is role-blind by design (`src/lib/auth.ts:178`) and a role test
+there would remove the I-9 from the surface this row exists to serve. The line
+lands exactly where `TrainingViewMode` already draws it: the `read` member
+carries no assignment.
+
+**MANAGER sees the linked document — a recommendation adopted at approval, not a
+ruling of Gary's.** He was never asked this question and did not answer it. The
+Phase 0 audit recommended `role !== "STORE"` and it was adopted unobjected;
+it is reversible without a new ruling, and nothing in this paragraph should be
+cited as his. The reasoning: HR-26 moved MANAGER from preview mode to read mode
+on 2026-08-12, so the "manager previewing a module" tier the prompt wrote for no
+longer exists; the gate mirrors `filesServed` at `preview/page.tsx:74` rather
+than inventing a second shape; and ruling read-mode-wide instead would have
+taken the linked document away from MANAGER purely as a side effect of HR-26's
+mode reshuffle.
+
+**This is a display decision, not an access decision**, and that is why it was
+safe to adopt at approval rather than escalate: nothing server-side is enforced
+by it today, because a Link is an external URL.
+
+**One approved rider** (Gary, 2026-09-05: *"Fix it now"*): `duplicate()` in
+`training-client.tsx` ignores its response, and this row makes a 400 newly
+reachable there. Fixed inline in the Phase 2 commit that creates the hazard.
+Nothing else joins it.
+
+**Claude's implementation choices under this ruling, for the record** (not
+Gary's, and reversible without a new ruling):
+
+- **The suppression is at the payload, not in the renderer.** The page that
+  serves a STORE login does not join the document at all, so there is nothing to
+  leak and nothing for a future refactor to un-hide. The renderer takes the
+  joined document, never the raw id.
+- **The renderer block is gated on a required prop**, following HR-25's pattern
+  rather than on a `mode` conditional — a future fourth tier cannot inherit the
+  block by default; it has to answer.
+- **The JSON export joins `title` and `externalUrl`** rather than emitting the
+  bare cuid the column would otherwise export for free. That route's own comment
+  says ids are branch-specific and never travel; an exported
+  `linkedHrDocumentId` alone is a dangling pointer into another environment's
+  database. Note that a JSON export → CSV import round trip still drops the
+  link: the import reads the fixed CSV column list only.
+- **The kind invariant is held by two write routes and nothing else** — no
+  CHECK, no trigger, no FK predicate, because it is cross-table. Stated at
+  length in the schema comment so the next reader does not conclude a constraint
+  is missing.
+
+---
+
+## 2026-09-04 — HELP-1 / HELP-1a: eleven rulings, all ratified
+
+**ALL ELEVEN ARE NOW IN GARY'S WORDING.** Recorded on 2026-09-04 as an interim
+entry — three rulings drafted by Claude and flagged, because the code
+implementing them had already shipped and a ruling that governs shipped code
+while living only in a session transcript is a ruling nobody can check. Gary's
+call at the time: *"nothing recorded nowhere while code implements it."* Those
+three were rewritten by him on 2026-09-05 and the flags are gone.
+
+Each entry carries its own provenance line. Seven are Gary's words from the
+2026-09-04 session; three are his words from 2026-09-05, replacing Claude drafts;
+one — module-gated articles render as upgrade previews — was Claude-drafted and
+accepted as standing on his reasoning that it *"describes what the code does
+rather than constrains what a future phase may do."*
+
+**WHERE AN ENTRY CARRIES IMPLEMENTATION DETAIL, IT SAYS SO.** Gary's rulings are
+short. The code under them does more in places — the image route checks a
+capability, not merely a session; the section filter runs server-side. Those
+paragraphs are labelled as description of the code, not as ruling text, and must
+not be quoted as his.
+
+**NO DISAGREEMENT BETWEEN A RULING AND THE CODE REMAINS.** One was recorded on
+2026-09-05: the coverage gate hard-fails on a phantom route while the ruling as
+first written said it does not fail. Gary amended the ruling the same day to name
+the exception and say why it does not undermine the rest. The entry records that
+it was amended rather than presenting the final text as though it had always
+read that way.
 
 Design document: `docs/prompts/HELP-1_AUDIT_RESULTS.md`. Build prompt:
-`docs/prompts/HELP-1a_BUILD.md`. The build prompt's own count of eight rulings
-is WRONG in both directions — it split one audit draft in two and promoted an
-open fork to a ruling — and its numbering should not be cited anywhere.
+`docs/prompts/HELP-1a_BUILD.md`. The build prompt's own count of eight rulings is
+wrong in both directions — it split one audit draft in two and promoted an open
+fork to a ruling — and its numbering should not be cited anywhere.
 
 ---
 
@@ -146,115 +248,111 @@ existed before it did.
 
 ---
 
-### ⚠️ 2026-09-04 — HELP-1: help articles map to tasks, and gated sections are absent
+### 2026-09-05 — HELP-1: help articles map to tasks, and gated sections are absent
 
-*⚠️ **CLAUDE-DRAFTED — NOT GARY'S WORDING, AWAITING HIS REWRITE.** Do not quote
-this prose as his. The ruling stands; the sentences do not.*
+*Gary's wording, 2026-09-05, replacing the Claude-drafted entry that stood here.
+The task-granularity half is his ruling of 2026-09-04, quoted from
+`HELP-1_AUDIT_RESULTS.md` §B.3.*
 
-HELP-1 (2026-09-04): Help articles map to **user tasks, not to routes**. A list
-page, its detail page and its `/new` sibling are normally one article; print
-routes get no article at all. (1) An article **claims** a set of routes, and the
-build-time coverage gate checks that every route is claimed by *some* article —
-not that every route has its own. (2) Where an article claims routes with
-different capability gates, the article is gated on its **entry point** and the
-stricter parts are handled as gated **sections**, rather than by splitting the
-article back into one-per-route. (3) A section the reader lacks the capability
-for **renders nothing** — no heading, no greyed text, no "access required" note,
-no image, and **no route**. It is absent. (4) Exempt from coverage: the
-marketing landing page and both print views. Sign-in and sign-up are covered by
-one combined article.
+**Granularity (2026-09-04):** articles map to user tasks, not to routes. A list
+page, its detail page and its `/new` sibling are normally one article. Print
+routes get none. An article *claims* a set of routes, and the coverage gate
+checks that every route is claimed by *some* article. The marketing landing page
+and both print views are exempt; sign-in and sign-up are one combined article.
 
-**Ruling 3 is the same reasoning as the `/settings/labor` nav entry and should
-be read as an extension of it, not a new idea.** That entry is hidden entirely
-rather than locked because a visible lock on a compensation page advertises what
-COMP-1 exists to keep confidential. A section heading is the same disclosure at
-smaller scale: "Restoring a deleted ingredient", greyed out, tells a STORE login
-both that deletion is recoverable and that someone above them can do it. **A
-visible section title is itself a disclosure.**
+**Section absence (2026-09-05):**
 
-**"AND NO ROUTE" WAS ADDED BY THE BUILD, AND IT WAS FOUND BY THE EVIDENCE SCRIPT
-RATHER THAN BY REVIEW.** The search-index row gained a `routes` field so the
-contextual "?" could match a pathname without shipping every article body into
-the client bundle. That put `/inventory/ingredients/deleted` into the payload of
-every STORE reader. The prose was absent, the heading was absent, and the URL
-said it anyway. **A route string discloses that a page exists exactly as a
-heading does.** A gated section now declares the sub-routes it documents and
-they are removed along with it. Nothing in that diff looked like a permission
-change, which is the argument for the assertion existing at all.
+> An article can have parts only some people should see. When someone can't
+> access a part, they see nothing at all — no heading, no greyed-out text, no
+> lock icon, no gap in the numbering, and the page address doesn't turn up in
+> search either.
+>
+> The reason is that a greyed-out heading tells you two things you weren't meant
+> to know: the feature exists, and someone above you can use it. Same reason we
+> don't show a locked Wages menu item to a store iPad. The lock is the leak.
+>
+> The address matters as much as the heading. During the build we leaked
+> `/inventory/ingredients/deleted` to store logins through the search box, which
+> gives it away just as plainly.
 
-**"Renders nothing" is a server-side condition, not a CSS one.** A hidden
-heading still in the DOM is readable in devtools. Three things follow: the
-section is removed before the page is sent; its text never reaches the search
-index, or a hidden section becomes findable by search and the ruling is undone
-by the search box; and the contents list renumbers, since a "3." with no "2."
-above it discloses that something was removed.
+**What the code does under this ruling** — implementation, not ruling text. The
+section is removed server-side before the page is sent, so a hidden heading is
+never in the DOM to be read in devtools. Its text never reaches the search
+index, which is built from the reader's already-filtered article rather than the
+raw file. The contents list is generated from what actually rendered, so it
+renumbers rather than leaving a gap. A gated section declares the sub-routes it
+documents and those routes are removed from the article's route list for anyone
+who cannot see it — that last one is the leak Gary names above, and it arrived
+through the search-index row rather than through any prose.
 
 ---
 
-### ⚠️ 2026-09-04 — HELP-1: the coverage gate warns, and only a phantom route fails
+### 2026-09-05 — HELP-1: the coverage gate warns
 
-*⚠️ **CLAUDE-DRAFTED — NOT GARY'S WORDING, AWAITING HIS REWRITE.** Do not quote
-this prose as his. The ruling stands; the sentences do not.*
+*Gary's wording, 2026-09-05. Amended the same day to settle the one point where
+the first version and the code disagreed; no disagreement remains.*
 
-HELP-1 (2026-09-04): The build-time help coverage gate **warns and does not
-fail** for missing coverage, **permanently — not as a temporary concession** —
-and hard-fails on exactly one condition. (1) A route claimed by no article, a
-route claimed by two articles, and an exempt route claimed anyway are all
-**warnings**; each is a legitimate mid-phase state. (2) An article claiming a
-route that **does not exist** is a **build failure**: it is a typo or a deleted
-page, it cannot be a work-in-progress, and it produces a help article pointing
-at a 404. (3) The exempt-route list lives in the generator, not in article
-frontmatter, so an article cannot exempt a route by declining to mention it.
+> The coverage gate warns and does not fail for missing coverage. Don't change
+> that to fail — we'd end up writing stub articles to get past the build.
+>
+> One thing does fail: an article claiming a route that doesn't exist. That's a
+> typo or a deleted page, not work in progress, and it ships an article whose
+> link 404s. No stub could satisfy it, so it can't create the pressure the rest
+> of this ruling guards against.
 
-**Ruling 1 follows the precedent `scripts/generate-roadmap.mjs` already set and
-wrote down**: *"a warning that is wrong only asks a human to look"*, and *"A
-NOISY CHECK WOULD BE WORSE THAN NONE."* A gate that fails on missing coverage
-turns every future route-adding phase into a route-adding-plus-article-writing
-phase, and the pressure it creates is to write a stub article that satisfies the
-gate and teaches nothing — which defeats the gate rather than passing it.
+**What the code does under this ruling** — implementation, not ruling text.
+Three conditions warn: a route claimed by no article, a route claimed by two,
+and an exempt route claimed anyway. Each is a legitimate mid-phase state. The
+one hard failure is the phantom route, which throws and stops the build.
 
-**There is no flip and no threshold, and that is the load-bearing half.** The
-warn form needs no special handling on day one: with three articles written it
-warns about 59 routes, which is accurate and is HELP-1b's to-do list rendered by
-the build. A "warn now, fail later" arrangement would need a moment where the
-gate is disabled and re-enabled, and that moment is when gates like this die.
+**The exempt-route list lives in the generator, not in article frontmatter**, so
+an article cannot exempt a route by declining to mention it — a gate satisfied
+by forgetting is worse than no gate.
+
+**The warn form needs no special handling on day one**, which is what makes the
+"don't change it to fail" half durable. With three articles written it warned
+about 59 routes; that was accurate, and it was the phase's own to-do list
+rendered by the build. There is no threshold to tune and no escape hatch to
+remember to remove — and no moment where the gate is disabled and re-enabled,
+which is when gates like this usually die.
 
 ---
 
-### ⚠️ 2026-09-04 — HELP-1: all guide images are served authenticated, gated at the narrowest scope
+### 2026-09-05 — HELP-1: help images are served behind a login
 
-*⚠️ **CLAUDE-DRAFTED — NOT GARY'S WORDING, AWAITING HIS REWRITE.** Do not quote
-this prose as his. The ruling stands; the sentences do not.*
+*Gary's wording, 2026-09-05, replacing the Claude-drafted entry that stood here.*
 
-HELP-1 (2026-09-04): Every help screenshot is served through an **authenticated
-app route**, with no split by risk bucket and nothing in `public/`. (1) Images
-live in a private Blob store and reach the reader the way HR document files
-already do — the route authorizes the viewer, then streams the bytes or mints a
-short-lived signed URL; the stored blob URL is never exposed and is not
-fetchable on its own. (2) **Being signed in is not sufficient.** The image route
-applies the same capability check as the content that owns the image — the
-section's capability where the image sits in a gated section, otherwise the
-article's. (3) A refused image returns **404, not 403**: a 403 confirms the
-image exists and therefore that a hidden section exists. (4) `Cache-Control` is
-`private`, never shared. (5) Guide images are never tracked in git; raw and
-redacted captures live in gitignored directories and reach the app by upload.
+> Help screenshots are served behind a login, not from the public folder. All of
+> them, not just the ones with people in them.
+>
+> These aren't staged marketing screenshots. They come from production with real
+> data, hand-redacted, and the redaction is the only thing between a black box
+> and a real wage. During this build two pages were scored clean that weren't.
+> Keeping images behind a login means a missed redaction is seen by people
+> already in the org rather than by anyone with the address.
+>
+> No sorting by risk. One rule has nothing to get wrong.
 
-**Ruling 2 exists because without it the section ruling leaks through image
-URLs.** A section hidden from a STORE login renders nothing in the HTML — but if
-its screenshot were served to any signed-in session, that reader could fetch the
-picture of the section they were not allowed to see. The prose would be absent
-and the image would say it anyway. Gating images at the article level is correct
-for most of them and wrong for exactly the ones the section ruling exists to
-protect, which is why the gate is the **narrowest enclosing scope**.
+**`public/` is disqualified by measurement, not caution.** Verified against
+production 2026-09-04: a file at `public/guide/x.png` returns `200` to anyone who
+guesses the URL, with no session — the proxy matcher's negative lookahead lists
+`png`, so the request never reaches `auth.protect()`.
 
-**`public/` is disqualified by measurement, not by caution.** Verified against
-production 2026-09-04: a file at `public/guide/x.png` returns `200` to anyone
-who guesses the URL, with no session — the proxy matcher's negative lookahead
-lists `png`, so the request never reaches `auth.protect()`. **And the split by
-risk bucket is refused because the buckets were wrong twice during the audit
-itself**, mis-scoring `/store-view/checklist/[id]` and `/hr/signed-records` as
-clean. A single authenticated route has no classification step, so it cannot be
-classified wrongly.
+**What the code does under this ruling** — implementation, not ruling text, and
+it goes further than the ruling's floor in one way worth knowing. **Being signed
+in is not sufficient.** The image route applies the same capability check as the
+content that owns the image: the section's capability where the image sits in a
+gated section, otherwise the article's — the narrowest enclosing scope. Without
+that, the section-absence ruling above would leak through image URLs: the prose
+would be absent and the picture would say it anyway.
+
+A refused image returns **404, not 403**, because a 403 confirms the image — and
+therefore a hidden section — exists. `Cache-Control` is `private`, never shared,
+so a CDN cannot serve a capability-gated image to the wrong reader. Images live
+in their own private Blob store with their own token, and are never tracked in
+git; raw and redacted captures sit in gitignored directories and reach the app
+by upload, so a missed redaction is a live-site bug that can be fixed rather
+than a permanent history entry that cannot.
 
 ---
 

@@ -26,7 +26,21 @@ export async function GET(req: Request) {
     include: {
       lessons: {
         orderBy: { orderIndex: "asc" },
-        include: { resources: { orderBy: { orderIndex: "asc" } } },
+        include: {
+          resources: { orderBy: { orderIndex: "asc" } },
+          // HR-32: the JOINED document, not the bare cuid. linkedHrDocumentId
+          // rides along in the JSON for free the moment the column exists, and
+          // alone it is exactly the value this route says never travels — see
+          // the category note below: ids are branch-specific. A title and a URL
+          // are what a human can resolve in the target environment, mirroring
+          // the resources precedent in the header comment.
+          //
+          // THE ROUND TRIP STILL DROPS THE LINK, and that is not fixed here:
+          // /api/hr/training/import reads the CSV shape only (csv.ts declares a
+          // fixed four-field lesson), so a JSON export re-imported comes back
+          // with no linked document. A fourth CSV row_type is its own decision.
+          linkedHrDocument: { select: { title: true, externalUrl: true } },
+        },
       },
       quizzes: true,
       storeAssignments: true,

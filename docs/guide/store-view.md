@@ -13,19 +13,6 @@ capability: storeview.access
 module: null
 order: 10
 keywords: [checklist, store view, daily, shift, tasks, photo, handoff]
-pending:
-  - >
-    HANDOFF SCOPE UNCONFIRMED. A sentence saying the note "travels with the
-    checklist, not with the person" was drafted and PULLED before shipping.
-    HandoffBanner takes a checklistId, which is where the reading came from,
-    but Gary has not confirmed how handoffs are actually used. Do not restore
-    it as prose until he does.
-  - >
-    MISSED-CANNOT-BE-SUBMITTED-LATE UNVERIFIED. A sentence saying a Missed
-    checklist cannot be submitted late was drafted and PULLED. CHK-4's note
-    calls Missed a closed fact and the status filter is an explicit allow-list,
-    which is where the reading came from, but nothing tested it. Gary is
-    verifying on staging.
 ---
 
 This is the shift screen. Open the store, work down the list, submit at the end.
@@ -53,7 +40,8 @@ from the Staff Directory, so anyone missing from that list cannot be picked here
 ## Handoff notes
 
 Above the sections you will see what the previous shift left for this checklist,
-and you can leave a note for the next one.
+and you can leave a note for the next one. The note travels with the checklist,
+not with the person, so it is there for whoever opens it next.
 
 ## Submitting
 
@@ -68,5 +56,6 @@ Non-critical tasks left unticked do not change the status.
 
 ## If the day closes first
 
-A checklist nobody submits is swept to **Missed** by the overnight close. It
-appears the morning after rather than at the moment the day ends.
+A checklist nobody submits is swept to **Missed** by the overnight close. Missed
+is a closed fact — it cannot be submitted late, and it appears the morning after
+rather than at the moment the day ends.

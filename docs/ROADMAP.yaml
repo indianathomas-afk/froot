@@ -5743,6 +5743,150 @@ phases:
       runs through api/hr/training/library/route.ts, which HR-29 already fixed.
       Full correction: the HR-29 audit addendum §1.
 
+  - id: HR-32
+    track: hr
+    size: S
+    status: in_progress
+    commits: ["340a545", "6259d9c", "520148a", "ea952a8"]
+    title: "A training lesson can point at one Document Library document — Link kind only, one per lesson"
+    blockers:
+      - >
+        NOT PUSHED. All four commits sit on local `staging` only — Claude never
+        pushes. Until Gary does, the migration has not run on the staging
+        database and the staging pass cannot be taken: the route-level 400 (a
+        PATCH carrying a non-Link id) and the STORE browser check are both
+        unrun. Status moves to `staging` when that pass is taken, not when the
+        push happens.
+      - >
+        THE STORE CHECK MUST BE A POSITIVE TAKEN UNDER THE ROLE, not an absence.
+        The same STORE login must SEE the lesson and its video at
+        /hr/training/[id]/preview while NOT seeing the linked-document block. A
+        blank page proves nothing — it cannot distinguish "correctly suppressed"
+        from "this login sees nothing here at all".
+    notes: >
+      2026-09-05. THE RULING IS IN docs/DECISIONS.md UNDER
+      "2026-09-05 — HR-32: linked document on a training lesson" AND IS NOT
+      RESTATED HERE. It is Gary's wording, ratified, and the entry also records
+      the two decisions taken at the Phase 0 stop and which of them is his — the
+      MANAGER rule is a recommendation adopted at approval, not a ruling, and
+      that distinction is in the log rather than here so there is one place to
+      read it.
+
+      THE ROW ID IS HR-32 AND THE SESSION PROMPT SAYS HR-29. The prompt
+      (docs/prompts/HR-29.md) was written against a stale "next free" note;
+      HR-29 was taken by the 2026-08-24 display-order row at :5565, which is
+      live, cited in-tree by name, and depended on by HR-30 and HR-31. Confirmed
+      free by reading every id in this file, not by trusting the note — the same
+      note that already claims HR-28 is next free while HR-28 exists (DEBT-84
+      family). Gary, 2026-09-05: "It really doesn't matter, so call it HR-32 if
+      that's easier." The prompt file is NOT renamed or edited; it is the record
+      of what the session was handed, including the five stale facts its Phase 0
+      audit caught (docs/prompts/HR-29_AUDIT.md), and the addendum that governs
+      where the two differ is docs/prompts/HR-32_ADDENDUM.md.
+
+      WHY LINK-ONLY, WHICH IS THE DESIGN AND NOT A SHORTCUT. A Reference lives in
+      the private froot-hr blob store and is delivered only through
+      GET /api/hr/documents/[id]/download, which asks canReadHrDocument
+      (src/lib/hr-documents-access.ts:129) before minting a signed URL. That
+      function resolves LIBRARY grants and knows nothing about lesson
+      attachments, so serving a Reference from a lesson means a new tier on that
+      route resolving lesson → module → assignment. That was the largest and
+      riskiest part of the row, and it serves a case already served: a lesson
+      already carries up to four uploaded files (TrainingResource, 4/lesson). A
+      Link's target is an external URL, so this row touches no file-delivery
+      path at all — which is also why no grant is consulted anywhere in it.
+
+      WIDENING TO Reference LATER IS A ROUTE-TIER CHANGE, NOT A SCHEMA CHANGE.
+      The FK already points at HrDocument; what is missing is the tier on the
+      download route described above. Do not expect to need a migration for it.
+      Whoever does that work lands on canReadHrDocument first, and should know
+      that its switch is a kind allow-list with NO exhaustiveness check — its
+      own comment says so.
+
+      THE CROSS-TABLE KIND INVARIANT, AND WHY NO CHECK CAN HOLD IT. The rule is
+      `linkedHrDocumentId → HrDocument WHERE organizationId = the module's org
+      AND kind = 'Link' AND isActive`. Every clause is in another table, so no
+      CHECK can state it at any price — it would take a trigger, and this
+      codebase has none. It is the same wall DOC-3 hit with its zero-versions
+      invariant, and for the same reason. It is held by validateLessonLinks in
+      api/hr/training/access.ts, called by the two builder write paths (POST
+      /api/hr/training, which also serves Duplicate, and PATCH
+      /api/hr/training/[id]) and by NOTHING ELSE. The CSV import route neither
+      calls it nor needs to: csv.ts declares a fixed four-field lesson shape
+      built from named columns, so it cannot carry the field, writes NULL, and
+      cannot violate the rule. It was deliberately left unedited. IF YOU ARE
+      LOOKING FOR THE MISSING CONSTRAINT, THAT IS WHY THERE ISN'T ONE — the
+      schema comment on TrainingLesson says the same thing at the point of use.
+
+      TWO RULES, TWO DIFFERENT ENFORCEMENT SITES, AND THE ASYMMETRY IS FORCED.
+      The ROLE rule (STORE does not see the block while browsing the library) is
+      in the QUERY: preview/page.tsx sets `linkedDocsServed = role !== "STORE"`
+      beside the existing filesServed and joins linkedHrDocument only when it is
+      true, so a STORE payload does not carry the title or the URL at all —
+      nothing to leak and nothing for a refactor to un-hide. The INACTIVE rule
+      (a deactivated document renders nothing) could NOT go in the query:
+      PRISMA CANNOT PUT A WHERE ON A TO-ONE INCLUDE. isActive is selected and
+      answered in toLinkedDocument (components/hr/training-module-view.tsx),
+      shared by both call sites — still server-side, still before anything
+      reaches a browser, but a mapping rather than a filter. Expect them in two
+      places; it is not an oversight.
+
+      THE RENDERER BLOCK IS GATED ON A REQUIRED PROP (linkedDocumentsAvailable),
+      following HR-25's pattern at the resources block rather than on a `mode`
+      conditional — a fourth tier added to this renderer must ANSWER rather than
+      inherit the block. It is the second lock; the query is the gate.
+
+      /my/training IS NOT SUPPRESSED AND JOINS UNCONDITIONALLY. Gary,
+      2026-09-05: STORE suppression is scoped to browsing the library, not to a
+      person's own assigned training. That page is role-blind by design
+      (getActiveStaffSelf resolves a StaffMember, never a role — lib/auth.ts:178)
+      and a role test there would remove the Day 1 I-9 from the surface this row
+      exists to serve. The linked document also survives completion, unlike
+      attached files under HR-25: an external URL has no Froot-side grant to
+      withdraw.
+
+      THE JSON EXPORT JOINS title + externalUrl RATHER THAN EMITTING THE CUID it
+      would otherwise export for free. That route's own comments say ids are
+      branch-specific and never travel. NOTE THE ROUND TRIP STILL DROPS THE
+      LINK: /api/hr/training/import reads the CSV shape only, so a JSON export
+      re-imported comes back with no linked document. A fourth CSV row_type is
+      its own decision and was excluded from this row.
+
+      ONE RIDER, APPROVED BY NAME (Gary, 2026-09-05: "Fix it now"). duplicate()
+      in training-client.tsx ignored its fetch response. Harmless only while
+      every 400 on that route was unreachable from a valid module — this row
+      makes one reachable, by duplicating a module whose linked document was
+      deactivated after the page loaded. It now reports and returns.
+      reorderError was renamed to listError rather than joined by a second
+      state: the banner is list-level, and two list actions must not stack two
+      banners.
+
+      DELIBERATELY NOT IN THIS ROW: Reference or any file-backed kind (above);
+      FillableForm (HR-5 forms have no file — sentinel column values and a JSON
+      definition — so "open" has nothing to do); Acknowledgment (Gary: "None of
+      the attachment links are going to be acknowledgments. The acknowledgements
+      occur when they acknowledge the lesson" — TrainingLessonProgress and
+      HrDocumentAcknowledgment stay two mechanisms); more than one document per
+      lesson (a lesson needing two becomes two lessons, or uses Files); DOC-4's
+      visibility floor, which this row must not preclude and does not — the
+      ruling's second sentence subordinates a lesson grant to it; CSV export;
+      and videoUrl shape validation, ruled a COMMENT by Gary at DOC-3 and
+      untouched.
+
+      TRIAGE AT CLOSE — FIX NOW 0 · RULING NOW 0 (the one that stopped Phase 0,
+      the row id, is answered above) · COMMENT 2 · ROW 1.
+      COMMENT 1: docs/guide/hr-training.md becomes INCOMPLETE, not false — it
+      never enumerates the lesson editor's fields, so no sentence it contains
+      went wrong when this one was added; two sentences merely stop being a full
+      list. Reported, not fixed.
+      COMMENT 2: two anchors in training-module-view.tsx carry bare
+      rel="noopener" without noreferrer (the lesson video and the resource
+      download). The new block uses both tokens as its prompt required, which
+      leaves the file inconsistent by one token. Untouched deliberately: they
+      are shipped surfaces this row does not open.
+      ROW: DEBT-89 — docs/guide/hr-documents.md:54 says a Link accepts a file
+      upload. It has no file.
+
   - id: HR-11d
     track: hr
     size: M
@@ -23869,6 +24013,32 @@ debt:
       article yet; any future connect-this-first page inherits it. The ruling
       should be about ORG-INTEGRATION STATE generally, not about Instagram, or
       the next integration re-opens it.
+
+  - id: DEBT-89
+    status: planned
+    title: >
+      docs/guide/hr-documents.md:54 tells admins that a Link accepts a file
+      upload — a Link has no file at all
+    notes: >
+      FILED 2026-09-05 by HR-32's staleness sweep (its prompt §5f), which went
+      looking for training articles made stale by a new lesson field. None were.
+      This was found on the way past and predates the sweep — HELP-1b copy,
+      written when Link was new.
+      THE SENTENCE, verbatim: "**Reference** and **Link** accept PDF, PNG, JPG,
+      DOC or DOCX up to 25 MB." A Link has no file. It carries an externalUrl and
+      ZERO HrDocumentVersion rows — DOC-3 ruling 1, the `hrdoc_link_shape` CHECK
+      (docs/MIGRATIONS.md § Protected indexes), and the create route's Link
+      branch, which writes no `versions.create`. There is no upload, no size
+      limit, and nothing for one to apply to.
+      WHY IT IS A ROW RATHER THAN A FIX INSIDE HR-32. It is live help copy, not
+      code. Gary held HR-32 to exactly one rider (2026-09-05); a guide edit in a
+      commit about a schema column would have been the second, and the rule that
+      keeps riders countable is the one worth keeping.
+      SCOPE IS ONE SENTENCE, but read the paragraph around it rather than
+      pattern-matching the string: the article was written before Link existed as
+      a shipped kind, so the surrounding copy may assume a file elsewhere too.
+      Worth one grep across docs/guide/ for any other article that describes a
+      Link as uploaded.
 
 
 
