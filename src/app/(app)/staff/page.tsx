@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Activity } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
+import { StaffLocationFilter } from "./staff-location-filter"
 import { getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
@@ -367,199 +368,242 @@ export default async function StaffPage() {
 
   const storeProps = stores.map((s) => ({ id: s.id, name: s.name, storeNumber: s.storeNumber }))
 
+  // STAFF-1. The header pieces are built once and rendered by BOTH branches
+  // below — unchanged in either. They are lifted out of the JSX only because
+  // the location filter's selection spans two places in the layout (the
+  // dropdown under the subtitle, and the card list beneath it), so the
+  // component holding that state has to be an ancestor of both.
+  const heading = (
+    <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Staff Members</h1>
+  )
+  // A non-admin gets a standing claim of what this list contains, on a
+  // quiet day too — the absence of an "Also works here" block teaches
+  // nothing on its own, and is what DEBT-13 looked like.
+  const subtitle = (
+    <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+      {isAdmin || stores.length === 0
+        ? "Manage team members for each store location"
+        : `Everyone assigned to your ${stores.length} store${stores.length !== 1 ? "s" : ""}, including staff based at another location.`}
+    </p>
+  )
+  const actions = (canViewEngagement || canSync || canImport || canManage) && (
+    <div className="flex gap-2">
+      {canViewEngagement && (
+        <Link
+          href="/staff/engagement"
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+        >
+          <Activity className="h-4 w-4" />
+          Engagement
+        </Link>
+      )}
+      {canSync && <SyncStaffButton />}
+      {canImport && <ImportStaffButton stores={storeProps} />}
+      {canManage && <AddStaffButton stores={storeProps} />}
+    </div>
+  )
+
+  // STAFF-1. THE CARDS AND THE DROPDOWN'S OPTIONS COME FROM ONE ARRAY — the
+  // same stores.filter(...) that has always decided which cards appear. That
+  // is the whole guarantee: a MANAGER's dropdown lists their stores and
+  // nothing else, because there is no second source for it to list from. A
+  // fresh store query here, or `stores` unfiltered, would each be a way for a
+  // store the caller cannot see to show up as an option.
+  const cards = stores
+    .filter((s) => byStore.has(s.id) || visitingByStore.has(s.id))
+    .map((store) => {
+      const members = byStore.get(store.id) ?? []
+      const visiting = visitingByStore.get(store.id) ?? []
+      // Base four columns, plus Pay and Compliance when each is shown.
+      const colSpan = 4 + (showPay ? 1 : 0) + (hrActive ? 1 : 0)
+      return {
+        id: store.id,
+        // Worded exactly as the card header reads, so the option names the
+        // thing on screen rather than a second rendering of the same store.
+        label: `${store.storeNumber ? `#${store.storeNumber} — ` : ""}${store.name}`,
+        node: (
+          <div key={store.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🏪</span>
+                <div>
+                  <h3 className="font-semibold text-[var(--color-foreground)]">
+                    {store.storeNumber ? `#${store.storeNumber} — ` : ""}{store.name}
+                  </h3>
+                  {/* Two counts, never one merged number: a member listed here
+                      but based elsewhere is not part of this store's roster. */}
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    {members.length} team member{members.length !== 1 ? "s" : ""}
+                    {visiting.length > 0 && ` · ${visiting.length} also work${visiting.length === 1 ? "s" : ""} here`}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[var(--color-border)]">
+                  <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
+                  <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
+                  <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
+                  {showPay && (
+                    <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
+                  )}
+                  {hrActive && (
+                    <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
+                  )}
+                  <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((member) => (
+                  <StaffRow
+                    key={member.id}
+                    member={member}
+                    hrActive={hrActive}
+                    canEdit={canManage}
+                    pct={summaries.get(member.id)?.pct ?? null}
+                    showPay={showPay}
+                    pay={pay.get(member.id)}
+                  />
+                ))}
+                {visiting.length > 0 && (
+                  <tr className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
+                    <td colSpan={colSpan} className="px-6 py-2">
+                      <p className="text-xs font-medium text-[var(--color-foreground)]">
+                        Also works here — {visiting.length} member{visiting.length !== 1 ? "s" : ""} based at another store
+                      </p>
+                    </td>
+                  </tr>
+                )}
+                {visiting.map((member) => (
+                  <StaffRow
+                    key={`visiting-${member.id}`}
+                    member={member}
+                    hrActive={hrActive}
+                    canEdit={canManage}
+                    pct={summaries.get(member.id)?.pct ?? null}
+                    showPay={showPay}
+                    pay={pay.get(member.id)}
+                    homeStoreName={member.storeAssignments[0].store.name}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ),
+      }
+    })
+
+  // The two groups that belong to no store. Unchanged, and still built and
+  // rendered exactly where they were — picking a store only decides whether
+  // this VIEW shows them ("renders only that store's card"). Where corporate
+  // staff are grouped is not this phase's business.
+  const extras = (
+    <>
+      {corporate.length > 0 && (
+        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[var(--color-border)]">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🏢</span>
+              <div>
+                <h3 className="font-semibold text-[var(--color-foreground)]">Corporate</h3>
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  {corporate.length} team member{corporate.length !== 1 ? "s" : ""} · available at every
+                  location, based at none
+                </p>
+              </div>
+            </div>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[var(--color-border)]">
+                <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
+                <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
+                <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
+                {showPay && (
+                  <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
+                )}
+                {hrActive && (
+                  <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
+                )}
+                <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {corporate.map((member) => (
+                <StaffRow
+                  key={member.id}
+                  member={member}
+                  hrActive={hrActive}
+                  canEdit={canManage}
+                  pct={summaries.get(member.id)?.pct ?? null}
+                  showPay={showPay}
+                  pay={pay.get(member.id)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {unassigned.length > 0 && (
+        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[var(--color-border)]">
+            <p className="font-semibold text-[var(--color-foreground)]">Unassigned</p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">{unassigned.length} member{unassigned.length !== 1 ? "s" : ""}</p>
+          </div>
+          <table className="w-full">
+            <tbody>
+              {unassigned.map((member) => (
+                <StaffRow
+                  key={member.id}
+                  member={member}
+                  hrActive={hrActive}
+                  canEdit={canManage}
+                  pct={summaries.get(member.id)?.pct ?? null}
+                  showPay={showPay}
+                  pay={pay.get(member.id)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )
+
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Staff Members</h1>
-          {/* A non-admin gets a standing claim of what this list contains, on a
-              quiet day too — the absence of an "Also works here" block teaches
-              nothing on its own, and is what DEBT-13 looked like. */}
-          <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
-            {isAdmin || stores.length === 0
-              ? "Manage team members for each store location"
-              : `Everyone assigned to your ${stores.length} store${stores.length !== 1 ? "s" : ""}, including staff based at another location.`}
-          </p>
-        </div>
-        {(canViewEngagement || canSync || canImport || canManage) && (
-          <div className="flex gap-2">
-            {canViewEngagement && (
-              <Link
-                href="/staff/engagement"
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
-              >
-                <Activity className="h-4 w-4" />
-                Engagement
-              </Link>
-            )}
-            {canSync && <SyncStaffButton />}
-            {canImport && <ImportStaffButton stores={storeProps} />}
-            {canManage && <AddStaffButton stores={storeProps} />}
-          </div>
-        )}
-      </div>
-
       {staff.length === 0 ? (
-        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-16 text-center">
-          <div className="flex justify-center mb-3">
-            <div className="w-12 h-12 rounded-full bg-[var(--color-muted)] flex items-center justify-center text-2xl">👥</div>
+        <>
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              {heading}
+              {subtitle}
+            </div>
+            {actions}
           </div>
-          <p className="font-medium text-[var(--color-foreground)] mb-1">No Staff Members</p>
-          <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Add team members to track who completes each task.</p>
-          {(canImport || canManage) && (
-            <div className="flex gap-2 justify-center">
-              {canImport && <ImportStaffButton stores={storeProps} />}
-              {canManage && <AddStaffButton stores={storeProps} />}
+          <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-16 text-center">
+            <div className="flex justify-center mb-3">
+              <div className="w-12 h-12 rounded-full bg-[var(--color-muted)] flex items-center justify-center text-2xl">👥</div>
             </div>
-          )}
-        </div>
+            <p className="font-medium text-[var(--color-foreground)] mb-1">No Staff Members</p>
+            <p className="text-sm text-[var(--color-muted-foreground)] mb-4">Add team members to track who completes each task.</p>
+            {(canImport || canManage) && (
+              <div className="flex gap-2 justify-center">
+                {canImport && <ImportStaffButton stores={storeProps} />}
+                {canManage && <AddStaffButton stores={storeProps} />}
+              </div>
+            )}
+          </div>
+        </>
       ) : (
-        <div className="space-y-4">
-          {stores.filter((s) => byStore.has(s.id) || visitingByStore.has(s.id)).map((store) => {
-            const members = byStore.get(store.id) ?? []
-            const visiting = visitingByStore.get(store.id) ?? []
-            // Base four columns, plus Pay and Compliance when each is shown.
-            const colSpan = 4 + (showPay ? 1 : 0) + (hrActive ? 1 : 0)
-            return (
-              <div key={store.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
-                <div className="px-6 py-4 border-b border-[var(--color-border)]">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🏪</span>
-                    <div>
-                      <h3 className="font-semibold text-[var(--color-foreground)]">
-                        {store.storeNumber ? `#${store.storeNumber} — ` : ""}{store.name}
-                      </h3>
-                      {/* Two counts, never one merged number: a member listed here
-                          but based elsewhere is not part of this store's roster. */}
-                      <p className="text-xs text-[var(--color-muted-foreground)]">
-                        {members.length} team member{members.length !== 1 ? "s" : ""}
-                        {visiting.length > 0 && ` · ${visiting.length} also work${visiting.length === 1 ? "s" : ""} here`}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[var(--color-border)]">
-                      <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
-                      <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
-                      <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
-                      {showPay && (
-                        <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
-                      )}
-                      {hrActive && (
-                        <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
-                      )}
-                      <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {members.map((member) => (
-                      <StaffRow
-                        key={member.id}
-                        member={member}
-                        hrActive={hrActive}
-                        canEdit={canManage}
-                        pct={summaries.get(member.id)?.pct ?? null}
-                        showPay={showPay}
-                        pay={pay.get(member.id)}
-                      />
-                    ))}
-                    {visiting.length > 0 && (
-                      <tr className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
-                        <td colSpan={colSpan} className="px-6 py-2">
-                          <p className="text-xs font-medium text-[var(--color-foreground)]">
-                            Also works here — {visiting.length} member{visiting.length !== 1 ? "s" : ""} based at another store
-                          </p>
-                        </td>
-                      </tr>
-                    )}
-                    {visiting.map((member) => (
-                      <StaffRow
-                        key={`visiting-${member.id}`}
-                        member={member}
-                        hrActive={hrActive}
-                        canEdit={canManage}
-                        pct={summaries.get(member.id)?.pct ?? null}
-                        showPay={showPay}
-                        pay={pay.get(member.id)}
-                        homeStoreName={member.storeAssignments[0].store.name}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          })}
-          {corporate.length > 0 && (
-            <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
-              <div className="px-6 py-4 border-b border-[var(--color-border)]">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🏢</span>
-                  <div>
-                    <h3 className="font-semibold text-[var(--color-foreground)]">Corporate</h3>
-                    <p className="text-xs text-[var(--color-muted-foreground)]">
-                      {corporate.length} team member{corporate.length !== 1 ? "s" : ""} · available at every
-                      location, based at none
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[var(--color-border)]">
-                    <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
-                    <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
-                    <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
-                    {showPay && (
-                      <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
-                    )}
-                    {hrActive && (
-                      <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
-                    )}
-                    <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {corporate.map((member) => (
-                    <StaffRow
-                      key={member.id}
-                      member={member}
-                      hrActive={hrActive}
-                      canEdit={canManage}
-                      pct={summaries.get(member.id)?.pct ?? null}
-                      showPay={showPay}
-                      pay={pay.get(member.id)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {unassigned.length > 0 && (
-            <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
-              <div className="px-6 py-4 border-b border-[var(--color-border)]">
-                <p className="font-semibold text-[var(--color-foreground)]">Unassigned</p>
-                <p className="text-xs text-[var(--color-muted-foreground)]">{unassigned.length} member{unassigned.length !== 1 ? "s" : ""}</p>
-              </div>
-              <table className="w-full">
-                <tbody>
-                  {unassigned.map((member) => (
-                    <StaffRow
-                      key={member.id}
-                      member={member}
-                      hrActive={hrActive}
-                      canEdit={canManage}
-                      pct={summaries.get(member.id)?.pct ?? null}
-                      showPay={showPay}
-                      pay={pay.get(member.id)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <StaffLocationFilter
+          heading={heading}
+          subtitle={subtitle}
+          actions={actions}
+          cards={cards}
+          extras={extras}
+        />
       )}
     </div>
   )
