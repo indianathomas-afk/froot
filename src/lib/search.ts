@@ -18,10 +18,22 @@ import {
 // or to write a third copy of the nav filter. Both were refused. The lift is
 // filed as DEBT-91 and the "Go to" group is blocked on it.
 //
-// THE GUARANTEE THIS FILE MAKES IS STRUCTURAL, NOT PROCEDURAL. Search cannot
-// leak a wage, a manager note or an assignment record because it never queries
-// the tables they live in. There is deliberately NO BLOCKLIST here: a blocklist
-// would imply the query could reach those tables and must be talked out of it.
+// WHAT THIS FILE GUARANTEES, AT THE STRENGTH THE EVIDENCE ACTUALLY HAS. This
+// file does not itself name any forbidden source, and the training query
+// selects a fixed set of columns. That is what is proven. REACHABILITY THROUGH
+// AN IMPORTED MODULE IS NOT PROVEN — lib/training.ts, imported below, reaches
+// the assignment table inside recalcAssignmentStatus, a function nothing here
+// calls. (The model name is deliberately not written out: it is on the grep's
+// own list and this comment would trip it. That is the check working, and it
+// is why the list lives in the script.) See DEBT-93.
+//
+// An earlier draft of this comment, and ba3d1e5's commit message, said search
+// "never queries the tables they live in". That was stronger than anything
+// measured it. The wording is corrected here; the commit message is not
+// amended and stays wrong on the record.
+//
+// There is deliberately NO BLOCKLIST here: a blocklist would imply the query
+// could reach those tables and must be talked out of it.
 //
 // scripts/verify-search-scope.ts GREPS THIS FILE against a list of forbidden
 // model and relation names — personal data, training records, and the lesson
@@ -39,9 +51,19 @@ export type SearchRow = {
   title: string
   subtitle: string
   href: string
-  // Help only: the module-preview flag from HELP-1's ruling 2, carried through
-  // so a preview article does not read as a broken link.
-  preview?: boolean
+  // HELP-1's ruling-2 module-preview flag, carried through so a preview article
+  // does not read as a broken link.
+  //
+  // REQUIRED, NOT OPTIONAL, AND EVERY ROW SETS IT. The SEARCH-1 prompt marked
+  // it `preview?`, which made a training row a five-key object and a help row a
+  // six-key one — two shapes for one type, and a shape assertion that could
+  // only ever be a subset check. Gary, 2026-09-06, ruled the assertion "count
+  // and membership, not a subset check", and one uniform shape is what makes
+  // that expressible. A training module has no module-preview concept, so it
+  // answers false explicitly rather than by omission — the HR-25 required-prop
+  // pattern, where each producer answers the question instead of inheriting a
+  // default.
+  preview: boolean
 }
 
 export type SearchGroup = { group: SearchGroupKey; rows: SearchRow[] }
@@ -126,6 +148,9 @@ export function trainingRows(
       title: m.title,
       subtitle: m.lessons[0] ? `Lesson: ${m.lessons[0].title}` : (m.subject ?? m.description ?? "Training"),
       href: `/hr/training/${m.id}/preview`,
+      // Never a module preview — that flag is HELP-1's, about an article for an
+      // unbought module. Answered rather than omitted; see the type.
+      preview: false,
     }))
 }
 

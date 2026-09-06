@@ -222,9 +222,11 @@ for (const g of GATED) {
 
 // ─── EVIDENCE 3 — the excluded sources, made testable ────────────────────────
 //
-// The structural guarantee: search reads two sources, so it CANNOT leak a wage
-// or a manager note, because it never queries the tables they live in. This is
-// that promise as an assertion rather than a sentence.
+// WHAT THIS PROVES AND WHAT IT DOES NOT. It proves src/lib/search.ts does not
+// ITSELF name any of the nine, as a file: one readFileSync, no import
+// traversal. It does NOT prove that no forbidden name is REACHABLE through an
+// import path search.ts uses — lib/training.ts is a direct import and names
+// prisma.trainingAssignment in a function search.ts never calls. DEBT-93.
 //
 // A GREP AND NOT A BLOCKLIST, and the difference is the whole point. A blocklist
 // in src/lib/search.ts would imply the query could reach those tables and has
@@ -260,13 +262,18 @@ for (const name of FORBIDDEN) {
 //
 // Two field VALUES being right is not the row shape being right. Without this,
 // an extra key added to either mapping passes every other assertion in this
-// file. `preview` is help-only and optional, so the rule is: every key present
-// must be in the allowed set, and the five required keys must all be there.
+// file.
+//
+// COUNT AND MEMBERSHIP, NOT A SUBSET CHECK (Gary, 2026-09-06). A subset check
+// passes a row that is MISSING a key as readily as one that has them all, so it
+// catches additions and misses omissions. Strict equality needs one uniform row
+// shape, which is why `preview` became required on SearchRow and why a training
+// row answers it false rather than leaving it off.
 
 console.log("\n── Evidence 4: result rows carry the declared shape and nothing else ───────\n")
 
-const ALLOWED_ROW_KEYS = ["group", "id", "title", "subtitle", "href", "preview"]
-const REQUIRED_ROW_KEYS = ["group", "id", "title", "subtitle", "href"]
+const ROW_KEYS = ["group", "id", "title", "subtitle", "href", "preview"]
+const ROW_KEYS_SORTED = [...ROW_KEYS].sort().join(",")
 
 const shapeRows = [
   ...trainingRows(MODULES, { orgDbId: ORG_DB_ID, role: "ADMIN", storeIds: [] }),
@@ -274,17 +281,20 @@ const shapeRows = [
 ]
 assert("there are rows to check the shape of", shapeRows.length > 0, `${shapeRows.length} rows`)
 
-const strayKeys = new Set<string>()
-let missingKeys = 0
+const wrongShape: string[] = []
 for (const row of shapeRows) {
-  for (const k of Object.keys(row)) if (!ALLOWED_ROW_KEYS.includes(k)) strayKeys.add(k)
-  if (!REQUIRED_ROW_KEYS.every((k) => k in row)) missingKeys++
+  const keys = Object.keys(row).sort().join(",")
+  if (keys !== ROW_KEYS_SORTED) wrongShape.push(`${row.group}:${row.id} → {${keys}}`)
 }
-assert(`every row's keys are within {${ALLOWED_ROW_KEYS.join(",")}} (${shapeRows.length} rows)`,
-  strayKeys.size === 0, `stray: ${[...strayKeys].join(", ")}`)
-assert("every row carries all five required keys", missingKeys === 0, `${missingKeys} row(s) short`)
-assert("a training row carries no preview key — it is help-only",
-  !("preview" in trainingRows(MODULES, { orgDbId: ORG_DB_ID, role: "STORE", storeIds: [] })[0]))
+assert(`every row's keys are EXACTLY {${ROW_KEYS.join(",")}} — count and membership (${shapeRows.length} rows)`,
+  wrongShape.length === 0, wrongShape.slice(0, 3).join(" | "))
+assert(`every row carries exactly ${ROW_KEYS.length} keys, none missing and none extra`,
+  shapeRows.every((r) => Object.keys(r).length === ROW_KEYS.length),
+  `counts seen: ${[...new Set(shapeRows.map((r) => Object.keys(r).length))].join(", ")}`)
+// A training row answers preview explicitly rather than omitting it — the
+// omission is what made strict equality impossible before.
+assert("a training row carries preview and answers it false",
+  trainingRows(MODULES, { orgDbId: ORG_DB_ID, role: "STORE", storeIds: [] })[0].preview === false)
 
 // ─── EVIDENCE 5 — the training query's select, and search.ts's import surface ─
 //
