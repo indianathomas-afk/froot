@@ -2,6 +2,57 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — staging only — 2026-09-06 — SEARCH-1: a global search bar in the sidebar
+
+**Merge SHA:** _not yet — WRITTEN AND UNPROMOTED, which the ritual treats as a
+valid state._ The heading's SHA slot and this line are stamped at promotion,
+never hand-typed.
+
+**Payload:** **5 commits** on `staging`, none pushed at the time of writing —
+ba3d1e5 the feature, then two correction rounds: f964602 + 6430753, and 5b8cf5b
++ this docs commit. The earlier SHAs were not rewritten to produce a tidier
+count. **No migration.** No schema change, no cron, no Square call, no Clerk change, no
+new capability, no new page route. One API route, one client component, one lib
+file, one new evidence script.
+
+**What it does.** A search input pinned at the top of the `(app)` sidebar, above
+Dashboard. Typing at least two characters shows a grouped dropdown; Enter or a
+click navigates. ADMIN, MANAGER and STORE only — the `(my)` portal gets nothing.
+On the 60px rail it collapses to a magnifier that opens the same panel.
+
+**It shipped with two groups, not the three the prompt specified, and that is a
+ruling.** The "Go to" group would have searched sidebar nav destinations. The nav
+array lives inside a `"use client"` module and `isVisible()` is a closure over
+component props, so neither is reachable from a route handler; lifting the array
+into `src/lib` breaks the parser in `verify-nav1-url-sets.ts`, which is a done
+criterion of this same phase. Gary dropped the group rather than accept either a
+broken criterion or a third copy of the nav filter. Filed as **DEBT-91**.
+
+**Rollback is code-only.** No migration, no data written, nothing to undo in any
+database. Reverting the two commits removes the input and the route.
+
+**The blast radius is one new URL.** `GET /api/search` is additive; nothing
+existing calls it. `sidebar.tsx` gained an input and **no nav item**, so no
+role's set of reachable URLs moved — asserted, not assumed, by
+`verify-nav1-url-sets.ts` still reading `before=26 after=27`.
+
+**Evidence.** `verify-search-scope.ts` green with the per-role table printed;
+`verify-help-access.ts` green across the `GATED` table extraction;
+`verify-help-routes.ts` green with `/api/search` asserted on all three of its
+return paths, cache headers included; `verify-nav1-url-sets.ts` green and
+untouched; `npm run build` green.
+
+**What to look at on staging.** Sign in as Karson (ADMIN), Tommy Thomas (MANAGER)
+and the STORE login. Search a term that hits both groups — "training" or
+"cleaning" — and confirm the groups read **Training** then **Help**, that a
+training result opens `/hr/training/<id>/preview` rather than 404ing, and that a
+lesson-level match names the lesson under the module title. Then search a term
+from a gated help section — "audience" or "detected" — and confirm MANAGER and
+STORE get no `hr-documents` row from it. Collapse the sidebar and confirm the
+magnifier opens the same panel and that rows are thumb-sized on an iPad.
+
+---
+
 ## UNPROMOTED — staging only — 2026-09-05 — HR-33: a training lesson can carry one external destination
 
 **Merge SHA:** _not yet — WRITTEN AND UNPROMOTED, which the ritual treats as a

@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils"
 import { can, overridesFrom, type Capability } from "@/lib/permissions"
 import { useClerk, useUser } from "@clerk/nextjs"
 import { setSidebarCollapsed, useSidebarCollapsed } from "./use-sidebar-collapsed"
+import { GlobalSearch } from "./global-search"
 
 type IconComponent = React.ComponentType<{ className?: string }>
 
@@ -484,6 +485,15 @@ export function Sidebar({
           {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>
       </div>
+
+      {/* SEARCH-1 — pinned above the nav so it cannot scroll away, and above
+          Dashboard so it is the first thing in the sidebar proper. It adds an
+          INPUT and no nav item: scripts/verify-nav1-url-sets.ts parses item
+          literals out of this file and must still read before=26 after=27, so
+          nothing here may look like one. On the 60px rail the component
+          collapses itself to a magnifier — the `collapsed` prop is the same
+          state every other entry in this file reads. */}
+      <GlobalSearch collapsed={collapsed} />
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">

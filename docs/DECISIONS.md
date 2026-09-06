@@ -6,6 +6,91 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-06 — SEARCH-1: search never surfaces personal data
+
+Ratified by Gary 2026-09-06. Recorded verbatim; the block quote is his wording,
+supplied at the SEARCH-1 docs stop and copied out of that message rather than
+retyped. Claude drafted no version of this ruling in his voice.
+
+> Search covers how Froot works and how the job gets done. It does not tell you
+> anything about a specific person. Not who's assigned what, not who's completed
+> what, not what anyone gets paid. If you want to know about a person, you go to
+> their record, and only if your role lets you.
+
+**This is a permanent exclusion, not a deferral, and the distinction is in the
+row.** Staff members, HR documents, manager notes, wages, staff uploads, signed
+records and certificates are excluded by this ruling. Messages, stores,
+checklist templates, checklist instances and inventory items are merely
+DEFERRED — they are not personal data and could return as an additive row
+without touching this.
+
+**How the code honours it — by construction, not by policy.** `src/lib/search.ts`
+reads two sources, training content and the help index, and queries no table
+that personal data lives in. **There is deliberately no blocklist.** A blocklist
+would imply the query could reach those tables and has been talked out of it;
+the guarantee is that it cannot reach them at all. The final clause of the
+ruling — *you go to their record, and only if your role lets you* — is already
+enforced by the existing per-surface guards, which SEARCH-1 did not touch and
+does not route around.
+
+**What the evidence proves, stated narrowly.** `scripts/verify-search-scope.ts`
+holds three instruments: a grep of `search.ts` **as a file** against nine
+forbidden names; the training query's `select` block parsed from source and
+compared to an expected ten keys — which catches a widening whatever the Prisma
+*relation* is named, since `assignments` matches no model name on the grep list;
+and the exact set of bindings `search.ts` imports, pinned per module, so
+reaching personal data through a helper fails the moment the import appears.
+Both of the latter two were negative-controlled.
+
+**What it does not prove, filed as DEBT-93.** That no forbidden name is
+*reachable* through an import path `search.ts` uses. `src/lib/training.ts` is a
+direct import and legitimately names `prisma.trainingAssignment` inside a
+function `search.ts` never calls, so a naive one-level graph walk goes red on
+correct code; the honest version needs per-symbol call-graph reachability. The
+ruling is the standard; the instruments are as strong as they are and no
+stronger, and the row says which is which.
+
+---
+
+## 2026-09-06 — SEARCH-1: training content vs training records
+
+Ratified by Gary 2026-09-06. Recorded verbatim; the block quote is his wording,
+copied out of `docs/prompts/SEARCH-1_global_search_bar.md` rather than retyped.
+
+> Training material is how you do the job, same as a checklist task. Anybody
+> working a shift can read it. Who's been assigned what, who passed the quiz,
+> how many hours they logged, who got certified — that's about a person, and it
+> stays with managers and admins.
+
+**This records existing behaviour rather than changing it** — the same shape as
+the `/settings/labor` entry ratified under NAV-1. Nothing in SEARCH-1 moved a
+gate. It is written down now because SEARCH-1 is the first feature to depend on
+it: the search bar offers training modules to a STORE login, and that is only
+correct if the library was already theirs to read.
+
+**Verified on staging 2026-09-06, before the ruling was recorded.** A STORE login
+(`corporate@keva.com`) reaches `/hr/training` and gets a read-only viewer —
+module cards, categories, a Read button, and no Edit, Duplicate, Assign, Create,
+Import, Export or Manage Categories, no assignment status, no progress, no quiz
+result.
+
+**Where the line is enforced in code, confirmed by SEARCH-1's Phase A audit.**
+The page gate at `src/app/(app)/hr/training/page.tsx:48` admits ADMIN, MANAGER
+and STORE by name; `canManage` and `canAssign` hide affordances and are never
+the gate. The read tier's API guard, `requireHrTrainingReadAccess()` in
+`src/app/api/hr/training/access.ts`, asks the identical question, and the
+sixteen authoring routes and eleven assignment routes keep refusing STORE at
+their own separate guards. The records half of the ruling is held by those two
+other guards, not by anything SEARCH-1 added.
+
+**How search honours it.** `src/lib/search.ts` never SELECTs an assignment,
+progress, quiz or certification field — they are not filtered out of the
+response, they are never fetched — and `scripts/verify-search-scope.ts` fails if
+the file so much as names one. The content half is offered; the records half is
+unreachable by construction rather than by policy.
+
+---
+
 ## 2026-09-05 — HR-32: linked document on a training lesson
 
 Ratified by Gary 2026-09-05, in the planning chat that scoped the row. Recorded

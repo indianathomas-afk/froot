@@ -14360,6 +14360,220 @@ phases:
 
 
 
+  # ---- Search ----
+
+  - id: SEARCH-1
+    track: platform
+    size: S
+    status: staging
+    commits: ["ba3d1e5", "f964602", "5b8cf5b"]
+    title: "A global search bar in the (app) sidebar — training content and help articles, and nothing about a person"
+    notes: >
+      2026-09-06. TIER 2. One route, one client component, one lib file, one new
+      evidence script. No schema change, no new capability, no new page route.
+      FIVE COMMITS ACROSS TWO CORRECTION ROUNDS, AND THE COUNT IS DELIBERATE.
+      ba3d1e5 the feature; f964602 and 6430753 the first round of fixes and
+      docs; 5b8cf5b and its docs commit the second. Round two was real code —
+      an overclaim still standing in two source files, and a row-shape change —
+      so it earned its own commit rather than being folded in. THE EARLIER SHAs
+      WERE NOT REWRITTEN TO HIT A COMMIT COUNT. A soft reset would have produced
+      a tidy three and erased the record of a correction, which is the same
+      reason ba3d1e5 was never amended: a phase that shipped two unsupported
+      claims should show that it did. Gary, 2026-09-06: "(a). Five commits. Do
+      not soft-reset. Do not rewrite history.
+      SHIPPED WITH TWO GROUPS, NOT THE THREE THE PROMPT SPECIFIED, and the
+      missing one is a ruling rather than an omission. The "Go to" group would
+      have searched sidebar nav destinations. Phase A found the nav array inside
+      a "use client" module and isVisible() declared as a closure over component
+      props, so neither is reachable from a route handler; the only routes
+      forward were to lift the array into src/lib — which breaks the parser in
+      verify-nav1-url-sets.ts, a done criterion of this very phase — or to write
+      a third copy of the nav filter. Gary, 2026-09-06: "drop the 'Go to' group
+      from SEARCH-1 entirely. Ship two groups — Training and Help. Do not lift
+      the nav array, do not touch verify-nav1-url-sets.ts, and do not write a
+      third copy of the nav filter." Filed as DEBT-91; the group is blocked on
+      it and on nothing else.
+      THE GUARANTEE IS STRUCTURAL, NOT PROCEDURAL, and this is the design.
+      Search reads two sources; it does not query the tables personal data lives
+      in. There is NO BLOCKLIST in src/lib/search.ts on purpose: a blocklist
+      would imply the query could reach those tables and has been talked out of
+      it. search.ts's own comments must not spell the forbidden names out
+      either — a check its subject can defeat by mentioning it is not a check.
+      WHAT THE EVIDENCE ACTUALLY PROVES, STATED NARROWLY BECAUSE THE FIRST DRAFT
+      OF THIS ROW OVERCLAIMED IT. Three instruments, and none of them is a
+      transitive purity proof: (a) a grep of src/lib/search.ts AS A FILE against
+      nine forbidden names — one readFileSync, no import traversal, so it proves
+      only that THIS FILE names none of them and says nothing about what an
+      imported module does; (b) the
+      training query's select block parsed from source and compared to an
+      expected ten keys, which catches a widening whatever the Prisma RELATION
+      is named — `assignments` and `quizzes` match no model name on the grep
+      list, and that gap is why this assertion exists; (c) the exact set of
+      bindings search.ts imports, pinned per module, so reaching personal data
+      through a helper fails the moment the import appears. Both (b) and (c)
+      were negative-controlled: a stray `assignments` select key and an added
+      `recalcAssignmentStatus` import each turn the script red.
+      ba3d1e5's COMMIT MESSAGE OVERCLAIMED THIS AND IS NOT AMENDED. It says
+      search "cannot leak a wage, a manager note or an assignment record — it
+      never queries the tables they live in", which was stronger than anything
+      that measured it: the grep reads one file. The same sentence stood in
+      src/lib/search.ts's header and in verify-search-scope.ts's Evidence 3
+      comment. THE PROSE IS CORRECTED IN THE FIXES COMMIT recorded in this row's
+      `commits`, in both source files and here; the commit MESSAGE stays wrong
+      on the record, because amending it would erase the fact that the phase
+      shipped a claim it could not support. That is the second time in this
+      phase a property was stated as fact with no instrument behind it — see the
+      tap-target note below — and the two together are why the shape assertions
+      exist at all.
+      WHAT IS STILL NOT PROVEN, AND IT IS FILED AS DEBT-93: that no forbidden
+      name is REACHABLE through an import path search.ts uses. src/lib/training.ts
+      is a direct import and legitimately names prisma.trainingAssignment inside
+      recalcAssignmentStatus, which search.ts does not call — so a naive
+      one-level walk of the import graph goes RED ON CORRECT CODE, and the
+      honest version needs per-symbol call-graph reachability rather than a
+      grep. (c) is the short half of that guarantee; the rest is its own row.
+      WHAT IT DOES NOT SEARCH. Staff members, HR documents, manager notes,
+      wages, staff uploads, signed records, certificates. Those are personal
+      data and are excluded permanently. Messages, stores, checklist templates,
+      checklist instances and inventory items are merely DEFERRED and could
+      return as an additive row.
+      THE ROLE QUESTION IS ASKED BY CALLING THE PAGE'S OWN GUARD (Gary,
+      2026-09-06, correcting the prompt). The route calls
+      requireHrTrainingReadAccess() — the same function behind GET
+      /api/hr/training/library and the two read pages — rather than retyping the
+      raw role string /hr/training asks at page.tsx:48. A second copy of that
+      string would be DEBT-85 made worse: free to drift from the page it is
+      meant to agree with. The same call carries BOTH module gates,
+      hrModuleAvailable() and the org's activeModules toggle, so there is no
+      separate check for either. A refusal is an EMPTY GROUP, never a status
+      code, and the reason is the one HELP-1's ruling 7 gives for answering 404
+      rather than 403 on a refused image: A STATUS CODE CONFIRMS THE TIER
+      EXISTS. A 403 from /api/search would tell an unentitled reader that a
+      training read tier is there and that they are outside it; an empty
+      training group tells them nothing, and is indistinguishable from an org
+      with no matching modules, an org with HR switched off, and an environment
+      where HR does not exist at all. The guard's `response` is deliberately
+      discarded at src/app/api/search/route.ts rather than returned. It also
+      keeps the failure PARTIAL rather than total: a reader refused on training
+      still gets their help results, where a status code would have taken the
+      whole search down with it.
+      STORE IS NOT STORE-SCOPED, ruling R-h(i). The prompt asked for "the A3
+      store filter" in the singular; Phase A found three branches and Gary
+      corrected the instruction. The filter is delegated to lib/training per
+      role — {} for ADMIN, managerLibraryWhere for MANAGER, STORE_LIBRARY_WHERE
+      for STORE — and canReadTrainingModule is re-asked per module, the same
+      belt-and-braces the preview page uses at its :128. MANAGER is narrower
+      than STORE and that asymmetry is asserted, not merely tolerated.
+      A LESSON HIT ROLLS UP TO ITS MODULE because there is nothing else to point
+      at: Phase A enumerated every training page route and none is keyed by
+      lesson. The result is the module and the subtitle names the matched
+      lesson.
+      KNOWN BEHAVIOUR, NOT A DEFECT: take:5 RUNS BEFORE THE POLICY RE-FILTERS.
+      The Prisma query caps at ROWS_PER_GROUP and canReadTrainingModule is asked
+      afterwards, so a module the WHERE returns and the policy then refuses
+      SHRINKS the group rather than being backfilled from further matches. Five
+      is a display cap, not a promise of five rows. Fail-closed and intended:
+      backfilling would mean querying past the cap to replace a refusal, which
+      is more query for a cosmetic gain and one more place the two expressions
+      of the rule could disagree.
+      THE 15-TOTAL CAP IS PRESENTLY UNREACHABLE and that is expected: two groups
+      of five is ten. It becomes live when the "Go to" group returns under
+      DEBT-91.
+      THE ROW SHAPE IS EXACT, AND `preview` STOPPED BEING OPTIONAL TO MAKE IT SO.
+      A DELIBERATE DEVIATION FROM B1, ACCEPTED BY GARY 2026-09-06: "preview
+      becomes a required key on SearchRow. It deviates from B1's preview? marker
+      and I accept it." Two reasons, both recorded because the prompt's marker
+      is the thing being departed from. FIRST, strict key equality is not
+      expressible across two row shapes — `preview?` made a training row five
+      keys and a help row six, so any assertion could only ever be a subset
+      check. A subset check passes a row MISSING a
+      key as readily as a complete one, so it catches additions and misses
+      omissions. Gary, 2026-09-06: "count and membership, not a subset check."
+      SECOND, `preview: false` STATED IS MORE HONEST THAN AN ABSENT KEY: absence
+      is ambiguous between "not applicable", "not yet computed" and "forgotten",
+      and a reader cannot tell which. A training row now answers it false
+      explicitly — the HR-25 required-prop pattern, each producer answering
+      rather than inheriting a default. Both directions are negative-controlled: removing
+      the key and adding a stray one each turn the script red.
+      NOTHING ASSIGNMENT-SHAPED IS SELECTED. Assignment, progress, quiz and
+      certification fields are not filtered out of the response — they are never
+      SELECTed, so a refactor of the row mapping cannot surface one. The
+      lesson's linked-document relation is absent for the same reason: Gary,
+      2026-09-06, added it to the grep list because STORE gets
+      linkedDocsServed=false on the preview page and search must not reintroduce
+      what that page suppresses.
+      HELP GOES THROUGH appHelpScope() AND searchIndex(scope), not through
+      GUIDE_ARTICLES, which does not appear in search.ts. DECISIONS.md ruling 4
+      of 2026-09-04: one place decides who sees what. The prompt's call shape was
+      wrong on two counts and Gary corrected both — searchIndex is a free
+      function taking the scope, not a method on it.
+      scripts/help-gated-table.ts IS NEW AND THE REASON IS WORTH KEEPING. The
+      GATED table had to be shared with verify-search-scope.ts and could NOT be
+      imported from verify-help-access.ts, which runs its whole suite at module
+      scope and ends with process.exit(): importing it would have executed that
+      suite and then killed the importing script mid-run, which exits 0 having
+      asserted nothing. The table moved to a side-effect-free module; both
+      scripts read it; verify-help-access.ts stayed green across the move.
+      A 30px TAP TARGET SHIPPED IN ba3d1e5 AND WAS FIXED IN f964602, recorded
+      here because that commit's own message was wrong about it. ba3d1e5 claimed
+      "44px minimum tap targets"; three of the four controls carried min-h-11
+      and THE CLEAR BUTTON DID NOT — p-2 around an h-3.5 icon, about 30px, on
+      the control a thumb reaches for most, on the surface the 44px floor exists
+      for. f964602 sets min-h-11 min-w-11 and widens the input's right padding
+      from pr-8 to pr-12 so the button no longer overhangs the text. ba3d1e5 is
+      NOT amended — its message stays wrong on the record and this row is where
+      the correction lives. Gary, 2026-09-06: "A 30px tap target on a shared
+      iPad should not ship because a row exists for it."
+      THE `__` GATE, ANSWERED ONCE SO THE NEXT PHASE DOES NOT RE-OPEN IT. Gary
+      asked for grep -c '__' to return zero on every committed file before the
+      docs commit. IT DOES NOT, AND CANNOT, AND NONE OF IT IS THIS PHASE'S. The
+      count is NINE at HEAD — 8 in docs/ROADMAP.yaml, 1 in docs/DECISIONS.md —
+      measured before and after this phase's edits and identical both times, so
+      SEARCH-1 CONTRIBUTED ZERO. Every SEARCH-1 source file, and DEPLOY_LOG.md,
+      return 0. Enumerated so nobody re-derives it: SIX are the Clerk query
+      parameters `__clerk_ticket` and `__clerk_status`, real parameter names in
+      the auth rows (ROADMAP.yaml :13104, :13107, :22555, :22557, :22561 and
+      DECISIONS.md :3337) — LEAVE THEM ALONE, renaming a live third-party
+      parameter to satisfy a grep would be the tail wagging the dog. THREE are
+      `__________` fill-in blanks in CHK-3's open-checks block
+      (ROADMAP.yaml :1549-1552), a result template whose blanks were never
+      filled — filed as DEBT-94, low priority.
+      AND THEN THIS ENUMERATION RAISED THE COUNT TO 19, WHICH IS NOT A MISTAKE
+      AND IS THE POINT WORTH LEAVING BEHIND. Writing the tokens out to identify
+      them adds occurrences: 4 in this row, 7 in DEBT-94, on top of the 8 that
+      were here already. A grep-for-a-literal gate CANNOT COEXIST WITH PROSE
+      THAT NAMES THE LITERAL — the same recursion that turned the run red in
+      round two, when a comment correcting search.ts's overclaim named a model
+      on the grep's own forbidden list. Identification was worth more than the
+      count: a future reader needs to know it is `__clerk_ticket`, not merely
+      that six occurrences are "fine". SO: ANY FUTURE `__` GATE MUST EXEMPT THE
+      CLERK PARAMETERS BY NAME AND SKIP THIS ROW AND DEBT-94, or it will fail on
+      the two entries that exist to tell it not to.
+      SO THE GATE CHANGES SHAPE, AND THIS IS THE INSTRUCTION FOR LATER SESSIONS
+      (Gary, 2026-09-06). The `__` check can NO LONGER BE RUN AS A WHOLE-FILE
+      COUNT on docs/ROADMAP.yaml or docs/DECISIONS.md — those two files now
+      contain the enumeration that documents the exemptions, and a whole-file
+      count on them is guaranteed to be non-zero for as long as that
+      documentation stands. RUN IT AS A WHOLE-FILE CHECK on source files,
+      docs/prompts/* and docs/DEPLOY_LOG.md, all of which return 0 today; CHECK
+      THOSE TWO DOCS FILES BY DIFF INSTEAD — grep the added lines of the change,
+      not the file — so a phase is measured on what it CONTRIBUTES rather than
+      on what it inherits.
+      A LATER SESSION READING 21 IS NOT LOOKING AT A REGRESSION. The number was
+      8 before this phase, 9 across both files, and SEARCH-1 added zero
+      occurrences of the kind the gate exists to catch — every one it added is
+      documentation OF the exemptions. Do not "fix" it, and do not reopen
+      DEBT-94 for the Clerk parameters: they are live third-party parameter
+      names.
+      EVIDENCE, ALL GREEN: verify-search-scope.ts (per-role table printed, gated
+      vocabulary absent from the global payload, nine forbidden names absent
+      from search.ts), verify-help-access.ts, verify-help-routes.ts with
+      /api/search asserted on all three of its return paths, verify-nav1-url-sets.ts
+      at before=26 after=27 with every role's URL set identical, and npm run
+      build. verify-search-scope.ts carries 67 assertions after f964602, up from
+      46 at ba3d1e5. NOT VERIFIED HERE: a request-level pass on staging as ADMIN,
+      MANAGER and STORE. Claude never pushes, so staging does not have this code.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
@@ -24188,6 +24402,224 @@ debt:
       NOT IN SCOPE HERE: the DOC-3 pair at :405 and :574 is NOT this bug — the
       second is explicitly headed "SUPERSEDED — never promoted" and is a
       deliberate convention.
+
+
+  - id: DEBT-91
+    status: planned
+    title: >
+      The sidebar nav array and its isVisible() filter are unreachable from any
+      route handler — lift them to src/lib/nav.ts so a server caller can ask
+      what a role may navigate to
+    notes: >
+      FILED 2026-09-06 by SEARCH-1's Phase A. Gary ruled it a ROW and dropped
+      the dependent feature rather than build around it (2026-09-06): "drop the
+      'Go to' group from SEARCH-1 entirely... Do not lift the nav array, do not
+      touch verify-nav1-url-sets.ts, and do not write a third copy of the nav
+      filter."
+      THE SEARCH-1 "GO TO" GROUP DEPENDS ON THIS ROW and cannot be built before
+      it. That group would have searched sidebar nav destinations; it shipped as
+      two groups (Training, Help) instead. This is the whole of what is blocked.
+      WHAT BLOCKS IT, AND IT IS TWO SEPARATE THINGS. (a) src/components/layout/
+      sidebar.tsx is "use client" at line 1, and navStructure (:137),
+      inventoryNavItems (:96) and HELP_ITEM (:135) are module-level consts
+      inside it — importing any of them into a route handler drags the whole
+      client component, hooks and Clerk and next/image included, across the
+      server boundary. (b) isVisible is NOT an exportable function at all: it is
+      a closure declared inside the Sidebar component body (:262) over the props
+      role, deniedCapabilities, instagramEnabled and staffHasChecklists plus the
+      locals actor, hrEnabled and laborEnabled (:252-257). Moving the array
+      alone fixes (a) and leaves (b) untouched.
+      A CIRCULAR IMPORT IS NOT AMONG THE BLOCKERS, checked at SEARCH-1's Phase A
+      and recorded so nobody re-derives it: src/lib/permissions.ts has no
+      imports, and nothing sidebar.tsx reaches would import a new src/lib
+      consumer back. The client boundary is the whole problem.
+      THE WORK. Move NavItem, NavGroup, inventoryNavItems, navStructure and
+      HELP_ITEM to src/lib/nav.ts with no "use client"; convert isVisible to an
+      exported pure function taking an explicit environment object — the same
+      inputs it closes over today; repoint scripts/verify-nav1-url-sets.ts at
+      the new path; and replace that script's hand-maintained copy of the filter
+      at :83-97 with a call to the real function.
+      THE THIRD COPY IS ALREADY IN THE TREE, which is the part that makes this
+      worth doing rather than merely tidy. verify-nav1-url-sets.ts:83-97
+      transcribes the same six conditions by hand, so the rule the sidebar
+      enforces and the rule its own verification asserts are two texts that
+      agree only by inspection. SEARCH-1 would have been the third; it was
+      refused instead.
+      EXPECT verify-nav1-url-sets.ts TO GO RED DURING THIS WORK AND THAT IS THE
+      MECHANISM WORKING, not the parser breaking. It reads item literals out of
+      the working-tree sidebar.tsx (:107) and exits 1 when fewer than 20 match
+      (:111). Lift the array and `after` drops from 27 to 1. Repoint the parser
+      at src/lib/nav.ts; BASELINE_REV stays 10439b3 and the `git show` side of
+      the comparison keeps reading the old path, since the baseline revision
+      genuinely has the array in sidebar.tsx. Do not edit BASELINE_REV.
+      ICONS TRAVEL, CHECKED: lucide-react carries no "use client" of its own
+      (v1.21.0), so a server module may hold icon components. Splitting them out
+      to keep src/lib/nav.ts icon-free would leave the array in two halves and
+      is worse than the bundle cost.
+
+
+  - id: DEBT-92
+    status: planned
+    title: >
+      Nothing in SEARCH-1 looks at rendered markup — global-search.tsx needs a
+      render assertion in the shape of verify-help-render.ts
+    notes: >
+      FILED 2026-09-06 by Gary at the SEARCH-1 docs stop: "file a ROW for a
+      render assertion on global-search.tsx, in the shape of
+      verify-help-render.ts. Nothing in this phase looks at rendered markup,
+      which is the gap that shipped two bugs on /help/hr-forms with every
+      payload instrument green. Do not build it."
+      THE PRECEDENT IS THE ARGUMENT. /help/hr-forms served a broken image while
+      verify-help-access, verify-help-render and verify-guide-image were all
+      green, because the layer none of them touched was the one the bug lived
+      in. SEARCH-1 shipped four instruments — verify-search-scope,
+      verify-help-access, verify-help-routes, verify-nav1-url-sets — and every
+      one of them asserts a PAYLOAD. Not one renders the component. The same
+      shape of gap is therefore open on the same kind of surface.
+      WHAT IT SHOULD COVER, from what SEARCH-1 built and could not prove:
+      that group headers render in the order Training then Help; that an empty
+      group is omitted rather than drawn with a header and no rows; that the
+      preview badge renders for a help row carrying preview and not otherwise;
+      that a row's markup carries the title, the subtitle and the href and no
+      further field; and that the collapsed rail renders the magnifier and the
+      expanded state renders the input.
+      THIS ROW IS THE RENDER ASSERTION AND NOTHING ELSE. It briefly also carried
+      a 30px tap target on the clear button as its "concrete known miss"; Gary
+      ruled that fixed at once rather than carried — "a 30px tap target on a
+      shared iPad should not ship because a row exists for it" — so the defect
+      is closed and this row is scoped back to the instrument. What the episode
+      leaves behind is the row's own argument, sharper than before: no SEARCH-1
+      instrument measured that button. It was caught by a question at the docs
+      stop. A render assertion is what makes the next one fail loudly rather
+      than depend on someone asking the right question at the right moment.
+
+
+  - id: DEBT-93
+    status: planned
+    title: >
+      The excluded-source check in verify-search-scope.ts greps one file — it
+      cannot prove no forbidden name is reachable through an import path
+      src/lib/search.ts actually uses
+    notes: >
+      FILED 2026-09-06 at the SEARCH-1 docs stop, Gary having asked whether a
+      clean graph walk was short enough to build in the phase: "If a clean
+      version is short, build it. If it is not, say so, narrow the ROADMAP row
+      to what the file-level grep actually proves, and file the graph walk as
+      its own row." It is not short. The row was narrowed and the short half was
+      built; this is the remainder.
+      WHY IT WAS NOT BUILT IN SEARCH-1, IN GARY'S TERMS (2026-09-06): THE USEFUL
+      CHECK IS CALL-REACHABILITY, NOT IMPORT PRESENCE. An import-level walk
+      flags src/lib/training.ts on day one for doing its job — it is a direct
+      import of search.ts and legitimately contains prisma.trainingAssignment,
+      inside recalcAssignmentStatus (:137-160), which search.ts neither imports
+      nor calls. So the walk goes RED ON CORRECT CODE from its first run.
+      AND THE FAILURE MODE IS NOT THE RED RUN, IT IS WHAT FOLLOWS IT. The
+      exceptions added to quiet that first false positive accumulate, and the
+      check degrades into one that PERMITS WHATEVER IT HAS BEEN TAUGHT TO
+      PERMIT — an allowlist wearing an analyser's clothes, green because it was
+      configured to be. That is the "a noisy check would be worse than none"
+      precedent, and it is the reason this is a row rather than an afternoon.
+      THE EXIT IS ALREADY GUARDED, WHICH IS WHAT MAKES DEFERRING THIS SAFE. The
+      row-shape assertion in verify-search-scope.ts catches the same failure
+      where it would actually surface: strict key equality on every result row,
+      count and membership, so data reached through ANY path — imported helper
+      included — has nowhere to appear without failing the run. This row hardens
+      the entrance; that assertion holds the exit.
+      WHAT THE HONEST VERSION NEEDS, which is why it is a row and not an
+      afternoon: per-SYMBOL reachability, not per-file. Resolve each import
+      specifier, take only the BINDINGS search.ts actually imports, walk the
+      call graph of those bindings transitively, and grep only the function
+      bodies that walk reaches. That is a TypeScript AST with binding resolution
+      — ts-morph or the compiler API — not a regex over source text.
+      WHAT SEARCH-1 BUILT INSTEAD, so this row is scoped to the remainder and
+      not to the whole problem. (a) The file-level grep, nine names. (b) The
+      training select block parsed from source and compared to an expected ten
+      keys, which catches a widened select whatever the Prisma RELATION is named
+      — the gap that made the grep insufficient, since `assignments` matches no
+      model name on the list. (c) The exact set of bindings search.ts imports,
+      pinned per module: reaching personal data through a helper requires
+      importing that helper, and (c) fails the moment the import appears. Both
+      (b) and (c) were negative-controlled at the time of writing.
+      WHAT REMAINS OPEN AFTER ALL THREE: a helper search.ts ALREADY imports
+      being changed later to query a forbidden table. canReadTrainingModule is
+      pure today; nothing asserts it stays pure. That single case is the whole
+      of what this row buys, and it is worth stating plainly so the row is not
+      oversold when someone picks it up.
+
+
+  - id: DEBT-94
+    status: planned
+    title: >
+      CHK-3's open-checks block has three unfilled result blanks — either record
+      the results or say the checks were never run
+    notes: >
+      LOW PRIORITY. Filed 2026-09-06 by SEARCH-1's `__` gate, which found them
+      while proving that phase contributed none of the repo's nine `__`
+      occurrences. Cosmetic in the file, not cosmetic in what it records.
+      WHAT IS THERE. docs/ROADMAP.yaml :1549-1552, inside CHK-3 (row starts
+      :1311), three lines of a result template left blank:
+      "(2) isClosed WEEKDAY MATERIALISES NOTHING — result: __________",
+      "(3) THE TWO 409s (task-log, submit) — result: __________", and
+      "(4) PRE-DEPLOY ROWS UNTOUCHED (NULL expectations stay NULL) —
+      result: __________". Check (1) directly above them IS answered, which is
+      what makes the three blanks ambiguous rather than obviously stale.
+      WHY IT IS WORTH A ROW AT ALL. A blank is not a status. It reads as
+      "pending" and could equally mean the check ran and nobody wrote the
+      answer down, or it was never run — and CHK-3's own block is headed "OPEN
+      CHECKS — NAMED, NOT CLAIMED", which makes an unanswered blank exactly the
+      thing that block exists to prevent. Under the missing-flag-means-live
+      convention this file uses everywhere else, the safe reading is that all
+      three are still open.
+      THE FIX IS ONE OF TWO SENTENCES, not an investigation: fill the results if
+      anyone can still establish them, or replace the blanks with an explicit
+      "never run" and the reason. Either ends the ambiguity; leaving them is the
+      only wrong answer.
+      NOT IN SCOPE: the six `__clerk_ticket` / `__clerk_status` occurrences in
+      the auth rows are real third-party query parameter names and must not be
+      touched. Any future `__` gate should exempt them by name rather than
+      counting them as debt.
+
+
+  - id: DEBT-95
+    status: planned
+    title: >
+      searchAll() is exercised by nothing — group order and the 5-per-group /
+      15-total caps are untested, and it is the function that assembles what
+      /api/search returns
+    notes: >
+      FILED 2026-09-06 at the close of SEARCH-1, on Claude's recommendation made
+      twice and accepted by Gary: "searchAll is exercised by nothing — group
+      order and the 5/15 caps are untested, and it is the function that
+      assembles what /api/search returns. Same gap shape as DEBT-92 one layer
+      in."
+      WHAT IS AND IS NOT COVERED TODAY, so the row is not oversold.
+      verify-search-scope.ts drives the PARTS — trainingRows(), helpRows(),
+      trainingLibraryWhere() — and verify-help-routes.ts drives the ROUTE, but
+      only unauthenticated, so it only ever sees empty groups. searchAll() sits
+      between them and NOTHING CALLS IT: the script does not reference it at
+      all. Everything that function alone decides is therefore unasserted.
+      WHAT THAT LEAVES UNTESTED, NAMED RATHER THAN GESTURED AT: (a) GROUP ORDER
+      — Training before Help, which the component renders in the order the
+      server sends and does not itself decide; (b) THE PER-GROUP CAP of 5,
+      enforced twice (Prisma `take` and a slice) and asserted neither time;
+      (c) THE TOTAL CAP of 15 and its budget loop, which is presently
+      UNREACHABLE at two groups of five and becomes live only when the "Go to"
+      group returns under DEBT-91 — so it will start mattering at exactly the
+      moment nobody is looking at it; (d) THE BELOW-MINIMUM EARLY RETURN, which
+      must yield empty groups rather than an error; (e) that a null training
+      access yields an EMPTY GROUP rather than throwing — the empty-group-not-a-
+      status-code behaviour the SEARCH-1 row explains at length and no test
+      holds.
+      IT IS CHEAP, WHICH IS WHY THE ABSENCE IS THE ARGUMENT. searchAll takes the
+      training access as its first parameter, so passing `null` needs no
+      database and no Clerk session: the whole of (a), (c), (d) and (e) is
+      reachable in a pure script, in the shape verify-search-scope.ts already
+      has. Only (b)'s Prisma half needs anything more.
+      THE SAME GAP SHAPE AS DEBT-92, ONE LAYER IN. That row says no instrument
+      renders the component; this one says no instrument runs the assembler. In
+      both cases every surrounding layer is green and the layer itself is
+      untouched — which is the /help/hr-forms failure exactly, and the reason
+      neither absence should be inferred from the other rows being green.
 
 
 

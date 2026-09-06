@@ -43,42 +43,14 @@ const STORE_MUST_SEE = ["store-view", "checklists", "dashboard", "messages"]
 
 // ─── THE GATED-SECTION TABLE ─────────────────────────────────────────────────
 //
-// `terms` is the section's own vocabulary, and the assertions below prove none
-// of it reaches a reader who cannot see the section — not through the payload,
-// not through the search-index row.
-//
-// THIS EXISTS BECAUSE THREE SEPARATE ARTICLE-LEVEL FIELDS HAVE LEAKED A GATED
-// SECTION, and none of them looks like a permission surface while you type it:
-// `routes` shipped /inventory/ingredients/deleted to STORE readers, `keywords`
-// carried the word "audience", and `summary` said "set who it goes to" in
-// prose. Two of those three were caught by this script rather than by review.
-//
-// `deniedRoles` is roles that CAN see the article but CANNOT see the section —
-// stated rather than computed, so a wrong expectation fails instead of
-// quietly agreeing with the code.
-const GATED = [
-  {
-    article: "hr-documents",
-    section: "versions-and-fields",
-    heading: "Versions, detected fields and audience",
-    deniedRoles: ["MANAGER", "STORE", "STAFF"],
-    terms: ["audience", "Version", "version", "detected", "ceremony", "pinned"],
-    reachableRoutes: ["/hr/documents"],
-    allRoutes: 2,
-  },
-  {
-    article: "hr-training",
-    section: "authoring",
-    heading: "Building and changing a module",
-    // The article is hr.training.manage (MANAGE), so STORE and STAFF cannot see
-    // it at all and are not part of this test — they are covered by the
-    // per-role counts above.
-    deniedRoles: ["MANAGER"],
-    terms: ["Building", "New Module", "Duplicate", "Duplicat", "clone", "author"],
-    reachableRoutes: ["/hr/training", "/hr/training/[id]/preview"],
-    allRoutes: 4,
-  },
-] as const
+// MOVED TO scripts/help-gated-table.ts by SEARCH-1 (2026-09-06). The rows and
+// their meaning are unchanged; they now live in a side-effect-free module so
+// verify-search-scope.ts can assert the same sections against the GLOBAL search
+// payload. Importing them from THIS file was not possible: it runs its suite at
+// module scope and ends with process.exit(), which would have terminated the
+// importing script mid-run. Add new rows there, not here.
+import { GATED } from "./help-gated-table"
+
 
 let failures = 0
 function assert(label: string, condition: boolean, detail = "") {
