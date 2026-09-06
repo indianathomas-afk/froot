@@ -14549,6 +14549,22 @@ phases:
       that six occurrences are "fine". SO: ANY FUTURE `__` GATE MUST EXEMPT THE
       CLERK PARAMETERS BY NAME AND SKIP THIS ROW AND DEBT-94, or it will fail on
       the two entries that exist to tell it not to.
+      SO THE GATE CHANGES SHAPE, AND THIS IS THE INSTRUCTION FOR LATER SESSIONS
+      (Gary, 2026-09-06). The `__` check can NO LONGER BE RUN AS A WHOLE-FILE
+      COUNT on docs/ROADMAP.yaml or docs/DECISIONS.md — those two files now
+      contain the enumeration that documents the exemptions, and a whole-file
+      count on them is guaranteed to be non-zero for as long as that
+      documentation stands. RUN IT AS A WHOLE-FILE CHECK on source files,
+      docs/prompts/* and docs/DEPLOY_LOG.md, all of which return 0 today; CHECK
+      THOSE TWO DOCS FILES BY DIFF INSTEAD — grep the added lines of the change,
+      not the file — so a phase is measured on what it CONTRIBUTES rather than
+      on what it inherits.
+      A LATER SESSION READING 21 IS NOT LOOKING AT A REGRESSION. The number was
+      8 before this phase, 9 across both files, and SEARCH-1 added zero
+      occurrences of the kind the gate exists to catch — every one it added is
+      documentation OF the exemptions. Do not "fix" it, and do not reopen
+      DEBT-94 for the Clerk parameters: they are live third-party parameter
+      names.
       EVIDENCE, ALL GREEN: verify-search-scope.ts (per-role table printed, gated
       vocabulary absent from the global payload, nine forbidden names absent
       from search.ts), verify-help-access.ts, verify-help-routes.ts with
@@ -24562,6 +24578,48 @@ debt:
       the auth rows are real third-party query parameter names and must not be
       touched. Any future `__` gate should exempt them by name rather than
       counting them as debt.
+
+
+  - id: DEBT-95
+    status: planned
+    title: >
+      searchAll() is exercised by nothing — group order and the 5-per-group /
+      15-total caps are untested, and it is the function that assembles what
+      /api/search returns
+    notes: >
+      FILED 2026-09-06 at the close of SEARCH-1, on Claude's recommendation made
+      twice and accepted by Gary: "searchAll is exercised by nothing — group
+      order and the 5/15 caps are untested, and it is the function that
+      assembles what /api/search returns. Same gap shape as DEBT-92 one layer
+      in."
+      WHAT IS AND IS NOT COVERED TODAY, so the row is not oversold.
+      verify-search-scope.ts drives the PARTS — trainingRows(), helpRows(),
+      trainingLibraryWhere() — and verify-help-routes.ts drives the ROUTE, but
+      only unauthenticated, so it only ever sees empty groups. searchAll() sits
+      between them and NOTHING CALLS IT: the script does not reference it at
+      all. Everything that function alone decides is therefore unasserted.
+      WHAT THAT LEAVES UNTESTED, NAMED RATHER THAN GESTURED AT: (a) GROUP ORDER
+      — Training before Help, which the component renders in the order the
+      server sends and does not itself decide; (b) THE PER-GROUP CAP of 5,
+      enforced twice (Prisma `take` and a slice) and asserted neither time;
+      (c) THE TOTAL CAP of 15 and its budget loop, which is presently
+      UNREACHABLE at two groups of five and becomes live only when the "Go to"
+      group returns under DEBT-91 — so it will start mattering at exactly the
+      moment nobody is looking at it; (d) THE BELOW-MINIMUM EARLY RETURN, which
+      must yield empty groups rather than an error; (e) that a null training
+      access yields an EMPTY GROUP rather than throwing — the empty-group-not-a-
+      status-code behaviour the SEARCH-1 row explains at length and no test
+      holds.
+      IT IS CHEAP, WHICH IS WHY THE ABSENCE IS THE ARGUMENT. searchAll takes the
+      training access as its first parameter, so passing `null` needs no
+      database and no Clerk session: the whole of (a), (c), (d) and (e) is
+      reachable in a pure script, in the shape verify-search-scope.ts already
+      has. Only (b)'s Prisma half needs anything more.
+      THE SAME GAP SHAPE AS DEBT-92, ONE LAYER IN. That row says no instrument
+      renders the component; this one says no instrument runs the assembler. In
+      both cases every surrounding layer is green and the layer itself is
+      untouched — which is the /help/hr-forms failure exactly, and the reason
+      neither absence should be inferred from the other rows being green.
 
 
 
