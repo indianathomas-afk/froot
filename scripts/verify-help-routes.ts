@@ -42,6 +42,10 @@ async function snapshot(res: Response): Promise<Snapshot> {
 async function main(): Promise<void> {
   const image = await import("../src/app/api/help/image/[...path]/route")
   const search = await import("../src/app/api/help/search/route")
+  // SEARCH-1 (2026-09-06): the global search route joins this file rather than
+  // getting a headers test of its own. Its cache-header defect would be the
+  // identical one, on the identical two quiet paths.
+  const globalSearch = await import("../src/app/api/search/route")
 
   // ─── THE IMAGE ROUTE'S REFUSAL CONTRACT ────────────────────────────────────
 
@@ -139,6 +143,49 @@ async function main(): Promise<void> {
 
   const sMy = await snapshot(await search.GET(req("/api/help/search?surface=my")))
   assert("?surface=my returns an empty index too", sMy.status === 200 && sMy.body === s.body)
+
+  // ─── THE GLOBAL SEARCH ROUTE'S CONTRACT (SEARCH-1) ─────────────────────────
+  //
+  // Asserted on EVERY return path, which for this handler means three: the
+  // below-minimum early return, the normal return, and the catch. Under this
+  // script there is no Clerk session, so appHelpScope() throws and the catch is
+  // the path actually taken — which is exactly the path /api/help/search had
+  // wrong on 2026-09-05, and the reason it is asserted here rather than assumed.
+
+  console.log("\n── Global search route: shape and headers on every path ─────────────────────\n")
+
+  const gsPaths: [string, string][] = [
+    ["below the 2-character minimum", "/api/search?q=a"],
+    ["with no q at all", "/api/search"],
+    ["with a real query", "/api/search?q=training"],
+  ]
+
+  for (const [label, url] of gsPaths) {
+    const g = await snapshot(await globalSearch.GET(req(url)))
+    assert(`${label}: returns 200, not an error`, g.status === 200, `got ${g.status}`)
+    assert(
+      `${label}: carries Cache-Control: private, no-store`,
+      (g.headers["cache-control"] ?? "").includes("private") &&
+        (g.headers["cache-control"] ?? "").includes("no-store"),
+      g.headers["cache-control"] ?? "(absent)"
+    )
+
+    let gParsed: unknown = null
+    try {
+      gParsed = JSON.parse(g.body)
+    } catch {
+      /* asserted below */
+    }
+    assert(`${label}: the body is JSON`, gParsed !== null, g.body.slice(0, 120))
+    const groups = (gParsed as { groups?: unknown[] })?.groups
+    assert(`${label}: the body carries a groups array`, Array.isArray(groups), g.body.slice(0, 160))
+    // An unauthenticated reader must never receive a row from either source.
+    assert(
+      `${label}: an unauthenticated caller gets no rows from any group`,
+      (groups as { rows?: unknown[] }[] | undefined)?.every((grp) => (grp.rows ?? []).length === 0) ?? true,
+      g.body.slice(0, 200)
+    )
+  }
 
   // ─── IMAGE IDS ARE ROUTABLE ────────────────────────────────────────────────
   //
