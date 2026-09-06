@@ -24402,6 +24402,39 @@ debt:
       NOT IN SCOPE HERE: the DOC-3 pair at :405 and :574 is NOT this bug — the
       second is explicitly headed "SUPERSEDED — never promoted" and is a
       deliberate convention.
+      ── WHAT THE 2026-09-06 PROMOTION (c870ba7) SHOWED. APPENDED PER
+      PRESERVE-AND-MARK; NOTHING ABOVE IS EDITED. ──
+      THE CONFLICT DID NOT FIRE. This row predicted a conflict at the next
+      --no-ff promote, because the branches disagreed at the top of the file
+      where every new entry is inserted. The merge went through clean. So the
+      divergence is real but it is NOT self-announcing, which is worse than
+      predicted: nothing forces a human to look at this file at promotion time.
+      THE STAMPING STEP WAS SIMPLY SKIPPED, and that is the actual failure this
+      promotion exhibited. c870ba7 carried SEARCH-1 and HR-33 into production
+      while both entries still read "UNPROMOTED — staging only" with
+      "Merge SHA: not yet". The log asserted two live features were staging-only
+      — DEBT-38's shape exactly, arrived at by omission rather than by conflict.
+      Stamped after the fact on 2026-09-06, on main.
+      POST-MERGE-ON-MAIN IS CONFIRMED AS THE RIGHT HALF OF THE FIX (Gary,
+      2026-09-06), correcting a reading this session got backwards. The entry is
+      written on main AFTER the merge, so the append happens on ONE SIDE ONLY
+      and never enters the conflict region. Stamping on staging and merging
+      forward re-creates the competing top-of-file appends this row exists to
+      eliminate — the opposite of the fix.
+      AND STAGING GOING STALE IS NOT CAUSED BY STAMPING LOCATION. It is caused
+      by staging not being FAST-FORWARDED after promotion, which is a separate
+      mechanical step. It tripped SEARCH-1's repo gate twice on 2026-09-06 —
+      once at session open (staging 11 behind main, trees identical) and again
+      after c870ba7 (12 behind). Do not conflate the two problems; conflating
+      them is what produced the inverted reading above.
+      THE .gitattributes UNION MERGE DRIVER STAYS OPEN and is the other half of
+      the fix. Nothing in this promotion tested it, because no conflict fired.
+      HELP-1a's TWO HALVES ARE NOW CLOSED, leaving this row narrower. The
+      sentence bc13251 deleted on main is back — staging's repair reached main
+      in c870ba7 — and the heading that still read "UNPROMOTED — staging only"
+      over a body carrying f863259 was stamped on 2026-09-06. WHAT REMAINS OF
+      THIS ROW: the HELP-1b entry existing only on main, the 124-line
+      divergence, and the union driver.
 
 
   - id: DEBT-91

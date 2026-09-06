@@ -2,11 +2,20 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — staging only — 2026-09-06 — SEARCH-1: a global search bar in the sidebar
+## c870ba7 — 2026-09-06 — SEARCH-1: a global search bar in the sidebar
 
-**Merge SHA:** _not yet — WRITTEN AND UNPROMOTED, which the ritual treats as a
-valid state._ The heading's SHA slot and this line are stamped at promotion,
-never hand-typed.
+**Merge SHA:** `c870ba78947b8c42b6370379b5b98b2826f85df9`
+**Promoted 2026-09-06.** Written the same day in the unpromoted state and
+stamped here at promotion, never hand-typed. THE SHA IS THE `--no-ff` MERGE
+COMMIT — parents `bf5a66f` and `6176de7` — and the rollback recipe reads the
+merge, not the tip of `main`.
+**STAMPED POST-MERGE ON `main`, WHICH IS THE POINT.** The promotion itself
+skipped this step and the entry sat claiming "UNPROMOTED — staging only" while
+the feature was live in production. Writing the stamp here, on `main`, after
+the merge, is the half of DEBT-90's fix this promotion confirmed: the append
+happens on one side only and so never enters the conflict region. Stamping on
+`staging` and merging forward would re-create the competing top-of-file appends
+that row exists to eliminate.
 
 **Payload:** **5 commits** on `staging`, none pushed at the time of writing —
 ba3d1e5 the feature, then two correction rounds: f964602 + 6430753, and 5b8cf5b
@@ -53,11 +62,13 @@ magnifier opens the same panel and that rows are thumb-sized on an iPad.
 
 ---
 
-## UNPROMOTED — staging only — 2026-09-05 — HR-33: a training lesson can carry one external destination
+## c870ba7 — 2026-09-06 — HR-33: a training lesson can carry one external destination
 
-**Merge SHA:** _not yet — WRITTEN AND UNPROMOTED, which the ritual treats as a
-valid state._ The heading's SHA slot and this line are stamped at promotion,
-never hand-typed.
+**Merge SHA:** `c870ba78947b8c42b6370379b5b98b2826f85df9`
+**Promoted 2026-09-06.** Written 2026-09-05 in the unpromoted state and stamped
+here at promotion, never hand-typed. The entry sat unpromoted for a day, which
+the ritual treats as a valid state. THE SAME MERGE CARRIED SEARCH-1 — one
+`--no-ff` merge, two entries, both stamped with this SHA.
 
 **Payload:** **2 commits** on `staging`, neither pushed at the time of writing.
 **One migration**, `20260906022810_hr33_lesson_external_link`: two nullable TEXT
@@ -183,7 +194,7 @@ changed — see `docs/DECISIONS.md`, 2026-09-05.
   block. A blank page cannot tell "correctly suppressed" from "this login sees
   nothing here at all".
 
-## UNPROMOTED — staging only — 2026-09-04 — HELP-1a: the in-app help machine
+## f863259 — 2026-09-05 — HELP-1a: the in-app help machine
 
 **Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
 **Promoted 2026-09-05.** Written on 2026-09-04 in the unpromoted state and
@@ -193,9 +204,12 @@ unpromoted for a day, which the ritual treats as a valid state.
 **This promotion carried HELP-1b as well**, whose own entry exists ONLY on
 `main` — it has never been on `staging`. That gap, and the fact that the
 sentence you are reading was deleted on `main` by the `bc13251` hand edit
-(leaving this paragraph starting mid-phrase there), are both DEBT-90. The
-heading above still says UNPROMOTED on both branches and is part of that row,
-not this repair.
+(leaving this paragraph starting mid-phrase there), are both DEBT-90.
+**Both halves are now closed on `main`.** The deleted sentence is back — the
+`staging` repair reached `main` in the `c870ba7` promotion — and the heading
+above, which read UNPROMOTED while this body carried a real SHA, was stamped
+`f863259` on 2026-09-06 in the same commit that stamped SEARCH-1 and HR-33.
+The HELP-1b entry existing only on `main` is untouched and stays with DEBT-90.
 
 **⚠ THE PROMOTION BLOCKER THIS ENTRY OPENED WITH IS CLEARED (2026-09-05).**
 It read: do not promote, because `froot-guide` held no image and the document
