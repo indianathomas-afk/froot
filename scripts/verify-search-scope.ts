@@ -256,5 +256,117 @@ for (const name of FORBIDDEN) {
   assert(`src/lib/search.ts never references ${name}`, !SEARCH_SRC.includes(name))
 }
 
+// ─── EVIDENCE 4 — the result row shape ───────────────────────────────────────
+//
+// Two field VALUES being right is not the row shape being right. Without this,
+// an extra key added to either mapping passes every other assertion in this
+// file. `preview` is help-only and optional, so the rule is: every key present
+// must be in the allowed set, and the five required keys must all be there.
+
+console.log("\n── Evidence 4: result rows carry the declared shape and nothing else ───────\n")
+
+const ALLOWED_ROW_KEYS = ["group", "id", "title", "subtitle", "href", "preview"]
+const REQUIRED_ROW_KEYS = ["group", "id", "title", "subtitle", "href"]
+
+const shapeRows = [
+  ...trainingRows(MODULES, { orgDbId: ORG_DB_ID, role: "ADMIN", storeIds: [] }),
+  ...ROLES.flatMap((role) => helpRows(scopeFor(role), "a")),
+]
+assert("there are rows to check the shape of", shapeRows.length > 0, `${shapeRows.length} rows`)
+
+const strayKeys = new Set<string>()
+let missingKeys = 0
+for (const row of shapeRows) {
+  for (const k of Object.keys(row)) if (!ALLOWED_ROW_KEYS.includes(k)) strayKeys.add(k)
+  if (!REQUIRED_ROW_KEYS.every((k) => k in row)) missingKeys++
+}
+assert(`every row's keys are within {${ALLOWED_ROW_KEYS.join(",")}} (${shapeRows.length} rows)`,
+  strayKeys.size === 0, `stray: ${[...strayKeys].join(", ")}`)
+assert("every row carries all five required keys", missingKeys === 0, `${missingKeys} row(s) short`)
+assert("a training row carries no preview key — it is help-only",
+  !("preview" in trainingRows(MODULES, { orgDbId: ORG_DB_ID, role: "STORE", storeIds: [] })[0]))
+
+// ─── EVIDENCE 5 — the training query's select, and search.ts's import surface ─
+//
+// WHY THE SELECT IS PARSED FROM SOURCE RATHER THAN EXECUTED. The query needs a
+// database; this file is pure by design. Parsing the select block asserts the
+// same property the returned objects would: no key outside the expected set.
+// It also closes the gap the FORBIDDEN grep cannot see — a widened select shows
+// up as an EXTRA KEY whatever the relation is named, and Prisma relation keys
+// (`assignments`, `quizzes`) do not match the model names on that list.
+
+console.log("\n── Evidence 5: the training select, and the import surface ─────────────────\n")
+
+/** Top-level keys of the object literal starting at the first `{` after `from`. */
+function topLevelKeys(src: string, from: number): string[] {
+  const open = src.indexOf("{", from)
+  let depth = 0
+  let end = open
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === "{" || src[i] === "[") depth++
+    else if (src[i] === "}" || src[i] === "]") {
+      depth--
+      if (depth === 0) { end = i; break }
+    }
+  }
+  const inner = src.slice(open + 1, end).replace(/\/\/[^\n]*/g, "")
+  const keys: string[] = []
+  depth = 0
+  let buf = ""
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i]
+    if (c === "{" || c === "[") depth++
+    else if (c === "}" || c === "]") depth--
+    else if (depth === 0 && c === ":") { const m = /([A-Za-z_$][\w$]*)\s*$/.exec(buf); if (m) keys.push(m[1]); buf = "" }
+    else if (depth === 0 && c === ",") buf = ""
+    else if (depth === 0) buf += c
+  }
+  return keys
+}
+
+const EXPECTED_SELECT = [
+  "id", "title", "subject", "description", "organizationId",
+  "isActive", "isArchived", "appliesTo", "storeAssignments", "lessons",
+]
+const findManyAt = SEARCH_SRC.indexOf("prisma.trainingModule.findMany")
+assert("the training query was located in source", findManyAt > -1)
+const selectKeys = topLevelKeys(SEARCH_SRC, SEARCH_SRC.indexOf("select: {", findManyAt))
+console.log(`  select keys parsed: ${selectKeys.join(", ")}\n`)
+assert("the parser found a non-trivial select", selectKeys.length >= 8, selectKeys.join(", "))
+assert(`the training select carries no key outside the expected ${EXPECTED_SELECT.length}`,
+  selectKeys.every((k) => EXPECTED_SELECT.includes(k)),
+  `stray: ${selectKeys.filter((k) => !EXPECTED_SELECT.includes(k)).join(", ")}`)
+assert("...and every expected key is still there",
+  EXPECTED_SELECT.every((k) => selectKeys.includes(k)),
+  `missing: ${EXPECTED_SELECT.filter((k) => !selectKeys.includes(k)).join(", ")}`)
+
+// THE IMPORT SURFACE. The FORBIDDEN grep reads one file and cannot see what a
+// helper does. Pinning the exact bindings search.ts imports is the short,
+// honest half of that: reaching personal data through a helper requires
+// importing that helper, and this fails when the list changes. It does NOT
+// prove transitive purity — see the row filed alongside SEARCH-1 for the full
+// graph walk, which needs per-symbol call-graph reachability, not a grep.
+const EXPECTED_IMPORTS: Record<string, string[]> = {
+  "@/lib/prisma": ["prisma"],
+  "@/lib/help-access": ["searchIndex", "HelpScope"],
+  "@/lib/training": ["STORE_LIBRARY_WHERE", "canReadTrainingModule", "managerLibraryWhere"],
+}
+const found: Record<string, string[]> = {}
+for (const m of SEARCH_SRC.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*"([^"]+)"/g)) {
+  found[m[2]] = m[1].split(",").map((x) => x.replace(/\btype\b/g, "").trim()).filter(Boolean).sort()
+}
+for (const [mod, names] of Object.entries(found)) {
+  console.log(`  imports ${mod} → ${names.join(", ")}`)
+}
+console.log("")
+assert("search.ts imports exactly the three expected modules and no others",
+  Object.keys(found).sort().join(",") === Object.keys(EXPECTED_IMPORTS).sort().join(","),
+  Object.keys(found).join(", "))
+for (const [mod, names] of Object.entries(EXPECTED_IMPORTS)) {
+  assert(`...and from ${mod} exactly {${names.join(", ")}}`,
+    (found[mod] ?? []).join(",") === [...names].sort().join(","),
+    (found[mod] ?? []).join(", "))
+}
+
 console.log(failures === 0 ? "\nPASS — all assertions held\n" : `\nFAIL — ${failures} assertion(s) failed\n`)
 process.exit(failures === 0 ? 0 : 1)

@@ -21,7 +21,13 @@ import { cn } from "@/lib/utils"
 // NO Cmd+K. STORE logins are shared iPads with no keyboard — the input must be
 // reachable by touch alone, so there is no shortcut to discover and no shortcut
 // handler to collide with anything. Rows are 44px minimum for the same reason
-// (min-h-11 = 2.75rem = 44px), and so is the collapsed rail's button.
+// (min-h-11 = 2.75rem = 44px): the input, every result row, the collapsed
+// rail's button AND THE CLEAR BUTTON. The clear button shipped at p-2 around a
+// 3.5 icon — about 30px — in ba3d1e5, whose commit message claimed 44px
+// minimums and was wrong about this one control. It is the control a thumb
+// reaches for most on the surface the floor exists for. Fixed rather than left
+// to the render-assertion row: a row existing for a defect is not a reason to
+// ship it.
 //
 // EXISTING DESIGN TOKENS ONLY. Every colour here is a --color-* variable
 // already in use elsewhere in this file's sibling components; no new token, no
@@ -168,7 +174,7 @@ export function GlobalSearch({ collapsed = false }: { collapsed?: boolean }) {
         onFocus={() => {
           if (rows.length) setOpen(true)
         }}
-        className="w-full min-h-11 pl-8 pr-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
+        className="w-full min-h-11 pl-8 pr-12 rounded border border-[var(--color-border)] bg-[var(--color-background)] text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
       />
       {query && (
         <button
@@ -179,7 +185,7 @@ export function GlobalSearch({ collapsed = false }: { collapsed?: boolean }) {
             reset()
             inputRef.current?.focus()
           }}
-          className="absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] transition-colors"
+          className="absolute right-0 top-1/2 -translate-y-1/2 min-h-11 min-w-11 flex items-center justify-center rounded text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] transition-colors"
         >
           <X className="h-3.5 w-3.5" />
         </button>
