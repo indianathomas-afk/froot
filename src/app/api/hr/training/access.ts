@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { getCurrentUser, hrModuleAvailable, requireModule } from "@/lib/auth"
+import { isValidExternalDocumentUrl } from "@/lib/hr-documents"
 import { prisma } from "@/lib/prisma"
 
 // Shared guard for the training-builder routes (requireHrDocumentAccess
@@ -234,6 +235,78 @@ export async function validateLessonLinks(
   })
   if (found !== ids.length) {
     return "Linked document must be an active Link document in this organization"
+  }
+  return null
+}
+
+// ── HR-33: the external destination on a lesson ─────────────────────────────
+//
+// A lesson may point at ONE external destination with its own label —
+// "Set up your Square account" → squareup.com. This is NOT the HR-32 document
+// case and shares nothing with it: a destination has no audience, no grant and
+// no row in the Document Library, so there is no query here and no role gate
+// anywhere in the feature.
+//
+// THE RULE IS THE ONE THE DOCUMENT LIBRARY ALREADY USES. isValidExternalDocumentUrl
+// (lib/hr-documents.ts) is imported rather than re-derived: https only, and our
+// own private blob host refused so a signed URL can never be laundered into a
+// link that bypasses the download route's audience check. Gary, 2026-09-05,
+// adopted at approval: one rule for admin-supplied URLs in this feature, not
+// two. The prompt for this row asked for http-or-https; https-only is stricter
+// on the same axis and keeps a single definition.
+//
+// WHY THIS IS VALIDATED WHEN videoUrl IS NOT. videoUrl takes any string and
+// drops it into an href — a known, accepted COMMENT ruled at DOC-3, and
+// deliberately untouched by this row. Not reproducing it on a new column is the
+// whole point; "the field next door does it" is not a reason to add a second
+// unvalidated href sink.
+//
+// TWO CALLERS AND THERE IS NO THIRD, exactly as validateLessonLinks above:
+// POST /api/hr/training (builder create, and Duplicate, which composes a full
+// POST body client-side) and PATCH /api/hr/training/[id]. The CSV import route
+// cannot carry these columns — csv.ts declares a fixed four-field lesson shape
+// — so it writes NULL and needs no edit.
+
+/** The message BOTH write paths return, so they cannot disagree. */
+export const LESSON_EXTERNAL_LINK_ERROR =
+  "Enter a full https:// link for the lesson's external link"
+
+/**
+ * "" and whitespace mean ABSENT, matching videoUrl's convention in the builder
+ * — the form sends "" for an untouched field and that must not become a stored
+ * blank or a 400.
+ */
+function normalizeExternalLink(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+/**
+ * The two columns as they are written, from one definition so the create map
+ * and the update map cannot drift. A LABEL WITH NO URL IS A NO-OP and is stored
+ * as NULL rather than rejected: there is nothing for it to label.
+ */
+export function lessonExternalLinkData(l: {
+  externalLinkUrl?: string | null
+  externalLinkLabel?: string | null
+}): { externalLinkUrl: string | null; externalLinkLabel: string | null } {
+  const externalLinkUrl = normalizeExternalLink(l.externalLinkUrl)
+  return {
+    externalLinkUrl,
+    externalLinkLabel: externalLinkUrl ? normalizeExternalLink(l.externalLinkLabel) : null,
+  }
+}
+
+/**
+ * Shape check for every lesson in a payload. Absent stays valid — the field is
+ * optional. Returns an error string or null, matching the two validators above.
+ */
+export function validateLessonExternalLinks(
+  lessons: { externalLinkUrl?: string | null }[]
+): string | null {
+  for (const lesson of lessons) {
+    const url = normalizeExternalLink(lesson.externalLinkUrl)
+    if (url && !isValidExternalDocumentUrl(url)) return LESSON_EXTERNAL_LINK_ERROR
   }
   return null
 }

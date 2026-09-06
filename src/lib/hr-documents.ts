@@ -70,8 +70,16 @@ export const HR_BLOB_HOST_SUFFIX = ".private.blob.vercel-storage.com"
 
 /**
  * Shape check for an admin-supplied external URL — the `externalUrl` of a Link
- * document, and (Gary's amendment 1, 2026-08-24) `instructionsVideoUrl` on
- * every kind. Same rule for both: one function, two callers, no second copy.
+ * document, (Gary's amendment 1, 2026-08-24) `instructionsVideoUrl` on every
+ * kind, and (HR-33) `TrainingLesson.externalLinkUrl`, the external destination
+ * a training lesson may point at. Same rule for all three: one function, three
+ * callers, no second copy.
+ *
+ * HR-33 IS THE NON-DOCUMENT CALLER and reaches this from
+ * api/hr/training/access.ts. That row's prompt asked for http-or-https; https
+ * only was adopted at approval (Gary, 2026-09-05) precisely so a training
+ * lesson and a library Link cannot end up holding admin URLs to two different
+ * standards. It carries its own message — the one below names a document.
  *
  * https ONLY, and that is not politeness. These URLs are rendered as an href a
  * staff member taps, and admitting arbitrary schemes here is how `javascript:`

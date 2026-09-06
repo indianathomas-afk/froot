@@ -45,6 +45,8 @@ type TrainingLesson = {
   // HR-32: the raw id, because this shape exists to be re-POSTed by Duplicate
   // and the write route takes an id. Nothing in this file renders it.
   linkedHrDocumentId: string | null
+  externalLinkUrl: string | null
+  externalLinkLabel: string | null
   resources: TrainingResource[]
 }
 
@@ -578,6 +580,12 @@ export default function TrainingClient({
           // is what makes a since-deactivated document a 400 rather than a
           // silently dropped link.
           linkedHrDocumentId: l.linkedHrDocumentId,
+          // HR-33. A copy keeps the destination and its label. Both ride the
+          // same POST and the same https check the builder uses — a URL that
+          // was valid when it was saved is still valid now, so unlike the
+          // linked document above this cannot 400 on a copy.
+          externalLinkUrl: l.externalLinkUrl,
+          externalLinkLabel: l.externalLinkLabel,
           resources: l.resources.map((r) => ({
             label: r.label,
             fileUrl: r.fileUrl,

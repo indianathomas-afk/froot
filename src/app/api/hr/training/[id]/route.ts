@@ -2,7 +2,12 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { sanitizeRichText } from "@/lib/sanitize-html"
-import { requireHrTrainingAccess, validateLessonLinks } from "../access"
+import {
+  lessonExternalLinkData,
+  requireHrTrainingAccess,
+  validateLessonExternalLinks,
+  validateLessonLinks,
+} from "../access"
 import { quizSchema } from "../schemas"
 
 const lessonSchema = z.object({
@@ -14,6 +19,9 @@ const lessonSchema = z.object({
   // HR-32: shape only — the org/kind/isActive rule is validateLessonLinks,
   // called below, because it is cross-table.
   linkedHrDocumentId: z.string().nullish(),
+  // HR-33: shape only here too — https-only is validateLessonExternalLinks.
+  externalLinkUrl: z.string().nullish(),
+  externalLinkLabel: z.string().nullish(),
 })
 
 const updateSchema = z.object({
@@ -115,6 +123,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const linkError = await validateLessonLinks(data.lessons, access.org.id)
   if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
 
+  // HR-33: the second and last write path. Before the transaction, same as the
+  // check above — a 400 is the answer, not a rollback.
+  const externalLinkError = validateLessonExternalLinks(data.lessons)
+  if (externalLinkError) return NextResponse.json({ error: externalLinkError }, { status: 400 })
+
   try {
     const existingLessonIds = new Set(
       (
@@ -140,6 +153,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // and the create list below — so this one line covers both, and a
       // cleared select arrives as null rather than being left behind.
       linkedHrDocumentId: l.linkedHrDocumentId || null,
+      // HR-33. Same helper the create path spreads, so the trimming rule and
+      // the label-without-URL rule have exactly one definition.
+      ...lessonExternalLinkData(l),
     })
 
     const existingQuiz = await prisma.trainingQuiz.findFirst({
