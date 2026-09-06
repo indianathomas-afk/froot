@@ -5887,6 +5887,110 @@ phases:
       ROW: DEBT-89 — docs/guide/hr-documents.md:54 says a Link accepts a file
       upload. It has no file.
 
+  - id: HR-33
+    track: hr
+    size: S
+    status: staging
+    commits: ["1222a81"]
+    title: "A training lesson can carry one external destination — its own URL and label, beside the video and the linked document"
+    notes: >
+      2026-09-05. NO DECISIONS.md ENTRY AND NONE IS MISSING. Nothing in this row
+      needed a ruling — no document, no grant, no audience, no role question. The
+      PRE-PUSH-CHECK should skip its Step 1 here rather than hunt for an entry.
+      One decision was taken at the Phase 0 stop and it is recorded below as what
+      it is: a recommendation adopted at approval, not a ruling. That distinction
+      is HR-32's and is kept deliberately.
+      WHY THIS IS NOT THE HR-32 SHAPE, which is the whole design. HR-32 links a
+      DOCUMENT — a thing with instructions, an audience, and a place in the
+      Document Library. This links a DESTINATION: squareup.com, an app store. A
+      destination has no audience and no library row, so it gets NO role gate, NO
+      availability prop, NO payload suppression and NO query change. Copying
+      HR-32's linkedDocumentsAvailable pattern here by reflex was explicitly
+      excluded: a gate with nothing behind it is worse than no gate, because the
+      next reader assumes it protects something. A destination must also never be
+      forced into the Document Library to become linkable. After this row a
+      lesson carries a video, a destination and a document independently.
+      THE DRIVING CASE. Day 1 needs to send a new hire to squareup.com. The only
+      field that took a URL was Video URL, so the trainee was shown a "Watch
+      video" button pointing at Square's homepage — it worked and told them the
+      wrong thing.
+      THE URL IS VALIDATED AND videoUrl STILL IS NOT, which is the one asymmetry
+      to expect in this file. validateLessonExternalLinks (api/hr/training/access.ts)
+      reuses isValidExternalDocumentUrl from lib/hr-documents.ts rather than
+      writing a second URL check: https only, and our own private blob host
+      refused so a signed blob URL cannot be laundered into a link that reaches
+      bytes without passing the download route's audience check. It is called by
+      the two builder write paths and nothing else. videoUrl's own missing
+      validation is a standing COMMENT ruled at DOC-3 and was deliberately left
+      alone — NOT reproducing it on a new column is the point of the row, and
+      "the field next door does it" is not a reason to add a second unvalidated
+      href sink.
+      HTTPS-ONLY IS A RECOMMENDATION ADOPTED AT APPROVAL, NOT A RULING. The
+      session prompt asked for http-or-https. Phase 0 found that the shipped
+      house rule for admin-supplied URLs in this feature is https-only with a
+      written rationale, and proposed matching it. Gary, 2026-09-05: "https-only,
+      with the blob-host clause, reusing the existing helper... One rule for
+      admin-supplied URLs in this feature, not two." Recorded here rather than in
+      DECISIONS.md because it decides an implementation detail against an
+      existing in-tree rule; it did not need a ruling and did not get one.
+      WHERE THE FIELDS ARE WRITTEN, AND WHY ONE HELPER. lessonExternalLinkData()
+      is spread by BOTH the POST route's inline lesson map and PATCH's
+      lessonData(). Note that the two write paths do NOT share a mapper — the
+      prompt's fact table said lessonData() covers create and update, but that is
+      true only of PATCH's own internal diff; POST maps its lessons inline. One
+      exported helper is what keeps them from drifting. It also holds two rules:
+      "" and whitespace mean ABSENT (videoUrl's convention in the builder), and a
+      LABEL WITH NO URL is a no-op stored as NULL rather than rejected.
+      THE MIGRATION IS ADDITIVE AND CARRIES NO INDEX OR FK, unlike HR-32's.
+      20260906022810_hr33_lesson_external_link adds two nullable TEXT columns and
+      nothing else. The value is a URL, not a reference to a row in this database
+      — nothing joins on it and nothing filters by it, so an index would be
+      weight with no reader. Verified on dev br-broad-wave-a6vpjdw0 (host
+      ep-late-water-a6k53nv2, db neondb): 2 new columns, 3 lessons, 0 with a
+      link. Every existing row is valid with NULL, so rollback needs no database
+      step and the columns may stay.
+      THE VALIDATOR WAS PROBED IN BOTH DIRECTIONS, 18/18, and the POSITIVE cases
+      were checked rather than only the negatives — a validator that refuses
+      everything passes every negative test. Accepted: squareup.com, an app-store
+      deep path, a port+query+fragment URL, undefined, null, "", whitespace, and
+      an untrimmed valid URL. Refused: javascript:, data:, http, a bare hostname,
+      our private blob host, and garbage. A real lesson row on dev was written
+      through the shaping helper, read back trimmed, and restored to NULL.
+      THE RENDERER HAS NO GATE AND THAT IS DELIBERATE — see above. Its own anchor
+      in components/hr/training-module-view.tsx, beside Watch video, in every
+      mode for every role. Label falls back to the hostname via externalUrlHost,
+      the same helper HR-32's block uses. BOTH rel tokens are spelled out; two
+      anchors in that same file still carry a bare rel="noopener" (the lesson
+      video and the resource downloads), a standing COMMENT this row does not
+      open, which is exactly why the new one is explicit rather than copied from
+      its neighbour. The two anchors are inline-flex siblings so they share a
+      line — the new one takes a left margin ONLY when the video renders as a
+      link, because an embedded iframe is a block above it and an indent under
+      nothing reads as a mistake.
+      THE TYPECHECKER FOUND A CALL SITE A GREP WOULD NOT HAVE. The two renderer
+      call sites spread the Prisma row, so the new scalars ride for free; the
+      edit page (hr/training/[id]/edit/page.tsx) builds its initialData lessons
+      FIELD BY FIELD and silently omitted them until `next build` refused. Same
+      shape as docs/CLAUDE.md § Verifying a guard covers every path: enumerate
+      the renderers, do not search for the field's own name.
+      THE JSON EXPORT NEEDED NO CODE. These are plain scalars, so JSON.stringify
+      over the module rows already carries them — HR-32 needed a join only
+      because a linked document is a RELATION and the bare cuid is the one value
+      that route says never travels. THE CSV ROUND TRIP STILL DROPS THEM: csv.ts
+      declares a fixed four-field lesson shape (title, info, videoUrl,
+      orderIndex), so it writes NULL, cannot carry these, and was deliberately
+      left unedited. The export route says so in a comment.
+      DELIBERATELY NOT IN THIS ROW: more than one link per lesson (one URL, one
+      label); any role gate or suppression; videoUrl validation; new CSV columns
+      to carry the pair through the round trip.
+      TRIAGE AT CLOSE — FIX NOW 0 · RULING NOW 0 · COMMENT 3 · ROW 1. COMMENT 1:
+      the two bare rel="noopener" anchors above, unchanged. COMMENT 2: videoUrl
+      validation, unchanged. COMMENT 3: HR-32's own row carries status
+      "in_progress" — the only row in this file with that value — and it promoted
+      to main today as f3f9d31; it should read shipped, and its commits list
+      omits 5695a01. Reported, not edited, since it is HR-32's row. ROW: DEBT-90,
+      the DEPLOY_LOG staging/main divergence, filed at Gary's direction.
+
   - id: HR-11d
     track: hr
     size: M
@@ -24039,6 +24143,51 @@ debt:
       a shipped kind, so the surrounding copy may assume a file elsewhere too.
       Worth one grep across docs/guide/ for any other article that describes a
       Link as uploaded.
+
+  - id: DEBT-90
+    status: planned
+    title: >
+      docs/DEPLOY_LOG.md has diverged between staging and main — staging is
+      missing HELP-1b entirely, and a hand edit on main damaged HELP-1a's prose
+    notes: >
+      FILED 2026-09-05 by HR-33's Phase 0 audit. Gary ruled it a ROW, not a fix
+      inside HR-33 (2026-09-05): "File the DEPLOY_LOG staging/main divergence as
+      a ROW. Do not fix it here."
+      WHAT DIVERGED. main is 124 lines ahead of staging in this file. The merge
+      f3f9d31 (HR-32's --no-ff promotion) carried main-side content that staging
+      has never had: the whole HELP-1b entry ("eleven help articles"), and
+      HELP-1a's promotion stamp. staging's HELP-1a block still reads "Merge SHA:
+      not yet" while main's carries f863259.
+      THE DAMAGE ON MAIN. bc13251 is a single-parent hand edit on top of that
+      merge, sharing its commit message. It removed the DUPLICATE HELP-1a heading
+      the merge had created — correct — but took two other things with it: the
+      words "**Promoted 2026-09-05.**", leaving HELP-1a's sentence starting
+      mid-phrase at "stamped here from `git rev-parse`", and the blank line under
+      HR-32's heading, so that heading now abuts its **Merge SHA:** line. HR-33
+      repaired both on staging so the next merge carries the correction forward;
+      main still holds the damage until then.
+      WHY THIS IS NOT SELF-CORRECTING. The two branches now disagree at the TOP
+      of the file, which is exactly where every new entry is inserted, so each
+      promotion re-touches the conflicted region. HR-33's own entry lands there
+      too. Expect a conflict at the next --no-ff promote and resolve it toward
+      main's content plus staging's newer entries, rather than taking either side
+      whole.
+      THE UNDERLYING HABIT, which is the part worth fixing. HELP-1a was stamped
+      on main only. Per docs/CLAUDE.md § DEPLOY_LOG edits are Claude-authored the
+      log is composed and spliced by command, and nothing in that ritual says
+      WHICH BRANCH a promotion stamp is written on. Stamping on main alone
+      guarantees staging goes stale at every promotion, which is how a 124-line
+      gap accumulated without anyone editing anything wrongly. Decide the branch,
+      write it into that section, and the divergence stops recurring.
+      ALSO PART OF THIS ROW: HELP-1a's HEADING still reads "UNPROMOTED — staging
+      only" on BOTH branches even though its body now carries the real SHA and a
+      "Promoted 2026-09-05." line. HR-33 repaired the body on staging because
+      Gary asked for that sentence specifically; the heading was left alone
+      deliberately rather than swept in, so the contradiction is recorded here
+      instead of half-fixed.
+      NOT IN SCOPE HERE: the DOC-3 pair at :405 and :574 is NOT this bug — the
+      second is explicitly headed "SUPERSEDED — never promoted" and is a
+      deliberate convention.
 
 
 
