@@ -8,9 +8,10 @@ Deploy verification: 2026-07-02T22:00:05Z
 valid state._ The heading's SHA slot and this line are stamped at promotion,
 never hand-typed.
 
-**Payload:** **3 commits** on `staging` — ba3d1e5 the feature, f964602 the
-shape assertions and a tap-target fix, plus this docs commit — none pushed at
-the time of writing. **No migration.** No schema change, no cron, no Square call, no Clerk change, no
+**Payload:** **5 commits** on `staging`, none pushed at the time of writing —
+ba3d1e5 the feature, then two correction rounds: f964602 + 6430753, and 5b8cf5b
++ this docs commit. The earlier SHAs were not rewritten to produce a tidier
+count. **No migration.** No schema change, no cron, no Square call, no Clerk change, no
 new capability, no new page route. One API route, one client component, one lib
 file, one new evidence script.
 
