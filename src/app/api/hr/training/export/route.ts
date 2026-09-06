@@ -40,6 +40,18 @@ export async function GET(req: Request) {
           // fixed four-field lesson), so a JSON export re-imported comes back
           // with no linked document. A fourth CSV row_type is its own decision.
           linkedHrDocument: { select: { title: true, externalUrl: true } },
+          // HR-33: externalLinkUrl and externalLinkLabel need NO line here.
+          // They are plain scalars on the lesson, so the JSON response —
+          // JSON.stringify over these rows — already carries them. HR-32 needed
+          // the join above only because a linked document is a RELATION and the
+          // bare cuid is the one value this route says never travels.
+          //
+          // THE CSV ROUND TRIP DROPS THEM, same as HR-32's field:
+          // /api/hr/training/import reads the CSV shape only, and csv.ts
+          // declares a fixed four-field lesson (title, info, videoUrl,
+          // orderIndex), so a JSON export re-imported comes back with no
+          // external link. Carrying them would take new CSV columns, which is
+          // its own decision and was excluded from this row.
         },
       },
       quizzes: true,

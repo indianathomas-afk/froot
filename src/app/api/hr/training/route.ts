@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma"
 import { sanitizeRichText } from "@/lib/sanitize-html"
 import {
   isOrgTrainingBlobUrl,
+  lessonExternalLinkData,
   requireHrTrainingAccess,
   TRAINING_RESOURCES_PER_LESSON,
+  validateLessonExternalLinks,
   validateLessonLinks,
   validateTrainingResourceMeta,
 } from "./access"
@@ -31,6 +33,10 @@ const lessonSchema = z.object({
   // org/kind/isActive rule is cross-table and cannot be a zod refinement
   // either; it is validateLessonLinks below.
   linkedHrDocumentId: z.string().nullish(),
+  // HR-33: shape only here — https-only is validateLessonExternalLinks below,
+  // sharing the Document Library's rule rather than restating it as a refinement.
+  externalLinkUrl: z.string().nullish(),
+  externalLinkLabel: z.string().nullish(),
   resources: z.array(resourceSchema).max(TRAINING_RESOURCES_PER_LESSON).default([]),
 })
 
@@ -145,6 +151,11 @@ export async function POST(req: Request) {
   const linkError = await validateLessonLinks(body.lessons, org.id)
   if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
 
+  // HR-33: the external destination's shape, on the first of the two write
+  // paths. No query — the rule is entirely about the string.
+  const externalLinkError = validateLessonExternalLinks(body.lessons)
+  if (externalLinkError) return NextResponse.json({ error: externalLinkError }, { status: 400 })
+
   const created = await prisma.trainingModule.create({
     data: {
       organizationId: org.id,
@@ -165,6 +176,10 @@ export async function POST(req: Request) {
           videoUrl: l.videoUrl || null,
           orderIndex: l.orderIndex,
           linkedHrDocumentId: l.linkedHrDocumentId || null,
+          // HR-33. One definition shared with the PATCH route's lessonData(),
+          // so create and update cannot disagree about trimming or about a
+          // label arriving with no URL.
+          ...lessonExternalLinkData(l),
           resources: l.resources.length
             ? {
                 create: l.resources.map((r) => ({

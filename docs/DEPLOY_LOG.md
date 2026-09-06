@@ -2,10 +2,78 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — staging only — 2026-09-05 — HR-32: a training lesson can point at one library document
+## UNPROMOTED — staging only — 2026-09-05 — HR-33: a training lesson can carry one external destination
+
 **Merge SHA:** _not yet — WRITTEN AND UNPROMOTED, which the ritual treats as a
 valid state._ The heading's SHA slot and this line are stamped at promotion,
 never hand-typed.
+
+**Payload:** **2 commits** on `staging`, neither pushed at the time of writing.
+**One migration**, `20260906022810_hr33_lesson_external_link`: two nullable TEXT
+columns, no index, no FK, no backfill, no drop. No cron, no Square call, no Clerk
+change, no new capability, no new API route, no new page.
+
+**What it does.** A training lesson can point at one external destination with
+its own label — "Set up your Square account" → `squareup.com`, "Download the
+Homebase app" → an app store. The driving case: Day 1 needs to send a new hire to
+squareup.com, and the only field that took a URL was **Video URL**, so the
+trainee was shown a **Watch video** button aimed at Square's homepage. It worked
+and it told them the wrong thing.
+
+**Rollback needs no database step, and the columns may stay.** Reverting the code
+removes every surface; the columns go back to being unread. They are nullable
+with no default, carry no index and no constraint, and nothing joins on them, so
+leaving the migration applied is safe and is the cheaper path.
+
+**This is not the HR-32 shape, and the difference is the design.** HR-32 links a
+DOCUMENT — a thing with instructions, an audience, and a place in the Document
+Library. This links a DESTINATION, which is none of those. So there is **no role
+gate, no availability prop, no payload suppression and no query change** anywhere
+in this row, and a destination is never routed through the Document Library to
+become linkable. If you are looking for the suppression rule that HR-32's entry
+spends four paragraphs on: there isn't one, on purpose. A gate with nothing
+behind it is worse than no gate, because the next reader assumes it protects
+something.
+
+**The URL is validated and `videoUrl` still is not.** Both builder write paths
+call `validateLessonExternalLinks` (`api/hr/training/access.ts`), which reuses
+`isValidExternalDocumentUrl` from `lib/hr-documents.ts` rather than writing a
+second URL check: **https only**, and **our own private blob host refused** so a
+signed blob URL cannot be laundered into a link that reaches bytes without
+passing the download route's audience check. Gary, 2026-09-05, adopted at
+approval and **not** a ruling: "one rule for admin-supplied URLs in this feature,
+not two." `videoUrl`'s own missing validation is a standing COMMENT ruled at
+DOC-3 and was deliberately left alone.
+
+**Evidence.** Migration verified on dev `br-broad-wave-a6vpjdw0` (host
+`ep-late-water-a6k53nv2`, db `neondb`): 2 new columns, 3 lessons, 0 with a link.
+The validator was probed **18/18 in both directions, positives included** — a
+validator that refuses everything passes every negative test, so squareup.com, an
+app-store deep path, a port+query URL and every absent form were checked as
+ACCEPTED, alongside `javascript:`, `data:`, http, a bare hostname, our blob host
+and garbage as REFUSED. A real lesson row was written through the shaping helper,
+read back trimmed, and restored to NULL.
+
+**What to look at on staging.** Edit a module, open a lesson, fill **External
+link** with `https://squareup.com` and leave the label blank — the trainee view
+should show a button reading `squareup.com` beside Watch video. Set the label and
+it should read the label instead. Paste `http://squareup.com` and saving should
+400 with "Enter a full https:// link for the lesson's external link".
+
+**Known and deliberate:** the CSV round trip drops these columns (`csv.ts`
+declares a fixed four-field lesson shape), so a JSON export re-imported comes back
+with no external link. The JSON export itself carries them — they are plain
+scalars and needed no code.
+
+## f3f9d31 — 2026-09-05 — HR-32: a training lesson can point at one library document
+
+**Merge SHA:** `f3f9d31eaf0dae45f9a8fd99aa78de58eb0ffa5e`
+**Promoted 2026-09-05.** Written the same day in the unpromoted state and stamped
+here at promotion, never hand-typed. THE SHA IS THE `--no-ff` MERGE COMMIT, not
+the tip of `main`: `bc13251` sits on top of it as a single-parent hand edit
+sharing the same commit message, and the rollback recipe reads the merge. That
+hand edit is itself the subject of DEBT-90 — it damaged two sentences in this
+file on `main` while removing a duplicate heading.
 
 **Payload:** **5 commits** on `staging`, none of them pushed at the time of
 writing. **One migration**, `20260905203838_hr32_lesson_linked_document`:
@@ -67,12 +135,16 @@ changed — see `docs/DECISIONS.md`, 2026-09-05.
 ## UNPROMOTED — staging only — 2026-09-04 — HELP-1a: the in-app help machine
 
 **Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
+**Promoted 2026-09-05.** Written on 2026-09-04 in the unpromoted state and
 stamped here from `git rev-parse` at promotion, never hand-typed. The entry sat
 unpromoted for a day, which the ritual treats as a valid state.
 
-**This promotion carried HELP-1b as well** — see the entry below it, which cites
-the same merge. One merge, two phases: the machine and the first two batches of
-articles written into it.
+**This promotion carried HELP-1b as well**, whose own entry exists ONLY on
+`main` — it has never been on `staging`. That gap, and the fact that the
+sentence you are reading was deleted on `main` by the `bc13251` hand edit
+(leaving this paragraph starting mid-phrase there), are both DEBT-90. The
+heading above still says UNPROMOTED on both branches and is part of that row,
+not this repair.
 
 **⚠ THE PROMOTION BLOCKER THIS ENTRY OPENED WITH IS CLEARED (2026-09-05).**
 It read: do not promote, because `froot-guide` held no image and the document
@@ -156,123 +228,6 @@ edited.
   article as a STORE login to watch the contents list renumber.
 - Nothing here proves browser rendering generally, and the assertions exercise
   the policy functions the routes call rather than HTTP responses over the wire.
-
-## f863259 — 2026-09-05 — HELP-1b: eleven help articles (HR and checklists batches)
-
-**Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
-**Same merge as the HELP-1a entry above.** One promotion carried both — the
-machine and the first two batches of articles written into it. Recorded as a
-separate entry because they are separate phases with separate rows and separate
-rollback consequences.
-
-**Payload:** content plus two new verification scripts. **No schema, no
-migration, no cron, no Square call, no writes to any existing table.** Rolling
-this back removes articles from a help surface that keeps working.
-
-### What ships to readers
-
-Eleven articles across HR and checklists, plus the three from HELP-1a. Per-role
-visibility: **ADMIN 14, MANAGER 12, STORE 7, STAFF 6.** The checklists batch was
-weighted at STORE deliberately — it was the thinnest-covered role at 3, and the
-store view, checklist review, dashboard and messages are a STORE login's whole
-shift.
-
-Coverage: 72 routes, 24 claimed, 7 exempt, **41 unclaimed**. That warn list is
-the remaining scope and shrinks per batch; it is not a defect.
-
-### Two bugs this phase found in production-bound code, both by looking
-
-Neither was visible to any assertion in the repo, and both had shipped to
-staging before a human opened the page.
-
-- **The guide image 404'd** because the code read `GUIDE_BLOB_READ_WRITE_TOKEN`
-  while Vercel had created `GUIDE_READ_WRITE_TOKEN` — Blob stores auto-name from
-  the prefix chosen at connect time. It worked locally because `.env` had been
-  hand-typed with the name the code expected, so the mismatch existed only where
-  nothing tested. `GUIDE_READ_WRITE_TOKEN` is set for Production; the resolution
-  now accepts either name and lives in one exported function.
-- **A bullet wrapped across source lines ended its list**, rendering the tail as
-  a full-width paragraph. It affected five of nine articles at the time.
-
-### What is knowingly open
-
-- **Two `pending:` claims** warn on every build — a handoff-scope claim and
-  "a Missed checklist cannot be submitted late". Both were drafted, judged
-  unverified, and PULLED from the prose rather than shipped hedged. No unverified
-  statement reaches a reader; the warning is the to-do.
-- **Three rulings in `DECISIONS.md` are Claude-drafted and await Gary's wording** —
-  section absence, the permanent-warn coverage gate, and all-images-authenticated.
-  They govern shipped code. Their prose must not be quoted as his.
-- **DEBT-85, 86, 87, 88** filed and open. 85 and 87 both make help articles
-  stricter than the pages they document — help hides more than the product shows,
-  the safe direction. 86 is the deployed-env gap the image bug came through.
-
-### Rollback
-
-`git revert -m 1 f863259` — parent 1 is `main`, verified after the merge rather
-than assumed. Pair it with `git checkout HEAD -- docs/DEPLOY_LOG.md` per
-WORKFLOW.md: that revert conflicts on this file for the same structural reason
-this merge did, and keeping the log is the correct resolution both times.
-
-## 8c25084 — 2026-08-30 — ENG-1: engagement tracking
-
-**Merge SHA:** `8c250846a43a3c4d05df3c569b9188690c5549a3`
-**Written before the merge existed**, per the ritual — the heading's two tokens
-and the Merge SHA line's one are stamped from `git rev-parse` and `date`,
-never hand-typed.
-
-**READ THIS FIRST IF YOU ARE ROLLING BACK.** This promotion carries an ADDITIVE
-MIGRATION and a NEW CAPABILITY. The migration
-(`20260830120000_eng1_engagement_tracking`) is two nullable `ADD COLUMN`s on
-`User` plus one new table `UsageDaily`. Reverting the code leaves all three
-unread and harmless — do NOT drop them (WORKFLOW.md § Rolling a promotion back).
-Nothing existing reads or writes them.
-
-**Blast radius is small and one-directional.** No existing query changed, no
-existing route changed behaviour, no permission baseline moved. The new
-capability `engagement.view` is ADMIN_ONLY, is not grantable and is not
-deniable, so no role gains or loses anything on promotion day. The one edit to a
-shipped surface is a link added to `/staff`'s header and an icon added to each
-`/stores` row, both behind `can(actor, "engagement.view")` — invisible to
-everyone but an admin.
-
-**What is new.** `POST /api/usage` (a beacon written by every authenticated
-page view), `GET /api/staff/engagement` (ADMIN-only read), `/staff/engagement`
-(the page), `GET /api/cron/engagement-prune` (retention), and a client beacon
-mounted in both the `(app)` and `(my)` shells.
-
-**The one thing to watch on the first day.** `POST /api/usage` fires on every
-client-side route change for every authenticated user, so it is the highest-QPS
-write this app has. It is one indexed upsert against
-`@@unique([userId, path, date])` plus, at most once per user per 15 minutes, one
-`User` update. If Neon connection pressure shows up after this promotion, that
-is the first place to look — and the safe mitigation is to stop mounting
-`<UsageBeacon />` in `src/app/(app)/layout.tsx` and `src/app/(my)/layout.tsx`,
-which disables collection without touching the schema or any read path.
-
-**A new cron.** `/api/cron/engagement-prune` at `0 12 * * *`, deleting
-`UsageDaily` rows older than 180 days. Vercel crons fire on Production only, so
-this promotion is its first live run. `CRON_SECRET` is unchanged and already
-held.
-
-**Verified before the push, on the dev branch** (`ep-late-water-a6k53nv2`):
-prune end-to-end (401 without the secret, deleted exactly a seeded 200-day-old
-row and kept today's), the rollup incrementing rather than duplicating, path
-normalization collapsing two staff ids onto one row, the 15-minute throttle
-writing once, and 28 fixture checks. NOT verified on staging by that session —
-Claude does not push.
-
-**Still open after this promotion.** The per-role 403 capture by request, and
-the geo headers, which cannot appear under `next dev` and are only observable on
-a Vercel-served request. Expect `lastSeenLocation` to stay null for every row
-until the first real Vercel traffic.
-
-## 2026-08-30 — NAV-1 promotion e6149f8
-Sidebar regrouped 15 → 9 top-level (Checklists/Stores/Forecasting groups,
-INVENTORY pattern reused). Daily Tasks button added to /dashboard → /checklists.
-No route, schema, or API changes. Per-role URL sets verified identical
-(work a005cba); /settings/labor hidden without labor.access per NAV-1 ruling.
-Rollback: git revert -m 1 e6149f8
 
 ## 849e410 — 2026-08-29 — PERM-8: the Square staff import becomes grantable to specific managers
 

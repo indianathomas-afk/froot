@@ -82,6 +82,8 @@ export default async function EditTrainingModulePage({ params }: { params: Promi
           info: l.info,
           videoUrl: l.videoUrl,
           linkedHrDocumentId: l.linkedHrDocumentId,
+          externalLinkUrl: l.externalLinkUrl,
+          externalLinkLabel: l.externalLinkLabel,
           resources: l.resources.map((r) => ({
             id: r.id,
             label: r.label,

@@ -41,6 +41,11 @@ interface Lesson {
   // HR-32: "" means no linked document, matching videoUrl's convention in this
   // form — the payload maps it back to null on save.
   linkedHrDocumentId: string
+  // HR-33: the external DESTINATION and its label — not a document, and not
+  // routed through the library. "" means absent here too; the payload maps
+  // both back to null on save.
+  externalLinkUrl: string
+  externalLinkLabel: string
   resources: LessonResource[]
 }
 
@@ -100,6 +105,8 @@ interface TrainingFormProps {
       info: string | null
       videoUrl: string | null
       linkedHrDocumentId: string | null
+      externalLinkUrl: string | null
+      externalLinkLabel: string | null
       resources: LessonResource[]
     }[]
     quiz: { passThreshold: number; questions: QuizQuestion[] } | null
@@ -509,6 +516,8 @@ export function TrainingForm({ initialData, stores = [], categories = [], linked
       info: l.info ?? "",
       videoUrl: l.videoUrl ?? "",
       linkedHrDocumentId: l.linkedHrDocumentId ?? "",
+      externalLinkUrl: l.externalLinkUrl ?? "",
+      externalLinkLabel: l.externalLinkLabel ?? "",
       resources: l.resources,
     }))
   )
@@ -522,14 +531,14 @@ export function TrainingForm({ initialData, stores = [], categories = [], linked
 
   // New-lesson form state
   const [showAddLesson, setShowAddLesson] = useState(false)
-  const [newLesson, setNewLesson] = useState({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "" })
+  const [newLesson, setNewLesson] = useState({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "", externalLinkUrl: "", externalLinkLabel: "" })
   const [newFiles, setNewFiles] = useState<PendingFile[]>([])
   const [newFileLabel, setNewFileLabel] = useState("")
   const [newFileError, setNewFileError] = useState("")
 
   // Inline lesson edit state
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
-  const [editDraft, setEditDraft] = useState({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "" })
+  const [editDraft, setEditDraft] = useState({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "", externalLinkUrl: "", externalLinkLabel: "" })
   const [editKeptResources, setEditKeptResources] = useState<LessonResource[]>([])
   const [editNewFiles, setEditNewFiles] = useState<PendingFile[]>([])
   const [editFileLabel, setEditFileLabel] = useState("")
@@ -553,7 +562,7 @@ export function TrainingForm({ initialData, stores = [], categories = [], linked
     const id = localId()
     setLessons((p) => [...p, { id, ...newLesson, resources: [] }])
     if (newFiles.length) setPendingResources((p) => ({ ...p, [id]: newFiles }))
-    setNewLesson({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "" })
+    setNewLesson({ title: "", info: "", videoUrl: "", linkedHrDocumentId: "", externalLinkUrl: "", externalLinkLabel: "" })
     setNewFiles([])
     setNewFileLabel("")
     setNewFileError("")
@@ -576,6 +585,8 @@ export function TrainingForm({ initialData, stores = [], categories = [], linked
       info: lesson.info,
       videoUrl: lesson.videoUrl,
       linkedHrDocumentId: lesson.linkedHrDocumentId,
+      externalLinkUrl: lesson.externalLinkUrl,
+      externalLinkLabel: lesson.externalLinkLabel,
     })
     setEditKeptResources(lesson.resources)
     setEditNewFiles(pendingResources[lesson.id] ?? [])
@@ -714,6 +725,8 @@ export function TrainingForm({ initialData, stores = [], categories = [], linked
           info: l.info || null,
           videoUrl: l.videoUrl || null,
           linkedHrDocumentId: l.linkedHrDocumentId || null,
+          externalLinkUrl: l.externalLinkUrl || null,
+          externalLinkLabel: l.externalLinkLabel || null,
           orderIndex: i,
         })),
         quiz: quizResult.quiz,
@@ -788,6 +801,19 @@ export function TrainingForm({ initialData, stores = [], categories = [], linked
       <div className="space-y-1">
         <Label className="text-xs">Video URL (optional — YouTube, Vimeo, etc.)</Label>
         <Input className="h-8 text-sm" type="url" placeholder="https://..." value={editDraft.videoUrl} onChange={(e) => setEditDraft((p) => ({ ...p, videoUrl: e.target.value }))} />
+      </div>
+      {/* HR-33: a DESTINATION, not a document — squareup.com, an app store.
+          Sits between the video and the linked document because those are the
+          lesson's other two pointers, and identical markup lives in the New
+          Lesson dialog below. https only, enforced by the write route, which is
+          the message this form surfaces on a 400. */}
+      <div className="space-y-1">
+        <Label className="text-xs">External link (optional — a website, not a library document)</Label>
+        <Input className="h-8 text-sm" type="url" placeholder="https://squareup.com" value={editDraft.externalLinkUrl} onChange={(e) => setEditDraft((p) => ({ ...p, externalLinkUrl: e.target.value }))} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">External link label (optional — defaults to the site name)</Label>
+        <Input className="h-8 text-sm" placeholder="Set up your Square account" value={editDraft.externalLinkLabel} onChange={(e) => setEditDraft((p) => ({ ...p, externalLinkLabel: e.target.value }))} />
       </div>
       <LinkedDocumentSelect
         documents={linkedDocuments}
@@ -1008,6 +1034,15 @@ export function TrainingForm({ initialData, stores = [], categories = [], linked
                 <div className="space-y-1">
                   <Label className="text-xs">Video URL (optional — YouTube, Vimeo, etc.)</Label>
                   <Input className="h-8 text-sm" type="url" placeholder="https://..." value={newLesson.videoUrl} onChange={(e) => setNewLesson((p) => ({ ...p, videoUrl: e.target.value }))} />
+                </div>
+                {/* HR-33: the same field pair as the Edit Lesson dialog above. */}
+                <div className="space-y-1">
+                  <Label className="text-xs">External link (optional — a website, not a library document)</Label>
+                  <Input className="h-8 text-sm" type="url" placeholder="https://squareup.com" value={newLesson.externalLinkUrl} onChange={(e) => setNewLesson((p) => ({ ...p, externalLinkUrl: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">External link label (optional — defaults to the site name)</Label>
+                  <Input className="h-8 text-sm" placeholder="Set up your Square account" value={newLesson.externalLinkLabel} onChange={(e) => setNewLesson((p) => ({ ...p, externalLinkLabel: e.target.value }))} />
                 </div>
                 <LinkedDocumentSelect
                   documents={linkedDocuments}

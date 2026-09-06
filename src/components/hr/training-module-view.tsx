@@ -30,6 +30,14 @@ export type TrainingViewLesson = {
   // non-null by the hrdoc_link_shape CHECK, but it is modelled as a joined
   // object so a NULL can never reach an href.
   linkedDocument: { title: string; externalUrl: string } | null
+  // HR-33: the external DESTINATION, which is not a document and carries no
+  // audience — so unlike linkedDocument above there is no availability prop
+  // guarding it and no query that suppresses it. Both call sites spread the
+  // Prisma row, so these two scalars arrive for free. The URL is https-only by
+  // the write routes (api/hr/training/access.ts); the label is optional and
+  // falls back to the hostname below.
+  externalLinkUrl: string | null
+  externalLinkLabel: string | null
 }
 
 export type TrainingViewMode =
@@ -216,6 +224,21 @@ export function TrainingModuleView({
           // on one bad row.
           const linkedDoc = linkedDocumentsAvailable ? lesson.linkedDocument : null
           const linkedHost = linkedDoc ? externalUrlHost(linkedDoc.externalUrl) : null
+          // HR-33: the label is optional, so the hostname stands in — the same
+          // helper and the same fallback the block above uses. If BOTH are
+          // somehow unusable (a pre-validation row that will not parse), the
+          // button says "Open link" rather than rendering an empty control.
+          const externalLinkText =
+            lesson.externalLinkUrl
+              ? lesson.externalLinkLabel || externalUrlHost(lesson.externalLinkUrl) || "Open link"
+              : null
+          // Both anchors are inline-flex, so they flow onto the SAME line and
+          // this button really does sit beside Watch video — but JSX drops the
+          // whitespace between two elements, so without a margin they touch.
+          // The gap is added only when the video actually renders as a link:
+          // an embedded iframe is a block above, and an indent under nothing
+          // would just look like a mistake.
+          const videoRendersAsLink = !videoId && !!lesson.videoUrl
           return (
             <div
               key={lesson.id}
@@ -259,6 +282,30 @@ export function TrainingModuleView({
                   Watch video
                 </a>
               ) : null}
+
+              {/* HR-33. ITS OWN BUTTON, BESIDE Watch video, and it renders in
+                  EVERY mode for EVERY role — there is no gate, deliberately.
+                  HR-32's block above is gated because a document has an
+                  audience; a destination does not, and a gate with nothing
+                  behind it is worse than no gate because the next reader
+                  assumes it protects something.
+
+                  BOTH rel TOKENS, spelled out. Two anchors in this file still
+                  carry a bare rel="noopener" (the lesson video above and the
+                  resource downloads below) — a standing COMMENT this row does
+                  not open, and the reason this one is explicit rather than
+                  copied from its neighbour. */}
+              {lesson.externalLinkUrl && (
+                <a
+                  href={lesson.externalLinkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] mb-3 min-h-11 ${videoRendersAsLink ? "ml-4" : ""}`}
+                >
+                  <ExternalLink className="h-4 w-4 shrink-0" />
+                  {externalLinkText}
+                </a>
+              )}
 
               {/* HR-32. LINK ONLY, AND DELIBERATELY BARE: the document's own
                   instructionsHtml and instructionsVideoUrl are NOT rendered

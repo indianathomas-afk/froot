@@ -2278,6 +2278,34 @@ model TrainingLesson {
   // it refuses to silently orphan a lesson if that ever changes.
   linkedHrDocumentId String?
 
+  // HR-33: ONE external destination with its own label — "Set up your Square
+  // account" → squareup.com, "Download the Homebase app" → an app store. A
+  // DESTINATION IS NOT A DOCUMENT, and this deliberately does not route through
+  // the Document Library: a destination has no instructions, no audience and no
+  // place in a library, and forcing one in there to make it linkable is the
+  // shape this row exists to avoid. linkedHrDocumentId above is the document
+  // case; these two columns are the destination case. A lesson may carry a
+  // video, a destination and a document, independently.
+  //
+  // NO FK AND NO INDEX, unlike linkedHrDocumentId. The value is a URL, not a
+  // reference to a row in this database — nothing joins on it and nothing
+  // filters by it, so an index would be weight with no reader.
+  //
+  // THE URL IS VALIDATED AND videoUrl IS NOT. isValidExternalDocumentUrl
+  // (lib/hr-documents.ts) holds the shape — https only, our own blob host
+  // refused — on both builder write paths, which is the SAME rule the Document
+  // Library already applies to a Link's externalUrl. One rule for
+  // admin-supplied URLs in this feature, not two (Gary, 2026-09-05, adopted at
+  // approval). videoUrl's own missing validation is a standing COMMENT, ruled
+  // at DOC-3, and is deliberately untouched: this row does not reproduce it on
+  // a new column.
+  //
+  // The label is OPTIONAL — the renderer falls back to the hostname via
+  // externalUrlHost, the same helper the library uses. A label with no URL is a
+  // no-op and is stored as NULL rather than rejected.
+  externalLinkUrl    String?
+  externalLinkLabel  String?
+
   trainingModule   TrainingModule           @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
   linkedHrDocument HrDocument?              @relation(fields: [linkedHrDocumentId], references: [id], onDelete: Restrict)
   resources        TrainingResource[]
