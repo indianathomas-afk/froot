@@ -5891,7 +5891,7 @@ phases:
     track: hr
     size: S
     status: staging
-    commits: ["1222a81"]
+    commits: ["1222a81", "aa25cb3", "5711187"]
     title: "A training lesson can carry one external destination — its own URL and label, beside the video and the linked document"
     notes: >
       2026-09-05. NO DECISIONS.md ENTRY AND NONE IS MISSING. Nothing in this row
