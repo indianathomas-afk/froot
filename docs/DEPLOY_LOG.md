@@ -2,9 +2,7 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## f863259 — 2026-09-05 — HELP-1a: the in-app help machine
 ## UNPROMOTED — staging only — 2026-09-05 — HR-32: a training lesson can point at one library document
-
 **Merge SHA:** _not yet — WRITTEN AND UNPROMOTED, which the ritual treats as a
 valid state._ The heading's SHA slot and this line are stamped at promotion,
 never hand-typed.
@@ -69,7 +67,6 @@ changed — see `docs/DECISIONS.md`, 2026-09-05.
 ## UNPROMOTED — staging only — 2026-09-04 — HELP-1a: the in-app help machine
 
 **Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
-**Promoted 2026-09-05.** Written on 2026-09-04 in the unpromoted state and
 stamped here from `git rev-parse` at promotion, never hand-typed. The entry sat
 unpromoted for a day, which the ritual treats as a valid state.
 
