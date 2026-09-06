@@ -2,11 +2,78 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — staging only — 2026-09-05 — HR-32: a training lesson can point at one library document
+## UNPROMOTED — staging only — 2026-09-05 — HR-33: a training lesson can carry one external destination
 
 **Merge SHA:** _not yet — WRITTEN AND UNPROMOTED, which the ritual treats as a
 valid state._ The heading's SHA slot and this line are stamped at promotion,
 never hand-typed.
+
+**Payload:** **2 commits** on `staging`, neither pushed at the time of writing.
+**One migration**, `20260906022810_hr33_lesson_external_link`: two nullable TEXT
+columns, no index, no FK, no backfill, no drop. No cron, no Square call, no Clerk
+change, no new capability, no new API route, no new page.
+
+**What it does.** A training lesson can point at one external destination with
+its own label — "Set up your Square account" → `squareup.com`, "Download the
+Homebase app" → an app store. The driving case: Day 1 needs to send a new hire to
+squareup.com, and the only field that took a URL was **Video URL**, so the
+trainee was shown a **Watch video** button aimed at Square's homepage. It worked
+and it told them the wrong thing.
+
+**Rollback needs no database step, and the columns may stay.** Reverting the code
+removes every surface; the columns go back to being unread. They are nullable
+with no default, carry no index and no constraint, and nothing joins on them, so
+leaving the migration applied is safe and is the cheaper path.
+
+**This is not the HR-32 shape, and the difference is the design.** HR-32 links a
+DOCUMENT — a thing with instructions, an audience, and a place in the Document
+Library. This links a DESTINATION, which is none of those. So there is **no role
+gate, no availability prop, no payload suppression and no query change** anywhere
+in this row, and a destination is never routed through the Document Library to
+become linkable. If you are looking for the suppression rule that HR-32's entry
+spends four paragraphs on: there isn't one, on purpose. A gate with nothing
+behind it is worse than no gate, because the next reader assumes it protects
+something.
+
+**The URL is validated and `videoUrl` still is not.** Both builder write paths
+call `validateLessonExternalLinks` (`api/hr/training/access.ts`), which reuses
+`isValidExternalDocumentUrl` from `lib/hr-documents.ts` rather than writing a
+second URL check: **https only**, and **our own private blob host refused** so a
+signed blob URL cannot be laundered into a link that reaches bytes without
+passing the download route's audience check. Gary, 2026-09-05, adopted at
+approval and **not** a ruling: "one rule for admin-supplied URLs in this feature,
+not two." `videoUrl`'s own missing validation is a standing COMMENT ruled at
+DOC-3 and was deliberately left alone.
+
+**Evidence.** Migration verified on dev `br-broad-wave-a6vpjdw0` (host
+`ep-late-water-a6k53nv2`, db `neondb`): 2 new columns, 3 lessons, 0 with a link.
+The validator was probed **18/18 in both directions, positives included** — a
+validator that refuses everything passes every negative test, so squareup.com, an
+app-store deep path, a port+query URL and every absent form were checked as
+ACCEPTED, alongside `javascript:`, `data:`, http, a bare hostname, our blob host
+and garbage as REFUSED. A real lesson row was written through the shaping helper,
+read back trimmed, and restored to NULL.
+
+**What to look at on staging.** Edit a module, open a lesson, fill **External
+link** with `https://squareup.com` and leave the label blank — the trainee view
+should show a button reading `squareup.com` beside Watch video. Set the label and
+it should read the label instead. Paste `http://squareup.com` and saving should
+400 with "Enter a full https:// link for the lesson's external link".
+
+**Known and deliberate:** the CSV round trip drops these columns (`csv.ts`
+declares a fixed four-field lesson shape), so a JSON export re-imported comes back
+with no external link. The JSON export itself carries them — they are plain
+scalars and needed no code.
+
+## f3f9d31 — 2026-09-05 — HR-32: a training lesson can point at one library document
+
+**Merge SHA:** `f3f9d31eaf0dae45f9a8fd99aa78de58eb0ffa5e`
+**Promoted 2026-09-05.** Written the same day in the unpromoted state and stamped
+here at promotion, never hand-typed. THE SHA IS THE `--no-ff` MERGE COMMIT, not
+the tip of `main`: `bc13251` sits on top of it as a single-parent hand edit
+sharing the same commit message, and the rollback recipe reads the merge. That
+hand edit is itself the subject of DEBT-90 — it damaged two sentences in this
+file on `main` while removing a duplicate heading.
 
 **Payload:** **5 commits** on `staging`, none of them pushed at the time of
 writing. **One migration**, `20260905203838_hr32_lesson_linked_document`:
@@ -67,11 +134,17 @@ changed — see `docs/DECISIONS.md`, 2026-09-05.
 
 ## UNPROMOTED — staging only — 2026-09-04 — HELP-1a: the in-app help machine
 
-**Merge SHA:** _not yet — this entry is WRITTEN AND UNPROMOTED, which the ritual
-treats as a valid state._ The heading's SHA slot and this line are stamped from
-`git rev-parse` and `date` at promotion, never hand-typed, and neither token is
-spelled out anywhere in the prose below — a token written into a sentence is a
-token the stamp substitutes into that sentence.
+**Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
+**Promoted 2026-09-05.** Written on 2026-09-04 in the unpromoted state and
+stamped here from `git rev-parse` at promotion, never hand-typed. The entry sat
+unpromoted for a day, which the ritual treats as a valid state.
+
+**This promotion carried HELP-1b as well**, whose own entry exists ONLY on
+`main` — it has never been on `staging`. That gap, and the fact that the
+sentence you are reading was deleted on `main` by the `bc13251` hand edit
+(leaving this paragraph starting mid-phrase there), are both DEBT-90. The
+heading above still says UNPROMOTED on both branches and is part of that row,
+not this repair.
 
 **⚠ THE PROMOTION BLOCKER THIS ENTRY OPENED WITH IS CLEARED (2026-09-05).**
 It read: do not promote, because `froot-guide` held no image and the document
