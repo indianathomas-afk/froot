@@ -11,6 +11,7 @@ import { formatPay } from "@/lib/labor-costs"
 import { getPayForStaff } from "@/lib/labor-roster"
 import { CONFIDENTIAL_DASH, CONFIDENTIAL_TITLE } from "@/lib/comp-confidential"
 import { getStaffComplianceSummaries, type StaffComplianceSummary } from "@/lib/hr-compliance"
+import { resolveSelfStaff } from "@/lib/hr"
 import { Badge } from "@/components/ui/badge"
 
 const NO_SUMMARIES = new Map<string, StaffComplianceSummary>()
@@ -22,16 +23,25 @@ const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | nu
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false }
+  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
   const hrActive = hrModuleAvailable(orgId) && org.activeModules.includes("hr")
 
-  const { isAdmin, storeIds, actor } = await getUserStoreScope()
+  const { isAdmin, storeIds, actor, dbUser } = await getUserStoreScope()
   const storeFilter = isAdmin ? {} : { id: { in: storeIds } }
+
+  // SELF-1: the viewer's own staff id, for the own-row pin below. The ask was
+  // "help me find my profile", and this answers it with the id alone — NO ROLE
+  // JOIN. A "managers first" sort would need one: StaffMember carries no role
+  // column at all (role lives on User), so ordering by it would mean a new join
+  // on a list query several roles can see. The "You" marker sidesteps that
+  // entirely, which is why it is the shape that shipped.
+  const self = dbUser ? await resolveSelfStaff(org.id, dbUser) : null
+  const selfStaffId = self?.ok ? self.staffMember.id : null
 
   const [staff, stores] = await Promise.all([
     prisma.staffMember.findMany({
@@ -127,7 +137,7 @@ async function getStaffData() {
     ? await getPayForStaff(org, staff.map((s) => ({ id: s.id, squareTeamMemberId: s.squareTeamMemberId })), actor)
     : NO_PAY
 
-  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, hrActive, summaries, pay, showPay }
+  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, hrActive, summaries, pay, showPay, selfStaffId }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -227,12 +237,18 @@ function StaffRow({
   homeStoreName,
   showPay,
   pay,
+  isSelf = false,
 }: {
   member: RosterMember
   hrActive: boolean
   canEdit: boolean
   pct: number | null
   homeStoreName?: string
+  /// SELF-1: this row is the viewer's own. Drives the "You" marker only — it
+  /// grants nothing and hides nothing, and every other cell renders identically
+  /// to any other member's row. This page shows a manager the same data it
+  /// always did; the marker just says which line is theirs.
+  isSelf?: boolean
   /// AL-3. False for every viewer without labor.costs.view AND for every org
   /// without the Advanced Labor overlay — in both cases `pay` is undefined
   /// because the query never ran.
@@ -257,6 +273,12 @@ function StaffRow({
           </Link>
         ) : (
           member.displayName
+        )}
+        {/* SELF-1: the whole feature on this page. Beside the name rather than
+            in its own column, so it costs no layout and reads in the same
+            glance as the name it qualifies. */}
+        {isSelf && (
+          <Badge variant="secondary" className="ml-2">You</Badge>
         )}
         {/* HR-15: rehire candidates must be findable in the directory */}
         {member.status === "TERMINATED" && (
@@ -310,7 +332,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, hrActive, summaries, pay, showPay } = await getStaffData()
+  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, hrActive, summaries, pay, showPay, selfStaffId } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -364,6 +386,40 @@ export default async function StaffPage() {
     for (const a of member.storeAssignments) {
       if (visibleStoreIds.has(a.storeId)) push(visitingByStore, a.storeId, member)
     }
+  }
+
+  // ── SELF-1: the viewer's own row, first in whatever group holds it ────────
+  //
+  // A STABLE PARTITION, NOT A SORT. Every other member keeps the displayName
+  // order the query established (:48); the only thing that moves is the
+  // viewer's own row, to the front. A comparator would have been a second
+  // ordering rule fighting the first one.
+  //
+  // APPLIED TO EVERY GROUP THE MEMBER CAN LAND IN, and that is four buckets
+  // rather than one because of how this page groups. Members bucket by HOME
+  // store (storeAssignments[0], primary-first), so a member normally appears
+  // exactly once — but the DEBT-13 "Also works here" branch lists a member
+  // under every visible store of theirs when their home store is out of scope,
+  // which is reachable for a MANAGER based at a store they do not manage. Such
+  // a viewer is pinned in EVERY group they appear in: each group is a separate
+  // table, and pinning one still buries them in the others.
+  //
+  // ROW ONLY, NOT THE GROUP (Gary, 2026-09-07, option (a)). Corporate and
+  // Unassigned render after every store card (:510), so a corporate viewer —
+  // and both corporate members are real, see hr.ts:64 — is pinned to the top of
+  // a group that is itself at the bottom of the page. Hoisting the group was
+  // considered and declined: the footer link now goes straight to the viewer's
+  // own staff page, which answers "find my profile" without reordering a page
+  // for everyone else to solve one person's problem.
+  if (selfStaffId) {
+    const pinSelf = (list: RosterMember[]) => {
+      const at = list.findIndex((m) => m.id === selfStaffId)
+      if (at > 0) list.unshift(list.splice(at, 1)[0])
+    }
+    for (const list of byStore.values()) pinSelf(list)
+    for (const list of visitingByStore.values()) pinSelf(list)
+    pinSelf(unassigned)
+    pinSelf(corporate)
   }
 
   const storeProps = stores.map((s) => ({ id: s.id, name: s.name, storeNumber: s.storeNumber }))
@@ -464,6 +520,7 @@ export default async function StaffPage() {
                     pct={summaries.get(member.id)?.pct ?? null}
                     showPay={showPay}
                     pay={pay.get(member.id)}
+                    isSelf={member.id === selfStaffId}
                   />
                 ))}
                 {visiting.length > 0 && (
@@ -485,6 +542,7 @@ export default async function StaffPage() {
                     showPay={showPay}
                     pay={pay.get(member.id)}
                     homeStoreName={member.storeAssignments[0].store.name}
+                    isSelf={member.id === selfStaffId}
                   />
                 ))}
               </tbody>
@@ -539,6 +597,7 @@ export default async function StaffPage() {
                   pct={summaries.get(member.id)?.pct ?? null}
                   showPay={showPay}
                   pay={pay.get(member.id)}
+                  isSelf={member.id === selfStaffId}
                 />
               ))}
             </tbody>
@@ -562,6 +621,7 @@ export default async function StaffPage() {
                   pct={summaries.get(member.id)?.pct ?? null}
                   showPay={showPay}
                   pay={pay.get(member.id)}
+                  isSelf={member.id === selfStaffId}
                 />
               ))}
             </tbody>

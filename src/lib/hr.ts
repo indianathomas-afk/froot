@@ -39,6 +39,116 @@ export async function findStaffMemberForUser(
   return findStaffMemberForEmail(organizationId, user.email)
 }
 
+// ─── SELF-1: the ONE self-resolution helper ──────────────────────────────────
+//
+// R1 (Gary, 2026-09-07): a login gets its own identity surfaces when it
+// resolves to EXACTLY ONE staff member, REGARDLESS OF ROLE. Not "MANAGER or
+// ADMIN". Four surfaces consume this — the /dashboard compliance banner, the
+// /staff own-row pin, and the sidebar footer's name and link — and they consume
+// THIS function rather than each resolving self their own way. Four callers
+// each answering "which staff member am I" independently is how BUG-2 happened,
+// and it is the six-derivations story TYPE-1 and hr-compliance.ts:507 both tell.
+//
+// WHY THIS IS NOT findStaffMemberForUser. That function answers "find me a
+// plausible staff row" and is correct for what it does; this one answers R1's
+// question, which is stricter in two specific ways:
+//
+//   (1) EXACTLY ONE IS A COUNT, NOT A findFirst. findStaffMemberForEmail
+//       (:11) is `findFirst` with no orderBy over a column with no unique
+//       index — StaffMember.email is `String?` and the model's only @@unique is
+//       ([organizationId, squareTeamMemberId]). It returns row one of however
+//       many match and calls that an answer. Today's data makes it look
+//       deterministic; that is a property of the ROWS, not of the function —
+//       precisely the critique the primaryStoreName comment above (:44) makes
+//       of its own former self. `take: 2` plus a length test is the difference
+//       between "one match" and "the first of several".
+//
+//   (2) AN EMAIL MATCH LINKED TO A DIFFERENT LOGIN IS SOMEBODY ELSE'S PROFILE.
+//       The guard is `userId IS NULL OR userId = this login`, applied IN THE
+//       QUERY so that `take: 2` is sufficient to detect ambiguity — filtering
+//       in JS after a bare take would let two other-linked rows crowd out the
+//       real match and report a false miss.
+//
+// (2) IS NOT NEW TO THIS CODEBASE, IT IS NEW TO THIS MODULE. /users has had it
+// since DEBT-46 (users/page.tsx:184, "An email match linked to a different
+// login is someone else's profile"), so the app has held two different answers
+// to one question, and the permissive one was the one gating signing
+// ceremonies. Gary's scope ruling 2026-09-07: findStaffMemberForEmail KEEPS ITS
+// CURRENT SEMANTICS — the guard lives here, not there, and the divergence is
+// filed as a row rather than closed by this phase.
+//
+// THE FK ARM NEEDS NO COUNT AND THAT ASYMMETRY IS DELIBERATE.
+// StaffMember.userId is `String? @unique` (schema), so the database already
+// guarantees at most one. Only the email arm is unconstrained, so only the
+// email arm is defended. Stated because a future reader will otherwise "fix"
+// the asymmetry by adding a redundant count to the FK arm, or delete the real
+// one on the grounds that the other side manages without it.
+//
+// STATUS-BLIND ON PURPOSE. A terminated person is still that person, and the
+// sidebar footer naming them is correct. The ACTIVE requirement belongs to the
+// surfaces that make a CLAIM about ongoing obligation — getActiveStaffSelf
+// (auth.ts) refuses TERMINATED for every /my/* read and for the SELF-1 banner,
+// which is what keeps acceptance criterion 6 true. Do not add a status filter
+// here: it would silently blank the footer for someone mid-offboarding, and it
+// would put the employment-status rule in two places.
+//
+// ORG SCOPE IS THE CALLER'S, AND "THE ORG ID" IS THREE DIFFERENT STRINGS.
+// `organizationId` here is Organization.id — the DATABASE id, which both
+// User.organizationId and StaffMember.organizationId reference. It is NOT the
+// Clerk `org_…` string (Organization.clerkOrgId), and it is not interchangeable
+// with User.clerkUserId vs User.id either. Compounding the trap: Organization.id
+// is `@default(cuid())`, but rows created before that default was settled carry
+// a UUID, so the ids of two orgs in the same table can be different SHAPES —
+// which means an id that "looks wrong" is not evidence you have the wrong one.
+// All three get called "the org id" in conversation and the ambiguity has
+// already cost one wrong query during SELF-1 planning (2026-09-07).
+export type SelfStaffResolution =
+  | { ok: true; via: "link" | "email"; staffMember: NonNullable<Awaited<ReturnType<typeof findStaffMemberForUser>>> }
+  | { ok: false; reason: "no-email" | "no-match" | "ambiguous" }
+
+export async function resolveSelfStaff(
+  organizationId: string,
+  user: { id: string; email: string | null | undefined }
+): Promise<SelfStaffResolution> {
+  const linked = await prisma.staffMember.findFirst({
+    where: { organizationId, userId: user.id },
+    include: staffSelfInclude,
+  })
+  if (linked) return { ok: true, via: "link", staffMember: linked }
+
+  const needle = user.email?.trim()
+  if (!needle) return { ok: false, reason: "no-email" }
+
+  // take: 2 — the smallest read that can tell "exactly one" from "more than
+  // one". The guard is in the `where`, so both rows that come back are genuine
+  // candidates and a length of 2 is a real ambiguity rather than an artefact of
+  // the page size.
+  const candidates = await prisma.staffMember.findMany({
+    where: {
+      organizationId,
+      email: { equals: needle, mode: "insensitive" },
+      OR: [{ userId: null }, { userId: user.id }],
+    },
+    include: staffSelfInclude,
+    orderBy: { id: "asc" },
+    take: 2,
+  })
+
+  if (candidates.length === 0) return { ok: false, reason: "no-match" }
+  if (candidates.length > 1) {
+    // Loud, because the surfaces are silent: an unresolved login renders no
+    // banner, which is the same pixel as being compliant. This log line is the
+    // only trace an ambiguity leaves, and the R3 admin surface is the row filed
+    // to fix that.
+    console.warn(
+      `[self] ambiguous email resolution for user ${user.id} in org ${organizationId}: ` +
+        `${candidates.length}+ staff rows match (${candidates.map((c) => c.id).join(", ")})`
+    )
+    return { ok: false, reason: "ambiguous" }
+  }
+  return { ok: true, via: "email", staffMember: candidates[0] }
+}
+
 // The store recorded on signing-time snapshots: the staff member's primary
 // store, falling back to their alphabetically-first assignment.
 //

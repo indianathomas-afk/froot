@@ -14667,6 +14667,225 @@ phases:
       46 at ba3d1e5. NOT VERIFIED HERE: a request-level pass on staging as ADMIN,
       MANAGER and STORE. Claude never pushes, so staging does not have this code.
 
+  - id: SELF-1
+    track: hr
+    size: M
+    status: staging
+    commits: ["2eeee6a", "3d2752a", "dc13aa8", "9e158dc", "309b8f1", "e8145d5", "b537a89"]
+    title: "\"Show me, me\" — one identity resolver behind four surfaces: the /dashboard assignment banner, the /staff own-row pin, and the sidebar footer's name and link"
+    notes: >
+      PUSHED AND PARTIALLY VERIFIED ON STAGING 2026-09-07, prepended per
+      preserve-and-mark; nothing below is edited. Status moved in_progress ->
+      staging in the same session the code was pushed (WORKFLOW.md rule 4). The
+      paragraph below still reads "NONE IS PUSHED", which was true when written
+      and is now false — kept rather than corrected in place.
+      SHA-MATCH, RUN BEFORE ANY OBSERVATION AND MATCHED ON DEPLOYMENT IDS, not
+      just SHAs: local HEAD = origin/staging =
+      b537a894e04ad443c2dc421efaabcf5388f540f9; the deployment built from that
+      full 40-char sha is dpl_5mmKNqq79sdxVmGTeUQSCxxJN9Ev (Ready), and
+      `vercel inspect` on the staging alias resolves to that SAME id. Clerk
+      instance verified-snapper-7, org cmr54z65v000105jxczpt72w1 ("Keva Juice
+      (staging)", activeModules {inventory,hr,labor}, America/Los_Angeles), Neon
+      br-square-feather-a63z92vz / ep-odd-rain-a6gr4xmm.
+      THE BROWSER OBSERVATIONS BELOW ARE GARY'S, NOT CLAUDE'S, AND THE
+      DISTINCTION IS RECORDED RATHER THAN BLURRED. The Claude Code Browser pane
+      runs an isolated cookie jar and could not pick up his Chrome session
+      (hasUser false on a fresh navigation while he was signed in), and Claude
+      does not enter passwords. So Gary drove and reported; Claude verified the
+      environment, not the pixels.
+      OBSERVED PASSING (Gary, 2026-09-07): criterion 1 — corporate@keva.com
+      (STORE, FK path) sees "You have 1 item to complete · 1 overdue / Nearest
+      due Jul 26". Criterion 7 — the footer reads "Tommy Thomas", not
+      "corporate". 1e(ii) — that name is PLAIN TEXT with no link, which is the
+      ruling working: STORE lacks staff.view, so the destination is withheld
+      rather than the feature. Criterion 3 — gary@keva.com (MANAGER, resolves to
+      nothing) gets no banner, no crash, and a footer reading "gary" unlinked.
+      Criteria 5, 8 and 9 — indianathomas@live.com (ADMIN, email path, nothing
+      owed) gets no banner, a footer link landing on /staff/cmt3wgw6k..., and his
+      own row first in the Carson group carrying the "You" badge.
+      CROSS-SURFACE AGREEMENT, AND WHAT IT DOES AND DOES NOT PROVE. /my showed
+      the same item as "Due Jul 26 · Overdue" — same date, same verdict as the
+      banner. The CODE is what proves the predicate is shared
+      (openComplianceItems, one function, two callers); the observation proves
+      the two surfaces AGREE IN PRACTICE, which is what would have caught a bad
+      lift. It is not itself evidence of sharing.
+      "JUL 26" IS THE CORRECT PACIFIC RENDERING of 2026-07-26 19:00 UTC. A "Jul
+      27" anywhere would have been DEBT-70b resurfacing in new code.
+      TWO ROWS CAME OUT OF THE PASS ITSELF: DEBT-96 gains a concrete instance —
+      jamie@keva.com is FK-linked to a staff row whose own email is
+      silkypilk@gmail.com, so that login is held together by the FK alone and has
+      no email arm to fall back to. DEBT-98 records a staging staff record left
+      terminated during the criterion-6 attempt, and why its restore is
+      deliberately unwritten.
+      STILL OUTSTANDING AT THIS WRITING — criteria 2 and 6 (the disposable
+      SELF-1 Fixture sequence), criterion 10 (the /dashboard timing measurement),
+      and criterion 4, which is owed in production and is NOT covered by
+      criterion 3. See blockers.
+      RULINGS RATIFIED AND RECORDED 2026-09-07. docs/DECISIONS.md now carries
+      R1/R2/R3 in Gary's own words, supplied at the docs stop and copied
+      verbatim. The note below saying no DECISIONS.md entry existed was true when
+      written and is kept per preserve-and-mark; the DECISIONS.md entry is now
+      the record and the prompt's paraphrase is superseded.
+      ONE THING THE TWO DOCUMENTS SAY DIFFERENTLY, RECONCILED RATHER THAN LEFT
+      TO LOOK LIKE DRIFT. R3 as ratified states that TWO elevated logins in
+      PRODUCTION match no staff record. That is Gary's knowledge; this session
+      did not and could not measure production, and DEBT-96 says so explicitly.
+      On staging the equivalent population is ONE login (gary@keva.com, MANAGER),
+      and the two production accounts the prompt named do not exist on that
+      branch at all. Neither statement corrects the other — they describe
+      different branches, and the gap between them is the reason DEBT-96 exists.
+      2026-09-07. TIER 3 — STRUCTURAL. Four asks arrived separately and were one
+      feature: a manager who has been assigned training has no way to find out,
+      because the assignment lands on their staff record and their staff record
+      is not where they live. Every one of the four bottoms out in the same
+      question — given this login, which staff member is this? — so it is
+      answered once, in resolveSelfStaff (lib/hr.ts), before any surface
+      consumes it.
+      STATUS in_progress AND NOT staging: five commits sit on `staging` locally
+      and NONE IS PUSHED at the time of writing. The staging pass has therefore
+      not run, and the row must not claim a preview it has not reached.
+      R1 (Gary, 2026-09-07) — the banner and the marker belong to any login that
+      resolves to EXACTLY ONE staff member, REGARDLESS OF ROLE. Not "MANAGER or
+      ADMIN". There is no can() call anywhere in the feature and no capability
+      was added for one, because the predicate is a fact about the ROSTER rather
+      than about the login's role. Device logins resolve to nothing and stay
+      silent with no role logic, which is the consequence the ruling wanted
+      rather than tolerated.
+      R2 — owed = any assigned training not Complete plus any required document
+      unsigned on its current version. The rule already existed as a local const
+      inside the /my portal page and was LIFTED, not copied, into
+      openComplianceItems() in lib/hr-compliance.ts; /my now calls it. Two
+      filters agreeing on the day they are written is DEBT-26's failure mode.
+      R3 — the banner ships even though elevated logins that resolve to nothing
+      are silently exempt from their own compliance notice. The admin surface
+      for those is DEBT-96, filed not built.
+      THE ONE FINDING THAT CHANGED THE BUILD. /dashboard's server component is
+      three queries with no caching, no streaming and no loading.tsx — every
+      heavy card on it (sales, labor coverage, labor budget, monthly goal,
+      forecasting, comms, Instagram) is client-fetched through fetchCard(). The
+      compliance rollup costs SIX queries in four sequential round-trips and a
+      single staff id barely reduces it, because computeStaffComplianceDetails
+      fetches the org's whole active document set regardless of who is asking.
+      Server-rendering the banner would have roughly TRIPLED the landing page's
+      blocking work for every role on every navigation. So the banner fetches
+      its own data and the server page gains ZERO queries. The cost of that
+      shape, named here rather than left to be filed as a bug later: the banner
+      mounts a beat after paint and shifts the page once. Reserving the slot
+      would mean a permanent empty gap on almost every dashboard in the org,
+      since most people owe nothing.
+      NOT BLINKING. The original ask was a blinking banner. Ruled against on
+      WCAG 2.2.2 and because a blink on a page opened every shift becomes
+      wallpaper inside a week — the exact failure the feature exists to prevent.
+      Solid, high-contrast, persistent, no dismiss control, clears only on
+      completion. No animation at all: the ruling allows at most a single pulse
+      and zero is inside it, with no way to be mistaken for the blink.
+      DOCUMENT-ONLY DEBT RENDERS A COUNT WITH NO DUE-DATE CLAUSE (Gary,
+      2026-09-07), and the reason is schema rather than taste: ComplianceDocItem
+      carries no due date because HrDocument has no due-date column, so a
+      required document is owed from the moment it applies and has no deadline
+      to miss. The clause is ABSENT from the sentence — not an em dash, not a
+      fabricated date.
+      THE AMBIGUITY THE RESOLVER GUARDS IS NOT REPRODUCIBLE ON STAGING AND HAS
+      NOT BEEN MEASURED IN PRODUCTION (Gary's wording ruling, 2026-09-07).
+      findStaffMemberForEmail is findFirst with no orderBy over a column with no
+      unique index. Q2 and Q3 on br-square-feather-a63z92vz / ep-odd-rain-a6gr4xmm
+      (2026-09-07 17:47 UTC) returned ZERO rows for both staff rows sharing an
+      email inside an org and User rows sharing an email inside an org. THAT IS A
+      STAGING RESULT ONLY. The duplicate User rows that motivated the concern
+      were observed in PRODUCTION, which this session did not measure and could
+      not — deployed-environment credentials never reach this machine
+      (CLAUDE.md). So the count check is not decoration and is not proven
+      redundant; it is a guard against a state staging does not currently hold.
+      The branch that staging cannot exercise is constructed in the dev fixture
+      instead, where findFirst would have returned Twin-A and called it an
+      answer.
+      THE ORG ID IS THREE DIFFERENT STRINGS AND THE ORG NAME IDENTIFIES NOTHING.
+      Written down here because it cost a query during planning and will cost a
+      future session too. Organization.id (referenced by both User.organizationId
+      and StaffMember.organizationId), Organization.clerkOrgId (the Clerk `org_…`
+      string) and User.clerkUserId vs User.id all get called "the org id" in
+      conversation. Worse, measured on staging 2026-09-07: SEVEN organizations
+      exist with THREE DUPLICATED NAMES — "Keva Juice" as both a cuid org
+      (cmqvpe2bf000004l1gwxafqk4) and a UUID org
+      (cf888f2d-f234-48c7-8097-fd5b44b5b3dd), "Microsoft" likewise, and the live
+      one is "Keva Juice (staging)" cmr54z65v000105jxczpt72w1. Neither the id
+      SHAPE nor the NAME identifies an org. Only the exact id does.
+      WHAT THE PROMPT ASSUMED THAT MEASUREMENT OVERTURNED. The plan named
+      corporate@keva.com as the email-match fixture for the weaker link path. On
+      br-square-feather that account is FK-LINKED (Tommy Thomas,
+      cmr6xpx1j000104jxo8hk9ai3) and its role is STORE, so it exercises the FK
+      path, not the email one; karson@keva.com is the pure email-path account
+      there. Its assignment is "How to NOT piss off a customer", InProgress, due
+      2026-07-26 19:00 UTC = 2026-07-26 12:00 PDT — 42 DAYS OVERDUE as at
+      2026-09-07 17:47 UTC, not the "due Sep 9, Not started" the plan described,
+      which is the production record. This is the §2d warning working exactly as
+      written: a green staging pass on that account is not evidence for
+      production.
+      SCHEMA UNCHANGED. No migration, no new capability, no new page route, no
+      role gains a route it lacked. One new API route, one new client component,
+      one new evidence script.
+    blockers:
+      - >
+        FOUR ACCEPTANCE CRITERIA ARE OWED, none of them failed and none of them
+        covered by another. Consolidated 2026-09-07 so the list is readable in
+        one place rather than assembled from three entries.
+        CRITERION 2 (a login linked ONLY by email match, with an incomplete
+        assignment, sees the banner) — the weaker of the two link paths and the
+        one the plan singled out for separate verification. Needs the disposable
+        SELF-1 Fixture attached to indianathomas+f1test@gmail.com; never built.
+        CRITERION 6 (a terminated member produces no banner) — attempted and
+        DEFERRED, not passed. Viewing a terminated member as an ADMIN is the
+        manager-side view; the criterion is about that person's own dashboard and
+        needs her login. See DEBT-98 for the record left terminated by the
+        attempt.
+        CRITERION 10 (/dashboard does not measurably slow) — NOT MEASURED. The
+        page requires auth, so an unauthenticated timing exercises only the
+        middleware redirect. The structural claim stands on the code — the
+        dashboard page gains zero queries and the banner client-fetches — but the
+        (app) layout's one added lookup per render is the number nobody has seen.
+        CRITERION 4 (a device login sees no banner) — owed in PRODUCTION, and
+        explicitly NOT covered by criterion 3 (Gary, 2026-09-07). "Resolves to
+        nothing" and "is a shared store device" are different facts that render
+        the same pixel, which is this phase's entire hazard; treating one as
+        evidence for the other is the mistake the phase exists to make
+        impossible.
+        WHY CLAUDE RAN NONE OF THESE: the Browser pane holds an isolated cookie
+        jar and could not pick up Gary's session, and Claude does not enter
+        passwords. Every observation in this row is his.
+      - >
+        NARROWED 2026-09-07 (prepended; the text below is kept unedited and was
+        true when written). The code IS now on staging and the SHA-match passed
+        on deployment ids. Criteria 1, 3, 5, 7, 8, 9 and the 1e(ii) plain-text
+        ruling were observed passing BY GARY. WHAT STILL BLOCKS: criteria 2 and
+        6, which need the disposable SELF-1 Fixture sequence, and criterion 10,
+        the /dashboard timing measurement — none of which Claude could run,
+        because the Browser pane holds an isolated cookie jar and Claude does not
+        enter passwords. The original text:
+        THE STAGING PASS HAS NOT RUN. Five commits sit unpushed on `staging` as
+        at 2026-09-07; Claude never pushes. Until Gary pushes and the deployment
+        SHA-matches local HEAD, criteria 1-9 are unverified at route level. The
+        dev-branch script (309b8f1) proves LOGIC ONLY and is explicitly not the
+        staging pass — it cannot render a page or hold a Clerk session, so it
+        never exercises getActiveStaffSelf, where the HR-module gate and the
+        ACTIVE refusal live.
+      - >
+        CRITERION 4 HAS NO STAGING FIXTURE AND IS A PRODUCTION SPOT-CHECK
+        OBLIGATION (Gary, 2026-09-07). "A device login sees no banner" cannot be
+        exercised on br-square-feather: the only kevajuice##@icloud.com row there
+        is kevajuice14@icloud.com, a MANAGER in a different org
+        (cf888f2d-f234-48c7-8097-fd5b44b5b3dd), not a device account in the
+        staging Keva org. IT IS NOT COVERED BY CRITERION 3 and must not be
+        recorded as such — "resolves to nothing" and "is a shared store device"
+        are different facts that happen to produce the same pixel, which is this
+        phase's whole hazard.
+      - >
+        THE SILENT-FAILURE HAZARD IS STRUCTURAL AND SURVIVES THIS PHASE. An
+        account that resolves to no staff member shows no banner, which looks
+        exactly like being compliant. No browser observation can distinguish
+        them. Every acceptance check therefore has to read a resolver return
+        value rather than a rendered page, and DEBT-96 exists because nobody can
+        currently SEE the exempt population at all.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
@@ -16286,6 +16505,178 @@ bugs:
 # DEBT-TRIAGE audit — whose own 22 assessments exist nowhere in this repo. That
 # hole is DEBT-45.
 debt:
+  - id: DEBT-96
+    status: planned
+    title: >
+      No admin-visible surface lists logins with no linked staff record — a
+      manager silently exempt from her own compliance banner is
+      indistinguishable from a compliant one
+    notes: >
+      COST OF DOING NOTHING: LATENT, DERIVED-AT-HEAD BY SELF-1 — the trigger is
+      the first time an elevated login is silently exempt from a compliance
+      obligation and nobody notices. Named as the definition requires; it is
+      not LIVE, because no operator is affected until that happens.
+      FILED 2026-09-07 at the close of SELF-1, per Gary's R3 the same day. SELF-1
+      ships the banner for everyone who resolves; this row is for everyone who
+      does not.
+      THE FAILURE IS SILENT BY CONSTRUCTION, and that is the entire argument. An
+      unresolved login renders NO BANNER, which is the same pixel as owing
+      nothing. Nothing on any screen distinguishes them, so the absence cannot be
+      noticed by looking — not by the person, not by an admin, not by a
+      screenshot in a verification report. SELF-1's own acceptance checks had to
+      be written against resolver return values rather than rendered pages for
+      exactly this reason.
+      WHY IT IS NOT SIMPLY A FIX. Some unresolved logins SHOULD resolve to
+      nothing: device and location accounts are not people, and R1 deliberately
+      keeps them silent with no role logic. A useful surface has to separate
+      those from elevated logins that ought to have a staff record and do not,
+      which is a judgement no query makes on its own. That is why this is a row
+      and not a line of code.
+      WHAT WAS AND WAS NOT MEASURED. On br-square-feather-a63z92vz /
+      ep-odd-rain-a6gr4xmm (2026-09-07 17:47 UTC), the staging Keva org
+      cmr54z65v000105jxczpt72w1 holds one elevated login resolving to nothing:
+      gary@keva.com (MANAGER). PRODUCTION WAS NOT MEASURED — deployed-environment
+      credentials never reach a dev machine (CLAUDE.md), and the two accounts the
+      SELF-1 prompt named as production examples, karissa@keva.com (MANAGER) and
+      taylin@keva.com (ADMIN), DO NOT EXIST ON STAGING AT ALL. Whatever the
+      production population is, this row does not assert it.
+      A CONCRETE INSTANCE, ADDED 2026-09-07 DURING SELF-1's STAGING PASS.
+      jamie@keva.com is FK-linked to a staff row whose own email is
+      silkypilk@gmail.com — the two do not match, on staging. Reported by Gary;
+      Claude did not measure it and cannot (deployed-environment reads go
+      through the Neon console).
+      WHY IT BELONGS HERE RATHER THAN IN A BUG ROW: this login is held together
+      by the FK ALONE. The email arm cannot resolve it in either direction, so
+      the moment StaffMember.userId is cleared — which terminateStaffMember does
+      inline at lib/staff-termination.ts:52, not merely on rehire — she becomes a
+      member of exactly the population this row is about: a person whose login
+      resolves to nothing, silently, with no surface anywhere that says so.
+      IT IS ALSO THE STRONGEST ARGUMENT AVAILABLE THAT THE FK ARM IS
+      LOAD-BEARING. SELF-1's resolver prefers the link and falls back to email;
+      here there is no fallback to fall back to. Any future proposal to simplify
+      the resolver to a single email match would silently drop this person, and
+      the drop would look exactly like compliance.
+      NOT A WIDENING WHEN IT IS BUILT. A list of logins without staff records is
+      data an admin can already assemble from /users; this row is about putting
+      it where it will be seen, not about granting anyone new reach.
+
+  - id: DEBT-97
+    status: planned
+    title: >
+      findStaffMemberForEmail and resolveSelfStaff now answer "which staff member
+      is this login" differently, and the permissive one is what gates the signing
+      ceremony
+    notes: >
+      COST OF DOING NOTHING: LATENT, DERIVED-AT-HEAD BY SELF-1 — two named
+      triggers, either of which is enough: two staff rows in one org sharing an
+      email, or a staff row whose email matches a login it is not linked to.
+      NEITHER STATE EXISTS ON STAGING AND PRODUCTION IS UNMEASURED, so the
+      trigger is named rather than counted.
+      FILED 2026-09-07 at the close of SELF-1, on Gary's explicit scope ruling
+      the same day: the new resolver carries the guard, findStaffMemberForEmail
+      KEEPS ITS CURRENT SEMANTICS, the missing orderBy is left alone, and the
+      divergence is recorded here rather than closed by that phase.
+      THE TWO ANSWERS. resolveSelfStaff (lib/hr.ts) requires EXACTLY ONE match
+      and refuses a staff row whose userId points at a different login.
+      findStaffMemberForEmail is findFirst with no orderBy and no ownership
+      test — it returns row one of however many match, including a row that
+      explicitly belongs to somebody else.
+      WHAT STILL READS THE PERMISSIVE ONE. findStaffMemberForUser, and through it
+      the HR signing ceremony (hr/acknowledge/[documentId]), the signed-record and
+      acknowledgment write routes, and resolveDocumentViewer's audience
+      resolution. So the surfaces where a WRONG ANSWER LANDS ON A LEGAL RECORD
+      are on the looser predicate, while the cosmetic surfaces are on the
+      stricter one. That inversion is the reason this is written down.
+      IT IS A THIRD ANSWER, NOT A SECOND. /users has carried the ownership guard
+      since DEBT-46 (users/page.tsx:184, "An email match linked to a different
+      login is someone else's profile") and resolves the whole roster into two
+      maps; hr.ts has never had it. The app has therefore held two different
+      answers to one question since DEBT-46 and now holds three, which is the
+      condition lib/hr-documents-access.ts exists to prevent one layer over.
+      NOT REPRODUCIBLE ON STAGING; NOT MEASURED IN PRODUCTION. Q2 and Q3 on
+      br-square-feather-a63z92vz / ep-odd-rain-a6gr4xmm (2026-09-07 17:47 UTC)
+      returned zero rows for both shapes. That is a staging result and nothing
+      more — the duplicate User rows that raised the concern were observed in
+      production, which this session did not and could not measure. Do not read
+      the zero as "theoretical".
+      THE SCHEMA GIVES THE EMAIL PATH NOTHING TO STAND ON, AND THIS IS THE
+      FOURTH ARGUMENT FOR R1 (recorded at SELF-1's request, not fixed). `User`
+      has NO @@ constraints of any kind — not a unique on (organizationId,
+      email), not a compound index, nothing beyond `clerkUserId String @unique`.
+      `StaffMember.email` is `String?` with no index either, and that model's
+      only @@unique is ([organizationId, squareTeamMemberId]). THE ONE
+      (organizationId, email) UNIQUE IN THE WHOLE SCHEMA IS ON PendingInvite,
+      and that matters because /users reasons about that index at length
+      (users/page.tsx:82-84, "case-SENSITIVE ... `Taylin@keva.com` and
+      `taylin@keva.com` are DISTINCT rows in one org") in a paragraph easily
+      read as being about `User`. It is not. `User` has nothing.
+      So resolving a login by email inside an org is ambiguous BY CONSTRUCTION,
+      and any code that then reads a ROLE off the result is picking one of
+      several possible answers. Adding the constraint is not a free fix: it
+      would need a data audit first, on a branch this session could not measure,
+      and it would be a non-additive migration. Recorded, not attempted.
+      THE CHEAP HALF IS THE orderBy. Adding one to findStaffMemberForEmail makes
+      today's accidental determinism structural without changing any answer, and
+      needs no ruling. The expensive half — making it refuse ambiguity, which
+      would change what the signing ceremony does for a person with a duplicate
+      email — needs one, because the alternative to a wrong-but-stable staff
+      profile mid-ceremony is a person who cannot sign and cannot fix it
+      themselves. That is the same shape as the "warn, don't throw" ruling
+      already recorded in hr.ts.
+
+  - id: DEBT-98
+    status: planned
+    title: >
+      Jamie Pilk's staging staff record was terminated during SELF-1 verification
+      and left terminated — the restore is unwritten because the one value it
+      branches on was never read
+    notes: >
+      COST OF DOING NOTHING: NONE TODAY, on Gary's assessment 2026-09-07 — she is
+      terminated, so she has no Froot access and nothing is degraded for any
+      user. The cost is LATENT and arrives if the record is ever needed as
+      truthful staging data, or if someone clicks Reactivate. DERIVED-AT-HEAD BY
+      SELF-1.
+      FILED 2026-09-07. Gary terminated the record through the ADMIN UI while
+      trying to exercise SELF-1's acceptance criterion 6 (a terminated member
+      must not produce a banner), then deferred it: viewing a terminated member
+      as an ADMIN is the MANAGER-SIDE view, and the criterion is about that
+      person's OWN dashboard, which needs her login. The criterion is owed, not
+      passed. See SELF-1.
+      REACTIVATE WAS NOT CLICKED, AND THAT IS THE IMPORTANT PART OF THE STATE.
+      POST /api/staff/[id]/reactivate increments signingCycle
+      (reactivate/route.ts:94). Under HR-15 Policy B only CURRENT-cycle
+      signatures count, so that single increment would reclassify every document
+      she has signed as needs-resign and prompt a real person to re-sign work
+      she has already done. No UI path decrements it back. The record is
+      therefore better left terminated than "restored" with the wrong button.
+      WHAT TERMINATE ALREADY DID, read from the code at
+      b537a894 rather than observed: status TERMINATED and terminatedAt stamped
+      (staff-termination.ts:17-20) ALWAYS; and IF StaffMember.userId was set at
+      the time — clearing userId (:52), deleting that login's
+      StoreUserAssignment rows (:53), revoking the Clerk org membership (:33) and
+      killing active sessions (:41). PendingInvite rows for her email are also
+      deleted with their Clerk invitations revoked (:70-86). signingCycle and
+      rehiredAt are untouched by this path.
+      THE ONE UNREAD VALUE, AND WHY NO UPDATE IS WRITTEN HERE. Whether
+      StaffMember.userId is currently NULL was never measured — the read-only
+      query was prepared and its output never returned to the session. The
+      repair branches on exactly that: if userId survived, the fix is a two-field
+      UPDATE (status, terminatedAt); if it was cleared, the link has to be
+      restored in the same statement. Writing one of those blind would either
+      no-op or clobber a column, so neither is recorded. READ IT FIRST.
+      TWO THINGS SQL CANNOT REPAIR, whichever branch applies: the Clerk org
+      membership was revoked and must be re-added in verified-snapper-7, or she
+      signs in to a no-org screen; and any StoreUserAssignment rows were deleted
+      and need re-adding through Edit User. Her StoreStaffAssignment rows — the
+      roster side — were never touched, which is why she still renders correctly
+      on /staff and why the damage is invisible from that page.
+      A TEST PRINCIPAL THAT WAS NOT ONE. CLAUDE.md requires every staff member,
+      user or store created to verify a phase to carry that phase's name. This
+      was the inverse error: an EXISTING record was mutated instead of a named
+      disposable one being created. SELF-1's own plan called for a disposable
+      fixture (SELF-1 Fixture) for exactly this criterion and it had not been
+      built yet when the termination happened.
+
   - id: DEBT-69
     status: planned
     title: "Coalesce concurrent sales syncs per store-day — Square quota, not correctness"

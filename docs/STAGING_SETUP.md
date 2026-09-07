@@ -91,6 +91,17 @@ In Vercel: Project Settings → Environment Variables → when adding/editing ea
 | `NEXT_PUBLIC_APP_URL` | `https://<prod-domain>` | `https://staging-froot.vercel.app` (or your preview URL pattern) |
 | `BLOB_READ_WRITE_TOKEN` | prod Blob store token | separate staging Blob store token (see below) |
 
+> **The staging alias is `froot-git-staging-indianathomas-2483s-projects.vercel.app`**
+> (corrected 2026-09-07, SELF-1). The `staging-froot.vercel.app` in the row above
+> is an ILLUSTRATION of a URL pattern, not this project's alias, and
+> `npx vercel inspect staging-froot.vercel.app` fails with "Can't find the
+> deployment ... under the context indianathomas-2483s-projects". That matters
+> because the alias is half of the SHA-match precondition (CLAUDE.md, "Staging
+> Verification — Precondition"): the check pairs `ls --meta githubCommitSha` with
+> an `inspect` on the alias and matches DEPLOYMENT IDS, and a wrong alias makes
+> that half unrunnable. Same failure direction as the `--json | grep` trap
+> recorded there — it cannot produce a false PASS, only a dead end.
+
 > ⚠️ **The `DATABASE_URL` row above is false, and acting on it breaks staging.**
 > Nothing auto-injects a Preview `DATABASE_URL`. The Preview-scoped value is a
 > hand-wired, branch-scoped override that points `staging` at `ep-odd-rain`.

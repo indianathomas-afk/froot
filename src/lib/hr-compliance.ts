@@ -656,6 +656,70 @@ export async function getStaffComplianceDetail(
   return details[0] ?? null
 }
 
+// ─── SELF-1: "owed", written once ────────────────────────────────────────────
+//
+// R2 (Gary, 2026-09-07): owed = any assigned training not Complete, plus any
+// required document not signed on its current version. Overdue and not-yet-due
+// both count.
+//
+// THAT RULE ALREADY EXISTED. It was `items.filter((i) => i.status !== "complete")`,
+// a local const inside the /my portal page — the "existing rollup" R2 says to
+// read rather than redefine. Lifted here so the dashboard banner and /my ask the
+// same function instead of holding two filters that agree on the day they are
+// written. A second definition drifting from the first is DEBT-26's failure
+// mode, and this module has already paid for that lesson six times over (:507).
+//
+// EVERY NON-COMPLETE STATUS IS OWED, INCLUDING needs-resign, AND THAT IS NOT AN
+// OVERSIGHT. A rehire holding a prior-cycle signature owes the signature again
+// under HR-15 Policy B; a signer bound to a superseded version does NOT (R2,
+// 2026-08-15, which makes that case "complete"). The predicate needs no special
+// case for either because computeStaffComplianceDetails has already settled it
+// — which is exactly why this filter is allowed to be one line.
+export function openComplianceItems(detail: StaffComplianceDetail | null | undefined): ComplianceItem[] {
+  return (detail?.items ?? []).filter((i) => i.status !== "complete")
+}
+
+export type OwedSummary = {
+  openCount: number
+  overdueCount: number
+  /**
+   * ISO instant of the soonest due date among OPEN items, or null.
+   *
+   * TRAINING ONLY, BY SCHEMA AND NOT BY CHOICE. ComplianceDocItem (:48) has no
+   * due-date field because HrDocument has no due-date column — a required
+   * document is owed from the moment it applies and has no deadline to miss.
+   * So a person owing only unsigned documents has a real obligation and no date
+   * to show, and null here is the truthful answer rather than a gap.
+   *
+   * Ruled by Gary 2026-09-07: document-only debt renders a COUNT WITH NO
+   * DUE-DATE CLAUSE. Not "no due date", not an em dash, not a fabricated
+   * deadline — the clause is simply absent from the sentence.
+   *
+   * RENDER IT THROUGH detail.timeZone (carried on OwedSummary below), NEVER
+   * raw. The overdue DECISION is a UTC comparison (:586, dueDate < now) while
+   * the DISPLAY belongs to the day this person actually lived; printing this
+   * instant in the server's zone is how an item due tomorrow reads as due today
+   * for a Pacific viewer.
+   */
+  nearestDueDate: string | null
+  /** DEBT-70b: the zone the date above must be rendered in. Travels with it. */
+  timeZone: string
+}
+
+export function summarizeOwed(detail: StaffComplianceDetail): OwedSummary {
+  const open = openComplianceItems(detail)
+  const dues = open
+    .filter((i): i is ComplianceTrainingItem => i.kind === "training" && !!i.dueDate)
+    .map((i) => i.dueDate!)
+    .sort()
+  return {
+    openCount: open.length,
+    overdueCount: open.filter((i) => i.status === "overdue").length,
+    nearestDueDate: dues[0] ?? null,
+    timeZone: detail.timeZone,
+  }
+}
+
 // ─── /hr/compliance: the org/store rollup. storeIds null = whole org (ADMIN);
 // a manager passes their assigned store ids and sees only staff assigned to
 // those stores. Staff are grouped by primary store (same convention as the

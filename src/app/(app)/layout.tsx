@@ -5,7 +5,9 @@ import { auth } from "@clerk/nextjs/server"
 import { OrganizationList } from "@clerk/nextjs"
 import Image from "next/image"
 import { prisma } from "@/lib/prisma"
-import { hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
+import { actorFor, hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
+import { resolveSelfStaff } from "@/lib/hr"
+import { can } from "@/lib/permissions"
 import { UsageBeacon } from "@/components/usage-beacon"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -91,6 +93,45 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // will see the Checklists item DISAPPEAR. That is the badge becoming truthful,
   // not breaking. Adding a date scope would be a separate behaviour change with
   // no ruling behind it, and this session does not make it.
+  // ── SELF-1: who is this login, as a person? ───────────────────────────────
+  //
+  // R1 (Gary, 2026-09-07): resolved for EVERY role, with no role gate — a
+  // person's own name is not a feature anyone can be excluded from. Resolved
+  // HERE because the sidebar is a client component (useUser() reaches Clerk,
+  // never Prisma) and because this layout renders on every (app) page, so one
+  // resolution serves the footer today and the /staff pin on the next route.
+  //
+  // COSTS ONE INDEXED LOOKUP PER PAGE RENDER, AND THE ALTERNATIVE WAS WORSE.
+  // The userRow query above already joins staffMember for the STAFF redirect,
+  // so the FK answer is technically in memory — but reusing it would mean
+  // re-implementing the FK arm inline and having two expressions of "which
+  // staff member is this" in a file whose whole point is that there is one.
+  // That is the drift resolveSelfStaff exists to prevent, and it is worth a
+  // lookup on a @unique column to avoid.
+  //
+  // THE STAFF REDIRECT ABOVE IS DELIBERATELY NOT ROUTED THROUGH THIS. It tests
+  // dbUser.staffMember — the explicit FK link only — and swapping it for the
+  // resolver would start redirecting email-matched STAFF logins to /my, which
+  // is a behaviour change for a population this phase was not asked to move.
+  const self = dbUser && org ? await resolveSelfStaff(org.id, dbUser) : null
+  const selfStaff = self?.ok ? self.staffMember : null
+  // The /users chain (users/page.tsx:196), asked of one person instead of the
+  // whole roster: legal name, then the operational one. The Clerk-name and
+  // email-local-part fallbacks stay in the sidebar, where the Clerk session is.
+  const selfName = selfStaff ? selfStaff.fullName || selfStaff.displayName : null
+  // 1e(ii), ruled by Gary 2026-09-07: option 2, the PERM-3 precedent
+  // (dashboard/page.tsx:75) — "must ask the same capability that gates the
+  // destination, or STORE/STAFF are shown a link that dead-ends in a redirect.
+  // Absent, not disabled." /staff/[id] sits behind staff.view (MANAGE), so a
+  // STORE login gets the NAME as plain text and no link.
+  //
+  // THIS IS NOT A ROLE GATE ON THE FEATURE and the distinction is R1's. Who
+  // gets a resolved identity: everyone who resolves. What their name is
+  // wrapped in: whatever they can actually open. Nobody is excluded from the
+  // feature by role; one destination is withheld because it would 404 them.
+  const selfHref =
+    selfStaff && dbUser && can(actorFor(dbUser), "staff.view") ? `/staff/${selfStaff.id}` : null
+
   let staffHasChecklists = false
   if (dbUser?.role === "STAFF") {
     const storeIds = dbUser.storeAssignments.map((a) => a.storeId)
@@ -122,6 +163,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         hrAvailable={hrModuleAvailable(orgId)}
         laborAvailable={laborModuleAvailable(orgId)}
         staffHasChecklists={staffHasChecklists}
+        selfName={selfName}
+        selfHref={selfHref}
       />
       <AppShell>{children}</AppShell>
       {/* ENG-1. Renders nothing; beacons the pathname on every route change.
