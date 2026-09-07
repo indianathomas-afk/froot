@@ -36,6 +36,11 @@ type RecipientStaff = {
   storeIds: string[]
   isCorporate: boolean
   hasLogin: boolean
+  // Both already resolved by the route — position is a Square job title, store
+  // is the ONE primary store name (or the literal "Corporate"). Null means the
+  // fact does not exist for this person, and the row simply omits that segment.
+  position: string | null
+  store: string | null
   eligibility: "eligible" | "already-assigned" | "not-applicable"
 }
 type RecipientsPayload = {
@@ -293,7 +298,17 @@ export function BulkAssignDialog({
                             checked={staff.has(m.id)}
                             onChange={() => toggle(staff, m.id, setStaff)}
                           />
-                          <span className="flex-1">{m.displayName}</span>
+                          {/* Name · Position · Store. A missing segment is
+                              OMITTED, never a placeholder or a blank slot: most
+                              of these people have no Square link and therefore
+                              no position, so an em-dash column would be a
+                              wall of nothing standing for the ordinary case.
+                              Name is the only segment always present. */}
+                          <span className="flex-1">
+                            {[m.displayName, m.position, m.store]
+                              .filter((part): part is string => !!part)
+                              .join(" · ")}
+                          </span>
                           {m.isCorporate && (
                             <span className="text-xs text-[var(--color-muted-foreground)]">Corporate</span>
                           )}
