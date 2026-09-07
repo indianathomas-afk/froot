@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
-import { findStaffMemberForUser } from "@/lib/hr"
+import { resolveSelfStaff } from "@/lib/hr"
 import { overridesFrom, grantsFrom, type PermissionUser } from "@/lib/permissions"
 
 export async function getOrgId(): Promise<string> {
@@ -171,8 +171,27 @@ export type StaffSelfResult =
     }
   | { ok: false; reason: StaffSelfDeniedReason }
 
+// SELF-1: routed through the one resolver (lib/hr.ts) rather than
+// findStaffMemberForUser, so /my/* and the four SELF-1 surfaces cannot disagree
+// about who the caller is. THIS TIGHTENS ONE CASE: an email that matches more
+// than one staff row used to resolve to whichever row `findFirst` returned and
+// now resolves to nothing. That is R1 applied here — "two matches is not one
+// match" — and it is the safe direction for a gate that decides whose training
+// and whose signed records a session may read.
+//
+// AMBIGUITY IS REPORTED AS "no-profile" AND THAT IS A DELIBERATE NARROWING OF
+// VOCABULARY, not an oversight. Adding an "ambiguous" reason would mean new
+// denial copy on every /my/* page, which is scope this phase does not have; the
+// existing copy ("ask a manager to check the email on your staff profile") is
+// the right instruction for an ambiguity anyway, since a manager fixing the
+// duplicate email is exactly the fix. The DISTINCT signal lives where a test
+// can read it: resolveSelfStaff returns reason "ambiguous" and logs the
+// candidate ids, and the SELF-1 verify script asserts on that return value
+// rather than on a page's rendered output — which is the only instrument that
+// can tell "no banner because compliant" from "no banner because unresolved".
 async function findStaffSelf(orgDbId: string, dbUser: { id: string; email: string }) {
-  return findStaffMemberForUser(orgDbId, dbUser)
+  const self = await resolveSelfStaff(orgDbId, dbUser)
+  return self.ok ? self.staffMember : null
 }
 
 export async function getActiveStaffSelf(): Promise<StaffSelfResult> {
