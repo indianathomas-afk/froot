@@ -2,6 +2,43 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-07 — Unassign training: the refusal is shown, not hidden
+
+**Work SHA:** `75ff274` on `staging`, not pushed at the time of writing.
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed.
+
+**Payload:** **2 commits** on `staging` — the work and this docs commit. One
+client component, and nothing else. **No route change, no schema change, no
+migration, no cron, no Square call, no Clerk change, no new capability, no new
+page route.**
+
+**What it does.** On the `/staff/[id]` Training tab, the Remove control on a
+training assignment is now always offered. An untouched assignment gets the
+existing confirm and is deleted. One with progress against it gets a plain
+sentence naming the reason — certified, lessons already marked complete, or the
+quiz attempted — and a Close, with no destructive action in the footer.
+Previously the control was rendered only when there was no progress, so a
+started assignment showed no control and no explanation.
+
+**The route was already correct and was not touched.** `DELETE
+/api/hr/training/assignments/[id]` has enforced this since HR-7: any lesson
+progress, any quiz attempt, a certification, or a certificate PDF returns 409
+and the assignment is never deleted. This deploy changes what the manager is
+told, not what the server allows.
+
+**Rollback is code-only and needs no database step.** Reverting the work commit
+restores the hidden-control behaviour; no data is written or migrated either
+way, and the route's refusal is unaffected in both directions.
+
+**Single assignment only. No bulk unassign** — not built, not scaffolded, not
+half-wired.
+
+**NOT VERIFIED IN A BROWSER.** Gate evidence only — scoped eslint clean (3
+warnings, 0 errors, all three pre-existing) and `npm run build` green. Nothing
+here has been deployed, and the refusal sentence reported at close was read off
+the source, not seen on screen.
+
 ## UNPROMOTED — 2026-09-07 — Bulk assign: recipient rows carry position and store
 
 **Work SHA:** `3978c02` on `staging`, not pushed at the time of writing.

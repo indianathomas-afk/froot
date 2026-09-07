@@ -6086,10 +6086,31 @@ phases:
   - id: HR-34
     track: hr
     size: S
-    status: in_progress
+    status: verified
     commits: ["3978c02"]
     title: "Bulk assign recipient rows carry position and store, so a person can be picked by what they do rather than by remembering a name"
     notes: >
+      ── STATUS in_progress -> verified 2026-09-07. Prepended per
+      preserve-and-mark; NOTHING BELOW IS EDITED.
+
+      GARY, 2026-09-07: the change "reached production 2026-09-07 and was
+      verified in the browser as Karson". That closes the two things the note
+      below said were missing — it recorded status in_progress precisely
+      because there was no browser observation and no deploy, and there now is
+      both. `verified` is this file's "shipped AND smoke-tested against real
+      store data".
+
+      EVIDENCE FOR THE SHIPPED HALF, MEASURED NOT ASSUMED: `git merge-base
+      --is-ancestor 3978c02 origin/main` returns TRUE against a freshly fetched
+      origin/main. The smoke-test half is Gary's own observation above, not a
+      measurement taken here.
+
+      NOT RESTAMPED: the DEPLOY_LOG entry for this work still reads "UNPROMOTED
+      — staging only" and still carries the pre-promotion SHA in its
+      heading. That file's convention is that the heading takes the MERGE SHA at
+      promotion, from `git rev-parse` — restamping it was outside this
+      session's stated scope and is reported rather than done.
+
       2026-09-07. Short-form session, no audit phase, no stop gate — every rule
       was settled in the prompt (docs/prompts/2026-09-07_BULK-ASSIGN-ROWS_SESSION.md).
       NO DECISIONS.md ENTRY AND NONE IS MISSING: nothing here needed a ruling.
@@ -6143,6 +6164,81 @@ phases:
       thing not to collide with, and removing an existing element was outside
       the stated scope, so it was left in place and reported rather than edited.
       One line to delete if Gary wants it gone.
+
+
+  - id: HR-35
+    track: hr
+    size: S
+    status: in_progress
+    commits: ["75ff274"]
+    title: "Unassign training — a manager can remove an untouched assignment, and is told in a sentence why a started one cannot be removed"
+    notes: >
+      2026-09-07. Short-form session, no audit phase, no stop gate — the rule
+      was settled in the prompt (docs/prompts/2026-09-07_UNASSIGN-TRAINING_SESSION.md).
+      NO DECISIONS.md ENTRY AND NONE IS MISSING: the ruling is recorded in that
+      prompt and nothing here needed a second one.
+
+      THE RULING (Gary, 2026-09-07): refuse if there's progress, allow if
+      untouched. An assignment nobody has started can be removed; one with any
+      progress or a completion against it cannot — the completion is proof the
+      person did the training and must not be erasable by a stray click. The
+      refusal is a plain sentence explaining why, not a disabled control with no
+      explanation and not a generic error.
+
+      THIS WAS A UI-ONLY SESSION AND THE ROUTE WAS NOT TOUCHED. The prompt asked
+      which of two branches the work took; it took the first. `DELETE
+      /api/hr/training/assignments/[id]` ALREADY ENFORCED THE RULING AT HEAD and
+      its header already called it "mistake correction only" under rule 4: any
+      lessonProgress row, any quizAttempt, a non-null certifiedAt, or a non-null
+      certPdfPathname returns 409 and the row is never deleted. Checked at HEAD
+      before anything was written, exactly as the prompt required. `status`
+      ("NotStarted | InProgress | Completed") is NOT in that check and does not
+      need to be: recalcAssignmentStatus in lib/training.ts derives it purely
+      from lessonProgress and quizAttempts, so a non-NotStarted status cannot
+      exist without a row the route already counts.
+
+      WHAT WAS ACTUALLY WRONG WAS THE UI, AND IT WAS THE EXACT FAILURE THE
+      RULING NAMES. The Remove control on the /staff/[id] Training tab was
+      wrapped in `{noProgress && ...}`, so an assignment with progress rendered
+      NO CONTROL AND NO EXPLANATION — worse than the disabled-control-with-no-
+      explanation the ruling rejects, because there was nothing to disable. A
+      manager asking "why can't I remove this?" had nowhere to read the answer.
+
+      THE FIX. Remove is now always offered and the confirm branches. Untouched:
+      the existing confirm text, then DELETE. Blocked: a title of "This
+      assignment can't be removed", a sentence naming the ACTUAL reason —
+      certified, N of M lessons already marked complete, or the quiz attempted
+      — and a Close, WITH NO DESTRUCTIVE ACTION IN THE FOOTER. The reason comes
+      from removalBlockedReason(), one helper next to statusBadge/quizStatus,
+      which reads certifiedAt first, then completed lessons, then attempts.
+
+      THE CLIENT CHECK IS A COURTESY AND THE ROUTE IS THE BACKSTOP — they are
+      deliberately not identical. The client cannot see certPdfPathname, and it
+      counts progress against lessons STILL IN THE MODULE, so a progress row
+      against a since-removed lesson reads removable client-side. THAT
+      DIVERGENCE FALLS ON THE SAFE SIDE: the client offers, the route 409s, and
+      the shared `call` helper already surfaces `data.error` verbatim — "This
+      assignment has progress records and cannot be removed" — which is the
+      route's own sentence, not a generic failure.
+
+      SINGLE ASSIGNMENT ONLY. NO BULK UNASSIGN — not built, not scaffolded, not
+      half-wired. If it is wanted it is its own row.
+
+      UNTOUCHED, AS THE PROMPT REQUIRED: the DELETE and PATCH routes and every
+      guard on them, bulk assign (route and dialog), the bulk write path,
+      RECIPIENT_SELECT, the compliance rollup in hr-compliance.ts, and HR-13
+      semantics.
+
+      EVIDENCE IS GATE-ONLY. Scoped eslint clean — 3 warnings, 0 errors, and all
+      three are pre-existing (measured by stashing the change and re-running,
+      identical output). `npm run build` green. NO BROWSER OBSERVATION AND NO
+      STAGING DEPLOY: the rendered refusal reported at close was read off the
+      source, not seen. status is in_progress at the work SHA for that reason.
+
+      TRIAGE AT CLOSE — FIX NOW 0 · RULING NOW 0 · COMMENT 1 · ROW 0. COMMENT 1:
+      HR-34's DEPLOY_LOG entry still reads "UNPROMOTED — staging only" although
+      that work is now in production; restamping it needs the merge SHA and was
+      outside this session's scope. Noted on HR-34 as well.
 
 
   - id: HR-11d
