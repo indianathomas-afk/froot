@@ -14670,10 +14670,51 @@ phases:
   - id: SELF-1
     track: hr
     size: M
-    status: in_progress
-    commits: ["2eeee6a", "3d2752a", "dc13aa8", "9e158dc", "309b8f1"]
+    status: staging
+    commits: ["2eeee6a", "3d2752a", "dc13aa8", "9e158dc", "309b8f1", "e8145d5", "b537a89"]
     title: "\"Show me, me\" — one identity resolver behind four surfaces: the /dashboard assignment banner, the /staff own-row pin, and the sidebar footer's name and link"
     notes: >
+      PUSHED AND PARTIALLY VERIFIED ON STAGING 2026-09-07, prepended per
+      preserve-and-mark; nothing below is edited. Status moved in_progress ->
+      staging in the same session the code was pushed (WORKFLOW.md rule 4). The
+      paragraph below still reads "NONE IS PUSHED", which was true when written
+      and is now false — kept rather than corrected in place.
+      SHA-MATCH, RUN BEFORE ANY OBSERVATION AND MATCHED ON DEPLOYMENT IDS, not
+      just SHAs: local HEAD = origin/staging =
+      b537a894e04ad443c2dc421efaabcf5388f540f9; the deployment built from that
+      full 40-char sha is dpl_5mmKNqq79sdxVmGTeUQSCxxJN9Ev (Ready), and
+      `vercel inspect` on the staging alias resolves to that SAME id. Clerk
+      instance verified-snapper-7, org cmr54z65v000105jxczpt72w1 ("Keva Juice
+      (staging)", activeModules {inventory,hr,labor}, America/Los_Angeles), Neon
+      br-square-feather-a63z92vz / ep-odd-rain-a6gr4xmm.
+      THE BROWSER OBSERVATIONS BELOW ARE GARY'S, NOT CLAUDE'S, AND THE
+      DISTINCTION IS RECORDED RATHER THAN BLURRED. The Claude Code Browser pane
+      runs an isolated cookie jar and could not pick up his Chrome session
+      (hasUser false on a fresh navigation while he was signed in), and Claude
+      does not enter passwords. So Gary drove and reported; Claude verified the
+      environment, not the pixels.
+      OBSERVED PASSING (Gary, 2026-09-07): criterion 1 — corporate@keva.com
+      (STORE, FK path) sees "You have 1 item to complete · 1 overdue / Nearest
+      due Jul 26". Criterion 7 — the footer reads "Tommy Thomas", not
+      "corporate". 1e(ii) — that name is PLAIN TEXT with no link, which is the
+      ruling working: STORE lacks staff.view, so the destination is withheld
+      rather than the feature. Criterion 3 — gary@keva.com (MANAGER, resolves to
+      nothing) gets no banner, no crash, and a footer reading "gary" unlinked.
+      Criteria 5, 8 and 9 — indianathomas@live.com (ADMIN, email path, nothing
+      owed) gets no banner, a footer link landing on /staff/cmt3wgw6k..., and his
+      own row first in the Carson group carrying the "You" badge.
+      CROSS-SURFACE AGREEMENT, AND WHAT IT DOES AND DOES NOT PROVE. /my showed
+      the same item as "Due Jul 26 · Overdue" — same date, same verdict as the
+      banner. The CODE is what proves the predicate is shared
+      (openComplianceItems, one function, two callers); the observation proves
+      the two surfaces AGREE IN PRACTICE, which is what would have caught a bad
+      lift. It is not itself evidence of sharing.
+      "JUL 26" IS THE CORRECT PACIFIC RENDERING of 2026-07-26 19:00 UTC. A "Jul
+      27" anywhere would have been DEBT-70b resurfacing in new code.
+      STILL OUTSTANDING AT THIS WRITING — criteria 2 and 6 (the disposable
+      SELF-1 Fixture sequence), criterion 10 (the /dashboard timing measurement),
+      and criterion 4, which is owed in production and is NOT covered by
+      criterion 3. See blockers.
       2026-09-07. TIER 3 — STRUCTURAL. Four asks arrived separately and were one
       feature: a manager who has been assigned training has no way to find out,
       because the assignment lands on their staff record and their staff record
@@ -14766,6 +14807,14 @@ phases:
       one new evidence script.
     blockers:
       - >
+        NARROWED 2026-09-07 (prepended; the text below is kept unedited and was
+        true when written). The code IS now on staging and the SHA-match passed
+        on deployment ids. Criteria 1, 3, 5, 7, 8, 9 and the 1e(ii) plain-text
+        ruling were observed passing BY GARY. WHAT STILL BLOCKS: criteria 2 and
+        6, which need the disposable SELF-1 Fixture sequence, and criterion 10,
+        the /dashboard timing measurement — none of which Claude could run,
+        because the Browser pane holds an isolated cookie jar and Claude does not
+        enter passwords. The original text:
         THE STAGING PASS HAS NOT RUN. Five commits sit unpushed on `staging` as
         at 2026-09-07; Claude never pushes. Until Gary pushes and the deployment
         SHA-matches local HEAD, criteria 1-9 are unverified at route level. The
