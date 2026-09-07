@@ -227,5 +227,11 @@ export async function getUserStoreScope() {
   // PERM-5: `actor` carries the same role PLUS the per-user override set.
   // `role` stays for the 26 callers that only need the string; anything asking
   // a capability question must use `actor`, or the override is not consulted.
-  return { isAdmin, storeIds, role: dbUser?.role ?? null, actor }
+  // SELF-1 adds `dbUser` — the row getCurrentUser() has already fetched, handed
+  // back rather than re-queried. Purely additive: the existing four fields are
+  // unchanged and no caller has to read the new one. /staff needs the id and
+  // email to resolve the viewer's own staff member for the own-row pin, and the
+  // alternative was a second getCurrentUser() on a page that has already run
+  // one (there is no request-level memoisation here).
+  return { isAdmin, storeIds, role: dbUser?.role ?? null, actor, dbUser }
 }
