@@ -6,6 +6,75 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-07 — SELF-1: identity surfaces, and who sees the banner
+
+Ratified by Gary 2026-09-07. Recorded verbatim; the block quote is his wording,
+supplied at the SELF-1 docs stop and copied out of that message rather than
+retyped. Claude drafted no version of these rulings in his voice — the SELF-1
+prompt carried a paraphrase, and the artifact recorded that no DECISIONS.md
+entry existed at the time the phase ran and proceeded on the paraphrase. This
+entry supersedes that paraphrase as the record.
+
+> **R1 — Who sees the banner.** Anyone whose login resolves to exactly
+> one staff member. Role has nothing to do with it. No match, or more
+> than one match, and nothing renders. Device logins resolve to nothing
+> and stay silent, which is what I want.
+>
+> **R2 — What counts as owed.** Any assigned training that isn't
+> complete, plus any required document not signed on its current
+> version. Overdue and not-yet-due both count; overdue gets the harder
+> styling. One definition, read from the existing rollup — not a second
+> one written for the banner.
+>
+> **R3 — Logins that resolve to nothing.** The banner ships anyway. Two
+> elevated logins in production match no staff record, so they get no
+> banner and no way to know it. That's filed as its own row (DEBT-96),
+> not built here. A manager silently exempt from her own compliance
+> banner looks exactly like a compliant one, and somebody has to be able
+> to see the difference.
+
+**How the code honours R1 — by construction, not by policy.** There is no
+`can()` call anywhere in the feature and no capability was added for one. The
+predicate is a fact about the ROSTER, not about the login's role, which is why
+a capability would have been the wrong shape even though it is what every other
+feature on `/dashboard` uses. `resolveSelfStaff` (`src/lib/hr.ts`) prefers the
+`StaffMember.userId` FK — `String? @unique`, so the database guarantees at most
+one — and falls back to an org-scoped, case-insensitive email match that takes
+two rows and refuses if both come back. "More than one match renders nothing" is
+therefore a count, not a `findFirst`.
+
+**The email arm also refuses a row belonging to someone else** — `userId IS NULL
+OR userId = this login`, applied in the query so the two-row probe cannot be
+crowded out by other-linked rows. `/users` has carried that guard since DEBT-46;
+`findStaffMemberForEmail` never has, and by Gary's scope ruling the same day it
+keeps its current semantics with the divergence filed as DEBT-97 rather than
+closed here.
+
+**R2 was satisfied by lifting, not rewriting.** The rule already existed as a
+local `const` inside the `/my` portal page. It is now `openComplianceItems()` in
+`src/lib/hr-compliance.ts` and `/my` calls it — a move, so there is no second
+definition to drift. "Overdue gets the harder styling" is the solid destructive
+surface; everything else is the warning surface.
+
+**One consequence of R2 that is schema, not choice.** `ComplianceDocItem` carries
+no due date because `HrDocument` has no due-date column: a required document is
+owed from the moment it applies and has no deadline to miss. Document-only debt
+therefore renders a count with NO due-date clause (ruled the same day) — the
+clause is absent from the sentence rather than filled with an em dash.
+
+**What R3's production claim rests on, stated so the two records do not appear
+to disagree.** The "two elevated logins in production" are Gary's; this session
+did not and could not measure production, and DEBT-96 says so in those words.
+On staging the equivalent population is one login (`gary@keva.com`, MANAGER),
+and the two production accounts the SELF-1 prompt named do not exist there at
+all. The ruling is not weakened by that — it is the reason DEBT-96 exists.
+
+**Not blinking, and that is part of the same ruling set.** The original ask was
+a blinking banner. Ruled against on WCAG 2.2.2, and because a blink on a page
+opened every shift becomes wallpaper inside a week — the exact failure the
+feature exists to prevent. Solid, high-contrast, persistent, no dismiss control,
+clears only on completion.
+
 ## 2026-09-06 — SEARCH-1: search never surfaces personal data
 
 Ratified by Gary 2026-09-06. Recorded verbatim; the block quote is his wording,

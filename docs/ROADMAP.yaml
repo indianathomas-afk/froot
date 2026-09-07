@@ -14721,6 +14721,19 @@ phases:
       SELF-1 Fixture sequence), criterion 10 (the /dashboard timing measurement),
       and criterion 4, which is owed in production and is NOT covered by
       criterion 3. See blockers.
+      RULINGS RATIFIED AND RECORDED 2026-09-07. docs/DECISIONS.md now carries
+      R1/R2/R3 in Gary's own words, supplied at the docs stop and copied
+      verbatim. The note below saying no DECISIONS.md entry existed was true when
+      written and is kept per preserve-and-mark; the DECISIONS.md entry is now
+      the record and the prompt's paraphrase is superseded.
+      ONE THING THE TWO DOCUMENTS SAY DIFFERENTLY, RECONCILED RATHER THAN LEFT
+      TO LOOK LIKE DRIFT. R3 as ratified states that TWO elevated logins in
+      PRODUCTION match no staff record. That is Gary's knowledge; this session
+      did not and could not measure production, and DEBT-96 says so explicitly.
+      On staging the equivalent population is ONE login (gary@keva.com, MANAGER),
+      and the two production accounts the prompt named do not exist on that
+      branch at all. Neither statement corrects the other — they describe
+      different branches, and the gap between them is the reason DEBT-96 exists.
       2026-09-07. TIER 3 — STRUCTURAL. Four asks arrived separately and were one
       feature: a manager who has been assigned training has no way to find out,
       because the assignment lands on their staff record and their staff record
