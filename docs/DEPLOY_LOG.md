@@ -2,6 +2,44 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-07 — Bulk assign: recipient rows carry position and store
+
+**Work SHA:** `3978c02` on `staging`, not pushed at the time of writing.
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed.
+
+**Payload:** **2 commits** on `staging` — the work and this docs commit. One API
+route, one client component. **No schema change, no migration, no cron, no
+Square call, no Clerk change, no new capability, no new page route, and nothing
+writes a row.**
+
+**What it does.** Each person in the Individuals list of the Bulk assign
+training dialog on `/hr/training` renders as `Name · Position · Store` instead
+of name alone. A missing segment is omitted — no placeholder, no blank, no
+em-dash — and the name is the only segment always present. Position is
+`SquareTeamMemberWage.jobTitle`. Store is the one primary store via
+`primaryStoreName()`, or the literal `Corporate` for `isCorporate` staff, who
+never reach the resolver: Square expands them to every location, so their
+assignment rows carry no home base (DEBT-9). Both are resolved server-side in
+the route; the dialog renders what it is told.
+
+**The wage-table select is exactly the join key and the title** — never a
+spread, never `include`. That table is where pay lives (`hourlyRate`,
+`annualRate`, `payType`, `compConfidential`) and it was split off `StaffMember`
+so a wage column could not ride along on a route that spreads its row. No
+`labor.costs.view` gate was added, because a job title is not pay — and the
+narrow select is what makes that true rather than merely intended. **If a later
+change widens it, the gate question reopens.**
+
+**Rollback is code-only and needs no database step.** Two additive reads and a
+row label. `RECIPIENT_SELECT` is unchanged, so the bulk write path and its
+five-bucket response are untouched; reverting the work commit removes the two
+segments and nothing else.
+
+**NOT VERIFIED IN A BROWSER.** Gate evidence only — scoped eslint clean, `npm
+run build` green. Nothing here has been deployed, and the row shapes reported
+for this session were read off the render, not observed on staging.
+
 ## c870ba7 — 2026-09-06 — SEARCH-1: a global search bar in the sidebar
 
 **Merge SHA:** `c870ba78947b8c42b6370379b5b98b2826f85df9`
