@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
-import { getStaffComplianceDetail, type ComplianceItem } from "@/lib/hr-compliance"
+import { getStaffComplianceDetail, openComplianceItems, type ComplianceItem } from "@/lib/hr-compliance"
 import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
 import { messageInclude, serializeMessage } from "@/lib/messages"
 import { MyShell } from "./my-shell"
@@ -74,7 +74,11 @@ export default async function MyPortalPage() {
       : Promise.resolve(null),
   ])
 
-  const openItems = (detail?.items ?? []).filter((i) => i.status !== "complete")
+  // SELF-1: the filter that used to live on this line is now
+  // openComplianceItems() in lib/hr-compliance.ts, so this page and the
+  // /dashboard banner cannot hold two definitions of "owed". A MOVE, not a
+  // copy — the behaviour here is unchanged.
+  const openItems = openComplianceItems(detail)
   const statusRank: Record<string, number> = { overdue: 0, "needs-resign": 1, "in-progress": 2, "not-started": 3 }
   openItems.sort((a, b) => (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9))
 
