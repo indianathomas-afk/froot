@@ -227,6 +227,8 @@ export function Sidebar({
   hrAvailable = false,
   laborAvailable = false,
   staffHasChecklists = false,
+  selfName = null,
+  selfHref = null,
 }: {
   role: string
   // PERM-5. REQUIRED, deliberately undefaulted: a default of [] would let a
@@ -245,6 +247,23 @@ export function Sidebar({
   // STAFF-1 (F3 store-proxy): whether any open checklist exists for the staff
   // user's assigned stores — computed server-side in the layout.
   staffHasChecklists?: boolean
+  // ── SELF-1 ────────────────────────────────────────────────────────────────
+  // The viewer's own name, resolved server-side from their StaffMember
+  // (fullName then displayName). NULL when the login resolves to no staff
+  // member, to more than one, or to a staff row with neither name — every one
+  // of which falls back to the Clerk/email rendering below, unchanged.
+  //
+  // WHY THIS CANNOT BE READ HERE. User.name is null for every row in
+  // production and is never backfilled (the Clerk webhook's UPDATE branch
+  // writes email only), so the only true full name lives on StaffMember, one
+  // join away — and this is a client component, so it has no Prisma. That is
+  // the whole reason a cosmetic-looking string was blocked on an identity
+  // resolver.
+  selfName?: string | null
+  // Where the footer name links, or null for plain text. Decided in the layout
+  // against staff.view (1e(ii), Gary 2026-09-07), NOT here — the nav layer is
+  // UX and must not be the thing that decides a destination's reachability.
+  selfHref?: string | null
 }) {
   const pathname = usePathname()
   const { signOut } = useClerk()
@@ -580,10 +599,38 @@ export function Sidebar({
           <>
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-full bg-[var(--color-muted)] flex items-center justify-center text-xs font-semibold text-[var(--color-muted-foreground)] shrink-0">
-                {user?.firstName?.[0] ?? user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() ?? "U"}
+                {/* SELF-1: the resolved name leads, so the initial matches the
+                    label under it rather than disagreeing with it. */}
+                {selfName?.[0]?.toUpperCase() ??
+                  user?.firstName?.[0] ??
+                  user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() ??
+                  "U"}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">{user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress?.split("@")[0]}</p>
+                {/* SELF-1. THE FALLBACK CHAIN IS UNCHANGED BELOW THE NEW HEAD:
+                    resolved staff name -> Clerk first name -> email local part.
+                    The last of those is what rendered "corporate" for
+                    corporate@keva.com — a truthful email displayed as if it
+                    were a person's name. It stays as the final arm rather than
+                    being removed, because a login that resolves to no staff
+                    member still needs something in this slot (acceptance
+                    criterion 3), and a mailbox name beats an empty line.
+
+                    LINKED ONLY WHEN THE DESTINATION IS REACHABLE — selfHref is
+                    null for a viewer without staff.view, who gets the same name
+                    as plain text. See the layout for why that is a destination
+                    choice and not a role gate. */}
+                <p className="text-xs font-medium truncate">
+                  {selfHref && selfName ? (
+                    <Link href={selfHref} className="hover:text-[var(--color-primary)] hover:underline">
+                      {selfName}
+                    </Link>
+                  ) : (
+                    (selfName ??
+                      user?.firstName ??
+                      user?.emailAddresses?.[0]?.emailAddress?.split("@")[0])
+                  )}
+                </p>
                 <p className="text-xs text-[var(--color-muted-foreground)] truncate">{user?.emailAddresses?.[0]?.emailAddress}</p>
               </div>
             </div>
