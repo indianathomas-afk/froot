@@ -6083,6 +6083,67 @@ phases:
       to main today as f3f9d31; it should read shipped, and its commits list
       omits 5695a01. Reported, not edited, since it is HR-32's row. ROW: DEBT-90,
       the DEPLOY_LOG staging/main divergence, filed at Gary's direction.
+  - id: HR-34
+    track: hr
+    size: S
+    status: in_progress
+    commits: ["3978c02"]
+    title: "Bulk assign recipient rows carry position and store, so a person can be picked by what they do rather than by remembering a name"
+    notes: >
+      2026-09-07. Short-form session, no audit phase, no stop gate — every rule
+      was settled in the prompt (docs/prompts/2026-09-07_BULK-ASSIGN-ROWS_SESSION.md).
+      NO DECISIONS.md ENTRY AND NONE IS MISSING: nothing here needed a ruling.
+      WHAT CHANGED. Each person in the Individuals list of the Bulk assign
+      training dialog renders as "Name · Position · Store" instead of name
+      alone. Segments join with "·" and a MISSING SEGMENT IS OMITTED — no
+      placeholder, no blank, no em-dash. Name is the only segment always
+      present. Both facts are resolved SERVER-SIDE in the recipients route,
+      which is the rule that file's header already states: the dialog renders a
+      rule, it never computes one.
+      POSITION IS SquareTeamMemberWage.jobTitle AND THE SELECT IS EXACTLY
+      { squareTeamMemberId, jobTitle } — never a spread, never include. That
+      table holds hourlyRate, annualRate, payType and compConfidential, and it
+      was split off StaffMember precisely so a wage column could not ride along
+      on a route that spreads its row. No labor.costs.view gate was added
+      because a job title is not pay; THE NARROW SELECT IS WHAT MAKES THAT TRUE
+      RATHER THAN MERELY INTENDED, so a later change that widens it reopens the
+      gate question. There is no Prisma relation between the two tables — only
+      the shared (organizationId, squareTeamMemberId) key — so it is a second
+      findMany joined in memory. A hand-added person has no squareTeamMemberId
+      and therefore no position: the normal case, not an error.
+      STORE GOES THROUGH primaryStoreName() IN lib/hr.ts, NOT A SORT WRITTEN
+      INLINE. That is the function that freezes a store onto signed documents,
+      and a second resolver would let this dialog and the legal record disagree
+      about where someone works. isCorporate staff do not reach it at all —
+      Square expands them to every location, so their assignment rows are a sync
+      artifact with no home base in them (DEBT-9) and CORPORATE_STORE_LABEL is
+      the answer. The corporate branch is in the ROUTE, not the component.
+      RECIPIENT_SELECT WAS LEFT ALONE so the bulk WRITE path is untouched. The
+      recipients route spreads it and adds squareTeamMemberId, widening
+      storeAssignments with isPrimary and the store name — storeId still feeds
+      storeIds and the per-store expandsTo counts. Today's payload carries a
+      flat storeIds with no primary flag, so a home store cannot be derived from
+      it; that is why the second select exists rather than a client-side guess.
+      UNTOUCHED: the route's guard, the /hr/training page gate, every HR-22
+      recipient rule (ACTIVE-only, corporate excluded from store expansion, the
+      five-bucket response and its sum invariant), the Stores half of the dialog
+      and its expandsTo counts, the single-assign path, DEBT-9.
+      DELIBERATELY NOT IN THIS ROW: any role filter or select-all-by-role.
+      Assigning by role is the MOTIVATION for this change and is a separate row
+      — not built, not scaffolded, not half-wired.
+      EVIDENCE IS GATE-ONLY. Scoped eslint clean, npm run build green. NO
+      BROWSER OBSERVATION AND NO STAGING DEPLOY: the row shapes reported at
+      close were read off the render, not seen. status is in_progress at the
+      work SHA for that reason.
+      TRIAGE AT CLOSE — FIX NOW 0 · RULING NOW 0 · COMMENT 1 · ROW 0. COMMENT 1:
+      the Individuals row already carried a right-edge "Corporate" chip
+      (bulk-assign-dialog.tsx, predating this change), so a corporate person now
+      reads "Name · Position · Corporate" on the left AND "Corporate" at the
+      right edge. The prompt named only the "already assigned" state as the
+      thing not to collide with, and removing an existing element was outside
+      the stated scope, so it was left in place and reported rather than edited.
+      One line to delete if Gary wants it gone.
+
 
   - id: HR-11d
     track: hr
