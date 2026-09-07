@@ -14711,6 +14711,12 @@ phases:
       lift. It is not itself evidence of sharing.
       "JUL 26" IS THE CORRECT PACIFIC RENDERING of 2026-07-26 19:00 UTC. A "Jul
       27" anywhere would have been DEBT-70b resurfacing in new code.
+      TWO ROWS CAME OUT OF THE PASS ITSELF: DEBT-96 gains a concrete instance —
+      jamie@keva.com is FK-linked to a staff row whose own email is
+      silkypilk@gmail.com, so that login is held together by the FK alone and has
+      no email arm to fall back to. DEBT-98 records a staging staff record left
+      terminated during the criterion-6 attempt, and why its restore is
+      deliberately unwritten.
       STILL OUTSTANDING AT THIS WRITING — criteria 2 and 6 (the disposable
       SELF-1 Fixture sequence), criterion 10 (the /dashboard timing measurement),
       and criterion 4, which is owed in production and is NOT covered by
@@ -14806,6 +14812,33 @@ phases:
       role gains a route it lacked. One new API route, one new client component,
       one new evidence script.
     blockers:
+      - >
+        FOUR ACCEPTANCE CRITERIA ARE OWED, none of them failed and none of them
+        covered by another. Consolidated 2026-09-07 so the list is readable in
+        one place rather than assembled from three entries.
+        CRITERION 2 (a login linked ONLY by email match, with an incomplete
+        assignment, sees the banner) — the weaker of the two link paths and the
+        one the plan singled out for separate verification. Needs the disposable
+        SELF-1 Fixture attached to indianathomas+f1test@gmail.com; never built.
+        CRITERION 6 (a terminated member produces no banner) — attempted and
+        DEFERRED, not passed. Viewing a terminated member as an ADMIN is the
+        manager-side view; the criterion is about that person's own dashboard and
+        needs her login. See DEBT-98 for the record left terminated by the
+        attempt.
+        CRITERION 10 (/dashboard does not measurably slow) — NOT MEASURED. The
+        page requires auth, so an unauthenticated timing exercises only the
+        middleware redirect. The structural claim stands on the code — the
+        dashboard page gains zero queries and the banner client-fetches — but the
+        (app) layout's one added lookup per render is the number nobody has seen.
+        CRITERION 4 (a device login sees no banner) — owed in PRODUCTION, and
+        explicitly NOT covered by criterion 3 (Gary, 2026-09-07). "Resolves to
+        nothing" and "is a shared store device" are different facts that render
+        the same pixel, which is this phase's entire hazard; treating one as
+        evidence for the other is the mistake the phase exists to make
+        impossible.
+        WHY CLAUDE RAN NONE OF THESE: the Browser pane holds an isolated cookie
+        jar and could not pick up Gary's session, and Claude does not enter
+        passwords. Every observation in this row is his.
       - >
         NARROWED 2026-09-07 (prepended; the text below is kept unedited and was
         true when written). The code IS now on staging and the SHA-match passed
@@ -16494,6 +16527,22 @@ debt:
       SELF-1 prompt named as production examples, karissa@keva.com (MANAGER) and
       taylin@keva.com (ADMIN), DO NOT EXIST ON STAGING AT ALL. Whatever the
       production population is, this row does not assert it.
+      A CONCRETE INSTANCE, ADDED 2026-09-07 DURING SELF-1's STAGING PASS.
+      jamie@keva.com is FK-linked to a staff row whose own email is
+      silkypilk@gmail.com — the two do not match, on staging. Reported by Gary;
+      Claude did not measure it and cannot (deployed-environment reads go
+      through the Neon console).
+      WHY IT BELONGS HERE RATHER THAN IN A BUG ROW: this login is held together
+      by the FK ALONE. The email arm cannot resolve it in either direction, so
+      the moment StaffMember.userId is cleared — which terminateStaffMember does
+      inline at lib/staff-termination.ts:52, not merely on rehire — she becomes a
+      member of exactly the population this row is about: a person whose login
+      resolves to nothing, silently, with no surface anywhere that says so.
+      IT IS ALSO THE STRONGEST ARGUMENT AVAILABLE THAT THE FK ARM IS
+      LOAD-BEARING. SELF-1's resolver prefers the link and falls back to email;
+      here there is no fallback to fall back to. Any future proposal to simplify
+      the resolver to a single email match would silently drop this person, and
+      the drop would look exactly like compliance.
       NOT A WIDENING WHEN IT IS BUILT. A list of logins without staff records is
       data an admin can already assemble from /users; this row is about putting
       it where it will be seen, not about granting anyone new reach.
@@ -16561,6 +16610,59 @@ debt:
       profile mid-ceremony is a person who cannot sign and cannot fix it
       themselves. That is the same shape as the "warn, don't throw" ruling
       already recorded in hr.ts.
+
+  - id: DEBT-98
+    status: planned
+    title: >
+      Jamie Pilk's staging staff record was terminated during SELF-1 verification
+      and left terminated — the restore is unwritten because the one value it
+      branches on was never read
+    notes: >
+      COST OF DOING NOTHING: NONE TODAY, on Gary's assessment 2026-09-07 — she is
+      terminated, so she has no Froot access and nothing is degraded for any
+      user. The cost is LATENT and arrives if the record is ever needed as
+      truthful staging data, or if someone clicks Reactivate. DERIVED-AT-HEAD BY
+      SELF-1.
+      FILED 2026-09-07. Gary terminated the record through the ADMIN UI while
+      trying to exercise SELF-1's acceptance criterion 6 (a terminated member
+      must not produce a banner), then deferred it: viewing a terminated member
+      as an ADMIN is the MANAGER-SIDE view, and the criterion is about that
+      person's OWN dashboard, which needs her login. The criterion is owed, not
+      passed. See SELF-1.
+      REACTIVATE WAS NOT CLICKED, AND THAT IS THE IMPORTANT PART OF THE STATE.
+      POST /api/staff/[id]/reactivate increments signingCycle
+      (reactivate/route.ts:94). Under HR-15 Policy B only CURRENT-cycle
+      signatures count, so that single increment would reclassify every document
+      she has signed as needs-resign and prompt a real person to re-sign work
+      she has already done. No UI path decrements it back. The record is
+      therefore better left terminated than "restored" with the wrong button.
+      WHAT TERMINATE ALREADY DID, read from the code at
+      b537a894 rather than observed: status TERMINATED and terminatedAt stamped
+      (staff-termination.ts:17-20) ALWAYS; and IF StaffMember.userId was set at
+      the time — clearing userId (:52), deleting that login's
+      StoreUserAssignment rows (:53), revoking the Clerk org membership (:33) and
+      killing active sessions (:41). PendingInvite rows for her email are also
+      deleted with their Clerk invitations revoked (:70-86). signingCycle and
+      rehiredAt are untouched by this path.
+      THE ONE UNREAD VALUE, AND WHY NO UPDATE IS WRITTEN HERE. Whether
+      StaffMember.userId is currently NULL was never measured — the read-only
+      query was prepared and its output never returned to the session. The
+      repair branches on exactly that: if userId survived, the fix is a two-field
+      UPDATE (status, terminatedAt); if it was cleared, the link has to be
+      restored in the same statement. Writing one of those blind would either
+      no-op or clobber a column, so neither is recorded. READ IT FIRST.
+      TWO THINGS SQL CANNOT REPAIR, whichever branch applies: the Clerk org
+      membership was revoked and must be re-added in verified-snapper-7, or she
+      signs in to a no-org screen; and any StoreUserAssignment rows were deleted
+      and need re-adding through Edit User. Her StoreStaffAssignment rows — the
+      roster side — were never touched, which is why she still renders correctly
+      on /staff and why the damage is invisible from that page.
+      A TEST PRINCIPAL THAT WAS NOT ONE. CLAUDE.md requires every staff member,
+      user or store created to verify a phase to carry that phase's name. This
+      was the inverse error: an EXISTING record was mutated instead of a named
+      disposable one being created. SELF-1's own plan called for a disposable
+      fixture (SELF-1 Fixture) for exactly this criterion and it had not been
+      built yet when the termination happened.
 
   - id: DEBT-69
     status: planned
