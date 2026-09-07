@@ -16488,6 +16488,22 @@ debt:
       more — the duplicate User rows that raised the concern were observed in
       production, which this session did not and could not measure. Do not read
       the zero as "theoretical".
+      THE SCHEMA GIVES THE EMAIL PATH NOTHING TO STAND ON, AND THIS IS THE
+      FOURTH ARGUMENT FOR R1 (recorded at SELF-1's request, not fixed). `User`
+      has NO @@ constraints of any kind — not a unique on (organizationId,
+      email), not a compound index, nothing beyond `clerkUserId String @unique`.
+      `StaffMember.email` is `String?` with no index either, and that model's
+      only @@unique is ([organizationId, squareTeamMemberId]). THE ONE
+      (organizationId, email) UNIQUE IN THE WHOLE SCHEMA IS ON PendingInvite,
+      and that matters because /users reasons about that index at length
+      (users/page.tsx:82-84, "case-SENSITIVE ... `Taylin@keva.com` and
+      `taylin@keva.com` are DISTINCT rows in one org") in a paragraph easily
+      read as being about `User`. It is not. `User` has nothing.
+      So resolving a login by email inside an org is ambiguous BY CONSTRUCTION,
+      and any code that then reads a ROLE off the result is picking one of
+      several possible answers. Adding the constraint is not a free fix: it
+      would need a data audit first, on a branch this session could not measure,
+      and it would be a non-additive migration. Recorded, not attempted.
       THE CHEAP HALF IS THE orderBy. Adding one to findStaffMemberForEmail makes
       today's accidental determinism structural without changing any answer, and
       needs no ruling. The expensive half — making it refuse ambiguity, which
