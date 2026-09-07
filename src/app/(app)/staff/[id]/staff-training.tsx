@@ -72,6 +72,26 @@ function statusBadge(a: StaffTrainingAssignment) {
   return <Badge variant="secondary">Not started</Badge>
 }
 
+// The unassign rule (Gary, 2026-09-07): an assignment nobody has started can
+// be removed; one with any progress or a completion against it cannot — the
+// record is proof the person did the training and must not be erasable by a
+// stray click. Returns the reason it is blocked, or null when it is removable.
+// The manager gets that reason as a sentence in the confirm; the route's 409
+// (which checks the same things server-side) is the backstop.
+function removalBlockedReason(a: StaffTrainingAssignment): string | null {
+  if (a.certifiedAt) return "it has been certified"
+  const done = a.lessons.filter((l) => l.completedAt).length
+  if (done > 0) {
+    return `${done} of its ${a.lessons.length} lesson${a.lessons.length === 1 ? "" : "s"} ${
+      done === 1 ? "is" : "are"
+    } already marked complete`
+  }
+  if (a.attempts.length > 0) {
+    return `its quiz has been attempted ${a.attempts.length === 1 ? "once" : `${a.attempts.length} times`}`
+  }
+  return null
+}
+
 function quizStatus(a: StaffTrainingAssignment): string {
   if (!a.quiz) return "No quiz"
   const passed = a.attempts.find((t) => t.status === "Passed")
@@ -216,7 +236,7 @@ export function StaffTraining({
             const done = a.lessons.filter((l) => l.completedAt).length
             const pct = total > 0 ? Math.round((done / total) * 100) : 0
             const isOpen = expanded.has(a.id)
-            const noProgress = done === 0 && a.attempts.length === 0 && !a.certifiedAt
+            const blockedReason = removalBlockedReason(a)
             const quizPassed = a.attempts.some((t) => t.status === "Passed")
             const pendingAttempt = a.attempts.find((t) => t.status === "PendingReview")
             const readyToCertify =
@@ -335,35 +355,39 @@ export function StaffTraining({
                           Log hours
                         </Button>
                       )}
-                      {noProgress && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-[var(--color-destructive)]">
-                              <Trash2 className="h-4 w-4 mr-1" />
-                              Remove
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Remove this assignment?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                “{a.moduleTitle}” has no progress yet, so it can be removed. Assignments with
-                                any recorded progress are permanent records.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-[var(--color-destructive)]">
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Remove
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              {blockedReason ? "This assignment can’t be removed" : "Remove this assignment?"}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {blockedReason
+                                ? `“${a.moduleTitle}” can’t be removed because ${blockedReason}. A training record is proof the work was done, so it stays on this team member’s file.`
+                                : `“${a.moduleTitle}” has no progress yet, so it can be removed. Assignments with any recorded progress are permanent records.`}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>{blockedReason ? "Close" : "Cancel"}</AlertDialogCancel>
+                            {!blockedReason && (
                               <AlertDialogAction
+                                disabled={busy === a.id}
                                 onClick={() =>
                                   call(`/api/hr/training/assignments/${a.id}`, { method: "DELETE" }, a.id)
                                 }
                               >
-                                Remove
+                                {busy === a.id ? "Removing..." : "Remove"}
                               </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
+                            )}
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
 
                     {a.attempts.length > 0 && (
