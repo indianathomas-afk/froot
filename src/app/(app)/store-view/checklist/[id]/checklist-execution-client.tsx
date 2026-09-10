@@ -9,6 +9,80 @@ import { checklistState, isCompletedLate } from "@/lib/checklist-lifecycle"
 import { frozenWindow, formatWindowTime, COMPLETED_LATE_BADGE } from "@/lib/checklist-status-display"
 import { HandoffBanner, HandoffComposer, type HandoffTarget } from "./handoff-notes"
 
+// CHK-7 — iPhone capture, made sendable. ONE canvas re-encode answers two
+// separate problems: (1) the iPhone default capture format is HEIC, which most
+// DESKTOP browsers cannot render, so an admin reviewing the record could not
+// open it; and (2) a raw phone photo is several MB against Vercel's ~4.5 MB
+// request cap. Re-encoding to JPEG at a 1600px long edge puts a legible
+// fridge-or-thermometer shot at roughly 200-400 KB, which clears both.
+//
+// DECODING is the platform's job, and iOS decodes HEIC natively — which is why
+// the conversion happens on the phone rather than on the server, where it
+// would need an image library the project does not carry. If decode or encode
+// fails, this throws and the caller falls back to sending the original, which
+// the route's allow-list accepts for exactly this case.
+const MAX_EDGE = 1600
+const JPEG_QUALITY = 0.8
+
+// Mirrors MAX_BYTES in src/app/api/upload/checklist-photo/route.ts. Checked
+// here as well so an oversized file is refused with a sentence before it is
+// put on the wire, rather than after a slow upload over store wifi.
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+
+async function encodeToJpeg(source: CanvasImageSource, sw: number, sh: number): Promise<Blob> {
+  const scale = Math.min(1, MAX_EDGE / Math.max(sw, sh))
+  const w = Math.max(1, Math.round(sw * scale))
+  const h = Math.max(1, Math.round(sh * scale))
+  const canvas = document.createElement("canvas")
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext("2d")
+  if (!ctx) throw new Error("canvas unavailable")
+  ctx.drawImage(source, 0, 0, w, h)
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY)
+  )
+  if (!blob) throw new Error("encode failed")
+  return blob
+}
+
+async function downscaleToJpeg(file: File): Promise<Blob> {
+  if (typeof createImageBitmap === "function") {
+    const bitmap = await createImageBitmap(file)
+    try {
+      return await encodeToJpeg(bitmap, bitmap.width, bitmap.height)
+    } finally {
+      bitmap.close()
+    }
+  }
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error("decode failed"))
+      el.src = url
+    })
+    // `return await` and not `return` — the finally below revokes the object
+    // URL, and it must not run until the canvas has finished reading the image.
+    return await encodeToJpeg(img, img.naturalWidth, img.naturalHeight)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+// The server's sentence, if it sent one. Every message this file shows a staff
+// member comes from here or from a named local case — never a bare status code
+// with no words around it.
+async function readError(res: Response): Promise<string | null> {
+  try {
+    const data = await res.json()
+    return typeof data?.error === "string" ? data.error : null
+  } catch {
+    return null
+  }
+}
+
 interface TaskAttachment {
   id: string
   label: string
@@ -100,6 +174,39 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
   const [pickingStaffFor, setPickingStaffFor] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // CHK-7 — the photo a crew member shoots, keyed by task. A photo is an
+  // ATTRIBUTE OF THE COMPLETION, not an event of its own: TaskLog.photoUrl is
+  // a column on the log row. So the blob is uploaded on capture and its URL is
+  // held here until the task is actually ticked, then written by the same
+  // task-log request that records who did it. Seeded from the existing logs so
+  // reopening a checklist shows the photos it was completed with.
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {}
+    for (const log of checklist.taskLogs) {
+      if (log.photoUrl) m[log.taskId] = log.photoUrl
+    }
+    return m
+  })
+  const [photoBusy, setPhotoBusy] = useState<Set<string>>(new Set())
+
+  // CHK-7 — THE VISIBLE FAILURE, per task. Silent refusal was half this bug:
+  // logTask ended in `.catch(() => {})` and never read res.ok, so a 403, a
+  // closed-day 409 or a dropped connection left the checkbox showing done and
+  // nothing written to the record.
+  const [taskErrors, setTaskErrors] = useState<Record<string, string>>({})
+
+  const setTaskError = useCallback((taskId: string, message: string | null) => {
+    setTaskErrors((prev) => {
+      if (message === null) {
+        if (!(taskId in prev)) return prev
+        const n = { ...prev }
+        delete n[taskId]
+        return n
+      }
+      return { ...prev, [taskId]: message }
+    })
+  }, [])
+
   // DEBT-2b: fall back to "General" for a blank section, matching the template
   // detail page, both print pages and the CSV import's default. This is DISPLAY
   // ONLY — the grouping key is derived here and never written back.
@@ -147,12 +254,77 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
   const progress = totalTasks > 0 ? (completedCount / totalTasks) * 100 : 0
   const totalMinutes = Math.round(tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0))
 
-  async function logTask(taskId: string, staffId?: string) {
-    await fetch(`/api/checklists/${checklist.id}/task-log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taskId, completedByStaffId: staffId ?? null }),
-    }).catch(() => {})
+  // CHK-7: carries `photoUrl` — the reason that column existed on this route
+  // and was never populated — and RETURNS WHETHER THE WRITE LANDED so callers
+  // can put the screen back instead of showing a tick the record does not have.
+  async function logTask(taskId: string, staffId?: string, photoUrl?: string | null): Promise<boolean> {
+    let res: Response
+    try {
+      res = await fetch(`/api/checklists/${checklist.id}/task-log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, completedByStaffId: staffId ?? null, photoUrl: photoUrl ?? null }),
+      })
+    } catch {
+      setTaskError(taskId, "That did not save — no connection. Check the store's wifi and tap it again.")
+      return false
+    }
+    if (!res.ok) {
+      setTaskError(taskId, (await readError(res)) ?? `That did not save (error ${res.status}). Tap it again.`)
+      return false
+    }
+    setTaskError(taskId, null)
+    return true
+  }
+
+  // CHK-7 — CAPTURE. Downscale on the phone, upload, hold the URL. Every exit
+  // that is not success puts a sentence on the task.
+  async function handlePhoto(taskId: string, file: File | null | undefined) {
+    if (!file) return
+    setTaskError(taskId, null)
+    setPhotoBusy((prev) => new Set([...prev, taskId]))
+    try {
+      let upload: Blob = file
+      let filename = "photo.jpg"
+      try {
+        upload = await downscaleToJpeg(file)
+      } catch {
+        // The browser could not decode or re-encode this image. Send the
+        // original rather than dropping the shot — the route accepts HEIC for
+        // this case — and let its allow-list rule on it.
+        upload = file
+        filename = file.name || "photo"
+      }
+      if (upload.size > MAX_UPLOAD_BYTES) {
+        setTaskError(taskId, "That photo is too large to send. Take it with the camera rather than attaching a full-size file.")
+        return
+      }
+
+      const form = new FormData()
+      form.append("file", new File([upload], filename, { type: upload.type || file.type }))
+      form.append("checklistId", checklist.id)
+      form.append("taskId", taskId)
+
+      let res: Response
+      try {
+        res = await fetch("/api/upload/checklist-photo", { method: "POST", body: form })
+      } catch {
+        setTaskError(taskId, "The photo did not send — no connection. Check the store's wifi and try again.")
+        return
+      }
+      if (!res.ok) {
+        setTaskError(taskId, (await readError(res)) ?? `The photo did not send (error ${res.status}). Try again.`)
+        return
+      }
+      const { url } = (await res.json()) as { url: string }
+      setPhotoUrls((prev) => ({ ...prev, [taskId]: url }))
+    } finally {
+      setPhotoBusy((prev) => {
+        const n = new Set(prev)
+        n.delete(taskId)
+        return n
+      })
+    }
   }
 
   const handleTaskClick = useCallback((taskId: string) => {
@@ -161,25 +333,38 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
     if (isClosedFact) return
     if (completed.has(taskId)) {
       // Uncomplete: no staff picker needed
+      const priorStaff = staffMap[taskId]
       setCompleted((prev) => { const n = new Set(prev); n.delete(taskId); return n })
       setStaffMap((prev) => { const n = { ...prev }; delete n[taskId]; return n })
-      logTask(taskId)
+      // CHK-7: on a refusal, put the row back the way the record has it.
+      logTask(taskId).then((ok) => {
+        if (ok) return
+        setCompleted((prev) => new Set([...prev, taskId]))
+        if (priorStaff) setStaffMap((prev) => ({ ...prev, [taskId]: priorStaff }))
+      })
     } else {
       // Show staff picker (or complete directly if no staff)
       if (staff.length > 0) {
         setPickingStaffFor(taskId)
       } else {
         setCompleted((prev) => new Set([...prev, taskId]))
-        logTask(taskId)
+        logTask(taskId, undefined, photoUrls[taskId]).then((ok) => {
+          if (!ok) setCompleted((prev) => { const n = new Set(prev); n.delete(taskId); return n })
+        })
       }
     }
-  }, [completed, staff, isClosedFact])
+  }, [completed, staff, isClosedFact, staffMap, photoUrls])
 
   async function selectStaff(taskId: string, staffId: string) {
     setPickingStaffFor(null)
     setCompleted((prev) => new Set([...prev, taskId]))
     setStaffMap((prev) => ({ ...prev, [taskId]: staffId }))
-    await logTask(taskId, staffId)
+    // CHK-7: the photo staged on this task rides along on the completion write.
+    const ok = await logTask(taskId, staffId, photoUrls[taskId])
+    if (!ok) {
+      setCompleted((prev) => { const n = new Set(prev); n.delete(taskId); return n })
+      setStaffMap((prev) => { const n = { ...prev }; delete n[taskId]; return n })
+    }
   }
 
   async function handleSubmit() {
@@ -299,6 +484,7 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
                 {sectionTasks.map((task) => {
                   const isDone = completed.has(task.id)
                   const isPicking = pickingStaffFor === task.id
+                  const isPhotoBusy = photoBusy.has(task.id)
                   const completedBy = staffMap[task.id] ? staffById[staffMap[task.id]] : null
 
                   return (
@@ -433,12 +619,66 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
                         </div>
                       )}
 
-                      {task.requiresPhoto && !isDone && !isPicking && !isClosedFact && (
-                        <div className="mt-2 ml-8">
-                          <button className="flex items-center gap-1.5 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-sm px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity">
-                            <Camera className="h-4 w-4" /> Take Photo
-                          </button>
+                      {/* CHK-7 — THE PHOTO. What stood here was a <button>
+                          with no onClick, unchanged since the first commit: it
+                          opened nothing, sent nothing, and told the staff
+                          member nothing. The control is a <label> wrapping the
+                          input so the tap target IS the file input — no ref
+                          and no synthetic click to go wrong on iOS.
+                          `capture="environment"` takes iPhone straight to the
+                          rear camera; that forgoes the library picker, a
+                          tradeoff named on the CHK-7 row. */}
+                      {task.requiresPhoto && (photoUrls[task.id] || (!isDone && !isPicking && !isClosedFact)) && (
+                        <div className="mt-2 ml-8" onClick={(e) => e.stopPropagation()}>
+                          {photoUrls[task.id] && (
+                            <a
+                              href={photoUrls[task.id]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 min-h-[44px] py-2 px-3 mb-2 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] hover:bg-[var(--color-accent)] transition-colors text-sm text-[var(--color-foreground)]"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={photoUrls[task.id]} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+                              {/* The staged state says so plainly: the photo
+                                  is not on the record until the task is
+                                  ticked, and a crew member should not have to
+                                  infer that. */}
+                              <span>{isDone ? "Photo on this record" : "Photo ready — saves when you tick the task"}</span>
+                            </a>
+                          )}
+                          {!isDone && !isPicking && !isClosedFact && (
+                            <label
+                              className={`flex w-fit items-center gap-1.5 min-h-[44px] bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-sm px-3 py-1.5 rounded-md transition-opacity ${
+                                isPhotoBusy ? "opacity-60" : "cursor-pointer hover:opacity-90"
+                              }`}
+                            >
+                              <Camera className="h-4 w-4" />
+                              {isPhotoBusy ? "Sending photo..." : photoUrls[task.id] ? "Retake Photo" : "Take Photo"}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                disabled={isPhotoBusy}
+                                className="sr-only"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  // Cleared so retaking the SAME file fires
+                                  // change again.
+                                  e.target.value = ""
+                                  handlePhoto(task.id, file)
+                                }}
+                              />
+                            </label>
+                          )}
                         </div>
+                      )}
+
+                      {/* CHK-7 — the refusal, in words, at the task it
+                          happened on. Whatever the server said. */}
+                      {taskErrors[task.id] && (
+                        <p className="mt-2 ml-8 text-sm text-[var(--color-warning-text)] bg-[var(--color-warning-bg)] border border-[var(--color-warning-border)] rounded-md px-3 py-2">
+                          {taskErrors[task.id]}
+                        </p>
                       )}
                     </div>
                   )

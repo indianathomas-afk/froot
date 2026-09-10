@@ -2646,6 +2646,117 @@ phases:
       report that raises the question), DEBT-48 (flagged, never hidden — the
       same argument one day later).
 
+  - id: CHK-7
+    track: checklists
+    size: S
+    status: in_progress
+    commits: ["ce1cf9d"]
+    title: "Take Photo did nothing — the button had no handler, no input and no route; capture wired, and the failure made visible"
+    notes: >
+      2026-09-09. Short-form repair session, prompt in
+      docs/prompts/CHK-7_photo_capture_repair.md. NO DECISIONS.md ENTRY AND ONE
+      MAY BE NEEDED — see THE RULING NOT TAKEN below.
+
+      THE PROMPT'S HEADER SAID CHK-6 AND CHK-6 WAS ALREADY TAKEN. The row above
+      this one is the planned date-navigation row filed 2026-08-10 and is
+      untouched. The file won over the prompt header, per the prompt's own repo
+      gate. This is CHK-7.
+
+      THE MEASURED FACT: the Take Photo button on
+      /store-view/checklist/[id] was a bare <button> with no onClick, no file
+      input beside it and no upload route to call. `git log -S "Take Photo"`
+      returns one commit — 1cfdf76, 2026-06-26, "Build Froot Phase 1" — so it
+      opened nothing from the day it shipped. `grep -rn requiresPhoto src`
+      confirms the flag was authored in templates, badged on both print pages
+      and rendered as that button, and had no other consumer on the execution
+      path. TaskLog.photoUrl has existed since the same commit and was never
+      once written by the app.
+
+      NOT WHAT IT LOOKED LIKE. The prompt asked whether this was HEIC
+      rejection, the ~4.5 MB body cap, a swallowed error or a blob token. It was
+      none of them, because there was no upload to reject, size, fail or
+      authenticate. The nearby allow-list — pdf/jpeg/png at 10 MB in
+      api/upload/task-attachment — belongs to the ADMIN template attachment
+      (the reference photo an admin attaches for the crew to look at) and is on
+      a different path entirely. Never filed as a row or a debt before today.
+
+      THE FIX, THREE PARTS. (1) CAPTURE: a <label> wrapping a hidden
+      <input type="file" accept="image/*" capture="environment">, so the tap
+      target IS the input and there is no ref or synthetic click to misfire on
+      iOS. (2) A NEW ROUTE, POST /api/upload/checklist-photo, which stores the
+      blob and returns its URL and writes NOTHING to the database — the record
+      is still written by task-log, which already owns photoUrl, the closed-day
+      409, the task-ownership refusal and the as-executed section freeze. It
+      re-applies those gates itself because an upload route cannot lean on the
+      write that follows it; by then the blob exists. (3) THE RECORD: the URL is
+      held in the client until the task is ticked, then written by the same
+      task-log request that records who did it. A photo is an ATTRIBUTE OF THE
+      COMPLETION — photoUrl is a column on TaskLog, not a table — so it must
+      not become a second author of the same fact.
+
+      HEIC AND SIZE, ANSWERED BY ONE CANVAS RE-ENCODE, AND THE TRADEOFF. The
+      phone re-encodes to JPEG at a 1600px long edge before sending: iPhone
+      captures HEIC, which most DESKTOP browsers cannot render, and a raw phone
+      photo runs several MB against Vercel's ~4.5 MB request cap. Downscaling
+      clears both at roughly 200-400 KB. CHOSEN OVER widening the allow-list
+      alone (which would store HEIC an admin on a laptop could not open) and
+      over a presigned direct-to-blob path (which the private HR and guide
+      stores use, but which is more machinery than a 300 KB JPEG needs; the
+      public-store FormData POST is already the house pattern for task-scoped
+      uploads). Conversion is on the PHONE because iOS decodes HEIC natively
+      and the server would need an image library the project does not carry.
+      THE NAMED TRADEOFF: if decode or encode fails, the ORIGINAL is sent and
+      the route's allow-list accepts image/heic and image/heif as a last-resort
+      passthrough. That can store a HEIC some desktop browsers offer as a
+      download rather than render inline. Losing the shot on the floor was
+      judged the worse outcome. SECOND TRADEOFF: capture="environment" takes
+      iPhone straight to the rear camera, which is right for a fridge or a
+      thermometer and also stops a library photo standing in for one taken now
+      — but it forgoes the library picker entirely, so a photo shot two minutes
+      before opening the app cannot be attached.
+
+      THE SILENT HALF, WHICH WAS A SECOND LIVE BUG ON THE SAME PATH. logTask
+      ended in `.catch(() => {})` and never read res.ok, so EVERY task tap —
+      not only photo ones — swallowed its outcome: a 403 from store scope, the
+      closed-day 409 CHK-3 ships, or dropped store wifi all left the checkbox
+      showing done and nothing written to the record. It now returns whether
+      the write landed, callers put the row back when it did not, and the
+      server's own sentence is shown at the task that failed. The closed-day
+      409's message reaches a crew member for the first time here.
+
+      THE RULING NOT TAKEN, AND IT IS THE ONE THING THIS ROW LEAVES OPEN:
+      requiresPhoto STILL DOES NOT GATE COMPLETION. A crew member can tick a
+      photo-required task with no photo, exactly as before. Whether a missing
+      photo should REFUSE a completion at 11pm — or warn, or flag it for the
+      operations report the way DEBT-48 argues — is a ruling about what the
+      floor is allowed to do, not a repair, and was deliberately not decided
+      under a TIER 2 prompt. Until it is decided, requiresPhoto is an
+      invitation and not a requirement, and the operations report cannot tell a
+      photo task closed with evidence from one closed without.
+
+      THE PHOTO LANDS BUT ONLY ONE SURFACE SHOWS IT, AND THAT IS A REAL LIMIT
+      OF THIS FIX. `grep -rn photoUrl src` returns the execution client and the
+      task-log route and nothing else. There is no admin per-checklist detail
+      page — /checklists is a list — and the print page reads taskLogs only for
+      the completion tick, not for photoUrl. So a captured photo is visible by
+      reopening the EXECUTION page and nowhere else: a manager reviewing
+      compliance from an admin surface still cannot see the evidence a crew
+      member shot. Out of scope for a TIER 2 repair of the capture path, and it
+      pairs with the completion-gate ruling above — a photo the report cannot
+      count and an admin cannot view is not yet a compliance record.
+
+      ALSO STILL UNWIRED, NOT TOUCHED: requiresTemp has NO control at all on
+      the execution page — it is declared in the client's Task interface and
+      read nowhere, and TaskLog.temperatureValue is as unwritten as photoUrl
+      was. Same shape of defect, same first commit, out of scope here. Needs
+      its own row.
+
+      Disconfirmed by: a real iPhone photo through a real photo-required task
+      landing on TaskLog.photoUrl and rendering on reopen. Related: CHK-3 (the
+      closed-day 409 whose message now reaches the floor), CHK-4 (the
+      read-only-mirrors-a-server-refusal discipline this follows), DEBT-48
+      (flagged, never hidden — the argument the completion gate would turn on).
+
   # ---- Inventory ----
 
   - id: I-1
