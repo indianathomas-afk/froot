@@ -2,6 +2,40 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-09 — Take Photo: the button now opens a camera
+
+**Work SHA:** `ce1cf9d` on `staging`, not pushed at the time of writing.
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed.
+
+**Payload:** **2 commits** on `staging` — the work and this docs commit. One
+client component and **one new route**, `POST /api/upload/checklist-photo`.
+**No schema change, no migration, no cron, no Square call, no Clerk change, no
+new page route.** Writes to the **public** Blob store via the SDK default
+`BLOB_READ_WRITE_TOKEN` — the same store `task-attachment` and
+`message-attachment` already use. The private `froot-hr` and `froot-guide`
+stores are not touched.
+
+**What it does.** On `/store-view/checklist/[id]`, the Take Photo button on a
+photo-required task now opens the phone's rear camera, downscales the shot to
+JPEG on the device, uploads it, and writes it to `TaskLog.photoUrl` when the
+task is ticked. It previously had no click handler at all and did nothing —
+since `1cfdf76`, the first commit. Separately, a failed task tap now shows the
+staff member why instead of leaving a tick with nothing behind it.
+
+**New capability to watch on first deploy:** this is the first write to
+`checklist-photos/` in the public Blob store. Nothing reads that prefix yet
+except the thumbnail on this page.
+
+**Rollback is code-only and needs no database step.** Reverting the work commit
+restores the dead button. `TaskLog.photoUrl` rows written in the meantime stay
+valid and simply stop being displayed; blobs already stored are orphaned but
+harmless.
+
+**Still open after this deploy:** `requiresPhoto` does not gate completion — a
+photo task can still be closed with no photo. That is a ruling, filed on CHK-7,
+not a regression from this deploy.
+
 ## UNPROMOTED — 2026-09-07 — Unassign training: the refusal is shown, not hidden
 
 **Work SHA:** `75ff274` on `staging`, not pushed at the time of writing.
