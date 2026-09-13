@@ -2942,6 +2942,25 @@ phases:
       PROMOTED TO PRODUCTION IN "10c9cf5", merging "509fe62". Gary: "CHK-8 stays
       promoted, no revert."
 
+      THE PROMOTION GATE PASSED — ANSWERED 2026-09-13, THE SAME DAY IT WAS
+      RAISED. The paragraph below is the open question as it was written, left
+      unedited above the answer.
+
+      GATE RESULT: PASSED ON STAGING, MEASURED BY GARY BEFORE PROMOTING. He
+      cleared the `__session` cookie mid-edit, pressed Save Template, and the
+      save FAILED LOUDLY — stayed on the page, error shown, edits preserved.
+      That is the three-part pass exactly: no navigation, a visible message, and
+      `savedAndLeaving` never set so the guard stayed armed and the work
+      survived. **`writeFetch`'s `status === 0` arm is therefore OBSERVED, not
+      inferred from the spec**, and it fired against a real Clerk 307 rather
+      than a stubbed response — which is the distinction that made this the gate
+      in the first place, since a stubbed 500 exercises `!res.ok` and never
+      touches the opaque-redirect branch. Every claim in this row is now
+      measured except the two authenticated round trips (drag -> Save -> refresh
+      and Sort Order -> Save -> refresh), which the production report below
+      overtook.
+
+      ── the open question as originally written, 2026-09-13 ──
       THIS ROW WROTE ITSELF A PROMOTION GATE AND THE GATE'S RESULT IS NOT
       RECORDED. The gate was: the cookie-clear test must make an expired-session
       save fail loudly, because writeFetch's `status === 0` arm is verified by
@@ -3000,11 +3019,11 @@ phases:
       precisely when someone is cleaning up malformed rows, which is why two
       rows produced the verdict "the feature is broken".
 
-      STILL LIVE AND NOT FIXED: a one-task section remains unmovable by drag and
-      pinned at 1 in the field, and the field does not SAY so — it presents as a
-      live control that ignores input, which is the exact failure mode this row
-      was opened to remove. Gary's cleanup removed today's two instances; the
-      behaviour is unchanged for the next one. Prevention is CHK-13.
+      STILL LIVE AND NOT FIXED, NOW ITS OWN ROW: a one-task section remains
+      unmovable by drag and pinned at 1 in the field, and the field does not SAY
+      so. Split out to CHK-14 on Gary's instruction 2026-09-13, for a reason
+      worth keeping: held inside this row it would close when this row closes,
+      and the defect outlives it. Prevention of new instances is CHK-13.
 
       Related: CHK-1 (the contiguity invariant and groupTasksBySection, both
       relied on and both untouched), DEBT-36 (stays closed by the per-section
@@ -3203,6 +3222,12 @@ phases:
       Consider also whether Task Description should simply come first in the
       grid, which is the cheapest version of all and changes no logic.
 
+      GARY'S LEAN, 2026-09-13 — HIS WORDS, AND EXPLICITLY NOT A RULING: the
+      datalist over grid reordering, because "reordering hides the problem, the
+      datalist shows you what sections already exist, which is the information
+      actually missing at that moment". Recorded as a lean so whoever builds
+      this can still argue for (b) or the grid change; it is not decided.
+
       DO NOT SOLVE THIS BY VALIDATION. A length cap, a blocklist, or a "that
       looks like a task" heuristic would reject legitimate long section names
       and teach nothing; free-text sections are DEBT-2b's ruling and CHK-1 did
@@ -3220,6 +3245,62 @@ phases:
       Related: CHK-8 (per-section order, and the reason a singleton section is
       now a dead end), DEBT-2b (sections are free text — the ruling this must
       not overturn), CHK-1 (the Section entity and the contiguity invariant).
+
+  - id: CHK-14
+    track: checklists
+    size: XS-S
+    status: planned
+    title: "A section of one is a dead end in the template editor — no drag target, Sort Order pinned to 1 of 1, and no explanation"
+    notes: >
+      Filed 2026-09-13, split out of CHK-8 on Gary's instruction. THE REASON FOR
+      THE SPLIT IS THE POINT OF THE ROW: held inside CHK-8 it would close when
+      CHK-8 closes, and this defect outlives it. CHK-8 shipped; this did not get
+      fixed by shipping it.
+
+      THE BEHAVIOUR. When a template section holds exactly one task, that task
+      cannot be repositioned by any means the editor offers. Drag: CHK-8's
+      collision filter narrows the drop candidates to the dragged task's own
+      section, which for a section of one is the dragged row itself, so `over`
+      comes back equal to `active` and handleDragEnd returns before touching the
+      array. Sort Order: the same `total = 1` renders the field `min=1 max=1`,
+      and every value clamps back to 1. Neither is a crash, an error, or a
+      refusal — both are silence.
+
+      THE MINIMUM FIX IS THE FIELD SAYING WHY, not restoring the movement.
+      Gary's framing. A disabled input with "Only task in this section" beside
+      it is honest and cheap; the pattern already exists in the same component
+      for the section-changed case, where Sort Order locks and states its
+      reason. What must stop is a control that looks live and ignores input,
+      which is precisely the failure mode CHK-8 was opened to remove — so this
+      row is CHK-8 failing its own standard on an edge it did not consider.
+
+      WHETHER MOVEMENT SHOULD BE RESTORED AT ALL IS OPEN AND IS NOT THE MINIMUM.
+      Before CHK-8, dragging a one-task section's row DID move it: arrayMove
+      plus regroupTasks relocated its whole single-task block, which is section
+      reordering by another name and for such a row was the only way to move it.
+      CHK-8 removed that and gave nothing back, so this is a REGRESSION and not
+      merely a gap. Options if it is ever restored, none ruled: allow a
+      cross-section drop to move a lone task's whole block (narrow, restores
+      exactly what was lost); let a cross-section drop change the task's Section
+      Name (standard grouped-drag behaviour, and arguably how the per-section
+      ruling should be performed by drag); or leave tasks section-bound and give
+      SECTIONS their own reposition, which is CHK-9.
+
+      HOW OFTEN IT FIRES, MEASURED. production br-sparkling-block-a620qvg4, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd, 2026-09-13: three sections of one
+      across 8 templates, of which two were malformed data (CHK-13) and one is a
+      legitimately single-task template ("Peet's Coffee"). Gary cleaned the two
+      by hand the same day, so the live count today is one — and that one is a
+      template with a single task in it, where there is nothing to reorder
+      anyway. SO THIS IS RARE, AND IT IS STILL WORTH FIXING: the two malformed
+      rows produced the verdict "the feature is not working" (CHK-8's appended
+      note), because the task an operator reaches for first is the one that
+      looks wrong in the list, which is exactly the one that cannot move.
+
+      Related: CHK-8 (introduced it, and the row this was split from), CHK-13
+      (prevents the malformed sections that create most instances), CHK-9
+      (section-level reposition, one of the candidate answers above), DEBT-2b
+      (free-text sections — why a section of one is legal in the first place).
 
   # ---- Inventory ----
 
