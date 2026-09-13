@@ -2760,8 +2760,9 @@ phases:
   - id: CHK-8
     track: checklists
     size: S-M
-    status: in_progress
-    commits: []
+    status: shipped
+    shipped: 2026-09-13
+    commits: ["509fe62"]
     title: "Template task reordering: drag constrained to its own section, a Sort Order field beside Est. Time, and the unsaved state made loud"
     notes: >
       2026-09-13. TIER 2, prompt in docs/prompts/CHK-TASK-SORT.md. Two
@@ -2935,10 +2936,81 @@ phases:
       `writeFetch` guards, so it is not wrapped — it only needed to tell the two
       apart. Gary: "wrong message is worse than no message."
 
+      ── APPENDED 2026-09-13, AFTER PROMOTION. The section above is the
+      pre-promotion record and is left unedited. ──
+
+      PROMOTED TO PRODUCTION IN "10c9cf5", merging "509fe62". Gary: "CHK-8 stays
+      promoted, no revert."
+
+      THIS ROW WROTE ITSELF A PROMOTION GATE AND THE GATE'S RESULT IS NOT
+      RECORDED. The gate was: the cookie-clear test must make an expired-session
+      save fail loudly, because writeFetch's `status === 0` arm is verified by
+      reading the spec and not by observation. Whether that test was run before
+      the merge is unknown to this session — Gary has not reported it either
+      way, and "promoted" is not the same fact as "gated". Written down as OPEN
+      rather than folded into the promotion, because a gate nobody recorded is
+      indistinguishable from one that failed (the DEBT-54 distinction). If it
+      was run, the result belongs here.
+
+      THE FIRST REAL-WORLD REPORT WAS "IT'S NOT WORKING", AND IT WAS TWO ROWS OF
+      DATA. Gary tested on production and found Sort Order locked at "1 of 1"
+      and drag doing nothing. Cause confirmed: a section holding ONE task
+      filters the collision candidates down to the dragged row itself, so `over`
+      equals `active` and handleDragEnd returns; the same `total = 1` pins the
+      field to min=1/max=1. Both symptoms, one cause, and it is a REGRESSION —
+      before this row, dragging a one-task section's row DID move it, because
+      arrayMove plus regroupTasks relocated its whole single-task block. That
+      was section reordering, and for such a row it was the only way to move it.
+
+      THE MEASUREMENT, production br-sparkling-block-a620qvg4, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd: 34 sections across 8 templates, 31
+      with 2+ tasks, 3 with one — and one of those three ("Peet's Coffee" /
+      "Coffee Prep") is a legitimately one-task template. So TWO malformed rows
+      in the whole production set: "Turn on Menu's" (Opener Checklist
+      cmqx004es00003apdxqovzc4u, index 24) and "Stock Fruit." (Closer Checklist
+      cmqx004u600293apd9mbhcryg, index 20). Both read as task text typed into
+      the Section Name field. Gary fixed both by hand in the UI; no code change,
+      per-section ruling stands.
+
+      THE NUMBER OF RECORD IS 2 OF 212 TASKS — 0.94%. Stated this way
+      deliberately. The diagnostic query reported `pct_singleton` as a percent
+      of SECTIONS, which put Opener at 25.0% and Closer at 16.7%; by task count
+      those are 2.0% and 3.4%. A template with four sections moves 25 points on
+      one bad row, so the section-percentage overstates the problem by roughly
+      10x. It never reached a row — corrected here so it cannot.
+
+      WHAT THE FIXTURE COULD NOT SEE, AND THE QUESTION THAT WOULD HAVE FOUND IT.
+      Every pre-promotion observation ran against dev br-broad-wave-a6vpjdw0,
+      which has NO malformed sections at all. Summing both branches settles why:
+      production holds 212 tasks, dev 210, and the difference is EXACTLY these
+      two rows — every other template matches dev section-for-section. The dev
+      fixture is a fork taken before the two bad tasks were entered. So this
+      defect class could not have been found by running the dev verification
+      more carefully; the fixture did not contain an instance of it.
+
+      THE STANDING LESSON (Gary, 2026-09-13): WHEN A FIXTURE IS THE EVIDENCE
+      BASE, THE QUESTION TO ASK IS WHAT PRODUCTION HAS THAT THE FIXTURE DOES
+      NOT. Not "did I test enough paths" — the paths were all covered — but
+      "what shapes of data exist out there that are absent in here". Note the
+      direction of the failure, which is § Verifying a guard covers every path
+      one layer over: a clean fixture produces a PASS, so the session stops
+      looking. And note which row a person reaches for first — "Turn on Menu's"
+      is the task that LOOKS wrong sitting in the list, so it is the one an
+      operator tries to move. A defect that only fires on malformed rows fires
+      precisely when someone is cleaning up malformed rows, which is why two
+      rows produced the verdict "the feature is broken".
+
+      STILL LIVE AND NOT FIXED: a one-task section remains unmovable by drag and
+      pinned at 1 in the field, and the field does not SAY so — it presents as a
+      live control that ignores input, which is the exact failure mode this row
+      was opened to remove. Gary's cleanup removed today's two instances; the
+      behaviour is unchanged for the next one. Prevention is CHK-13.
+
       Related: CHK-1 (the contiguity invariant and groupTasksBySection, both
       relied on and both untouched), DEBT-36 (stays closed by the per-section
       ruling), DEBT-2b (the blank-section gate, kept, message improved),
-      TPL-1a (the disabled-Save-gets-a-reason shape this widens).
+      TPL-1a (the disabled-Save-gets-a-reason shape this widens), CHK-13 (the
+      data-entry hole that produced the two malformed rows).
 
   - id: CHK-9
     track: checklists
@@ -3093,6 +3165,61 @@ phases:
       Related: CHK-8 (prototype and both defect classes), CHK-11 (the blocker
       and the first consumer), CHK-7 (the precedent for a per-site fix missing
       its neighbour).
+
+  - id: CHK-13
+    track: checklists
+    size: S
+    status: planned
+    title: "The Section Name field invites task text — make the right value the easy one"
+    notes: >
+      Filed 2026-09-13 by CHK-8 at Gary's instruction. THIS IS THE ACTUAL
+      PREVENTION, and CHK-8 is only the row that noticed it.
+
+      THE MEASURED EVIDENCE, production br-sparkling-block-a620qvg4, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd. Two of 212 tasks carry a Section
+      Name that is plainly a task description: "Turn on Menu's" (Opener
+      Checklist cmqx004es00003apdxqovzc4u, index 24, wedged between 24 "Store
+      Opening" tasks and 7 "Prep & Restocking" ones) and "Stock Fruit." (Closer
+      Checklist cmqx004u600293apd9mbhcryg, index 20). The apostrophe and the
+      trailing period are the tell — that is prose, not a category. Gary cleaned
+      both by hand; this row is about the next two.
+
+      WHY IT HAPPENS, AND IT IS THE FORM'S FAULT NOT THE OPERATOR'S. In the New
+      Task panel, Section Name is the FIRST input in the grid, Est. Time (min)
+      is second, and Task Description is a textarea two fields below. Someone
+      who clicks Add Task and starts typing the thing they want done puts it in
+      Section Name. The field is a bare free-text Input with no affordance
+      pointing at the template's existing sections, so nothing on screen says
+      "this is a category you already have five of".
+
+      TWO CANDIDATE FIXES, NEITHER RULED. (a) A `<datalist>` of the section
+      names already on this template, so the existing categories are one
+      keystroke away and typing something new is visibly the unusual act.
+      (b) Default the field to the PREVIOUS task's section, which is right
+      almost every time — tasks are added in runs within a section, and the
+      contiguity invariant means the previous task is the one this is being
+      added after. (a) and (b) compose; (b) alone would have prevented both
+      production instances, since each sits directly after a healthy section.
+      Consider also whether Task Description should simply come first in the
+      grid, which is the cheapest version of all and changes no logic.
+
+      DO NOT SOLVE THIS BY VALIDATION. A length cap, a blocklist, or a "that
+      looks like a task" heuristic would reject legitimate long section names
+      and teach nothing; free-text sections are DEBT-2b's ruling and CHK-1 did
+      not overturn it. The goal is to make the correct value the easiest one to
+      enter, not to refuse the wrong one.
+
+      WHAT IT COSTS TODAY, SO THE SIZING IS HONEST: a malformed section is a
+      section of one, and CHK-8 made a section of one UNREORDERABLE — drag has
+      no in-section target and Sort Order pins to 1 of 1, with no message saying
+      why. So a typo in this field now produces a task that cannot be moved, and
+      it is exactly the task an operator will try to move first because it is
+      the one that looks wrong in the list. Two data rows produced the verdict
+      "the feature is broken" (CHK-8, appended note).
+
+      Related: CHK-8 (per-section order, and the reason a singleton section is
+      now a dead end), DEBT-2b (sections are free text — the ruling this must
+      not overturn), CHK-1 (the Section entity and the contiguity invariant).
 
   # ---- Inventory ----
 
