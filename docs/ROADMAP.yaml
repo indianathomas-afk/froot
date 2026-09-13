@@ -2757,6 +2757,343 @@ phases:
       read-only-mirrors-a-server-refusal discipline this follows), DEBT-48
       (flagged, never hidden — the argument the completion gate would turn on).
 
+  - id: CHK-8
+    track: checklists
+    size: S-M
+    status: in_progress
+    commits: []
+    title: "Template task reordering: drag constrained to its own section, a Sort Order field beside Est. Time, and the unsaved state made loud"
+    notes: >
+      2026-09-13. TIER 2, prompt in docs/prompts/CHK-TASK-SORT.md. Two
+      complaints: dragging a task to reorder "rarely persists", and there was no
+      way to reposition without dragging on a 40-plus-task opening checklist.
+
+      THE AUDIT FOUND TWO CAUSES AND NEITHER WAS A BROKEN SAVE. (a) THERE WAS NO
+      SAVE ON DRAG AT ALL. handleDragEnd called setTasks and nothing else — the
+      file holds seven fetch() calls and none of them is a reorder. Order
+      reached the database only through Save Template, which stamps
+      `orderIndex: i` across the flat array in handleSave, and that path was
+      working. Navigate away without pressing Save and the reorder was gone with
+      nothing having said so. (b) CROSS-SECTION DRAGS SNAPPED BACK ON RELEASE.
+      CHK-1's contiguity invariant is enforced by regroupTasks AFTER arrayMove,
+      so dropping a task outside its own section returned it to the top of its
+      own block and dragged that whole block with it. Because a section's tasks
+      are contiguous, most drags of any distance on a 40-task template cross a
+      boundary — which is exactly why the complaint was "rarely", not "never".
+      Within-section drags worked and did persist, if Save was pressed.
+
+      ORDER IS PER-SECTION. GARY RULED IT, REVERSING HIS OWN OPENING RULING IN
+      THE SAME SESSION, AND THE REVERSAL IS THE MOST IMPORTANT THING IN THIS
+      ROW. The prompt specified template-global order — 1..n across the whole
+      template, a task keeping its section label when moved between blocks, with
+      a UI warning on mismatch. The audit reported that this contradicts
+      groupTasksBySection in src/lib/sections.ts, which renders ONE HEADING PER
+      SECTION at every consumer, so a task moved to a global position outside
+      its own section renders back inside that section on the floor. Gary:
+      "an ordering the floor operator never sees is worse than no feature."
+      Order is a task's position WITHIN ITS OWN SECTION; the cross-section
+      warning he had specified was dropped as dead, because moving between
+      sections is a Section Name change and not a Sort Order change. CHK-1's
+      contiguity invariant is untouched and DEBT-36 stays closed.
+
+      NO NEW ENDPOINT, AND NO DRAG-END AUTOSAVE. Also ruled, against the
+      prompt's own deliverable. A dedicated reorder endpoint plus an instant
+      save on drag would have made drags persist immediately while every other
+      field on the form still waited for Save Template — split-brain
+      persistence, judged worse than the behaviour being fixed. The single save
+      path stays PATCH /api/templates/[id]. Sort Order mutates local state like
+      every other field. NOTHING SERVER-SIDE CHANGED IN THIS ROW: no route, no
+      schema, no migration, one file touched.
+
+      THE TWO-PHASE OFFSET IN THE PROMPT WAS DROPPED because there is no unique
+      constraint to collide with. Task.orderIndex is INTEGER NOT NULL DEFAULT 0
+      with no @@unique alone or composite; the only index on Task is
+      [sectionId]. Verified against every migration, not just the schema.
+
+      WHAT WAS BUILT, FOUR PARTS. (1) DRAG CONSTRAINED AT THE COLLISION LAYER,
+      not in handleDragEnd: a CollisionDetection wrapper filters
+      droppableContainers to the active task's own section before delegating to
+      closestCenter. The constraint is therefore visible DURING the drag — rows
+      in other sections do not respond and nothing snaps back on release — which
+      is the difference between this and CHK-1's after-the-fact refusal.
+      handleDragEnd keeps a same-section guard as belt and braces so a future
+      change to the collision strategy cannot silently reintroduce the drop.
+      (2) SORT ORDER FIELD in the Edit Task drawer beside Est. Time (min),
+      1-based and section-relative, helper line "Position 2 of 7 in
+      Prep & Restocking (#26 overall)" carrying the global number so the field
+      cannot be confused with the row's printed index. Out-of-range clamps
+      rather than errors. It is LOCKED WITH A STATED REASON while the same edit
+      is also changing the section name, because 1..n is a different n over
+      there — a field that accepts a number and quietly discards it is the same
+      silent failure this row exists to remove. (3) UNSAVED STATE MADE LOUD:
+      an "Unsaved changes" indicator, a beforeunload guard, and a
+      discard-confirmation on the back arrow. Dirty is a CONTENT COMPARISON
+      against the state the form opened with, not a flag set by every handler,
+      so a drag that ends where it started is not dirty. (4) EVERY DISABLED SAVE
+      NOW SAYS WHY, from one saveBlockers array that also derives the disabled
+      prop, so the message and the button cannot drift.
+
+      TWO STATES USED TO DISABLE SAVE IN COMPLETE SILENCE and are the reason (4)
+      is in this row rather than deferred. An org with ZERO template types
+      disabled Save via `!typeId` while the explanatory message was itself gated
+      on `templateTypes.length > 0` — so the button was dead and the page said
+      nothing at all. And during the template-types fetch, `!typeId` disabled
+      Save with no reason shown. The blank-section message existed but only
+      counted the offenders; it now names the first one.
+
+      THE 0-TO-1 BOUNDARY IS ONE PLACE. orderIndex, array indices and every
+      other position in the file are 0-based; the Sort Order field is the only
+      1-based number in the component. toSortOrderField / fromSortOrderField in
+      template-form.tsx are the only two functions that apply the offset, and
+      the comment on them says not to add a `+ 1` anywhere else.
+
+      DATA HYGIENE WAS NOT NEEDED. dev br-broad-wave-a6vpjdw0, all 8 templates
+      holding tasks: contiguous 0..n-1, distinct = count, no duplicates. NULLs
+      are impossible on a NOT NULL column. No normalisation ran and none was
+      required. Staging br-square-feather was NOT measured — CLAUDE.md bans
+      vercel env pull repo-wide and deployed reads go through the Neon console;
+      Gary dropped that evidence requirement during the session and runs the
+      query himself post-push.
+
+      DISCONFIRMED BY, all on dev br-broad-wave-a6vpjdw0, template
+      cmqx004es00003apdxqovzc4u "Opener Checklist" (48 tasks / 3 sections):
+      a cross-section drag DOWN and a cross-section drag UP both moved nothing,
+      while a within-section drag of the same synthetic mechanism and the same
+      pixel distance moved its row — which is what makes the first two a
+      constraint rather than a dead sensor. Sort Order 12 -> 3 reinserted inside
+      Store Opening with 4/5/6 shifting down. Clamp: 999 -> 7, 0 -> 1, empty ->
+      current, -4 -> 1, 3.7 -> 3. Section-changed lock renders disabled with its
+      sentence. Save blocked on one blank section names the task, on two says
+      "2 tasks ... starting with"; typeId null says "This organization has no
+      template types yet." A forced 500 leaves the page up, shows the error AND
+      keeps "Unsaved changes" lit. And the agreement check that justifies the
+      per-section ruling: for four orderings — as stored, and one within-section
+      move in each of the three sections — the editor's sequence is identical to
+      groupTasksBySection's flattened output after the orderIndex round trip,
+      headings unchanged.
+
+      WHAT IS NOT MEASURED, AND IT IS THREE THINGS, NOT ONE. Every observation
+      above was taken UNAUTHENTICATED, through a temporary public /menu harness
+      (deleted before commit) rendering TemplateForm against real dev rows. The
+      dev machine had no Clerk session, CLAUDE.md forbids pulling deployed
+      credentials, and four attempts to establish a session in the automation
+      browser all ended at `__client_uat: 0` with no `__session` cookie. Gary
+      ruled FALLBACK 2026-09-13: commit on the unauthenticated evidence and run
+      the authenticated pass himself in Chrome before promotion. Pending, in his
+      stated order of execution:
+
+      (1) THE `status === 0` ARM OF `writeFetch` IS VERIFIED BY READING THE
+      SPEC, NOT BY OBSERVATION — AND IT IS THE ARM THAT ACTUALLY FIRES IN A
+      BROWSER. The forced-failure test used a stubbed fetch returning a real
+      500, which exercises `!res.ok` and never touches the opaque-redirect
+      branch. A real Clerk 307 is the only thing that produces
+      `type === "opaqueredirect"` / `status === 0`, and that is precisely the
+      case the fix exists for. The 3xx arm beside it is dead code in a browser
+      by construction. THIS IS THE PROMOTION GATE: Gary's ruling is that CHK-8
+      does not promote if the cookie-clear test does not fail loudly.
+
+      (2) Drag -> Save Template -> hard refresh through the real authenticated
+      PATCH. (3) Sort Order -> Save -> hard refresh. handleSave's serialization
+      and the PATCH route were NOT modified by this row and the ordering was
+      verified analytically above, but neither claim is a measurement and
+      neither is written here as one.
+
+      TWO PRE-EXISTING SILENT-SUCCESS DEFECTS FOUND WHILE VERIFYING, BOTH FIXED
+      HERE ON GARY'S RULING. THEY SHARE A SYMPTOM AND A SESSION, NOT A CAUSE,
+      and are named separately because one fix does not imply the other:
+
+      (i) REDIRECT FOLLOWED. `fetch` defaults to `redirect: "follow"`. An
+      expired Clerk session turns an API call into a 307 to /sign-in; fetch
+      follows it, the sign-in PAGE returns 200 with an HTML body, `res.ok` is
+      true, and handleSave navigated to /templates having written nothing and
+      reported success. Observed directly against PATCH /api/templates/[id].
+      Fixed with a `writeFetch` wrapper on every mutating call in the file (six
+      sites) that sets `redirect: "manual"` and throws SessionExpiredError. NOTE
+      THE DETECTION: the browser answers a manual-mode redirect with an OPAQUE
+      REDIRECT — `type === "opaqueredirect"`, `status === 0`, `ok === false` —
+      so a guard written as `status >= 300` alone would never fire. A WRAPPER
+      RATHER THAN PATCHED CALL SITES because the bug is a DEFAULT: every write
+      that does not opt out has it, including writes added later, and only a
+      wrapper is inherited by a call site nobody has written yet.
+
+      (ii) RESPONSE NEVER READ — A DIFFERENT DEFECT CLASS, and Gary corrected
+      the first draft of this row for folding it into (i). handleDelete called
+      `await fetch(...)` and then `router.push("/templates")` unconditionally,
+      reading neither status nor body. A refused delete, a bounced delete and a
+      completed delete were indistinguishable, and no redirect had to be
+      involved for that to be true. Fixed by reading the response, surfacing the
+      error, and setting `savedAndLeaving` only on success. The repo-wide
+      version of THIS defect is CHK-12; its sharpest instance is CHK-11.
+
+      ONE EXTENSION BEYOND THE WRITES, because this row created the hole. The
+      GET of /api/template-types was bounced the same way — 307, HTML 200,
+      `r.json()` throws, empty catch, empty list — and the NEW zero-types save
+      blocker would then have said "This organization has no template types yet.
+      Create one with Manage Types." That sentence is FALSE in that state and
+      sends a manager off to create duplicates. It now distinguishes "none
+      exist" from "I could not ask". A read is not the silent-write hazard
+      `writeFetch` guards, so it is not wrapped — it only needed to tell the two
+      apart. Gary: "wrong message is worse than no message."
+
+      Related: CHK-1 (the contiguity invariant and groupTasksBySection, both
+      relied on and both untouched), DEBT-36 (stays closed by the per-section
+      ruling), DEBT-2b (the blank-section gate, kept, message improved),
+      TPL-1a (the disabled-Save-gets-a-reason shape this widens).
+
+  - id: CHK-9
+    track: checklists
+    size: S
+    status: planned
+    title: "Sections need the same numeric reposition the tasks just got"
+    notes: >
+      Filed 2026-09-13 by CHK-8 at Gary's instruction. NOT A GREENFIELD ROW —
+      read this before scoping it. Section reordering ALREADY SHIPS: CHK-1's
+      SectionManager gives each section up/down chevrons, and moveSection in
+      template-form.tsx moves the section's whole block of tasks, which is what
+      moving a section means when the task array is the order. What is missing
+      is the numeric equivalent of what CHK-8 just built for tasks — type "3"
+      and the section goes third — which on a template with seven sections is
+      the same chevron-mashing problem at one level up. Consider also whether
+      the sections themselves should be drag-reorderable rather than chevron-
+      only. Cheap, because the move primitive exists and only the input is new;
+      the 0-to-1 boundary discipline in CHK-8 applies unchanged.
+
+  - id: CHK-10
+    track: checklists
+    size: S
+    status: planned
+    title: "Editor task numbering is global while Sort Order is per-section — two numbers for one position"
+    notes: >
+      Filed 2026-09-13 by CHK-8 at Gary's instruction, and deliberately NOT
+      built inside it. Each task card prints `idx + 1` counted across the whole
+      template, so a task is "26." on the row and "Position 2 of 7" in its
+      drawer. CHK-8 mitigated the collision rather than removing it, by putting
+      BOTH numbers in the helper line — "Position 2 of 7 in Prep & Restocking
+      (#26 overall)" — so the two can be reconciled by reading. Switching the
+      row to per-section numbering would remove the collision at the source but
+      changes a number an operator reads off every row and may use verbally on
+      the floor ("skip 26"), which is a product decision and not a repair. The
+      table view numbers the same way and would have to move with it. Whichever
+      way it goes, the two surfaces must agree afterwards.
+
+  - id: CHK-11
+    track: checklists
+    size: S
+    status: planned
+    title: "A crew member's shift submit discards its response and navigates home — a failed submit is indistinguishable from a filed one"
+    notes: >
+      Filed 2026-09-13 by CHK-8, which found it while sweeping for its own
+      defect class. NEXT SESSION, NOT DOWN THE BOARD (Gary). Not built in CHK-8:
+      that row was one file and green, and this is a different file on the
+      execution path.
+
+      THE SITE, exactly one line:
+      src/app/(app)/store-view/checklist/[id]/checklist-execution-client.tsx:373.
+      `handleSubmit` calls `await fetch('/api/checklists/<id>/submit', ...)` and
+      then `router.push("/store-view")` unconditionally. It reads neither status
+      nor body. This is defect class (ii) from CHK-8 — RESPONSE NEVER READ —
+      and it is the sharpest instance of it in the repo, because of who is
+      holding the phone.
+
+      WHAT IT COSTS. A crew member finishes a shift checklist and taps submit.
+      A 403 from store scope, the closed-day 409 that CHK-3 ships, or dropped
+      store wifi all produce the same thing: the phone navigates cheerfully back
+      to /store-view and nothing is recorded. Gary: "I find out from an
+      Operations Report showing an unclosed shift" — which is hours later, at
+      the one moment the record was supposed to already exist.
+
+      THE ARGUMENT FOR THE HELPER, AND IT IS THE REASON THIS ROW EXISTS RATHER
+      THAN A ONE-LINE FIX. CHK-7 fixed logTask's swallowed `.catch(() => {})`
+      IN THIS SAME FILE on 2026-09-09. Per-task writes now report failure, show
+      the server's own sentence at the task that failed, and put the checkbox
+      back. Eight days later the FINAL SUBMIT in the same component still
+      discards its response. Same file, same class, one release apart, fixed
+      once and missed once. That is not an oversight to scold; it is evidence
+      that per-call-site discipline does not hold across sessions, which is
+      CHK-12's whole case.
+
+      ALSO APPLY `redirect: "manual"`. On an expired session this call inherits
+      the follow-default too, so it does not merely miss an error — it reads a
+      200 HTML sign-in page as a filed checklist. See CHK-8 for why the
+      detection must test `type === "opaqueredirect"` / `status === 0` and not
+      `status >= 300`.
+
+      Related: CHK-8 (the wrapper and both defect classes), CHK-12 (the sweep
+      this unblocks), CHK-3 (the closed-day 409 that is one of the refusals
+      being swallowed here), CHK-7 (the same file's other half, already fixed).
+
+  - id: CHK-12
+    track: checklists
+    size: M
+    status: planned
+    blockers:
+      - >
+        CHK-11, BY RULING (Gary, 2026-09-13) AND NOT BY DEPENDENCY. Nothing in
+        the sweep technically needs CHK-11 to land first. The gate exists so the
+        shared helper has ONE PROVEN CONSUMER OUTSIDE the file that invented it
+        before it is pointed at 27 more call sites — a helper validated only
+        against template-form.tsx is a pattern, not yet a primitive. Do not
+        unblock this by arguing the dependency is artificial; it is, and that is
+        the point.
+    title: "Repo-wide writeFetch-style helper, then the unchecked-response sweep — 27 remaining sites"
+    notes: >
+      Filed 2026-09-13 by CHK-8. BLOCKED ON CHK-11 BY RULING, so the shared
+      helper has one proven consumer outside the file that invented it before it
+      is pointed at everything else.
+
+      THE MEASUREMENT, TAKEN 2026-09-13 — RANKED SO NOBODY RE-GREPS IT. Query
+      was `grep -rn "^\\s*await fetch(" src/ --exclude-dir=generated`: every
+      write whose response is discarded by construction, no assignment, so
+      `res.ok` cannot be read. 28 hits; CHK-11 takes one, 27 remain.
+
+      TIER 1 — claims success and navigates away. Only
+      checklist-execution-client.tsx:373, which is CHK-11 and is out of this
+      row's count.
+
+      TIER 2 — closes the dialog or clears the selection, claims done, then
+      router.refresh(). The refresh PARTLY rescues these: server state re-reads,
+      so a failed write eventually surfaces as an unchanged row. The lie is
+      transient rather than permanent, which is why they are not Tier 1.
+      templates-client.tsx:153 (bulk activate/archive; clears selection then
+      reloads) · hr/forms/forms-client.tsx:206 ·
+      hr/documents/documents-client.tsx:838 and :892 ·
+      stores/add-store-button.tsx:27 · stores/store-actions.tsx:164 ·
+      staff/staff-buttons.tsx:433 and :536 ·
+      staff/[id]/staff-uploaded-documents.tsx:113 and :127 ·
+      inventory/ingredients/ingredients-client.tsx:227, :236 and :339 ·
+      inventory/vendors/vendors-client.tsx:463 ·
+      inventory/ingredients/deleted/deleted-client.tsx:26.
+
+      TIER 3 — no navigation, no refresh, the caller is simply told it worked.
+      templates-client.tsx:178 (duplicate template) ·
+      dashboard-client.tsx:503 (saveGoal, then setEditing(false) and onSaved()) ·
+      messages-client.tsx:575 (delete corporate update, then onDeleted()) ·
+      inventory/ingredients/duplicates/duplicates-client.tsx:57 and :78 ·
+      hr/training/training-client.tsx:540.
+
+      EXCLUDED AS ALREADY SAFE, listed so the next sweep does not re-examine
+      them: instagram-actions.tsx:43 · labor-settings-client.tsx:2511 and :2522 ·
+      messages-client.tsx:964 · hr/training/training-client.tsx:394 ·
+      templates-client.tsx:99. Each has a `.catch` or a status check inside the
+      window.
+
+      THE COUNT IS 28 BECAUSE THE DEFAULT IS UNSAFE, which is the whole design
+      argument: a repo-wide fix is a shared helper, not 28 edits, and 28 edits
+      would leave the 29th call site — the one written next month — broken
+      again. CHK-7 and CHK-11 in one file, eight days apart, are the proof.
+
+      THE REDIRECT HALF COMPOUNDS IT. Every one of these also inherits
+      `redirect: "follow"`, so on an expired session they do not merely miss an
+      error — they read a 200 HTML sign-in page as a success. The helper must
+      carry BOTH halves: `redirect: "manual"` with opaque-redirect detection,
+      and a read of the response. CHK-8's `writeFetch` in
+      src/app/(app)/templates/template-form.tsx is the prototype; promoting it
+      to src/lib/ is this row's first step.
+
+      Related: CHK-8 (prototype and both defect classes), CHK-11 (the blocker
+      and the first consumer), CHK-7 (the precedent for a per-site fix missing
+      its neighbour).
+
   # ---- Inventory ----
 
   - id: I-1
