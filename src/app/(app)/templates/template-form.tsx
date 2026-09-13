@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2, ChevronUp, ChevronDown, Info } from "lucide-react"
@@ -19,7 +19,7 @@ import { badgePreset } from "@/lib/badge-presets"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent, closestCenter } from "@dnd-kit/core"
+import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent, closestCenter, type CollisionDetection } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
@@ -174,6 +174,82 @@ function regroupTasks(tasks: Task[]): Task[] {
   return sectionGroupsOf(tasks).flatMap((g) => g.tasks)
 }
 
+// ─── Sort order (CHK-8) ───────────────────────────────────────────────────────
+// ORDER IS PER-SECTION. Ruled by Gary 2026-09-13, reversing a template-global
+// draft in the same session. The reason is not preference: `groupTasksBySection`
+// in src/lib/sections.ts renders ONE HEADING PER SECTION at every consumer
+// (store-view execution, print/template, print/checklist, /templates/[id]), so
+// a task moved to a global position outside its own section renders back inside
+// that section on the floor. An ordering the operator executing the checklist
+// never sees is worse than no feature. CHK-1's contiguity invariant therefore
+// stands untouched and DEBT-36 stays closed.
+//
+// `Task.orderIndex` remains GLOBAL on the wire and in the DB — handleSave still
+// stamps `orderIndex: i` across the flat array. That is exactly the
+// serialization of (section order, position within section), because the array
+// is kept regrouped. Nothing about the persisted shape changes.
+
+/** THE 0↔1 BOUNDARY, AND THE ONLY ONE. Array indices and `orderIndex` are
+ *  0-based everywhere in this file and in the database; the Sort Order field is
+ *  the single 1-based number in the component. These two functions are the only
+ *  places the offset is applied — do not add a `+ 1` anywhere else. */
+function toSortOrderField(index0: number): number {
+  return index0 + 1
+}
+function fromSortOrderField(fieldValue: number): number {
+  return fieldValue - 1
+}
+
+interface SectionPosition {
+  /** 0-based index of this task inside its own section's block. */
+  index: number
+  /** How many tasks the section holds. */
+  total: number
+  sectionName: string
+  /** 0-based index in the whole task array — what becomes `orderIndex`. */
+  globalIndex: number
+}
+
+/** Where a task sits inside its own section, plus its global index for the
+ *  helper line. Null for a task id the array does not hold. */
+function sectionPositionOf(tasks: Task[], taskId: string): SectionPosition | null {
+  const globalIndex = tasks.findIndex((t) => t.id === taskId)
+  if (globalIndex < 0) return null
+  const sectionName = tasks[globalIndex].sectionName.trim()
+  const peers = tasks.filter((t) => t.sectionName.trim() === sectionName)
+  return {
+    index: peers.findIndex((t) => t.id === taskId),
+    total: peers.length,
+    sectionName,
+    globalIndex,
+  }
+}
+
+/** Move one task to `toIndex` WITHIN ITS OWN SECTION and splice the section's
+ *  block back where it already was. Out-of-range is clamped, never rejected.
+ *  Every other task keeps its section and its relative order; the caller's
+ *  `regroupTasks` is a no-op on the result, which is the point. */
+/** Read the Sort Order input back as a valid 1-based position. Anything the
+ *  number input can produce — "", "abc", "0", "999", "3.7" — CLAMPS to the
+ *  section's range rather than erroring, per the ruling. Returns the task's
+ *  CURRENT position when there is no position to clamp against. */
+function clampSortOrderField(raw: string, pos: SectionPosition | null): number {
+  if (!pos) return 1
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed)) return toSortOrderField(pos.index)
+  return Math.min(Math.max(parsed, 1), pos.total)
+}
+
+function moveWithinSection(tasks: Task[], taskId: string, toIndex: number): Task[] {
+  const pos = sectionPositionOf(tasks, taskId)
+  if (!pos) return tasks
+  const target = Math.min(Math.max(toIndex, 0), pos.total - 1)
+  if (target === pos.index) return tasks
+  return sectionGroupsOf(tasks).flatMap((g) =>
+    g.name === pos.sectionName ? arrayMove(g.tasks, pos.index, target) : g.tasks
+  )
+}
+
 // DEBT-1b: one shared list — the dropdown and every write path agree by
 // construction rather than by hand-copied literal.
 const PHASES = OPERATIONAL_PHASES.map((value) => ({ value, label: value }))
@@ -203,6 +279,47 @@ interface EditDraft {
   videoUrl: string
 }
 
+// ─── Writes from this form (CHK-8) ───────────────────────────────────────────
+// EVERY MUTATING FETCH IN THIS FILE GOES THROUGH `writeFetch`. Found while
+// verifying CHK-8, and it is the same defect the row was opened for, one layer
+// down: a save that reports success and persists nothing.
+//
+// THE MECHANISM. `fetch` defaults to `redirect: "follow"`. When a Clerk session
+// has expired, the proxy answers an API call with a 307 to /sign-in; fetch
+// follows it, the sign-in PAGE comes back 200 with an HTML body, `res.ok` is
+// true, and the form navigates to /templates having written nothing. Observed
+// directly against PATCH /api/templates/[id]. `handleDelete` was worse — it
+// never read the response at all and navigated unconditionally.
+//
+// THE FIX. `redirect: "manual"` makes the browser hand back an OPAQUE REDIRECT
+// instead of following: `type === "opaqueredirect"`, `status === 0`, `ok ===
+// false`. So the bounce becomes a loud failure at the call site rather than a
+// silent success. Note that `status` is 0, not 307 — a check written as
+// `status >= 300` alone would not fire; the 3xx arm below is only for a
+// non-browser fetch implementation that surfaces the real code.
+//
+// WHY A SHARED WRAPPER AND NOT THREE PATCHED CALL SITES. The bug is a DEFAULT,
+// so every write that does not opt out has it, including writes added later.
+// One wrapper is the only version of this fix that a future call site inherits.
+
+const SESSION_EXPIRED_MESSAGE =
+  "Your session has expired, so nothing was saved. Sign in again in another tab, then press Save Template — your changes are still here."
+
+export class SessionExpiredError extends Error {
+  constructor() {
+    super(SESSION_EXPIRED_MESSAGE)
+    this.name = "SessionExpiredError"
+  }
+}
+
+async function writeFetch(input: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(input, { ...init, redirect: "manual" })
+  if (res.type === "opaqueredirect" || res.status === 0 || (res.status >= 300 && res.status < 400)) {
+    throw new SessionExpiredError()
+  }
+  return res
+}
+
 function formatBytes(b: number) {
   if (b < 1024) return `${b} B`
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
@@ -220,6 +337,16 @@ interface SortableTaskRowProps {
   setExpandedTaskExclusions: React.Dispatch<React.SetStateAction<Set<string>>>
   editDraft: EditDraft
   setEditDraft: React.Dispatch<React.SetStateAction<EditDraft>>
+  // CHK-8. Held OUTSIDE `editDraft` deliberately: everything in that object is
+  // spread straight onto the Task (`{ ...t, ...editDraft }`), and Sort Order is
+  // not a task field — it is a position, and the array is what holds positions.
+  // A `sortOrder` key riding along on every Task would reach the PATCH payload
+  // and the dirty snapshot as a phantom column.
+  editSortOrder: string
+  setEditSortOrder: React.Dispatch<React.SetStateAction<string>>
+  /** Where this task currently sits in its own section. Only read while this
+   *  row is the one being edited; null once the row is gone from the array. */
+  editPosition: SectionPosition | null
   editExistingAttachment: TaskAttachment | null | undefined
   setEditExistingAttachment: React.Dispatch<React.SetStateAction<TaskAttachment | null | undefined>>
   editAttachmentLabel: string
@@ -241,6 +368,7 @@ function SortableTaskRow({
   task, idx, editingTaskId, stores,
   expandedTaskExclusions, setExpandedTaskExclusions,
   editDraft, setEditDraft,
+  editSortOrder, setEditSortOrder, editPosition,
   editExistingAttachment, setEditExistingAttachment,
   editAttachmentLabel, setEditAttachmentLabel,
   editAttachmentFile, setEditAttachmentFile,
@@ -250,6 +378,13 @@ function SortableTaskRow({
 }: SortableTaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
   const isEditing = editingTaskId === task.id
+  // CHK-8: Sort Order is SECTION-RELATIVE, so it is meaningless while this same
+  // edit is moving the task to a different section — 1..n is a different n.
+  // Locked with a stated reason rather than silently ignored: a field that
+  // accepts a number and quietly discards it is precisely the silent failure
+  // this phase exists to remove. Moving between sections is a Section Name
+  // change (Gary, 2026-09-13).
+  const sortOrderLocked = isEditing && editDraft.sectionName.trim() !== task.sectionName.trim()
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -270,7 +405,7 @@ function SortableTaskRow({
         /* ── Inline edit form ── */
         <div className="p-4 space-y-3">
           <h3 className="text-sm font-medium">Edit Task</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Section Name</Label>
               <Input className="h-8 text-sm" value={editDraft.sectionName} onChange={(e) => setEditDraft((p) => ({ ...p, sectionName: e.target.value }))} />
@@ -279,7 +414,33 @@ function SortableTaskRow({
               <Label className="text-xs">Est. Time (min)</Label>
               <Input className="h-8 text-sm" type="number" min={0} step={0.5} value={editDraft.estimatedTimeMinutes} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedTimeMinutes: Number(e.target.value) }))} />
             </div>
+            {/* CHK-8. Sort Order sits beside Est. Time because that is where the
+                operator is already looking when they think about a task's place
+                in the run. It is 1-based and SECTION-RELATIVE; the helper line
+                below carries the global number so the field cannot be mistaken
+                for the "12." printed on the row. */}
+            <div className="space-y-1">
+              <Label className="text-xs">Sort Order</Label>
+              <Input
+                className="h-8 text-sm"
+                type="number"
+                min={1}
+                max={editPosition?.total ?? 1}
+                step={1}
+                disabled={sortOrderLocked}
+                value={editSortOrder}
+                onChange={(e) => setEditSortOrder(e.target.value)}
+                onBlur={() => setEditSortOrder(String(clampSortOrderField(editSortOrder, editPosition)))}
+              />
+            </div>
           </div>
+          {editPosition && (
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              {sortOrderLocked
+                ? `Section is being changed to "${editDraft.sectionName.trim() || "\u2014"}" — save that first, then set its sort order in the new section.`
+                : `Position ${toSortOrderField(editPosition.index)} of ${editPosition.total} in ${editPosition.sectionName} (#${toSortOrderField(editPosition.globalIndex)} overall)`}
+            </p>
+          )}
           <div className="space-y-1">
             <Label className="text-xs">Task Description</Label>
             <Textarea className="text-sm" rows={2} value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
@@ -833,10 +994,23 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
 
   async function handleDelete() {
     setDeleting(true)
+    setSaveError(null)
     try {
-      await fetch(`/api/templates/${initialData!.id}`, { method: "DELETE" })
+      // CHK-8: this used to navigate to /templates without reading the response
+      // at all, so a refused or bounced delete looked exactly like a completed
+      // one. Both halves are fixed — the redirect via `writeFetch`, and the
+      // unchecked status here.
+      const res = await writeFetch(`/api/templates/${initialData!.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        setSaveError(body?.error ?? "Failed to delete template. Please try again.")
+        return
+      }
+      setSavedAndLeaving(true)
       router.push("/templates")
       router.refresh()
+    } catch (err) {
+      setSaveError(err instanceof SessionExpiredError ? err.message : "Failed to delete template. Please check your connection and try again.")
     } finally {
       setDeleting(false)
     }
@@ -851,6 +1025,9 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   const [typeId, setTypeId] = useState(initialData?.typeId ?? "")
   const [templateTypes, setTemplateTypes] = useState<{ id: string; name: string; colorKey: string }[]>([])
   const [typesLoading, setTypesLoading] = useState(true)
+  // CHK-8: "the types list is empty" and "I could not reach the types list"
+  // must not produce the same sentence — see the fetch below.
+  const [typesAuthFailed, setTypesAuthFailed] = useState(false)
   const [frequency, setFrequency] = useState(initialData?.frequency ?? "Daily")
   const [availType, setAvailType] = useState(initialData?.availabilityType ?? "StoreHours")
   // DEBT-1b: normalised on the way in, so a row written before the backfill
@@ -917,6 +1094,10 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   // Inline edit state
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<EditDraft>({ ...emptyTaskFields, estimatedTimeMinutes: 5 })
+  // CHK-8: the Sort Order field's raw text. A string, not a number, so the
+  // input can be transiently empty while the operator retypes it; every read
+  // goes through `clampSortOrderField`.
+  const [editSortOrder, setEditSortOrder] = useState("1")
 
   // Attachment state for new-task form
   const [newAttachmentLabel, setNewAttachmentLabel] = useState("")
@@ -935,10 +1116,25 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   // Patterns). A template whose typeId is null (a CSV import, or a legacy
   // string the backfill could not match) opens with an empty select and cannot
   // be saved until a type is chosen; that is the intended prompt, not a bug.
+  //
+  // CHK-8: `redirect: "manual"` here too, for a reason this row created. On an
+  // expired session this GET was bounced to /sign-in, the HTML came back 200,
+  // `r.json()` threw, the empty catch swallowed it and the list stayed empty —
+  // which the new save blocker would then report as "This organization has no
+  // template types yet. Create one." That sentence is FALSE in that state and
+  // sends an operator off to create duplicate types. A read is not the silent-
+  // write hazard `writeFetch` exists for, so it is not wrapped; it just needs
+  // to tell the difference between "none exist" and "I could not ask".
   useEffect(() => {
     let cancelled = false
-    fetch("/api/template-types")
-      .then((r) => (r.ok ? r.json() : []))
+    fetch("/api/template-types", { redirect: "manual" })
+      .then((r) => {
+        if (r.type === "opaqueredirect" || r.status === 0 || (r.status >= 300 && r.status < 400)) {
+          if (!cancelled) setTypesAuthFailed(true)
+          return []
+        }
+        return r.ok ? r.json() : []
+      })
       .then((data) => {
         if (cancelled) return
         setTemplateTypes(Array.isArray(data) ? data : [])
@@ -953,21 +1149,53 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
   // dnd-kit sensors — distance:8 prevents accidental drags on button clicks
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
+  // CHK-8: id → section name, for the collision filter below. Memoised because
+  // it is rebuilt on every pointer move during a drag otherwise.
+  const sectionOfTaskId = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const t of tasks) m.set(t.id, t.sectionName.trim())
+    return m
+  }, [tasks])
+
+  // CHK-8 — THE DRAG FIX. A drag can now only ever land inside its own section,
+  // because the only droppables offered to the collision algorithm are that
+  // section's rows.
+  //
+  // WHY THIS AND NOT A CHECK IN `handleDragEnd`. CHK-1 already refused
+  // cross-section drops, but it refused them AFTER the fact: `regroupTasks`
+  // snapped the row back on release. Since a section's tasks are contiguous,
+  // most drags of any distance on a 40-task template cross a boundary, so most
+  // drags visibly did something other than what the operator asked — which is
+  // the "reordering rarely works" this phase was opened for. Filtering the
+  // droppables makes the constraint visible DURING the drag: rows in other
+  // sections simply do not respond, nothing snaps back, and the drop lands
+  // where the preview said it would.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const activeSection = sectionOfTaskId.get(String(args.active.id))
+    if (activeSection === undefined) return closestCenter(args)
+    const sameSection = args.droppableContainers.filter(
+      (c) => sectionOfTaskId.get(String(c.id)) === activeSection
+    )
+    return closestCenter({ ...args, droppableContainers: sameSection })
+  }, [sectionOfTaskId])
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
-    if (over && active.id !== over.id) {
-      setTasks((items) => {
-        const oldIndex = items.findIndex((t) => t.id === active.id)
-        const newIndex = items.findIndex((t) => t.id === over.id)
-        // CHK-1: regrouped after the move, so a drag can reorder a task WITHIN
-        // its section but cannot leave a section's tasks scattered. Dropping a
-        // task across a section boundary returns it to its own block; changing
-        // its section is what the section input is for. Without this the array
-        // stops being a valid source of section order and the one-heading
-        // invariant only holds until the first drag.
-        return regroupTasks(arrayMove(items, oldIndex, newIndex))
-      })
-    }
+    if (!over || active.id === over.id) return
+    // Belt and braces. `collisionDetection` above cannot hand us an `over` in
+    // another section, but this is the function that writes the array and it
+    // should not depend on that being true — a future change to the collision
+    // strategy must not silently reintroduce cross-section drops.
+    if (sectionOfTaskId.get(String(active.id)) !== sectionOfTaskId.get(String(over.id))) return
+    setTasks((items) => {
+      const oldIndex = items.findIndex((t) => t.id === active.id)
+      const newIndex = items.findIndex((t) => t.id === over.id)
+      if (oldIndex < 0 || newIndex < 0) return items
+      // CHK-1's contiguity invariant, kept. It is now a no-op on every drag
+      // that reaches here — which is the point: the invariant is enforced by
+      // construction rather than by undoing what the operator just did.
+      return regroupTasks(arrayMove(items, oldIndex, newIndex))
+    })
   }
 
   // CHK-1: the two section-level operations. Both are expressed as moves on the
@@ -1024,10 +1252,44 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       excludedStoreIds: task.excludedStoreIds,
       videoUrl: task.videoUrl ?? "",
     })
+    // CHK-8: the field opens showing where the task already is, so "no change"
+    // is the default and an untouched drawer performs no move.
+    const pos = sectionPositionOf(tasks, task.id)
+    setEditSortOrder(pos ? String(toSortOrderField(pos.index)) : "1")
     setEditExistingAttachment(task.attachment ?? null)
     setEditAttachmentLabel(task.attachment?.label ?? "")
     setEditAttachmentFile(null)
     setEditAttachmentError("")
+  }
+
+  // CHK-1 + CHK-8: ONE commit for the whole drawer — the field patch, then the
+  // Sort Order move — because the three attachment branches below used to hold
+  // three copies of the same `setTasks` and a fourth concern would have made it
+  // four. Regrouped for CHK-1's reason: the drawer can change a task's section.
+  //
+  // ORDER MATTERS. The reinsert is computed against the array AFTER the patch,
+  // so the position is read from the block the task actually ends up in. The
+  // move is skipped entirely when the section changed (the field is locked in
+  // that case — see `sortOrderLocked`) and when the requested position equals
+  // the current one, so a drawer opened and saved without touching Sort Order
+  // reorders nothing.
+  function commitEdit(prev: Task[], taskId: string, attachment?: TaskAttachment | null): Task[] {
+    const before = prev.find((t) => t.id === taskId)
+    const sectionChanged = editDraft.sectionName.trim() !== (before?.sectionName ?? "").trim()
+    const patched = regroupTasks(
+      prev.map((t) => t.id !== taskId ? t : {
+        ...t,
+        ...editDraft,
+        estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null,
+        ...(attachment !== undefined ? { attachment } : {}),
+      })
+    )
+    if (sectionChanged) return patched
+    const pos = sectionPositionOf(patched, taskId)
+    if (!pos) return patched
+    const target = fromSortOrderField(clampSortOrderField(editSortOrder, pos))
+    if (target === pos.index) return patched
+    return moveWithinSection(patched, taskId, target)
   }
 
   async function saveEditTask(taskId: string) {
@@ -1036,21 +1298,25 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       form.append("file", editAttachmentFile)
       form.append("taskId", taskId)
       form.append("label", editAttachmentLabel || editAttachmentFile.name)
-      const res = await fetch("/api/upload/task-attachment", { method: "POST", body: form })
+      const res = await writeFetch("/api/upload/task-attachment", { method: "POST", body: form })
+        .catch((err) => { if (err instanceof SessionExpiredError) return null; throw err })
+      if (!res) {
+        setEditAttachmentError(SESSION_EXPIRED_MESSAGE)
+        return
+      }
       if (res.ok) {
         const att = await res.json() as TaskAttachment
-        setTasks((prev) => regroupTasks(prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: att })))
+        setTasks((prev) => commitEdit(prev, taskId, att))
       } else {
         setEditAttachmentError("Upload failed. Please try again.")
         return
       }
     } else if (editExistingAttachment === null) {
-      await fetch(`/api/upload/task-attachment/${taskId}`, { method: "DELETE" })
-      setTasks((prev) => regroupTasks(prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null, attachment: null })))
+      await writeFetch(`/api/upload/task-attachment/${taskId}`, { method: "DELETE" })
+        .catch((err) => { if (!(err instanceof SessionExpiredError)) throw err })
+      setTasks((prev) => commitEdit(prev, taskId, null))
     } else {
-      // CHK-1: the edit drawer can change a task's section, so its save is a
-      // commit like the row input's blur — regrouped for the same reason.
-      setTasks((prev) => regroupTasks(prev.map((t) => t.id !== taskId ? t : { ...t, ...editDraft, estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null })))
+      setTasks((prev) => commitEdit(prev, taskId))
     }
     setEditingTaskId(null)
   }
@@ -1122,6 +1388,93 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
     setTasks((p) => p.filter((t) => t.id !== id))
   }
 
+  // ─── Unsaved-changes guard (CHK-8) ─────────────────────────────────────────
+  // THE FORM HAS NO AUTOSAVE AND IS NOT GETTING ONE. Split-brain persistence —
+  // a drag writing instantly while Est. Time waits for Save Template — was
+  // ruled worse than the current behaviour (Gary, 2026-09-13). The single save
+  // path stays PATCH /api/templates/[id] behind the Save Template button.
+  //
+  // What that leaves is the ACTUAL failure: an operator reorders 40 tasks,
+  // navigates away, and the work is gone with nothing having said so. The
+  // guard below is the replacement for autosave, not a nicety.
+  //
+  // Dirty is a CONTENT COMPARISON against the state this form opened with, not
+  // a flag set by every mutation handler. A drag that ends where it started, or
+  // a value typed and retyped, is not dirty — a flag would report both, and an
+  // indicator that cries wolf is one the reader learns to ignore.
+  const dirtySnapshot = useMemo(() => JSON.stringify({
+    name, description, typeId, frequency, availType, phase, startOffset, endOffset, appliesTo,
+    storeIds: [...selectedStoreIds].sort(),
+    // Field-by-field rather than the whole Task: `attachment` is a server shape
+    // that the upload path replaces wholesale, and comparing it would report
+    // dirty for an attachment that never changed.
+    tasks: tasks.map((t) => [
+      t.id, t.sectionName.trim(), t.description, t.estimatedTimeMinutes,
+      t.requiresPhoto, t.requiresTemp, t.isCritical, t.videoUrl ?? "",
+      [...t.excludedStoreIds].sort().join(","),
+    ]),
+    pendingAttachments: Object.keys(pendingAttachments).sort(),
+  }), [name, description, typeId, frequency, availType, phase, startOffset, endOffset, appliesTo, selectedStoreIds, tasks, pendingAttachments])
+
+  // Captured on the first render, which is the only render whose state is
+  // untouched by the operator. A lazy useState initialiser, NOT a ref written
+  // during render — react-hooks/refs rejects the latter, and it is right to:
+  // a value read while rendering has to be state or the render can go stale.
+  const [baseline] = useState(() => dirtySnapshot)
+  const [savedAndLeaving, setSavedAndLeaving] = useState(false)
+  const isDirty = !savedAndLeaving && dirtySnapshot !== baseline
+
+  // Covers reload, tab close and any navigation that leaves the document.
+  // It does NOT cover a client-side route change — the App Router exposes no
+  // navigation event to hook — which is why the back arrow below is guarded
+  // separately and why the sidebar is named as uncovered in the report.
+  useEffect(() => {
+    if (!isDirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [isDirty])
+
+  // ─── Why Save Template is disabled (CHK-8) ─────────────────────────────────
+  // A dead button with no explanation is a silent failure, and this one had two
+  // unexplained states: an org with zero template types disabled Save while the
+  // "needs a type" message was itself gated on `templateTypes.length > 0`, and
+  // the blank-section message counted the offenders without naming one.
+  // Every disabling condition now produces a visible reason, and the list and
+  // the `disabled` prop are derived from the SAME array so they cannot drift.
+  // DEBT-2b: the inline per-row section input had no guard, so a cleared cell
+  // persisted "". addTask and saveEditTask each gate their own commit action on
+  // a non-empty section; this row input's commit action is the form's Save, so
+  // that is what gets gated — the same rule, applied at the matching level.
+  // CHK-8 kept the rule and kept the list instead of the count, so the message
+  // can name the offender rather than tally them.
+  const blankSectionTasks = tasks.filter((t) => !t.sectionName.trim())
+  const saveBlockers: string[] = []
+  if (blankSectionTasks.length > 0) {
+    const first = blankSectionTasks[0].description.trim()
+    const label = first ? `"${first.length > 40 ? `${first.slice(0, 40)}\u2026` : first}"` : "an untitled task"
+    saveBlockers.push(
+      blankSectionTasks.length === 1
+        ? `${label} needs a section name.`
+        : `${blankSectionTasks.length} tasks need a section name, starting with ${label}.`
+    )
+  }
+  if (!typeId) {
+    // `typesLoading` is a REASON here, not an extra disabling condition. Save
+    // was already disabled by `!typeId` in that window and said nothing; the
+    // set of things that block a save is unchanged by this row.
+    saveBlockers.push(
+      typesLoading
+        ? "Loading template types\u2026"
+        : typesAuthFailed
+          ? SESSION_EXPIRED_MESSAGE
+          : templateTypes.length > 0
+            ? "This template needs a type — choose one under Template Information."
+            : "This organization has no template types yet. Create one with Manage Types before saving."
+    )
+  }
+  const saveDisabled = saving || saveBlockers.length > 0
+
   async function handleSave() {
     setSaving(true)
     setSaveError(null)
@@ -1151,8 +1504,8 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       }
 
       const res = isEdit
-        ? await fetch(`/api/templates/${initialData!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
-        : await fetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        ? await writeFetch(`/api/templates/${initialData!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        : await writeFetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
 
       if (!res.ok) {
         const body = await res.json().catch(() => null)
@@ -1172,15 +1525,24 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
             form.append("file", file)
             form.append("taskId", realTaskId)
             form.append("label", label)
-            return fetch("/api/upload/task-attachment", { method: "POST", body: form })
+            return writeFetch("/api/upload/task-attachment", { method: "POST", body: form })
           })
         )
       }
 
+      // CHK-8: lift the unsaved-changes guard BEFORE navigating. The state is
+      // still "different from the baseline" at this point — it is just no
+      // longer unsaved — so without this the operator is warned about the very
+      // edits they have just persisted.
+      setSavedAndLeaving(true)
       router.push("/templates")
       router.refresh()
-    } catch {
-      setSaveError("Failed to save template. Please check your connection and try again.")
+    } catch (err) {
+      // CHK-8: an expired session lands here as SessionExpiredError rather than
+      // as a successful navigation to /templates. `savedAndLeaving` is NOT set
+      // on this path, so the unsaved-changes guard stays armed and the edits
+      // survive for the retry the message asks for.
+      setSaveError(err instanceof SessionExpiredError ? err.message : "Failed to save template. Please check your connection and try again.")
     } finally {
       setSaving(false)
     }
@@ -1188,11 +1550,6 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
 
   const totalMinutes = tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)
   const sections = new Set(tasks.map((t) => t.sectionName)).size
-  // DEBT-2b: the inline per-row section input had no guard, so a cleared cell
-  // persisted "". addTask and saveEditTask each gate their own commit action on
-  // a non-empty section; this row input's commit action is the form's Save, so
-  // that is what gets gated — the same rule, applied at the matching level.
-  const blankSectionCount = tasks.filter((t) => !t.sectionName.trim()).length
   const criticalCount = tasks.filter((t) => t.isCritical).length
   const photoCount = tasks.filter((t) => t.requiresPhoto).length
 
@@ -1201,9 +1558,38 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <Link href="/templates" className="p-1.5 rounded hover:bg-[var(--color-accent)] transition-colors">
-            <ArrowLeft className="h-5 w-5 text-[var(--color-muted-foreground)]" />
-          </Link>
+          {/* CHK-8: the one in-app exit this component owns. Guarded rather than
+              left as a bare Link — see the note on `isDirty`. */}
+          {isDirty ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="p-1.5 rounded hover:bg-[var(--color-accent)] transition-colors" aria-label="Back to templates">
+                  <ArrowLeft className="h-5 w-5 text-[var(--color-muted-foreground)]" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This template has edits that have not been saved, including any reordering. Leaving now discards them.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep editing</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => { setSavedAndLeaving(true); router.push("/templates") }}
+                    className="bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] hover:bg-[var(--color-destructive)]/90"
+                  >
+                    Discard and leave
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Link href="/templates" className="p-1.5 rounded hover:bg-[var(--color-accent)] transition-colors">
+              <ArrowLeft className="h-5 w-5 text-[var(--color-muted-foreground)]" />
+            </Link>
+          )}
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-foreground)]">
               {isEdit ? "Edit Template" : "Create Template"}
@@ -1213,17 +1599,20 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
         </div>
         <div className="flex items-center gap-3">
           {saveError && <p className="text-sm text-[var(--color-destructive)]">{saveError}</p>}
-          {blankSectionCount > 0 && (
-            <p className="text-sm text-[var(--color-destructive)]">
-              {blankSectionCount === 1
-                ? "One task needs a section name."
-                : `${blankSectionCount} tasks need a section name.`}
-            </p>
+          {/* CHK-8: unsaved work is stated, not implied by an enabled button.
+              Visible text beside Save, not a tooltip — the operator who is
+              about to navigate away is not hovering anything. */}
+          {isDirty && saveBlockers.length === 0 && (
+            <p className="text-sm text-[var(--color-warning-text,#efa201)]">Unsaved changes</p>
           )}
-          {/* TPL-1a: the disabled Save gets a reason, same shape as the blank
-              section message beside it. */}
-          {!typeId && !typesLoading && templateTypes.length > 0 && (
-            <p className="text-sm text-[var(--color-destructive)]">This template needs a type.</p>
+          {/* TPL-1a, widened by CHK-8: EVERY disabling condition gets a reason,
+              and the list is the same array the `disabled` prop is derived from
+              — a future blocker added to `saveBlockers` renders here for free.
+              Two states previously disabled Save in silence; see that block. */}
+          {saveBlockers.length > 0 && (
+            <div className="text-sm text-[var(--color-destructive)] text-right">
+              {saveBlockers.map((reason) => <p key={reason}>{reason}</p>)}
+            </div>
           )}
           {isEdit && (
             <AlertDialog>
@@ -1252,7 +1641,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button onClick={handleSave} disabled={saving || blankSectionCount > 0 || !typeId}>
+          <Button onClick={handleSave} disabled={saveDisabled}>
             <Save className="h-4 w-4" />
             {saving ? "Saving..." : "Save Template"}
           </Button>
@@ -1369,7 +1758,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                       is explained in plain words; the helper sentence at the
                       bottom of this box is the copy that retired. */}
                   {/* DEBT-59: no ` *` — these are optional, and nothing has ever
-                      enforced them (handleSave's only guard is blankSectionCount).
+                      enforced them (handleSave's only guard is blankSectionTasks).
                       `?? ""` renders blank, and the empty string maps back to null
                       rather than through Number(""), which is 0 — before this row
                       there was no way to express "blank" through this form at all. */}
@@ -1634,7 +2023,7 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                 toggleTaskExclusion={toggleTaskExclusion}
               />
             ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragEnd={handleDragEnd}>
                 <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                   <div className="space-y-2">
                     {tasks.map((task, idx) => (
@@ -1648,6 +2037,9 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                         setExpandedTaskExclusions={setExpandedTaskExclusions}
                         editDraft={editDraft}
                         setEditDraft={setEditDraft}
+                        editSortOrder={editSortOrder}
+                        setEditSortOrder={setEditSortOrder}
+                        editPosition={editingTaskId === task.id ? sectionPositionOf(tasks, task.id) : null}
                         editExistingAttachment={editExistingAttachment}
                         setEditExistingAttachment={setEditExistingAttachment}
                         editAttachmentLabel={editAttachmentLabel}
