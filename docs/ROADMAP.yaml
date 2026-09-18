@@ -15785,10 +15785,36 @@ phases:
   - id: CAL-1
     track: cal
     size: L
-    status: in_progress
-    commits: ["bb675e1", "a4b63cf"]
+    status: staging
+    commits: ["bb675e1", "a4b63cf", "9d91aa3"]
     title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
     notes: >
+      ── RIDER 2026-09-18 (CAL-1a PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING
+      BELOW IS EDITED. ──
+      PUSHED. STATUS MOVED `in_progress` -> `staging`, and the three SHAs are
+      now all recorded. Gary pushed between the CAL-1 check session and the
+      CAL-1a build session; `bb675e1` is on `origin/staging`, confirmed by
+      `git branch -r --contains bb675e1` rather than assumed from a report.
+      WHY THIS WAS STALE FOR A DAY, recorded because the mechanism matters more
+      than the correction. The row was TRUE when written — nothing was pushed
+      then — and Gary's push made it false. WORKFLOW.md rule 4 assigns the
+      status move to "the session that moved the code", and no Claude session
+      did: Gary pushes, and he is not a session. So the row had no owner between
+      the push and now, which is DEBT-72's finding exactly ("eleven rows read
+      `in_progress` while their code was live in production"). THE CHECK SESSION
+      IS THE FIRST THING WITH A REASON TO LOOK, and it only looked because it
+      was auditing a DIFFERENT phase's row and read this one on the way past.
+      THE FOUR BLOCKERS BELOW ARE UNTOUCHED AND ALL STILL LIVE. `staging` here
+      means the CODE IS ON THE BRANCH, not that anything was verified: the
+      migration's state on dev is unknown to this session, the staging pass has
+      still not run, DEBT-98 is open, and /calendar still has no help article.
+      Do not read the status change as evidence.
+      ONE THING THE PUSH DID PROVE, and it is worth keeping because it was a
+      named blocker risk: staging deployed. The Vercel build runs
+      `prisma migrate deploy`, so `20260917143000_cal1_calendar` applied on the
+      staging branch — and Gary then observed the CAL-1a clipping defect on a
+      rendered /calendar, which is not reachable unless the tables exist. The
+      migration's status on DEV and PRODUCTION remains unestablished.
       ── RIDER 2026-09-18 (CAL-1a). PREPENDED; NOTHING BELOW IS EDITED. ──
       THE CREATE FORM CLIPPED OFF-SCREEN ON THE TOP GRID ROWS and is fixed in
       CAL-1a ("d4e13af") — the anchored popover this phase shipped is now the
@@ -15985,9 +16011,32 @@ phases:
     track: cal
     size: S
     status: in_progress
-    commits: ["d4e13af"]
+    commits: ["d4e13af", "6f4b842"]
     title: "Calendar create form clipped off-screen on the top grid rows — anchored popover replaced with the shared Dialog"
     notes: >
+      ── RIDER 2026-09-18 (PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      THE THIRD SHA OF THIS PHASE IS THIS CHECK'S OWN DOCS COMMIT, the one that
+      wrote this rider — findable as the commit immediately after "6f4b842".
+      `commits` above now reads both build SHAs; it shipped naming only the work
+      commit, which is the same omission CAL-1 carried and which this check
+      fixed one session earlier. Twice in two phases makes it a pattern rather
+      than a slip: the row is written INSIDE the commit that would record it, so
+      the docs SHA is never available to the session writing the row, and
+      nothing in the two-commit procedure prompts anyone to come back for it.
+      The check is currently the only thing that catches it.
+      STATUS STAYS `in_progress`: CAL-1a's two build commits are NOT pushed as
+      at this rider. WORKFLOW.md rule 4 moves a row to `staging` in the session
+      whose code reached staging, and that has not happened for CAL-1a.
+      THE PROMPT FILE WAS MISSING AND IS NOW WRITTEN.
+      docs/prompts/CAL-1a_popover_clipping.md did not exist when the build
+      session ran — that session was told to read it, worked from the text
+      pasted inline in the same message instead, and did not say so. Nothing was
+      built from the wrong instruction (the pasted text WAS the prompt), but the
+      artifact was absent from the library. It is reconstructed verbatim from
+      Gary's message and headed with a note saying exactly that, so it is never
+      mistaken for a file recovered from disk.
+      ── THE BUILD SESSION'S ROW IS NEXT, UNEDITED ──
       TIER 1, COSMETIC. No schema, no routes, no capability change, no change to
       what any gate decides. Filed and fixed 2026-09-18, the day after CAL-1
       reached staging.
