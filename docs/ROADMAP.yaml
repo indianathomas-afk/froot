@@ -15789,6 +15789,18 @@ phases:
     commits: ["bb675e1", "a4b63cf", "9d91aa3"]
     title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
     notes: >
+      ── RIDER 2026-09-18 (CAL-1b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      THIS PHASE'S B6 SPECIFIED "Edit / Archive for calendar.manage" ON THE
+      DETAIL DIALOG AND SHIPPED ARCHIVE ALONE. Gary observed it on staging
+      2026-09-18: the detail dialog rendered every field read-only with one
+      Archive button, so a reminder could not be changed after it was saved.
+      The API half of the edit WAS built here and to spec — PATCH
+      /api/calendar/events/[id] with the B5 re-derive behaviour, and both
+      attachment routes — so what was missing was only the client. Fixed by
+      CAL-1b ("9936610"), which adds the Edit button and reuses this phase's
+      own create form in edit mode. The UI section below still describes a
+      detail dialog whose only management control is Archive, which is what
+      this phase built; read CAL-1b for what is on screen now.
       ── RIDER 2026-09-18 (CAL-1a PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING
       BELOW IS EDITED. ──
       PUSHED. STATUS MOVED `in_progress` -> `staging`, and the three SHAs are
@@ -16084,6 +16096,109 @@ phases:
         click: open /calendar, click a day in the FIRST grid row, and confirm
         the form is centred with its title visible. If it is still clipped, the
         Dialog is not the container being rendered and this row is wrong.
+
+  - id: CAL-1b
+    track: cal
+    size: S
+    status: in_progress
+    commits: ["9936610"]
+    title: "Calendar reminders could not be edited after saving — CAL-1's B6 specified Edit / Archive and the build shipped Archive alone"
+    notes: >
+      TIER 2, CONTAINED. No schema, no migration, no new capability, no new
+      route, no change to what any gate decides. Filed and fixed 2026-09-18,
+      the same day as CAL-1a and the day after CAL-1 reached staging.
+      THE DEFECT, observed by Gary on staging 2026-09-18. The occurrence detail
+      dialog showed every field read-only with a single Archive button, so a
+      reminder could not be changed once saved — a typo in a title, a time that
+      turned out to be wrong, or a store added later all meant archiving the
+      reminder and creating it again, which loses its completion history.
+      CAL-1's Phase B plan (B6, docs/prompts/CAL-1_calendar_reminders.md line
+      130) specified "Edit / Archive for calendar.manage". Archive shipped and
+      Edit did not.
+      THE API HALF WAS ALREADY BUILT AND ALREADY TO SPEC, which is the only
+      reason this is an S. `PATCH /api/calendar/events/[id]` accepts all eleven
+      fields, calls `requireCalendar("calendar.manage")` ahead of the Zod
+      parse, and deletes the event's OPEN occurrences for re-derivation when
+      the schedule moves (plan B5). Its re-derive predicate is computed from
+      the parsed body AGAINST THE LOADED ROW rather than from which keys the
+      client sent — so a form that PATCHes all eleven fields every time, as
+      this one does, does not cost an event its open occurrences by renaming
+      it. The two attachment routes were there too, POST replacing in place and
+      DELETE removing. NOTHING UNDER src/app/api WAS TOUCHED BY THIS PHASE.
+      THE FIX. `create-reminder-form.tsx` gains an optional `edit` prop that
+      seeds every field from the event and swings the submit at PATCH. It is
+      the same component rather than a second one because THE CREATE FORM IS
+      THE SHAPE OF A REMINDER: a fork puts eleven fields, their validation and
+      their layout in two files, and the twelfth field gets added to one of
+      them. The Event | Reminder tab pair is create-only — it is a choice of
+      what to make, and an existing reminder has stopped being a choice — so in
+      edit mode the form renders bare. The detail dialog gains an Edit button
+      beside Archive that swaps the dialog BODY for that form; Cancel returns
+      to the detail view having written nothing, Save re-reads the month and
+      LEAVES THE DIALOG OPEN on the same event.
+      TWO FIELDS BEHAVE DIFFERENTLY IN EDIT MODE, both deliberately. The date
+      is read-only on create because the dialog was opened FROM that cell and a
+      date field disagreeing with the cell you clicked is a small lie the grid
+      then has to explain; nothing anchors the edit dialog to a cell, and
+      startDate is one of the fields a schedule is made of, so it is editable
+      there. The attachment offers Replace or Remove, and the Remove control
+      hides once a replacement file is picked, since the POST already replaces
+      in place and offering both reads as a choice when one supersedes the
+      other.
+      TWO HAZARDS THE EDIT INTRODUCED, NEITHER OF WHICH EXISTED WHILE ARCHIVE
+      WAS THE ONLY WRITE. Both were found by reasoning about the save path, not
+      by the build, which compiled clean on the first version of each.
+      (1) The detail dialog read `data.events.find(...)!`. That assertion could
+      not miss while the only write CLOSED the dialog. An edit can move a
+      reminder out of the selected store's scope — `appliesTo: "all"` narrowed
+      to one other store — the feed's WHERE then drops it, and the next render
+      would have been `undefined.title`. It is looked up now, and renders
+      nothing when the reminder genuinely is not in this store's calendar any
+      more.
+      (2) `data` is null for the DURATION of every re-read — that is the
+      mechanism raising the grid's skeletons, and it is load-bearing — and an
+      edit ENDS in a re-read. Binding the dialog to it would have unmounted the
+      panel the instant Save succeeded, flashing it shut and open and taking
+      the "Saved" note with it. The dialog reads the last-held feed instead and
+      stays on screen across the fetch, showing the old values for the moment
+      it takes. The grid still uses `data`, because there the null IS the
+      signal.
+      RULING 3 IS UNTOUCHED AND THE UI NOW SAYS SO. Completed occurrences are
+      never deleted by an edit — the PATCH route scopes its deleteMany to
+      `status: "Open"` — and when the schedule does change, the detail view
+      says the next date will be re-derived by the hourly job and that
+      completed reminders stay in the record. That sentence is driven by the
+      route's own `reDerived` flag in the response, not by the client diffing
+      the form, so the two cannot disagree.
+      calendar.manage GATES THE BUTTON AND THE BUTTON IS NOT THE GATE (PERM-2).
+      Edit is shown on the same `canManage` flag as the day-click affordance,
+      and PATCH plus both attachment routes each call
+      `requireCalendar("calendar.manage")` independently.
+      EVIDENCE CEILING. `npm run build` exit 0 and scoped eslint exit 0 over
+      the three changed files, both read WITHOUT a pipe.
+      `verify-perm8-grants` 34/34 and `verify-nav1-url-sets` PASS, both
+      unchanged by this phase and re-run to prove it. NOT SEEN IN A BROWSER by
+      this session — /calendar needs a Clerk session and the CAL-1 tables, and
+      the CAL-1 migration is still unrun on every branch.
+      THE DOCS SHA IS THE COMMIT IMMEDIATELY AFTER "9936610". `commits` above
+      names the work commit only, for the reason CAL-1a's rider set out: the
+      row is written INSIDE the commit that would record it, so the docs SHA
+      does not exist yet when the row is composed. Third phase running.
+      PROMPT: docs/prompts/CAL-1b_edit_reminders.md.
+    blockers:
+      - >
+        THE FIX IS UNSEEN, and unseeable until CAL-1's migration runs. Every
+        `/api/calendar/*` route throws against tables that do not exist, so
+        there is no reminder to open a detail dialog on. The check on staging,
+        once the migration is run and this is pushed: open /calendar as an
+        admin, click a reminder chip, press Edit, change the title, Save — the
+        dialog should stay open on that reminder showing the new title. Then
+        change its Repeat and confirm the re-derive note appears and any
+        COMPLETED occurrence is still on the grid.
+      - >
+        NOT PUSHED. Status stays `in_progress` per WORKFLOW.md rule 4 — a row
+        moves to `staging` in the session whose code reached staging, and this
+        session committed only.
 
   - id: CAL-2
     track: cal

@@ -10,6 +10,10 @@ with the merge SHA at promotion, from `git rev-parse`, never hand-typed.
 **Carries CAL-1a (`d4e13af`, 2026-09-18):** the create form clipped off-screen
 on the top grid rows on staging; the anchored popover is now the shared Dialog.
 Cosmetic, rides this entry, adds no migration step and changes nothing below.
+**Carries CAL-1b (`9936610`, 2026-09-18):** reminders could not be edited after
+saving — B6 specified Edit / Archive and only Archive shipped; the detail dialog
+now reuses the create form in edit mode against the PATCH route this entry
+already carries. Client-only, rides this entry, adds no migration step.
 
 **Payload:** **3 commits** on `staging` — the work, the docs, and the
 PRE-PUSH-CHECK commit that added this entry. **This is a schema change and the
