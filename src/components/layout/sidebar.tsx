@@ -25,6 +25,7 @@ import {
   BriefcaseBusiness,
   Clock,
   CalendarRange,
+  CalendarDays,
 } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
@@ -50,6 +51,14 @@ type NavItem = {
   requiresInstagram?: boolean
   requiresHr?: boolean
   requiresLabor?: boolean
+  // CAL-1 — THE FOURTH BESPOKE FEATURE FLAG ON THIS TYPE, accepted by Gary for
+  // this phase rather than fixed here. NavGroup has a general `requiresModule`
+  // and NavItem does not, so a gated item under an EXISTING group has no
+  // general mechanism to use and each one has grown its own boolean. A later
+  // NAV phase generalises `requiresModule` down to the item level; until then,
+  // adding a fifth of these is a signal that the phase is overdue, not a
+  // pattern to keep following.
+  requiresCalendar?: boolean
   // NAV-1: the Messages treatment approved in mockup review — a persistent
   // soft-primary tint with a hairline primary border, deliberately lighter
   // than the active-page state so the two remain distinguishable.
@@ -144,6 +153,15 @@ const navStructure: NavEntry[] = [
     storageKey: "froot-nav-checklists-open",
     items: [
       { href: "/checklists", label: "Checklists", icon: CheckSquare, capability: "checklists.view" },
+      // CAL-1. Recurring work that is not a daily checklist, which is why it
+      // lives in this group rather than at top level (Gary's R2: the calendar is
+      // part of Checklists, not a billable add-on).
+      //
+      // ON ONE LINE, DELIBERATELY, like HELP_ITEM and for the same reason:
+      // scripts/verify-nav1-url-sets.ts parses this file as TEXT with a
+      // line-oriented regex. Splitting this literal across lines makes the
+      // fixture stop seeing it — SILENTLY, and with a GREEN run.
+      { href: "/calendar", label: "Calendar", icon: CalendarDays, capability: "calendar.view", requiresCalendar: true },
       // STAFF-1: Store View is an operational floor surface — not for STAFF
       // logins. NAV-1 relabelled it "Start Daily Checklist"; the capability and
       // the destination are unchanged.
@@ -227,6 +245,7 @@ export function Sidebar({
   hrAvailable = false,
   laborAvailable = false,
   staffHasChecklists = false,
+  calendarEnabled = false,
   selfName = null,
   selfHref = null,
 }: {
@@ -247,6 +266,9 @@ export function Sidebar({
   // STAFF-1 (F3 store-proxy): whether any open checklist exists for the staff
   // user's assigned stores — computed server-side in the layout.
   staffHasChecklists?: boolean
+  // CAL-1 (ruling 9): off = the nav entry is absent. The page and every route
+  // refuse independently — this is UX, not the gate.
+  calendarEnabled?: boolean
   // ── SELF-1 ────────────────────────────────────────────────────────────────
   // The viewer's own name, resolved server-side from their StaffMember
   // (fullName then displayName). NULL when the login resolves to no staff
@@ -285,6 +307,7 @@ export function Sidebar({
       (!item.requiresInstagram || instagramEnabled) &&
       (!item.requiresHr || hrEnabled) &&
       (!item.requiresLabor || laborEnabled) &&
+      (!item.requiresCalendar || calendarEnabled) &&
       // STAFF-1: Checklists only surface for STAFF when their stores have one.
       !(role === "STAFF" && item.href === "/checklists" && !staffHasChecklists)
     )

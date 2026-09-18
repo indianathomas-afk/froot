@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { formatInstant } from "@/lib/display-time"
 import { DEFAULT_TIME_ZONE, displayTimeZone } from "@/lib/hr"
 import { InviteUserButton, EditUserButton, RemoveUserButton, RevokeInviteButton } from "./user-actions"
+import { UsersFilter, type UserFilterRow } from "./users-filter"
 import { getCurrentUser } from "@/lib/auth"
 import { can, type PermissionUser } from "@/lib/permissions"
 import { fetchAllClerkPages, getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
@@ -261,150 +262,184 @@ export default async function UsersPage() {
 
   const storeProps = stores.map((s) => ({ id: s.id, name: s.name, storeNumber: s.storeNumber }))
   const totalCount = members.length + pendingInvites.length
+  // The ORG TOTALS, unchanged. UM-3's filter appends to this line, never
+  // recomputes it — see UsersFilter.
+  const countPrefix = `${totalCount} member${totalCount !== 1 ? "s" : ""}${pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ""}`
+
+  const heading = <h1 className="text-2xl font-bold text-[var(--color-foreground)]">User Management</h1>
+  const subtitle = <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Invite users and control which locations they can access</p>
+  const actions = <InviteUserButton stores={storeProps} />
+
+  // UM-3. Every row is still built HERE, on the server, exactly as it was —
+  // the filter receives it already rendered and either puts it on screen or
+  // does not. Nothing new crosses the client boundary but the three things the
+  // two controls read: the rendered name, the email, and the store ids.
+  const memberRows: UserFilterRow[] = members.map((member) => ({
+    id: member.clerkMembershipId,
+    // The name slot AS RENDERED below — a member with no name shows their
+    // email there, and searching that email must find them.
+    name: member.name || member.email,
+    email: member.email,
+    storeIds: member.storeAssignments.map((a) => a.storeId),
+    // An ADMIN has no storeAssignments by design and this row says so in words
+    // two columns over. They match every location because they can see every
+    // location.
+    allLocations: member.role === "ADMIN",
+    node: (
+      <tr key={member.clerkMembershipId} className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-accent)]/30 transition-colors">
+        <td className="px-6 py-4">
+          <p className="text-sm font-medium text-[var(--color-foreground)]">{member.name || member.email}</p>
+          {member.name && <p className="text-xs text-[var(--color-muted-foreground)]">{member.email}</p>}
+          {member.deviceForStore && (
+            <span
+              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border ${
+                isAboveStore(member.role)
+                  ? "text-[var(--color-warning-text)] bg-[var(--color-warning-bg)] border-[var(--color-warning-border)]"
+                  : "text-[var(--color-muted-foreground)] bg-[var(--color-muted)] border-[var(--color-border)]"
+              }`}
+              title={
+                isAboveStore(member.role)
+                  ? `Shared device at ${member.deviceForStore}, signed in at ${member.role.toLowerCase()} level — anything it can see is visible to whoever is standing at the counter, and nothing it does can be attributed to a person.`
+                  : `Shared device at ${member.deviceForStore}.`
+              }
+            >
+              {isAboveStore(member.role) ? <ShieldAlert className="h-3 w-3" /> : <Tablet className="h-3 w-3" />}
+              {isAboveStore(member.role)
+                ? `Device at ${member.deviceForStore} — ${member.role.toLowerCase()} level`
+                : `Device at ${member.deviceForStore}`}
+            </span>
+          )}
+        </td>
+        <td className="px-6 py-4">
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${ROLE_STYLES[member.role] ?? ROLE_STYLES.STAFF}`}>
+            {member.role.charAt(0) + member.role.slice(1).toLowerCase()}
+          </span>
+        </td>
+        <td className="px-6 py-4">
+          {member.role === "ADMIN" ? (
+            <span className="text-xs text-orange-600 font-medium">All locations</span>
+          ) : member.storeAssignments.length === 0 ? (
+            <span className="text-xs text-[var(--color-muted-foreground)]">No locations assigned</span>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {member.storeAssignments.slice(0, 5).map((a) => (
+                <span key={a.store.id} className="inline-flex items-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium px-2 py-0.5">
+                  {a.store.storeNumber ? `#${a.store.storeNumber} — ` : ""}{a.store.name}
+                </span>
+              ))}
+              {member.storeAssignments.length > 5 && (
+                <span className="text-xs text-[var(--color-muted-foreground)]">+{member.storeAssignments.length - 5} more</span>
+              )}
+            </div>
+          )}
+        </td>
+        <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
+          {formatInstant(member.createdAt, zone, "numeric")}
+        </td>
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-1">
+            <EditUserButton
+              dbUserId={member.dbUserId}
+              currentRole={member.role}
+              currentStoreIds={member.storeAssignments.map((a) => a.storeId)}
+              currentDefaultStoreId={member.defaultStoreId}
+              currentDeniedCapabilities={member.deniedCapabilities}
+              currentGrantedCapabilities={member.grantedCapabilities}
+              stores={storeProps}
+              userName={member.name || member.email}
+            />
+            <RemoveUserButton clerkUserId={member.clerkUserId} userName={member.name || member.email} />
+          </div>
+        </td>
+      </tr>
+    ),
+  }))
+
+  const inviteRows: UserFilterRow[] = pendingInvites.map((inv) => ({
+    id: inv.id,
+    // A pending invite has no name to render: the slot holds the email.
+    name: inv.email,
+    email: inv.email,
+    storeIds: inv.storeNames.map((s) => s.id),
+    allLocations: inv.role === "ADMIN",
+    node: (
+      <tr key={inv.id} className="border-b border-[var(--color-border)] last:border-0 bg-[var(--color-accent)]/10">
+        <td className="px-6 py-4">
+          <p className="text-sm font-medium text-[var(--color-foreground)]">{inv.email}</p>
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200 mt-1">
+            Pending
+          </span>
+        </td>
+        <td className="px-6 py-4">
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${ROLE_STYLES[inv.role] ?? ROLE_STYLES.STAFF}`}>
+            {inv.role.charAt(0) + inv.role.slice(1).toLowerCase()}
+          </span>
+        </td>
+        <td className="px-6 py-4">
+          {inv.role === "ADMIN" ? (
+            <span className="text-xs text-orange-600 font-medium">All locations</span>
+          ) : inv.storeNames.length === 0 ? (
+            <span className="text-xs text-[var(--color-muted-foreground)]">No locations assigned</span>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {inv.storeNames.map((s) => (
+                <span key={s.id} className="inline-flex items-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium px-2 py-0.5">
+                  {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </td>
+        <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
+          {formatInstant(inv.createdAt, zone, "numeric")}
+        </td>
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--color-muted-foreground)] italic">Awaiting acceptance</span>
+            <RevokeInviteButton invitationId={inv.id} email={inv.email} />
+          </div>
+        </td>
+      </tr>
+    ),
+  }))
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-foreground)]">User Management</h1>
-          <p className="text-sm text-[var(--color-muted-foreground)] mt-1">Invite users and control which locations they can access</p>
-        </div>
-        <InviteUserButton stores={storeProps} />
-      </div>
-
-      <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[var(--color-border)]">
-          <h2 className="font-medium text-[var(--color-foreground)]">Organization Members</h2>
-          <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">{totalCount} member{totalCount !== 1 ? "s" : ""}{pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ""}</p>
-        </div>
-
-        {totalCount === 0 ? (
-          <div className="p-16 text-center text-[var(--color-muted-foreground)]">
-            <p className="text-sm">No users yet. Invite your team to get started.</p>
+      {/* Nothing to filter is not a filter case: an org with no users at all
+          keeps the header and the empty-state card it has always had, with no
+          controls above them. Mirrors /staff, which hides its picker on an
+          empty roster for the same reason. */}
+      {totalCount === 0 ? (
+        <>
+          <div className="flex items-start justify-between mb-8">
+            <div>
+              {heading}
+              {subtitle}
+            </div>
+            {actions}
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[var(--color-border)]">
-                  {["User", "Role", "Location Access", "Invited", "Actions"].map((h) => (
-                    <th key={h} className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => (
-                  <tr key={member.clerkMembershipId} className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-accent)]/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-[var(--color-foreground)]">{member.name || member.email}</p>
-                      {member.name && <p className="text-xs text-[var(--color-muted-foreground)]">{member.email}</p>}
-                      {member.deviceForStore && (
-                        <span
-                          className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border ${
-                            isAboveStore(member.role)
-                              ? "text-[var(--color-warning-text)] bg-[var(--color-warning-bg)] border-[var(--color-warning-border)]"
-                              : "text-[var(--color-muted-foreground)] bg-[var(--color-muted)] border-[var(--color-border)]"
-                          }`}
-                          title={
-                            isAboveStore(member.role)
-                              ? `Shared device at ${member.deviceForStore}, signed in at ${member.role.toLowerCase()} level — anything it can see is visible to whoever is standing at the counter, and nothing it does can be attributed to a person.`
-                              : `Shared device at ${member.deviceForStore}.`
-                          }
-                        >
-                          {isAboveStore(member.role) ? <ShieldAlert className="h-3 w-3" /> : <Tablet className="h-3 w-3" />}
-                          {isAboveStore(member.role)
-                            ? `Device at ${member.deviceForStore} — ${member.role.toLowerCase()} level`
-                            : `Device at ${member.deviceForStore}`}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${ROLE_STYLES[member.role] ?? ROLE_STYLES.STAFF}`}>
-                        {member.role.charAt(0) + member.role.slice(1).toLowerCase()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {member.role === "ADMIN" ? (
-                        <span className="text-xs text-orange-600 font-medium">All locations</span>
-                      ) : member.storeAssignments.length === 0 ? (
-                        <span className="text-xs text-[var(--color-muted-foreground)]">No locations assigned</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {member.storeAssignments.slice(0, 5).map((a) => (
-                            <span key={a.store.id} className="inline-flex items-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium px-2 py-0.5">
-                              {a.store.storeNumber ? `#${a.store.storeNumber} — ` : ""}{a.store.name}
-                            </span>
-                          ))}
-                          {member.storeAssignments.length > 5 && (
-                            <span className="text-xs text-[var(--color-muted-foreground)]">+{member.storeAssignments.length - 5} more</span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
-                      {formatInstant(member.createdAt, zone, "numeric")}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <EditUserButton
-                          dbUserId={member.dbUserId}
-                          currentRole={member.role}
-                          currentStoreIds={member.storeAssignments.map((a) => a.storeId)}
-                          currentDefaultStoreId={member.defaultStoreId}
-                          currentDeniedCapabilities={member.deniedCapabilities}
-                          currentGrantedCapabilities={member.grantedCapabilities}
-                          stores={storeProps}
-                          userName={member.name || member.email}
-                        />
-                        <RemoveUserButton clerkUserId={member.clerkUserId} userName={member.name || member.email} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {pendingInvites.map((inv) => (
-                  <tr key={inv.id} className="border-b border-[var(--color-border)] last:border-0 bg-[var(--color-accent)]/10">
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-[var(--color-foreground)]">{inv.email}</p>
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200 mt-1">
-                        Pending
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${ROLE_STYLES[inv.role] ?? ROLE_STYLES.STAFF}`}>
-                        {inv.role.charAt(0) + inv.role.slice(1).toLowerCase()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {inv.role === "ADMIN" ? (
-                        <span className="text-xs text-orange-600 font-medium">All locations</span>
-                      ) : inv.storeNames.length === 0 ? (
-                        <span className="text-xs text-[var(--color-muted-foreground)]">No locations assigned</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {inv.storeNames.map((s) => (
-                            <span key={s.id} className="inline-flex items-center rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium px-2 py-0.5">
-                              {s.storeNumber ? `#${s.storeNumber} — ` : ""}{s.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-[var(--color-muted-foreground)]">
-                      {formatInstant(inv.createdAt, zone, "numeric")}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-[var(--color-muted-foreground)] italic">Awaiting acceptance</span>
-                        <RevokeInviteButton invitationId={inv.id} email={inv.email} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--color-border)]">
+              <h2 className="font-medium text-[var(--color-foreground)]">Organization Members</h2>
+              <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">{countPrefix}</p>
+            </div>
+            <div className="p-16 text-center text-[var(--color-muted-foreground)]">
+              <p className="text-sm">No users yet. Invite your team to get started.</p>
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <UsersFilter
+          heading={heading}
+          subtitle={subtitle}
+          actions={actions}
+          stores={storeProps}
+          countPrefix={countPrefix}
+          memberRows={memberRows}
+          inviteRows={inviteRows}
+        />
+      )}
 
       <div className="mt-4 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)]">
         <p className="text-xs text-[var(--color-muted-foreground)]">

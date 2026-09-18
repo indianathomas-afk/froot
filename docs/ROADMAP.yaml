@@ -284,6 +284,89 @@ phases:
       matrix page. Build the matrix page so a per-user diff can sit beside it.
       Numbered UM-2 because UM-1 is a shipped phase (2026-07-23, 516b6da).
 
+  - id: UM-3
+    track: platform
+    size: S
+    status: staging
+    commits: ["982833f"]
+    title: "Location filter and search on /users — two controls narrowing both the member and the pending-invitation rows"
+    notes: >
+      STATUS IS `staging` AND IS ONE STEP AHEAD OF THE TRUTH AT WRITING, on
+      STAFF-2's precedent, stated rather than implied. "982833f" is committed on
+      the local `staging` branch and NOT PUSHED, so no Vercel preview carries it
+      yet; the value becomes true on Gary's push. Claude never pushes
+      (CLAUDE.md § Git Rules).
+      WHAT IT IS. /users renders one card, "Organization Members", holding the
+      accepted members and the pending invitations. This adds two controls
+      directly beneath the page subtitle, left-aligned: a location dropdown
+      defaulting to "All locations", and a text input placeholder "Search by
+      name or email". Both narrow both sets of rows, AND-combined. The default
+      state renders precisely what the page rendered before. TIER 2 throughout:
+      no schema, no migration, no new route, no permission change, no query
+      change.
+      A NEW SELECTOR SITE FOR UX-2 TO ABSORB. This is the second location
+      picker built on STAFF-2's shape and, like it, deliberately does NOT share
+      the Dashboard's localStorage key — picking a location here cannot narrow
+      any other surface, and picking one elsewhere cannot narrow this. Plain
+      component state that resets on reload: no localStorage, no URL param, no
+      shared context. UX-2 unifies the selector sites; when it does, this is one
+      of the sites it has to take. Named here so UX-2 finds it rather than
+      rediscovering it.
+      ADMINS MATCH EVERY LOCATION, which is the one filter rule that is a
+      judgement rather than a mechanism. An ADMIN has no storeAssignments by
+      design and the row already says so in words ("All locations"), so
+      filtering on assignments alone would hide exactly the people who can see
+      every location. EXTENDED TO PENDING ADMIN INVITES, which the brief did not
+      spell out: an ADMIN invite renders the same "All locations" for the same
+      reason, and excluding it would be the same defect one row group down. Say
+      so if the narrower reading was meant.
+      THE OPTIONS COME FROM THE ARRAY THE PAGE ALREADY HAD, `storeProps`
+      (page.tsx:263), which is the same list the chips and the Invite/Edit
+      dialogs are built from — not a fresh store query. Option labels use the
+      chips' own `#<number> — <name>` format, so an option names the thing on
+      screen.
+      THE ROWS CROSS THE CLIENT BOUNDARY ALREADY RENDERED. The new component
+      (src/app/(app)/users/users-filter.tsx) receives each row as a server node
+      plus the three keys the controls read — rendered name, email, store ids —
+      rather than the `members` array itself. That array carries whole Store
+      records inside storeAssignments (contactEmail, Square ids) and each
+      member's capability arrays, none of which filtering needs; this way none
+      of it is serialised. It also keeps every row's markup inside page.tsx
+      untouched, which is why Edit / Remove / Revoke keep working on filtered
+      rows — they are the same buttons, not re-created ones.
+      HEADER COUNTS STAY THE ORG TOTALS. A filter does not change how big the
+      organization is, so the filtered number is APPENDED (" · showing N",
+      members only) and never substituted.
+      "NO MATCHES" IS NOT THE EMPTY-ORG STATE. A filtered-empty row group gets
+      one quiet row; the "No users yet. Invite your team to get started." card
+      is reserved for an org that genuinely has nobody, and that org now renders
+      with no controls above it at all — mirroring /staff, which hides its
+      picker on an empty roster.
+      WHAT DID NOT CHANGE, which is most of the point. getData() is untouched
+      end to end — verified by an empty diff over the whole function, not by
+      inspection. Same Clerk membership and invitation calls, same four Prisma
+      queries, same invite fetch; every row fetched before is still fetched. The
+      DEBT-17 Clerk-membership sync block is byte-identical (empty diff over its
+      44 lines). Both <tr> blocks are byte-identical to their originals apart
+      from indentation. requireAdmin, getUserStoreScope, the capability checks
+      and user-actions.tsx are not referenced.
+      DRIFT AGAINST THE BRIEF, recorded because the numbers will move again. The
+      prompt places the sync block at ":65-98 in the 2026-07 numbering"; it is
+      at :128-171. The prompt also describes "two tables" — there is ONE
+      `<table>` with one `<tbody>` holding two row groups, so "No matches"
+      renders once per GROUP, which is what the rule means on this markup.
+      VERIFIED IN A BROWSER against a temporary harness under the public /menu
+      route, since removed — /users is behind Clerk plus users.manage, so the
+      client half was driven directly with synthetic rows while the server half
+      is unchanged by construction. Default: 7/7 rows, no "showing" suffix.
+      "  BOB  " -> showing 1 plus "No matches" in the pending group (trim and
+      case both exercised). Airport -> both admins, the s2 member and the s1,s2
+      member, showing 3. Downtown + "INVITEE" -> "No matches" in the members
+      group, showing 0, with the matching invite still rendered.
+      GATE: scoped eslint clean on both touched files, `npm run build` green.
+      One build failure en route and it is worth knowing: `Store.storeNumber` is
+      `string | null`, not `number | null`.
+
   - id: STAFF-1
     track: platform
     size: L
@@ -2760,8 +2843,9 @@ phases:
   - id: CHK-8
     track: checklists
     size: S-M
-    status: in_progress
-    commits: []
+    status: shipped
+    shipped: 2026-09-13
+    commits: ["509fe62"]
     title: "Template task reordering: drag constrained to its own section, a Sort Order field beside Est. Time, and the unsaved state made loud"
     notes: >
       2026-09-13. TIER 2, prompt in docs/prompts/CHK-TASK-SORT.md. Two
@@ -2935,10 +3019,100 @@ phases:
       `writeFetch` guards, so it is not wrapped — it only needed to tell the two
       apart. Gary: "wrong message is worse than no message."
 
+      ── APPENDED 2026-09-13, AFTER PROMOTION. The section above is the
+      pre-promotion record and is left unedited. ──
+
+      PROMOTED TO PRODUCTION IN "10c9cf5", merging "509fe62". Gary: "CHK-8 stays
+      promoted, no revert."
+
+      THE PROMOTION GATE PASSED — ANSWERED 2026-09-13, THE SAME DAY IT WAS
+      RAISED. The paragraph below is the open question as it was written, left
+      unedited above the answer.
+
+      GATE RESULT: PASSED ON STAGING, MEASURED BY GARY BEFORE PROMOTING. He
+      cleared the `__session` cookie mid-edit, pressed Save Template, and the
+      save FAILED LOUDLY — stayed on the page, error shown, edits preserved.
+      That is the three-part pass exactly: no navigation, a visible message, and
+      `savedAndLeaving` never set so the guard stayed armed and the work
+      survived. **`writeFetch`'s `status === 0` arm is therefore OBSERVED, not
+      inferred from the spec**, and it fired against a real Clerk 307 rather
+      than a stubbed response — which is the distinction that made this the gate
+      in the first place, since a stubbed 500 exercises `!res.ok` and never
+      touches the opaque-redirect branch. Every claim in this row is now
+      measured except the two authenticated round trips (drag -> Save -> refresh
+      and Sort Order -> Save -> refresh), which the production report below
+      overtook.
+
+      ── the open question as originally written, 2026-09-13 ──
+      THIS ROW WROTE ITSELF A PROMOTION GATE AND THE GATE'S RESULT IS NOT
+      RECORDED. The gate was: the cookie-clear test must make an expired-session
+      save fail loudly, because writeFetch's `status === 0` arm is verified by
+      reading the spec and not by observation. Whether that test was run before
+      the merge is unknown to this session — Gary has not reported it either
+      way, and "promoted" is not the same fact as "gated". Written down as OPEN
+      rather than folded into the promotion, because a gate nobody recorded is
+      indistinguishable from one that failed (the DEBT-54 distinction). If it
+      was run, the result belongs here.
+
+      THE FIRST REAL-WORLD REPORT WAS "IT'S NOT WORKING", AND IT WAS TWO ROWS OF
+      DATA. Gary tested on production and found Sort Order locked at "1 of 1"
+      and drag doing nothing. Cause confirmed: a section holding ONE task
+      filters the collision candidates down to the dragged row itself, so `over`
+      equals `active` and handleDragEnd returns; the same `total = 1` pins the
+      field to min=1/max=1. Both symptoms, one cause, and it is a REGRESSION —
+      before this row, dragging a one-task section's row DID move it, because
+      arrayMove plus regroupTasks relocated its whole single-task block. That
+      was section reordering, and for such a row it was the only way to move it.
+
+      THE MEASUREMENT, production br-sparkling-block-a620qvg4, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd: 34 sections across 8 templates, 31
+      with 2+ tasks, 3 with one — and one of those three ("Peet's Coffee" /
+      "Coffee Prep") is a legitimately one-task template. So TWO malformed rows
+      in the whole production set: "Turn on Menu's" (Opener Checklist
+      cmqx004es00003apdxqovzc4u, index 24) and "Stock Fruit." (Closer Checklist
+      cmqx004u600293apd9mbhcryg, index 20). Both read as task text typed into
+      the Section Name field. Gary fixed both by hand in the UI; no code change,
+      per-section ruling stands.
+
+      THE NUMBER OF RECORD IS 2 OF 212 TASKS — 0.94%. Stated this way
+      deliberately. The diagnostic query reported `pct_singleton` as a percent
+      of SECTIONS, which put Opener at 25.0% and Closer at 16.7%; by task count
+      those are 2.0% and 3.4%. A template with four sections moves 25 points on
+      one bad row, so the section-percentage overstates the problem by roughly
+      10x. It never reached a row — corrected here so it cannot.
+
+      WHAT THE FIXTURE COULD NOT SEE, AND THE QUESTION THAT WOULD HAVE FOUND IT.
+      Every pre-promotion observation ran against dev br-broad-wave-a6vpjdw0,
+      which has NO malformed sections at all. Summing both branches settles why:
+      production holds 212 tasks, dev 210, and the difference is EXACTLY these
+      two rows — every other template matches dev section-for-section. The dev
+      fixture is a fork taken before the two bad tasks were entered. So this
+      defect class could not have been found by running the dev verification
+      more carefully; the fixture did not contain an instance of it.
+
+      THE STANDING LESSON (Gary, 2026-09-13): WHEN A FIXTURE IS THE EVIDENCE
+      BASE, THE QUESTION TO ASK IS WHAT PRODUCTION HAS THAT THE FIXTURE DOES
+      NOT. Not "did I test enough paths" — the paths were all covered — but
+      "what shapes of data exist out there that are absent in here". Note the
+      direction of the failure, which is § Verifying a guard covers every path
+      one layer over: a clean fixture produces a PASS, so the session stops
+      looking. And note which row a person reaches for first — "Turn on Menu's"
+      is the task that LOOKS wrong sitting in the list, so it is the one an
+      operator tries to move. A defect that only fires on malformed rows fires
+      precisely when someone is cleaning up malformed rows, which is why two
+      rows produced the verdict "the feature is broken".
+
+      STILL LIVE AND NOT FIXED, NOW ITS OWN ROW: a one-task section remains
+      unmovable by drag and pinned at 1 in the field, and the field does not SAY
+      so. Split out to CHK-14 on Gary's instruction 2026-09-13, for a reason
+      worth keeping: held inside this row it would close when this row closes,
+      and the defect outlives it. Prevention of new instances is CHK-13.
+
       Related: CHK-1 (the contiguity invariant and groupTasksBySection, both
       relied on and both untouched), DEBT-36 (stays closed by the per-section
       ruling), DEBT-2b (the blank-section gate, kept, message improved),
-      TPL-1a (the disabled-Save-gets-a-reason shape this widens).
+      TPL-1a (the disabled-Save-gets-a-reason shape this widens), CHK-13 (the
+      data-entry hole that produced the two malformed rows).
 
   - id: CHK-9
     track: checklists
@@ -3093,6 +3267,123 @@ phases:
       Related: CHK-8 (prototype and both defect classes), CHK-11 (the blocker
       and the first consumer), CHK-7 (the precedent for a per-site fix missing
       its neighbour).
+
+  - id: CHK-13
+    track: checklists
+    size: S
+    status: planned
+    title: "The Section Name field invites task text — make the right value the easy one"
+    notes: >
+      Filed 2026-09-13 by CHK-8 at Gary's instruction. THIS IS THE ACTUAL
+      PREVENTION, and CHK-8 is only the row that noticed it.
+
+      THE MEASURED EVIDENCE, production br-sparkling-block-a620qvg4, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd. Two of 212 tasks carry a Section
+      Name that is plainly a task description: "Turn on Menu's" (Opener
+      Checklist cmqx004es00003apdxqovzc4u, index 24, wedged between 24 "Store
+      Opening" tasks and 7 "Prep & Restocking" ones) and "Stock Fruit." (Closer
+      Checklist cmqx004u600293apd9mbhcryg, index 20). The apostrophe and the
+      trailing period are the tell — that is prose, not a category. Gary cleaned
+      both by hand; this row is about the next two.
+
+      WHY IT HAPPENS, AND IT IS THE FORM'S FAULT NOT THE OPERATOR'S. In the New
+      Task panel, Section Name is the FIRST input in the grid, Est. Time (min)
+      is second, and Task Description is a textarea two fields below. Someone
+      who clicks Add Task and starts typing the thing they want done puts it in
+      Section Name. The field is a bare free-text Input with no affordance
+      pointing at the template's existing sections, so nothing on screen says
+      "this is a category you already have five of".
+
+      TWO CANDIDATE FIXES, NEITHER RULED. (a) A `<datalist>` of the section
+      names already on this template, so the existing categories are one
+      keystroke away and typing something new is visibly the unusual act.
+      (b) Default the field to the PREVIOUS task's section, which is right
+      almost every time — tasks are added in runs within a section, and the
+      contiguity invariant means the previous task is the one this is being
+      added after. (a) and (b) compose; (b) alone would have prevented both
+      production instances, since each sits directly after a healthy section.
+      Consider also whether Task Description should simply come first in the
+      grid, which is the cheapest version of all and changes no logic.
+
+      GARY'S LEAN, 2026-09-13 — HIS WORDS, AND EXPLICITLY NOT A RULING: the
+      datalist over grid reordering, because "reordering hides the problem, the
+      datalist shows you what sections already exist, which is the information
+      actually missing at that moment". Recorded as a lean so whoever builds
+      this can still argue for (b) or the grid change; it is not decided.
+
+      DO NOT SOLVE THIS BY VALIDATION. A length cap, a blocklist, or a "that
+      looks like a task" heuristic would reject legitimate long section names
+      and teach nothing; free-text sections are DEBT-2b's ruling and CHK-1 did
+      not overturn it. The goal is to make the correct value the easiest one to
+      enter, not to refuse the wrong one.
+
+      WHAT IT COSTS TODAY, SO THE SIZING IS HONEST: a malformed section is a
+      section of one, and CHK-8 made a section of one UNREORDERABLE — drag has
+      no in-section target and Sort Order pins to 1 of 1, with no message saying
+      why. So a typo in this field now produces a task that cannot be moved, and
+      it is exactly the task an operator will try to move first because it is
+      the one that looks wrong in the list. Two data rows produced the verdict
+      "the feature is broken" (CHK-8, appended note).
+
+      Related: CHK-8 (per-section order, and the reason a singleton section is
+      now a dead end), DEBT-2b (sections are free text — the ruling this must
+      not overturn), CHK-1 (the Section entity and the contiguity invariant).
+
+  - id: CHK-14
+    track: checklists
+    size: XS-S
+    status: planned
+    title: "A section of one is a dead end in the template editor — no drag target, Sort Order pinned to 1 of 1, and no explanation"
+    notes: >
+      Filed 2026-09-13, split out of CHK-8 on Gary's instruction. THE REASON FOR
+      THE SPLIT IS THE POINT OF THE ROW: held inside CHK-8 it would close when
+      CHK-8 closes, and this defect outlives it. CHK-8 shipped; this did not get
+      fixed by shipping it.
+
+      THE BEHAVIOUR. When a template section holds exactly one task, that task
+      cannot be repositioned by any means the editor offers. Drag: CHK-8's
+      collision filter narrows the drop candidates to the dragged task's own
+      section, which for a section of one is the dragged row itself, so `over`
+      comes back equal to `active` and handleDragEnd returns before touching the
+      array. Sort Order: the same `total = 1` renders the field `min=1 max=1`,
+      and every value clamps back to 1. Neither is a crash, an error, or a
+      refusal — both are silence.
+
+      THE MINIMUM FIX IS THE FIELD SAYING WHY, not restoring the movement.
+      Gary's framing. A disabled input with "Only task in this section" beside
+      it is honest and cheap; the pattern already exists in the same component
+      for the section-changed case, where Sort Order locks and states its
+      reason. What must stop is a control that looks live and ignores input,
+      which is precisely the failure mode CHK-8 was opened to remove — so this
+      row is CHK-8 failing its own standard on an edge it did not consider.
+
+      WHETHER MOVEMENT SHOULD BE RESTORED AT ALL IS OPEN AND IS NOT THE MINIMUM.
+      Before CHK-8, dragging a one-task section's row DID move it: arrayMove
+      plus regroupTasks relocated its whole single-task block, which is section
+      reordering by another name and for such a row was the only way to move it.
+      CHK-8 removed that and gave nothing back, so this is a REGRESSION and not
+      merely a gap. Options if it is ever restored, none ruled: allow a
+      cross-section drop to move a lone task's whole block (narrow, restores
+      exactly what was lost); let a cross-section drop change the task's Section
+      Name (standard grouped-drag behaviour, and arguably how the per-section
+      ruling should be performed by drag); or leave tasks section-bound and give
+      SECTIONS their own reposition, which is CHK-9.
+
+      HOW OFTEN IT FIRES, MEASURED. production br-sparkling-block-a620qvg4, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd, 2026-09-13: three sections of one
+      across 8 templates, of which two were malformed data (CHK-13) and one is a
+      legitimately single-task template ("Peet's Coffee"). Gary cleaned the two
+      by hand the same day, so the live count today is one — and that one is a
+      template with a single task in it, where there is nothing to reorder
+      anyway. SO THIS IS RARE, AND IT IS STILL WORTH FIXING: the two malformed
+      rows produced the verdict "the feature is not working" (CHK-8's appended
+      note), because the task an operator reaches for first is the one that
+      looks wrong in the list, which is exactly the one that cannot move.
+
+      Related: CHK-8 (introduced it, and the row this was split from), CHK-13
+      (prevents the malformed sections that create most instances), CHK-9
+      (section-level reposition, one of the candidate answers above), DEBT-2b
+      (free-text sections — why a section of one is legal in the first place).
 
   # ---- Inventory ----
 
@@ -15491,6 +15782,333 @@ phases:
         value rather than a rendered page, and DEBT-96 exists because nobody can
         currently SEE the exempt population at all.
 
+  - id: CAL-1
+    track: cal
+    size: L
+    status: staging
+    commits: ["bb675e1", "a4b63cf", "9d91aa3"]
+    title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
+    notes: >
+      ── RIDER 2026-09-18 (CAL-1a PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING
+      BELOW IS EDITED. ──
+      PUSHED. STATUS MOVED `in_progress` -> `staging`, and the three SHAs are
+      now all recorded. Gary pushed between the CAL-1 check session and the
+      CAL-1a build session; `bb675e1` is on `origin/staging`, confirmed by
+      `git branch -r --contains bb675e1` rather than assumed from a report.
+      WHY THIS WAS STALE FOR A DAY, recorded because the mechanism matters more
+      than the correction. The row was TRUE when written — nothing was pushed
+      then — and Gary's push made it false. WORKFLOW.md rule 4 assigns the
+      status move to "the session that moved the code", and no Claude session
+      did: Gary pushes, and he is not a session. So the row had no owner between
+      the push and now, which is DEBT-72's finding exactly ("eleven rows read
+      `in_progress` while their code was live in production"). THE CHECK SESSION
+      IS THE FIRST THING WITH A REASON TO LOOK, and it only looked because it
+      was auditing a DIFFERENT phase's row and read this one on the way past.
+      THE FOUR BLOCKERS BELOW ARE UNTOUCHED AND ALL STILL LIVE. `staging` here
+      means the CODE IS ON THE BRANCH, not that anything was verified: the
+      migration's state on dev is unknown to this session, the staging pass has
+      still not run, DEBT-98 is open, and /calendar still has no help article.
+      Do not read the status change as evidence.
+      ONE THING THE PUSH DID PROVE, and it is worth keeping because it was a
+      named blocker risk: staging deployed. The Vercel build runs
+      `prisma migrate deploy`, so `20260917143000_cal1_calendar` applied on the
+      staging branch — and Gary then observed the CAL-1a clipping defect on a
+      rendered /calendar, which is not reachable unless the tables exist. The
+      migration's status on DEV and PRODUCTION remains unestablished.
+      ── RIDER 2026-09-18 (CAL-1a). PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE CREATE FORM CLIPPED OFF-SCREEN ON THE TOP GRID ROWS and is fixed in
+      CAL-1a ("d4e13af") — the anchored popover this phase shipped is now the
+      shared Dialog. CAL-1's UI section below still describes a popover, which
+      is what it built; read CAL-1a for what is on screen now.
+      ── RIDER 2026-09-18 (PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      THE THIRD SHA OF THIS PHASE IS THIS CHECK'S OWN DOCS COMMIT, and it is not
+      in `commits` above for the reason no recorder commit ever can be: it is
+      the commit that writes the line naming it. `commits` reads
+      ["bb675e1", "a4b63cf"] — the work and the build session's docs commit —
+      and the check commit that added this rider is the next one on `staging`,
+      findable as the commit immediately after a4b63cf. Recording it inside
+      itself would require an amend, and amending a recorded work commit
+      invalidates the SHA a row cites.
+      RULINGS RATIFIED. Gary ratified the CAL-1 DECISIONS.md entry AS WRITTEN on
+      2026-09-18 in the check session. His instruction, recorded because it
+      changes what the entry means rather than merely approving it: "My R3
+      wording stands as quoted; keep the correction recorded beneath it with the
+      verified number, not edited into my words. Do not reword R3." So the
+      DRAFT heading is now spent and the entry is a ruling.
+      THE dayCloseInstant CALLER COUNT IS SETTLED AT FIVE, MEASURED RATHER THAN
+      RECALLED. Three numbers were in circulation and only one is right. Phase
+      A's audit said "four call sites", counting FILES. Addendum A of the prompt
+      "corrected" that to "six, in four files" and then enumerated five — it had
+      folded the DEFINITION at checklist-lifecycle.ts:245 into the count. The
+      plan's B2 table was correct all along (five pre-existing, plus a sixth row
+      explicitly labelled `src/lib/calendar.ts` (new)), and the work commit
+      message said "five". VERIFIED AT BASE 34fad03 BY GREP IN THE CHECK
+      SESSION: five invocations in four files — (app)/stores/page.tsx:53,
+      (app)/reports/operations/page.tsx:106,
+      api/cron/checklist-day-close/route.ts:210, and
+      checklist-lifecycle.ts:341 and :428. At HEAD there are six in five files,
+      the new one being src/lib/calendar.ts:279, the only caller passing 0.
+      NOTHING WAS VERIFIED AGAINST THE WRONG SET — the build typechecks every
+      call site whatever anyone counted — but the wrong sentences stay in
+      docs/prompts/ unedited (a saved prompt is a claim wholesale), so this
+      rider and the DECISIONS correction are where the right number lives.
+      DEPLOY_LOG ENTRY NOW EXISTS, written into docs/DEPLOY_LOG.md marked
+      UNPROMOTED on Gary's instruction, following the UM-3 entry's shape. The
+      build session had deferred it on the reasoning that DEPLOY_LOG records
+      production promotions; that reasoning was WRONG — the file's own first
+      line says it "logs both staging and prod deploys" and four UNPROMOTED
+      entries already sat above the fold.
+      ── THE BUILD SESSION'S ROW IS NEXT, UNEDITED ──
+      WRITTEN AT THE END OF THE SESSION FROM WHAT WAS ACTUALLY BUILT, per
+      WORKFLOW.md rule 2. NOT PUSHED — Claude never pushes, so the status is
+      `in_progress` rather than `staging`: rule 4 moves a row to `staging` in the
+      session whose CODE REACHED staging, and this session's has not. The next
+      session to push must move it.
+      WHAT SHIPPED. A /calendar page under the Checklists nav group where an
+      admin (or a manager granted `calendar.manage`) schedules recurring work
+      that is not a daily checklist — the mailbox weekly, the Bunn filters
+      monthly, the deposit weekly. Reminders PROJECT onto a Sun-Sat 6-row month
+      grid, MATERIALISE one open occurrence per store at a time, and surface in
+      a banner on /dashboard and /checklists when due, with "N days overdue"
+      escalation and a "You're all caught up" state on completion.
+      PROMPT AND AUDIT: docs/prompts/CAL-1_calendar_reminders.md (Phase B plan is
+      ADDENDUM B in that file, appended after the audit, nothing above it
+      edited) and docs/prompts/CAL-1_AUDIT.md.
+      GARY'S NINE RULINGS are drafted verbatim in docs/DECISIONS.md under
+      "DRAFT - pending ratification". A COMMITTED DRAFT IS NOT A RULING; Gary
+      ratifies in PRE-PUSH-CHECK.
+      FIVE QUESTIONS THE AUDIT COULD NOT ANSWER WERE RULED BEFORE ANY FILE WAS
+      TOUCHED (R1-R5, Gary 2026-09-17), and three of them changed the build:
+      R1 - completing an occurrence asks NO CAPABILITY. It mirrors
+      api/checklists/[id]/task-log exactly, which enforces org scope then STORE
+      MEMBERSHIP and nothing else. The audit's sharpest finding is that that
+      route contains no can() call at all and that `checklists.execute` is a
+      registered capability with ZERO call sites app-wide. R1 ruled it stays
+      that way - CAL-1 does not change checklist semantics - and the gap is
+      filed as DEBT-97.
+      R2 - Organization.calendarEnabled is a DEDICATED BOOLEAN COLUMN, not a
+      fifth entry in activeModules. The schema's own comment makes activeModules
+      "the BILLABLE ADD-ON list", and the calendar is part of Checklists rather
+      than a separate purchase. Consequence: no availability env var, no
+      CALENDAR_MODULE_AVAILABLE, and the feature can reach production off by
+      default with one column as the only gate.
+      R3 - dayCloseInstant() gained an OPTIONAL `graceHours` parameter
+      defaulting to DAY_CLOSE_GRACE_HOURS; the calendar passes 0. Ruling 8 puts
+      a reminder's overdue instant AT store close and at the END of the store's
+      local day for a store with no hours, where a checklist's day close
+      deliberately sits three hours later. All five pre-existing call sites pass
+      three positional arguments and are behaviour-identical - two of them read
+      only `.source`, which grace cannot affect - and
+      scripts/verify-store-hours-engine.ts stays green UNCHANGED, which is the
+      tell that nothing moved. A NOTE AT THE PARAMETER says this is a
+      PER-CALLER grace and explicitly not the per-org grace the constant's own
+      comment rules would need a column plus a Settings control.
+      R4 - attachments use the PUBLIC blob store, the TaskAttachment pattern.
+      No new store and no new env var, so nothing had to be provisioned in three
+      environments before an upload could work. The limitation is recorded at
+      the route rather than discovered later: calendar attachments are the same
+      sensitivity class as checklist task photos.
+      R5 - /calendar is in SANCTIONED_ADDITIONS in
+      scripts/verify-nav1-url-sets.ts, which is the ruling that file demands in
+      its own words ("Adding an entry here is a RULING, not a fix"). BASELINE_REV
+      was NOT touched. The fixture also learned `requiresCalendar`, and a new
+      "calendar toggle OFF" scenario proves the flag is genuinely read rather
+      than merely suppressed by the sanction - without it the sanction would
+      hide a permanently-visible nav entry.
+      DEVIATION S5-D77, APPROVED BY GARY BEFORE THE BUILD: the three date-only
+      columns are `@db.Date`, where the prompt's B1 block wrote bare `DateTime`.
+      A calendar date is not an instant, CLAUDE.md records the UTC/local
+      misreading firing THREE TIMES IN ONE DAY, and UsageDaily.date is the
+      precedent already in this schema. `CalendarOccurrence.dueAt` stays a real
+      TIMESTAMP - it is the only column in the four new tables a timezone
+      question can be asked of. NO OTHER DEVIATIONS WERE TAKEN.
+      MIGRATION 20260917143000_cal1_calendar IS UNRUN ON EVERY BRANCH. Four new
+      tables, one new column with a default, nothing dropped and no type
+      changed, so no backfill is owed and it cannot fail on existing data. It
+      was generated by `prisma migrate diff --from-schema <HEAD's schema>
+      --to-schema prisma/schema.prisma`, which touches NO DATABASE at all - the
+      documented `--from-config-datasource` form could not run because the dev
+      Neon branch was unreachable, and the file-to-file diff is a strictly
+      better check for a migration that must not be applied locally anyway.
+      CAPABILITIES: `calendar.view` (baseline ALL) and `calendar.manage`
+      (ADMIN_ONLY), both in ENFORCED_CAPABILITIES under area "Checklists".
+      `calendar.manage` IS THE SECOND ENTRY EVER ON GRANTABLE_CAPABILITIES -
+      MANAGER only, named explicitly, no wildcard - which is ruling 5 and which
+      permissions.ts treats as a security change with the same weight as moving
+      a baseline.
+      THE CRON ITERATES ORGS, WHERE THE DAY-CLOSE CRON DELIBERATELY DOES NOT.
+      That job's comment says inventing an org filter "would just be a way to
+      miss a tenant"; this one filters on `calendarEnabled` because ruling 9
+      makes it a PRODUCT PREDICATE - an org with the calendar off must have
+      nothing written for it. Approved with the plan, and the divergence is
+      named at the site so the next reader does not file it as a copy error.
+      `skippedDisabled` is counted for the CHK-3 reason: a run that wrote
+      nothing because every org has it off must not read identically in the
+      Runtime Logs to one where everything was already open.
+      EVIDENCE THIS SESSION PRODUCED, AND ITS CEILING. `npm run build` green;
+      scoped eslint clean (exit code read WITHOUT a pipe, after a first run's
+      status was masked by `| tail` - the CLAUDE.md § Commit Gates trap, caught
+      and re-run); verify-cal1-projection 40 cases, verify-perm8-grants 34,
+      verify-nav1-url-sets and verify-store-hours-engine all green by exit code.
+      ALL OF THAT IS UNIT-LEVEL. No route was exercised, no capability was
+      refused in anger, no occurrence was materialised, and no pixel was
+      rendered - see blockers.
+    blockers:
+      - >
+        THE MIGRATION HAS NOT BEEN RUN ANYWHERE. Gary runs it on dev
+        (`prisma db execute` + `migrate resolve --applied`, MIGRATIONS.md §3),
+        then pushes so staging and production take it through `migrate deploy`
+        in the Vercel build. Until then every calendar query fails at runtime
+        against a database with no CalendarEvent table, on EVERY branch
+        including local dev.
+      - >
+        THE STAGING PASS HAS NOT RUN AND NOTHING IN THIS BUILD HAS BEEN SEEN IN
+        A BROWSER. The session report carries the protocol unrun. Claude never
+        pushes, so per CLAUDE.md the default assumption is that staging does not
+        have this work; the SHA-match precondition binds before any observation.
+        The six checks that cannot be replaced by a fixture: the toggle-off
+        refusals, the PERM-8 grant flipping a MANAGER's day-click, the cron
+        materialising exactly one row with dueAt at that store's close, a STORE
+        account completing it, the second cron run reporting skippedOpen, and
+        the backdated banner reading "3 days overdue" with one pulse.
+      - >
+        THE CRON'S SECRET COMPARISON IS UN-TRIMMED AND NON-CONSTANT-TIME,
+        COPIED DELIBERATELY FROM THE DAY-CLOSE CRON ON GARY'S RULING rather
+        than fixed here. Five cron routes share it; one fixed and four not is a
+        divergence nobody can see. Tracked as DEBT-98, which covers all of them.
+      - >
+        /calendar HAS NO HELP ARTICLE. `scripts/generate-guide.mjs` warns at
+        every build that 42 of 66 claimable routes are unclaimed and /calendar
+        is now one of them. Pre-existing warning class, not a gate, and not
+        fixed here because HELP article authoring was not in this phase's scope.
+    deferred:
+      - >
+        EVERYTHING THE "Event" TAB IMPLIES. The create popover ships Apple-style
+        with Event | Reminder tabs and the Event tab DISABLED, reading "Coming
+        in CAL-2" - shipped disabled rather than absent because ruling 1
+        describes a calendar with TWO entity types, and a UI showing only one
+        teaches the wrong model to everyone who uses it in the meantime.
+      - >
+        NO TEMPLATE IS TOUCHED. No `templateId` on CalendarEvent, no change to
+        bulk generate, no change to the day-close cron, and DEBT-61 is not
+        closed. The projection helper was built template-agnostic specifically
+        so CAL-2 can call it for templates, which is that row's stated fix
+        shape.
+      - >
+        COMPLETION PHOTO PLUMBING IS PARTIAL. `CalendarOccurrence.photoUrl`
+        exists and the complete route accepts it, but no upload control ships in
+        the detail popover this phase - the CHK-7 route pattern it would follow
+        (4 MB, under Vercel's request cap, gates re-applied before the blob is
+        stored) is named in the plan and not built.
+      - >
+        NO PER-OCCURRENCE HISTORY BEYOND THE CURRENT ROW. The detail popover
+        shows the completion of the occurrence in hand, not a log of every past
+        completion of that event at that store. The rows exist; no surface reads
+        them.
+
+  - id: CAL-1a
+    track: cal
+    size: S
+    status: in_progress
+    commits: ["d4e13af", "6f4b842"]
+    title: "Calendar create form clipped off-screen on the top grid rows — anchored popover replaced with the shared Dialog"
+    notes: >
+      ── RIDER 2026-09-18 (PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      THE THIRD SHA OF THIS PHASE IS THIS CHECK'S OWN DOCS COMMIT, the one that
+      wrote this rider — findable as the commit immediately after "6f4b842".
+      `commits` above now reads both build SHAs; it shipped naming only the work
+      commit, which is the same omission CAL-1 carried and which this check
+      fixed one session earlier. Twice in two phases makes it a pattern rather
+      than a slip: the row is written INSIDE the commit that would record it, so
+      the docs SHA is never available to the session writing the row, and
+      nothing in the two-commit procedure prompts anyone to come back for it.
+      The check is currently the only thing that catches it.
+      STATUS STAYS `in_progress`: CAL-1a's two build commits are NOT pushed as
+      at this rider. WORKFLOW.md rule 4 moves a row to `staging` in the session
+      whose code reached staging, and that has not happened for CAL-1a.
+      THE PROMPT FILE WAS MISSING AND IS NOW WRITTEN.
+      docs/prompts/CAL-1a_popover_clipping.md did not exist when the build
+      session ran — that session was told to read it, worked from the text
+      pasted inline in the same message instead, and did not say so. Nothing was
+      built from the wrong instruction (the pasted text WAS the prompt), but the
+      artifact was absent from the library. It is reconstructed verbatim from
+      Gary's message and headed with a note saying exactly that, so it is never
+      mistaken for a file recovered from disk.
+      ── THE BUILD SESSION'S ROW IS NEXT, UNEDITED ──
+      TIER 1, COSMETIC. No schema, no routes, no capability change, no change to
+      what any gate decides. Filed and fixed 2026-09-18, the day after CAL-1
+      reached staging.
+      THE DEFECT, observed by Gary on staging 2026-09-18. Clicking a day in the
+      TOP ROWS of the month grid opened the create form as a `<Popover>`
+      anchored to that cell. A popover positions against its ANCHOR, not against
+      the viewport, so the form opened upward with its head above the fold and
+      NOTHING TO SCROLL — the overflow was off-screen rather than inside a
+      container, which is why no amount of scrolling reached it.
+      THE FIX. One shared `Dialog` below the grid driven by `createOn`,
+      replacing 42 per-cell Popover roots: centred, capped at 85vh, Escape and
+      backdrop-click to close, all Radix defaults the popover never gave. The
+      cap sits on DialogContent and THE SCROLL SITS ON THE FORM BODY — UX-1's
+      finding on the Edit User modal, that scrolling DialogContent itself drops
+      Save below the fold of a form that only gets longer. The footer is pinned
+      outside the scroll and the error line moved out with it, since an error
+      rendered at the bottom of an eleven-field form is below the fold for
+      exactly the person who just pressed Save.
+      THE DETAIL PANEL WAS NOT THE SAME DEFECT, and the session prompt's premise
+      that it shared the anchoring did not match the code. It was already a
+      centred `fixed inset-0` overlay rather than a Popover, so it never opened
+      off-screen. It was converted anyway — instructed, and worth doing on its
+      own merits: a bare div gave no Escape, no focus trap, no focus restored to
+      the trigger, no `aria-modal` or dialog role, and a backdrop "click" that
+      was an onClick on a div needing `stopPropagation` on the panel to stop its
+      own handler firing. Its `<h2>` became `DialogTitle` (Radix warns at
+      runtime without one) and its bespoke close button went, since
+      DialogContent renders its own and two would have shown.
+      WHAT WAS CHECKED RATHER THAN ASSUMED, because a container swap is exactly
+      the shape of change that quietly takes a gate with it: the `canManage`
+      day-click affordance (ruling 5), `setDetailOn`, `onDone`/`onCancel`, all
+      ELEVEN form field ids diffed before against after and identical, and the
+      Event | Reminder tab strip with Event still disabled reading "Coming in
+      CAL-2". The only new behaviour-bearing line in the diff is the Dialog's
+      own `open`/`onOpenChange`.
+      EVIDENCE CEILING. `npm run build` exit 0 and scoped eslint exit 0, both
+      read WITHOUT a pipe. NOT SEEN IN A BROWSER by this session — /calendar
+      needs a Clerk session and the CAL-1 tables on the dev branch, and the fix
+      is to a rendered position, which is the one thing a build cannot check.
+      Gary sees it on staging after the push.
+    blockers:
+      - >
+        THE FIX IS UNSEEN. A clipping defect is visual by definition and this
+        session verified it by diff and build only. The check on staging is one
+        click: open /calendar, click a day in the FIRST grid row, and confirm
+        the form is centred with its title visible. If it is still clipped, the
+        Dialog is not the container being rendered and this row is wrong.
+
+  - id: CAL-2
+    track: cal
+    size: L
+    status: planned
+    title: "Calendar events from templates — \"Add to Calendar\", checklist generation from occurrences, and the close of DEBT-61"
+    notes: >
+      THE SUCCESSOR CAL-1 WAS BUILT TO ENABLE, and the row that finally closes
+      DEBT-61. CAL-1 shipped the Reminder half of ruling 1 - a standalone item
+      somebody ticks - and left the Event half as a disabled tab. CAL-2 builds
+      it: a `templateId` on CalendarEvent, an "Add to Calendar" control on a
+      template, and a generation path that creates a CHECKLIST from a calendar
+      occurrence when its date comes due. That is exactly DEBT-61's stated fix
+      shape, unchanged across three riders - "a schema addition plus a form
+      control plus the generation filter", where a Weekly template needs a
+      day-of-week and a Monthly one a day-of-month and NEITHER IS COLLECTED
+      TODAY. CalendarEvent.recurrence + startDate collect precisely those, and
+      src/lib/calendar.ts's projectDueDates() was deliberately built
+      template-agnostic so it can be called for a template without being
+      rewritten. The scheduled checklists CAL-2 creates follow the CHK-3
+      lifecycle (ruling 4), unlike reminders, which are never auto-closed as
+      Missed. Sequence it after Gary has run CAL-1's migration and the staging
+      pass has actually happened - CAL-2 builds on tables nothing has yet
+      written a row to.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
@@ -24133,6 +24751,44 @@ debt:
       Template.frequency is collected, exported and rendered but read by no
       generation path — every template is a daily template
     notes: >
+      ── RIDER 2026-09-17 (CAL-1, work commit "bb675e1"). THIS ROW STAYS OPEN.
+      PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE FIX PATH NOW HAS A NAME AND A DATE: CAL-2. It is filed as a `planned`
+      phase row in this file, and CAL-1 — shipped today — built the half of it
+      that this row has been waiting for without touching a single template.
+      WHAT CAL-1 BUILT THAT MATTERS HERE. The fix shape below has been stated
+      identically across three riders and is unchanged: "a schema addition plus
+      a form control plus the generation filter — a Weekly template needs a
+      day-of-week, a Monthly one a day-of-month, NEITHER COLLECTED TODAY."
+      src/lib/calendar.ts now collects exactly those, in
+      `projectDueDates(event, from, to)` over a structural `ProjectableEvent`
+      of `{recurrence, startDate, endDate}` — Weekly resolves the weekday from
+      startDate, Monthly the day-of-month with a clamp to month end (the 31st
+      falls on Feb 28, Apr 30, and RETURNS to the 31st in May). It is pure, it
+      imports no Prisma, and it is DELIBERATELY TEMPLATE-AGNOSTIC so CAL-2 can
+      call it for a Template without rewriting it. Forty fixture cases pin it:
+      scripts/verify-cal1-projection.ts.
+      WHAT CAL-1 DID NOT DO, STATED PLAINLY BECAUSE THIS ROW'S OWN HISTORY IS
+      THAT PROGRESS KEEPS GETTING MISTAKEN FOR CLOSURE. Nothing in CAL-1 touches
+      Template, bulk generate, api/checklists, or the day-close cron. There is no
+      `templateId` on CalendarEvent. `Template.frequency` is read by exactly the
+      same code today as it was yesterday — which is to say, by the three
+      containment gates and no generation path. BOTH OPEN ITEMS BELOW ARE
+      UNTOUCHED: bulk generate still creates a Weekly template's checklist every
+      day (item 1), and a non-Daily checklist somebody genuinely started is still
+      never closed (item 2).
+      SO THE DISCONFIRMATION CLAUSE HAS NOT FIRED AND THIS ROW DOES NOT CLOSE.
+      It reads "any code path in api/checklists or the day-close cron branching
+      on Template.frequency", and CAL-1 added none. The clause has now survived
+      four riders without closing the row, which is itself worth noting: the
+      containment keeps being thorough enough to look like the fix, and this
+      rider is a fourth thing that could be mistaken for it. The calendar is the
+      CONTROL this row said was missing. The CONSUMER is still missing, and
+      building it is CAL-2.
+      SEQUENCING. CAL-2 cannot start until Gary has run CAL-1's migration
+      (20260917143000_cal1_calendar) and the CAL-1 staging pass has actually
+      happened — it builds on four tables that, as at this rider, nothing has
+      written a row to on any branch.
       ── RIDER 2026-08-10 (CHK-5/S5, "5190fd9"). THIS ROW STAYS OPEN. PREPENDED;
       NOTHING BELOW IS EDITED. ──
       THE EXCLUSION NOW HOLDS AT THREE GATES AND IS VISIBLE AT THE THIRD.
@@ -25743,6 +26399,100 @@ debt:
       untouched — which is the /help/hr-forms failure exactly, and the reason
       neither absence should be inferred from the other rows being green.
 
+
+  - id: DEBT-97
+    status: planned
+    title: >
+      `checklists.execute` is registered with zero call sites — the control
+      exists and the consumer is missing (the TPL-1 pattern)
+    notes: >
+      FILED 2026-09-17 ON GARY'S RULING at the CAL-1 audit stop: "checklists.execute
+      is registered with zero call sites (TPL-1 pattern: control exists, consumer
+      missing). File it; PERM track decides." DO NOT FIX IT IN CAL-1.
+      THE FACT, measured at HEAD 34fad03 during the CAL-1 Phase A audit.
+      `checklists.execute` is a real member of the Capability union
+      (src/lib/permissions.ts) with baseline ALL, and it appears in
+      docs/PERMISSIONS_INVENTORY.md §5 as "all roles (scoped)". A repo-wide
+      search finds THREE occurrences: the union member, the GRANTS entry, and
+      the inventory line. NOTHING ASKS IT.
+      WHAT ACTUALLY GATES CHECKLIST EXECUTION is
+      api/checklists/[id]/task-log/route.ts, which imports no permissions module
+      and enforces, in order: orgId (401), org lookup (404), checklist scoped by
+      organizationId (404), then `getUserStoreScope()` -> `isAdmin ||
+      storeIds.includes(checklist.storeId)` (403), then CHK-3's closed-day 409
+      and the task-ownership 400. Store membership IS the gate. The same is true
+      of api/upload/checklist-photo, which re-applies those gates deliberately.
+      WHY THIS IS THE TPL-1 PATTERN AND NOT A BUG. Nothing is broken and nothing
+      is insecure: the route refuses correctly, and because the baseline is ALL
+      the capability would change no answer today even if it were asked. What is
+      wrong is the SAME SHAPE DEBT-61 and TPL-1 both record — a field wired end
+      to end with the behaviour omitted. Here the capability is declared, is
+      documented as governing execution, and governs nothing; the next person
+      asking "what gates checklist execution" reads the registry and gets an
+      answer that is not the one the code gives.
+      NOTE THE DIRECTION OF THE RISK, which is why this is planned rather than
+      urgent. The registry is MORE permissive-looking than the code, not less:
+      someone reasoning from permissions.ts would conclude that denying
+      `checklists.execute` stops execution, and it does not — the capability is
+      also absent from ENFORCED_CAPABILITIES, so PATCH /api/users/[id] rejects a
+      hand-rolled denial with a 400 and no forbidden state is reachable. The
+      cost is a wrong mental model, not a hole.
+      CAL-1 DELIBERATELY DID NOT CLOSE THIS. Gary's R1 ruled that completing a
+      calendar occurrence mirrors task-log exactly — store scope, no capability
+      — so the reminder gate and the checklist gate cannot drift apart, and
+      making CAL-1 the first-ever call site of an unruled capability was
+      explicitly refused. A comment at
+      api/calendar/occurrences/[id]/complete/route.ts records that and names
+      this row.
+      THE FIX IS A RULING BEFORE IT IS CODE. Either enforce it at the two
+      execution routes and add it to ENFORCED_CAPABILITIES so it can actually be
+      denied, or remove it from the union and the inventory and let store scope
+      be the documented answer. Both are defensible; picking one is the PERM
+      track's, not a passing session's.
+
+  - id: DEBT-98
+    status: planned
+    title: >
+      Every cron route's CRON_SECRET comparison is un-trimmed and
+      non-constant-time — fix all five together or none
+    notes: >
+      FILED 2026-09-17 ON GARY'S RULING at the CAL-1 audit stop: "Cron secret
+      compare is un-trimmed and non-constant-time in every cron route. Copy the
+      existing pattern as-is in CAL-1 for consistency and file one row covering
+      all crons. DO NOT FIX ONE ROUTE IN ISOLATION."
+      THE FACT. Every route under src/app/api/cron/ authenticates with
+      `req.headers.get("authorization") !== ` + "`Bearer ${secret}`" + `. Two
+      weaknesses, both already written down as comments at
+      api/cron/checklist-day-close/route.ts and neither ever implemented:
+      (1) NO `.trim()` ON EITHER SIDE. `process.env.CRON_SECRET` can carry a
+      trailing newline from a paste into the Vercel dashboard, which fails the
+      `!==` and RETURNS A 401 THAT LOOKS EXACTLY LIKE A WRONG VALUE. This is not
+      hypothetical: docs/prompts/CRON-DIAG_findings.md is an afternoon spent
+      diagnosing a 401 as a scoping problem. That is the expensive half.
+      (2) `!==` ON STRINGS SHORT-CIRCUITS AT THE FIRST DIFFERING BYTE and is
+      therefore timing-variable. `crypto.timingSafeEqual` over equal-length
+      buffers is the standard fix. Low severity for these endpoints by the same
+      reasoning that deferred CRON_SECRET rotation — they are idempotent and
+      Vercel fires them on a schedule regardless — but it is free to fix while
+      the file is open.
+      THE ROUTES, all five registered in vercel.json as of CAL-1:
+      sales-reconcile, pace-alerts, checklist-day-close, labor-timecards,
+      engagement-prune, plus calendar-materialize which CAL-1 added. Note also
+      that api/cron/labor-scheduled-shifts/route.ts EXISTS AS A FILE AND IS NOT
+      REGISTERED in vercel.json — found incidentally by the CAL-1 audit, not
+      investigated, and worth resolving in the same sweep since anyone reading
+      vercel.json as the register of crons will miss it.
+      WHY ONE ROW AND NOT SIX. A sweep is the unit of work here. One route
+      hardened and five not is a divergence nobody can see from any single file,
+      and the next person to copy a cron would copy whichever one they opened
+      first. CAL-1 copied the weakness ON PURPOSE for exactly this reason, with a
+      comment at the site saying so and naming this row — so the new cron is
+      consistent with its five siblings rather than being the one that is
+      quietly different.
+      THE RIGHT SHAPE when it is picked up: one shared `authorizeCron(req)` in
+      src/lib, trimming both sides and comparing in constant time, called by
+      every route — so the NEXT cron cannot reintroduce this by being written
+      from scratch.
 
 
 rulings:

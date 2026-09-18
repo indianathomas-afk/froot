@@ -242,13 +242,30 @@ export function hoursForDate(hours: HoursRow[], dateStr: string): HoursRow | nul
  * "Store-local midnight" is the END of the day — 00:00 on D+1 — so the fallback
  * close lands at 03:00 local on the following day.
  */
-export function dayCloseInstant(hoursRow: HoursRow | null, dateStr: string, timeZone: string): DayClose {
+export function dayCloseInstant(
+  hoursRow: HoursRow | null,
+  dateStr: string,
+  timeZone: string,
+  // CAL-1 (Gary's R3, 2026-09-17). A PER-CALLER grace, defaulting to the
+  // constant every existing caller was already using — so this parameter is
+  // invisible to all five of them and none changes behaviour. The calendar
+  // passes 0: ruling 8 puts a reminder's overdue instant AT store close, and at
+  // the END of the store's local day (midnight) when there are no hours, where
+  // day close deliberately sits three hours later.
+  //
+  // THIS IS NOT THE PER-ORG GRACE the constant's own comment rules on. That one
+  // would be an Organization column plus a Settings control, shipped together,
+  // and it is still a row nobody has opened. A parameter chosen in code by the
+  // caller is neither persisted nor claimed as an operator's preference, which
+  // is the distinction that comment draws. Do not read one as the other.
+  graceHours: number = DAY_CLOSE_GRACE_HOURS
+): DayClose {
   const midnight = () => {
     const at = zonedInstant(shiftDateStr(dateStr, 1), "00:00", timeZone)
     // zonedInstant only returns null for a malformed date or time, and both are
     // literals here; the fallback keeps the return type honest without inventing
     // an error path no caller can hit.
-    return new Date((at?.getTime() ?? Date.UTC(0, 0, 1)) + DAY_CLOSE_GRACE_HOURS * HOUR_MS)
+    return new Date((at?.getTime() ?? Date.UTC(0, 0, 1)) + graceHours * HOUR_MS)
   }
 
   if (!hoursRow) return { at: midnight(), source: "no-hours", isFallback: true }
@@ -266,7 +283,7 @@ export function dayCloseInstant(hoursRow: HoursRow | null, dateStr: string, time
   const closeDay = parseHhMm(openStr) && closeStr <= openStr ? shiftDateStr(dateStr, 1) : dateStr
   const at = zonedInstant(closeDay, closeStr, timeZone)
   if (!at) return { at: midnight(), source: "no-close-time", isFallback: true }
-  return { at: new Date(at.getTime() + DAY_CLOSE_GRACE_HOURS * HOUR_MS), source: "hours", isFallback: false }
+  return { at: new Date(at.getTime() + graceHours * HOUR_MS), source: "hours", isFallback: false }
 }
 
 // ─── The expected window ─────────────────────────────────────────────────────

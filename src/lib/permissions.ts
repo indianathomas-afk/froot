@@ -86,6 +86,8 @@ export type Capability =
   | "checklists.execute"
   | "checklists.create"
   | "checklists.create.bulk"
+  | "calendar.view"
+  | "calendar.manage"
   | "messages.use"
   | "messages.moderate"
   | "corporate.updates.manage"
@@ -187,6 +189,17 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // active store × applicable template in the org. Inherently org-wide — it
   // cannot be store-scoped — so it is ADMIN only (Gary, 2026-07-26).
   "checklists.create.bulk": ADMIN_ONLY,
+  // CAL-1. The calendar is part of Checklists, not a module anyone buys (Gary's
+  // R2, 2026-09-17), so its READ tier matches checklists.view: everyone. The
+  // page it gates is store-scoped at the call site, and the banner it gates is
+  // the floor's own work — a tier narrower than ALL would hide a reminder from
+  // the person holding the mop.
+  "calendar.view": ALL,
+  // CAL-1 ruling 5 (Gary, 2026-09-17): "Scheduling is calendar.manage: ADMIN
+  // baseline, grantable per-user to MANAGER via the PERM-8 grant model." The
+  // baseline half is here; the grantable half is in GRANTABLE_CAPABILITIES.
+  // BOTH HALVES ARE REQUIRED — see can()'s elevation branch.
+  "calendar.manage": ADMIN_ONLY,
   "messages.use": ALL,
   "messages.moderate": MANAGE, // delete additionally allows the author (PL-7)
   "corporate.updates.manage": ADMIN_ONLY,
@@ -508,6 +521,17 @@ export function grantsFrom(stored: string[] | null | undefined): ReadonlySet<Cap
 // staff members and wipes assignments org-wide, and stays ADMIN-only.
 const GRANTABLE_CAPABILITIES: Partial<Record<Capability, readonly PermissionRole[]>> = {
   "staff.import.square": ["MANAGER"],
+  // CAL-1 — THE SECOND ENTRY EVER, and it is Gary's ruling 5 (2026-09-17),
+  // approved explicitly when the CAL-1 plan was approved rather than appended
+  // for convenience: "Scheduling is calendar.manage: ADMIN baseline, grantable
+  // per-user to MANAGER via the PERM-8 grant model."
+  //
+  // MANAGER ONLY, NAMED EXPLICITLY, per the rules above this list. A STORE
+  // login is a shared iPad and STAFF is the widest tier in the product; neither
+  // may ever schedule org-wide recurring work, and neither acquires this by a
+  // wildcard nobody re-read. Completing an occurrence is a different question
+  // and asks no capability at all (R1) — see the complete route.
+  "calendar.manage": ["MANAGER"],
 }
 
 // Whether `capability` may be granted to `role` above its baseline. Exported
@@ -673,6 +697,26 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     area: "Checklists",
     label: "Start checklists for every location",
     removes: "The org-wide fan-out that instantiates every store's checklists at once.",
+  },
+  // CAL-1 — THE CALENDAR PAIR. Same area as the checklists rows because that is
+  // where the calendar lives in the product (R2): a reminder is the recurring
+  // work that is not a daily checklist, not a separate purchase.
+  {
+    capability: "calendar.view",
+    area: "Checklists",
+    label: "The calendar",
+    removes: "The Calendar page, its nav entry, and the due-reminder banner.",
+  },
+  // THE SECOND GRANTABLE ROW IN THIS GRID (staff.import.square was the first).
+  // For ADMIN it behaves like every other row — on by baseline, switch it off to
+  // deny. For MANAGER it is the inverse: off by baseline, switch it on to GRANT.
+  // The modal already renders the two cases differently; see user-actions.tsx.
+  {
+    capability: "calendar.manage",
+    area: "Checklists",
+    label: "Schedule calendar reminders",
+    removes:
+      "Creating, editing and archiving calendar reminders, and the day-click that opens the create popover. Completing a reminder is unaffected — that asks no capability.",
   },
   {
     capability: "stores.manage",

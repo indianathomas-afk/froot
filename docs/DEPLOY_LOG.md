@@ -2,6 +2,112 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-18 — Calendar: recurring store reminders, a month grid and a due banner
+
+**Work SHA:** `bb675e1` on `staging`, not pushed at the time of writing.
+**Docs SHA:** `a4b63cf`. **Unpromoted — staging only.** The heading is stamped
+with the merge SHA at promotion, from `git rev-parse`, never hand-typed.
+**Carries CAL-1a (`d4e13af`, 2026-09-18):** the create form clipped off-screen
+on the top grid rows on staging; the anchored popover is now the shared Dialog.
+Cosmetic, rides this entry, adds no migration step and changes nothing below.
+
+**Payload:** **3 commits** on `staging` — the work, the docs, and the
+PRE-PUSH-CHECK commit that added this entry. **This is a schema change and the
+largest payload in this log since HELP-1a.** What it carries: **one additive
+migration (FOUR NEW TABLES + one new column), TWO new capabilities, a SECOND
+entry on the PERM-8 grantable list, SEVEN new API routes, a SIXTH hourly cron,
+one new page route, and a defaulted parameter on a shared engine function with
+five existing callers.** No Square call, no Clerk change, no Instagram change,
+no change to templates, checklists, or the day-close cron.
+
+**What it does.** A `/calendar` page under the Checklists nav group where an
+admin — or a manager granted `calendar.manage` — schedules recurring work that
+is not a daily checklist: the mailbox weekly, the Bunn filters monthly, the
+deposit weekly. Reminders show on a Sun–Sat month grid, coloured by category
+with a flag for Critical, and surface in a banner on `/dashboard` and
+`/checklists` when they come due, with "N days overdue" escalation and a
+"You're all caught up" state on completion. Completing a reminder asks the same
+thing completing a checklist asks: assignment to that store, and no capability.
+
+**THE MIGRATION IS UNRUN ON EVERY BRANCH AND THIS DEPLOY DEPENDS ON IT.**
+`20260917143000_cal1_calendar`. Run it on dev first
+(`prisma db execute` + `migrate resolve --applied`, MIGRATIONS.md §3), then
+push — staging and production take it through `migrate deploy` in the Vercel
+build. **Deploying the code without the migration leaves `/calendar` and every
+`/api/calendar/*` route throwing against tables that do not exist.** It is
+purely additive — four new tables, one `BOOLEAN NOT NULL DEFAULT false` column,
+nothing dropped, no type changed, no backfill — so it cannot fail on existing
+data.
+
+**What to watch on first deploy, in order.**
+
+1. **Nothing should appear for anyone.** `Organization.calendarEnabled` defaults
+   `false`, so every org lands inert: no nav entry, `/calendar` redirects to
+   `/dashboard`, every `/api/calendar/*` route answers **404** (not 403 — off
+   means it does not exist), and the banner renders nothing. **If a calendar
+   appears for an org nobody toggled, stop and roll back.**
+2. **The new cron fires within the hour.** `/api/cron/calendar-materialize`,
+   `"0 * * * *"`, the sixth entry in `vercel.json`. With every org off it should
+   report `materialized: 0` and a non-zero `skippedDisabled`. A run that errors,
+   or one that materialises anything before a toggle is flipped, is a defect.
+3. **The five existing `dayCloseInstant` callers must be unchanged.** The
+   function gained a defaulted `graceHours` parameter; the calendar passes `0`
+   and nothing else passes anything. Day close still closes at store close plus
+   three hours. **The signal that this went wrong is checklists being marked
+   Missed three hours early** — check the day-close cron's next run reports the
+   same shape it did before.
+4. **`/users` gains two toggles** under Checklists — "The calendar" and
+   "Schedule calendar reminders". The second is the second-ever grantable row in
+   that grid: off by baseline for MANAGER, switch it on to grant.
+
+**Rollback is code-only, and the tables stay.** Revert the work commit and the
+calendar disappears — nav, page, routes, cron and banner all go with it. **Do
+not drop the four tables.** WORKFLOW.md's rule holds here exactly: an additive
+migration stays either way, reverting the code leaves unread tables, which is
+harmless, and dropping them is a destructive migration against production for no
+benefit. Any occurrences already completed are a record of work people actually
+did, and a re-deploy finds them intact.
+
+**The faster posture if it is actively wrong:** turn `calendarEnabled` off for
+the affected org. That is one column, it is what every gate reads, and it
+returns the org to the exact state this deploy lands in. Reverting the code is
+the second move, not the first.
+
+**What has NOT been verified, stated because this entry is the record.** Nothing
+in this payload has been seen in a browser or exercised against a database. The
+build session produced unit-level evidence only — `npm run build`, scoped
+eslint, and four fixtures (projection 40 cases, PERM-8 grants 34, the NAV-1 URL
+sets, the store-hours engine unchanged and green). No route was refused in
+anger, no occurrence was materialised, and no pixel was rendered. The staging
+protocol is written and unrun; it is in the CAL-1 row's blockers and in the
+build session's report.
+
+## UNPROMOTED — 2026-09-17 — /users: a location filter and a search box
+
+**Work SHA:** `982833f` on `staging`, not pushed at the time of writing.
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed.
+
+**Payload:** **2 commits** on `staging` — the work and this docs commit. One
+new client component and one page. **No schema change, no migration, no new
+route, no cron, no Square call, no Clerk change, no permission change, no
+query change, no new page route.** `getData()` is byte-identical end to end,
+verified by an empty diff over the whole function.
+
+**What it does.** `/users` gains two controls beneath the subtitle: a location
+dropdown defaulting to "All locations", and a search box over name and email.
+Both narrow the member rows and the pending-invitation rows, AND-combined,
+purely on the client over rows the page already fetched. ADMINs match every
+location because that is their actual access. Header counts stay the org
+totals; the filtered member count is appended as " · showing N".
+
+**Nothing to watch on first deploy.** The default state — "All locations" and
+an empty search — renders exactly what the page rendered before, so an
+unfiltered `/users` is unchanged.
+
+**Rollback is code-only and needs no database step.** Reverting the work commit
+removes the two controls and restores the previous page; nothing was written.
+
 ## UNPROMOTED — 2026-09-09 — Take Photo: the button now opens a camera
 
 **Work SHA:** `ce1cf9d` on `staging`, not pushed at the time of writing.

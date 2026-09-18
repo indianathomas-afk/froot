@@ -6,6 +6,117 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-17 — CAL-1: the calendar — RATIFIED 2026-09-18
+
+**RATIFIED AS WRITTEN by Gary, 2026-09-18, in the PRE-PUSH-CHECK session.** The
+heading below read "DRAFT — pending ratification" until then; the draft status
+is spent and this entry is now citable as a ruling.
+
+His instruction is recorded verbatim, because it governs how this entry is
+maintained rather than merely approving it: *"ratify as written. My R3 wording
+stands as quoted; keep the correction recorded beneath it with the verified
+number, not edited into my words. Do not reword R3."*
+
+So **R3 below is untouched and keeps the word "four"**, and the correction under
+it carries the verified count. That is the rule this log runs on — reword the
+premise that was false, never the ruling — and here not even the premise is
+reworded, because the premise is in Gary's own quoted words.
+
+The original draft note, kept for the record: this entry was committed before
+ratification so the reasoning the CAL-1 build followed was in the log rather
+than only in a transcript (DEBT-37's rule), on the explicit understanding that
+**a committed draft is not a ruling**.
+
+The nine rulings below are reproduced verbatim from the CAL-1 prompt
+(`docs/prompts/CAL-1_calendar_reminders.md`), which states they were given by
+Gary in the 2026-09-17 planning chat. **Claude did not witness that chat**: the
+prompt is the record, and this block is a copy of it, not a transcription of
+Gary's own message. That distinction is the point of the draft status.
+
+> 2026-09-17 — Calendar (CAL-1). Ruled by Gary in planning chat:
+> 1. Two entity types on one calendar: Reminder (standalone, tick to complete) and Event (a template scheduled to run — CAL-2). The calendar takes over generation for non-Daily templates and closes DEBT-61 in CAL-2.
+> 2. Calendar items are per-store, with an "all stores" option that fans out per store. Every occurrence belongs to exactly one store.
+> 3. One open occurrence per event per store at a time. The next occurrence is not materialised until the current one is completed. Future dates on the grid are projected from the rule, not stored.
+> 4. Reminders are never auto-closed as Missed. They stay overdue until someone completes them. Scheduled checklists (CAL-2) follow the CHK-3 lifecycle.
+> 5. Anyone who can complete a checklist at a store can complete a reminder at that store. Scheduling is `calendar.manage`: ADMIN baseline, grantable per-user to MANAGER via the PERM-8 grant model.
+> 6. Priority is Critical / High / Standard. Critical carries a flag.
+> 7. Color is by category, not per item. Fixed list in CAL-1: Ordering, Cleaning & Maintenance, Finance, Store Ops, Other. Each has one color. Priority is a flag, never a color.
+> 8. Due date is required, time optional. Overdue begins at store close on the due date (or at the time, if set); with no store hours, end of the store's local day.
+> 9. The calendar is a module: an admin toggle on /settings. Off = nav, page, API, banner and cron all inert.
+
+### Five further rulings, given in chat 2026-09-17 at the audit stop
+
+These are **Gary's own words in this session**, quoted from his message rather
+than paraphrased. They answer five questions the Phase A audit raised and could
+not settle; each changed what was built.
+
+> **R1** — Completing an occurrence mirrors task-log exactly: store-scope only,
+> no capability check. `checklists.execute` stays unenforced; CAL-1 does not
+> change checklist semantics.
+
+> **R2** — Dedicated column: `Organization.calendarEnabled Boolean @default(false)`,
+> Instagram-shaped. The calendar is part of Checklists, not a billable add-on.
+> Do not add it to `activeModules`.
+
+> **R3** — Add an optional `graceHours` param to `dayCloseInstant`, defaulting to
+> `DAY_CLOSE_GRACE_HOURS`. Calendar calls it with 0. The four existing callers
+> must be behaviour-identical; show that in the plan.
+
+> **R4** — Public blob store, same as `TaskAttachment`. Accepted limitation:
+> calendar photos are the same sensitivity class as checklist task photos.
+> No new store, no new env var.
+
+> **R5** — Add `/calendar` to `SANCTIONED_ADDITIONS`. This is the ruling the
+> fixture asks for. Record it in the fixture comment.
+
+Two rows were filed on his instruction in the same message — `checklists.execute`
+registered with zero call sites (DEBT-97), and the un-trimmed, non-constant-time
+cron secret comparison across every cron route (DEBT-98), with "Copy the
+existing pattern as-is in CAL-1 for consistency" and "Do not fix one route in
+isolation." He also accepted the fourth bespoke nav flag (`requiresCalendar`) for
+this phase, noting that `requiresModule` is group-level only and a later NAV
+phase generalises it.
+
+**A correction to R3's own wording, recorded rather than silently absorbed —
+and NOT edited into Gary's words, on his instruction (2026-09-18).** R3 says
+"the four existing callers". **There are five**, verified by grep at base
+`34fad03` during the PRE-PUSH-CHECK session rather than recalled:
+
+| # | File:line | Site |
+|---|---|---|
+| 1 | `src/app/(app)/stores/page.tsx:53` | `fallbackWeekdays` |
+| 2 | `src/app/(app)/reports/operations/page.tsx:106` | `dayCloseSummary` |
+| 3 | `src/app/api/cron/checklist-day-close/route.ts:210` | the cron loop |
+| 4 | `src/lib/checklist-lifecycle.ts:341` | `rawWindow` |
+| 5 | `src/lib/checklist-lifecycle.ts:428` | `endClampsAtDayClose` |
+
+Five invocations in four files. The definition at `checklist-lifecycle.ts:245`
+is not a caller. At HEAD there are six in five files, the sixth being
+`src/lib/calendar.ts:279` — the only one passing `0`.
+
+All five pass three positional arguments and none reaches the function through a
+reference, `.apply` or a spread, so all five are behaviour-identical under a
+defaulted fourth parameter. **The ruling's substance is unaffected; only the
+number in it is wrong.**
+
+**Three counts were in circulation and it is worth naming which was which**,
+because two of them are in documents that can never be edited. The Phase A audit
+said "four call sites" — counting FILES, wrong unit. The prompt's Addendum A
+"corrected" that to "six, in four files" and then listed five: it had folded the
+DEFINITION line into the count. The plan's B2 table was right all along — five
+pre-existing rows plus a sixth explicitly labelled `(new)` — and the work commit
+message said five. **Nothing was ever verified against the wrong set**: the
+build typechecks every call site whatever anyone counted, and
+`verify-store-hours-engine.ts` stayed green unchanged. Both wrong sentences sit
+in `docs/prompts/`, which is never edited (a saved prompt is a claim wholesale),
+so this table is where the right number lives.
+
+**Deviation S5-D77, approved by Gary before the build**: the three date-only
+columns are `@db.Date` rather than the bare `DateTime` the prompt's B1 block
+wrote. `dueAt` stays an instant.
+
+---
+
 ## 2026-09-07 — SELF-1: identity surfaces, and who sees the banner
 
 Ratified by Gary 2026-09-07. Recorded verbatim; the block quote is his wording,

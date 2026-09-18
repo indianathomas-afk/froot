@@ -58,6 +58,12 @@ function withGrants(role: string, grants: Capability[], denied: Capability[] = [
 const IMPORT: Capability = "staff.import.square"
 const BULK_SYNC: Capability = "staff.sync.square"
 const USERS_MANAGE: Capability = "users.manage"
+// CAL-1 — the SECOND entry ever on GRANTABLE_CAPABILITIES (Gary's ruling 5,
+// 2026-09-17). Pinned here for the same reasons the import is: the elevation
+// branch losing its guard, the list widening by role, and denial ceasing to
+// beat grant all become invisible without cases that ask.
+const CAL_MANAGE: Capability = "calendar.manage"
+const CAL_VIEW: Capability = "calendar.view"
 
 console.log("\nPERM-8 — above-baseline grants\n")
 
@@ -108,6 +114,31 @@ check("19. actor with overrides but grants undefined", can({ role: "MANAGER", ov
 // The PERM-5 fail-closed rule, re-checked because can() was reordered: a failed
 // override load must still restrict, and must not be rescued by a grant.
 check("20. failed override load restricts, even with a valid grant", can({ role: "MANAGER", overrides: { loaded: false }, grants: new Set([IMPORT]) }, IMPORT), false)
+
+console.log("\nCAL-1 — the second grantable capability (ruling 5)")
+// The baseline half of ruling 5: ADMIN schedules, nobody else does.
+check("21. ADMIN baseline holds calendar.manage", can({ role: "ADMIN" }, CAL_MANAGE), true)
+check("22. MANAGER baseline does NOT", can({ role: "MANAGER" }, CAL_MANAGE), false)
+check("23. STORE baseline does NOT", can({ role: "STORE" }, CAL_MANAGE), false)
+check("24. STAFF baseline does NOT", can({ role: "STAFF" }, CAL_MANAGE), false)
+// The grantable half. This is the ONLY role the list names against it.
+check("25. MANAGER GRANTED calendar.manage", can(withGrants("MANAGER", [CAL_MANAGE]), CAL_MANAGE), true)
+check("26. isGrantable(calendar.manage, MANAGER)", isGrantable(CAL_MANAGE, "MANAGER"), true)
+// THE GUARD. A STORE login is a shared iPad and STAFF is the widest tier in the
+// product; a stored grant must elevate NEITHER, even though the capability is
+// on the list. If these two ever pass, the isGrantable() half of can()'s
+// elevation branch has been dropped or an "all roles" spelling was introduced.
+check("27. STORE granted calendar.manage → still false", can(withGrants("STORE", [CAL_MANAGE]), CAL_MANAGE), false)
+check("28. STAFF granted calendar.manage → still false", can(withGrants("STAFF", [CAL_MANAGE]), CAL_MANAGE), false)
+check("29. isGrantable(calendar.manage, STORE)", isGrantable(CAL_MANAGE, "STORE"), false)
+// Denial beats grant, on the new entry as on the old one.
+check("30. MANAGER granted AND denied → denied wins", can(withGrants("MANAGER", [CAL_MANAGE], [CAL_MANAGE]), CAL_MANAGE), false)
+check("31. ADMIN denied calendar.manage", can(withGrants("ADMIN", [], [CAL_MANAGE]), CAL_MANAGE), false)
+// calendar.view is baseline ALL and is NOT grantable — there is nothing to
+// elevate, and a grant for it must be inert rather than quietly meaningful.
+check("32. calendar.view is ALL — STAFF holds it by baseline", can({ role: "STAFF" }, CAL_VIEW), true)
+check("33. calendar.view is NOT grantable to anyone", isGrantable(CAL_VIEW, "MANAGER"), false)
+check("34. calendar.view DENIED → false even for ADMIN", can(withGrants("ADMIN", [], [CAL_VIEW]), CAL_VIEW), false)
 
 console.log(
   failures === 0
