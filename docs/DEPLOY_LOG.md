@@ -43,6 +43,21 @@ purely additive — four new tables, one `BOOLEAN NOT NULL DEFAULT false` column
 nothing dropped, no type changed, no backfill — so it cannot fail on existing
 data.
 
+**CORRECTION 2026-09-18 (PRE-PUSH-CHECK, CAL-1b), citing Gary in chat. The
+paragraph above is kept as written and is no longer the instruction.** The
+migration `20260917143000_cal1_calendar` **IS APPLIED ON ALL THREE LIVE
+BRANCHES.** Evidence held by Gary, 2026-09-18: `migrate deploy` output on dev
+(endpoint ep-late-water); SQL `calendar_tables = 4` on `br-broad-wave-a6vpjdw0`
+and on `br-sparkling-block-a620qvg4` — dev and production respectively, per the
+branch-id mappings in CLAUDE.md § Database Evidence; and a rendered `/calendar`
+on staging, unreachable unless the tables exist. **So there is no "run it on dev
+first" step left at push time** — the dev step is done, and staging and
+production already took it through `migrate deploy` in the Vercel build. The
+paragraph's other claims are unaffected and still true: it is purely additive,
+and code deployed without it would throw. Kept rather than deleted because this
+entry is what gets read during a rollback, and the state a deploy was planned
+against is part of that record.
+
 **What to watch on first deploy, in order.**
 
 1. **Nothing should appear for anyone.** `Organization.calendarEnabled` defaults

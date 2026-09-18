@@ -16178,8 +16178,24 @@ phases:
       the three changed files, both read WITHOUT a pipe.
       `verify-perm8-grants` 34/34 and `verify-nav1-url-sets` PASS, both
       unchanged by this phase and re-run to prove it. NOT SEEN IN A BROWSER by
-      this session — /calendar needs a Clerk session and the CAL-1 tables, and
-      the CAL-1 migration is still unrun on every branch.
+      this session — /calendar needs a Clerk session, and this session had
+      none.
+      ── CORRECTION 2026-09-18 (PRE-PUSH-CHECK, TIER 1), citing Gary in chat. ──
+      THE SENTENCE ABOVE ALSO SAID THE CAL-1 MIGRATION WAS "still unrun on
+      every branch". THAT WAS FALSE WHEN WRITTEN, not merely stale.
+      `20260917143000_cal1_calendar` IS APPLIED ON ALL THREE LIVE BRANCHES.
+      Evidence held by Gary, 2026-09-18: `migrate deploy` output on dev
+      (endpoint ep-late-water); SQL `calendar_tables = 4` on
+      `br-broad-wave-a6vpjdw0` and on `br-sparkling-block-a620qvg4` — dev and
+      production respectively, per the branch-id mappings already recorded in
+      CLAUDE.md § Database Evidence and § Browser Evidence; and a rendered
+      /calendar on staging, which is not reachable unless the tables exist.
+      CAL-1's own CAL-1a rider had already established the staging half by the
+      same argument and said dev and production remained unestablished; the
+      CAL-1b row read that as "unrun everywhere" and stated it as fact.
+      THE CEILING ITSELF STANDS — this session opened no browser. Only the
+      REASON it gave was wrong, and a false reason attached to a true limit is
+      exactly what a later session inherits as established fact.
       THE DOCS SHA IS THE COMMIT IMMEDIATELY AFTER "9936610". `commits` above
       names the work commit only, for the reason CAL-1a's rider set out: the
       row is written INSIDE the commit that would record it, so the docs SHA
@@ -16187,14 +16203,16 @@ phases:
       PROMPT: docs/prompts/CAL-1b_edit_reminders.md.
     blockers:
       - >
-        THE FIX IS UNSEEN, and unseeable until CAL-1's migration runs. Every
-        `/api/calendar/*` route throws against tables that do not exist, so
-        there is no reminder to open a detail dialog on. The check on staging,
-        once the migration is run and this is pushed: open /calendar as an
-        admin, click a reminder chip, press Edit, change the title, Save — the
-        dialog should stay open on that reminder showing the new title. Then
-        change its Repeat and confirm the re-derive note appears and any
-        COMPLETED occurrence is still on the grid.
+        THE FIX IS UNSEEN. CORRECTED 2026-09-18 (PRE-PUSH-CHECK): this blocker
+        used to read "unseeable until CAL-1's migration runs", on the false
+        premise that the tables did not exist. They do —
+        `20260917143000_cal1_calendar` is applied on all three live branches
+        (evidence in this row's ceiling above), and staging renders /calendar
+        today. NOTHING BLOCKS THIS CHECK BUT THE PUSH. Once pushed: open
+        /calendar as an admin, click a reminder chip, press Edit, change the
+        title, Save — the dialog should stay open on that reminder showing the
+        new title. Then change its Repeat and confirm the re-derive note
+        appears and any COMPLETED occurrence is still on the grid.
       - >
         NOT PUSHED. Status stays `in_progress` per WORKFLOW.md rule 4 — a row
         moves to `staging` in the session whose code reached staging, and this
