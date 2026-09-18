@@ -599,3 +599,85 @@ commit.
 schema against the live database, so any pre-existing drift on dev would have
 surfaced as extra statements. Only the three `ADD COLUMN` lines came out, so dev
 was in sync with `schema.prisma` at `648e6da`.
+
+## 2026-09-17 — `20260917143000_cal1_calendar` (CAL-1)
+
+**APPLIED NOWHERE. Not dev, not staging, not production.** This is the first
+entry in this ledger written for a migration that has not touched a database at
+all, and it says so at the top rather than in a footnote. Gary applies it to dev
+(`prisma db execute` + `migrate resolve --applied`, §3 above), then pushes so
+staging and production take it through `migrate deploy` in the Vercel build.
+Until dev has it, **every calendar query fails at runtime on every branch,
+including local dev** — there is no `CalendarEvent` table anywhere.
+
+| Statement | Kind |
+|---|---|
+| `Organization.calendarEnabled` `BOOLEAN NOT NULL DEFAULT false` | additive, defaulted |
+| `CalendarEvent` | new table |
+| `CalendarEventStoreAssignment` | new table |
+| `CalendarEventAttachment` | new table |
+| `CalendarOccurrence` | new table |
+| 2 indexes + 3 unique indexes | new |
+| 10 foreign keys | new |
+
+Four new tables and one new column. **No drops, no renames, no type changes, no
+backfill.** The new column is `NOT NULL DEFAULT false`, so every existing
+`Organization` row lands with the calendar off — which is also the ruling-9
+inert state, so promoting this migration changes no behaviour on its own.
+Nothing can create a calendar row until an admin turns the toggle on. The
+`ALTER` cannot fail on data and the four `CREATE TABLE`s have no data to fail on.
+
+**It was generated WITHOUT TOUCHING A DATABASE, and that is a deviation from §3
+worth reading before you copy it.** The documented flow is `migrate diff
+--from-config-datasource --to-schema prisma/schema.prisma`, which introspects
+the live dev database. The dev Neon branch was unreachable during the CAL-1
+build (`Can't reach database server at ep-late-water-a6k53nv2…`, endpoint
+asleep), so the diff was taken **file to file** instead:
+
+```bash
+git show HEAD:prisma/schema.prisma > /tmp/schema_head.prisma
+npx prisma migrate diff --from-schema /tmp/schema_head.prisma \
+  --to-schema prisma/schema.prisma --script \
+  -o prisma/migrations/20260917143000_cal1_calendar/migration.sql
+```
+
+**Note what that costs, because the DOC-3 entry above depends on the opposite
+property.** `--from-config-datasource` compares the whole schema against the
+LIVE DATABASE, so pre-existing drift on dev surfaces as extra statements — which
+is how DOC-3 could assert "dev was in sync with `schema.prisma` at `648e6da`".
+The file-to-file diff **cannot see drift at all**. It compares two commits of a
+text file, so it produces exactly the delta this session authored and would stay
+silent about a dev database that had wandered. So:
+
+- What this diff proves: the SQL is the faithful delta of this session's schema
+  edit, with nothing extra and nothing missing.
+- What it does NOT prove: that dev matches `schema.prisma` at `bb675e1`. **If
+  `db execute` errors on an object that already exists, that is drift, and it is
+  the check this generation method skipped** — not a fault in the SQL.
+
+For a migration that must not be applied locally anyway, the trade is a good
+one: it is the only generation method that cannot accidentally write. But a
+future session with a reachable dev branch should prefer §3's form.
+
+**`onDelete` choices, stated because they were decisions** (see § Hand-authored
+FK `ON DELETE` vs the schema's implied default):
+
+- `organizationId` → `RESTRICT`, matching `UsageDaily`. An org is never deleted
+  in this product, and a cascade there would be a silent mass delete.
+- event → assignments / occurrences / attachment → `CASCADE`. An occurrence has
+  no meaning without its event, and archive rather than delete is the normal
+  path regardless.
+- `storeId` → `CASCADE`, matching `TemplateStoreAssignment`.
+- `completedByUserId` and `completedByStaffId` → **`SET NULL`, and this one is
+  load-bearing.** Deleting a user must never erase the fact that the work was
+  done: the occurrence keeps `status = 'Completed'` and its `completedAt`, and
+  loses only the attribution.
+
+**Three columns are `DATE`, not `TIMESTAMP(3)`** — `CalendarEvent.startDate`,
+`CalendarEvent.endDate`, `CalendarOccurrence.dueDate`. Deviation **S5-D77**,
+approved by Gary. A calendar date is not an instant, and CLAUDE.md § Database
+Evidence records the UTC/local misreading producing three confident wrong
+conclusions in one day; a `DATE` column has no time to misread. `UsageDaily.date`
+is the existing precedent. **`CalendarOccurrence.dueAt` is deliberately
+`TIMESTAMP(3)`** — it is a real instant, frozen at materialisation, and the only
+column in these four tables a timezone question can be asked of.

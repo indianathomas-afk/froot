@@ -15782,6 +15782,184 @@ phases:
         value rather than a rendered page, and DEBT-96 exists because nobody can
         currently SEE the exempt population at all.
 
+  - id: CAL-1
+    track: cal
+    size: L
+    status: in_progress
+    commits: ["bb675e1"]
+    title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
+    notes: >
+      WRITTEN AT THE END OF THE SESSION FROM WHAT WAS ACTUALLY BUILT, per
+      WORKFLOW.md rule 2. NOT PUSHED — Claude never pushes, so the status is
+      `in_progress` rather than `staging`: rule 4 moves a row to `staging` in the
+      session whose CODE REACHED staging, and this session's has not. The next
+      session to push must move it.
+      WHAT SHIPPED. A /calendar page under the Checklists nav group where an
+      admin (or a manager granted `calendar.manage`) schedules recurring work
+      that is not a daily checklist — the mailbox weekly, the Bunn filters
+      monthly, the deposit weekly. Reminders PROJECT onto a Sun-Sat 6-row month
+      grid, MATERIALISE one open occurrence per store at a time, and surface in
+      a banner on /dashboard and /checklists when due, with "N days overdue"
+      escalation and a "You're all caught up" state on completion.
+      PROMPT AND AUDIT: docs/prompts/CAL-1_calendar_reminders.md (Phase B plan is
+      ADDENDUM B in that file, appended after the audit, nothing above it
+      edited) and docs/prompts/CAL-1_AUDIT.md.
+      GARY'S NINE RULINGS are drafted verbatim in docs/DECISIONS.md under
+      "DRAFT - pending ratification". A COMMITTED DRAFT IS NOT A RULING; Gary
+      ratifies in PRE-PUSH-CHECK.
+      FIVE QUESTIONS THE AUDIT COULD NOT ANSWER WERE RULED BEFORE ANY FILE WAS
+      TOUCHED (R1-R5, Gary 2026-09-17), and three of them changed the build:
+      R1 - completing an occurrence asks NO CAPABILITY. It mirrors
+      api/checklists/[id]/task-log exactly, which enforces org scope then STORE
+      MEMBERSHIP and nothing else. The audit's sharpest finding is that that
+      route contains no can() call at all and that `checklists.execute` is a
+      registered capability with ZERO call sites app-wide. R1 ruled it stays
+      that way - CAL-1 does not change checklist semantics - and the gap is
+      filed as DEBT-97.
+      R2 - Organization.calendarEnabled is a DEDICATED BOOLEAN COLUMN, not a
+      fifth entry in activeModules. The schema's own comment makes activeModules
+      "the BILLABLE ADD-ON list", and the calendar is part of Checklists rather
+      than a separate purchase. Consequence: no availability env var, no
+      CALENDAR_MODULE_AVAILABLE, and the feature can reach production off by
+      default with one column as the only gate.
+      R3 - dayCloseInstant() gained an OPTIONAL `graceHours` parameter
+      defaulting to DAY_CLOSE_GRACE_HOURS; the calendar passes 0. Ruling 8 puts
+      a reminder's overdue instant AT store close and at the END of the store's
+      local day for a store with no hours, where a checklist's day close
+      deliberately sits three hours later. All five pre-existing call sites pass
+      three positional arguments and are behaviour-identical - two of them read
+      only `.source`, which grace cannot affect - and
+      scripts/verify-store-hours-engine.ts stays green UNCHANGED, which is the
+      tell that nothing moved. A NOTE AT THE PARAMETER says this is a
+      PER-CALLER grace and explicitly not the per-org grace the constant's own
+      comment rules would need a column plus a Settings control.
+      R4 - attachments use the PUBLIC blob store, the TaskAttachment pattern.
+      No new store and no new env var, so nothing had to be provisioned in three
+      environments before an upload could work. The limitation is recorded at
+      the route rather than discovered later: calendar attachments are the same
+      sensitivity class as checklist task photos.
+      R5 - /calendar is in SANCTIONED_ADDITIONS in
+      scripts/verify-nav1-url-sets.ts, which is the ruling that file demands in
+      its own words ("Adding an entry here is a RULING, not a fix"). BASELINE_REV
+      was NOT touched. The fixture also learned `requiresCalendar`, and a new
+      "calendar toggle OFF" scenario proves the flag is genuinely read rather
+      than merely suppressed by the sanction - without it the sanction would
+      hide a permanently-visible nav entry.
+      DEVIATION S5-D77, APPROVED BY GARY BEFORE THE BUILD: the three date-only
+      columns are `@db.Date`, where the prompt's B1 block wrote bare `DateTime`.
+      A calendar date is not an instant, CLAUDE.md records the UTC/local
+      misreading firing THREE TIMES IN ONE DAY, and UsageDaily.date is the
+      precedent already in this schema. `CalendarOccurrence.dueAt` stays a real
+      TIMESTAMP - it is the only column in the four new tables a timezone
+      question can be asked of. NO OTHER DEVIATIONS WERE TAKEN.
+      MIGRATION 20260917143000_cal1_calendar IS UNRUN ON EVERY BRANCH. Four new
+      tables, one new column with a default, nothing dropped and no type
+      changed, so no backfill is owed and it cannot fail on existing data. It
+      was generated by `prisma migrate diff --from-schema <HEAD's schema>
+      --to-schema prisma/schema.prisma`, which touches NO DATABASE at all - the
+      documented `--from-config-datasource` form could not run because the dev
+      Neon branch was unreachable, and the file-to-file diff is a strictly
+      better check for a migration that must not be applied locally anyway.
+      CAPABILITIES: `calendar.view` (baseline ALL) and `calendar.manage`
+      (ADMIN_ONLY), both in ENFORCED_CAPABILITIES under area "Checklists".
+      `calendar.manage` IS THE SECOND ENTRY EVER ON GRANTABLE_CAPABILITIES -
+      MANAGER only, named explicitly, no wildcard - which is ruling 5 and which
+      permissions.ts treats as a security change with the same weight as moving
+      a baseline.
+      THE CRON ITERATES ORGS, WHERE THE DAY-CLOSE CRON DELIBERATELY DOES NOT.
+      That job's comment says inventing an org filter "would just be a way to
+      miss a tenant"; this one filters on `calendarEnabled` because ruling 9
+      makes it a PRODUCT PREDICATE - an org with the calendar off must have
+      nothing written for it. Approved with the plan, and the divergence is
+      named at the site so the next reader does not file it as a copy error.
+      `skippedDisabled` is counted for the CHK-3 reason: a run that wrote
+      nothing because every org has it off must not read identically in the
+      Runtime Logs to one where everything was already open.
+      EVIDENCE THIS SESSION PRODUCED, AND ITS CEILING. `npm run build` green;
+      scoped eslint clean (exit code read WITHOUT a pipe, after a first run's
+      status was masked by `| tail` - the CLAUDE.md § Commit Gates trap, caught
+      and re-run); verify-cal1-projection 40 cases, verify-perm8-grants 34,
+      verify-nav1-url-sets and verify-store-hours-engine all green by exit code.
+      ALL OF THAT IS UNIT-LEVEL. No route was exercised, no capability was
+      refused in anger, no occurrence was materialised, and no pixel was
+      rendered - see blockers.
+    blockers:
+      - >
+        THE MIGRATION HAS NOT BEEN RUN ANYWHERE. Gary runs it on dev
+        (`prisma db execute` + `migrate resolve --applied`, MIGRATIONS.md §3),
+        then pushes so staging and production take it through `migrate deploy`
+        in the Vercel build. Until then every calendar query fails at runtime
+        against a database with no CalendarEvent table, on EVERY branch
+        including local dev.
+      - >
+        THE STAGING PASS HAS NOT RUN AND NOTHING IN THIS BUILD HAS BEEN SEEN IN
+        A BROWSER. The session report carries the protocol unrun. Claude never
+        pushes, so per CLAUDE.md the default assumption is that staging does not
+        have this work; the SHA-match precondition binds before any observation.
+        The six checks that cannot be replaced by a fixture: the toggle-off
+        refusals, the PERM-8 grant flipping a MANAGER's day-click, the cron
+        materialising exactly one row with dueAt at that store's close, a STORE
+        account completing it, the second cron run reporting skippedOpen, and
+        the backdated banner reading "3 days overdue" with one pulse.
+      - >
+        THE CRON'S SECRET COMPARISON IS UN-TRIMMED AND NON-CONSTANT-TIME,
+        COPIED DELIBERATELY FROM THE DAY-CLOSE CRON ON GARY'S RULING rather
+        than fixed here. Five cron routes share it; one fixed and four not is a
+        divergence nobody can see. Tracked as DEBT-98, which covers all of them.
+      - >
+        /calendar HAS NO HELP ARTICLE. `scripts/generate-guide.mjs` warns at
+        every build that 42 of 66 claimable routes are unclaimed and /calendar
+        is now one of them. Pre-existing warning class, not a gate, and not
+        fixed here because HELP article authoring was not in this phase's scope.
+    deferred:
+      - >
+        EVERYTHING THE "Event" TAB IMPLIES. The create popover ships Apple-style
+        with Event | Reminder tabs and the Event tab DISABLED, reading "Coming
+        in CAL-2" - shipped disabled rather than absent because ruling 1
+        describes a calendar with TWO entity types, and a UI showing only one
+        teaches the wrong model to everyone who uses it in the meantime.
+      - >
+        NO TEMPLATE IS TOUCHED. No `templateId` on CalendarEvent, no change to
+        bulk generate, no change to the day-close cron, and DEBT-61 is not
+        closed. The projection helper was built template-agnostic specifically
+        so CAL-2 can call it for templates, which is that row's stated fix
+        shape.
+      - >
+        COMPLETION PHOTO PLUMBING IS PARTIAL. `CalendarOccurrence.photoUrl`
+        exists and the complete route accepts it, but no upload control ships in
+        the detail popover this phase - the CHK-7 route pattern it would follow
+        (4 MB, under Vercel's request cap, gates re-applied before the blob is
+        stored) is named in the plan and not built.
+      - >
+        NO PER-OCCURRENCE HISTORY BEYOND THE CURRENT ROW. The detail popover
+        shows the completion of the occurrence in hand, not a log of every past
+        completion of that event at that store. The rows exist; no surface reads
+        them.
+
+  - id: CAL-2
+    track: cal
+    size: L
+    status: planned
+    title: "Calendar events from templates — \"Add to Calendar\", checklist generation from occurrences, and the close of DEBT-61"
+    notes: >
+      THE SUCCESSOR CAL-1 WAS BUILT TO ENABLE, and the row that finally closes
+      DEBT-61. CAL-1 shipped the Reminder half of ruling 1 - a standalone item
+      somebody ticks - and left the Event half as a disabled tab. CAL-2 builds
+      it: a `templateId` on CalendarEvent, an "Add to Calendar" control on a
+      template, and a generation path that creates a CHECKLIST from a calendar
+      occurrence when its date comes due. That is exactly DEBT-61's stated fix
+      shape, unchanged across three riders - "a schema addition plus a form
+      control plus the generation filter", where a Weekly template needs a
+      day-of-week and a Monthly one a day-of-month and NEITHER IS COLLECTED
+      TODAY. CalendarEvent.recurrence + startDate collect precisely those, and
+      src/lib/calendar.ts's projectDueDates() was deliberately built
+      template-agnostic so it can be called for a template without being
+      rewritten. The scheduled checklists CAL-2 creates follow the CHK-3
+      lifecycle (ruling 4), unlike reminders, which are never auto-closed as
+      Missed. Sequence it after Gary has run CAL-1's migration and the staging
+      pass has actually happened - CAL-2 builds on tables nothing has yet
+      written a row to.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
@@ -24424,6 +24602,44 @@ debt:
       Template.frequency is collected, exported and rendered but read by no
       generation path — every template is a daily template
     notes: >
+      ── RIDER 2026-09-17 (CAL-1, work commit "bb675e1"). THIS ROW STAYS OPEN.
+      PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE FIX PATH NOW HAS A NAME AND A DATE: CAL-2. It is filed as a `planned`
+      phase row in this file, and CAL-1 — shipped today — built the half of it
+      that this row has been waiting for without touching a single template.
+      WHAT CAL-1 BUILT THAT MATTERS HERE. The fix shape below has been stated
+      identically across three riders and is unchanged: "a schema addition plus
+      a form control plus the generation filter — a Weekly template needs a
+      day-of-week, a Monthly one a day-of-month, NEITHER COLLECTED TODAY."
+      src/lib/calendar.ts now collects exactly those, in
+      `projectDueDates(event, from, to)` over a structural `ProjectableEvent`
+      of `{recurrence, startDate, endDate}` — Weekly resolves the weekday from
+      startDate, Monthly the day-of-month with a clamp to month end (the 31st
+      falls on Feb 28, Apr 30, and RETURNS to the 31st in May). It is pure, it
+      imports no Prisma, and it is DELIBERATELY TEMPLATE-AGNOSTIC so CAL-2 can
+      call it for a Template without rewriting it. Forty fixture cases pin it:
+      scripts/verify-cal1-projection.ts.
+      WHAT CAL-1 DID NOT DO, STATED PLAINLY BECAUSE THIS ROW'S OWN HISTORY IS
+      THAT PROGRESS KEEPS GETTING MISTAKEN FOR CLOSURE. Nothing in CAL-1 touches
+      Template, bulk generate, api/checklists, or the day-close cron. There is no
+      `templateId` on CalendarEvent. `Template.frequency` is read by exactly the
+      same code today as it was yesterday — which is to say, by the three
+      containment gates and no generation path. BOTH OPEN ITEMS BELOW ARE
+      UNTOUCHED: bulk generate still creates a Weekly template's checklist every
+      day (item 1), and a non-Daily checklist somebody genuinely started is still
+      never closed (item 2).
+      SO THE DISCONFIRMATION CLAUSE HAS NOT FIRED AND THIS ROW DOES NOT CLOSE.
+      It reads "any code path in api/checklists or the day-close cron branching
+      on Template.frequency", and CAL-1 added none. The clause has now survived
+      four riders without closing the row, which is itself worth noting: the
+      containment keeps being thorough enough to look like the fix, and this
+      rider is a fourth thing that could be mistaken for it. The calendar is the
+      CONTROL this row said was missing. The CONSUMER is still missing, and
+      building it is CAL-2.
+      SEQUENCING. CAL-2 cannot start until Gary has run CAL-1's migration
+      (20260917143000_cal1_calendar) and the CAL-1 staging pass has actually
+      happened — it builds on four tables that, as at this rider, nothing has
+      written a row to on any branch.
       ── RIDER 2026-08-10 (CHK-5/S5, "5190fd9"). THIS ROW STAYS OPEN. PREPENDED;
       NOTHING BELOW IS EDITED. ──
       THE EXCLUSION NOW HOLDS AT THREE GATES AND IS VISIBLE AT THE THIRD.
@@ -26034,6 +26250,100 @@ debt:
       untouched — which is the /help/hr-forms failure exactly, and the reason
       neither absence should be inferred from the other rows being green.
 
+
+  - id: DEBT-97
+    status: planned
+    title: >
+      `checklists.execute` is registered with zero call sites — the control
+      exists and the consumer is missing (the TPL-1 pattern)
+    notes: >
+      FILED 2026-09-17 ON GARY'S RULING at the CAL-1 audit stop: "checklists.execute
+      is registered with zero call sites (TPL-1 pattern: control exists, consumer
+      missing). File it; PERM track decides." DO NOT FIX IT IN CAL-1.
+      THE FACT, measured at HEAD 34fad03 during the CAL-1 Phase A audit.
+      `checklists.execute` is a real member of the Capability union
+      (src/lib/permissions.ts) with baseline ALL, and it appears in
+      docs/PERMISSIONS_INVENTORY.md §5 as "all roles (scoped)". A repo-wide
+      search finds THREE occurrences: the union member, the GRANTS entry, and
+      the inventory line. NOTHING ASKS IT.
+      WHAT ACTUALLY GATES CHECKLIST EXECUTION is
+      api/checklists/[id]/task-log/route.ts, which imports no permissions module
+      and enforces, in order: orgId (401), org lookup (404), checklist scoped by
+      organizationId (404), then `getUserStoreScope()` -> `isAdmin ||
+      storeIds.includes(checklist.storeId)` (403), then CHK-3's closed-day 409
+      and the task-ownership 400. Store membership IS the gate. The same is true
+      of api/upload/checklist-photo, which re-applies those gates deliberately.
+      WHY THIS IS THE TPL-1 PATTERN AND NOT A BUG. Nothing is broken and nothing
+      is insecure: the route refuses correctly, and because the baseline is ALL
+      the capability would change no answer today even if it were asked. What is
+      wrong is the SAME SHAPE DEBT-61 and TPL-1 both record — a field wired end
+      to end with the behaviour omitted. Here the capability is declared, is
+      documented as governing execution, and governs nothing; the next person
+      asking "what gates checklist execution" reads the registry and gets an
+      answer that is not the one the code gives.
+      NOTE THE DIRECTION OF THE RISK, which is why this is planned rather than
+      urgent. The registry is MORE permissive-looking than the code, not less:
+      someone reasoning from permissions.ts would conclude that denying
+      `checklists.execute` stops execution, and it does not — the capability is
+      also absent from ENFORCED_CAPABILITIES, so PATCH /api/users/[id] rejects a
+      hand-rolled denial with a 400 and no forbidden state is reachable. The
+      cost is a wrong mental model, not a hole.
+      CAL-1 DELIBERATELY DID NOT CLOSE THIS. Gary's R1 ruled that completing a
+      calendar occurrence mirrors task-log exactly — store scope, no capability
+      — so the reminder gate and the checklist gate cannot drift apart, and
+      making CAL-1 the first-ever call site of an unruled capability was
+      explicitly refused. A comment at
+      api/calendar/occurrences/[id]/complete/route.ts records that and names
+      this row.
+      THE FIX IS A RULING BEFORE IT IS CODE. Either enforce it at the two
+      execution routes and add it to ENFORCED_CAPABILITIES so it can actually be
+      denied, or remove it from the union and the inventory and let store scope
+      be the documented answer. Both are defensible; picking one is the PERM
+      track's, not a passing session's.
+
+  - id: DEBT-98
+    status: planned
+    title: >
+      Every cron route's CRON_SECRET comparison is un-trimmed and
+      non-constant-time — fix all five together or none
+    notes: >
+      FILED 2026-09-17 ON GARY'S RULING at the CAL-1 audit stop: "Cron secret
+      compare is un-trimmed and non-constant-time in every cron route. Copy the
+      existing pattern as-is in CAL-1 for consistency and file one row covering
+      all crons. DO NOT FIX ONE ROUTE IN ISOLATION."
+      THE FACT. Every route under src/app/api/cron/ authenticates with
+      `req.headers.get("authorization") !== ` + "`Bearer ${secret}`" + `. Two
+      weaknesses, both already written down as comments at
+      api/cron/checklist-day-close/route.ts and neither ever implemented:
+      (1) NO `.trim()` ON EITHER SIDE. `process.env.CRON_SECRET` can carry a
+      trailing newline from a paste into the Vercel dashboard, which fails the
+      `!==` and RETURNS A 401 THAT LOOKS EXACTLY LIKE A WRONG VALUE. This is not
+      hypothetical: docs/prompts/CRON-DIAG_findings.md is an afternoon spent
+      diagnosing a 401 as a scoping problem. That is the expensive half.
+      (2) `!==` ON STRINGS SHORT-CIRCUITS AT THE FIRST DIFFERING BYTE and is
+      therefore timing-variable. `crypto.timingSafeEqual` over equal-length
+      buffers is the standard fix. Low severity for these endpoints by the same
+      reasoning that deferred CRON_SECRET rotation — they are idempotent and
+      Vercel fires them on a schedule regardless — but it is free to fix while
+      the file is open.
+      THE ROUTES, all five registered in vercel.json as of CAL-1:
+      sales-reconcile, pace-alerts, checklist-day-close, labor-timecards,
+      engagement-prune, plus calendar-materialize which CAL-1 added. Note also
+      that api/cron/labor-scheduled-shifts/route.ts EXISTS AS A FILE AND IS NOT
+      REGISTERED in vercel.json — found incidentally by the CAL-1 audit, not
+      investigated, and worth resolving in the same sweep since anyone reading
+      vercel.json as the register of crons will miss it.
+      WHY ONE ROW AND NOT SIX. A sweep is the unit of work here. One route
+      hardened and five not is a divergence nobody can see from any single file,
+      and the next person to copy a cron would copy whichever one they opened
+      first. CAL-1 copied the weakness ON PURPOSE for exactly this reason, with a
+      comment at the site saying so and naming this row — so the new cron is
+      consistent with its five siblings rather than being the one that is
+      quietly different.
+      THE RIGHT SHAPE when it is picked up: one shared `authorizeCron(req)` in
+      src/lib, trimming both sides and comparing in constant time, called by
+      every route — so the NEXT cron cannot reintroduce this by being written
+      from scratch.
 
 
 rulings:
