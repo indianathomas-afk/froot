@@ -42,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : null,
     prisma.organization.findUnique({
       where: { clerkOrgId: orgId },
-      select: { id: true, activeModules: true, instagramEnabled: true, instagramAccessToken: true },
+      select: { id: true, activeModules: true, instagramEnabled: true, instagramAccessToken: true, calendarEnabled: true },
     }),
   ])
 
@@ -163,6 +163,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         hrAvailable={hrModuleAvailable(orgId)}
         laborAvailable={laborModuleAvailable(orgId)}
         staffHasChecklists={staffHasChecklists}
+        calendarEnabled={!!org?.calendarEnabled}
         selfName={selfName}
         selfHref={selfHref}
       />

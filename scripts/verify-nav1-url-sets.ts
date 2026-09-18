@@ -42,6 +42,7 @@ type Item = {
   requiresInstagram: boolean
   requiresHr: boolean
   requiresLabor: boolean
+  requiresCalendar: boolean
 }
 
 const LINE = /\{\s*href:\s*"([^"]+)",\s*label:\s*"[^"]*",(.*?)\},?\s*$/
@@ -60,6 +61,7 @@ function parse(src: string): Item[] {
       requiresInstagram: /requiresInstagram:\s*true/.test(rest),
       requiresHr: /requiresHr:\s*true/.test(rest),
       requiresLabor: /requiresLabor:\s*true/.test(rest),
+      requiresCalendar: /requiresCalendar:\s*true/.test(rest),
     })
   }
   // The Settings entry is hand-written JSX in both revisions, not a literal.
@@ -69,6 +71,7 @@ function parse(src: string): Item[] {
     requiresInstagram: false,
     requiresHr: false,
     requiresLabor: false,
+    requiresCalendar: false,
   })
   return out
 }
@@ -79,6 +82,7 @@ type Env = {
   laborEnabled: boolean
   inventoryModule: boolean
   staffHasChecklists: boolean
+  calendarEnabled: boolean
 }
 
 function visible(items: Item[], role: string, denied: string[], env: Env): string[] {
@@ -90,6 +94,7 @@ function visible(items: Item[], role: string, denied: string[], env: Env): strin
         (!i.requiresInstagram || env.instagramEnabled) &&
         (!i.requiresHr || env.hrEnabled) &&
         (!i.requiresLabor || env.laborEnabled) &&
+        (!i.requiresCalendar || env.calendarEnabled) &&
         (!i.href.startsWith("/inventory/") || env.inventoryModule) &&
         !(role === "STAFF" && i.href === "/checklists" && !env.staffHasChecklists)
     )
@@ -122,6 +127,7 @@ const env: Env = {
   laborEnabled: true,
   inventoryModule: true,
   staffHasChecklists: true,
+  calendarEnabled: true,
 }
 
 let failures = 0
@@ -155,6 +161,13 @@ let failures = 0
 // the fixture currently protects, silently.
 const SANCTIONED_ADDITIONS: Record<string, string> = {
   "/help": "HELP-1a — pinned help entry, all four roles, docs/DECISIONS.md 2026-09-04",
+  // CAL-1 — Gary's R5 ruling, 2026-09-17, given in answer to THIS FILE'S OWN
+  // demand that an entry here be a ruling rather than a fix. The calendar is a
+  // new destination under the Checklists group, gated on calendar.view
+  // (baseline ALL) and on the per-org calendarEnabled toggle, so it is a GAIN
+  // for every role in the all-modules-on scenario and cannot be expressed
+  // symmetrically against the pinned baseline.
+  "/calendar": "CAL-1 — calendar under Checklists, Gary's R5 ruling 2026-09-17",
 }
 
 function compare(label: string, denied: string[], e: Env) {
@@ -179,6 +192,12 @@ compare("all modules on, Instagram connected", [], env)
 compare("Instagram not connected (staging today)", [], { ...env, instagramEnabled: false })
 compare("STAFF with no open checklist", [], { ...env, staffHasChecklists: false })
 compare("labor.access DENIED per-user (the sanctioned drop)", ["labor.access"], env)
+// CAL-1: with the org toggle off the calendar must vanish for EVERY role — and
+// because it is absent from the baseline revision too, both sides are empty of
+// it and the sets are identical with no sanction needed. This scenario is what
+// proves the flag is actually read; the all-modules-on run above only proves
+// the sanction suppresses the gain.
+compare("calendar toggle OFF (every org today)", [], { ...env, calendarEnabled: false })
 
 console.log("── full sets, all modules on ──────────────────────────")
 for (const role of ROLES) {

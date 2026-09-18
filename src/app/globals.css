@@ -45,6 +45,18 @@
   --color-info-border: hsl(221, 91%, 93%);
   --color-info-text: hsl(210, 92%, 45%);
 
+  /* CAL-1 — CATEGORY COLOURS (ruling 7). COLOUR IS BY CATEGORY, NEVER BY
+     PRIORITY: Critical carries a flag icon and no colour of its own, so a
+     glance at the grid answers "what kind of work" rather than "how loud".
+     One token per category in src/lib/calendar.ts's CALENDAR_CATEGORIES, and
+     the ids there are what map to these names. Chosen to stay distinguishable
+     from the status colours above, which appear on the same screens. */
+  --color-cal-ordering: hsl(262, 60%, 55%);
+  --color-cal-cleaning: hsl(190, 75%, 40%);
+  --color-cal-finance: hsl(150, 55%, 38%);
+  --color-cal-storeops: hsl(28, 85%, 52%);
+  --color-cal-other: hsl(220, 10%, 50%);
+
   /* Border radius */
   --radius: 0.65rem;
   --radius-lg: 0.65rem;
@@ -93,4 +105,45 @@ body {
 @keyframes accordion-up {
   from { height: var(--radix-accordion-content-height) }
   to { height: 0 }
+}
+
+/* CAL-1 — THE ONE-SHOT PULSE for the overdue reminder banner.
+   A SINGLE RUN, AND THE `1` IS THE WHOLE RULE. SELF-1's banner carries the
+   reasoning (src/app/(app)/dashboard/compliance-banner.tsx): the original ask
+   was a blinking banner, it fails WCAG 2.2.2, and on a page someone opens every
+   shift a blink becomes wallpaper inside a week — which is the exact failure
+   the feature exists to prevent. Gary's ruling allows "at most a single pulse
+   on load", and SELF-1 chose zero. CAL-1 takes the one.
+   DEFINED HERE RATHER THAN AS A TAILWIND `animate-pulse` TRIMMED TO ONE RUN,
+   because that is what compliance-banner.tsx says to do if a pulse is ever
+   wanted: a looping utility class with an iteration count bolted on is one
+   careless edit away from being a blink again. This keyframe cannot loop —
+   there is no iteration count to change. */
+@keyframes cal-pulse-once {
+  0%   { transform: scale(1);     box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.18) }
+  45%  { transform: scale(1.012); box-shadow: 0 0 0 6px rgba(0, 0, 0, 0) }
+  100% { transform: scale(1);     box-shadow: 0 0 0 0 rgba(0, 0, 0, 0) }
+}
+.cal-pulse-once {
+  animation: cal-pulse-once 900ms ease-out 1;
+}
+
+/* The "all caught up" check, ~3s then cleared by the component. Fades in and
+   holds; the component owns the removal so the success state cannot become
+   permanent furniture on a dashboard. */
+@keyframes cal-caught-up-in {
+  from { opacity: 0; transform: translateY(-4px) }
+  to   { opacity: 1; transform: translateY(0) }
+}
+.cal-caught-up {
+  animation: cal-caught-up-in 260ms ease-out 1;
+}
+
+/* Respect a reduced-motion preference for both. The information is in the text
+   and the colour; the motion is decoration and is the part that goes. */
+@media (prefers-reduced-motion: reduce) {
+  .cal-pulse-once,
+  .cal-caught-up {
+    animation: none;
+  }
 }

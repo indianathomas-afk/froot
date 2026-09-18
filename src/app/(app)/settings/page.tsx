@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
 import { getCurrentUser, hrModuleAvailable, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
@@ -13,6 +13,7 @@ import { InstagramActions, InstagramConnectButton } from "./instagram-actions"
 import { HrModuleToggle } from "./hr-actions"
 import { LaborModuleToggle } from "./labor-actions"
 import { SquareLaborToggle } from "./square-labor-actions"
+import { CalendarModuleToggle } from "./calendar-actions"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -66,6 +67,8 @@ export default async function SettingsPage() {
   // disconnect does not turn the overlay off (Gary, 2026-08-05), so hiding the
   // control while disconnected would strand an admin who wants it back.
   const showSquareLabor = laborAvailable && laborActive && squareLaborAvailable(org?.clerkOrgId)
+  // CAL-1 (ruling 9). One column, no availability gate — see the card below.
+  const calendarActive = !!org?.calendarEnabled
 
   const addOns = [
     { name: "Inventory Management", desc: "Physical counts, COGS tracking, storage areas, and adjustments", module: "inventory" },
@@ -294,6 +297,53 @@ export default async function SettingsPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* CAL-1. NO AVAILABILITY GATE AROUND THIS CARD, unlike HR and Labor
+              above: R2 (Gary, 2026-09-17) made the calendar a plain per-org
+              column rather than a staged rollout behind an env var, so it is
+              visible to every org's admin and simply starts off. */}
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Calendar</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                    <CalendarDays className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Calendar</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">
+                      Scheduled reminders for tasks that aren&apos;t daily checklists.
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {calendarActive ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                          <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                          <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                        </>
+                      )}
+                    </div>
+                    {calendarActive && (
+                      <Link
+                        href="/calendar"
+                        className="inline-block text-xs font-medium text-[var(--color-primary)] hover:underline mt-1.5"
+                      >
+                        Open the calendar →
+                      </Link>
+                    )}
+                  </div>
+                </div>
+                <CalendarModuleToggle enabled={calendarActive} />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="organization">

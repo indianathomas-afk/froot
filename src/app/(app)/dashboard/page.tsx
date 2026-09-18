@@ -6,6 +6,7 @@ import { can } from "@/lib/permissions"
 import { BuildInfo } from "@/components/build-info"
 import { DashboardClient } from "./dashboard-client"
 import { ComplianceBanner } from "./compliance-banner"
+import { CalendarDueBanner } from "@/components/calendar-due-banner"
 
 // Store Dashboard (Phase D-1) — the landing page after login. Layout and
 // styling follow froot_docs/dashboard-design/ (README.md is the spec).
@@ -112,6 +113,9 @@ export default async function DashboardPage() {
           component ZERO queries: it fetches its own data client-side, the way
           every other heavy card on this page already does. */}
       <ComplianceBanner />
+      {/* CAL-1. Below SELF-1's: a person owing training and a store owing a
+          reminder are different obligations, and the personal one reads first. */}
+      <CalendarDueBanner />
       <DashboardClient
         stores={stores.map((s) => ({ id: s.id, name: s.name, location: [s.city, s.state].filter(Boolean).join(", ") }))}
         countRecency={countRecency}

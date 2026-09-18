@@ -42,6 +42,18 @@ model Organization {
   // nulls the three token columns and touches nothing else — staleness is a
   // badge, not a delete.
   squareLaborEnabled      Boolean   @default(false)
+  // CAL-1 (Gary's R2, 2026-09-17). The per-org switch for the Calendar. A
+  // DEDICATED COLUMN, like instagramEnabled and squareLaborEnabled above and
+  // deliberately NOT a fifth entry in activeModules: activeModules is the
+  // BILLABLE ADD-ON list driving the module cards on /settings, and the
+  // calendar is part of Checklists — the recurring work that is not a daily
+  // checklist — not a separate purchase.
+  //
+  // Off = nav, page, API, banner and cron all inert (ruling 9). The API answers
+  // 404 rather than 403 while off; see src/lib/calendar-access.ts for why.
+  // DEFAULT false, so every existing org lands inert and the migration needs no
+  // backfill.
+  calendarEnabled         Boolean   @default(false)
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
   // HR-11b: governs inline `Date:` field stamps ONLY ("dateOnly" | "dateTime").
@@ -126,15 +138,17 @@ model Organization {
   squareScheduleSyncStates      SquareScheduleSyncState[]
   squareJobColors               SquareJobColor[]
   usageDaily                    UsageDaily[]
+  calendarEvents                CalendarEvent[]
+  calendarOccurrences           CalendarOccurrence[]
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  clerkUserId        String   @unique
-  organizationId     String
-  email              String
-  name               String?
-  role               Role     @default(STAFF)
+  id                  String    @id @default(cuid())
+  clerkUserId         String    @unique
+  organizationId      String
+  email               String
+  name                String?
+  role                Role      @default(STAFF)
   // BUILD-2: the store this user lands on. Lives on User, not on
   // StoreUserAssignment, because ADMINs have NO assignment rows at all (every
   // page scopes with `...(isAdmin ? {} : { id: { in: storeIds } })`) — and the
@@ -142,7 +156,7 @@ model User {
   // Nullable with no backfill: null = fall back to alphabetically-first, which
   // is what every picker already does. Validated on write AND on read, since
   // assignments churn (Clerk webhook, admin edit) after a default is set.
-  defaultStoreId     String?
+  defaultStoreId      String?
   // PERM-5: capabilities SUBTRACTED from this user's role baseline. Empty (the
   // default for every existing row) = pure role baseline. Never additive — see
   // can() in src/lib/permissions.ts: the ceiling check returns before this list
@@ -154,7 +168,7 @@ model User {
   // and-re-add preserves this column. It is lost only when the person arrives
   // on a NEW clerkUserId — which restricted mode (production, ON since
   // 2026-08-04) makes an admin-visible event rather than a silent duplicate.
-  deniedCapabilities String[]
+  deniedCapabilities  String[]
   // PERM-8: capabilities ADDED to this user's role baseline — the first
   // above-baseline grant in the product, and the reason can()'s ceiling is no
   // longer absolute. Empty (the default for every existing row) = pure role
@@ -183,7 +197,7 @@ model User {
   // THROTTLED TO 15 MINUTES at the write site, so a heavy user costs one UPDATE
   // per quarter hour rather than one per page. The rollup below is unthrottled;
   // only this pair is.
-  lastSeenAt         DateTime?
+  lastSeenAt          DateTime?
   // "City, Region" resolved from the edge geo headers — NEVER AN IP ADDRESS.
   // That is ENG-1 ruling 1 and it is structural here: nothing in the beacon's
   // read path calls requestIp() (src/lib/training.ts:232) or touches
@@ -196,21 +210,23 @@ model User {
   // NULL IS THE NORMAL LOCAL/PREVIEW VALUE. The x-vercel-ip-* headers exist only
   // on Vercel-served requests, so under `next dev` this stays null forever and
   // the page renders a dash. Absent is not broken.
-  lastSeenLocation   String?
-  createdAt          DateTime @default(now())
+  lastSeenLocation    String?
+  createdAt           DateTime  @default(now())
 
-  organization         Organization          @relation(fields: [organizationId], references: [id])
-  defaultStore         Store?                @relation("UserDefaultStore", fields: [defaultStoreId], references: [id], onDelete: SetNull)
-  storeAssignments     StoreUserAssignment[]
-  taskLogs             TaskLog[]
-  teamMessages         TeamMessage[]         @relation("TeamMessageAuthor")
-  resolvedMessages     TeamMessage[]         @relation("TeamMessageResolver")
-  acknowledgedMessages TeamMessage[]         @relation("TeamMessageAcknowledger")
-  messageReactions     MessageReaction[]
-  messageReads         MessageRead[]
-  corporateUpdates     CorporateUpdate[]
-  staffMember          StaffMember?
-  usageDaily           UsageDaily[]
+  organization          Organization          @relation(fields: [organizationId], references: [id])
+  defaultStore          Store?                @relation("UserDefaultStore", fields: [defaultStoreId], references: [id], onDelete: SetNull)
+  storeAssignments      StoreUserAssignment[]
+  taskLogs              TaskLog[]
+  teamMessages          TeamMessage[]         @relation("TeamMessageAuthor")
+  resolvedMessages      TeamMessage[]         @relation("TeamMessageResolver")
+  acknowledgedMessages  TeamMessage[]         @relation("TeamMessageAcknowledger")
+  messageReactions      MessageReaction[]
+  messageReads          MessageRead[]
+  corporateUpdates      CorporateUpdate[]
+  staffMember           StaffMember?
+  usageDaily            UsageDaily[]
+  calendarEventsCreated CalendarEvent[]       @relation("CalendarEventCreatedBy")
+  calendarCompletions   CalendarOccurrence[]  @relation("CalendarOccurrenceCompletedByUser")
 }
 
 model Store {
@@ -271,6 +287,8 @@ model Store {
   squareScheduledShifts     SquareScheduledShift[]
   squareScheduleSyncState   SquareScheduleSyncState?
   usageDaily                UsageDaily[]
+  calendarEventAssignments  CalendarEventStoreAssignment[]
+  calendarOccurrences       CalendarOccurrence[]
 }
 
 // CHK-2 (S2) gave this table its first writer; CHK-3 (S3) gives it the key that
@@ -395,6 +413,7 @@ model StaffMember {
   signedRecords       HrSignedRecord[]
   uploadedDocuments   StaffDocument[]
   hrDocumentGrants    HrDocumentGrant[]
+  calendarCompletions CalendarOccurrence[]     @relation("CalendarOccurrenceCompletedByStaff")
 
   @@unique([organizationId, squareTeamMemberId])
 }
@@ -2303,8 +2322,8 @@ model TrainingLesson {
   // The label is OPTIONAL — the renderer falls back to the hostname via
   // externalUrlHost, the same helper the library uses. A label with no URL is a
   // no-op and is stored as NULL rather than rejected.
-  externalLinkUrl    String?
-  externalLinkLabel  String?
+  externalLinkUrl   String?
+  externalLinkLabel String?
 
   trainingModule   TrainingModule           @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
   linkedHrDocument HrDocument?              @relation(fields: [linkedHrDocumentId], references: [id], onDelete: Restrict)
@@ -3006,7 +3025,7 @@ model SquareTeamMemberWage {
   /// LaborSalariedPerson HAS NO FLAG OF ITS OWN and reads this one across the
   /// shared (organizationId, squareTeamMemberId) key, so one admin toggle
   /// governs both surfaces. That lookup FAILS CLOSED — see comp-confidential.ts.
-  compConfidential    Boolean   @default(false)
+  compConfidential    Boolean  @default(false)
 
   /// Freshness for the whole roster — see the health note above.
   syncedAt  DateTime
@@ -3209,4 +3228,136 @@ model SquareJobColor {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([organizationId, squareJobId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CAL-1 — THE CALENDAR. Recurring store work that is not a daily checklist:
+// check the mailbox weekly, clean the Bunn filters monthly, bank deposit weekly.
+//
+// TEMPLATES ARE UNTOUCHED BY THIS PHASE. There is deliberately NO `templateId`
+// on CalendarEvent yet — CAL-2 adds it, and CAL-2 is what closes DEBT-61 by
+// giving a non-Daily template the day-of-week / day-of-month that
+// `Template.frequency` has promised and never had. Nothing here reads or writes
+// Template, Checklist, or the day-close cron's columns.
+//
+// THE THREE DATE-ONLY COLUMNS ARE `@db.Date` (deviation S5-D77, approved by
+// Gary 2026-09-17). A calendar date is not an instant — the 15th is the 15th in
+// every timezone — and CLAUDE.md § Database Evidence records that reading a UTC
+// timestamp as a local one produced three wrong, confident conclusions in a
+// single day. A DATE column has no time to misread. `UsageDaily.date` is the
+// precedent already in this file. `CalendarOccurrence.dueAt` is deliberately
+// NOT one: it is a real instant and the only column in these four tables a
+// timezone question can be asked of.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CalendarEvent {
+  id             String  @id @default(cuid())
+  organizationId String
+  title          String
+  notes          String?
+  url            String?
+  // Validated by normalizeCategory() in src/lib/calendar.ts — the phases.ts
+  // pattern, which REJECTS an unknown value by name rather than folding it to
+  // "other". A String rather than an enum for the same reason
+  // Template.frequency is one: the list is product copy, and adding "Marketing"
+  // should not be a migration.
+  category       String
+  priority       String  @default("Standard") // Critical | High | Standard (ruling 6)
+  recurrence     String  @default("None") // None | Daily | Weekly | Biweekly | Monthly
+
+  // Store-local calendar dates. See the header on why these are @db.Date.
+  startDate DateTime  @db.Date
+  dueTime   String? // "HH:mm", store-local. Optional — ruling 8.
+  endDate   DateTime? @db.Date
+
+  appliesTo       String   @default("all") // mirrors Template.appliesTo
+  isArchived      Boolean  @default(false)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization     Organization                   @relation(fields: [organizationId], references: [id])
+  createdByUser    User?                          @relation("CalendarEventCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  storeAssignments CalendarEventStoreAssignment[]
+  occurrences      CalendarOccurrence[]
+  attachment       CalendarEventAttachment?
+
+  @@index([organizationId, isArchived])
+}
+
+/// Mirrors TemplateStoreAssignment exactly, including the unique pair.
+model CalendarEventStoreAssignment {
+  id      String @id @default(cuid())
+  eventId String
+  storeId String
+
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  store Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, storeId])
+}
+
+/// Mirrors TaskAttachment: one per event, enforced by @unique on the FK.
+/// Stored in the PUBLIC Vercel Blob store, same as TaskAttachment (Gary's R4,
+/// 2026-09-17). Accepted limitation, recorded rather than discovered: calendar
+/// attachments are the same sensitivity class as checklist task photos, and the
+/// HELP-1b private-store pattern is deliberately NOT used here — it would make
+/// this phase depend on provisioning a new Blob store and env var in three
+/// environments before an upload works anywhere.
+model CalendarEventAttachment {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  label       String
+  url         String
+  contentType String
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+/// ONE OPEN OCCURRENCE PER EVENT PER STORE AT A TIME (ruling 3). The next one
+/// is NOT materialised until the current one is completed, and future dates on
+/// the grid are PROJECTED from the rule rather than stored — so this table holds
+/// only what has actually come due.
+///
+/// REMINDERS ARE NEVER AUTO-CLOSED AS MISSED (ruling 4). There is no `Missed`
+/// status and no `closedAt` here, and that is the difference from Checklist: a
+/// reminder stays Open and overdue until a human completes it. Nothing in the
+/// CHK-3 day-close cron touches this table.
+model CalendarOccurrence {
+  id             String @id @default(cuid())
+  organizationId String
+  eventId        String
+  storeId        String
+
+  dueDate DateTime @db.Date
+  /// The instant overdue begins (ruling 8), FROZEN at materialisation. Computed
+  /// by dueAtFor() in src/lib/calendar.ts, which reads the store's hours through
+  /// dayCloseInstant() with graceHours 0. Frozen rather than derived on read so
+  /// that editing a store's hours never retroactively moves when a reminder
+  /// became overdue — the CHK-1 as-executed freeze argument, same shape.
+  dueAt   DateTime
+
+  status             String    @default("Open") // Open | Completed
+  completedAt        DateTime?
+  completedByUserId  String?
+  completedByStaffId String?
+  notes              String?
+  photoUrl           String?
+  createdAt          DateTime  @default(now())
+
+  organization     Organization  @relation(fields: [organizationId], references: [id])
+  event            CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  store            Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  // SET NULL, NOT CASCADE, on both attributions: deleting a user must never
+  // erase the fact that the work was done. The row keeps status Completed and
+  // completedAt and loses only who did it.
+  completedByUser  User?         @relation("CalendarOccurrenceCompletedByUser", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  completedByStaff StaffMember?  @relation("CalendarOccurrenceCompletedByStaff", fields: [completedByStaffId], references: [id], onDelete: SetNull)
+
+  /// The idempotence guarantee the cron leans on: a read-then-write race ends
+  /// in P2002, which the cron catches and counts rather than failing the run.
+  @@unique([eventId, storeId, dueDate])
+  @@index([organizationId, storeId, status, dueDate])
 }

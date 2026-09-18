@@ -8,6 +8,7 @@ import { CheckSquare } from "lucide-react"
 import Link from "next/link"
 import { formatCivilDate } from "@/lib/display-time"
 import { StoreFilter } from "./store-filter"
+import { CalendarDueBanner } from "@/components/calendar-due-banner"
 
 // CHK-4: `Missed` JOINS THE MAP, AND THE `?? STATUS_STYLES.Pending` FALLBACK AT
 // THE RENDER SITE BELOW STAYS. Those are two separate decisions and both are
@@ -117,6 +118,9 @@ export default async function ChecklistsPage({
 
   return (
     <div>
+      {/* CAL-1. This is the NAV-1 "Daily Tasks" target — where STORE and STAFF
+          land — so the reminder banner belongs here as much as on /dashboard. */}
+      <CalendarDueBanner />
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Daily Checklists</h1>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
