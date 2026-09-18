@@ -94,8 +94,12 @@ export function CreateReminderForm({
   const field = "h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm"
 
   return (
-    <Tabs defaultValue="reminder">
-      <TabsList className="mb-3">
+    // CAL-1a. `min-h-0` is what makes the scroll below actually work: a flex
+    // child defaults to min-height:auto and refuses to shrink under its
+    // content, so the body would push the dialog past 85vh instead of
+    // scrolling inside it. Same for the TabsContent pane underneath.
+    <Tabs defaultValue="reminder" className="flex min-h-0 flex-1 flex-col">
+      <TabsList className="mb-3 shrink-0">
         <TabsTrigger value="reminder">Reminder</TabsTrigger>
         <TabsTrigger value="event" disabled title="Coming in CAL-2">
           Event
@@ -106,8 +110,14 @@ export function CreateReminderForm({
         <p className="py-6 text-center text-sm text-[var(--color-muted-foreground)]">Coming in CAL-2</p>
       </TabsContent>
 
-      <TabsContent value="reminder">
-        <form onSubmit={submit} className="space-y-3">
+      <TabsContent value="reminder" className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          {/* THE SCROLL IS HERE, NOT ON DialogContent — UX-1's finding on the
+              Edit User modal: scrolling the dialog itself drops Save below the
+              fold of a form that only gets longer, and this one already has
+              eleven fields. The footer below sits outside this div and stays
+              pinned at any height. */}
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto -mx-1 px-1">
           <div>
             <label className="mb-1 block text-xs font-medium" htmlFor="cal-title">
               Title
@@ -284,9 +294,15 @@ export function CreateReminderForm({
             />
           </div>
 
-          {error && <p className="text-xs text-[var(--color-destructive)]">{error}</p>}
+          </div>
 
-          <div className="flex justify-end gap-2 pt-1">
+          {/* OUTSIDE THE SCROLL, DELIBERATELY. The error renders at the bottom
+              of a form eleven fields long; left inside the scrolling body it
+              would appear below the fold for anyone who had not scrolled, which
+              is exactly the person who just hit Save and needs to read it. */}
+          {error && <p className="mt-2 shrink-0 text-xs text-[var(--color-destructive)]">{error}</p>}
+
+          <div className="mt-3 flex shrink-0 justify-end gap-2 border-t border-[var(--color-border)] pt-3">
             <button
               type="button"
               onClick={onCancel}

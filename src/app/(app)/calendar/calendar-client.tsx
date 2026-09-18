@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, Flag, Paperclip, Link2 } from "lucide-react"
-import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CALENDAR_CATEGORIES, categoryLabel } from "@/lib/calendar"
 import { CreateReminderForm } from "./create-reminder-form"
@@ -310,85 +310,69 @@ export function CalendarClient({
                   const items = byDate.get(date) ?? []
                   const isToday = date === today
                   return (
-                    <Popover
+                    // CAL-1a: the cell is a plain div again. It used to be a
+                    // PopoverAnchor inside a per-cell <Popover>, which meant 42
+                    // popover roots per render and a create form anchored to
+                    // whichever cell was clicked. The form is now ONE Dialog
+                    // below the grid, so the cell anchors nothing.
+                    <div
                       key={date}
-                      open={createOn === date}
-                      onOpenChange={(open) => setCreateOn(open ? date : null)}
+                      onClick={() => {
+                        // Ruling 5: only calendar.manage opens the create
+                        // form. The route refuses regardless — this is
+                        // the affordance, not the gate. UNCHANGED by CAL-1a.
+                        if (canManage) setCreateOn(date)
+                      }}
+                      className={`min-h-24 bg-[var(--color-card)] p-1.5 ${canManage ? "cursor-pointer hover:bg-[var(--color-muted)]" : ""} ${
+                        inMonth ? "" : "opacity-45"
+                      }`}
                     >
-                      <PopoverAnchor asChild>
-                        <div
-                          onClick={() => {
-                            // Ruling 5: only calendar.manage opens the create
-                            // popover. The route refuses regardless — this is
-                            // the affordance, not the gate.
-                            if (canManage) setCreateOn(date)
-                          }}
-                          className={`min-h-24 bg-[var(--color-card)] p-1.5 ${canManage ? "cursor-pointer hover:bg-[var(--color-muted)]" : ""} ${
-                            inMonth ? "" : "opacity-45"
-                          }`}
-                        >
-                          <div
-                            className={`mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs ${
-                              isToday
-                                ? "bg-[var(--color-primary)] font-semibold text-white"
-                                : "text-[var(--color-muted-foreground)]"
-                            }`}
-                          >
-                            {Number(date.slice(8, 10))}
-                          </div>
-                          <ul className="space-y-1">
-                            {items.map(({ event, occurrence }) => {
-                              const completed = occurrence?.status === "Completed"
-                              const overdue =
-                                !!occurrence && occurrence.status === "Open" && occurrence.dueAt <= new Date().toISOString()
-                              return (
-                                <li key={`${event.id}-${date}`}>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setDetailOn({ eventId: event.id, date })
-                                    }}
-                                    className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-[var(--color-muted)] ${
-                                      overdue ? "border-l-2 border-[var(--color-destructive)]" : ""
-                                    }`}
-                                  >
-                                    <span
-                                      aria-hidden
-                                      className="h-3 w-1 shrink-0 rounded-full"
-                                      style={{ backgroundColor: `var(--color-cal-${event.category})` }}
-                                    />
-                                    {event.priority === "Critical" && (
-                                      <Flag className="h-3 w-3 shrink-0 text-[var(--color-destructive)]" />
-                                    )}
-                                    <span className={`truncate ${completed ? "line-through opacity-60" : ""}`}>
-                                      {event.dueTime ? `${event.dueTime} ` : ""}
-                                      {event.title}
-                                    </span>
-                                    {event.attachment && <Paperclip className="h-3 w-3 shrink-0 opacity-60" />}
-                                    {event.url && <Link2 className="h-3 w-3 shrink-0 opacity-60" />}
-                                  </button>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        </div>
-                      </PopoverAnchor>
-
-                      {createOn === date && (
-                        <PopoverContent className="w-96">
-                          <CreateReminderForm
-                            date={date}
-                            stores={stores}
-                            onDone={() => {
-                              setCreateOn(null)
-                              reload()
-                            }}
-                            onCancel={() => setCreateOn(null)}
-                          />
-                        </PopoverContent>
-                      )}
-                    </Popover>
+                      <div
+                        className={`mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs ${
+                          isToday
+                            ? "bg-[var(--color-primary)] font-semibold text-white"
+                            : "text-[var(--color-muted-foreground)]"
+                        }`}
+                      >
+                        {Number(date.slice(8, 10))}
+                      </div>
+                      <ul className="space-y-1">
+                        {items.map(({ event, occurrence }) => {
+                          const completed = occurrence?.status === "Completed"
+                          const overdue =
+                            !!occurrence && occurrence.status === "Open" && occurrence.dueAt <= new Date().toISOString()
+                          return (
+                            <li key={`${event.id}-${date}`}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setDetailOn({ eventId: event.id, date })
+                                }}
+                                className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-[var(--color-muted)] ${
+                                  overdue ? "border-l-2 border-[var(--color-destructive)]" : ""
+                                }`}
+                              >
+                                <span
+                                  aria-hidden
+                                  className="h-3 w-1 shrink-0 rounded-full"
+                                  style={{ backgroundColor: `var(--color-cal-${event.category})` }}
+                                />
+                                {event.priority === "Critical" && (
+                                  <Flag className="h-3 w-3 shrink-0 text-[var(--color-destructive)]" />
+                                )}
+                                <span className={`truncate ${completed ? "line-through opacity-60" : ""}`}>
+                                  {event.dueTime ? `${event.dueTime} ` : ""}
+                                  {event.title}
+                                </span>
+                                {event.attachment && <Paperclip className="h-3 w-3 shrink-0 opacity-60" />}
+                                {event.url && <Link2 className="h-3 w-3 shrink-0 opacity-60" />}
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
                   )
                 })}
           </div>
@@ -406,6 +390,39 @@ export function CalendarClient({
           )}
         </div>
       </div>
+
+      {/* ── CAL-1a: the create form, ONE Dialog for the whole grid ────────
+          It was a <Popover> anchored to the clicked cell, and on the top rows
+          the form opened upward with its head above the viewport and no way to
+          scroll to it — a popover positions against its anchor, not against
+          the viewport, so there was nothing to scroll. Centred instead, bounded
+          to 85vh, with Escape and a backdrop click to close (both Radix
+          defaults on Dialog, neither of which the popover gave).
+
+          The 85vh cap lives on DialogContent and the SCROLL LIVES ON THE BODY
+          INSIDE CreateReminderForm, not here — UX-1's finding on the Edit User
+          modal (users/user-actions.tsx): scrolling DialogContent itself puts
+          Save below the fold of a form that only gets longer. */}
+      <Dialog open={createOn !== null} onOpenChange={(open) => !open && setCreateOn(null)}>
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>New reminder</DialogTitle>
+          </DialogHeader>
+          {/* Mounted only while a date is held, so the form's state resets
+              between openings rather than carrying the last day's typing. */}
+          {createOn !== null && (
+            <CreateReminderForm
+              date={createOn}
+              stores={stores}
+              onDone={() => {
+                setCreateOn(null)
+                reload()
+              }}
+              onCancel={() => setCreateOn(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {detailOn && data && (
         <OccurrenceDetail

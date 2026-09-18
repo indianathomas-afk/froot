@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Flag, Paperclip, Link2, X } from "lucide-react"
+import { Flag, Paperclip, Link2 } from "lucide-react"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -125,29 +126,37 @@ export function OccurrenceDetail({
 
   return (
     <>
-      {/* A plain overlay panel rather than a Radix Popover: the trigger cell can
-          scroll out from under it while the panel is open, and an anchored
-          popover would follow the cell off screen. */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-        <div
-          className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-lg"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                aria-hidden
-                className="h-4 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: `var(--color-cal-${event.category})` }}
-              />
-              {event.priority === "Critical" && <Flag className="h-4 w-4 shrink-0 text-[var(--color-destructive)]" />}
-              <h2 className={`truncate text-base font-semibold ${completed ? "line-through opacity-60" : ""}`}>
-                {event.title}
-              </h2>
-            </div>
-            <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 p-1">
-              <X className="h-4 w-4" />
-            </button>
+      {/* CAL-1a: the shared Dialog, replacing a hand-rolled `fixed inset-0`
+          overlay.
+          THIS PANEL WAS NEVER THE CLIPPING DEFECT — it was already centred on
+          the viewport, not anchored to a cell, so it did not open off-screen
+          the way the create popover did. What it lacked was everything Radix
+          gives for free and a bare div does not: ESCAPE TO CLOSE, a focus trap,
+          focus restored to the trigger on close, `aria-modal` and the
+          role/labelling that make it a dialog to a screen reader, and a
+          backdrop click that is a real dismissal rather than an onClick on a
+          div. It also needed `stopPropagation` on the panel to stop its own
+          backdrop handler firing — a hazard that simply does not exist here.
+          Converted alongside the create form so the two read as one surface. */}
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          {/* pr-6 keeps the title clear of DialogContent's own close button,
+              which sits absolutely at top-right. */}
+          {/* DialogTitle, not an <h2>: Radix warns at runtime when DialogContent
+              has no title, and it is what names the dialog to a screen reader.
+              The bespoke close button that sat on the right is gone —
+              DialogContent renders its own, so keeping ours would give the
+              panel two. */}
+          <div className="mb-3 flex min-w-0 items-center gap-2 pr-6">
+            <span
+              aria-hidden
+              className="h-4 w-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: `var(--color-cal-${event.category})` }}
+            />
+            {event.priority === "Critical" && <Flag className="h-4 w-4 shrink-0 text-[var(--color-destructive)]" />}
+            <DialogTitle className={`truncate text-base font-semibold ${completed ? "line-through opacity-60" : ""}`}>
+              {event.title}
+            </DialogTitle>
           </div>
 
           <dl className="space-y-1.5 text-sm">
@@ -252,8 +261,8 @@ export function OccurrenceDetail({
               </button>
             </div>
           )}
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Destructive actions require a confirmation AlertDialog (§ Design System). */}
       <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
