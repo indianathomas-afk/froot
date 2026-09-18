@@ -6,12 +6,26 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
-## 2026-09-17 — CAL-1: the calendar — DRAFT, pending ratification
+## 2026-09-17 — CAL-1: the calendar — RATIFIED 2026-09-18
 
-**DRAFT — PENDING RATIFICATION.** Gary ratifies in the PRE-PUSH-CHECK session.
-**A committed draft is not a ruling**, and this entry is not citable as one
-until that happens — it is recorded here so the reasoning the CAL-1 build
-followed is in the log rather than only in a transcript, which is DEBT-37's rule.
+**RATIFIED AS WRITTEN by Gary, 2026-09-18, in the PRE-PUSH-CHECK session.** The
+heading below read "DRAFT — pending ratification" until then; the draft status
+is spent and this entry is now citable as a ruling.
+
+His instruction is recorded verbatim, because it governs how this entry is
+maintained rather than merely approving it: *"ratify as written. My R3 wording
+stands as quoted; keep the correction recorded beneath it with the verified
+number, not edited into my words. Do not reword R3."*
+
+So **R3 below is untouched and keeps the word "four"**, and the correction under
+it carries the verified count. That is the rule this log runs on — reword the
+premise that was false, never the ruling — and here not even the premise is
+reworded, because the premise is in Gary's own quoted words.
+
+The original draft note, kept for the record: this entry was committed before
+ratification so the reasoning the CAL-1 build followed was in the log rather
+than only in a transcript (DEBT-37's rule), on the explicit understanding that
+**a committed draft is not a ruling**.
 
 The nine rulings below are reproduced verbatim from the CAL-1 prompt
 (`docs/prompts/CAL-1_calendar_reminders.md`), which states they were given by
@@ -63,15 +77,39 @@ isolation." He also accepted the fourth bespoke nav flag (`requiresCalendar`) fo
 this phase, noting that `requiresModule` is group-level only and a later NAV
 phase generalises it.
 
-**A correction to R3's own wording, recorded rather than silently absorbed.** R3
-says "the four existing callers". There are **five**, in four files:
-`(app)/stores/page.tsx:53`, `(app)/reports/operations/page.tsx:106`,
-`api/cron/checklist-day-close/route.ts:210`, and twice inside
-`checklist-lifecycle.ts` itself (`rawWindow`, `endClampsAtDayClose`). The count
-came from a Phase A grep scoped to callers outside the module, and the audit
-carried it. All five pass three positional arguments and are behaviour-identical
-under a defaulted fourth, so the ruling's substance is unaffected — but the
-number in it is wrong, and a relocation copies errors as faithfully as facts.
+**A correction to R3's own wording, recorded rather than silently absorbed —
+and NOT edited into Gary's words, on his instruction (2026-09-18).** R3 says
+"the four existing callers". **There are five**, verified by grep at base
+`34fad03` during the PRE-PUSH-CHECK session rather than recalled:
+
+| # | File:line | Site |
+|---|---|---|
+| 1 | `src/app/(app)/stores/page.tsx:53` | `fallbackWeekdays` |
+| 2 | `src/app/(app)/reports/operations/page.tsx:106` | `dayCloseSummary` |
+| 3 | `src/app/api/cron/checklist-day-close/route.ts:210` | the cron loop |
+| 4 | `src/lib/checklist-lifecycle.ts:341` | `rawWindow` |
+| 5 | `src/lib/checklist-lifecycle.ts:428` | `endClampsAtDayClose` |
+
+Five invocations in four files. The definition at `checklist-lifecycle.ts:245`
+is not a caller. At HEAD there are six in five files, the sixth being
+`src/lib/calendar.ts:279` — the only one passing `0`.
+
+All five pass three positional arguments and none reaches the function through a
+reference, `.apply` or a spread, so all five are behaviour-identical under a
+defaulted fourth parameter. **The ruling's substance is unaffected; only the
+number in it is wrong.**
+
+**Three counts were in circulation and it is worth naming which was which**,
+because two of them are in documents that can never be edited. The Phase A audit
+said "four call sites" — counting FILES, wrong unit. The prompt's Addendum A
+"corrected" that to "six, in four files" and then listed five: it had folded the
+DEFINITION line into the count. The plan's B2 table was right all along — five
+pre-existing rows plus a sixth explicitly labelled `(new)` — and the work commit
+message said five. **Nothing was ever verified against the wrong set**: the
+build typechecks every call site whatever anyone counted, and
+`verify-store-hours-engine.ts` stayed green unchanged. Both wrong sentences sit
+in `docs/prompts/`, which is never edited (a saved prompt is a claim wholesale),
+so this table is where the right number lives.
 
 **Deviation S5-D77, approved by Gary before the build**: the three date-only
 columns are `@db.Date` rather than the bare `DateTime` the prompt's B1 block

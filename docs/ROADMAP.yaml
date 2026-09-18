@@ -15786,9 +15786,49 @@ phases:
     track: cal
     size: L
     status: in_progress
-    commits: ["bb675e1"]
+    commits: ["bb675e1", "a4b63cf"]
     title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
     notes: >
+      ── RIDER 2026-09-18 (PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      THE THIRD SHA OF THIS PHASE IS THIS CHECK'S OWN DOCS COMMIT, and it is not
+      in `commits` above for the reason no recorder commit ever can be: it is
+      the commit that writes the line naming it. `commits` reads
+      ["bb675e1", "a4b63cf"] — the work and the build session's docs commit —
+      and the check commit that added this rider is the next one on `staging`,
+      findable as the commit immediately after a4b63cf. Recording it inside
+      itself would require an amend, and amending a recorded work commit
+      invalidates the SHA a row cites.
+      RULINGS RATIFIED. Gary ratified the CAL-1 DECISIONS.md entry AS WRITTEN on
+      2026-09-18 in the check session. His instruction, recorded because it
+      changes what the entry means rather than merely approving it: "My R3
+      wording stands as quoted; keep the correction recorded beneath it with the
+      verified number, not edited into my words. Do not reword R3." So the
+      DRAFT heading is now spent and the entry is a ruling.
+      THE dayCloseInstant CALLER COUNT IS SETTLED AT FIVE, MEASURED RATHER THAN
+      RECALLED. Three numbers were in circulation and only one is right. Phase
+      A's audit said "four call sites", counting FILES. Addendum A of the prompt
+      "corrected" that to "six, in four files" and then enumerated five — it had
+      folded the DEFINITION at checklist-lifecycle.ts:245 into the count. The
+      plan's B2 table was correct all along (five pre-existing, plus a sixth row
+      explicitly labelled `src/lib/calendar.ts` (new)), and the work commit
+      message said "five". VERIFIED AT BASE 34fad03 BY GREP IN THE CHECK
+      SESSION: five invocations in four files — (app)/stores/page.tsx:53,
+      (app)/reports/operations/page.tsx:106,
+      api/cron/checklist-day-close/route.ts:210, and
+      checklist-lifecycle.ts:341 and :428. At HEAD there are six in five files,
+      the new one being src/lib/calendar.ts:279, the only caller passing 0.
+      NOTHING WAS VERIFIED AGAINST THE WRONG SET — the build typechecks every
+      call site whatever anyone counted — but the wrong sentences stay in
+      docs/prompts/ unedited (a saved prompt is a claim wholesale), so this
+      rider and the DECISIONS correction are where the right number lives.
+      DEPLOY_LOG ENTRY NOW EXISTS, written into docs/DEPLOY_LOG.md marked
+      UNPROMOTED on Gary's instruction, following the UM-3 entry's shape. The
+      build session had deferred it on the reasoning that DEPLOY_LOG records
+      production promotions; that reasoning was WRONG — the file's own first
+      line says it "logs both staging and prod deploys" and four UNPROMOTED
+      entries already sat above the fold.
+      ── THE BUILD SESSION'S ROW IS NEXT, UNEDITED ──
       WRITTEN AT THE END OF THE SESSION FROM WHAT WAS ACTUALLY BUILT, per
       WORKFLOW.md rule 2. NOT PUSHED — Claude never pushes, so the status is
       `in_progress` rather than `staging`: rule 4 moves a row to `staging` in the
