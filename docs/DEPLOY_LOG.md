@@ -2,6 +2,32 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-17 — /users: a location filter and a search box
+
+**Work SHA:** `982833f` on `staging`, not pushed at the time of writing.
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed.
+
+**Payload:** **2 commits** on `staging` — the work and this docs commit. One
+new client component and one page. **No schema change, no migration, no new
+route, no cron, no Square call, no Clerk change, no permission change, no
+query change, no new page route.** `getData()` is byte-identical end to end,
+verified by an empty diff over the whole function.
+
+**What it does.** `/users` gains two controls beneath the subtitle: a location
+dropdown defaulting to "All locations", and a search box over name and email.
+Both narrow the member rows and the pending-invitation rows, AND-combined,
+purely on the client over rows the page already fetched. ADMINs match every
+location because that is their actual access. Header counts stay the org
+totals; the filtered member count is appended as " · showing N".
+
+**Nothing to watch on first deploy.** The default state — "All locations" and
+an empty search — renders exactly what the page rendered before, so an
+unfiltered `/users` is unchanged.
+
+**Rollback is code-only and needs no database step.** Reverting the work commit
+removes the two controls and restores the previous page; nothing was written.
+
 ## UNPROMOTED — 2026-09-09 — Take Photo: the button now opens a camera
 
 **Work SHA:** `ce1cf9d` on `staging`, not pushed at the time of writing.
