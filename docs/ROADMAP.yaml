@@ -284,6 +284,89 @@ phases:
       matrix page. Build the matrix page so a per-user diff can sit beside it.
       Numbered UM-2 because UM-1 is a shipped phase (2026-07-23, 516b6da).
 
+  - id: UM-3
+    track: platform
+    size: S
+    status: staging
+    commits: ["982833f"]
+    title: "Location filter and search on /users — two controls narrowing both the member and the pending-invitation rows"
+    notes: >
+      STATUS IS `staging` AND IS ONE STEP AHEAD OF THE TRUTH AT WRITING, on
+      STAFF-2's precedent, stated rather than implied. "982833f" is committed on
+      the local `staging` branch and NOT PUSHED, so no Vercel preview carries it
+      yet; the value becomes true on Gary's push. Claude never pushes
+      (CLAUDE.md § Git Rules).
+      WHAT IT IS. /users renders one card, "Organization Members", holding the
+      accepted members and the pending invitations. This adds two controls
+      directly beneath the page subtitle, left-aligned: a location dropdown
+      defaulting to "All locations", and a text input placeholder "Search by
+      name or email". Both narrow both sets of rows, AND-combined. The default
+      state renders precisely what the page rendered before. TIER 2 throughout:
+      no schema, no migration, no new route, no permission change, no query
+      change.
+      A NEW SELECTOR SITE FOR UX-2 TO ABSORB. This is the second location
+      picker built on STAFF-2's shape and, like it, deliberately does NOT share
+      the Dashboard's localStorage key — picking a location here cannot narrow
+      any other surface, and picking one elsewhere cannot narrow this. Plain
+      component state that resets on reload: no localStorage, no URL param, no
+      shared context. UX-2 unifies the selector sites; when it does, this is one
+      of the sites it has to take. Named here so UX-2 finds it rather than
+      rediscovering it.
+      ADMINS MATCH EVERY LOCATION, which is the one filter rule that is a
+      judgement rather than a mechanism. An ADMIN has no storeAssignments by
+      design and the row already says so in words ("All locations"), so
+      filtering on assignments alone would hide exactly the people who can see
+      every location. EXTENDED TO PENDING ADMIN INVITES, which the brief did not
+      spell out: an ADMIN invite renders the same "All locations" for the same
+      reason, and excluding it would be the same defect one row group down. Say
+      so if the narrower reading was meant.
+      THE OPTIONS COME FROM THE ARRAY THE PAGE ALREADY HAD, `storeProps`
+      (page.tsx:263), which is the same list the chips and the Invite/Edit
+      dialogs are built from — not a fresh store query. Option labels use the
+      chips' own `#<number> — <name>` format, so an option names the thing on
+      screen.
+      THE ROWS CROSS THE CLIENT BOUNDARY ALREADY RENDERED. The new component
+      (src/app/(app)/users/users-filter.tsx) receives each row as a server node
+      plus the three keys the controls read — rendered name, email, store ids —
+      rather than the `members` array itself. That array carries whole Store
+      records inside storeAssignments (contactEmail, Square ids) and each
+      member's capability arrays, none of which filtering needs; this way none
+      of it is serialised. It also keeps every row's markup inside page.tsx
+      untouched, which is why Edit / Remove / Revoke keep working on filtered
+      rows — they are the same buttons, not re-created ones.
+      HEADER COUNTS STAY THE ORG TOTALS. A filter does not change how big the
+      organization is, so the filtered number is APPENDED (" · showing N",
+      members only) and never substituted.
+      "NO MATCHES" IS NOT THE EMPTY-ORG STATE. A filtered-empty row group gets
+      one quiet row; the "No users yet. Invite your team to get started." card
+      is reserved for an org that genuinely has nobody, and that org now renders
+      with no controls above it at all — mirroring /staff, which hides its
+      picker on an empty roster.
+      WHAT DID NOT CHANGE, which is most of the point. getData() is untouched
+      end to end — verified by an empty diff over the whole function, not by
+      inspection. Same Clerk membership and invitation calls, same four Prisma
+      queries, same invite fetch; every row fetched before is still fetched. The
+      DEBT-17 Clerk-membership sync block is byte-identical (empty diff over its
+      44 lines). Both <tr> blocks are byte-identical to their originals apart
+      from indentation. requireAdmin, getUserStoreScope, the capability checks
+      and user-actions.tsx are not referenced.
+      DRIFT AGAINST THE BRIEF, recorded because the numbers will move again. The
+      prompt places the sync block at ":65-98 in the 2026-07 numbering"; it is
+      at :128-171. The prompt also describes "two tables" — there is ONE
+      `<table>` with one `<tbody>` holding two row groups, so "No matches"
+      renders once per GROUP, which is what the rule means on this markup.
+      VERIFIED IN A BROWSER against a temporary harness under the public /menu
+      route, since removed — /users is behind Clerk plus users.manage, so the
+      client half was driven directly with synthetic rows while the server half
+      is unchanged by construction. Default: 7/7 rows, no "showing" suffix.
+      "  BOB  " -> showing 1 plus "No matches" in the pending group (trim and
+      case both exercised). Airport -> both admins, the s2 member and the s1,s2
+      member, showing 3. Downtown + "INVITEE" -> "No matches" in the members
+      group, showing 0, with the matching invite still rendered.
+      GATE: scoped eslint clean on both touched files, `npm run build` green.
+      One build failure en route and it is worth knowing: `Store.storeNumber` is
+      `string | null`, not `number | null`.
+
   - id: STAFF-1
     track: platform
     size: L
