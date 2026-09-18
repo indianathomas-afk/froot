@@ -169,6 +169,21 @@ export function CalendarClient({
     return map
   }, [data, hidden, storeId])
 
+  // ── THE DETAIL DIALOG READS THE LAST-HELD FEED, NOT THE KEYED ONE ────────
+  // `data` is null for the whole duration of every re-read — that is what
+  // raises the grid's skeletons — and CAL-1b's edit ENDS in a re-read. Binding
+  // the dialog to `data` would therefore unmount it the instant Save
+  // succeeded, taking the "Saved" note with it and flashing the panel shut and
+  // open again. Holding the previous rows keeps the panel on screen showing
+  // the values it had for the moment the fetch takes, then re-renders on the
+  // new ones. The grid keeps using `data`, because there the null IS the
+  // signal.
+  const held = feed?.data ?? null
+
+  // The event the dialog is open on, or undefined once an edit has moved it
+  // out of the feed's scope. Derived, never asserted — see the render below.
+  const detailEvent = detailOn ? held?.events.find((e) => e.id === detailOn.eventId) : undefined
+
   const monthLabel = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1)).toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
@@ -424,24 +439,39 @@ export function CalendarClient({
         </DialogContent>
       </Dialog>
 
-      {detailOn && data && (
+      {/* ── CAL-1b: the detail dialog, which is now also the EDIT dialog ──
+          THE EVENT IS LOOKED UP, NOT ASSERTED. This used to end in `!` on a
+          find that could not miss, because the only write the dialog offered
+          was Archive and Archive closed it. Edit can move a reminder OUT of
+          the selected store's scope — appliesTo: "all" → one other store — and
+          the feed's WHERE drops it on the next read, so the assertion would
+          have been `undefined.title` on the re-render after a save.
+          Rendering nothing is the right answer rather than a fallback: the
+          reminder genuinely is not in this store's calendar any more. If the
+          picker is later moved to the store it WAS given, it reappears with
+          its detail open, which is where the user left it. */}
+      {detailEvent && held && detailOn && (
         <OccurrenceDetail
-          event={data.events.find((e) => e.id === detailOn.eventId)!}
+          event={detailEvent}
           date={detailOn.date}
           occurrence={
-            data.occurrences.find(
+            held.occurrences.find(
               (o) => o.eventId === detailOn.eventId && o.dueDate === detailOn.date && (!storeId || o.storeId === storeId)
             ) ?? null
           }
           stores={stores}
           staff={staff}
           canManage={canManage}
-          categoryLabel={categoryLabel(data.events.find((e) => e.id === detailOn.eventId)?.category ?? "other")}
+          categoryLabel={categoryLabel(detailEvent.category)}
           onClose={() => setDetailOn(null)}
           onChanged={() => {
             setDetailOn(null)
             reload()
           }}
+          // An edit re-reads the month and LEAVES THE DIALOG OPEN, so the
+          // detail view re-renders from the refreshed event and shows the new
+          // values on the thing you just edited.
+          onSaved={reload}
         />
       )}
     </div>
