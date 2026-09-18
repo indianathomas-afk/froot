@@ -7,6 +7,9 @@ Deploy verification: 2026-07-02T22:00:05Z
 **Work SHA:** `bb675e1` on `staging`, not pushed at the time of writing.
 **Docs SHA:** `a4b63cf`. **Unpromoted — staging only.** The heading is stamped
 with the merge SHA at promotion, from `git rev-parse`, never hand-typed.
+**Carries CAL-1a (`d4e13af`, 2026-09-18):** the create form clipped off-screen
+on the top grid rows on staging; the anchored popover is now the shared Dialog.
+Cosmetic, rides this entry, adds no migration step and changes nothing below.
 
 **Payload:** **3 commits** on `staging` — the work, the docs, and the
 PRE-PUSH-CHECK commit that added this entry. **This is a schema change and the

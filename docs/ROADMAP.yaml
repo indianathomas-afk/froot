@@ -15789,6 +15789,11 @@ phases:
     commits: ["bb675e1", "a4b63cf"]
     title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
     notes: >
+      ── RIDER 2026-09-18 (CAL-1a). PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE CREATE FORM CLIPPED OFF-SCREEN ON THE TOP GRID ROWS and is fixed in
+      CAL-1a ("d4e13af") — the anchored popover this phase shipped is now the
+      shared Dialog. CAL-1's UI section below still describes a popover, which
+      is what it built; read CAL-1a for what is on screen now.
       ── RIDER 2026-09-18 (PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING BELOW IS
       EDITED. ──
       THE THIRD SHA OF THIS PHASE IS THIS CHECK'S OWN DOCS COMMIT, and it is not
@@ -15975,6 +15980,61 @@ phases:
         shows the completion of the occurrence in hand, not a log of every past
         completion of that event at that store. The rows exist; no surface reads
         them.
+
+  - id: CAL-1a
+    track: cal
+    size: S
+    status: in_progress
+    commits: ["d4e13af"]
+    title: "Calendar create form clipped off-screen on the top grid rows — anchored popover replaced with the shared Dialog"
+    notes: >
+      TIER 1, COSMETIC. No schema, no routes, no capability change, no change to
+      what any gate decides. Filed and fixed 2026-09-18, the day after CAL-1
+      reached staging.
+      THE DEFECT, observed by Gary on staging 2026-09-18. Clicking a day in the
+      TOP ROWS of the month grid opened the create form as a `<Popover>`
+      anchored to that cell. A popover positions against its ANCHOR, not against
+      the viewport, so the form opened upward with its head above the fold and
+      NOTHING TO SCROLL — the overflow was off-screen rather than inside a
+      container, which is why no amount of scrolling reached it.
+      THE FIX. One shared `Dialog` below the grid driven by `createOn`,
+      replacing 42 per-cell Popover roots: centred, capped at 85vh, Escape and
+      backdrop-click to close, all Radix defaults the popover never gave. The
+      cap sits on DialogContent and THE SCROLL SITS ON THE FORM BODY — UX-1's
+      finding on the Edit User modal, that scrolling DialogContent itself drops
+      Save below the fold of a form that only gets longer. The footer is pinned
+      outside the scroll and the error line moved out with it, since an error
+      rendered at the bottom of an eleven-field form is below the fold for
+      exactly the person who just pressed Save.
+      THE DETAIL PANEL WAS NOT THE SAME DEFECT, and the session prompt's premise
+      that it shared the anchoring did not match the code. It was already a
+      centred `fixed inset-0` overlay rather than a Popover, so it never opened
+      off-screen. It was converted anyway — instructed, and worth doing on its
+      own merits: a bare div gave no Escape, no focus trap, no focus restored to
+      the trigger, no `aria-modal` or dialog role, and a backdrop "click" that
+      was an onClick on a div needing `stopPropagation` on the panel to stop its
+      own handler firing. Its `<h2>` became `DialogTitle` (Radix warns at
+      runtime without one) and its bespoke close button went, since
+      DialogContent renders its own and two would have shown.
+      WHAT WAS CHECKED RATHER THAN ASSUMED, because a container swap is exactly
+      the shape of change that quietly takes a gate with it: the `canManage`
+      day-click affordance (ruling 5), `setDetailOn`, `onDone`/`onCancel`, all
+      ELEVEN form field ids diffed before against after and identical, and the
+      Event | Reminder tab strip with Event still disabled reading "Coming in
+      CAL-2". The only new behaviour-bearing line in the diff is the Dialog's
+      own `open`/`onOpenChange`.
+      EVIDENCE CEILING. `npm run build` exit 0 and scoped eslint exit 0, both
+      read WITHOUT a pipe. NOT SEEN IN A BROWSER by this session — /calendar
+      needs a Clerk session and the CAL-1 tables on the dev branch, and the fix
+      is to a rendered position, which is the one thing a build cannot check.
+      Gary sees it on staging after the push.
+    blockers:
+      - >
+        THE FIX IS UNSEEN. A clipping defect is visual by definition and this
+        session verified it by diff and build only. The check on staging is one
+        click: open /calendar, click a day in the FIRST grid row, and confirm
+        the form is centred with its title visible. If it is still clipped, the
+        Dialog is not the container being rendered and this row is wrong.
 
   - id: CAL-2
     track: cal
