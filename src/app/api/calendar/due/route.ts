@@ -54,8 +54,13 @@ export async function GET(req: Request) {
       event: { isArchived: false },
     },
     include: {
-      event: { select: { title: true, category: true, priority: true } },
+      // CAL-2: `templateId` is what tells the banner to render "Open checklist"
+      // instead of an inline Complete (ruling 3) — and the complete route
+      // refuses a template-backed row independently, so the banner is the
+      // affordance and not the gate.
+      event: { select: { title: true, category: true, priority: true, templateId: true } },
       store: { select: { name: true, timezone: true } },
+      checklist: { select: { id: true } },
     },
     orderBy: { dueAt: "asc" },
   })
@@ -72,6 +77,8 @@ export async function GET(req: Request) {
     dueDate: o.dueDate.toISOString().slice(0, 10),
     dueAt: o.dueAt.toISOString(),
     daysOverdue: daysOverdue(o.dueAt, now),
+    templateId: o.event.templateId,
+    checklistId: o.checklist?.id ?? null,
   }))
 
   const overdue = items.filter((i) => i.dueAt <= now.toISOString())

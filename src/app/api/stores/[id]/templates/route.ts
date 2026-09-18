@@ -4,6 +4,7 @@ import { getUserStoreScope } from "@/lib/auth"
 import { businessDayWindow } from "@/lib/reports"
 import {
   checklistState,
+  dayCloseAppliesTo,
   expectedWindow,
   hoursForDate,
   type ChecklistState,
@@ -43,16 +44,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     orderBy: { name: "asc" },
   })
 
-  // Filter: "all" → show for every store; "selected" → only if this store is in storeAssignments
-  const applicable = templates.filter((t) => {
-    if (t.appliesTo === "selected") {
-      return t.storeAssignments.some((a) => a.storeId === storeId)
-    }
-    return true // "all" or legacy rows with no appliesTo set
-  })
-
   // Check which ones already have a checklist started today — "today" is the
   // store's local business day, not the server (UTC) day.
+  //
+  // CAL-2 MOVED THIS ABOVE THE APPLICABILITY FILTER — same query, same cost,
+  // only its position changed. R5 needs to know whether a row exists before it
+  // can decide whether to list the template at all.
   const w = businessDayWindow(new Date(), store.timezone)
 
   const existingToday = await prisma.checklist.findMany({
@@ -76,6 +73,29 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   })
 
   const existingMap = new Map(existingToday.map((c) => [c.templateId, c]))
+
+  // Filter: "all" → show for every store; "selected" → only if this store is in storeAssignments
+  const applicable = templates.filter((t) => {
+    if (t.appliesTo === "selected" && !t.storeAssignments.some((a) => a.storeId === storeId)) {
+      return false
+    }
+
+    // ── R5 (Gary, 2026-09-18) — A NON-DAILY TEMPLATE APPEARS ONLY ON A DAY IT
+    // HAS A CHECKLIST ───────────────────────────────────────────────────────
+    // Ruling 1 makes POST /api/checklists refuse a non-Daily template, so
+    // listing one on every other day would put a Start button on this page that
+    // now answers 409. When the calendar HAS scheduled it for today the row
+    // exists, and it shows and opens exactly like any other.
+    //
+    // DEBT-65's invariant — "the three applicability filters read one rule" —
+    // is PRESERVED, and the rule is restated rather than broken: OFFER CREATION
+    // ONLY WHERE CREATION IS ALLOWED; SHOW WHAT EXISTS EITHER WAY. The isActive
+    // / isArchived half of that rule is untouched and still lives in the query
+    // above, shared verbatim with both creation paths.
+    if (!dayCloseAppliesTo(t.frequency)) return existingMap.has(t.id)
+
+    return true // "all" or legacy rows with no appliesTo set
+  })
 
   // CHK-4. THE CREW'S LIST GAINS A LIVE STATE, computed here rather than in the
   // client, because the store's hours and the template's offsets are both

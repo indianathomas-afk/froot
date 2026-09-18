@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { CALENDAR_CATEGORIES, CALENDAR_PRIORITIES, CALENDAR_RECURRENCES } from "@/lib/calendar"
+import { CreateEventForm } from "./create-event-form"
 import type { StoreOption } from "./calendar-client"
 
 // CAL-1 — the create popover, Apple-style: an Event | Reminder tab pair.
@@ -52,12 +53,17 @@ export type SaveResult = { reDerived: boolean; warning?: string }
 export function CreateReminderForm({
   date,
   stores,
+  isAdmin,
   edit,
   onDone,
   onCancel,
 }: {
   date: string
   stores: StoreOption[]
+  /** B11 (CAL-2): a non-ADMIN's "All stores" is resolved server-side to THEIR
+   *  stores, so the label has to say that rather than promise an org-wide
+   *  reach the route will refuse. */
+  isAdmin: boolean
   edit?: ReminderDraft
   onDone: (result?: SaveResult) => void
   onCancel: () => void
@@ -212,7 +218,8 @@ export function CreateReminderForm({
             onChange={(e) => setAppliesTo(e.target.value as "all" | "specific")}
             className={field}
           >
-            <option value="all">All stores</option>
+            {/* CAL-2, B11 — see the isAdmin prop. */}
+            <option value="all">{isAdmin ? "All stores" : "All my stores"}</option>
             <option value="specific">Pick stores</option>
           </select>
           {appliesTo === "specific" && (
@@ -392,13 +399,21 @@ export function CreateReminderForm({
     <Tabs defaultValue="reminder" className="flex min-h-0 flex-1 flex-col">
       <TabsList className="mb-3 shrink-0">
         <TabsTrigger value="reminder">Reminder</TabsTrigger>
-        <TabsTrigger value="event" disabled title="Coming in CAL-2">
-          Event
-        </TabsTrigger>
+        {/* CAL-2 — ENABLED. CAL-1 shipped this disabled with "Coming in CAL-2"
+            rather than absent, deliberately, because ruling 1 describes a
+            calendar with TWO entity types and a UI showing one teaches the
+            wrong model. This is the other one. */}
+        <TabsTrigger value="event">Event</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="event">
-        <p className="py-6 text-center text-sm text-[var(--color-muted-foreground)]">Coming in CAL-2</p>
+      <TabsContent value="event" className="flex min-h-0 flex-1 flex-col">
+        <CreateEventForm
+          date={date}
+          stores={stores}
+          isAdmin={isAdmin}
+          onDone={() => onDone()}
+          onCancel={onCancel}
+        />
       </TabsContent>
 
       <TabsContent value="reminder" className="flex min-h-0 flex-1 flex-col">

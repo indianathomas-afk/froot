@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CreateReminderForm, type SaveResult } from "./create-reminder-form"
+import { CreateEventForm } from "./create-event-form"
 import type { StaffOption, StoreOption } from "./calendar-client"
 
 // CAL-1 — the detail popover. Read-only fields, the completion control, and
@@ -57,6 +58,9 @@ type EventLike = {
   appliesTo: string
   storeIds: string[]
   attachment: { id: string; label: string; url: string } | null
+  /** CAL-2. Null is a reminder; set is a template scheduled to run (ruling 1). */
+  templateId: string | null
+  templateName: string | null
 }
 
 type OccurrenceLike = {
@@ -67,6 +71,11 @@ type OccurrenceLike = {
   completedAt: string | null
   notes: string | null
   photoUrl: string | null
+  /** CAL-2: where "Open checklist" points, and the Missed instant — which is
+   *  the linked checklist's closedAt, because there is no missedAt column (R2). */
+  checklistId: string | null
+  checklistStatus: string | null
+  missedAt: string | null
 }
 
 export function OccurrenceDetail({
@@ -76,6 +85,7 @@ export function OccurrenceDetail({
   stores,
   staff,
   canManage,
+  isAdmin,
   categoryLabel,
   onClose,
   onChanged,
@@ -87,6 +97,8 @@ export function OccurrenceDetail({
   stores: StoreOption[]
   staff: StaffOption[]
   canManage: boolean
+  /** B11 (CAL-2): passed through to the edit form for its store label. */
+  isAdmin: boolean
   categoryLabel: string
   onClose: () => void
   onChanged: () => void
@@ -102,7 +114,7 @@ export function OccurrenceDetail({
   const [error, setError] = useState<string | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [savedResult, setSavedResult] = useState<SaveResult | null>(null)
+  const [savedResult, setSavedResult] = useState<(SaveResult & { keptStarted?: number }) | null>(null)
 
   async function complete() {
     if (!occurrence) return
@@ -168,7 +180,45 @@ export function OccurrenceDetail({
         <DialogContent
           className={`max-w-md max-h-[85vh] ${editing ? "flex flex-col" : "overflow-y-auto"}`}
         >
-          {editing ? (
+          {editing && event.templateId ? (
+            <>
+              {/* ── CAL-2 — A SCHEDULED EVENT EDITS THROUGH THE EVENT FORM ──────
+                  CAL-1b's Edit reuses the create form so the eleven fields live
+                  in one file. That argument holds PER ENTITY TYPE: an Event's
+                  field set is a different one — no notes, no url, no attachment,
+                  because those are the TEMPLATE'S — so sending a scheduled event
+                  through the reminder form would offer three fields it does not
+                  have and hide the template it does. Same pattern, correct form. */}
+              <DialogTitle className="mb-3 pr-6 text-base font-semibold">Edit schedule</DialogTitle>
+              <CreateEventForm
+                date={event.startDate}
+                stores={stores}
+                isAdmin={isAdmin}
+                edit={{
+                  id: event.id,
+                  templateId: event.templateId,
+                  templateName: event.templateName ?? event.title,
+                  category: event.category,
+                  priority: event.priority,
+                  recurrence: event.recurrence,
+                  startDate: event.startDate,
+                  dueTime: event.dueTime,
+                  endDate: event.endDate,
+                  appliesTo: event.appliesTo,
+                  storeIds: event.storeIds,
+                }}
+                onDone={(result) => {
+                  setEditing(false)
+                  setSavedResult({
+                    reDerived: result?.reDerived ?? false,
+                    keptStarted: result?.keptStarted ?? 0,
+                  })
+                  onSaved()
+                }}
+                onCancel={() => setEditing(false)}
+              />
+            </>
+          ) : editing ? (
             <>
               <DialogTitle className="mb-3 pr-6 text-base font-semibold">Edit reminder</DialogTitle>
               <CreateReminderForm
@@ -177,6 +227,7 @@ export function OccurrenceDetail({
                 // fallback and is never read in edit mode.
                 date={event.startDate}
                 stores={stores}
+                isAdmin={isAdmin}
                 edit={{
                   id: event.id,
                   title: event.title,
@@ -275,6 +326,17 @@ export function OccurrenceDetail({
                       stay in the record.
                     </p>
                   )}
+                  {/* CAL-2: an Open occurrence whose checklist somebody has
+                      already started is NOT dropped on a re-derive — their
+                      half-done work would be stranded. Said here so the
+                      operator is not left wondering why one date did not move. */}
+                  {!!savedResult.keptStarted && savedResult.keptStarted > 0 && (
+                    <p className="mt-1">
+                      {savedResult.keptStarted === 1
+                        ? "One checklist was already started, so its date was kept. The new schedule applies from the next one."
+                        : `${savedResult.keptStarted} checklists were already started, so their dates were kept. The new schedule applies from the next ones.`}
+                    </p>
+                  )}
                   {savedResult.warning && (
                     <p className="mt-1 text-[var(--color-destructive)]">{savedResult.warning}</p>
                   )}
@@ -283,11 +345,60 @@ export function OccurrenceDetail({
 
               {/* ── Completion history for THIS occurrence ─────────────────── */}
               <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+                {/* ── CAL-2, RULING 3 — A SCHEDULED CHECKLIST IS NOT TICKED HERE
+                    "Completion of the occurrence IS the checklist's submit;
+                    there is no separate tick, and the calendar's Complete
+                    control OPENS THE CHECKLIST instead." The API says the same
+                    thing independently: POST .../complete answers 409 for a
+                    template-backed occurrence. This branch is the affordance,
+                    not the gate. */}
                 {!occurrence ? (
                   <p className="text-sm text-[var(--color-muted-foreground)]">
                     Not yet due. This date is projected from the repeat rule — it becomes completable once the current
                     one is done.
                   </p>
+                ) : event.templateId ? (
+                  <div className="space-y-2">
+                    {occurrence.status === "Completed" ? (
+                      <div className="rounded-md bg-[var(--color-success-bg)] p-3 text-sm text-[var(--color-success-text)]">
+                        <p className="font-medium">
+                          Completed {occurrence.completedAt ? new Date(occurrence.completedAt).toLocaleString() : ""}
+                        </p>
+                      </div>
+                    ) : occurrence.status === "Missed" ? (
+                      /* Missed is TERMINAL for a template-backed occurrence
+                         (ruling 4) and the instant is day close's, read off the
+                         linked checklist — there is no missedAt column (R2). */
+                      <div className="rounded-md bg-[var(--color-destructive)]/10 p-3 text-sm text-[var(--color-destructive)]">
+                        <p className="font-medium">
+                          Missed{occurrence.missedAt ? ` — day closed ${new Date(occurrence.missedAt).toLocaleString()}` : ""}
+                        </p>
+                        <p className="mt-1 opacity-90">
+                          Nobody completed this before the store&rsquo;s day ended. The next one is scheduled as normal.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[var(--color-muted-foreground)]">
+                        This is a scheduled checklist. Open it to work through the tasks — completing the checklist
+                        completes this calendar entry.
+                      </p>
+                    )}
+                    {occurrence.checklistId ? (
+                      <a
+                        href={`/store-view/checklist/${occurrence.checklistId}`}
+                        className="flex min-h-[44px] w-full items-center justify-center rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white"
+                      >
+                        Open checklist
+                      </a>
+                    ) : (
+                      /* The link is SetNull-able (the FK safety net), so the
+                         absence renders as a sentence rather than as a button
+                         that goes nowhere. */
+                      <p className="text-xs text-[var(--color-muted-foreground)]">
+                        The checklist for this date is no longer linked.
+                      </p>
+                    )}
+                  </div>
                 ) : completed ? (
                   <div className="rounded-md bg-[var(--color-success-bg)] p-3 text-sm text-[var(--color-success-text)]">
                     <p className="font-medium">

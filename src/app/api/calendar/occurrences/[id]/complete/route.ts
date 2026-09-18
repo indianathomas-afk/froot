@@ -28,6 +28,12 @@ import { calendarDenialBody, calendarDenialStatus, requireCalendar } from "@/lib
 //
 // The MODULE gate still applies — requireCalendar() with no capability argument
 // is exactly that, and nothing else.
+//
+// ── CAL-2: THIS ROUTE IS NOW REMINDERS ONLY ─────────────────────────────────
+// A TEMPLATE-BACKED occurrence is refused below (ruling 3) — its completion is
+// the checklist's submit, and api/checklists/[id]/submit is the only writer of
+// that row's Completed state. Everything above still describes this route
+// exactly, for the reminders it still serves.
 
 const bodySchema = z.object({
   notes: z.string().trim().max(2000).nullish(),
@@ -42,9 +48,41 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params
   const occurrence = await prisma.calendarOccurrence.findFirst({
     where: { id, organizationId: access.org.id },
-    select: { id: true, storeId: true, status: true },
+    select: {
+      id: true,
+      storeId: true,
+      status: true,
+      // CAL-2: what makes this a scheduled checklist rather than a reminder,
+      // and where to send the person instead.
+      event: { select: { templateId: true } },
+      checklist: { select: { id: true } },
+    },
   })
   if (!occurrence) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  // ── CAL-2, RULING 3 — A TEMPLATE-BACKED OCCURRENCE IS NOT TICKED HERE ───────
+  // "Completion of the occurrence IS the checklist's submit; there is no
+  // separate tick, and the calendar's Complete control opens the checklist
+  // instead." So this route refuses, and the checklist's submit route is the
+  // single writer of that occurrence's Completed state.
+  //
+  // WHY THIS SITS BEFORE THE STORE-SCOPE CHECK: it is a fact about the ROW, not
+  // about the actor. Someone with every permission in the product still cannot
+  // complete a scheduled checklist here, and telling them "Forbidden" first
+  // would send them looking for a capability that was never involved.
+  //
+  // `checklistId` RIDES IN THE BODY so a client that reached this route anyway
+  // — an older tab, a bookmarked request — can send the person somewhere useful
+  // rather than just refusing them.
+  if (occurrence.event.templateId) {
+    return NextResponse.json(
+      {
+        error: "This is a scheduled checklist. Open the checklist to complete it.",
+        checklistId: occurrence.checklist?.id ?? null,
+      },
+      { status: 409 }
+    )
+  }
 
   // THE TASK-LOG GATE, VERBATIM (task-log/route.ts:23-26). Store-level users
   // must still be able to complete their own store's work; an admin is

@@ -65,6 +65,11 @@ export default async function CalendarPage() {
     <CalendarClient
       stores={stores}
       canManage={canManage}
+      // B11 (CAL-2): the store-write bound is enforced in POST/PATCH
+      // /api/calendar/events; this only decides whether the form's "All stores"
+      // option says "all" or "all mine". The label follows the rule rather than
+      // being the rule.
+      isAdmin={isAdmin}
       // STORE/STAFF are fixed to their store; ADMIN/MANAGER pick. With exactly
       // one store in scope the picker is still rendered but has one option —
       // simpler than a second layout, and honest about what they are seeing.

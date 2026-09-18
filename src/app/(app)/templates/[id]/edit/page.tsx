@@ -8,7 +8,12 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
   const { orgId } = await auth()
   if (!orgId) return notFound()
 
-  const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
+  const org = await prisma.organization.findUnique({
+    where: { clerkOrgId: orgId },
+    // CAL-2: the "Add to Calendar" control exists only when the calendar does
+    // (ruling 9 — off means nav, page, API and this button are all inert).
+    select: { id: true, calendarEnabled: true },
+  })
   if (!org) return notFound()
 
   const [template, stores] = await Promise.all([
@@ -21,6 +26,13 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
         tasks: { orderBy: { orderIndex: "asc" } },
         sections: { select: { id: true, name: true, sortOrder: true }, orderBy: { sortOrder: "asc" } },
         storeAssignments: true,
+        // CAL-2: an active event already scheduling this template, so the
+        // button can read "Scheduled" instead of offering a second rule.
+        calendarEvents: {
+          where: { isArchived: false },
+          select: { id: true, recurrence: true, startDate: true },
+          orderBy: { createdAt: "asc" },
+        },
       },
     }),
     // CHK-4 close-out, 2026-08-10 — `timezone` and `hours` joined on so the
@@ -44,5 +56,22 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
   ])
   if (!template) return notFound()
 
-  return <TemplateForm initialData={template} stores={stores} />
+  const scheduled = template.calendarEvents[0] ?? null
+
+  return (
+    <TemplateForm
+      initialData={template}
+      stores={stores}
+      calendarEnabled={org.calendarEnabled}
+      scheduledEvent={
+        scheduled
+          ? {
+              id: scheduled.id,
+              recurrence: scheduled.recurrence,
+              startDate: scheduled.startDate.toISOString().slice(0, 10),
+            }
+          : null
+      }
+    />
+  )
 }

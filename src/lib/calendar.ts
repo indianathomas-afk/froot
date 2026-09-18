@@ -46,7 +46,77 @@ export type CalendarPriority = (typeof CALENDAR_PRIORITIES)[number]
 export const CALENDAR_RECURRENCES = ["None", "Daily", "Weekly", "Biweekly", "Monthly"] as const
 export type CalendarRecurrence = (typeof CALENDAR_RECURRENCES)[number]
 
-export const CALENDAR_STATUSES = ["Open", "Completed"] as const
+/**
+ * CAL-1 shipped Open | Completed. CAL-2 adds MISSED (ruling 4, Gary
+ * 2026-09-18), and it is terminal for a TEMPLATE-BACKED occurrence only — a
+ * reminder is never auto-closed as Missed (CAL-1 ruling 4, unchanged), so no
+ * reminder row can ever carry it.
+ *
+ * ONE TUPLE, AND THE TYPECHECK CARRIES IT. Adding the value here is the whole
+ * validation change: `CalendarStatus` flows into every reader, so a switch or a
+ * comparison that has not accounted for Missed is a build error rather than a
+ * runtime surprise. There is deliberately no status enum in the schema and no
+ * second list — the category and priority precedent, one file above.
+ */
+export const CALENDAR_STATUSES = ["Open", "Completed", "Missed"] as const
+export type CalendarStatus = (typeof CALENDAR_STATUSES)[number]
+
+/**
+ * Whether day close judges this checklist — RULING 4 (Gary, 2026-09-18), and
+ * the predicate that closes DEBT-61.
+ *
+ * THE GATE IS THE OCCURRENCE LINK, NOT Template.frequency. A calendar-generated
+ * checklist follows the CHK-3 lifecycle in full whatever its template's
+ * frequency says, because the calendar answered the question DEBT-61 says
+ * nobody was asking: WHICH DAY is this weekly template due. A non-Daily row
+ * with NO link is pre-CAL-2 litter and is still left open — the trade CHK-3
+ * recorded, which CAL-2 deliberately does not disturb for rows already on disk.
+ *
+ * `dayCloseAppliesTo` IS NOT RE-DERIVED HERE. It is passed in, from
+ * src/lib/checklist-lifecycle.ts, so this module stays free of that import and
+ * there is still exactly one expression of "is this template Daily". This
+ * function composes the two facts; it does not own either of them.
+ */
+export function dayCloseJudgesChecklist(
+  isDailyTemplate: boolean,
+  calendarOccurrenceId: string | null | undefined
+): boolean {
+  return isDailyTemplate || calendarOccurrenceId != null
+}
+
+/**
+ * Whether a template may be added to the calendar (ruling 1 + R4).
+ *
+ * Non-Daily, active, and not archived. THE TWO FLAGS ARE BOTH ASKED, and that
+ * is R4's reversible half meeting DEBT-65's measured lesson: archiving does not
+ * clear isActive and the two controls write one flag each, so `isArchived &&
+ * isActive` is the NORMAL state of an archived template — and at Keva
+ * "archiving" is actually performed with DEACTIVATE (five templates
+ * isActive=false, zero isArchived=true, measured 2026-08-10 on dev and
+ * staging). A predicate asking only one of them would be correct and inert.
+ */
+export function isSchedulableTemplate(
+  template: { frequency?: string | null; isActive: boolean; isArchived: boolean },
+  isDailyTemplate: boolean
+): boolean {
+  return !isDailyTemplate && template.isActive && !template.isArchived
+}
+
+/**
+ * The repeat a template's frequency presets in the Event form (ruling 2).
+ * Changeable by the operator afterwards — this is the PRESET, not the rule.
+ * Daily returns null because a Daily template is never scheduled here at all.
+ */
+export function recurrenceForFrequency(frequency: string | null | undefined): CalendarRecurrence | null {
+  switch ((frequency ?? "Daily").trim()) {
+    case "Weekly":
+      return "Weekly"
+    case "Monthly":
+      return "Monthly"
+    default:
+      return null
+  }
+}
 
 /**
  * Canonical category id, or null for anything unregistered — THE phases.ts

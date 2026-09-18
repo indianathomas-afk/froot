@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Flag, Paperclip, Link2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Flag, ListChecks, Paperclip, Link2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CALENDAR_CATEGORIES, categoryLabel } from "@/lib/calendar"
@@ -37,6 +37,10 @@ type EventRow = {
   appliesTo: string
   storeIds: string[]
   attachment: { id: string; label: string; url: string } | null
+  /** CAL-2. Null is a reminder; set is a template scheduled to run (ruling 1).
+   *  Every branch in this file reads THIS, never the presence of a name. */
+  templateId: string | null
+  templateName: string | null
   projectedDates: string[]
 }
 
@@ -50,6 +54,11 @@ type OccurrenceRow = {
   completedAt: string | null
   notes: string | null
   photoUrl: string | null
+  /** CAL-2. Where "Open checklist" points, and the source of the Missed
+   *  instant — there is no missedAt column, by design (R2). */
+  checklistId: string | null
+  checklistStatus: string | null
+  missedAt: string | null
 }
 
 type FeedResponse = { stores: StoreOption[]; events: EventRow[]; occurrences: OccurrenceRow[] }
@@ -78,6 +87,7 @@ function monthCells(anchor: Date): string[] {
 }
 
 export function CalendarClient({
+  isAdmin,
   stores,
   canManage,
   isMultiStore,
@@ -85,6 +95,9 @@ export function CalendarClient({
 }: {
   stores: StoreOption[]
   canManage: boolean
+  /** B11 (CAL-2): threaded to the create forms so a non-ADMIN's store label
+   *  reads "All my stores" — the write is bounded server-side either way. */
+  isAdmin: boolean
   isMultiStore: boolean
   staff: StaffOption[]
 }) {
@@ -354,6 +367,12 @@ export function CalendarClient({
                       <ul className="space-y-1">
                         {items.map(({ event, occurrence }) => {
                           const completed = occurrence?.status === "Completed"
+                          // CAL-2: Missed strikes through like Completed — both
+                          // are terminal and neither is still owed. The
+                          // difference is carried by the status line in the
+                          // detail dialog, not by the chip, which has room for
+                          // one signal and should spend it on "done or not".
+                          const terminal = completed || occurrence?.status === "Missed"
                           const overdue =
                             !!occurrence && occurrence.status === "Open" && occurrence.dueAt <= new Date().toISOString()
                           return (
@@ -376,7 +395,19 @@ export function CalendarClient({
                                 {event.priority === "Critical" && (
                                   <Flag className="h-3 w-3 shrink-0 text-[var(--color-destructive)]" />
                                 )}
-                                <span className={`truncate ${completed ? "line-through opacity-60" : ""}`}>
+                                {/* CAL-2. THE ONE GLYPH THAT SAYS "this is a
+                                    checklist, not a reminder" — ruling 1's two
+                                    entity types, told apart at a glance on the
+                                    grid. Colour is still the CATEGORY's
+                                    (ruling 7); this is a shape, like the
+                                    Critical flag beside it. */}
+                                {event.templateId && (
+                                  <ListChecks
+                                    className="h-3 w-3 shrink-0 opacity-70"
+                                    aria-label="Scheduled checklist"
+                                  />
+                                )}
+                                <span className={`truncate ${terminal ? "line-through opacity-60" : ""}`}>
                                   {event.dueTime ? `${event.dueTime} ` : ""}
                                   {event.title}
                                 </span>
@@ -421,7 +452,9 @@ export function CalendarClient({
       <Dialog open={createOn !== null} onOpenChange={(open) => !open && setCreateOn(null)}>
         <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>New reminder</DialogTitle>
+            {/* CAL-2: the dialog now offers both entity types, so the title
+                names the act rather than one of them. */}
+            <DialogTitle>Add to calendar</DialogTitle>
           </DialogHeader>
           {/* Mounted only while a date is held, so the form's state resets
               between openings rather than carrying the last day's typing. */}
@@ -429,6 +462,7 @@ export function CalendarClient({
             <CreateReminderForm
               date={createOn}
               stores={stores}
+              isAdmin={isAdmin}
               onDone={() => {
                 setCreateOn(null)
                 reload()
@@ -462,6 +496,7 @@ export function CalendarClient({
           stores={stores}
           staff={staff}
           canManage={canManage}
+          isAdmin={isAdmin}
           categoryLabel={categoryLabel(detailEvent.category)}
           onClose={() => setDetailOn(null)}
           onChanged={() => {

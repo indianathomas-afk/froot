@@ -480,6 +480,10 @@ model Template {
   sections         Section[]
   checklists       Checklist[]
   handoffMessages  TeamMessage[]             @relation("HandoffTarget")
+  // CAL-2. The calendar events that SCHEDULE this template (ruling 1). Empty
+  // for every Daily template and for any non-Daily one nobody has added to the
+  // calendar — which /templates renders as "Not scheduled".
+  calendarEvents   CalendarEvent[]
 
   @@index([typeId])
 }
@@ -678,11 +682,37 @@ model Checklist {
   expectedStartAt DateTime?
   expectedEndAt   DateTime?
 
-  organization    Organization  @relation(fields: [organizationId], references: [id])
-  template        Template      @relation(fields: [templateId], references: [id])
-  store           Store         @relation(fields: [storeId], references: [id])
-  taskLogs        TaskLog[]
-  handoffMessages TeamMessage[] @relation("HandoffSource")
+  /// CAL-2 — THE DAY-CLOSE GATE, and the column that closes DEBT-61.
+  ///
+  /// The occurrence that created this row, or null for every checklist bulk
+  /// generate or /store-view made. Ruling 4 (Gary, 2026-09-18): day close no
+  /// longer asks "is this template Daily", it asks "is this row Daily OR
+  /// SCHEDULED" — and the second half of that question is answered here rather
+  /// than on Template.frequency, which stays the label and the preset (ruling 5).
+  ///
+  /// A NULL HERE ON A NON-DAILY ROW IS PRE-CAL-2 LITTER, and it is left alone
+  /// deliberately: those rows are what DEBT-61 accrued while bulk generate
+  /// ignored frequency, the operations report still excludes them, and deleting
+  /// data was explicitly out of that row's closing scope.
+  ///
+  /// @unique because an occurrence produces exactly one checklist. Postgres
+  /// permits unlimited NULLs in a unique index, so every pre-existing row is
+  /// fine and no backfill is owed.
+  ///
+  /// onDelete: SetNull is the FK SAFETY NET, NOT THE POLICY. The policy is in
+  /// PATCH /api/calendar/events/[id], which decides per row whether an Open
+  /// occurrence may be dropped at all — it refuses to drop one whose checklist
+  /// somebody has started. SetNull exists so that a path nobody anticipated
+  /// degrades to an untracked checklist rather than to a foreign-key error
+  /// inside a cron.
+  calendarOccurrenceId String? @unique
+
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  template           Template            @relation(fields: [templateId], references: [id])
+  store              Store               @relation(fields: [storeId], references: [id])
+  calendarOccurrence CalendarOccurrence? @relation(fields: [calendarOccurrenceId], references: [id], onDelete: SetNull)
+  taskLogs           TaskLog[]
+  handoffMessages    TeamMessage[]       @relation("HandoffSource")
 
   // The day-close job scans by (storeId, date); the operations report asks
   // "missed, by day, across the org". Without these the hourly cron is a seq
@@ -3276,13 +3306,34 @@ model CalendarEvent {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  /// CAL-2. Set when this event SCHEDULES A TEMPLATE rather than standing on its
+  /// own. Null is a CAL-1 reminder and always will be — the two entity types of
+  /// ruling 1 are distinguished by this column and by nothing else.
+  ///
+  /// THIS IS DEBT-61's MISSING HALF. Template.frequency says Weekly; it has
+  /// never said WHICH weekday, because nobody collected one. CalendarEvent's
+  /// recurrence + startDate collect exactly that, and projectDueDates() in
+  /// src/lib/calendar.ts was built template-agnostic so it could be called here
+  /// without being rewritten.
+  ///
+  /// onDelete: Restrict, stated because MIGRATIONS.md requires the choice to be
+  /// deliberate rather than inherited. SetNull is Prisma's implied default for
+  /// an optional relation and is WRONG here: it would leave an event whose whole
+  /// meaning is "this template runs on Mondays" pointing at nothing, and the
+  /// invariant the Event form depends on — templateId set means template-backed
+  /// — would break with no error anywhere. A scheduled template is ARCHIVED,
+  /// never deleted; Checklist.template is already Restrict by the same rule.
+  templateId String?
+
   organization     Organization                   @relation(fields: [organizationId], references: [id])
   createdByUser    User?                          @relation("CalendarEventCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  template         Template?                      @relation(fields: [templateId], references: [id], onDelete: Restrict)
   storeAssignments CalendarEventStoreAssignment[]
   occurrences      CalendarOccurrence[]
   attachment       CalendarEventAttachment?
 
   @@index([organizationId, isArchived])
+  @@index([templateId])
 }
 
 /// Mirrors TemplateStoreAssignment exactly, including the unique pair.
@@ -3339,7 +3390,19 @@ model CalendarOccurrence {
   /// became overdue — the CHK-1 as-executed freeze argument, same shape.
   dueAt   DateTime
 
-  status             String    @default("Open") // Open | Completed
+  /// CAL-1 shipped Open | Completed. CAL-2 adds MISSED, and it is terminal for a
+  /// TEMPLATE-BACKED occurrence only — a reminder is never auto-closed as Missed
+  /// (CAL-1 ruling 4, unchanged), so no reminder row can ever carry it. Validated
+  /// in code through CALENDAR_STATUSES in src/lib/calendar.ts, a const tuple
+  /// whose type flows into every reader; there is deliberately no status column
+  /// and no enum, matching category and priority above.
+  status             String    @default("Open") // Open | Completed | Missed
+  /// NULL ON A MISSED ROW, ALWAYS. A miss is not a completion, and this column
+  /// never holds one. THE MISSED INSTANT IS Checklist.closedAt, read through the
+  /// `checklist` back-relation below (Gary, R2 2026-09-18): day close already
+  /// writes that fact and owns it, and a second timestamp here would give one
+  /// fact two authors — DEBT-26's discipline, and the reason there is no
+  /// `missedAt`.
   completedAt        DateTime?
   completedByUserId  String?
   completedByStaffId String?
@@ -3355,6 +3418,11 @@ model CalendarOccurrence {
   // completedAt and loses only who did it.
   completedByUser  User?         @relation("CalendarOccurrenceCompletedByUser", fields: [completedByUserId], references: [id], onDelete: SetNull)
   completedByStaff StaffMember?  @relation("CalendarOccurrenceCompletedByStaff", fields: [completedByStaffId], references: [id], onDelete: SetNull)
+
+  /// CAL-2. The checklist this occurrence created, for a template-backed
+  /// occurrence. Null for every reminder. The FK lives on Checklist so that the
+  /// day-close cron — which scans checklists — can read the link without a join.
+  checklist Checklist?
 
   /// The idempotence guarantee the cron leans on: a read-then-write race ends
   /// in P2002, which the cron catches and counts rather than failing the run.

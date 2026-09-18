@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { dbDate, localDateStr } from "@/lib/reports"
+import { dayCloseJudgesChecklist } from "@/lib/calendar"
 import {
   DAY_CLOSE_GRACE_HOURS,
   DAY_CLOSE_LOOKBACK_DAYS,
@@ -81,6 +82,11 @@ type DayResult = {
    *  keep `closedAt: null` and therefore read `overdue` indefinitely; the count
    *  is surfaced so that trade is visible rather than inferred. */
   frequencyLeftOpen: number
+  /** CAL-2, ruling 4. Template-backed occurrences marked Missed alongside their
+   *  checklist. This is the number that says the calendar half of the lifecycle
+   *  ran: a sweep that closed scheduled work and one that closed only ordinary
+   *  daily rows would otherwise read identically. */
+  occurrencesMissed: number
   /** Templates NOT materialised because they did not exist yet on this day —
    *  the `createdAt` floor. Before it, a template created today collected a
    *  Missed row for every lookback day and every applicable store. */
@@ -219,6 +225,10 @@ export async function GET(req: Request) {
           completedLeft: 0,
           frequencyExcluded: 0,
           frequencyLeftOpen: 0,
+          // CAL-2. A sweep that closed scheduled work and one that closed none
+          // must not read identically in the Runtime Logs (the CHK-3 counter
+          // lesson). Both are summed into the top-level body below.
+          occurrencesMissed: 0,
           beforeTemplateCreation: 0,
           preexisting: 0,
           raced: 0,
@@ -240,6 +250,9 @@ export async function GET(req: Request) {
             // asks. Under DEBT-61 bulk generate creates a Weekly row every day,
             // so this is where most non-Daily fiction was actually written.
             template: { select: { frequency: true, tasks: { select: { id: true } } } },
+            // CAL-2, ruling 4. The select is explicit, so the gate's second
+            // half does not arrive for free — this line IS the widening.
+            calendarOccurrenceId: true,
           },
         })
 
@@ -270,7 +283,23 @@ export async function GET(req: Request) {
           // non-Daily row with task logs or a startedAt, skip one that was only
           // generated — is a RULING, not a default, and it is named in the
           // CHK-3 rider rather than assumed here.
-          if (!dayCloseAppliesTo(c.template.frequency)) {
+          // ── CAL-2, RULING 4 (Gary, 2026-09-18) — THE GATE IS THE OCCURRENCE
+          // LINK, NOT Template.frequency ──────────────────────────────────────
+          // A CALENDAR-GENERATED CHECKLIST FOLLOWS THIS LIFECYCLE IN FULL,
+          // whatever its template's frequency says. That is DEBT-61's exit
+          // condition reached: the calendar answered the question the row said
+          // nobody was asking — WHICH day a Weekly template is due — so a
+          // scheduled row is a row that was genuinely expected on this day and
+          // can honestly be called missed.
+          //
+          // A NON-DAILY ROW WITH NO LINK IS STILL LEFT OPEN. Those are
+          // pre-CAL-2 litter, and the trade CHK-3 recorded for them is
+          // deliberately not disturbed: bulk generate created one per store per
+          // day, and sweeping them to Missed now would file years of fiction in
+          // a single run. A DAILY ROW WITH NO LINK TAKES THE IDENTICAL PATH IT
+          // TOOK BEFORE THIS PHASE — dayCloseJudgesChecklist() is true for it,
+          // by the first operand, exactly as dayCloseAppliesTo() was.
+          if (!dayCloseJudgesChecklist(dayCloseAppliesTo(c.template.frequency), c.calendarOccurrenceId)) {
             dayResult.frequencyLeftOpen++
             continue
           }
@@ -299,6 +328,31 @@ export async function GET(req: Request) {
             data: { status: "Missed", closedAt: now, completionRate },
           })
           dayResult.markedMissed += updated.count
+
+          // ── CAL-2, RULING 4 — THE MISS PROPAGATES TO THE OCCURRENCE ────────
+          // Missed is TERMINAL for a template-backed occurrence, and it is what
+          // lets "one open at a time" survive a week nobody did: the materialise
+          // cron counts forward from the latest Completed OR Missed row, so
+          // without this write the next occurrence would never be created.
+          //
+          // NO ACTOR, AND NO TIMESTAMP HERE (Gary, R2 2026-09-18). A cron has no
+          // session, so there is nobody to attribute it to, and the INSTANT is
+          // Checklist.closedAt — written by the statement immediately above,
+          // from the same `now`. A second timestamp on the occurrence would give
+          // one fact two authors and two chances to disagree; the detail dialog
+          // reads it through the link, which it loads anyway.
+          //
+          // updateMany FILTERED ON status: "Open", never update() — the CHK-3
+          // idempotence shape. A second run in the same hour matches the
+          // `closedAt: null` guard above and never reaches here at all, and if
+          // it did it would match nothing.
+          if (updated.count > 0 && c.calendarOccurrenceId) {
+            const marked = await prisma.calendarOccurrence.updateMany({
+              where: { id: c.calendarOccurrenceId, status: "Open" },
+              data: { status: "Missed" },
+            })
+            dayResult.occurrencesMissed += marked.count
+          }
         }
 
         // ── Materialise what does not exist ──────────────────────────────────
@@ -329,6 +383,25 @@ export async function GET(req: Request) {
           // repaired 2026-08-10 when the predicate was renamed; the sentence
           // itself is CHK-3's and unedited). This is a CONTAINMENT, not a fix;
           // the fix is DEBT-61's.
+          //
+          // ── CAL-2 DELIBERATELY DID NOT WIDEN THIS SITE, AND THAT IS NOT AN
+          // OVERSIGHT ────────────────────────────────────────────────────────
+          // The CLOSING site above now asks "Daily OR linked" (ruling 4). THIS
+          // one must keep asking "Daily" alone, because it MATERIALISES a row
+          // for a template nobody started — and under ruling 1 a non-Daily
+          // template generates only through a calendar rule. Creating one here
+          // would manufacture exactly the fiction this gate exists to prevent,
+          // and it would be UNLINKED besides, so nothing downstream could tell
+          // it from litter.
+          //
+          // The scheduled row is already created by the calendar's own cron
+          // (api/cron/calendar-materialize), at its due date, linked. By the
+          // time this loop runs, a scheduled checklist EXISTS and is handled by
+          // the closing half above — it never reaches this line.
+          //
+          // If you are here to "make both sites agree": they do agree. They are
+          // asking different questions, which is the whole reason the predicate
+          // was renamed from materializesMisses on 2026-08-10.
           if (!dayCloseAppliesTo(t.frequency)) {
             dayResult.frequencyExcluded++
             continue
@@ -436,6 +509,7 @@ export async function GET(req: Request) {
   const materialized = total((d) => d.materialized)
   const frequencyExcluded = total((d) => d.frequencyExcluded)
   const frequencyLeftOpen = total((d) => d.frequencyLeftOpen)
+  const occurrencesMissed = total((d) => d.occurrencesMissed)
   const beforeTemplateCreation = total((d) => d.beforeTemplateCreation)
   const preexisting = total((d) => d.preexisting)
   const raced = total((d) => d.raced)
@@ -449,6 +523,7 @@ export async function GET(req: Request) {
   console.log(
     `[cron:checklist-day-close] ${stores.length} stores, ${daysClosed} store-days closed, ${markedMissed} marked missed, ${materialized} materialized, ${errors} errors ` +
       `(excluded: ${frequencyExcluded} non-daily new, ${frequencyLeftOpen} non-daily left open, ${beforeTemplateCreation} pre-creation, ${preexisting} already had a row, ${raced} raced; ` +
+      `${occurrencesMissed} calendar occurrences marked missed; ` +
       `grace ${DAY_CLOSE_GRACE_HOURS}h, lookback ${DAY_CLOSE_LOOKBACK_DAYS}d)`
   )
 
@@ -467,6 +542,7 @@ export async function GET(req: Request) {
     materialized,
     frequencyExcluded,
     frequencyLeftOpen,
+    occurrencesMissed,
     beforeTemplateCreation,
     preexisting,
     raced,
