@@ -872,3 +872,58 @@ its stated exit condition rather than on its disconfirmation clause.
 
 **Proceed to Phase C.** Two-commit pattern, scoped `git add`, no push, migration
 not run locally.
+
+---
+
+# ADDENDUM D — PRE-PUSH-CHECK, 2026-09-18
+
+**Appended 2026-09-18 by the PRE-PUSH-CHECK session (TIER 1). Nothing above this
+line is edited.** Three facts this phase's artifact would otherwise not carry.
+
+## 1. The rulings are RATIFIED
+
+Gary, in chat, 2026-09-18: *"Ratify as written, including ruling 6 as reworded
+and B11."* `docs/DECISIONS.md`'s CAL-2 entry is no longer a draft and is citable
+as a ruling. Ruling 6 stands in its reworded form with the original quoted
+beneath it unedited; B11 stands as a RULING rather than as a recommendation
+Claude made and Gary agreed with — which matters on B11 specifically, because
+Claude recommended the opposite and the log records that.
+
+## 2. Deviation S5-D78, and one thing ruled NOT a deviation
+
+**S5-D78 — the PATCH re-derive keeps an occurrence whose checklist somebody
+started.** ADDENDUM B §B4 said only what CAL-1 already did: delete the event's
+Open occurrences and let the cron re-derive. Correct for a reminder, whose Open
+occurrence holds nothing; wrong for a scheduled one, which owns a Checklist that
+may already carry task logs. The built behaviour splits them — started rows are
+kept and reported as `keptStarted`, unstarted ones are deleted with their
+checklist. Found during the build rather than in the audit. It widens no access
+and moves no baseline, so it was recordable rather than a stop-and-ask. The next
+phase numbers from **S5-D79**.
+
+**The two-route archive cascade is NOT a deviation.** Gary, 2026-09-18: *"within
+ruling 6 — a behaviour, not a route."* Recorded in the ROADMAP row as
+implementation detail: ruling 6 says the template's events are archived with it
+and names no route, so covering both writers of `isArchived` — `PATCH
+/api/templates/[id]` and `PATCH /api/templates`, two different route files, the
+second being the grid's bulk bar and the one operators actually use — is the
+ruling honoured rather than exceeded. A cascade on the first alone would have
+satisfied the sentence and failed the ruling.
+
+## 3. The staging protocol gains a step — the `afterDate` proof
+
+Added to the Session report's §5 protocol on Gary's instruction, and to the
+CAL-2 row's first blocker, which is the list a later session will actually read:
+
+> **After the Missed in step 5**, backdate that event so its next date is
+> already due and run the cron again. **Expect `materialized: 1`.**
+
+The cron counts forward from the latest occurrence in a TERMINAL state, and
+CAL-2 changed that read from `status: "Completed"` to
+`status: { in: ["Completed", "Missed"] }`. One line, and it is the line between
+*a missed week costs you that week* and *a missed week kills the schedule
+permanently*: under the old read the newest terminal row is a Missed one that
+`nextDueDate()` is asked to advance past and cannot see, so the event never comes
+due again — **and nothing errors**. `materialized: 0` here is that defect;
+`materialized: 1` is the proof the cycle survives a miss. No fixture can reach
+it: it is a database read, not arithmetic.

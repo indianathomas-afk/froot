@@ -8,10 +8,15 @@ Deploy verification: 2026-07-02T22:00:05Z
 is stamped with the merge SHA at promotion, from `git rev-parse`, never
 hand-typed.
 **Work SHA:** `ed98ff2` on `staging`, NOT PUSHED at the time of writing.
-**Docs SHA:** added by PRE-PUSH-CHECK, which is the only session that can record
-it — the two-commit pattern cannot write a docs SHA inside the docs commit.
+**Docs SHA:** `55b6e87` — added by PRE-PUSH-CHECK 2026-09-18, which is the only
+session that can record it: the two-commit pattern cannot write a docs SHA
+inside the docs commit.
+**Check SHA:** the commit immediately after `55b6e87`, which carries this line
+and the ratification. Named this way rather than guessed, since it is being
+written inside itself.
 
-**Payload:** **2 commits** on `staging` — the work and this docs commit.
+**Payload:** **3 commits** on `staging` — the work, the docs, and the
+PRE-PUSH-CHECK commit that ratified the rulings and recorded deviation S5-D78.
 **ONE ADDITIVE MIGRATION**, `20260918180000_cal2_scheduled_checklists`. 29 files
 in the work commit. Four API routes gain behaviour, two crons change, one new
 route, one new component, one new fixture.

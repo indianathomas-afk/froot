@@ -6,12 +6,24 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
-## 2026-09-18 — CAL-2: scheduled checklists — DRAFT, pending ratification
+## 2026-09-18 — CAL-2: scheduled checklists — RATIFIED 2026-09-18
 
-**DRAFT — PENDING RATIFICATION.** Gary ratifies in PRE-PUSH-CHECK. **A committed
-draft is not a ruling**; this is committed now so the reasoning the CAL-2 build
-followed is in the log rather than only in a transcript (DEBT-37's rule), on the
-same understanding CAL-1's entry was committed under.
+**RATIFIED AS WRITTEN by Gary, 2026-09-18, in the PRE-PUSH-CHECK session.** The
+heading below read "DRAFT — pending ratification" until then; the draft status
+is spent and this entry is now citable as a ruling. His reply, recorded exactly:
+*"Ratify as written, including ruling 6 as reworded and B11."*
+
+So **ruling 6 stands in its reworded form** — the original is quoted beneath it
+and is not edited into shape — and **B11 stands as a ruling** rather than as a
+recommendation Claude made and a decision Gary happened to agree with. The
+distinction matters on B11 specifically, because Claude recommended the opposite
+and the log says so.
+
+The original draft note, kept for the record: this entry was committed before
+ratification so the reasoning the CAL-2 build followed was in the log rather
+than only in a transcript (DEBT-37's rule), on the explicit understanding that
+**a committed draft is not a ruling** — the same understanding CAL-1's entry was
+committed under.
 
 Ruled by Gary in the planning chat, 2026-09-18:
 

@@ -16382,7 +16382,15 @@ phases:
     track: cal
     size: L
     status: in_progress
-    commits: ["ed98ff2"]
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE LAST TWO ARE ADDED
+    # BY THE CHECK AND THAT IS BY DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so the docs SHA does not exist
+    # when the row is composed — the two-commit pattern cannot record it. The
+    # third is the commit this line is being written in, so it is named as "the
+    # commit immediately after 55b6e87" rather than guessed at. Ratified by
+    # Gary in chat 2026-09-18, after CAL-1, CAL-1a and CAL-1b each recorded the
+    # same gap as a defect in their own rows and none of them could close it.
+    commits: ["ed98ff2", "55b6e87"]
     title: "Calendar events from templates — \"Add to Calendar\", checklist generation from occurrences, and the close of DEBT-61"
     blockers:
       - >
@@ -16398,6 +16406,20 @@ phases:
         backdated event swept by day close to Missed with the occurrence
         following and the next date projected; and the CHK-5 report showing the
         calendar-generated rows under the new exclusion text.
+        ADDED BY PRE-PUSH-CHECK ON GARY'S INSTRUCTION, 2026-09-18 — THE
+        `afterDate` PROOF, which nothing else in this protocol and no fixture
+        can supply. After the Missed above, backdate that event so its next date
+        is already due and run the cron again: expect `materialized: 1`.
+        WHY IT IS WORTH ITS OWN STEP. The cron counts forward from the latest
+        occurrence in a TERMINAL state, and CAL-2 changed that read from
+        `status: "Completed"` to `status: { in: ["Completed", "Missed"] }`. It is
+        a one-line change and it is the single line standing between "a missed
+        week costs you that week" and "a missed week kills the schedule
+        permanently" — with the old read, the newest terminal row is a Missed one
+        that nextDueDate() is asked to advance PAST and cannot see, so the event
+        never comes due again and NOTHING ERRORS. A `materialized: 0` here is
+        that defect; `materialized: 1` is the proof the cycle survives a miss.
+        The fixture cannot reach it: it is a database read, not arithmetic.
         IT ALSO CARRIES THE TWO CAL-1 CHECKS Gary folded into this phase rather
         than running twice (his message, 2026-09-18): the PERM-8 grant flipping
         a MANAGER's day-click, and a STORE account completing an occurrence.
@@ -16430,6 +16452,25 @@ phases:
         is that five cron routes share it and one fixed with four not is a
         divergence nobody can see. Its own row owns the sweep.
     notes: >
+      ── PRE-PUSH-CHECK 2026-09-18 (TIER 1). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      READY TO PUSH, AND STILL NOT PUSHED — Claude never pushes. Three commits
+      on `staging` ahead of `origin/staging`: work "ed98ff2", docs "55b6e87",
+      and this check's own commit, which is the one immediately after "55b6e87"
+      and carries this rider.
+      THE DECISIONS ENTRY IS RATIFIED. Gary, in chat 2026-09-18: "Ratify as
+      written, including ruling 6 as reworded and B11." The draft heading is
+      spent and docs/DECISIONS.md's CAL-2 entry is now citable as a ruling.
+      ONE DEVIATION NUMBERED, S5-D78, and one thing ruled NOT a deviation —
+      both below, under DEVIATION S5-D78.
+      THE STAGING PROTOCOL GAINED A STEP on Gary's instruction: the `afterDate`
+      proof, on the first blocker. It is the only check that can show a missed
+      week does not kill a schedule permanently, and no fixture can reach it.
+      DOCS SYNC: ROADMAP, DECISIONS, MIGRATIONS, DEPLOY_LOG and both prompt
+      artifacts all present and additive-only — 0 deletions across the three
+      appended docs, and the three deleted lines in this file are CAL-2's own
+      `status: planned` and DEBT-61's title gaining its "CLOSED —" prefix.
+      CLAUDE.md is untouched, correctly: CAL-2 changed no house rule.
       ── BUILT 2026-09-18, work commit "ed98ff2". NOT PUSHED. ──
       DEBT-61 IS CLOSED BY THIS COMMIT and the closure text lives on that row,
       written against the row's own stated exit condition rather than against
@@ -16490,8 +16531,39 @@ phases:
       occurrence behind an In Progress checklist with the next occurrence already
       materialised — "one open at a time" broken by hand, silently. R3 closes it
       with a 409 in the closed-day guard's shape.
-      DEVIATIONS: none numbered. S5-D77 remains the highest recorded; CAL-2
-      would have numbered from S5-D78 and did not need to.
+      ── DEVIATION S5-D78 (recorded by PRE-PUSH-CHECK, Gary 2026-09-18) ──
+      THE PATCH RE-DERIVE KEEPS AN OCCURRENCE WHOSE CHECKLIST SOMEBODY STARTED.
+      The approved plan (ADDENDUM B, B4) said only what CAL-1 already did:
+      "delete that event's Open occurrences and let the next cron re-derive
+      them." That is correct for a REMINDER, whose Open occurrence is a row with
+      nothing in it. It is wrong for a SCHEDULED one, which owns a Checklist that
+      may already carry task logs — somebody standing in a store part-way
+      through the work. Deleting the occurrence would SetNull the link and strand
+      their half-done checklist as untracked litter, which is the exact condition
+      DEBT-61 is about and the one this phase closed.
+      SO PATCH /api/calendar/events/[id] NOW SPLITS THE OPEN ROWS: started ones
+      are KEPT and reported back as `keptStarted` (the detail dialog says so, in
+      words, rather than leaving the operator to wonder why one date did not
+      move), and unstarted ones are deleted along with their checklist —
+      leaving an unstarted checklist behind would be litter of a new kind.
+      FOUND DURING THE BUILD, NOT IN THE AUDIT, and numbered rather than
+      absorbed because it is a behaviour the plan specified differently. It does
+      NOT widen access and does not move a baseline, so it was recordable rather
+      than a stop-and-ask. S5-D77 (CAL-1's @db.Date) was the previous highest;
+      the next phase numbers from S5-D79.
+      THE TWO-ROUTE ARCHIVE CASCADE IS NOT A DEVIATION — ruled by Gary,
+      2026-09-18: "within ruling 6 — a behaviour, not a route". Recorded here as
+      IMPLEMENTATION DETAIL because the shape of it is worth knowing and because
+      a future reader may otherwise re-derive it the hard way. Ruling 6 says
+      "the template's events are archived with it"; it names no route, so
+      covering every writer of `isArchived` is the ruling honoured rather than
+      exceeded. There are TWO writers and the second is easy to miss: the
+      template form archives one template through PATCH /api/templates/[id], and
+      the /templates grid's bulk bar archives several through PATCH
+      /api/templates — a DIFFERENT ROUTE FILE, and the control an operator
+      actually uses. A cascade on the first alone would have satisfied the
+      sentence and failed the ruling. The shared function is
+      api/templates/archive-cascade.ts and the reasoning is at the top of it.
       THE SUCCESSOR CAL-1 WAS BUILT TO ENABLE, and the row that finally closes
       DEBT-61. CAL-1 shipped the Reminder half of ruling 1 - a standalone item
       somebody ticks - and left the Event half as a disabled tab. CAL-2 builds
