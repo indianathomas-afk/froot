@@ -2,6 +2,87 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-18 — Scheduled checklists: weekly and monthly templates finally run
+
+**Unpromoted — staging only, and not yet pushed to staging either.** The heading
+is stamped with the merge SHA at promotion, from `git rev-parse`, never
+hand-typed.
+**Work SHA:** `ed98ff2` on `staging`, NOT PUSHED at the time of writing.
+**Docs SHA:** added by PRE-PUSH-CHECK, which is the only session that can record
+it — the two-commit pattern cannot write a docs SHA inside the docs commit.
+
+**Payload:** **2 commits** on `staging` — the work and this docs commit.
+**ONE ADDITIVE MIGRATION**, `20260918180000_cal2_scheduled_checklists`. 29 files
+in the work commit. Four API routes gain behaviour, two crons change, one new
+route, one new component, one new fixture.
+
+**What it does.** A Weekly or Monthly template has never generated on its
+schedule — the value persisted, printed back, and nothing honoured it (DEBT-61,
+closed by this commit). It now generates ONLY through a calendar rule. "Add to
+Calendar" on the template editor creates a calendar event carrying the template;
+the hourly calendar cron materialises the occurrence on its due day and creates
+the Checklist with it, in one transaction; day close judges that checklist in
+full and marks the occurrence Missed if nobody did it. Completing the checklist
+completes the calendar entry — there is no separate tick.
+
+Bulk generate and "Start Daily Checklist" now SKIP non-Daily templates and say
+so. `/templates` cards read "Scheduled: Weekly from Mon Sep 21" or "Not
+scheduled — add to calendar". The operations report's exclusion text changes from
+"Only daily checklists are tracked" to "Only scheduled checklists are tracked",
+and its counter was renamed to match what it now counts.
+
+**A BEHAVIOUR NARROWING RIDES IN THIS DEPLOY AND IT AFFECTS CAL-1's SHIPPED
+FEATURE, not just the new one.** Gary's B11 ruling: a non-ADMIN creating or
+editing a calendar event is now bounded to their own assigned stores, and their
+"All stores" is resolved to an explicit list at write time. **A MANAGER holding
+the `calendar.manage` grant could create an org-wide reminder before this deploy
+and cannot after it.** Existing events are untouched — the bound applies to
+writes, not to rows already stored. No capability was added and no baseline
+moved.
+
+**WATCH ON FIRST DEPLOY — the migration must land before the code runs.** Every
+calendar read, the day-close cron, the operations report and BOTH checklist
+creation paths now select columns this migration adds. A deployment that serves
+the code without the migration fails at runtime on all of them, not just on the
+calendar. `migrate deploy` runs in the Vercel build ahead of the app, so the
+ordering is automatic — but if the build's migrate step fails (staging has hit
+Prisma P1002 advisory-lock failures on the Neon pooler before), DO NOT let the
+deploy stand: the app will be serving against a database without these columns.
+
+**Second thing to watch: the two hourly crons now share the `Checklist` table.**
+`calendar-materialize` and `checklist-day-close` are both `"0 * * * *"` and
+Vercel does not order them. Neither order is wrong — day close only closes a row
+whose day-close instant has passed, and a row materialised this hour has not
+reached one — but a first-hour log line showing both is expected, not a fault.
+
+**Nothing generates until somebody acts.** No calendar event carries a template
+until a human presses "Add to Calendar", so on deploy day this changes what the
+product WILL do and not what it does. The one immediate change with no human in
+the loop is the opposite direction: bulk generate stops creating non-Daily rows,
+which is the defect being fixed.
+
+**Rollback is code-only and the migration STAYS.** Reverting the work commit
+leaves two unread nullable columns, one unique index and two foreign keys behind
+— harmless, and dropping them would be a destructive migration against
+production for no benefit (§ Rolling a promotion back). What reverting DOES
+restore is the old behaviour on both sides: bulk generate resumes creating a
+non-Daily row every day, and a granted MANAGER regains org-wide event creation.
+
+**One rollback hazard that is NOT code-only, and it is the reason this paragraph
+is here.** Any `Checklist` rows created by the calendar while this was live keep
+their `calendarOccurrenceId` values in the column, but after a revert nothing
+reads it — so those rows stop being closed by day close and become indefinitely
+`overdue`, exactly like the pre-CAL-2 litter this phase stopped creating. They
+are a handful at most and no data is lost; they are named so a later reader does
+not diagnose them as a new defect.
+
+**The staging protocol for this phase is UNRUN.** Nothing in this deploy has
+been observed in a browser or in SQL. See the CAL-2 row's first blocker in
+`docs/ROADMAP.yaml` for the list, and `docs/prompts/CAL-2_scheduled_checklists.md`
+for the protocol itself. **The DEBT-61 litter count is also unmeasured** — the
+SQL is drafted in `docs/prompts/CAL-2_AUDIT.md` §A7 and is Gary's to run, per
+branch, before promotion.
+
 ## 53cb9ce — 2026-09-18 — Calendar: recurring store reminders, a month grid and a due banner
 
 **Merge SHA:** `53cb9ce0fd40b2abef9a459cec8ffae19df39bb8`

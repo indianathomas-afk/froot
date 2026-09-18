@@ -681,3 +681,82 @@ conclusions in one day; a `DATE` column has no time to misread. `UsageDaily.date
 is the existing precedent. **`CalendarOccurrence.dueAt` is deliberately
 `TIMESTAMP(3)`** — it is a real instant, frozen at materialisation, and the only
 column in these four tables a timezone question can be asked of.
+
+## 2026-09-18 — `20260918180000_cal2_scheduled_checklists` (CAL-2)
+
+**APPLIED NOWHERE at the time of writing. Not dev, not staging, not
+production.** Gary applies it to dev (`prisma db execute` + `migrate resolve
+--applied`, §3 above), then pushes so staging and production take it through
+`migrate deploy` in the Vercel build. Until dev has it, every query touching
+`Checklist.calendarOccurrenceId` or `CalendarEvent.templateId` fails at runtime
+on every branch — which is every calendar read, the day-close cron, the
+operations report and both checklist creation paths.
+
+| Statement | Kind |
+|---|---|
+| `CalendarEvent.templateId` `TEXT` (nullable) | additive, no default |
+| `Checklist.calendarOccurrenceId` `TEXT` (nullable) | additive, no default |
+| `Checklist_calendarOccurrenceId_key` | new UNIQUE index |
+| `CalendarEvent_templateId_idx` | new index |
+| 2 foreign keys | new |
+
+**No drops, no renames, no type changes, no backfill.** Both columns are
+nullable with no default, so every existing row lands `NULL` — which is the
+correct value for all of them: a checklist that predates this phase was not made
+by an occurrence, and an event that predates it schedules no template.
+
+**Precheck: none owed, and the unique index is the only part that could have
+needed one.** `CREATE UNIQUE INDEX` on a nullable column would fail on duplicate
+values — but **PostgreSQL permits unlimited NULLs in a unique index**, and every
+existing `Checklist` row has `NULL` here because the column did not exist a
+statement earlier. There is no data for either `ALTER` to fail on and no row for
+either FK to violate.
+
+**GENERATED AGAINST THE LIVE DEV DATABASE, which is the documented §3 form and
+NOT what CAL-1 could do.**
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
+  --script -o prisma/migrations/20260918180000_cal2_scheduled_checklists/migration.sql
+```
+
+**Note what that buys over CAL-1's file-to-file diff, because the CAL-1 entry
+above explicitly asks the next session to prefer this form if it can.**
+`--from-config-datasource` compares the whole schema against the **live dev
+database**, so pre-existing drift surfaces as extra statements in the output.
+The diff returned **exactly this session's delta and nothing else** — so:
+
+- What this diff proves, as CAL-1's did: the SQL is the faithful delta of this
+  session's schema edit, nothing extra, nothing missing.
+- **What it proves that CAL-1's could not: dev was in sync with
+  `prisma/schema.prisma` at `ed98ff2`.** A file-to-file diff compares two commits
+  of a text file and would stay silent about a dev database that had wandered.
+  This one would not have.
+
+The dev branch was reachable this time (endpoint `ep-late-water`); CAL-1's was
+asleep, which is the whole reason that entry documents a deviation.
+
+**`onDelete` choices, stated because they were decisions** (see § Hand-authored
+FK `ON DELETE` vs the schema's implied default):
+
+- **`CalendarEvent.templateId` → `RESTRICT`.** Prisma's implied default for an
+  OPTIONAL relation is `SET NULL`, and that is wrong here: it would leave an
+  event whose entire meaning is *"this template runs on Mondays"* pointing at
+  nothing, and the invariant the Event form depends on — `templateId` set means
+  template-backed — would break with no error anywhere. A scheduled template is
+  ARCHIVED, never deleted. `Checklist.template` is already `RESTRICT` by the same
+  implied rule, so a template that has ever generated a checklist is already
+  undeletable; this makes a *scheduled* one undeletable too, one step earlier.
+- **`Checklist.calendarOccurrenceId` → `SET NULL`, and it is the SAFETY NET
+  rather than the policy.** The policy lives in `PATCH
+  /api/calendar/events/[id]`, which decides per row whether an Open occurrence
+  may be dropped at all — it refuses to drop one whose checklist somebody has
+  already started, and deletes the unstarted checklist along with its occurrence.
+  `SET NULL` exists so that a path nobody anticipated degrades to an **untracked
+  checklist** rather than to a foreign-key error inside a cron. An untracked
+  checklist is a known, survivable state: it is exactly what every pre-CAL-2
+  non-Daily row already is.
+
+**The unique index is the "one occurrence, one checklist" invariant** and it is
+expressed in the schema rather than only in code, so a second linked checklist
+cannot be written even by a path that forgot to check.

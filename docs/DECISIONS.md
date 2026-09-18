@@ -6,6 +6,117 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-18 — CAL-2: scheduled checklists — DRAFT, pending ratification
+
+**DRAFT — PENDING RATIFICATION.** Gary ratifies in PRE-PUSH-CHECK. **A committed
+draft is not a ruling**; this is committed now so the reasoning the CAL-2 build
+followed is in the log rather than only in a transcript (DEBT-37's rule), on the
+same understanding CAL-1's entry was committed under.
+
+Ruled by Gary in the planning chat, 2026-09-18:
+
+> 1. A non-Daily template generates a checklist ONLY through a calendar rule.
+>    Bulk generate and on-demand create skip templates whose frequency is not
+>    Daily. A Weekly/Monthly template with no calendar rule generates nothing,
+>    and /templates says so on the row ("Not scheduled — add to calendar").
+> 2. "Add to Calendar" on the template editor creates a CalendarEvent with
+>    templateId set. Repeat is preset from Template.frequency (Weekly → Weekly,
+>    Monthly → Monthly) and can be changed; the start date is what the calendar
+>    collects — that is the day-of-week / day-of-month DEBT-61 says nobody
+>    collected. Category defaults to Store Ops. Stores follow the template's
+>    assignment.
+> 3. A template-backed occurrence, when materialised, creates the Checklist row
+>    for (template, store, dueDate) through the existing create path, with
+>    expected window frozen per CHK-3. The Checklist carries the occurrence id.
+>    Completion of the occurrence IS the checklist's submit; there is no separate
+>    tick, and the calendar's Complete control opens the checklist instead.
+> 4. A calendar-generated checklist follows the CHK-3 lifecycle in full: day
+>    close materialises Missed if nobody started it and closes it either way. The
+>    gate is the presence of an occurrence link on the Checklist row, not
+>    Template.frequency. Missed on the checklist marks the occurrence Missed,
+>    which is a terminal state for template-backed occurrences only — reminders
+>    keep ruling 4 of CAL-1 (never auto-closed). "One open at a time" holds: the
+>    next occurrence generates after Completed OR Missed.
+> 5. Template.frequency stays as the label and the preset. It is not removed and
+>    it is not the scheduler.
+
+**Ruling 6 was reworded by Gary on 2026-09-18 in answer to the audit's R4, and
+the reworded version is the ruling.** The original read: *"Archiving a
+template-backed event does not archive the template; archiving a template
+archives its events and deletes their Open occurrences."* It named only
+`isArchived`, and the audit measured that at Keva "archiving" is performed with
+**Deactivate** — five templates `isActive=false` and zero `isArchived=true` on
+dev and staging, 2026-08-10, DEBT-65's own census. A cascade wired to the flag
+nobody uses would have been correct and inert, which is the mistake DEBT-65's
+first fix made and its second ruling corrected. Gary's reworded ruling 6:
+
+> 6. Deactivating a template (`isActive = false`) is REVERSIBLE and archiving one
+>    (`isArchived = true`) is TERMINAL, and the calendar honours both.
+>    Deactivate: the materialise cron skips that template's events and reports
+>    `skippedInactiveTemplate`; nothing is archived, nothing is deleted, and
+>    reactivation resumes generation on the next run. Archive: the template's
+>    events are archived with it and their Open occurrences deleted. Archiving a
+>    template-backed EVENT never archives the template. Un-archiving a template
+>    does not un-archive its events — the occurrences are gone and the archive
+>    was a decision.
+
+### The audit's five questions, and Gary's answers (R1–R5, 2026-09-18)
+
+- **R1 — PROCEED.** DEBT-61's rider made CAL-1's staging pass a precondition for
+  starting CAL-2. Gary retired it with evidence, quoted verbatim: *"CAL-1's cron
+  and completion checks ran on staging today — cron body materialized:1 at
+  17:04Z, banner showed overdue age, completion cleared it, second run
+  materialized:0 skippedFuture:1 at 17:06Z, org cmr54z65v000105jxczpt72w1."* The
+  grant test and STORE completion fold into CAL-2's protocol rather than being
+  run twice against the same engine.
+- **R2 — the actor comes from the SUBMIT SESSION; Missed uses day close's
+  `closedAt` and records no actor.** The audit found `Checklist` has no
+  `completedBy` column of any kind — attribution lives on `TaskLog` — so the
+  brief's "completedAt/by copied" had no source to copy from.
+- **R3 — 409 on submit against an occurrence-linked checklist already Completed,
+  reusing the closed-day guard's shape.** `submit` recomputes status on every
+  call and can move a row OUT of Completed, so without this an ordinary un-tick
+  would leave a Completed occurrence behind an In Progress checklist with the
+  next occurrence already open — "one open at a time" broken by hand.
+- **R4 — two behaviours; ruling 6 reworded to say both.** Above.
+- **R5 — hide it.** A non-Daily template shows in the crew list only on a day it
+  has a checklist, so no surface offers a Start button that now refuses.
+
+### B11 — the store-write bound. A NARROWING, ruled rather than accepted
+
+The plan raised one access question as a STOP item rather than recording it as a
+deviation afterwards, per the standing rule that a change widening access stops
+and asks. `calendar.manage` is ADMIN baseline and grantable to MANAGER (CAL-1
+ruling 5), and `POST /api/calendar/events` scoped stores to the **org** — so a
+granted MANAGER could already create a reminder for every store. Harmless while
+an occurrence was only a tick. CAL-2 makes an occurrence **create a Checklist**,
+and `checklists.create` refuses a store outside the actor's assignments while
+`checklists.create.bulk` is ADMIN_ONLY — so the grant would have reached, through
+the calendar, a consequence two capabilities are deliberately shaped to deny.
+
+Claude recommended accepting it and saying so. **Gary ruled the other way**, in
+chat, 2026-09-18:
+
+> **B11: Option — bound, not accept.** For non-ADMIN actors, POST and PATCH
+> `/api/calendar/events` scope stores to the actor's assignments; "All stores"
+> resolves to the actor's stores; ADMIN is org-wide as today. Applies to
+> reminders and template-backed events alike — one rule. This does not widen
+> anything and does not undo rulings 2 or 5. Record it as the B11 ruling and
+> reword the form's "All stores" label for non-ADMIN.
+
+**This narrows CAL-1's shipped behaviour**, and that is recorded here rather than
+left for someone to discover: a granted MANAGER could create an org-wide reminder
+before this commit and cannot after it. **"All stores" is resolved at WRITE time**
+for a non-ADMIN, not filtered at read time — the materialise cron fans `"all"`
+out to every active store on every run, so an event *stored* as `"all"` would
+reach excluded stores on some later run with nothing looking wrong. The bound is
+a property of the row, not of the session that made it.
+
+**No capability was added, no baseline moved, and `GRANTABLE_CAPABILITIES` is
+untouched.**
+
+---
+
 ## 2026-09-17 — CAL-1: the calendar — RATIFIED 2026-09-18
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-18, in the PRE-PUSH-CHECK session.** The
