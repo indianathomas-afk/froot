@@ -179,11 +179,26 @@ unfiltered `/users` is unchanged.
 **Rollback is code-only and needs no database step.** Reverting the work commit
 removes the two controls and restores the previous page; nothing was written.
 
-## UNPROMOTED — 2026-09-09 — Take Photo: the button now opens a camera
+## 53b5a7c — 2026-09-09 — Take Photo: the button now opens a camera
 
+**Merge SHA:** `53b5a7cdcf84708f8f8d10fc10b5a4cc38b4db57`
+**Promoted 2026-09-09 22:04:51 -0700** in `53b5a7c` ("Merge branch 'staging'"),
+parents `049984a` and `c833f73`. The rollback recipe reads the merge, not the
+tip of `main`.
+**STAMPED LATE, 2026-09-18, BY DOCS-4.** This entry read "UNPROMOTED — staging
+only" for nine days while the code was live in production. Found while
+recording the `53cb9ce` promotion, not by the promotion that carried it. THE
+MERGE THAT CARRIED IT IS NOT `53cb9ce` — this went to main on 2026-09-09, two
+promotions earlier, and the merge SHA was resolved with
+`git log --merges --ancestry-path --reverse ce1cf9d..origin/main` rather than
+assumed from the neighbouring entries. Second parent `c833f73` is this entry's
+own docs commit ("Docs: CHK-7 photo capture at ce1cf9d"), which is how the
+pairing was confirmed.
 **Work SHA:** `ce1cf9d` on `staging`, not pushed at the time of writing.
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed.
+*(The two lines above are the entry as written on 2026-09-09 and are kept
+unedited; the stamp that supersedes them is above.)*
 
 **Payload:** **2 commits** on `staging` — the work and this docs commit. One
 client component and **one new route**, `POST /api/upload/checklist-photo`.
@@ -213,11 +228,26 @@ harmless.
 photo task can still be closed with no photo. That is a ruling, filed on CHK-7,
 not a regression from this deploy.
 
-## UNPROMOTED — 2026-09-07 — Unassign training: the refusal is shown, not hidden
+## 049984a — 2026-09-07 — Unassign training: the refusal is shown, not hidden
 
+**Merge SHA:** `049984a48cf8365dfd8e84f254ec1992250a19db`
+**Promoted 2026-09-07 13:52:44 -0700** in `049984a` ("Merge branch 'staging'"),
+parents `daf46ec` and `2ab91b6`. The rollback recipe reads the merge, not the
+tip of `main`.
+**STAMPED LATE, 2026-09-18, BY DOCS-4.** This entry read "UNPROMOTED — staging
+only" for eleven days while the code was live in production. A DIFFERENT MERGE
+FROM THE TWO ENTRIES EITHER SIDE OF IT: the Bulk assign entry below went in on
+`daf46ec` thirty-one minutes earlier the same afternoon, and Take Photo above
+went in on `53b5a7c` two days later. Resolved per entry with
+`git log --merges --ancestry-path --reverse 75ff274..origin/main`; nothing was
+inferred from the shared date. Second parent `2ab91b6` is this entry's own
+docs commit ("Docs: HR-35 unassign training at 75ff274"), which names the work
+SHA and confirms the pairing.
 **Work SHA:** `75ff274` on `staging`, not pushed at the time of writing.
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed.
+*(The two lines above are the entry as written on 2026-09-07 and are kept
+unedited; the stamp that supersedes them is above.)*
 
 **Payload:** **2 commits** on `staging` — the work and this docs commit. One
 client component, and nothing else. **No route change, no schema change, no
@@ -250,11 +280,28 @@ warnings, 0 errors, all three pre-existing) and `npm run build` green. Nothing
 here has been deployed, and the refusal sentence reported at close was read off
 the source, not seen on screen.
 
-## UNPROMOTED — 2026-09-07 — Bulk assign: recipient rows carry position and store
+## daf46ec — 2026-09-07 — Bulk assign: recipient rows carry position and store
 
+**Merge SHA:** `daf46ecbf529543d0f96f054cdbf3e484c3c29ac`
+**Promoted 2026-09-07 13:21:40 -0700** in `daf46ec`, parents `608955b` and
+`932b688`. The rollback recipe reads the merge, not the tip of `main`.
+**THE MERGE SUBJECT IS A KEYBOARD MASH AND IS RECORDED HERE VERBATIM SO THE
+LOG IS SEARCHABLE:** `Merge branch 'staging' fkj asdf dfasdf;lkjsdfa sdfa
+commit.` Anyone grepping the git log for a promotion message will not find a
+sensible one for this deploy; the SHA above is the handle.
+**STAMPED LATE, 2026-09-18, BY DOCS-4.** This entry read "UNPROMOTED — staging
+only" for eleven days while the code was live in production, and it is the
+OLDEST of the three caught in this pass. ITS MERGE IS ITS OWN: the Unassign
+training entry above shares this date but went in on `049984a` thirty-one
+minutes later, and `daf46ec` is that merge's first parent. Resolved with
+`git log --merges --ancestry-path --reverse 3978c02..origin/main`. Second
+parent `932b688` is this entry's own docs commit ("docs: HR-34 row and
+DEPLOY_LOG entry for the bulk-assign recipient rows").
 **Work SHA:** `3978c02` on `staging`, not pushed at the time of writing.
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed.
+*(The two lines above are the entry as written on 2026-09-07 and are kept
+unedited; the stamp that supersedes them is above.)*
 
 **Payload:** **2 commits** on `staging` — the work and this docs commit. One API
 route, one client component. **No schema change, no migration, no cron, no
