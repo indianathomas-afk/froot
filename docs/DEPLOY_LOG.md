@@ -2,18 +2,56 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-18 — Calendar: recurring store reminders, a month grid and a due banner
+## 53cb9ce — 2026-09-18 — Calendar: recurring store reminders, a month grid and a due banner
 
+**Merge SHA:** `53cb9ce0fd40b2abef9a459cec8ffae19df39bb8`
+**Promoted 2026-09-18** in `53cb9ce` ("promote: UM-3, CAL-1, CAL-1a"). THE SHA
+IS THE `--no-ff` MERGE COMMIT — parents `10c9cf5` and `4de8ee2` — and the
+rollback recipe reads the merge, not the tip of `main`.
+**THE PROMOTION PRECEDED THE STAGING PASS, AND THAT IS THE MOST IMPORTANT LINE
+IN THIS ENTRY.** Gary ran the promotion template end to end at 09:04 on
+2026-09-18. CAL-1's staging protocol had not run — and still has not, in full
+— and the ROADMAP still carried this row as `staging` when the merge happened.
+A TEMPLATE MISHAP, NOT A DECISION (Gary, in chat, 2026-09-18): the template
+does not stop where the staging evidence is meant to exist. Stamped here after
+the fact by DOCS-4 on 2026-09-18, not at promotion time.
+**WHAT CONTAINS IT: the module is OFF FOR EVERY ORG IN PRODUCTION.** SQL on
+`br-sparkling-block-a620qvg4` (production), 2026-09-18: `calendar_tables = 4`,
+`orgs_enabled = 0`. The four tables exist and no org has the toggle on, so no
+`/calendar` nav entry, no banner and no materialised occurrence reaches anyone.
+**Before flipping that toggle for any org, run the six checks** listed in
+CAL-1's second ROADMAP blocker — the cron, the toggle-off refusals, the PERM-8
+grant, a STORE completion, `skippedOpen`, and the overdue banner. None of them
+has been run anywhere. What HAS been seen on staging: `/calendar` rendering,
+the CAL-1a centred dialog, and the Weekly projection on Mondays 14/21/28 Sep
+and 5 Oct.
+**THE MIGRATION WARNING BELOW IS RESOLVED AND IS KEPT UNEDITED.**
+`20260917143000_cal1_calendar` is applied on all three live branches — dev
+(`migrate deploy`, endpoint ep-late-water), staging (a rendered `/calendar` is
+unreachable without the tables) and production (`calendar_tables = 4` above).
+The paragraph further down still reads "UNRUN ON EVERY BRANCH"; it was true
+when written and is left as written, per the claims rule.
 **Work SHA:** `bb675e1` on `staging`, not pushed at the time of writing.
 **Docs SHA:** `a4b63cf`. **Unpromoted — staging only.** The heading is stamped
 with the merge SHA at promotion, from `git rev-parse`, never hand-typed.
-**Carries CAL-1a (`d4e13af`, 2026-09-18):** the create form clipped off-screen
-on the top grid rows on staging; the anchored popover is now the shared Dialog.
-Cosmetic, rides this entry, adds no migration step and changes nothing below.
-**Carries CAL-1b (`9936610`, 2026-09-18):** reminders could not be edited after
-saving — B6 specified Edit / Archive and only Archive shipped; the detail dialog
-now reuses the create form in edit mode against the PATCH route this entry
-already carries. Client-only, rides this entry, adds no migration step.
+*(The three lines above are the entry as written on 2026-09-18 and are kept
+unedited; the stamp that supersedes them is above.)*
+**Carries CAL-1a (`d4e13af`, 2026-09-18) — PROMOTED in `53cb9ce`:** the create
+form clipped off-screen on the top grid rows on staging; the anchored popover
+is now the shared Dialog. Cosmetic, rides this entry, adds no migration step
+and changes nothing below. Its docs commit `6f4b842` and check commit
+`4de8ee2` are in the same merge. This is the one part of the promotion that
+WAS seen on staging first: Gary clicked a first-row day and got a centred
+dialog.
+**Carries CAL-1b (`9936610`, 2026-09-18) — STILL UNPROMOTED, staging only:**
+reminders could not be edited after saving — B6 specified Edit / Archive and
+only Archive shipped; the detail dialog now reuses the create form in edit mode
+against the PATCH route this entry already carries. Client-only, rides this
+entry, adds no migration step. **IT IS NOT IN `53cb9ce`.** CAL-1b was pushed
+after the 09:05 merge, so its three commits — `9936610`, the docs commit
+`00db87e` and the check commit `dfbfe6e` — are on `origin/staging` and nowhere
+else; `git log --oneline origin/main..origin/staging` returns those three and
+nothing more. This carry line gets its own stamp when CAL-1b is promoted.
 
 **Payload:** **3 commits** on `staging` — the work, the docs, and the
 PRE-PUSH-CHECK commit that added this entry. **This is a schema change and the
@@ -101,11 +139,25 @@ anger, no occurrence was materialised, and no pixel was rendered. The staging
 protocol is written and unrun; it is in the CAL-1 row's blockers and in the
 build session's report.
 
-## UNPROMOTED — 2026-09-17 — /users: a location filter and a search box
+## 53cb9ce — 2026-09-17 — /users: a location filter and a search box
 
+**Merge SHA:** `53cb9ce0fd40b2abef9a459cec8ffae19df39bb8`
+**Promoted 2026-09-18** in `53cb9ce` ("promote: UM-3, CAL-1, CAL-1a"), which
+also carried CAL-1 and CAL-1a. THE SHA IS THE `--no-ff` MERGE COMMIT — parents
+`10c9cf5` and `4de8ee2` — and the rollback recipe reads the merge, not the tip
+of `main`.
+**THE PROMOTION PRECEDED THE STAGING PASS.** Stamped here on 2026-09-18 by
+DOCS-4, after the fact, not at promotion time. The promotion template was run
+end to end before the CAL-1 staging protocol had run and while the ROADMAP
+still carried these rows as `staging` — a template mishap, not a decision
+(Gary, in chat, 2026-09-18). For UM-3 specifically nothing on this page was
+exercised on either branch before or since; the containment is that the
+default state of the two controls renders what the page rendered before.
 **Work SHA:** `982833f` on `staging`, not pushed at the time of writing.
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed.
+*(The two lines above are the entry as written on 2026-09-17 and are kept
+unedited; the stamp that supersedes them is above.)*
 
 **Payload:** **2 commits** on `staging` — the work and this docs commit. One
 new client component and one page. **No schema change, no migration, no new

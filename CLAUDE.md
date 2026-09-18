@@ -1076,13 +1076,29 @@ const form = useForm({ resolver: zodResolver(schema) })
 ## DEPLOY_LOG edits are Claude-authored (2026-08-21)
 
 Entries in `docs/DEPLOY_LOG.md` are never hand-edited and never pasted into a
-text editor. Claude composes the entry and hands Gary pasteable terminal
-commands that write it, built in short heredoc chunks with a `wc -l` check
-after each one, then spliced with `head`/`tail`. Every splice is followed by
-`grep -c "^## " docs/DEPLOY_LOG.md` to prove no prior entry was clobbered —
-a count of 1 means restore with `git checkout docs/DEPLOY_LOG.md`.
+text editor. **CLAUDE WRITES THE ENTRY INTO THE FILE ITSELF**, in short chunks
+with a `wc -l` check after each one, and `grep -c "^## " docs/DEPLOY_LOG.md`
+before and after to prove no prior entry was clobbered — a count of 1 means
+restore with `git checkout docs/DEPLOY_LOG.md`.
 
 Why: a long paste into an editor, or into a shell that is still waiting on a
 previous command, fails silently or half-writes. The log is the document
 consulted during a rollback, so a silent half-write is the worst possible
 failure. Short chunks, verified counts, no editors.
+
+**AMENDED 2026-09-18 (DOCS-4), on Gary's ratification in chat the same day.
+The sentence above used to read: "Claude composes the entry and hands Gary
+pasteable terminal commands that write it, built in short heredoc chunks with
+a `wc -l` check after each one, then spliced with `head`/`tail`."** Claude
+still composes it; what changed is that Claude also writes it, rather than
+handing over commands for Gary to run. The verification discipline is
+unchanged and is the reason the rule exists — chunks, `wc -l`, heading counts,
+no editors — so this amends WHO RUNS THE WRITE and nothing else.
+
+The heredoc handoff made the entry depend on a human running a command in the
+right shell at the right moment. On 2026-09-18 the promotion template was run
+end to end, that moment passed unnoticed, and two entries sat reading
+"UNPROMOTED — staging only" while the code they describe was live in
+production (`53cb9ce`; see the UM-3 and CAL-1 entries, both stamped after the
+fact). An entry already committed to the file cannot be skipped. The matching
+change to the check procedure is in `docs/prompts/PRE-PUSH-CHECK.md`, Step 2.

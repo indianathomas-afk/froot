@@ -25,7 +25,16 @@ Test it at froot-git-staging-….vercel.app.
 
 ## 2. Promote to production (staging → main)
 
+**Run `git log --oneline main..staging` and paste it to chat BEFORE you type
+the merge — the log is the read-only step, and everything after it is the
+promotion.** (Added 2026-09-18 after `53cb9ce` promoted CAL-1 while its staging
+protocol was unrun: the template was run end to end and there was no point in
+it at which the promotion had not yet started.)
+
 ```bash
+# ── READ-ONLY. Paste this to chat and stop here until it is agreed. ──
+git log --oneline main..staging   # exactly what this promotion will carry
+
 git checkout main
 git pull origin main          # make sure local main is current
 git merge staging --no-ff --no-edit   # --no-ff = always make a merge commit; --no-edit = no editor popup
