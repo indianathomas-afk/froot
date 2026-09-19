@@ -511,6 +511,14 @@ tip of `main`.
 **Rows carried:** SELF-1, plus the three debt rows its recorder commits opened
 or extended — DEBT-96, DEBT-97, DEBT-98. The ratification in `78cc258` lands in
 docs/DECISIONS.md, not on a row.
+**TWO OF THOSE THREE IDS ARE AMBIGUOUS AND THE POINTER IS WEAKER FOR IT.**
+docs/ROADMAP.yaml holds TWO rows under `DEBT-97` and TWO under `DEBT-98`: this
+promotion's are the `findStaffMemberForEmail`/`resolveSelfStaff` divergence and
+Jamie Pilk's unrestored staging record; the other two, filed earlier, are
+`checklists.execute` with zero call sites and the un-trimmed `CRON_SECRET`
+comparison. Read the title, not the id. Found 2026-09-19 (DOCS-6c) while writing
+this entry and reported rather than renumbered — renumbering a debt id is not a
+DEPLOY_LOG session's call.
 
 **THIS ENTRY MAKES NO VERIFICATION CLAIM.** It was assembled from git on
 2026-09-19. No gate output, no browser pass, no environment check and no
