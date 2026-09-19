@@ -6672,7 +6672,7 @@ phases:
     size: S
     status: shipped
     shipped: 2026-09-05
-    commits: ["340a545", "6259d9c", "520148a", "ea952a8"]
+    commits: ["340a545", "6259d9c", "520148a", "ea952a8", "61fdd68", "5695a01"]
     title: "A training lesson can point at one Document Library document — Link kind only, one per lesson"
     blockers:
       - >
@@ -6689,6 +6689,10 @@ phases:
         blank page proves nothing — it cannot distinguish "correctly suppressed"
         from "this login sees nothing here at all".
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6c). ── THE COMMITS ARRAY IS NOW COMPLETE: "61fdd68"
+      and "5695a01" were added from the SHAs this row already named in prose below,
+      not from a fresh read of git; the array is six, and the paragraph saying it is
+      "still short by two" is kept unedited and is now spent.
       ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
       REACHED MAIN 2026-09-05 in promotion "f3f9d31". Row read `in_progress` while in
       production for 14 days (DEBT-72a pattern).
@@ -28182,11 +28186,32 @@ debt:
       the hardenings are written; what is open is whether they hold.
 
   - id: DEBT-104
+    status: shipped
     title: >
       Eight rows read staging/in_progress while their code was in production —
       eight promotions since 2026-08-24, each owed a docs pass, and only the
       CAL one got it
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6c). PREPENDED; NOTHING BELOW IS EDITED. ──
+      CLOSED IN THIS COMMIT, WHICH IS THE ONE THAT CARRIES THE RITUAL LINE. Gary
+      ruled 2026-09-19 on the FIX DIRECTION below: the ROADMAP shipped-flip goes
+      INSIDE the promotion bash block in docs/WORKFLOW.md § "2. Promote to
+      production (staging → main)", replacing the existing `git add` / `git commit`
+      pair, verbatim as proposed. That replacement is made in this commit, so the
+      proposal below is no longer a proposal. The same commit repairs the two
+      DEPLOY_LOG defects this row recorded as "not this session's to repair":
+      "df03cc3" and "608955b" now have reconstructed entries, "bf5a66f" has one
+      too, and the mis-stamped HR-33 heading carries a rider naming "bf5a66f" as
+      the rollback target.
+      WHAT IS NOT CLOSED BY THIS AND IS NOT CLAIMED TO BE: the ritual line is a
+      human step, which this row's own last paragraph already says is not the real
+      answer. DEBT-72b — the gate that would read ROADMAP.yaml during the
+      promotion — is still unbuilt and is where the next recurrence lands. The
+      "NO STATUS — OPEN" line at the foot is kept as written and is superseded by
+      the `status` field above. NO `shipped:` DATE ON THIS ROW ON PURPOSE: the
+      DebtItem shape (src/lib/roadmap.ts) carries `id`, `title`, `notes`, `status`
+      and `commits` and nothing else, and adding the field fails the type check in
+      src/generated/roadmap.ts. The date is in this rider instead.
       FOUND 2026-09-19 (DOCS-6b) BY A READ-ONLY ANCESTRY PASS, and flipped by
       the same session. The rows: STAFF-2, CHK-7, HR-29, HR-32, HR-33, HR-35,
       SEARCH-1, SELF-1. 23 of 23 commits are ancestors of `main`. Staleness at

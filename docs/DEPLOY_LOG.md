@@ -483,6 +483,69 @@ segments and nothing else.
 run build` green. Nothing here has been deployed, and the row shapes reported
 for this session were read off the render, not observed on staging.
 
+## 608955b — 2026-09-07 — SELF-1: one identity resolver behind four surfaces
+
+RECONSTRUCTED 2026-09-19 (DOCS-6c) from git; no contemporaneous entry was
+written.
+
+**Merge SHA:** `608955b69017bd8ba8689d173b758133b32f3f1e`
+**Promoted 2026-09-07 12:26:49 -0700** in `608955b` ("Merge branch 'staging'"),
+parents `df03cc3` and `78cc258`. The rollback recipe reads the merge, not the
+tip of `main`.
+
+**Payload: 10 commits** in `608955b^1..608955b^2`, oldest first:
+
+| commit | what |
+|---|---|
+| `2eeee6a` | SELF-1 (1/4): one self-resolution helper, and `/my` routed through it |
+| `3d2752a` | SELF-1 (2/4): sidebar footer shows a full name, and links to it |
+| `dc13aa8` | SELF-1 (3/4): pin the viewer's own row on `/staff` with a "You" marker |
+| `9e158dc` | SELF-1 (4/4): the `/dashboard` assignment banner, and one definition of "owed" |
+| `309b8f1` | SELF-1 (5): dev-branch verify script for resolution and "owed" |
+| `e8145d5` | SELF-1 (recorder): roadmap row, DEBT-96 and DEBT-97, and the phase prompt |
+| `b537a89` | SELF-1 (recorder, correction): record User's missing email uniqueness in DEBT-97 |
+| `720d593` | SELF-1: status -> staging, record the partial pass, correct the staging alias |
+| `649da45` | SELF-1: four owed criteria, DEBT-96 gains an instance, DEBT-98 files the restore |
+| `78cc258` | SELF-1: ratify R1/R2/R3 into DECISIONS.md in Gary's own words |
+
+**Rows carried:** SELF-1, plus the three debt rows its recorder commits opened
+or extended — DEBT-96, DEBT-97, DEBT-98. The ratification in `78cc258` lands in
+docs/DECISIONS.md, not on a row.
+
+**THIS ENTRY MAKES NO VERIFICATION CLAIM.** It was assembled from git on
+2026-09-19. No gate output, no browser pass, no environment check and no
+rollback rehearsal was recorded for this promotion at the time, and none is
+invented here — what the SELF-1 row says about its own evidence is the only
+account that exists.
+
+## df03cc3 — 2026-09-06 — STAFF-2: a location filter on /staff
+
+RECONSTRUCTED 2026-09-19 (DOCS-6c) from git; no contemporaneous entry was
+written.
+
+**Merge SHA:** `df03cc3a6819a327898805f89c9a1f5fda4f49e5`
+**Promoted 2026-09-06 13:14:19 -0700** in `df03cc3` ("Merge branch 'staging'"),
+parents `5e2dac9` and `0ce1a35`. The rollback recipe reads the merge, not the
+tip of `main`. The first parent is NOT `c870ba7`: `5e2dac9` is the on-main docs
+commit forty minutes later that stamped the `c870ba7` promotion, and it is the
+same commit that put the HR-33 entry under the wrong heading (see the rider
+below).
+
+**Payload: 2 commits** in `df03cc3^1..df03cc3^2`, oldest first:
+
+| commit | what |
+|---|---|
+| `77f7ca3` | STAFF-1: location filter on `/staff` |
+| `0ce1a35` | STAFF-2: record the `/staff` location filter, and point UX-2 at it |
+
+**Rows carried:** STAFF-2, and UX-2, which the recorder points at this filter.
+The work commit's own subject reads "STAFF-1" while the row is STAFF-2; that
+divergence is recorded on the row and is not resolved here.
+
+**THIS ENTRY MAKES NO VERIFICATION CLAIM.** Assembled from git on 2026-09-19;
+nothing about gates, staging or a browser pass was recorded for this promotion
+and nothing is invented here.
+
 ## c870ba7 — 2026-09-06 — SEARCH-1: a global search bar in the sidebar
 
 **Merge SHA:** `c870ba78947b8c42b6370379b5b98b2826f85df9`
@@ -542,6 +605,12 @@ STORE get no `hr-documents` row from it. Collapse the sidebar and confirm the
 magnifier opens the same panel and that rows are thumb-sized on an iPad.
 
 ---
+
+── RIDER 2026-09-19 (DOCS-6c) ── The HR-33 work below (1222a81, aa25cb3,
+5711187) reached main in bf5a66f on 2026-09-05, not c870ba7. c870ba7 is the
+SEARCH-1 promotion (first parent bf5a66f). Rollback of HR-33 targets bf5a66f.
+Heading preserved as written. The merge record that was never written for
+`bf5a66f` is reconstructed as its own entry below this one.
 
 ## c870ba7 — 2026-09-06 — HR-33: a training lesson can carry one external destination
 
@@ -607,6 +676,45 @@ it should read the label instead. Paste `http://squareup.com` and saving should
 declares a fixed four-field lesson shape), so a JSON export re-imported comes back
 with no external link. The JSON export itself carries them — they are plain
 scalars and needed no code.
+
+## bf5a66f — 2026-09-05 — HR-33 external link on a training lesson, plus DEBT-90
+
+RECONSTRUCTED 2026-09-19 (DOCS-6c) from git; no contemporaneous entry was
+written — meaning no entry headed with THIS merge. The HR-33 narrative above
+(payload, rulings, evidence, rollback) was written 2026-09-05 and is real; at
+promotion it was stamped with `c870ba7`, the NEXT merge, by `5e2dac9`. That
+narrative is preserved under its own heading with a rider and is not restated
+here. What was missing, and what this entry supplies, is the merge record a
+rollback reads.
+
+**Merge SHA:** `bf5a66f133e2f986e6aa425ea166315b039a5079`
+**Promoted 2026-09-05 20:37:00 -0700** in `bf5a66f` ("promote: HR-33 external
+link on a training lesson, plus DEBT-90"), parents `bc13251` and `d1fa739`.
+Unlike the two merges either side of it this one carries a descriptive subject,
+so the promotion is findable in `git log` by name as well as by SHA.
+
+**Payload: 4 commits** in `bf5a66f^1..bf5a66f^2`, oldest first:
+
+| commit | what |
+|---|---|
+| `1222a81` | feat(hr-33): a training lesson can carry one external destination |
+| `aa25cb3` | docs(hr-33): roadmap row for the work in 1222a81, plus DEBT-90 |
+| `5711187` | docs(hr-33): deploy log entry, unpromoted; stamp HR-32; repair HELP-1a |
+| `d1fa739` | docs(hr-33): record the docs SHAs on the row |
+
+**THE NARRATIVE ABOVE SAYS "2 commits" AND THAT IS NOT WRONG — IT COUNTS A
+DIFFERENT THING.** It was written on `staging` before the last two docs commits
+existed and counts what was on the branch at writing; this entry counts what the
+merge carried into main. Both numbers are kept.
+
+**Rows carried:** HR-33 and DEBT-90. `5711187` also stamped HR-32's row and
+repaired HELP-1a's DEPLOY_LOG heading in the same commit, so those two rows
+moved on this promotion without being what it shipped.
+
+**THIS ENTRY MAKES NO VERIFICATION CLAIM OF ITS OWN.** It is a merge record
+assembled from git on 2026-09-19. The evidence for HR-33 is the paragraph in the
+narrative above, written at the time, and is neither extended nor re-asserted
+here.
 
 ## f3f9d31 — 2026-09-05 — HR-32: a training lesson can point at one library document
 
@@ -938,6 +1046,14 @@ message (`Merge branch 'staging'`) does not say. Seven non-merge commits:
 | `f70ae90` · `a5799d3` · `47dbb00` | **HR-29** — TrainingModule `orderIndex`, endpoint, drag-to-reorder |
 | `2438fef` · `bd99d98` | HR-29 roadmap records |
 | `04a4bf4` | the previous promotion's own DEPLOY_LOG entry |
+
+── RIDER 2026-09-19 (DOCS-6c) ── prior main tip was bd99d98, not 607926b
+(DOCS-6b archaeology). Original kept as written. Consequence: all five HR-29
+commits were already on main before this merge, so HR-29 reached production by
+fast-forward and this promotion did not carry it — DEBT-38's mechanism. Also
+recorded here: `branch.main.mergeoptions --no-ff` was set in this repo's config
+on 2026-09-19, so a fast-forward of main is no longer possible from this
+machine, with or without the flag on the merge command.
 
 **Prior main tip was `607926b`.** 33 files, 3675 insertions, 90 deletions.
 

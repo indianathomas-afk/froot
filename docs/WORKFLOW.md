@@ -55,12 +55,21 @@ git merge staging --no-ff --no-edit   # --no-ff = always make a merge commit; --
 
 # ── write the docs/DEPLOY_LOG.md entry NOW, and commit it, BEFORE the push ──
 # (open the file, add the entry for this promotion, citing the merge SHA above)
-git add docs/DEPLOY_LOG.md
-git commit -m "DEPLOY_LOG: <date> production promotion (<what it carried>)"
+# ── flip every row this promotion carried to `status: shipped` +
+#    `shipped: <date>` in docs/ROADMAP.yaml — the read-only log at the
+#    top of this block IS the list of rows. Same commit as the entry. ──
+git add docs/ROADMAP.yaml docs/DEPLOY_LOG.md
+git commit -m "DEPLOY_LOG + ROADMAP: <date> production promotion (<what it carried>)"
 
 git push origin main          # → Vercel auto-deploys www.usefroot.com
 git checkout staging          # go back to staging for your next work
 ```
+
+**`branch.main.mergeoptions --no-ff` is set in this repo's config** (2026-09-19),
+so a fast-forward of `main` is not possible from this machine even if the flag is
+dropped. The `--no-ff` on the merge line above is belt-and-braces, not the only
+guard — and it stays, because the config is per-clone and the next machine will
+not have it.
 
 **The `git add` + `git commit` lines are IN the block deliberately.** They used
 to live only in the prose below it, and the block read checkout / pull / merge /
