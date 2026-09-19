@@ -28192,6 +28192,9 @@ debt:
       eight promotions since 2026-08-24, each owed a docs pass, and only the
       CAL one got it
     notes: >
+      ── RECORDER 2026-09-19 (DOCS-6c). ── "THIS COMMIT" IN THE RIDER BELOW IS
+      "faf0a3d" on `staging`, unpushed at the time of writing. Recorded as its own
+      commit rather than by amending "faf0a3d", which would invalidate the SHA.
       ── RIDER 2026-09-19 (DOCS-6c). PREPENDED; NOTHING BELOW IS EDITED. ──
       CLOSED IN THIS COMMIT, WHICH IS THE ONE THAT CARRIES THE RITUAL LINE. Gary
       ruled 2026-09-19 on the FIX DIRECTION below: the ROADMAP shipped-flip goes
