@@ -17266,6 +17266,65 @@ phases:
       comment this re-confirms, and the per-store "today" convention it set),
       DEBT-101 (closed here), DEBT-61 (the litter this stops recreating),
       S5-D78 (the predicate, now shared rather than forked).
+  - id: NOTIFY-1
+    track: platform
+    size: S
+    status: in_progress
+    commits: ["1c21368"]
+    title: "Real email delivery — Resend behind src/lib/notify.ts, admin test route"
+    notes: >
+      Built 2026-09-19. Env-var configuration only (NOTIFY_EMAIL_PROVIDER,
+      RESEND_API_KEY, NOTIFY_FROM_EMAIL); org-level recipient settings are
+      HR-16's job. Fail-closed: provider=resend with a missing key or from
+      address throws, never falls back to console. Clears the shared blocker on
+      F-5, HR-16 and HR-8 ONCE STAGING DELIVERY IS PROVEN — those blocker
+      entries are flagged resolved in the PRE-PUSH-CHECK/docs pass that
+      records the evidence, not here.
+      THREE DEVIATIONS FROM THE PROMPT, ALL FORCED OR SAFER, ALL REPORTED IN
+      SESSION. (1) The prompt said add the three variables to `.env.example`.
+      THERE IS NO SUCH FILE AND THERE CANNOT BE ONE: .gitignore line 34 is
+      `.env*`, so it would be untracked and uncommittable without changing a
+      repo-wide convention this row has no mandate to change. The three
+      variables are documented instead in CLAUDE.md § Environment Variables,
+      beside PACE_ALERT_THRESHOLD_PCT, which is where this repo actually keeps
+      its required-env list. (2) RESEND_API_KEY and NOTIFY_FROM_EMAIL are read
+      and validated in getEmailSender(), not inside the sender's send(). The
+      prompt describes them under "Resend sender"; reading them there would
+      have thrown AFTER pace-alerts.ts writes its PaceAlertLog idempotency row
+      (src/lib/pace-alerts.ts:106-122, deliberately before the send), burning a
+      store's one-alert-per-month lock with no email delivered and no way back
+      until the month rolls. The cron resolves the sender once at
+      api/cron/pace-alerts/route.ts:25, before the store loop, so a
+      misconfigured deployment now fails with zero rows written. Every stated
+      requirement still holds — required, throws, never falls back to console.
+      (3) A third file was touched: scripts/verify-f5-polish.ts, whose capture
+      sender is the one EmailSender implementation outside src/. The audit's
+      grep was scoped to src/ per the prompt and missed it; `npm run build`
+      caught it (CLAUDE.md § Verifying a guard covers every path — a sweep is
+      only as complete as the shape it searches for). Fixture-only change.
+      THE CRON NEEDED NO PER-STORE WRAP. src/app/api/cron/pace-alerts/route.ts
+      already wraps processPaceAlertForStore in a per-store try/catch at
+      :37-43, pushing an `error: …` result and continuing, so one bad address
+      cannot abort the loop. No caller file was changed.
+      TWO ADDITIVE WIDENINGS callers ignore: EmailMessage.to is now
+      `string | string[]`, and send() resolves to `{ id?: string }` instead of
+      void so the test route can report the Resend message id.
+      EmailMessage.replyTo is new, optional and unread today — HR-16's, so a
+      manager who hits Reply reaches their own office rather than the no-reply
+      address.
+      NOTHING HAS BEEN SEEN IN AN INBOX. No email has left any environment
+      from this code: the build is green and that is the whole of the
+      verification. Delivery is proven by POST /api/notify/test from an ADMIN
+      session on staging AFTER Gary provisions the Resend domain, DNS and the
+      Preview-scope vars; the prompt's own "Gary's side" checklist is the
+      procedure, including the instruction NOT to fire the pace-alerts cron on
+      staging (real manager addresses, fake numbers).
+      ROW, NOT BUILT: Resend delivery/bounce webhooks into AuditLog. Named out
+      of scope by the prompt and worth its own row — today a bounce is visible
+      only in the Resend dashboard, so Froot cannot tell a delivered alert from
+      one that hard-bounced.
+      PRE-PUSH-CHECK flips this row to `staging` when Gary pushes.
+
 
 bugs:
   - id: BUG-1

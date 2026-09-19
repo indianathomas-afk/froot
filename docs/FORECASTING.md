@@ -105,10 +105,39 @@ load and the nightly cron covers the last 3 days.
   admins + the store's assigned managers — **at most one alert per store per
   month** (`PaceAlertLog` unique row is the idempotency lock, migration
   `20260710220000_f5_pace_alerts_audit_index`).
-  - **Email delivery**: `src/lib/notify.ts` is a thin, swappable sender.
-    Current default is the **console sender** — alerts appear in Vercel
-    function logs, no email actually leaves. To go live, implement a provider
-    in `getEmailSender()` (e.g. Resend via fetch) — callers don't change.
+  - **Email delivery — two providers since NOTIFY-1 (2026-09-19)**.
+    `src/lib/notify.ts` still hands every caller an `EmailSender` from
+    `getEmailSender()`; what changed is that there is now something real
+    behind it. The choice is per-environment, by `NOTIFY_EMAIL_PROVIDER`:
+    - unset or `"console"` → `consoleEmailSender`, exactly as before.
+    - `"resend"` → Resend over plain `fetch` to `https://api.resend.com/emails`
+      (no SDK — one fewer package to audit). Requires `RESEND_API_KEY` and
+      `NOTIFY_FROM_EMAIL` (`USE Froot <noreply@notify.usefroot.com>` — the
+      sending domain is a **subdomain**, never the root). **Either one missing
+      throws, and it NEVER falls back to console**: a deployment that believes
+      it is emailing and is not is the exact failure this provider exists to
+      end. Both are read in `getEmailSender()` rather than at send time, so
+      the pace-alert cron fails before it writes a single `PaceAlertLog` row —
+      a throw after that write would burn a store's one-alert-per-month lock
+      with no email delivered. Ten-second `AbortController` timeout, so a hung
+      provider can't hold the cron open. A non-2xx logs the status and body
+      and then **throws** — nothing is swallowed, the caller decides.
+    - any other value → throws, naming the value and the two accepted ones.
+    - **Proving delivery**: `POST /api/notify/test` (ADMIN, no request body).
+      The recipient is the CALLER'S OWN Clerk primary email, resolved
+      server-side — there is deliberately no way to aim it at anyone else.
+      Returns `{ provider, to, ok: true, id? }`, or 502 with the thrown
+      message. In console mode it returns `ok: true` with
+      `provider: "console"`; that is correct behaviour, not a bug.
+    - **`NOTIFY_EMAIL_PROVIDER` is per-environment, and Production is the
+      loaded one.** Setting it to `resend` in Production is what makes this
+      daily cron start emailing real managers about real numbers. That is a
+      separate, deliberate decision — not a side effect of shipping the code.
+    The original F-5 note, still accurate for the default, unchanged:
+    `src/lib/notify.ts` is a thin, swappable sender. Current default is the
+    **console sender** — alerts appear in Vercel function logs, no email
+    actually leaves. To go live, implement a provider in `getEmailSender()`
+    (e.g. Resend via fetch) — callers don't change.
 
 ## Ops
 
