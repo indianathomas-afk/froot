@@ -397,10 +397,34 @@ phases:
   - id: STAFF-2
     track: platform
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-06
     commits: ["77f7ca3"]
     title: "Location filter on /staff — a dropdown narrowing which store cards render"
+    open:
+      - >
+        NOT VERIFIED IN A BROWSER, AND NOW UNVERIFIED IN PRODUCTION rather than
+        on staging. The notes below record the gate — scoped eslint plus a bare
+        `npm run build`, both green — as the whole of the evidence, and say the
+        staging-SHA precondition could not be met because nothing carried the
+        code yet. It has been in production since 2026-09-06 and the dropdown
+        has still never been looked at.
+      - >
+        THE ID QUESTION IS STILL GARY'S, unchanged by the promotion: the notes
+        below say STAFF-2 was chosen because STAFF-1 is spent, and that a
+        different id is a one-line change here plus the commit trailer. The
+        work commit's own subject still reads "STAFF-1".
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-06 in promotion "df03cc3". Row read `staging` while in
+      production for 13 days (DEBT-72a pattern).
+      THAT PROMOTION HAS NO DEPLOY_LOG ENTRY AT ALL — checked by heading against
+      every `## ` in docs/DEPLOY_LOG.md. "df03cc3" carries "77f7ca3" and its recorder
+      "0ce1a35" and nothing else, and no entry in the log names either. Not fixed
+      here; recorded on DEBT-104.
+      THE "ONE STEP AHEAD OF THE TRUTH" PARAGRAPH BELOW HAS CAUGHT UP and is kept
+      unedited. `staging` was written before the push and was honest about it; what
+      nobody did afterwards was come back.
       THE ID IS STAFF-2, NOT STAFF-1, AND THAT IS A DEVIATION FROM THE PROMPT.
       The session was briefed as "STAFF-1" and that id is already spent: it is
       the shipped 2026-07-23 staff-role phase directly above this row
@@ -2748,10 +2772,40 @@ phases:
   - id: CHK-7
     track: checklists
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-09-09
     commits: ["ce1cf9d"]
     title: "Take Photo did nothing — the button had no handler, no input and no route; capture wired, and the failure made visible"
+    open:
+      - >
+        THE requiresPhoto COMPLETION GATE IS STILL UNRULED — the notes below
+        name it as the one thing this row leaves open. A crew member can still
+        tick a photo-required task with no photo. Refuse, warn, or flag it for
+        the operations report is Gary's call, and it is now an unruled question
+        about production behaviour rather than about staging.
+      - >
+        NO ADMIN SURFACE RENDERS THE PHOTO. Per the notes below, `photoUrl` is
+        read by the execution client and the task-log route and nothing else, so
+        a captured photo is visible only by reopening the execution page. A
+        manager reviewing compliance cannot see it, which is the half that makes
+        it not yet a compliance record.
+      - >
+        requiresTemp IS STILL ENTIRELY UNWIRED — declared in the client's Task
+        interface, read nowhere, `TaskLog.temperatureValue` never written. Same
+        shape as the defect this row repaired, same first commit. The notes
+        below say it needs its own row and it still does not have one.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-09 in promotion "53b5a7c". Row read `in_progress` while in
+      production for 10 days (DEBT-72a pattern).
+      `in_progress` IS THE WORSE HALF OF THIS FINDING and is why this row is named
+      first among the three that carried it: a row at `staging` at least claims the
+      code moved, while `in_progress` reads as work somebody is still doing. Nothing
+      was still being done — CHK-7 finished on 2026-09-09 and shipped the same day.
+      THE DEPLOY_LOG ENTRY FOR "53b5a7c" EXISTS AND WAS ITSELF STAMPED LATE, by
+      DOCS-4 on 2026-09-18, after reading "UNPROMOTED — staging only" for nine days.
+      So the log entry and this row were stale in parallel, for the same promotion,
+      and the pass that fixed one did not look at the other.
       2026-09-09. Short-form repair session, prompt in
       docs/prompts/CHK-7_photo_capture_repair.md. NO DECISIONS.md ENTRY AND ONE
       MAY BE NEEDED — see THE RULING NOT TAKEN below.
@@ -6413,10 +6467,32 @@ phases:
   - id: HR-29
     track: hr
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-08-28
     commits: ["47dbb00", "a5799d3", "f70ae90"]
     title: "TrainingModule display order — orderIndex, an ADMIN reorder endpoint, and every consuming surface reading it"
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN by 2026-08-28 in promotion "2a0e67a". Row read `staging` while in
+      production for 22 days (DEBT-72a pattern) — the longest of the eight.
+      THE DATE IS A CEILING, NOT A MEASUREMENT, and this row is the only one of the
+      eight where that is true. "2a0e67a" did NOT carry this work: its FIRST parent
+      is "bd99d98", which already contained all five HR-29 commits, so main had been
+      FAST-FORWARDED to them at some point between "04a4bf4" (2026-08-24, the
+      previous promotion's own DEPLOY_LOG commit, also on main's first-parent line)
+      and the 2026-08-28 merge. Git records no event for a fast-forward, so the true
+      date is somewhere in that four-day window and 2026-08-28 is the latest it can
+      be. This is DEBT-38's mechanism exactly — `--no-ff` exists to stop it and was
+      not used.
+      THE DEPLOY_LOG ENTRY FOR "2a0e67a" SAYS "Prior main tip was `607926b`" AND THAT
+      IS WRONG. The prior tip was "bd99d98"; "607926b" is the merge before the
+      fast-forward. The entry's ATTRIBUTION of HR-29 to that promotion is the only
+      dated record there is and is what this rider follows; its parent claim is not.
+      Reported, not edited — the entry is a dated claim (CLAUDE.md § Where documents
+      live) and correcting it belongs to a session scoped to the log.
+      THE "NO ENTRY IS DUE" PARAGRAPH BELOW IS SPENT, correctly, and is kept
+      unedited: it said an entry falls due when this work merges to main, and it did,
+      and one exists.
       ── HR-29 STAGING PASS 2026-08-24 — prepended per preserve-and-mark;
       NOTHING BELOW THIS BLOCK IS EDITED. Deployed and verified at
       2438fef~staging. All six of the order's §6 checks pass.
@@ -6594,7 +6670,8 @@ phases:
   - id: HR-32
     track: hr
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-09-05
     commits: ["340a545", "6259d9c", "520148a", "ea952a8"]
     title: "A training lesson can point at one Document Library document — Link kind only, one per lesson"
     blockers:
@@ -6612,6 +6689,28 @@ phases:
         blank page proves nothing — it cannot distinguish "correctly suppressed"
         from "this login sees nothing here at all".
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-05 in promotion "f3f9d31". Row read `in_progress` while in
+      production for 14 days (DEBT-72a pattern).
+      THIS ROW WAS REPORTED STALE ON THE DAY IT SHIPPED AND NOBODY ACTED ON IT.
+      HR-33's own TRIAGE AT CLOSE, written 2026-09-05, reads: "COMMENT 3: HR-32's own
+      row carries status `in_progress` — the only row in this file with that value —
+      and it promoted to main today as f3f9d31; it should read `shipped`, and its
+      commits list omits 5695a01." Filed as a COMMENT rather than a row, which is
+      DEBT-84's triage working as designed — and a comment inside another row's notes
+      is read by whoever reads that row, which for fourteen days was nobody. That is
+      the finding on DEBT-104 in miniature.
+      THE COMMITS ARRAY IS STILL SHORT BY TWO, named here in prose rather than added
+      to it, following the precedent DOCS-4 set on CAL-1b: the docs commit "61fdd68"
+      and the deploy-log commit "5695a01", both inside `f3f9d31^1..f3f9d31^2`. This
+      session is scoped to status and promotion dates, and editing a `commits` array
+      is not that.
+      THE FIRST BLOCKER BELOW IS SPENT AND IS KEPT UNEDITED — it says "NOT PUSHED.
+      All four commits sit on local `staging` only", which was true when written and
+      has been false since 2026-09-05. THE SECOND BLOCKER IS STILL LIVE: the STORE
+      positive — the same login SEEING the lesson and its video while NOT seeing the
+      linked-document block — has never been taken, and it is now owed against
+      production rather than staging.
       2026-09-05. THE RULING IS IN docs/DECISIONS.md UNDER
       "2026-09-05 — HR-32: linked document on a training lesson" AND IS NOT
       RESTATED HERE. It is Gary's wording, ratified, and the entry also records
@@ -6738,10 +6837,25 @@ phases:
   - id: HR-33
     track: hr
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-05
     commits: ["1222a81", "aa25cb3", "5711187"]
     title: "A training lesson can carry one external destination — its own URL and label, beside the video and the linked document"
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-05 in promotion "bf5a66f". Row read `staging` while in
+      production for 14 days (DEBT-72a pattern).
+      THE DEPLOY_LOG ENTRY FOR THIS WORK IS STAMPED WITH THE WRONG MERGE. It is
+      headed "c870ba7 — 2026-09-06"; the merge that carried HR-33 is "bf5a66f" on
+      2026-09-05. Proved rather than inferred: all three of this row's commits are
+      ancestors of "bf5a66f" and NONE is an ancestor of "bf5a66f^1", so they entered
+      main through that merge, and "c870ba7" is simply the NEXT merge — its own first
+      parent IS "bf5a66f". The entry was written unpromoted (its own commit
+      "5711187" says so) and stamped later with a SHA that was current rather than
+      correct. IT MATTERS BECAUSE THE HEADING SHA IS WHAT A ROLLBACK READS: reverting
+      "c870ba7" reverts SEARCH-1, not this. Reported, not edited — a heading SHA is a
+      pointer and repairing it is a DEPLOY_LOG-scoped session's job, and it is the
+      second pointer defect DEBT-104 records.
       2026-09-05. NO DECISIONS.md ENTRY AND NONE IS MISSING. Nothing in this row
       needed a ruling — no document, no grant, no audience, no role question. The
       PRE-PUSH-CHECK should skip its Step 1 here rather than hunt for an entry.
@@ -6924,10 +7038,32 @@ phases:
   - id: HR-35
     track: hr
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-09-07
     commits: ["75ff274"]
     title: "Unassign training — a manager can remove an untouched assignment, and is told in a sentence why a started one cannot be removed"
+    open:
+      - >
+        NO BROWSER OBSERVATION, AND NOW NONE IN PRODUCTION. The notes below say
+        the evidence is gate-only — scoped eslint plus `npm run build` — and
+        that the rendered refusal was read off the source rather than seen. The
+        blocked dialog, its title, and the three reasons
+        removalBlockedReason() can give have never been looked at by anyone,
+        and the code has been live since 2026-09-07.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-07 in promotion "049984a". Row read `in_progress` while in
+      production for 12 days (DEBT-72a pattern).
+      THE ROW SAID WHY IT WAS `in_progress` AND THE REASON WAS HONEST: "status is
+      in_progress at the work SHA" because the refusal dialog had been read off the
+      source and never seen. That is a correct use of the value at the time of
+      writing and a wrong one by the next day, which is the distinction this pass
+      exists to draw — `status` records WHERE THE CODE IS, not whether anyone has
+      looked at it. The looking is owed below.
+      NOTE WHAT THIS ROW'S OWN TRIAGE CAUGHT AND WHAT IT MISSED. Its COMMENT 1 flagged
+      HR-34's DEPLOY_LOG entry still reading "UNPROMOTED — staging only" while that
+      work was live. Same defect class, one row over, seen and written down — and its
+      own status was wrong in the same paragraph.
       2026-09-07. Short-form session, no audit phase, no stop gate — the rule
       was settled in the prompt (docs/prompts/2026-09-07_UNASSIGN-TRAINING_SESSION.md).
       NO DECISIONS.md ENTRY AND NONE IS MISSING: the ruling is recorded in that
@@ -15370,10 +15506,27 @@ phases:
   - id: SEARCH-1
     track: platform
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-06
     commits: ["ba3d1e5", "f964602", "5b8cf5b"]
     title: "A global search bar in the (app) sidebar — training content and help articles, and nothing about a person"
+    open:
+      - >
+        THE REQUEST-LEVEL PASS AS ADMIN, MANAGER AND STORE WAS NEVER RUN. The
+        notes below name it as the one thing not verified, on the grounds that
+        Claude never pushes and staging did not have the code. Staging and
+        production have both had it since 2026-09-06. The per-role scope
+        evidence is all harness output against the dev branch; no request has
+        been made against a deployed environment under any of the three roles.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-06 in promotion "c870ba7". Row read `staging` while in
+      production for 13 days (DEBT-72a pattern).
+      THE DEPLOY_LOG ENTRY FOR THIS ONE IS CORRECTLY STAMPED — "c870ba7 —
+      2026-09-06" is the merge that carried all three of this row's commits. Worth
+      saying because the HR-33 entry two headings below it carries the SAME SHA and
+      should not: that entry belongs to "bf5a66f". A reader comparing the two would
+      otherwise reasonably conclude both promotions were one.
       2026-09-06. TIER 2. One route, one client component, one lib file, one new
       evidence script. No schema change, no new capability, no new page route.
       FIVE COMMITS ACROSS TWO CORRECTION ROUNDS, AND THE COUNT IS DELIBERATE.
@@ -15582,10 +15735,25 @@ phases:
   - id: SELF-1
     track: hr
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-09-07
     commits: ["2eeee6a", "3d2752a", "dc13aa8", "9e158dc", "309b8f1", "e8145d5", "b537a89"]
     title: "\"Show me, me\" — one identity resolver behind four surfaces: the /dashboard assignment banner, the /staff own-row pin, and the sidebar footer's name and link"
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-07 in promotion "608955b". Row read `staging` while in
+      production for 12 days (DEBT-72a pattern).
+      THAT PROMOTION HAS NO DEPLOY_LOG ENTRY AT ALL — the second of two in this pass,
+      with STAFF-2's "df03cc3". "608955b" carried ten commits, seven of them this
+      row's, and no heading in docs/DEPLOY_LOG.md names it. THIS IS THE LARGEST
+      UNLOGGED PROMOTION OF THE EIGHT and it carries the identity resolver four
+      surfaces read. Recorded on DEBT-104, not fixed here.
+      THE FOUR BLOCKERS BELOW ARE UNTOUCHED AND ALL FOUR STAY LIVE. Nothing in this
+      pass observes anything; in particular criterion 4 — a device login sees no
+      banner — was already ruled a PRODUCTION spot-check obligation (Gary,
+      2026-09-07), and the code it applies to has been in production since the day
+      after that ruling. The obligation did not start today, but nothing has recorded
+      that it became exercisable.
       PUSHED AND PARTIALLY VERIFIED ON STAGING 2026-09-07, prepended per
       preserve-and-mark; nothing below is edited. Status moved in_progress ->
       staging in the same session the code was pushed (WORKFLOW.md rule 4). The
@@ -28012,6 +28180,93 @@ debt:
       asked it.
       NO STATUS — OPEN. Filed 2026-09-19 by DOCS-6. The breach is recorded and
       the hardenings are written; what is open is whether they hold.
+
+  - id: DEBT-104
+    title: >
+      Eight rows read staging/in_progress while their code was in production —
+      eight promotions since 2026-08-24, each owed a docs pass, and only the
+      CAL one got it
+    notes: >
+      FOUND 2026-09-19 (DOCS-6b) BY A READ-ONLY ANCESTRY PASS, and flipped by
+      the same session. The rows: STAFF-2, CHK-7, HR-29, HR-32, HR-33, HR-35,
+      SEARCH-1, SELF-1. 23 of 23 commits are ancestors of `main`. Staleness at
+      the moment of the pass ran from 10 days (CHK-7) to 22 (HR-29), and three
+      of the eight read `in_progress`, which does not merely understate where
+      the code is — it says somebody is still working on it.
+      THE ROWS ARE NOT THE DEFECT. Each one was correct when it was written.
+      STAFF-2 said its `staging` was "one step ahead of the truth at writing";
+      HR-35 said "status is in_progress at the work SHA" and gave the honest
+      reason; SEARCH-1 and HR-32 both said the code was not pushed, which it
+      was not. Every one of those sentences was true on the day and false by
+      the next. WHAT IS MISSING IS THE STEP THAT COMES BACK.
+      EIGHT PROMOTIONS CARRIED THEM AND NONE FLIPPED A ROW: "2a0e67a"
+      (2026-08-28, HR-29), "f3f9d31" (09-05, HR-32), "bf5a66f" (09-05, HR-33),
+      "df03cc3" (09-06, STAFF-2), "c870ba7" (09-06, SEARCH-1), "608955b"
+      (09-07, SELF-1), "049984a" (09-07, HR-35), "53b5a7c" (09-09, CHK-7).
+      Every one of them was owed a docs pass and only the CAL promotion
+      ("d2b8d79", 09-18) ever got one, on 2026-09-19, by DOCS-6 — which is
+      also the session that wrote the PRE-PUSH-CHECK hardening below. The
+      ratio is the row: one pass in nine promotions.
+      THE MECHANISM IS THAT NOBODY OWNS THE SECOND FLIP. WORKFLOW.md session
+      rule 4 assigns the `-> staging` flip to the session that moved the code,
+      and PRE-PUSH-CHECK Step 4 now names the step that makes it (hardening 3,
+      "c41b647", DOCS-6). NOTHING OWNS `-> shipped`. Gary runs the promotion
+      and Gary is not a session; the next session to open the row inherits a
+      board that disagrees with production, which is DEBT-72's "a decision gets
+      made from it" waiting to happen.
+      IT WAS SEEN AND WRITTEN DOWN AND STILL NOT FIXED, twice, which is the
+      part that argues this is a process gap and not an accident. HR-33's
+      TRIAGE AT CLOSE on 2026-09-05 recorded HR-32's row as stale ON THE DAY IT
+      SHIPPED, naming the merge and the missing commit — and HR-32 sat wrong
+      for fourteen more days. HR-35's triage flagged HR-34's DEPLOY_LOG entry
+      still reading "UNPROMOTED" while its own status was wrong in the same
+      paragraph. A COMMENT inside another row's notes is only read by whoever
+      reads that row.
+      TWO DEPLOY_LOG DEFECTS FOUND ALONGSIDE, recorded here because they share
+      the cause and are not this session's to repair. (1) TWO PROMOTIONS HAVE
+      NO ENTRY AT ALL — "df03cc3" (STAFF-2) and "608955b" (SELF-1), the second
+      carrying ten commits including the whole SELF-1 identity resolver.
+      Checked by heading against every `## ` in the file. (2) THE HR-33 ENTRY
+      IS STAMPED WITH THE WRONG MERGE: headed "c870ba7 — 2026-09-06" when the
+      merge that carried HR-33 is "bf5a66f" on 09-05, proved by all three
+      commits being ancestors of "bf5a66f" and none of "bf5a66f^1". A heading
+      SHA is what a rollback reads, so that entry currently sends a rollback at
+      SEARCH-1. Both are pointer defects (CLAUDE.md § Where documents live) and
+      both want a DEPLOY_LOG-scoped session.
+      ALSO FOUND: HR-29 REACHED MAIN BY FAST-FORWARD, not by its own merge.
+      "2a0e67a"'s first parent already contained all five HR-29 commits, so the
+      date on that row is a CEILING — the true one is somewhere between
+      2026-08-24 and 08-28 and git records no event for it. That is DEBT-38's
+      mechanism, and `--no-ff` in the ritual is what is supposed to prevent it.
+      The "2a0e67a" entry's own "Prior main tip was `607926b`" is wrong for the
+      same reason.
+      FIX DIRECTION — THE RITUAL NEEDS THE MATCHING FLIP, AND THE EXACT PLACE
+      IS KNOWN. There is no `docs/PROMOTION.md`; the ritual is
+      `docs/WORKFLOW.md` § "2. Promote to production (staging -> main)", in the
+      copyable bash block, where the DEPLOY_LOG entry is already written and
+      committed between the merge and the push. The ROADMAP flip belongs in
+      THAT COMMIT, for the reason the same section already gives about the
+      DEPLOY_LOG lines: "A step that only appears in prose beside a copyable
+      command block is a step that does not happen." PROPOSED, NOT ADDED —
+      Gary rules on it. Replace the two existing `git add` / `git commit` lines
+      with:
+        # ── flip every row this promotion carried to `status: shipped` +
+        #    `shipped: <date>` in docs/ROADMAP.yaml — the read-only log at the
+        #    top of this block IS the list of rows. Same commit as the entry. ──
+        git add docs/ROADMAP.yaml docs/DEPLOY_LOG.md
+        git commit -m "DEPLOY_LOG + ROADMAP: <date> production promotion (<what it carried>)"
+      WHY IN THE SAME COMMIT RATHER THAN A STEP AFTER IT: a separate step after
+      the push is exactly the shape that failed eight times above. The log
+      entry is already required before the push and is already the thing that
+      enumerates what the promotion carried, so the list the flip needs is
+      sitting in the same commit message.
+      WHAT THIS DOES NOT FIX, stated so the next reader does not assume it: a
+      ritual step is a human step, and the eight rows above are what human
+      steps look like when the human is mid-promotion. DEBT-72b — the gate that
+      would read ROADMAP.yaml during the promotion — is still the real answer
+      and is still not built.
+      NO STATUS — OPEN. Filed 2026-09-19 by DOCS-6b. The eight rows are flipped;
+      what is open is the ritual line and Gary's ruling on it.
 
 
 
