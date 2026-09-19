@@ -15806,6 +15806,27 @@ phases:
     commits: ["bb675e1", "a4b63cf", "9d91aa3"]
     title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
     notes: >
+      ── RIDER 2026-09-18 (CAL-2b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      "N DAYS OVERDUE" NOW COUNTS CALENDAR DAYS, NOT 24-HOUR PERIODS. Fixed on
+      CAL-2b ("00e2615"); DEBT-101 closed there. This phase shipped
+      daysOverdue() as elapsed milliseconds floored to whole days, which made
+      the number depend on the HOUR a reminder was due and the hour somebody
+      looked — a reminder due Monday afternoon read "3 days overdue" at
+      breakfast on Friday and "4" that evening. Gary ruled it in one word on
+      2026-09-18: "date."
+      RULING 8 IS UNTOUCHED AND THAT IS THE POINT OF THE RULING. Overdue-ness
+      still begins at `dueAt` — store close, or the explicit dueTime — exactly
+      as this row built it. The INSTANT decides whether; the DATES decide how
+      many. So the escalation fires at the same moment it always did, and only
+      the sentence describing its age changed. An occurrence past its close on
+      its own due date is overdue AND zero days overdue, which the banner now
+      renders as "Due today" rather than leaving unexplained.
+      THE CHIP'S OVERDUE RULE IS UNCHANGED, which CAL-2a's audit of this
+      surface already predicted: it draws the ruling-8 gate as a red left edge
+      and never renders a number, so there was nothing in it for this ruling to
+      change. verify-cal1-projection §8 is rewritten on CAL-2b and the rewrite
+      IS the ruling — 22a and 22b are kept precisely because they pin that
+      ruling 8's gate survived it.
       ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
       THE STAGING EVIDENCE EXISTS NOW, AND IT IS GARY'S, REPORTED IN CHAT ON
       2026-09-18 — that message is the citation for everything in this rider.
@@ -16612,6 +16633,40 @@ phases:
         is that five cron routes share it and one fixed with four not is a
         divergence nobody can see. Its own row owns the sweep.
     notes: >
+      ── RIDER 2026-09-18 (CAL-2b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      THIS PHASE SHIPPED AN ARCHIVE THAT ORPHANED EVERY CHECKLIST IT HAD
+      GENERATED, AND IT IS FIXED ON CAL-2b ("00e2615"). Not a regression from
+      somewhere else — this is CAL-2's own gap, and the mechanism is worth
+      stating precisely because the row below reads as though it were covered.
+      Ruling 6 deletes an archived event's Open occurrences.
+      `Checklist.calendarOccurrenceId` is `onDelete: SetNull`, so every
+      checklist those occurrences created SURVIVED the delete, unlinked and
+      still Pending, and day close thereafter skipped each one as
+      `frequencyExcluded`. Gary archived "CAL-2 test" on staging on 2026-09-18
+      and it left TWELVE such rows — SQL on `br-square-feather`
+      (preview/staging): status Pending, linked false, count 12. DEBT-61's
+      litter, recreated by the phase that closed DEBT-61.
+      WHY IT GOT THROUGH, WHICH IS THE PART TO LEARN FROM. The policy existed
+      and was correct — deviation S5-D78, recorded on this row below — but it
+      existed at exactly ONE of the four sites that delete an Open occurrence,
+      because S5-D78 was found in PATCH during the build and the three ARCHIVE
+      sites were never re-read against it. The schema comment on
+      `calendarOccurrenceId` even says "SetNull is the FK SAFETY NET, NOT THE
+      POLICY. The policy is in PATCH /api/calendar/events/[id]" — a true
+      sentence that named the whole exposure and was read as a reassurance.
+      This is CLAUDE.md § Verifying a guard covers every path, in the same
+      phase that applied that section correctly to the two TEMPLATE archive
+      routes: the sites were enumerated for the word "archive" and not for the
+      NEW invariant the phase had just created.
+      WHAT CAL-2b CHANGES ON THIS SURFACE. The S5-D78 predicate moves to
+      src/lib/calendar-occurrence-cleanup.ts and PATCH calls it rather than
+      restating it; all three archive routes delete an unstarted checklist with
+      its occurrence and KEEP a started one, unlinked, and report
+      { occurrencesDeleted, checklistsDeleted, checklistsKept }. RULING 6 IS
+      UNCHANGED — every Open occurrence still goes; only the CHECKLIST's fate
+      turns on "started". The 12 rows already on staging are not cleaned up by
+      that phase and are Gary's to delete or leave. THIS ROW'S OWN STAGING
+      PROTOCOL IS UNAFFECTED and is still owed in full.
       ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
       PUSHED, AND THE STAGING PROTOCOL IS MOSTLY RUN. Status moved
       `in_progress` -> `staging`. All three of this phase's commits are on
@@ -17003,6 +17058,161 @@ phases:
       which the overflow list obeys), CAL-1b (one component for two surfaces),
       CAL-2 (the row this rides), DEBT-70 and DEBT-70a (the store-local
       display convention and its no-bare-UTC-arm chain), DEBT-61.
+
+  - id: CAL-2b
+    track: cal
+    size: S
+    status: in_progress
+    # The work commit. The docs SHA is added by the commit immediately after
+    # this one, per § Record a phase's SHA as a second commit — the row is
+    # written INSIDE the commit that records it, so its own SHA cannot be in it.
+    commits: ["00e2615"]
+    title: "Archiving orphaned every checklist it had generated, and \"N days overdue\" counted 24-hour periods"
+    blockers:
+      - >
+        NOTHING HERE HAS BEEN SEEN IN A BROWSER OR IN A DATABASE, AND CLAUDE
+        NEVER PUSHES, so the default assumption is that staging does not have
+        this work. The SHA-match precondition binds before any observation.
+        THE ONE CHECK NO FIXTURE CAN REACH, and it is the whole of Defect 1:
+        materialise a template-backed event, ARCHIVE it, and confirm by SQL on
+        the named branch that the unstarted checklists went with their
+        occurrences — `SELECT status, "calendarOccurrenceId" FROM "Checklist"`
+        scoped to the template — while a checklist with at least one TaskLog on
+        it SURVIVES, unlinked. Both halves matter: a fix that deleted
+        everything would be worse than the defect. The routes now return
+        `{ occurrencesDeleted, checklistsDeleted, checklistsKept }`, so the
+        archive response says what it did and the SQL confirms it rather than
+        discovers it.
+        THREE ARCHIVE PATHS, AND ONLY ONE OF THEM IS THE ONE GARY HIT. DELETE
+        /api/calendar/events/[id] is the event archive; PATCH
+        /api/templates/[id] and PATCH /api/templates (the bulk bar) are the
+        template ones and reach the same helper. Checking the first proves
+        nothing about the other two — that is CLAUDE.md § Verifying a guard
+        covers every path, and it is why the cascade is one function.
+        THE PATCH RE-DERIVE MUST STILL KEEP A STARTED OCCURRENCE. It shares the
+        predicate now, and a regression there would show as a started
+        checklist's DATE moving when a schedule is edited. The detail dialog's
+        "already started, so their dates were kept" line is the visible half.
+        DEFECT 2 IS FIXTURE-COVERED AND STILL WORTH ONE LOOK: /dashboard should
+        read "4 days overdue" for a reminder due four calendar days ago at any
+        hour of the day, and "Due today" — never "0 days overdue" — for one
+        past its store close on its own due date.
+        THE TWELVE ROWS ALREADY ON STAGING ARE NOT CLEANED UP BY THIS PHASE.
+        They predate the fix and it cannot reach backwards. Gary deletes them
+        by SQL after verifying, or leaves them; either way the count only stops
+        growing from this commit forward.
+    notes: >
+      BUILT 2026-09-18, work commit "00e2615", TIER 2. Two defects Gary
+      observed on staging the same day CAL-2 and CAL-2a were built. Prompt of
+      record: docs/prompts/CAL-2b_archive_cleanup_overdue_days.md.
+      DEFECT 1 — THE FEATURE THAT CLOSED DEBT-61 WAS QUIETLY RECREATING
+      DEBT-61's LITTER. "CAL-2 test" (Weekly, all stores) materialised at
+      22:14Z into 12 occurrences and 12 checklists. Gary archived the EVENT at
+      ~21:20 PDT; ruling 6 deleted the 12 Open occurrences, and because
+      `Checklist.calendarOccurrenceId` is `onDelete: SetNull` all 12 checklists
+      REMAINED — Pending, unlinked, and thereafter skipped by day close as
+      `frequencyExcluded`. SQL on `br-square-feather` (preview/staging):
+      status Pending, linked false, count 12.
+      THE FK WAS NEVER THE POLICY AND SAYS SO IN ITS OWN SCHEMA COMMENT — "the
+      FK SAFETY NET, NOT THE POLICY. The policy is in PATCH
+      /api/calendar/events/[id]". That was true and was the problem: the policy
+      existed at exactly one of the four sites that delete an Open occurrence,
+      because PATCH is where deviation S5-D78 was found during the CAL-2 build
+      and the archive paths were never re-examined against it. SetNull did what
+      it is for — it degraded instead of erroring — which is why nothing failed
+      and nobody noticed.
+      WHAT SHIPPED. The S5-D78 predicate and the SELECT it needs move to
+      src/lib/calendar-occurrence-cleanup.ts, and PATCH now CALLS it rather
+      than restating it. `deleteOpenOccurrencesWithCleanup()` is the archive
+      shape of the rule and serves all three archive routes: DELETE
+      /api/calendar/events/[id], PATCH /api/templates/[id], and PATCH
+      /api/templates via archive-cascade.ts, which now takes a transaction
+      client and is awaited because it has to READ before it deletes.
+      RULING 6 IS UNCHANGED AND THAT IS DELIBERATE. An archive is TERMINAL, so
+      every Open occurrence still goes, started or not. What S5-D78 decides
+      here is only the CHECKLIST's fate — and this is the asymmetry a future
+      reader is most likely to trip over, because PATCH's split looks
+      superficially identical and is not. PATCH KEEPS THE STARTED OCCURRENCE
+      (its date still has to happen); an ARCHIVE keeps only the started
+      CHECKLIST, unlinked, because it records work that happened and retiring a
+      schedule cannot unmake it. One definition of "started", two behaviours,
+      commented as such at both sites.
+      "STARTED" IS ONE OR MORE TaskLog ROWS, unchanged from S5-D78 and
+      deliberately not re-derived. A TaskLog is somebody standing in a store
+      ticking something off; one is enough, because the row IS the evidence and
+      there is no smaller unit of begun. The corollary is what makes the
+      deletion safe: a checklist with none has recorded nothing, so deleting it
+      destroys nothing.
+      THE PARAGRAPH THAT AUTHORISED THE DEFECT IS QUOTED AND CORRECTED IN PLACE
+      rather than replaced, at DELETE /api/calendar/events/[id]. It read
+      "somebody may be part-way through it, and deleting work because a
+      schedule was retired is worse than leaving a row day close will no longer
+      judge" — a correct trade, priced for a STARTED checklist and then applied
+      to all of them. CAL-2's cron creates them unstarted, so in practice the
+      clause protected twelve rows nobody had touched.
+      CLEANUP OF THE 12 EXISTING ROWS IS NOT THIS PHASE. Gary deletes them by
+      SQL after verifying the fix, or leaves them; the fix stops the count
+      growing and cannot reach backwards.
+      CARSON'S CHECKLIST — RECORDED, NOT INVESTIGATED, and the bound was the
+      prompt's. It reads Pending; Gary believed he had submitted it. ONE GREP
+      OF THE SUBMIT ROUTE was permitted and was taken:
+      api/checklists/[id]/submit writes a status computed from DISTINCT task
+      ids on every call, and its lowest outcome is "In Progress" — there is no
+      arm that produces "Pending". Its only occurrence-linked write is an
+      `updateMany` setting the OCCURRENCE to Completed; it never writes
+      `Checklist.status` backwards. So NO PATH RETURNS A CHECKLIST TO PENDING,
+      and a Pending row was never submitted: the submit either did not persist
+      or was not made. Under this fix the question is moot for the future —
+      a submitted checklist has task logs and is KEPT.
+      DEFECT 2 — "N DAYS OVERDUE" COUNTED 24-HOUR PERIODS (DEBT-101, CLOSED BY
+      THIS COMMIT). Gary's ruling, chat 2026-09-18, in one word: "date." That
+      selects option (b) on DEBT-101's own list — count the displayed age in
+      whole store-local days from `dueDate`, leaving `dueAt` as the sole
+      overdue trigger.
+      daysOverdue() floored ELAPSED MILLISECONDS, so the answer depended on the
+      hour a reminder was due and the hour somebody happened to look: a
+      reminder due Monday afternoon read "3 days overdue" at breakfast on
+      Friday and "4" that evening — same reminder, same Friday, two answers.
+      It now counts store-local CALENDAR DAYS from dueDate to today.
+      OVERDUE-NESS STILL BEGINS AT dueAt AND THAT DISTINCTION IS THE RULING:
+      the instant decides WHETHER, the dates decide HOW MANY. Ruling 8 is
+      untouched. An occurrence past its close on its own due date is overdue
+      AND zero days overdue, which the banner now renders as "Due today" rather
+      than as nothing at all.
+      `today` IS PASSED IN, NOT DERIVED, because src/lib/calendar.ts is
+      imported by a client component and reads no timezone anywhere except
+      dueAtFor(). The due feed resolves it PER STORE from the row's own
+      `store.timezone`. Note the two different "today"s in that one route and
+      why they are different: the query's cutoff takes the WIDEST store-local
+      today across the scope, because it decides what is VISIBLE and a narrower
+      one would hide a reminder from a store whose day has already started; the
+      COUNT is per row, because it decides what one store is told about its own
+      reminder. Same shape as dueDate vs dueAt.
+      THE CHIP WAS AUDITED AND IS UNCHANGED, which is worth recording because
+      the prompt named it as a caller. It draws the ruling-8 gate as a red left
+      edge and never renders a NUMBER, so this ruling had nothing in it to
+      change. Its comment — CAL-2a's warning that the surviving `new Date()` is
+      instant-vs-instant and correct — now says CAL-2b re-confirmed it, so the
+      warning does not read as stale beside this commit.
+      THE ONE GATE THAT HAD TO CHANGE IS verify-cal1-projection §8, AND THE
+      CHANGE IS THE RULING. 22a and 22b are kept and are the cases that prove
+      ruling 8's gate survived (before dueAt → 0; two hours past close on the
+      same local day → 0, which reads "due today"). 22e–22g are new and pin the
+      ruling's own example at three different hours of the same Friday — a
+      reminder due Monday reads 4 at 00:30, at 09:00 and at 20:00, where the
+      old rule said 3, 3 and 4.
+      SCOPE HELD. No schema change, no migration, no new capability, no
+      permission change, no route added. Ten files, one of them new.
+      GATES: npm run build green (the guide route-coverage warning is
+      pre-existing and repo-wide), scoped eslint clean on all ten files,
+      verify-cal1-projection updated per Defect 2 and green, and
+      verify-cal2-generation, verify-perm8-grants, verify-nav1-url-sets and
+      verify-store-hours-engine all UNCHANGED and all green.
+      CROSS-REFS: CAL-2 (the row this rides, and the archive gap it shipped),
+      CAL-1 (ruling 8 and the banner's "N days overdue"), CAL-2a (the chip
+      comment this re-confirms, and the per-store "today" convention it set),
+      DEBT-101 (closed here), DEBT-61 (the litter this stops recreating),
+      S5-D78 (the predicate, now shared rather than forked).
 
 bugs:
   - id: BUG-1
@@ -27541,11 +27751,38 @@ debt:
       page. The observation is /dashboard's only.
 
   - id: DEBT-101
-    status: planned
+    status: shipped
     title: >
-      "N days overdue" counts from dueAt at store close, and a person reads it
-      from the due DATE — ruling 8 behaving as written, and a question for Gary
+      CLOSED — "N days overdue" counts from dueAt at store close, and a person
+      reads it from the due DATE — ruling 8 behaving as written, and a question
+      for Gary
     notes: >
+      ── CLOSED 2026-09-18 (CAL-2b, work commit "00e2615"). PREPENDED; NOTHING
+      BELOW IS EDITED. ──
+      GARY RULED IT IN CHAT ON 2026-09-18, in one word: "date." That selects
+      OPTION (b) below verbatim — count the displayed age in whole store-local
+      days from `dueDate`, leaving `dueAt` as the sole overdue trigger.
+      SO THIS ROW CLOSES ON ITS OWN STATED TERMS, which is worth saying because
+      it was filed as a QUESTION and not as a defect: the question was which of
+      three answers Gary wanted, the answer is (b), and the code now matches it.
+      Nothing below was wrong when it was written.
+      WHAT SHIPPED. src/lib/calendar.ts daysOverdue() takes
+      { dueAt, dueDate }, a store-local `today` and `now`, returns 0 while
+      `now <= dueAt` — ruling 8's gate, deliberately evaluated first and
+      unchanged — and otherwise returns the calendar days from `dueDate` to
+      `today`. The due feed resolves `today` per STORE from the row's own
+      timezone. The banner renders "Due today" for the zero case rather than
+      "0 days overdue". The calendar chip needed no change: it draws the gate,
+      never a number.
+      THE COST NAMED IN (b) IS REAL AND WAS ACCEPTED, not avoided: the display
+      and the decision now read from two different columns. It is written into
+      the function's own comment as the distinction that IS the ruling — the
+      instant decides whether, the dates decide how many — so the next reader
+      finds the reason rather than a discrepancy.
+      THE THING THIS ROW SAID WAS "NOT MEASURED HERE" IS STILL NOT MEASURED,
+      and it no longer matters: how far the two readings run apart across
+      Keva's real store hours was only interesting while the choice was open.
+      RULING 8 IS UNTOUCHED, so no escalation moved.
       FILED 2026-09-18 (DOCS-5) AS A QUESTION, NOT A BUG, and the distinction
       is the row. Gary's instruction at the time of recording is that this is a
       ruling-8 question for him rather than a defect, and nothing here should

@@ -28,6 +28,20 @@ one), and the grid's "today" was a UTC calendar date, so after 17:00 Pacific
 the marker, the initial month anchor and the Today button all read a day
 ahead. Client-only, two files, no schema, no route and no query change; CAL-2's
 own server paths were already store-local.**
+**ALSO CARRIES CAL-2b — work `00e2615`, plus its docs commit and the
+PRE-PUSH-CHECK commit that follows it. 2026-09-18. Two defects on the two
+surfaces above, both Gary's, both found on staging the same day. (1) ARCHIVING
+ORPHANED EVERY CHECKLIST IT HAD GENERATED: ruling 6 deletes an archived event's
+Open occurrences and the FK's `onDelete: SetNull` left their checklists behind,
+Pending and unlinked — twelve of them from one archive, thereafter skipped by
+day close. All three archive paths now delete an unstarted checklist with its
+occurrence and keep a started one, on S5-D78's own definition, shared rather
+than forked. Ruling 6 itself is unchanged. (2) "N days overdue" counted 24-hour
+periods and now counts store-local calendar days (DEBT-101, ruled "date."),
+with ruling 8's `dueAt` gate untouched. No schema change, no migration, no
+route added; ten files, one new. THE TWELVE ROWS ALREADY ON STAGING ARE NOT
+CLEANED UP BY THIS COMMIT — the fix stops the count growing and cannot reach
+backwards.**
 **ONE ADDITIVE MIGRATION**, `20260918180000_cal2_scheduled_checklists`. 29 files
 in the work commit. Four API routes gain behaviour, two crons change, one new
 route, one new component, one new fixture.

@@ -6,6 +6,31 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-18 — DEBT-101: "N days overdue" counts DATES — DRAFT, pending ratification
+
+**DRAFT — pending ratification.** Committed before ratification so the reasoning
+CAL-2b built on is in the log rather than only in a transcript (DEBT-37's rule),
+on the same understanding CAL-1's and CAL-2's entries were committed under: **a
+committed draft is not a ruling.** The PRE-PUSH-CHECK session asks Gary to
+ratify it and spends the draft heading.
+
+Ruled by Gary in the planning chat, 2026-09-18, in one word — his whole reply,
+quoted exactly:
+
+> date.
+
+DEBT-101 offered three options and this selects **(b)**: the displayed age is
+counted in **whole store-local calendar days from `dueDate`**, and `dueAt`
+remains the sole overdue trigger.
+
+**Ruling 8 is untouched, and that is the content of this decision.** The instant
+decides *whether* something is overdue; the dates decide *how many*. So a
+reminder due Monday reads "4 days overdue" at any hour on Friday, and one past
+its store close on its own due date is overdue *and* zero days overdue — which
+the banner renders as "Due today".
+
+The cost option (b) names was accepted rather than avoided: the display and the
+decision now read from two different columns. Built on CAL-2b (`00e2615`).
 ## 2026-09-18 — CAL-2: scheduled checklists — RATIFIED 2026-09-18
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-18, in the PRE-PUSH-CHECK session.** The
