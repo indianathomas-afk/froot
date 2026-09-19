@@ -26,7 +26,7 @@ import { writeAuditLog } from "../src/lib/audit"
 import { buildForecastCsv } from "../src/lib/forecast-csv"
 import { parseImportRows } from "../src/lib/forecast-import"
 import { evaluatePaceAlert, processPaceAlertForStore } from "../src/lib/pace-alerts"
-import type { EmailMessage } from "../src/lib/notify"
+import type { EmailMessage, EmailSender } from "../src/lib/notify"
 
 const TZ = "America/Los_Angeles"
 
@@ -168,12 +168,20 @@ async function main() {
 
     if (asOf.slice(0, 7) === today.slice(0, 7)) {
       const sent: EmailMessage[] = []
-      const capture = { send: async (m: EmailMessage) => void sent.push(m) }
+      // NOTIFY-1: send() now resolves to an EmailSendResult (the provider
+      // message id where there is one), so the capture returns {} rather
+      // than undefined. Typed as EmailSender so the next signature change
+      // fails here rather than at the call site.
+      const capture: EmailSender = { send: async (m: EmailMessage) => { sent.push(m); return {} } }
 
       const first = await processPaceAlertForStore(storeBehind, { thresholdPct: 90, sender: capture })
       check("behind-pace store alerts", first.alerted && sent.length === 1, first.reason)
       check("pace is ~50%", first.pacePct !== null && Math.abs(first.pacePct - 50) < 2, `${first.pacePct?.toFixed(1)}%`)
-      const to = sent[0]?.to ?? []
+      // NOTIFY-1 widened EmailMessage.to to `string | string[]`.
+      // pace-alerts.ts still passes an array; normalise so this fixture
+      // keeps checking the recipient LIST either way.
+      const capturedTo = sent[0]?.to ?? []
+      const to = Array.isArray(capturedTo) ? capturedTo : [capturedTo]
       check(
         "recipients = admin + assigned manager only",
         to.includes(admin.email) && to.includes(manager.email) && !to.includes(otherManager.email),
