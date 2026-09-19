@@ -28,8 +28,9 @@ one), and the grid's "today" was a UTC calendar date, so after 17:00 Pacific
 the marker, the initial month anchor and the Today button all read a day
 ahead. Client-only, two files, no schema, no route and no query change; CAL-2's
 own server paths were already store-local.**
-**ALSO CARRIES CAL-2b — work `00e2615`, plus its docs commit and the
-PRE-PUSH-CHECK commit that follows it. 2026-09-18. Two defects on the two
+**ALSO CARRIES CAL-2b — work `00e2615`, docs `493348f`, and its PRE-PUSH-CHECK
+commit, which is the one immediately after `493348f` and carries this line.
+2026-09-18. Two defects on the two
 surfaces above, both Gary's, both found on staging the same day. (1) ARCHIVING
 ORPHANED EVERY CHECKLIST IT HAD GENERATED: ruling 6 deletes an archived event's
 Open occurrences and the FK's `onDelete: SetNull` left their checklists behind,

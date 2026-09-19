@@ -6,13 +6,17 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
-## 2026-09-18 — DEBT-101: "N days overdue" counts DATES — DRAFT, pending ratification
+## 2026-09-18 — DEBT-101: "N days overdue" counts DATES — RATIFIED 2026-09-18
 
-**DRAFT — pending ratification.** Committed before ratification so the reasoning
-CAL-2b built on is in the log rather than only in a transcript (DEBT-37's rule),
-on the same understanding CAL-1's and CAL-2's entries were committed under: **a
-committed draft is not a ruling.** The PRE-PUSH-CHECK session asks Gary to
-ratify it and spends the draft heading.
+**RATIFIED AS WRITTEN by Gary, 2026-09-18, in the PRE-PUSH-CHECK session.** The
+heading above read "DRAFT — pending ratification" until then; the draft status is
+spent and this entry is now citable as a ruling. His reply, recorded exactly:
+*"Ratify as written. Fold in the blank-line fix. Proceed to Step 2."*
+
+The original draft note, kept for the record: this entry was committed before
+ratification so the reasoning CAL-2b built on was in the log rather than only in
+a transcript (DEBT-37's rule), on the same understanding CAL-1's and CAL-2's
+entries were committed under — **a committed draft is not a ruling.**
 
 Ruled by Gary in the planning chat, 2026-09-18, in one word — his whole reply,
 quoted exactly:
@@ -31,6 +35,7 @@ the banner renders as "Due today".
 
 The cost option (b) names was accepted rather than avoided: the display and the
 decision now read from two different columns. Built on CAL-2b (`00e2615`).
+
 ## 2026-09-18 — CAL-2: scheduled checklists — RATIFIED 2026-09-18
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-18, in the PRE-PUSH-CHECK session.** The

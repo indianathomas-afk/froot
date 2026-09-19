@@ -17063,10 +17063,14 @@ phases:
     track: cal
     size: S
     status: in_progress
-    # The work commit. The docs SHA is added by the commit immediately after
-    # this one, per § Record a phase's SHA as a second commit — the row is
-    # written INSIDE the commit that records it, so its own SHA cannot be in it.
-    commits: ["00e2615"]
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
+    # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "493348f" did not exist when
+    # the row was composed, and the two-commit pattern cannot record it. The
+    # third is the commit this line is being written in, so it is named as "the
+    # commit immediately after 493348f" rather than guessed at. Same shape as
+    # CAL-2 and CAL-2a, ratified by Gary in chat 2026-09-18.
+    commits: ["00e2615", "493348f"]
     title: "Archiving orphaned every checklist it had generated, and \"N days overdue\" counted 24-hour periods"
     blockers:
       - >
