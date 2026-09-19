@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2, ChevronUp, ChevronDown, Info } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Save, AlertTriangle, CalendarDays, Camera, Pencil, Play, FileText, X, GripVertical, LayoutList, Table2, ChevronUp, ChevronDown, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { OPERATIONAL_PHASES, normalizePhase } from "@/lib/phases"
 // CHK-4: the grace buffer is quoted in the explainer copy and drives the clamp
@@ -19,6 +19,8 @@ import { badgePreset } from "@/lib/badge-presets"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { CreateEventForm } from "../calendar/create-event-form"
 import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent, closestCenter, type CollisionDetection } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -59,6 +61,13 @@ interface Store {
 
 interface TemplateFormProps {
   stores?: Store[]
+  /** CAL-2. Whether this org has the calendar on (ruling 9). False hides the
+   *  "Add to Calendar" control entirely — off means the feature does not
+   *  exist, not that it exists and refuses. */
+  calendarEnabled?: boolean
+  /** CAL-2. The active CalendarEvent already scheduling this template, if any.
+   *  Read from the TEMPLATE ROW server-side, never inferred from form state. */
+  scheduledEvent?: { id: string; recurrence: string; startDate: string } | null
   initialData?: {
     id: string
     name: string
@@ -985,9 +994,17 @@ function TaskTableView({ tasks, stores, updateTask, toggleTaskExclusion }: TaskT
 
 // ─── Main form ────────────────────────────────────────────────────────────────
 
-export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
+export function TemplateForm({
+  initialData,
+  stores = [],
+  calendarEnabled = false,
+  scheduledEvent = null,
+}: TemplateFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
+  // CAL-2. "Add to Calendar" exists only on an EXISTING template — an event
+  // needs a templateId to point at, and the create path has none yet.
+  const [addingToCalendar, setAddingToCalendar] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -1614,6 +1631,49 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
               {saveBlockers.map((reason) => <p key={reason}>{reason}</p>)}
             </div>
           )}
+          {/* ── CAL-2 — "ADD TO CALENDAR" (ruling 2) ────────────────────────
+              ON AN EXISTING TEMPLATE ONLY: an event carries a templateId, and
+              the create path has no id to give it yet.
+              DISABLED FOR DAILY, WITH THE REASON ON THE CONTROL. A Daily
+              template already generates every day; scheduling it would create a
+              second generation path for it, which is the duplicate-row problem
+              nobody wants to debug later. The tooltip says that rather than
+              leaving a dead button — TPL-1a's rule, that every disabling
+              condition gets a reason. */}
+          {isEdit && calendarEnabled && initialData && (
+            <>
+              {scheduledEvent ? (
+                <a
+                  href="/calendar"
+                  className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                >
+                  Scheduled: {scheduledEvent.recurrence} from{" "}
+                  {new Date(`${scheduledEvent.startDate}T00:00:00.000Z`).toLocaleDateString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    timeZone: "UTC",
+                  })}
+                </a>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={frequency === "Daily"}
+                  title={
+                    frequency === "Daily"
+                      ? "Daily templates already generate every day — only weekly and monthly ones are scheduled on the calendar."
+                      : "Schedule when this checklist runs"
+                  }
+                  onClick={() => setAddingToCalendar(true)}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Add to Calendar
+                </Button>
+              )}
+            </>
+          )}
           {isEdit && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -1647,6 +1707,35 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
           </Button>
         </div>
       </div>
+
+      {/* CAL-2 — the same Event form the calendar's own tab renders, with the
+          template locked. A centred Dialog, never an anchored popover: CAL-1a
+          was raised because an anchored one clipped off-screen, and that ruling
+          binds every calendar surface, not just the one it was found on. */}
+      {isEdit && initialData && (
+        <Dialog open={addingToCalendar} onOpenChange={setAddingToCalendar}>
+          <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
+            <DialogTitle className="mb-3 pr-6 text-base font-semibold">Add to calendar</DialogTitle>
+            {addingToCalendar && (
+              <CreateEventForm
+                date={new Date().toISOString().slice(0, 10)}
+                stores={stores.map((st) => ({ id: st.id, name: st.name }))}
+                // The button only renders for an ADMIN-reachable surface today
+                // (/templates is templates.manage, ADMIN_ONLY), so the B11 label
+                // reads "All stores". The WRITE is bounded server-side either
+                // way — resolveEventStoreWrite() is the rule, this is the label.
+                isAdmin
+                lockedTemplateId={initialData.id}
+                onDone={() => {
+                  setAddingToCalendar(false)
+                  router.refresh()
+                }}
+                onCancel={() => setAddingToCalendar(false)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
@@ -1701,7 +1790,15 @@ export function TemplateForm({ initialData, stores = [] }: TemplateFormProps) {
                     <SelectItem value="Monthly">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-[var(--color-muted-foreground)]">Select how often this checklist should be automatically created</p>
+                {/* CAL-2, ruling 1. The old copy — "Select how often this
+                    checklist should be automatically created" — became a
+                    half-truth the moment a non-Daily template stopped
+                    generating on its own, which is the DEBT-61 defect stated as
+                    a promise on a form. This says what actually happens. */}
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  Daily templates generate automatically. Weekly and monthly ones generate from the calendar — add this
+                  template to the calendar after saving.
+                </p>
               </div>
               <div className="space-y-1.5">
                 {/* CHK-4, 2026-08-10 — PREPENDED, NOTHING BELOW IS EDITED. One

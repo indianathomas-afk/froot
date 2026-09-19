@@ -3,9 +3,24 @@ import { prisma } from "@/lib/prisma"
 import { localDateStr } from "@/lib/reports"
 import { hoursForDate } from "@/lib/checklist-lifecycle"
 import { dueAtFor, nextDueDate, type ProjectableEvent } from "@/lib/calendar"
+import { createChecklistForDate } from "@/app/api/checklists/expectations"
 
 // GET /api/cron/calendar-materialize — CAL-1. THE ONLY WRITER OF A
 // CalendarOccurrence ROW.
+//
+// ── CAL-2: IT IS NOW ALSO A WRITER OF Checklist, AND THAT IS STILL ONE AUTHOR
+// RATHER THAN TWO ──────────────────────────────────────────────────────────
+// A template-backed occurrence CREATES THE CHECKLIST for (template, store,
+// dueDate) in the same transaction as the occurrence itself. That is what
+// closes DEBT-61: Template.frequency said Weekly and no generation path read
+// it, because a Weekly template needs a day-of-week that nobody collected.
+// CalendarEvent.recurrence + startDate collect one, projectDueDates() resolves
+// it, and this is where the answer finally becomes a row.
+//
+// The checklist is made through createChecklistForDate() in
+// api/checklists/expectations.ts — THE SAME FUNCTION the single create and the
+// bulk loop call, so the CHK-3 expected-window freeze has one implementation
+// and this cron is a third CALLER rather than a third COPY.
 //
 // Every hour, for each org with the calendar enabled, for each active event and
 // each store it applies to: if there is no Open occurrence, work out the next
@@ -32,6 +47,14 @@ import { dueAtFor, nextDueDate, type ProjectableEvent } from "@/lib/calendar"
 // There is no calendar equivalent of day close, and CHK-3's cron does not know
 // this table exists.
 //
+// ── THIS CRON AND checklist-day-close SHARE A MINUTE (CAL-2) ────────────────
+// vercel.json schedules both at "0 * * * *" and VERCEL DOES NOT ORDER CRONS.
+// Before CAL-2 they shared no table; now they share Checklist. Neither order is
+// wrong — day close only closes a row whose day-close instant has PASSED, and a
+// row materialised this hour has not reached one — so the pair is safe in
+// either direction. Recorded here rather than left to be rediscovered from a
+// Runtime Log at an awkward moment.
+//
 // ── ORG SCOPE — A DELIBERATE DIVERGENCE FROM THE DAY-CLOSE CRON ─────────────
 // That job takes NO org scope on the stated principle that inventing an org
 // filter "would just be a way to miss a tenant"
@@ -56,6 +79,20 @@ type OrgResult = {
   skippedOpen: number
   skippedFuture: number
   raced: number
+  // ── CAL-2 counters. EVERY ONE OF THESE IS ALSO SUMMED AT THE BOTTOM OF THIS
+  // FILE — a counter that only exists inside results[] is a counter nobody
+  // reads (the CHK-3 defect fix, obeyed rather than quoted).
+  /** Checklists created for a template-backed occurrence. */
+  checklistsCreated: number
+  /** A checklist already existed for (store, template, date) and was LINKED
+   *  instead of duplicated — almost always DEBT-61 litter being adopted. */
+  adoptedExisting: number
+  /** R4's reversible half: the template is deactivated or archived, so its
+   *  event generates nothing. Nothing is archived and nothing is deleted. */
+  skippedInactiveTemplate: number
+  /** The transaction rolled back — no occurrence, no checklist, retried next
+   *  run. Distinct from `raced`, which is a benign lost race. */
+  checklistFailed: number
   error?: string
 }
 
@@ -104,6 +141,10 @@ export async function GET(req: Request) {
       skippedOpen: 0,
       skippedFuture: 0,
       raced: 0,
+      checklistsCreated: 0,
+      adoptedExisting: 0,
+      skippedInactiveTemplate: 0,
+      checklistFailed: 0,
     }
     results.push(result)
 
@@ -116,7 +157,24 @@ export async function GET(req: Request) {
 
       const events = await prisma.calendarEvent.findMany({
         where: { organizationId: org.id, isArchived: false },
-        include: { storeAssignments: { select: { storeId: true } } },
+        include: {
+          storeAssignments: { select: { storeId: true } },
+          // CAL-2. Null for a reminder. The five window fields are what
+          // freezeWindow() needs (WindowTemplate), loaded here so the inner
+          // loop costs no extra round trip — the CHK-3 hoursByStore argument,
+          // one level out.
+          template: {
+            select: {
+              id: true,
+              isActive: true,
+              isArchived: true,
+              availabilityType: true,
+              operationalPhase: true,
+              startOffsetHours: true,
+              endOffsetHours: true,
+            },
+          },
+        },
       })
       result.events = events.length
 
@@ -134,6 +192,27 @@ export async function GET(req: Request) {
             ? stores
             : stores.filter((s) => event.storeAssignments.some((a) => a.storeId === s.id))
 
+        // ── R4 (Gary, 2026-09-18) — DEACTIVATE IS REVERSIBLE, ARCHIVE IS
+        // TERMINAL. THIS IS THE REVERSIBLE HALF ───────────────────────────────
+        // An inactive or archived template's event is SKIPPED: nothing is
+        // archived, nothing is deleted, no occurrence is created, and
+        // REACTIVATING THE TEMPLATE RESUMES GENERATION ON THE NEXT RUN with the
+        // event, its schedule and its completion history all intact. The
+        // terminal half lives in PATCH /api/templates/[id], which cascades the
+        // archive onto the events themselves.
+        //
+        // BOTH FLAGS, NOT JUST isArchived. DEBT-65 measured that at Keva
+        // "archiving" is performed with DEACTIVATE — five templates
+        // isActive=false and ZERO isArchived=true on dev and staging,
+        // 2026-08-10 — and that archiving does not clear isActive, so
+        // `isArchived && isActive` is an archived template's normal state. A
+        // check on one flag would be correct and inert, which is precisely the
+        // mistake that row's first fix made.
+        if (event.templateId && (!event.template?.isActive || event.template.isArchived)) {
+          result.skippedInactiveTemplate += applicable.length
+          continue
+        }
+
         for (const store of applicable) {
           result.scanned++
 
@@ -150,12 +229,20 @@ export async function GET(req: Request) {
           // Reading the latest completion rather than counting rows is what
           // lets a PATCH delete the Open row and re-derive without losing the
           // event's place in its own cycle.
-          const lastCompleted = await prisma.calendarOccurrence.findFirst({
-            where: { eventId: event.id, storeId: store.id, status: "Completed" },
+          // CAL-2 — "Completed OR MISSED" (ruling 4). A template-backed
+          // occurrence that day close filed as Missed is TERMINAL, and the
+          // cycle must advance past it: reading Completed alone would leave a
+          // missed week as the newest terminal row forever, so nextDueDate()
+          // would keep returning a date already behind us and the event would
+          // never come due again. Safe for reminders by construction — a
+          // reminder is never auto-closed as Missed (CAL-1 ruling 4), so no
+          // reminder row can carry that status.
+          const lastTerminal = await prisma.calendarOccurrence.findFirst({
+            where: { eventId: event.id, storeId: store.id, status: { in: ["Completed", "Missed"] } },
             orderBy: { dueDate: "desc" },
             select: { dueDate: true },
           })
-          const afterDate = lastCompleted ? lastCompleted.dueDate.toISOString().slice(0, 10) : null
+          const afterDate = lastTerminal ? lastTerminal.dueDate.toISOString().slice(0, 10) : null
 
           const next = nextDueDate(projectable, afterDate)
           if (!next) {
@@ -177,22 +264,66 @@ export async function GET(req: Request) {
           // not three hours later like a checklist's day close (R3).
           const dueAt = dueAtFor(store, hoursForDate(store.hours, next), next, event.dueTime)
 
+          // ── ONE TRANSACTION, SO A HALF-MADE PAIR CANNOT EXIST (CAL-2) ─────
+          // Ruling 3 makes the checklist the occurrence's whole point: an
+          // occurrence with no checklist is a row whose "Open checklist"
+          // control opens nothing, and nobody would find out until they tapped
+          // it. If the checklist cannot be made, THE OCCURRENCE IS NOT MADE
+          // EITHER and the next hourly run tries again — self-healing, the same
+          // property the hourly schedule buys everywhere else in this file.
+          //
+          // A REMINDER WRITES THE OCCURRENCE ALONE, exactly as it did in CAL-1.
+          const tplForChecklist = event.templateId ? event.template : null
           try {
-            await prisma.calendarOccurrence.create({
-              data: {
+            const outcome = await prisma.$transaction(async (tx) => {
+              const occurrence = await tx.calendarOccurrence.create({
+                data: {
+                  organizationId: org.id,
+                  eventId: event.id,
+                  storeId: store.id,
+                  dueDate: new Date(`${next}T00:00:00.000Z`),
+                  dueAt,
+                },
+              })
+              if (!tplForChecklist) return { adopted: false, madeChecklist: false }
+
+              // THE SAME FUNCTION THE TWO api/checklists PATHS CALL. The
+              // expected window is frozen here, at materialisation, against
+              // THIS store's hours for THIS due date — not today's — which is
+              // CHK-3's rule read literally for a date that is not today.
+              const { adopted } = await createChecklistForDate(tx, {
                 organizationId: org.id,
-                eventId: event.id,
                 storeId: store.id,
-                dueDate: new Date(`${next}T00:00:00.000Z`),
-                dueAt,
-              },
+                template: tplForChecklist,
+                dateStr: next,
+                timeZone: store.timezone,
+                hours: store.hours,
+                calendarOccurrenceId: occurrence.id,
+              })
+              return { adopted, madeChecklist: true }
             })
+
             result.materialized++
+            if (outcome.madeChecklist) {
+              if (outcome.adopted) result.adoptedExisting++
+              else result.checklistsCreated++
+            }
           } catch (e) {
             // Read-then-write, guarded by @@unique([eventId, storeId, dueDate]).
             // A concurrent run loses the race and is counted, never failed.
-            if (isUniqueViolation(e)) result.raced++
-            else throw e
+            if (isUniqueViolation(e)) {
+              result.raced++
+            } else {
+              // The checklist half failed and the transaction rolled the
+              // occurrence back with it. COUNTED AND LOGGED RATHER THAN THROWN:
+              // one event-store pair must not abort the whole org's run, and a
+              // silent skip would be indistinguishable from "nothing was due".
+              result.checklistFailed++
+              const msg = e instanceof Error ? e.message : "checklist creation failed"
+              console.error(
+                `[cron:calendar-materialize] event=${event.id} store=${store.id} date=${next}: ${msg}`
+              )
+            }
           }
         }
       }
@@ -212,12 +343,18 @@ export async function GET(req: Request) {
   const skippedFuture = total((r) => r.skippedFuture)
   const raced = total((r) => r.raced)
   const events = total((r) => r.events)
+  const checklistsCreated = total((r) => r.checklistsCreated)
+  const adoptedExisting = total((r) => r.adoptedExisting)
+  const skippedInactiveTemplate = total((r) => r.skippedInactiveTemplate)
+  const checklistFailed = total((r) => r.checklistFailed)
   const errors = results.filter((r) => r.error).length
 
   console.log(
     `[cron:calendar-materialize] ${orgs.length} orgs enabled (${skippedDisabled} disabled), ${events} events, ` +
       `${scanned} event-store pairs scanned, ${materialized} materialized, ${errors} errors ` +
-      `(skipped: ${skippedOpen} already open, ${skippedFuture} not yet due or ended; ${raced} raced)`
+      `(skipped: ${skippedOpen} already open, ${skippedFuture} not yet due or ended, ` +
+      `${skippedInactiveTemplate} inactive template; ${raced} raced) ` +
+      `checklists: ${checklistsCreated} created, ${adoptedExisting} adopted, ${checklistFailed} failed`
   )
 
   // THIS BODY IS A PROOF SURFACE — the cron ships no UI, so it and SQL are the
@@ -232,7 +369,11 @@ export async function GET(req: Request) {
     skippedOpen,
     skippedFuture,
     skippedDisabled,
+    skippedInactiveTemplate,
     raced,
+    checklistsCreated,
+    adoptedExisting,
+    checklistFailed,
     errors,
     results,
   })

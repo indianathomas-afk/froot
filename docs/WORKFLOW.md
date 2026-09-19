@@ -23,9 +23,32 @@ git push origin staging       # → Vercel auto-deploys the staging URL
 
 Test it at froot-git-staging-….vercel.app.
 
+**VERCEL CRON DOES NOT FIRE ON PREVIEW DEPLOYMENTS, so "the cron ran on staging"
+is never something you wait for — it is something you do.** Staging is a preview
+deployment; Vercel only runs the schedules in `vercel.json` against production.
+Any staging evidence that a cron works is therefore a MANUAL CURL, and evidence
+that one "has not run yet" on staging is not evidence of anything. Use the
+**Preview-scope** `CRON_SECRET`, not production's, and read it into a shell
+variable rather than a command line so it stays out of your history — `read -s S`
+to paste it, then `echo ${#S}` to confirm you pasted the whole thing: it is **64**
+characters. A short count there is a truncated paste, which fails as a 401 and
+reads exactly like a broken route. (Added 2026-09-18 after the CAL-1 and CAL-2
+staging passes, where every cron number on record — `materialized`,
+`skippedDisabled`, `checklistsCreated`, `occurrencesMissed` — came from a hand
+curl. It applies to every cron in the app, not only the calendar's.)
+
 ## 2. Promote to production (staging → main)
 
+**Run `git log --oneline main..staging` and paste it to chat BEFORE you type
+the merge — the log is the read-only step, and everything after it is the
+promotion.** (Added 2026-09-18 after `53cb9ce` promoted CAL-1 while its staging
+protocol was unrun: the template was run end to end and there was no point in
+it at which the promotion had not yet started.)
+
 ```bash
+# ── READ-ONLY. Paste this to chat and stop here until it is agreed. ──
+git log --oneline main..staging   # exactly what this promotion will carry
+
 git checkout main
 git pull origin main          # make sure local main is current
 git merge staging --no-ff --no-edit   # --no-ff = always make a merge commit; --no-edit = no editor popup

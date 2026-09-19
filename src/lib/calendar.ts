@@ -46,7 +46,77 @@ export type CalendarPriority = (typeof CALENDAR_PRIORITIES)[number]
 export const CALENDAR_RECURRENCES = ["None", "Daily", "Weekly", "Biweekly", "Monthly"] as const
 export type CalendarRecurrence = (typeof CALENDAR_RECURRENCES)[number]
 
-export const CALENDAR_STATUSES = ["Open", "Completed"] as const
+/**
+ * CAL-1 shipped Open | Completed. CAL-2 adds MISSED (ruling 4, Gary
+ * 2026-09-18), and it is terminal for a TEMPLATE-BACKED occurrence only — a
+ * reminder is never auto-closed as Missed (CAL-1 ruling 4, unchanged), so no
+ * reminder row can ever carry it.
+ *
+ * ONE TUPLE, AND THE TYPECHECK CARRIES IT. Adding the value here is the whole
+ * validation change: `CalendarStatus` flows into every reader, so a switch or a
+ * comparison that has not accounted for Missed is a build error rather than a
+ * runtime surprise. There is deliberately no status enum in the schema and no
+ * second list — the category and priority precedent, one file above.
+ */
+export const CALENDAR_STATUSES = ["Open", "Completed", "Missed"] as const
+export type CalendarStatus = (typeof CALENDAR_STATUSES)[number]
+
+/**
+ * Whether day close judges this checklist — RULING 4 (Gary, 2026-09-18), and
+ * the predicate that closes DEBT-61.
+ *
+ * THE GATE IS THE OCCURRENCE LINK, NOT Template.frequency. A calendar-generated
+ * checklist follows the CHK-3 lifecycle in full whatever its template's
+ * frequency says, because the calendar answered the question DEBT-61 says
+ * nobody was asking: WHICH DAY is this weekly template due. A non-Daily row
+ * with NO link is pre-CAL-2 litter and is still left open — the trade CHK-3
+ * recorded, which CAL-2 deliberately does not disturb for rows already on disk.
+ *
+ * `dayCloseAppliesTo` IS NOT RE-DERIVED HERE. It is passed in, from
+ * src/lib/checklist-lifecycle.ts, so this module stays free of that import and
+ * there is still exactly one expression of "is this template Daily". This
+ * function composes the two facts; it does not own either of them.
+ */
+export function dayCloseJudgesChecklist(
+  isDailyTemplate: boolean,
+  calendarOccurrenceId: string | null | undefined
+): boolean {
+  return isDailyTemplate || calendarOccurrenceId != null
+}
+
+/**
+ * Whether a template may be added to the calendar (ruling 1 + R4).
+ *
+ * Non-Daily, active, and not archived. THE TWO FLAGS ARE BOTH ASKED, and that
+ * is R4's reversible half meeting DEBT-65's measured lesson: archiving does not
+ * clear isActive and the two controls write one flag each, so `isArchived &&
+ * isActive` is the NORMAL state of an archived template — and at Keva
+ * "archiving" is actually performed with DEACTIVATE (five templates
+ * isActive=false, zero isArchived=true, measured 2026-08-10 on dev and
+ * staging). A predicate asking only one of them would be correct and inert.
+ */
+export function isSchedulableTemplate(
+  template: { frequency?: string | null; isActive: boolean; isArchived: boolean },
+  isDailyTemplate: boolean
+): boolean {
+  return !isDailyTemplate && template.isActive && !template.isArchived
+}
+
+/**
+ * The repeat a template's frequency presets in the Event form (ruling 2).
+ * Changeable by the operator afterwards — this is the PRESET, not the rule.
+ * Daily returns null because a Daily template is never scheduled here at all.
+ */
+export function recurrenceForFrequency(frequency: string | null | undefined): CalendarRecurrence | null {
+  switch ((frequency ?? "Daily").trim()) {
+    case "Weekly":
+      return "Weekly"
+    case "Monthly":
+      return "Monthly"
+    default:
+      return null
+  }
+}
 
 /**
  * Canonical category id, or null for anything unregistered — THE phases.ts
@@ -279,12 +349,42 @@ export function dueAtFor(
   return dayCloseInstant(hoursRow, dueDate, store.timezone, 0).at
 }
 
-/** Whole days an occurrence is overdue at `now`, or 0 if it is not yet overdue.
- *  The banner's "N days overdue" (B7) — one definition, because the banner and
- *  any later report must not each round it their own way. Counts ELAPSED whole
- *  days, so an occurrence two hours past its dueAt is 0 days overdue and reads
- *  as simply "due" rather than "0 days overdue". */
-export function daysOverdue(dueAt: Date, now: Date): number {
-  const ms = now.getTime() - dueAt.getTime()
-  return ms <= 0 ? 0 : Math.floor(ms / 86_400_000)
+/**
+ * Calendar days an occurrence is overdue at `now`, or 0 if it is not yet
+ * overdue. The banner's "N days overdue" (B7) — one definition, because the
+ * banner and any later report must not each round it their own way.
+ *
+ * ── CAL-2b — DATES, NOT 24-HOUR PERIODS (DEBT-101) ──────────────────────────
+ * Ruled by Gary, 2026-09-18, in one word: "date."
+ *
+ * THIS USED TO COUNT ELAPSED MILLISECONDS and floor them to whole days, which
+ * made the number depend on the TIME OF DAY the reminder was due and the time of
+ * day somebody happened to look. A reminder due late Monday afternoon read "3
+ * days overdue" at breakfast on Friday and "4" that evening — the same reminder,
+ * the same Friday, two answers. Nobody counts overdue-ness that way out loud.
+ *
+ * It now counts STORE-LOCAL CALENDAR DAYS from `dueDate` to `today`, so a
+ * reminder due Monday reads "4 days overdue" at ANY hour on Friday.
+ *
+ * WHAT DID NOT CHANGE, AND THE DISTINCTION IS THE WHOLE RULING: OVERDUE-NESS
+ * STILL BEGINS AT `dueAt` (ruling 8 — store close, or the explicit dueTime).
+ * The instant decides WHETHER; the dates decide HOW MANY. So an occurrence due
+ * at 17:00 and looked at at 19:00 is overdue — and is 0 days overdue, which the
+ * banner renders as "due today" rather than as "0 days overdue".
+ *
+ * `today` IS PASSED IN, not derived, for the reason stated at the top of this
+ * file: nothing here reads a timezone except dueAtFor(). The caller resolves the
+ * store's local today — per STORE, never per server (CAL-2a) — and hands it over
+ * as a "YYYY-MM-DD".
+ */
+export function daysOverdue(
+  occurrence: { dueAt: Date; dueDate: string },
+  today: string,
+  now: Date
+): number {
+  // Ruling 8's gate, unchanged and deliberately first: before the due instant
+  // there is no overdue-ness to count, whatever the calendar says.
+  if (now.getTime() <= occurrence.dueAt.getTime()) return 0
+  const days = daysBetween(occurrence.dueDate, today)
+  return days > 0 ? days : 0
 }

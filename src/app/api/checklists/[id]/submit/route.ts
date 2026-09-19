@@ -14,13 +14,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const checklist = await prisma.checklist.findFirst({
     where: { id, organizationId: org.id },
-    include: { template: { include: { tasks: true } }, taskLogs: true },
+    // CAL-2: the occurrence joins so this route can both REFUSE on it (R3) and
+    // PROPAGATE to it below. One load, one round trip.
+    include: {
+      template: { include: { tasks: true } },
+      taskLogs: true,
+      calendarOccurrence: { select: { id: true, status: true } },
+    },
   })
   if (!checklist) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   // Store-level users must still be able to submit their own checklists —
   // only scope by store assignment, never block completion outright.
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  // CAL-2: `dbUser` joins the destructure — it is the R2 attribution for a
+  // template-backed occurrence below. One call, not two.
+  const { isAdmin, storeIds, dbUser } = await getUserStoreScope()
   if (!isAdmin && !storeIds.includes(checklist.storeId)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
@@ -33,6 +41,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (checklist.closedAt != null && checklist.status !== "Completed") {
     return NextResponse.json(
       { error: "This checklist's day has closed and it was recorded as missed. It can no longer be submitted." },
+      { status: 409 }
+    )
+  }
+
+  // ── CAL-2, R3 (Gary, 2026-09-18) — A COMPLETED OCCURRENCE IS A CLOSED FACT,
+  // THE SAME WAY A CLOSED DAY IS ───────────────────────────────────────────────
+  // THE DEFECT THIS PREVENTS, stated plainly because it is reachable by an
+  // ordinary operator action and not by any edge case: this route RECOMPUTES
+  // status on every call and can move a checklist OUT of Completed — the block
+  // below says so in its own words ("un-toggling a task drops the row out of
+  // Completed"). Without this guard the sequence is:
+  //
+  //   submit → Completed → occurrence Completed → the hourly cron materialises
+  //   the NEXT occurrence → somebody un-ticks one task → submit again →
+  //   checklist is In Progress behind a Completed occurrence, with a second
+  //   occurrence already open.
+  //
+  // That breaks ruling 3's "one open occurrence per event per store at a time"
+  // by hand, silently, with no error anywhere. So the occurrence's completion
+  // is ONE-WAY, and this is where that is enforced.
+  //
+  // THE SHAPE IS THE CLOSED-DAY GUARD'S, ON PURPOSE — same 409, same "this is a
+  // fact about the row, not about you" framing, and a surface that already
+  // knows how to render that refusal.
+  if (checklist.calendarOccurrence?.status === "Completed") {
+    return NextResponse.json(
+      { error: "This scheduled checklist has already been submitted." },
       { status: 409 }
     )
   }
@@ -93,6 +128,42 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       completedLate,
     },
   })
+
+  // ── CAL-2, RULING 3 — COMPLETION OF THE OCCURRENCE *IS* THE CHECKLIST'S
+  // SUBMIT ─────────────────────────────────────────────────────────────────────
+  // There is no separate tick anywhere: the calendar's Complete control opens
+  // this checklist instead, and POST /api/calendar/occurrences/[id]/complete
+  // refuses a template-backed row outright. So this statement is the ONLY way a
+  // template-backed occurrence is ever marked Completed by a person.
+  //
+  // THE ACTOR COMES FROM THIS SESSION (Gary, R2 2026-09-18). Checklist has no
+  // completedBy column of any kind — attribution lives on TaskLog rows — so
+  // there is nothing on the source row to copy, and the person who pressed
+  // Submit is both the honest answer and the same one the reminder path writes
+  // (api/calendar/occurrences/[id]/complete). `completedByStaffId` stays null:
+  // submit has no staff-selection surface, and inventing one here would be a
+  // product decision this phase was not asked to make.
+  //
+  // ONLY "Completed" PROPAGATES. Non-Compliant and In Progress leave the
+  // occurrence Open, and day close decides it — which is ruling 4, and which is
+  // what makes a partially-done scheduled checklist a MISS rather than a
+  // half-completion the calendar would have to invent a state for.
+  //
+  // updateMany FILTERED ON status: "Open" is the race-proof half; the 409 above
+  // is the friendly one. Two submits in the same second both pass the read and
+  // exactly one writes.
+  if (status === "Completed" && checklist.calendarOccurrenceId) {
+    await prisma.calendarOccurrence.updateMany({
+      where: { id: checklist.calendarOccurrenceId, status: "Open" },
+      data: {
+        status: "Completed",
+        // The SAME instant written to Checklist.completedAt above, not a second
+        // `new Date()` — one event, one time, no drift between two records of it.
+        completedAt,
+        completedByUserId: dbUser?.id ?? null,
+      },
+    })
+  }
 
   return NextResponse.json({ status, completionRate, completedLate })
 }

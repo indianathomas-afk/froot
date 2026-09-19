@@ -42,6 +42,12 @@ type DueItem = {
   storeName: string
   dueAt: string
   daysOverdue: number
+  /** CAL-2. Set makes this a SCHEDULED CHECKLIST, not a reminder: the row gets
+   *  "Open checklist" instead of an inline Complete, because completion of the
+   *  occurrence IS the checklist's submit (ruling 3). The complete route
+   *  refuses it independently, so this is the affordance and not the gate. */
+  templateId: string | null
+  checklistId: string | null
 }
 
 type DueResponse = {
@@ -151,12 +157,21 @@ export function CalendarDueBanner() {
         {overdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CalendarClock className="h-5 w-5 shrink-0" />}
         <div className="min-w-0">
           <p className="text-sm font-semibold">
-            {data.items.length} reminder{plural} due
+            {/* CAL-2: "reminder" was right when a reminder was the only thing
+                this banner could carry. It now carries scheduled checklists
+                too, and calling one of those a reminder in the one line
+                somebody reads on the way past would be a small, daily lie. */}
+            {data.items.length} item{plural} due
           </p>
-          {overdue && data.maxDaysOverdue > 0 && (
+          {/* CAL-2b / DEBT-101 — "DUE TODAY", NEVER "0 DAYS OVERDUE".
+              The count is calendar days now, so an item past its store close on
+              its own due date is genuinely overdue AND genuinely zero days old.
+              The banner already went red for it; this line says what the number
+              means instead of leaving the escalation unexplained. */}
+          {overdue && (
             <p className="text-xs opacity-90">
               <strong className="font-bold">
-                {data.maxDaysOverdue} {dayWord} overdue
+                {data.maxDaysOverdue > 0 ? `${data.maxDaysOverdue} ${dayWord} overdue` : "Due today"}
               </strong>
             </p>
           )}
@@ -180,16 +195,32 @@ export function CalendarDueBanner() {
                 </span>
               </span>
             </span>
-            <button
-              type="button"
-              onClick={() => complete(item.id)}
-              disabled={completing === item.id}
-              // ≥44px tap target — the floor completes these on a phone
-              // (§ Design System: checklist execution surfaces are mobile-first).
-              className="min-h-[44px] shrink-0 rounded-md border border-current/40 px-3 text-xs font-medium disabled:opacity-60"
-            >
-              {completing === item.id ? "Saving…" : "Complete"}
-            </button>
+            {item.templateId ? (
+              // CAL-2, ruling 3: no separate tick. The link is the control.
+              // Rendered only when there is somewhere to go — the occurrence's
+              // link is SetNull-able, and a button to nowhere is worse than a
+              // row with no button.
+              item.checklistId ? (
+                <a
+                  href={`/store-view/checklist/${item.checklistId}`}
+                  // ≥44px tap target, as below — same surface, same floor.
+                  className="flex min-h-[44px] shrink-0 items-center rounded-md border border-current/40 px-3 text-xs font-medium"
+                >
+                  Open checklist
+                </a>
+              ) : null
+            ) : (
+              <button
+                type="button"
+                onClick={() => complete(item.id)}
+                disabled={completing === item.id}
+                // ≥44px tap target — the floor completes these on a phone
+                // (§ Design System: checklist execution surfaces are mobile-first).
+                className="min-h-[44px] shrink-0 rounded-md border border-current/40 px-3 text-xs font-medium disabled:opacity-60"
+              >
+                {completing === item.id ? "Saving…" : "Complete"}
+              </button>
+            )}
           </li>
         ))}
       </ul>

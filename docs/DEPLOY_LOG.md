@@ -2,14 +2,168 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-18 — Calendar: recurring store reminders, a month grid and a due banner
+## UNPROMOTED — 2026-09-18 — Scheduled checklists: weekly and monthly templates finally run
 
+**Unpromoted — staging only, and not yet pushed to staging either.** The heading
+is stamped with the merge SHA at promotion, from `git rev-parse`, never
+hand-typed.
+**Work SHA:** `ed98ff2` on `staging`, NOT PUSHED at the time of writing.
+**Docs SHA:** `55b6e87` — added by PRE-PUSH-CHECK 2026-09-18, which is the only
+session that can record it: the two-commit pattern cannot write a docs SHA
+inside the docs commit.
+**Check SHA:** the commit immediately after `55b6e87`, which carries this line
+and the ratification. Named this way rather than guessed, since it is being
+written inside itself.
+
+**Payload:** **3 commits** on `staging` — the work, the docs, and the
+PRE-PUSH-CHECK commit that ratified the rulings and recorded deviation S5-D78.
+**CARRIES CAL-2a — work `9e39b56`, docs `293ae36`, and its PRE-PUSH-CHECK
+commit, which is the one immediately after `293ae36` and carries this line.
+2026-09-18. Two CAL-1 defects Gary found on this
+surface, fixed on top of the three above. THE THREE ARE ALREADY ON
+`origin/staging`; CAL-2a's THREE are NOT, so whatever is deployed from staging
+today does not contain them. The defects: a day cell would not offer a create
+form for a SECOND item (an affordance gap — nothing in the model ever stopped
+one), and the grid's "today" was a UTC calendar date, so after 17:00 Pacific
+the marker, the initial month anchor and the Today button all read a day
+ahead. Client-only, two files, no schema, no route and no query change; CAL-2's
+own server paths were already store-local.**
+**ALSO CARRIES CAL-2b — work `00e2615`, docs `493348f`, and its PRE-PUSH-CHECK
+commit, which is the one immediately after `493348f` and carries this line.
+2026-09-18. Two defects on the two
+surfaces above, both Gary's, both found on staging the same day. (1) ARCHIVING
+ORPHANED EVERY CHECKLIST IT HAD GENERATED: ruling 6 deletes an archived event's
+Open occurrences and the FK's `onDelete: SetNull` left their checklists behind,
+Pending and unlinked — twelve of them from one archive, thereafter skipped by
+day close. All three archive paths now delete an unstarted checklist with its
+occurrence and keep a started one, on S5-D78's own definition, shared rather
+than forked. Ruling 6 itself is unchanged. (2) "N days overdue" counted 24-hour
+periods and now counts store-local calendar days (DEBT-101, ruled "date."),
+with ruling 8's `dueAt` gate untouched. No schema change, no migration, no
+route added; ten files, one new. THE TWELVE ROWS ALREADY ON STAGING ARE NOT
+CLEANED UP BY THIS COMMIT — the fix stops the count growing and cannot reach
+backwards.**
+**ONE ADDITIVE MIGRATION**, `20260918180000_cal2_scheduled_checklists`. 29 files
+in the work commit. Four API routes gain behaviour, two crons change, one new
+route, one new component, one new fixture.
+
+**What it does.** A Weekly or Monthly template has never generated on its
+schedule — the value persisted, printed back, and nothing honoured it (DEBT-61,
+closed by this commit). It now generates ONLY through a calendar rule. "Add to
+Calendar" on the template editor creates a calendar event carrying the template;
+the hourly calendar cron materialises the occurrence on its due day and creates
+the Checklist with it, in one transaction; day close judges that checklist in
+full and marks the occurrence Missed if nobody did it. Completing the checklist
+completes the calendar entry — there is no separate tick.
+
+Bulk generate and "Start Daily Checklist" now SKIP non-Daily templates and say
+so. `/templates` cards read "Scheduled: Weekly from Mon Sep 21" or "Not
+scheduled — add to calendar". The operations report's exclusion text changes from
+"Only daily checklists are tracked" to "Only scheduled checklists are tracked",
+and its counter was renamed to match what it now counts.
+
+**A BEHAVIOUR NARROWING RIDES IN THIS DEPLOY AND IT AFFECTS CAL-1's SHIPPED
+FEATURE, not just the new one.** Gary's B11 ruling: a non-ADMIN creating or
+editing a calendar event is now bounded to their own assigned stores, and their
+"All stores" is resolved to an explicit list at write time. **A MANAGER holding
+the `calendar.manage` grant could create an org-wide reminder before this deploy
+and cannot after it.** Existing events are untouched — the bound applies to
+writes, not to rows already stored. No capability was added and no baseline
+moved.
+
+**WATCH ON FIRST DEPLOY — the migration must land before the code runs.** Every
+calendar read, the day-close cron, the operations report and BOTH checklist
+creation paths now select columns this migration adds. A deployment that serves
+the code without the migration fails at runtime on all of them, not just on the
+calendar. `migrate deploy` runs in the Vercel build ahead of the app, so the
+ordering is automatic — but if the build's migrate step fails (staging has hit
+Prisma P1002 advisory-lock failures on the Neon pooler before), DO NOT let the
+deploy stand: the app will be serving against a database without these columns.
+
+**Second thing to watch: the two hourly crons now share the `Checklist` table.**
+`calendar-materialize` and `checklist-day-close` are both `"0 * * * *"` and
+Vercel does not order them. Neither order is wrong — day close only closes a row
+whose day-close instant has passed, and a row materialised this hour has not
+reached one — but a first-hour log line showing both is expected, not a fault.
+
+**Nothing generates until somebody acts.** No calendar event carries a template
+until a human presses "Add to Calendar", so on deploy day this changes what the
+product WILL do and not what it does. The one immediate change with no human in
+the loop is the opposite direction: bulk generate stops creating non-Daily rows,
+which is the defect being fixed.
+
+**Rollback is code-only and the migration STAYS.** Reverting the work commit
+leaves two unread nullable columns, one unique index and two foreign keys behind
+— harmless, and dropping them would be a destructive migration against
+production for no benefit (§ Rolling a promotion back). What reverting DOES
+restore is the old behaviour on both sides: bulk generate resumes creating a
+non-Daily row every day, and a granted MANAGER regains org-wide event creation.
+
+**One rollback hazard that is NOT code-only, and it is the reason this paragraph
+is here.** Any `Checklist` rows created by the calendar while this was live keep
+their `calendarOccurrenceId` values in the column, but after a revert nothing
+reads it — so those rows stop being closed by day close and become indefinitely
+`overdue`, exactly like the pre-CAL-2 litter this phase stopped creating. They
+are a handful at most and no data is lost; they are named so a later reader does
+not diagnose them as a new defect.
+
+**The staging protocol for this phase is UNRUN.** Nothing in this deploy has
+been observed in a browser or in SQL. See the CAL-2 row's first blocker in
+`docs/ROADMAP.yaml` for the list, and `docs/prompts/CAL-2_scheduled_checklists.md`
+for the protocol itself. **The DEBT-61 litter count is also unmeasured** — the
+SQL is drafted in `docs/prompts/CAL-2_AUDIT.md` §A7 and is Gary's to run, per
+branch, before promotion.
+
+## 53cb9ce — 2026-09-18 — Calendar: recurring store reminders, a month grid and a due banner
+
+**Merge SHA:** `53cb9ce0fd40b2abef9a459cec8ffae19df39bb8`
+**Promoted 2026-09-18** in `53cb9ce` ("promote: UM-3, CAL-1, CAL-1a"). THE SHA
+IS THE `--no-ff` MERGE COMMIT — parents `10c9cf5` and `4de8ee2` — and the
+rollback recipe reads the merge, not the tip of `main`.
+**THE PROMOTION PRECEDED THE STAGING PASS, AND THAT IS THE MOST IMPORTANT LINE
+IN THIS ENTRY.** Gary ran the promotion template end to end at 09:04 on
+2026-09-18. CAL-1's staging protocol had not run — and still has not, in full
+— and the ROADMAP still carried this row as `staging` when the merge happened.
+A TEMPLATE MISHAP, NOT A DECISION (Gary, in chat, 2026-09-18): the template
+does not stop where the staging evidence is meant to exist. Stamped here after
+the fact by DOCS-4 on 2026-09-18, not at promotion time.
+**WHAT CONTAINS IT: the module is OFF FOR EVERY ORG IN PRODUCTION.** SQL on
+`br-sparkling-block-a620qvg4` (production), 2026-09-18: `calendar_tables = 4`,
+`orgs_enabled = 0`. The four tables exist and no org has the toggle on, so no
+`/calendar` nav entry, no banner and no materialised occurrence reaches anyone.
+**Before flipping that toggle for any org, run the six checks** listed in
+CAL-1's second ROADMAP blocker — the cron, the toggle-off refusals, the PERM-8
+grant, a STORE completion, `skippedOpen`, and the overdue banner. None of them
+has been run anywhere. What HAS been seen on staging: `/calendar` rendering,
+the CAL-1a centred dialog, and the Weekly projection on Mondays 14/21/28 Sep
+and 5 Oct.
+**THE MIGRATION WARNING BELOW IS RESOLVED AND IS KEPT UNEDITED.**
+`20260917143000_cal1_calendar` is applied on all three live branches — dev
+(`migrate deploy`, endpoint ep-late-water), staging (a rendered `/calendar` is
+unreachable without the tables) and production (`calendar_tables = 4` above).
+The paragraph further down still reads "UNRUN ON EVERY BRANCH"; it was true
+when written and is left as written, per the claims rule.
 **Work SHA:** `bb675e1` on `staging`, not pushed at the time of writing.
 **Docs SHA:** `a4b63cf`. **Unpromoted — staging only.** The heading is stamped
 with the merge SHA at promotion, from `git rev-parse`, never hand-typed.
-**Carries CAL-1a (`d4e13af`, 2026-09-18):** the create form clipped off-screen
-on the top grid rows on staging; the anchored popover is now the shared Dialog.
-Cosmetic, rides this entry, adds no migration step and changes nothing below.
+*(The three lines above are the entry as written on 2026-09-18 and are kept
+unedited; the stamp that supersedes them is above.)*
+**Carries CAL-1a (`d4e13af`, 2026-09-18) — PROMOTED in `53cb9ce`:** the create
+form clipped off-screen on the top grid rows on staging; the anchored popover
+is now the shared Dialog. Cosmetic, rides this entry, adds no migration step
+and changes nothing below. Its docs commit `6f4b842` and check commit
+`4de8ee2` are in the same merge. This is the one part of the promotion that
+WAS seen on staging first: Gary clicked a first-row day and got a centred
+dialog.
+**Carries CAL-1b (`9936610`, 2026-09-18) — STILL UNPROMOTED, staging only:**
+reminders could not be edited after saving — B6 specified Edit / Archive and
+only Archive shipped; the detail dialog now reuses the create form in edit mode
+against the PATCH route this entry already carries. Client-only, rides this
+entry, adds no migration step. **IT IS NOT IN `53cb9ce`.** CAL-1b was pushed
+after the 09:05 merge, so its three commits — `9936610`, the docs commit
+`00db87e` and the check commit `dfbfe6e` — are on `origin/staging` and nowhere
+else; `git log --oneline origin/main..origin/staging` returns those three and
+nothing more. This carry line gets its own stamp when CAL-1b is promoted.
 
 **Payload:** **3 commits** on `staging` — the work, the docs, and the
 PRE-PUSH-CHECK commit that added this entry. **This is a schema change and the
@@ -38,6 +192,21 @@ build. **Deploying the code without the migration leaves `/calendar` and every
 purely additive — four new tables, one `BOOLEAN NOT NULL DEFAULT false` column,
 nothing dropped, no type changed, no backfill — so it cannot fail on existing
 data.
+
+**CORRECTION 2026-09-18 (PRE-PUSH-CHECK, CAL-1b), citing Gary in chat. The
+paragraph above is kept as written and is no longer the instruction.** The
+migration `20260917143000_cal1_calendar` **IS APPLIED ON ALL THREE LIVE
+BRANCHES.** Evidence held by Gary, 2026-09-18: `migrate deploy` output on dev
+(endpoint ep-late-water); SQL `calendar_tables = 4` on `br-broad-wave-a6vpjdw0`
+and on `br-sparkling-block-a620qvg4` — dev and production respectively, per the
+branch-id mappings in CLAUDE.md § Database Evidence; and a rendered `/calendar`
+on staging, unreachable unless the tables exist. **So there is no "run it on dev
+first" step left at push time** — the dev step is done, and staging and
+production already took it through `migrate deploy` in the Vercel build. The
+paragraph's other claims are unaffected and still true: it is purely additive,
+and code deployed without it would throw. Kept rather than deleted because this
+entry is what gets read during a rollback, and the state a deploy was planned
+against is part of that record.
 
 **What to watch on first deploy, in order.**
 
@@ -82,11 +251,25 @@ anger, no occurrence was materialised, and no pixel was rendered. The staging
 protocol is written and unrun; it is in the CAL-1 row's blockers and in the
 build session's report.
 
-## UNPROMOTED — 2026-09-17 — /users: a location filter and a search box
+## 53cb9ce — 2026-09-17 — /users: a location filter and a search box
 
+**Merge SHA:** `53cb9ce0fd40b2abef9a459cec8ffae19df39bb8`
+**Promoted 2026-09-18** in `53cb9ce` ("promote: UM-3, CAL-1, CAL-1a"), which
+also carried CAL-1 and CAL-1a. THE SHA IS THE `--no-ff` MERGE COMMIT — parents
+`10c9cf5` and `4de8ee2` — and the rollback recipe reads the merge, not the tip
+of `main`.
+**THE PROMOTION PRECEDED THE STAGING PASS.** Stamped here on 2026-09-18 by
+DOCS-4, after the fact, not at promotion time. The promotion template was run
+end to end before the CAL-1 staging protocol had run and while the ROADMAP
+still carried these rows as `staging` — a template mishap, not a decision
+(Gary, in chat, 2026-09-18). For UM-3 specifically nothing on this page was
+exercised on either branch before or since; the containment is that the
+default state of the two controls renders what the page rendered before.
 **Work SHA:** `982833f` on `staging`, not pushed at the time of writing.
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed.
+*(The two lines above are the entry as written on 2026-09-17 and are kept
+unedited; the stamp that supersedes them is above.)*
 
 **Payload:** **2 commits** on `staging` — the work and this docs commit. One
 new client component and one page. **No schema change, no migration, no new
@@ -108,11 +291,26 @@ unfiltered `/users` is unchanged.
 **Rollback is code-only and needs no database step.** Reverting the work commit
 removes the two controls and restores the previous page; nothing was written.
 
-## UNPROMOTED — 2026-09-09 — Take Photo: the button now opens a camera
+## 53b5a7c — 2026-09-09 — Take Photo: the button now opens a camera
 
+**Merge SHA:** `53b5a7cdcf84708f8f8d10fc10b5a4cc38b4db57`
+**Promoted 2026-09-09 22:04:51 -0700** in `53b5a7c` ("Merge branch 'staging'"),
+parents `049984a` and `c833f73`. The rollback recipe reads the merge, not the
+tip of `main`.
+**STAMPED LATE, 2026-09-18, BY DOCS-4.** This entry read "UNPROMOTED — staging
+only" for nine days while the code was live in production. Found while
+recording the `53cb9ce` promotion, not by the promotion that carried it. THE
+MERGE THAT CARRIED IT IS NOT `53cb9ce` — this went to main on 2026-09-09, two
+promotions earlier, and the merge SHA was resolved with
+`git log --merges --ancestry-path --reverse ce1cf9d..origin/main` rather than
+assumed from the neighbouring entries. Second parent `c833f73` is this entry's
+own docs commit ("Docs: CHK-7 photo capture at ce1cf9d"), which is how the
+pairing was confirmed.
 **Work SHA:** `ce1cf9d` on `staging`, not pushed at the time of writing.
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed.
+*(The two lines above are the entry as written on 2026-09-09 and are kept
+unedited; the stamp that supersedes them is above.)*
 
 **Payload:** **2 commits** on `staging` — the work and this docs commit. One
 client component and **one new route**, `POST /api/upload/checklist-photo`.
@@ -142,11 +340,26 @@ harmless.
 photo task can still be closed with no photo. That is a ruling, filed on CHK-7,
 not a regression from this deploy.
 
-## UNPROMOTED — 2026-09-07 — Unassign training: the refusal is shown, not hidden
+## 049984a — 2026-09-07 — Unassign training: the refusal is shown, not hidden
 
+**Merge SHA:** `049984a48cf8365dfd8e84f254ec1992250a19db`
+**Promoted 2026-09-07 13:52:44 -0700** in `049984a` ("Merge branch 'staging'"),
+parents `daf46ec` and `2ab91b6`. The rollback recipe reads the merge, not the
+tip of `main`.
+**STAMPED LATE, 2026-09-18, BY DOCS-4.** This entry read "UNPROMOTED — staging
+only" for eleven days while the code was live in production. A DIFFERENT MERGE
+FROM THE TWO ENTRIES EITHER SIDE OF IT: the Bulk assign entry below went in on
+`daf46ec` thirty-one minutes earlier the same afternoon, and Take Photo above
+went in on `53b5a7c` two days later. Resolved per entry with
+`git log --merges --ancestry-path --reverse 75ff274..origin/main`; nothing was
+inferred from the shared date. Second parent `2ab91b6` is this entry's own
+docs commit ("Docs: HR-35 unassign training at 75ff274"), which names the work
+SHA and confirms the pairing.
 **Work SHA:** `75ff274` on `staging`, not pushed at the time of writing.
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed.
+*(The two lines above are the entry as written on 2026-09-07 and are kept
+unedited; the stamp that supersedes them is above.)*
 
 **Payload:** **2 commits** on `staging` — the work and this docs commit. One
 client component, and nothing else. **No route change, no schema change, no
@@ -179,11 +392,28 @@ warnings, 0 errors, all three pre-existing) and `npm run build` green. Nothing
 here has been deployed, and the refusal sentence reported at close was read off
 the source, not seen on screen.
 
-## UNPROMOTED — 2026-09-07 — Bulk assign: recipient rows carry position and store
+## daf46ec — 2026-09-07 — Bulk assign: recipient rows carry position and store
 
+**Merge SHA:** `daf46ecbf529543d0f96f054cdbf3e484c3c29ac`
+**Promoted 2026-09-07 13:21:40 -0700** in `daf46ec`, parents `608955b` and
+`932b688`. The rollback recipe reads the merge, not the tip of `main`.
+**THE MERGE SUBJECT IS A KEYBOARD MASH AND IS RECORDED HERE VERBATIM SO THE
+LOG IS SEARCHABLE:** `Merge branch 'staging' fkj asdf dfasdf;lkjsdfa sdfa
+commit.` Anyone grepping the git log for a promotion message will not find a
+sensible one for this deploy; the SHA above is the handle.
+**STAMPED LATE, 2026-09-18, BY DOCS-4.** This entry read "UNPROMOTED — staging
+only" for eleven days while the code was live in production, and it is the
+OLDEST of the three caught in this pass. ITS MERGE IS ITS OWN: the Unassign
+training entry above shares this date but went in on `049984a` thirty-one
+minutes later, and `daf46ec` is that merge's first parent. Resolved with
+`git log --merges --ancestry-path --reverse 3978c02..origin/main`. Second
+parent `932b688` is this entry's own docs commit ("docs: HR-34 row and
+DEPLOY_LOG entry for the bulk-assign recipient rows").
 **Work SHA:** `3978c02` on `staging`, not pushed at the time of writing.
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed.
+*(The two lines above are the entry as written on 2026-09-07 and are kept
+unedited; the stamp that supersedes them is above.)*
 
 **Payload:** **2 commits** on `staging` — the work and this docs commit. One API
 route, one client component. **No schema change, no migration, no cron, no

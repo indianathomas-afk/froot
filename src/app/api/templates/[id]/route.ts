@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessTemplatesManage } from "../access"
+import { archiveCalendarEventsForTemplates } from "../archive-cascade"
 import { resolveTemplateType } from "../template-type"
 import { SectionConflict, pruneEmptySections, sectionsFromTasks, syncTemplateSections, type IncomingSection } from "../sections"
 import { NextResponse } from "next/server"
@@ -23,11 +24,54 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const body = await req.json()
 
   // Quick status-only update (archive / activate)
+  //
+  // ── CAL-2, R4: DEACTIVATE IS THE REVERSIBLE HALF AND WRITES ONE COLUMN ──────
+  // Nothing is archived and nothing is deleted. The calendar's materialise cron
+  // checks the template's isActive on every run and skips its events, counting
+  // `skippedInactiveTemplate`; REACTIVATING RESUMES GENERATION on the next run
+  // with the event, its schedule and its completion history all intact. This
+  // branch is deliberately untouched by CAL-2 — the whole behaviour lives in
+  // the reader, so there is nothing here to keep in sync.
   if ("isActive" in body && !("tasks" in body)) {
     const updated = await prisma.template.update({ where: { id }, data: { isActive: body.isActive } })
     return NextResponse.json(updated)
   }
   if ("isArchived" in body && !("tasks" in body)) {
+    // ── CAL-2, RULING 6 AS REWORDED BY R4 (Gary, 2026-09-18) — ARCHIVE IS THE
+    // TERMINAL HALF, AND IT CASCADES ONTO THE CALENDAR ──────────────────────
+    // Archiving a template ARCHIVES ITS EVENTS and deletes their Open
+    // occurrences. Deactivating one does NOT come through here at all — that is
+    // the `isActive` branch above, it is REVERSIBLE, and the materialise cron
+    // simply skips an inactive template's events and reports
+    // `skippedInactiveTemplate`. Two controls, two behaviours, and the
+    // difference is deliberate.
+    //
+    // ASYMMETRIC ON PURPOSE, IN BOTH DIRECTIONS:
+    //  - Archiving a template-backed EVENT never archives the template. An
+    //    operator deciding "stop scheduling this" has not decided "retire this
+    //    template", and the calendar must not make that decision for them.
+    //  - UN-ARCHIVING A TEMPLATE DOES NOT UN-ARCHIVE ITS EVENTS. The Open
+    //    occurrences are already gone and cannot be un-deleted, so restoring
+    //    the events would restore a schedule with a hole in it. The archive was
+    //    a decision; reversing it is re-adding the template to the calendar.
+    //
+    // COMPLETED OCCURRENCES ARE NEVER TOUCHED, and neither are the Checklists
+    // any of them created — the same rule DELETE /api/calendar/events/[id]
+    // already follows. They record work that happened, and archiving a
+    // definition cannot unmake it.
+    //
+    // CAL-2b: the cascade now READS before it deletes (it has to ask whether
+    // each Open occurrence's checklist was started), so this is an interactive
+    // transaction rather than an array of promises. The counts come back so the
+    // caller — and a staging run — can see what the archive actually did.
+    if (body.isArchived === true) {
+      const { updated, cascade } = await prisma.$transaction(async (tx) => {
+        const row = await tx.template.update({ where: { id }, data: { isArchived: true } })
+        return { updated: row, cascade: await archiveCalendarEventsForTemplates(tx, org.id, [id]) }
+      })
+      return NextResponse.json({ ...updated, cascade })
+    }
+
     const updated = await prisma.template.update({ where: { id }, data: { isArchived: body.isArchived } })
     return NextResponse.json(updated)
   }

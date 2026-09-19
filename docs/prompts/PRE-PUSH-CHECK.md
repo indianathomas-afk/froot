@@ -17,12 +17,31 @@ say so and skip.
 ## Step 2 — docs sync audit (read-only; report a table: item / expected /
 found / OK-or-DRIFT)
 - docs/ROADMAP.yaml: the <PHASE-ID> row exists, status matches reality,
-  work + docs SHAs recorded as quoted short SHAs, preserve-and-mark intact
-  (nothing deleted), no meta.updated key.
+  preserve-and-mark intact (nothing deleted), no meta.updated key.
+  THE DOCS SHA IS THIS CHECK'S JOB TO ADD, AND IT IS NOT DRIFT. The build
+  session's row is written INSIDE the commit that records it, so the docs SHA
+  does not exist yet when the row is composed — the two-commit pattern cannot
+  record it, by construction. Missing docs SHA is therefore the EXPECTED state
+  at this point and must not be reported as DRIFT. This check ADDS the docs
+  SHA and its own SHA to the row as a normal step, in its own docs commit,
+  naming its own SHA as "the commit immediately after <docs SHA>" since it is
+  writing inside it. Only the WORK SHA being absent or wrong is drift.
+  Ratified by Gary in chat, 2026-09-18, after three consecutive phases
+  (CAL-1, CAL-1a, CAL-1b) each recorded the same gap as a defect in their own
+  rows and none of them could close it.
 - docs/DECISIONS.md: any ruling from this phase is present (per Step 1).
-- docs/DEPLOY_LOG.md: entry for this promotion is drafted as a pasteable
-  heredoc command for Gary to run at push time, sized to blast radius —
-  not hand-edited, not missing, not bloated.
+- docs/DEPLOY_LOG.md: THE ENTRY IS WRITTEN INTO THE FILE BY THIS CHECK, now,
+  not handed to Gary as a pasteable heredoc to run at push time. Compose it
+  sized to blast radius, head it `## UNPROMOTED — <date> — <title>`, and write
+  it with CHUNKED VERIFIED WRITES — short chunks, `wc -l` after each, and
+  `grep -c "^## "` before and after to prove no prior entry was clobbered.
+  This is the UM-3 / CAL-1 shape. It commits unpromoted and is stamped with
+  the merge SHA at promotion, on `main`, after the merge.
+  Ratified by Gary in chat, 2026-09-18. The heredoc version made the entry
+  depend on a human running a command in the right shell at the right moment;
+  when the promotion template was run end to end on 2026-09-18 that moment was
+  skipped, and two entries read "UNPROMOTED — staging only" while the code was
+  live in production. An entry already in the file cannot be skipped.
 - CLAUDE.md: if this phase changed a house rule or pattern, it's reflected;
   if not, confirm untouched.
 - docs/prompts/: this phase's session prompt(s) are committed.

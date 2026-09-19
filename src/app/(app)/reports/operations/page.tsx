@@ -4,6 +4,7 @@ import { ArrowLeft, Info } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { dbDate, localDateStr } from "@/lib/reports"
+import { dayCloseJudgesChecklist } from "@/lib/calendar"
 import {
   DAY_CLOSE_GRACE_HOURS,
   checklistState,
@@ -32,7 +33,9 @@ import { OperationsFilters } from "./operations-filters"
 //
 //   missed          → checklistState(...) === "missed"   (closedAt set, not Completed)
 //   completed late  → isCompletedLate(row)               (the stored column, written by submit)
-//   tracked at all  → dayCloseAppliesTo(template.frequency)
+//   tracked at all  → dayCloseJudgesChecklist(dayCloseAppliesTo(frequency),
+//                     calendarOccurrenceId) — CAL-2, ruling 4. A scheduled
+//                     weekly template IS tracked; an unscheduled one is not.
 //   window          → frozenWindow(row) — the window the row was JUDGED against,
 //                     never a window recomputed from today's hours
 //   day close       → dayCloseInstant(...).source — the no-hours fallback signal
@@ -189,6 +192,9 @@ async function getOperationsData(params: { store?: string; from?: string; to?: s
         expectedEndAt: true,
         storeId: true,
         templateId: true,
+        // CAL-2, ruling 4. The gate this page asks is now "Daily OR scheduled",
+        // the same one day close asks — so the link has to be selected here too.
+        calendarOccurrenceId: true,
         template: { select: { name: true, frequency: true } },
       },
     }),
@@ -207,13 +213,22 @@ async function getOperationsData(params: { store?: string; from?: string; to?: s
   const totals = emptyBucket("all", "All")
 
   // Rows the report will NOT judge, counted so the exclusion is a number on the
-  // page rather than an absence. DEBT-61 is the open row behind it; the page
+  // page rather than an absence. DEBT-61 was the open row behind it; the page
   // says so in plain words and never cites the row on screen.
-  let excludedNonDaily = 0
+  //
+  // ── CAL-2 RENAMED THIS FROM `excludedNonDaily`, AND THE RENAME IS THE POINT
+  // It no longer counts non-Daily rows: it counts UNSCHEDULED ones. A weekly
+  // template that has been added to the calendar is tracked here in full, and
+  // its rows land in every tile and both tables. What is still excluded is a
+  // weekly or monthly template NOBODY HAS SCHEDULED — pre-CAL-2 litter, plus
+  // anything generated before this phase. "A name is not evidence of what it
+  // counts" is this engine's own recorded lesson (checklist-lifecycle.ts), and
+  // leaving the old name on the new meaning is exactly how that fires.
+  let excludedUnscheduled = 0
 
   for (const c of checklists) {
-    if (!dayCloseAppliesTo(c.template.frequency)) {
-      excludedNonDaily++
+    if (!dayCloseJudgesChecklist(dayCloseAppliesTo(c.template.frequency), c.calendarOccurrenceId)) {
+      excludedUnscheduled++
       continue
     }
 
@@ -266,7 +281,7 @@ async function getOperationsData(params: { store?: string; from?: string; to?: s
     stores,
     selectedStoreId: effectiveStoreId ?? "all",
     showStorePicker: !(!isAdmin && storeIds.length === 1),
-    excludedNonDaily,
+    excludedUnscheduled,
     fallbackStores,
   }
 }
@@ -287,7 +302,7 @@ export default async function OperationsReportPage({
     return <div className="p-8 text-sm text-[var(--color-muted-foreground)]">No organization in context.</div>
   }
 
-  const { rows, totals, view, from, to, stores, selectedStoreId, showStorePicker, excludedNonDaily, fallbackStores } = data
+  const { rows, totals, view, from, to, stores, selectedStoreId, showStorePicker, excludedUnscheduled, fallbackStores } = data
   const firstColumn = view === "day" ? "Day" : view === "template" ? "Template" : "Store"
 
   return (
@@ -396,10 +411,13 @@ export default async function OperationsReportPage({
         </p>
         <ul className="space-y-2 text-sm text-[var(--color-muted-foreground)]">
           <li>
-            <strong className="text-[var(--color-foreground)]">Only daily checklists are tracked.</strong>{" "}
-            Weekly and monthly templates are not yet scheduled or judged, so they are left out of every number above
-            {excludedNonDaily > 0 ? ` (${excludedNonDaily} checklist${excludedNonDaily === 1 ? "" : "s"} in this range).` : "."}{" "}
-            For those templates, &ldquo;no misses&rdquo; means &ldquo;not tracked yet&rdquo; — not &ldquo;all done&rdquo;.
+            <strong className="text-[var(--color-foreground)]">Only scheduled checklists are tracked.</strong>{" "}
+            Daily templates are tracked automatically; weekly and monthly ones are tracked once they are added to the
+            calendar. A weekly or monthly template with no calendar entry is left out of every number above
+            {excludedUnscheduled > 0
+              ? ` (${excludedUnscheduled} checklist${excludedUnscheduled === 1 ? "" : "s"} in this range).`
+              : "."}{" "}
+            For those, &ldquo;no misses&rdquo; means &ldquo;not scheduled yet&rdquo; — not &ldquo;all done&rdquo;.
           </li>
           <li>
             <strong className="text-[var(--color-foreground)]">Tracking started when this feature shipped.</strong>{" "}

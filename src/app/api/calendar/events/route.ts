@@ -5,15 +5,18 @@ import {
   calendarDenialBody,
   calendarDenialStatus,
   requireCalendar,
+  resolveEventStoreWrite,
   resolveStoreScope,
 } from "@/lib/calendar-access"
 import {
   CALENDAR_PRIORITIES,
   CALENDAR_RECURRENCES,
+  isSchedulableTemplate,
   normalizeCategory,
   projectDueDates,
   type ProjectableEvent,
 } from "@/lib/calendar"
+import { dayCloseAppliesTo } from "@/lib/checklist-lifecycle"
 
 // CAL-1 — the month grid's read, and the create.
 //
@@ -42,6 +45,10 @@ const createSchema = z
     storeIds: z.array(z.string()).default([]),
     notes: z.string().trim().max(5000).nullish(),
     url: z.string().trim().url().max(2000).nullish(),
+    // CAL-2. Present makes this a SCHEDULED TEMPLATE (ruling 1); absent leaves
+    // it a CAL-1 reminder. Validated against the org's templates below — never
+    // trusted, because an id from another tenant would schedule their work here.
+    templateId: z.string().nullish(),
   })
   .refine((v) => !v.endDate || v.endDate >= v.startDate, {
     message: "endDate cannot be before startDate",
@@ -90,11 +97,24 @@ export async function GET(req: Request) {
       isArchived: false,
       OR: [{ appliesTo: "all" }, { storeAssignments: { some: { storeId: { in: storeIds } } } }],
     },
-    include: { storeAssignments: { select: { storeId: true } }, attachment: true },
+    include: {
+      storeAssignments: { select: { storeId: true } },
+      attachment: true,
+      // CAL-2: null for a reminder. The grid needs the NAME for the chip and
+      // the detail dialog, and `templateId` alone to decide which controls to
+      // render at all.
+      template: { select: { id: true, name: true, frequency: true } },
+    },
     orderBy: { createdAt: "asc" },
   })
 
   const occurrences = await prisma.calendarOccurrence.findMany({
+    include: {
+      // CAL-2: where "Open checklist" points. Null on a reminder, and null on a
+      // scheduled occurrence only if a path nobody anticipated unlinked it —
+      // the client renders the absence rather than a dead button.
+      checklist: { select: { id: true, status: true, closedAt: true } },
+    },
     where: {
       organizationId: access.org.id,
       storeId: { in: storeIds },
@@ -125,6 +145,11 @@ export async function GET(req: Request) {
         appliesTo: e.appliesTo,
         storeIds: e.storeAssignments.map((a) => a.storeId),
         attachment: e.attachment,
+        // CAL-2. THE ONE FIELD THAT DECIDES WHICH ENTITY TYPE THIS IS (ruling
+        // 1) — null is a reminder, set is a scheduled template. Every client
+        // branch reads this and not the presence of a name.
+        templateId: e.templateId,
+        templateName: e.template?.name ?? null,
         // Ruling 3: projected, not stored.
         projectedDates: projectDueDates(projectable, from, to),
       }
@@ -139,6 +164,13 @@ export async function GET(req: Request) {
       completedAt: o.completedAt?.toISOString() ?? null,
       notes: o.notes,
       photoUrl: o.photoUrl,
+      // CAL-2. `missedAt` is the linked checklist's closedAt — R2's "Missed
+      // uses day-close closedAt" read literally. There is no missedAt column,
+      // deliberately: day close already owns that instant and a second copy
+      // would give one fact two authors.
+      checklistId: o.checklist?.id ?? null,
+      checklistStatus: o.checklist?.status ?? null,
+      missedAt: o.status === "Missed" ? o.checklist?.closedAt?.toISOString() ?? null : null,
     })),
   })
 }
@@ -160,18 +192,48 @@ export async function POST(req: Request) {
   const category = normalizeCategory(body.category)
   if (!category) return NextResponse.json({ error: `Unknown category: ${body.category}` }, { status: 400 })
 
-  // Every named store must be in THIS org. Ruling 2: every occurrence belongs
-  // to exactly one store, and an id from another tenant would fan out there.
-  let storeIds: string[] = []
-  if (body.appliesTo === "specific") {
-    const owned = await prisma.store.findMany({
-      where: { id: { in: body.storeIds }, organizationId: access.org.id },
-      select: { id: true },
+  // ── CAL-2, B11 (Gary, 2026-09-18) — THE STORE SET IS BOUNDED FOR A NON-ADMIN
+  // Ruling 2's "every occurrence belongs to exactly one store" still holds; what
+  // B11 adds is WHICH stores a given actor may write. ADMIN is org-wide as
+  // before; a MANAGER holding the calendar.manage grant is bounded to their own
+  // assignments, and their "All stores" is RESOLVED HERE into an explicit list
+  // so the bound lives on the row rather than on the session. The reasoning is
+  // at resolveEventStoreWrite() in src/lib/calendar-access.ts.
+  //
+  // ONE RULE, BOTH ENTITY TYPES — this runs before anything looks at templateId.
+  const orgStoreIds = (
+    await prisma.store.findMany({ where: { organizationId: access.org.id }, select: { id: true } })
+  ).map((s) => s.id)
+
+  const scoped = resolveEventStoreWrite(access, body.appliesTo, body.storeIds, orgStoreIds)
+  if (!scoped) {
+    return NextResponse.json(
+      { error: "One or more of those stores is not one you can schedule for" },
+      { status: 403 }
+    )
+  }
+  const { appliesTo, storeIds } = scoped
+
+  // ── CAL-2 — THE TEMPLATE, IF THIS IS A SCHEDULED EVENT (ruling 1) ───────────
+  // Scoped to the org, and required to be SCHEDULABLE: non-Daily, active, not
+  // archived. A Daily template is refused rather than accepted-and-ignored —
+  // ruling 1 says a Daily template generates the way it always has, so an event
+  // pointing at one would create a second generation path for it, which is the
+  // duplicate-row problem nobody wants to debug later.
+  let templateId: string | null = null
+  if (body.templateId) {
+    const template = await prisma.template.findFirst({
+      where: { id: body.templateId, organizationId: access.org.id },
+      select: { id: true, frequency: true, isActive: true, isArchived: true },
     })
-    if (owned.length !== body.storeIds.length) {
-      return NextResponse.json({ error: "One or more stores are not in this organization" }, { status: 400 })
+    if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 })
+    if (!isSchedulableTemplate(template, dayCloseAppliesTo(template.frequency))) {
+      return NextResponse.json(
+        { error: "Only an active weekly or monthly template can be added to the calendar." },
+        { status: 400 }
+      )
     }
-    storeIds = owned.map((s) => s.id)
+    templateId = template.id
   }
 
   const event = await prisma.calendarEvent.create({
@@ -186,7 +248,8 @@ export async function POST(req: Request) {
       startDate: new Date(`${body.startDate}T00:00:00.000Z`),
       dueTime: body.dueTime ?? null,
       endDate: body.endDate ? new Date(`${body.endDate}T00:00:00.000Z`) : null,
-      appliesTo: body.appliesTo,
+      appliesTo,
+      templateId,
       createdByUserId: access.dbUserId,
       ...(storeIds.length > 0 ? { storeAssignments: { create: storeIds.map((storeId) => ({ storeId })) } } : {}),
     },

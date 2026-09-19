@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { businessDayWindow } from "@/lib/reports"
-import { freezeWindow, hoursByStore } from "./expectations"
+import { dayCloseAppliesTo } from "@/lib/checklist-lifecycle"
+import { createChecklistForDate, hoursByStore } from "./expectations"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
@@ -154,6 +155,7 @@ export async function POST(req: Request) {
       where: { id: body.templateId, organizationId: org.id, isActive: true, isArchived: false },
       select: {
         id: true,
+        frequency: true,
         availabilityType: true,
         operationalPhase: true,
         startOffsetHours: true,
@@ -162,6 +164,36 @@ export async function POST(req: Request) {
     })
     if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 })
 
+    // ── RULING 1 (Gary, 2026-09-18) — CAL-2, AND THE CLOSE OF DEBT-61 ─────────
+    // A NON-DAILY TEMPLATE GENERATES A CHECKLIST ONLY THROUGH A CALENDAR RULE.
+    // This is the refusal DEBT-61 has been missing since it was filed: the
+    // operator picked Weekly, the value persisted, it printed back at them on
+    // the template page, and NOTHING ANYWHERE HONOURED IT. The control existed
+    // and the consumer did not — the TPL-1 pattern, named on that row.
+    //
+    // WHAT MAKES THE REFUSAL POSSIBLE NOW and did not before: a Weekly template
+    // needs a day-of-week and a Monthly one a day-of-month, and DEBT-61 records
+    // across four riders that NEITHER WAS COLLECTED. CalendarEvent.recurrence +
+    // startDate collect exactly those, so there is somewhere for the answer to
+    // come from and this stops being a refusal with no alternative.
+    //
+    // 409 RATHER THAN 403. The caller is allowed to do this; the TEMPLATE is not
+    // eligible. A 403 would read as a permission problem and send an admin to
+    // /users looking for a capability that was never involved.
+    //
+    // THE PREDICATE IS dayCloseAppliesTo(), REUSED, NEVER RE-DERIVED. It is
+    // already the single expression of "is this a Daily template" at three sites
+    // (src/lib/checklist-lifecycle.ts). A fourth site spelling `=== "Daily"` for
+    // itself is exactly the quiet-disagreement failure CHK-3's defect is
+    // recorded under — a second definition does not disagree loudly, it
+    // disagrees quietly and is then believed because it has a plausible name.
+    if (!dayCloseAppliesTo(template.frequency)) {
+      return NextResponse.json(
+        { error: "This template runs weekly or monthly. Add it to the calendar to schedule it." },
+        { status: 409 }
+      )
+    }
+
     const w = businessDayWindow(now, store.timezone)
     const existing = await prisma.checklist.findFirst({
       where: { organizationId: org.id, storeId: body.storeId, templateId: body.templateId, date: { gte: w.gte, lt: w.lt } },
@@ -169,17 +201,19 @@ export async function POST(req: Request) {
     if (existing) return NextResponse.json({ id: existing.id }, { status: 200 })
 
     const hours = (await hoursByStore([body.storeId])).get(body.storeId) ?? []
-    const checklist = await prisma.checklist.create({
-      data: {
-        organizationId: org.id,
-        storeId: body.storeId,
-        templateId: body.templateId,
-        date: w.gte,
-        status: "Pending",
-        ...freezeWindow(template, hours, w.day, store.timezone),
-      },
+    // CAL-2: the create is createChecklistForDate() in ./expectations.ts, shared
+    // with the bulk loop below and with the calendar's materialise cron. `w.day`
+    // is this store's local today — the same date `w.gte` expresses as a column
+    // value — so nothing about this path's behaviour moves.
+    const created = await createChecklistForDate(prisma, {
+      organizationId: org.id,
+      storeId: body.storeId,
+      template,
+      dateStr: w.day,
+      timeZone: store.timezone,
+      hours,
     })
-    return NextResponse.json({ id: checklist.id }, { status: 201 })
+    return NextResponse.json({ id: created.id }, { status: 201 })
   }
 
   // Bulk: generate for all stores × all applicable templates. Org-wide by
@@ -214,6 +248,12 @@ export async function POST(req: Request) {
   const hoursByStoreId = await hoursByStore(stores.map((s) => s.id))
 
   const created: string[] = []
+  // RULING 1 (Gary, 2026-09-18) — COUNTED, NOT SILENT. A bulk run that created
+  // nothing because every template is already generated and one that created
+  // nothing because every template is weekly must not read identically to
+  // whoever pressed the button. This is CHK-3's counter lesson, applied at the
+  // site DEBT-61 names as the source of the litter.
+  let skippedNonDaily = 0
   for (const store of stores) {
     const w = businessDayWindow(now, store.timezone)
     const hours = hoursByStoreId.get(store.id) ?? []
@@ -224,24 +264,40 @@ export async function POST(req: Request) {
           : true
       if (!applicable) continue
 
+      // ── RULING 1 — THE LOOP THAT WROTE DEBT-61's LITTER, STOPPED ────────────
+      // This is the line that row has been waiting for across four riders.
+      // Until now this loop created a Weekly template's checklist EVERY DAY at
+      // EVERY STORE — "a Weekly template silently accrues one Pending row per
+      // store per day, forever, and every one of them is a row a human could
+      // open". The three containment gates stopped the fiction being COUNTED;
+      // none of them stopped it being CREATED. This does.
+      //
+      // Rows ALREADY on disk are untouched. Deleting data was explicitly out of
+      // DEBT-61's closing scope, the operations report still excludes them, and
+      // a calendar occurrence landing on the same (store, template, date)
+      // ADOPTS one rather than orphaning a second beside it — see
+      // createChecklistForDate() in ./expectations.ts.
+      if (!dayCloseAppliesTo(template.frequency)) {
+        skippedNonDaily++
+        continue
+      }
+
       const existing = await prisma.checklist.findFirst({
         where: { organizationId: org.id, storeId: store.id, templateId: template.id, date: { gte: w.gte, lt: w.lt } },
       })
       if (!existing) {
-        const checklist = await prisma.checklist.create({
-          data: {
-            organizationId: org.id,
-            storeId: store.id,
-            templateId: template.id,
-            date: w.gte,
-            status: "Pending",
-            ...freezeWindow(template, hours, w.day, store.timezone),
-          },
+        const row = await createChecklistForDate(prisma, {
+          organizationId: org.id,
+          storeId: store.id,
+          template,
+          dateStr: w.day,
+          timeZone: store.timezone,
+          hours,
         })
-        created.push(checklist.id)
+        created.push(row.id)
       }
     }
   }
 
-  return NextResponse.json({ created: created.length }, { status: 201 })
+  return NextResponse.json({ created: created.length, skippedNonDaily }, { status: 201 })
 }

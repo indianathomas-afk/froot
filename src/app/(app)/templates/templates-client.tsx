@@ -59,9 +59,36 @@ type Template = {
   // TPL-1b: joined by GET /api/templates. Null for a template imported during
   // the TPL-1a window, which still renders correctly from `type`.
   templateType: { id: string; name: string; colorKey: string } | null
+  // CAL-2: the ACTIVE calendar entries scheduling this template. Empty for
+  // every Daily template and for any non-Daily one nobody has scheduled.
+  calendarEvents?: { id: string; recurrence: string; startDate: string }[]
 }
 
 type SortKey = "created" | "name" | "tasks"
+
+/** CAL-2. What the card says about when this template runs, or null for a Daily
+ *  one. The predicate is the frequency string rather than dayCloseAppliesTo()
+ *  because this file is a client component and that module pulls in the whole
+ *  lifecycle engine for one comparison — the values are the three the form
+ *  offers and nothing else can be stored. */
+function scheduleLine(t: Template): string | null {
+  if ((t.frequency ?? "Daily").trim() === "Daily") return null
+  const ev = t.calendarEvents?.[0]
+  if (!ev) return "Not scheduled — add to calendar"
+  // `startDate` is a @db.Date column, so Prisma hands back a Date and
+  // NextResponse.json serialises it to a FULL ISO instant — not "YYYY-MM-DD".
+  // Slice to the civil date and re-anchor at UTC midnight, so the label can
+  // never be shifted a day by the reader's own timezone. (§ Database Evidence:
+  // a database timestamp is UTC and everything local is not; the DATE column
+  // exists precisely so there is no time here to misread.)
+  const when = new Date(`${ev.startDate.slice(0, 10)}T00:00:00.000Z`).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
+  return `Scheduled: ${ev.recurrence} from ${when}`
+}
 
 export default function TemplatesClient() {
   const [templates, setTemplates] = useState<Template[]>([])
@@ -391,6 +418,20 @@ export default function TemplatesClient() {
                       {template.availabilityType === "StoreHours" ? "Store Hours" : "All Day"}
                     </span>
                   </div>
+                  {/* ── CAL-2, RULING 1 — THE SCHEDULE LINE ────────────────────
+                      A NEW LINE, NOT AN EDIT: this card has never rendered
+                      `frequency` at all. DEBT-61 says the value "prints back at
+                      them on the template page", and it does — on /templates/[id]
+                      and on the print view — but NOT here, which is the page an
+                      operator actually looks at when they wonder what runs when.
+                      Daily templates say nothing: they generate the way they
+                      always have and a line about it would be noise on every
+                      card in the list. */}
+                  {scheduleLine(template) && (
+                    <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
+                      <span>{scheduleLine(template)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <p className="text-xs text-[var(--color-muted-foreground)] mb-3">

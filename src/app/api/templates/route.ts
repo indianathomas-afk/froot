@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessTemplatesManage } from "./access"
+import { archiveCalendarEventsForTemplates } from "./archive-cascade"
 import { resolveTemplateType } from "./template-type"
 import { SectionConflict, sectionsFromTasks, syncTemplateSections, type IncomingSection } from "./sections"
 import { NextResponse } from "next/server"
@@ -27,6 +28,16 @@ export async function GET() {
       // (which that endpoint filters out). A null here — a CSV import from the
       // TPL-1a window — falls back to the legacy string in neutral grey.
       templateType: { select: { id: true, name: true, colorKey: true } },
+      // CAL-2: the ACTIVE calendar entry scheduling this template, if any. The
+      // /templates card renders "Scheduled: Weekly from Mon Sep 21" or "Not
+      // scheduled — add to calendar" from it (ruling 1). Archived events are
+      // excluded, so archiving a schedule puts the row back to "Not scheduled"
+      // rather than leaving it claiming a rule that no longer runs.
+      calendarEvents: {
+        where: { isArchived: false },
+        select: { id: true, recurrence: true, startDate: true },
+        orderBy: { createdAt: "asc" },
+      },
     },
     orderBy: { createdAt: "asc" },
   })
@@ -51,12 +62,30 @@ export async function PATCH(req: Request) {
   if (isActive !== undefined) data.isActive = isActive
   if (isArchived !== undefined) data.isArchived = isArchived
 
-  await prisma.template.updateMany({
-    where: { id: { in: ids }, organizationId: org.id },
-    data,
+  // ── CAL-2, RULING 6 / R4 — THE BULK ARCHIVE CASCADES TOO ────────────────────
+  // THE /templates GRID'S BULK BAR REACHES THIS ROUTE, NOT PATCH
+  // /api/templates/[id] — and it is the control an operator actually uses to
+  // archive several templates at once. A cascade wired only to the per-template
+  // route would be absent exactly where it is most likely to be needed. The
+  // rule and its asymmetries live once, in ./archive-cascade.ts.
+  //
+  // Deactivate (`isActive`) is untouched and REVERSIBLE by design — R4. Only an
+  // archive cascades.
+  //
+  // CAL-2b: the cascade READS before it deletes — it asks, per Open occurrence,
+  // whether the checklist it created was ever started — so this is now an
+  // interactive transaction. The counts are returned rather than swallowed: an
+  // archive that silently deleted or silently kept a checklist is exactly what
+  // this fix exists to stop being invisible.
+  const cascade = await prisma.$transaction(async (tx) => {
+    await tx.template.updateMany({
+      where: { id: { in: ids }, organizationId: org.id },
+      data,
+    })
+    return isArchived === true ? await archiveCalendarEventsForTemplates(tx, org.id, ids) : null
   })
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, ...(cascade ? { cascade } : {}) })
 }
 
 export async function POST(req: Request) {

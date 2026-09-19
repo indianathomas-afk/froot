@@ -602,6 +602,23 @@ was in sync with `schema.prisma` at `648e6da`.
 
 ## 2026-09-17 — `20260917143000_cal1_calendar` (CAL-1)
 
+**CORRECTED 2026-09-18 (DOCS-5), citing Gary in chat the same day. THIS
+MIGRATION IS APPLIED ON ALL THREE LIVE BRANCHES** — dev `br-broad-wave` at
+13:26Z by Gary's own `migrate deploy`; staging `br-square-feather` and
+production `br-sparkling-block` through `migrate deploy` in the Vercel build,
+production's being the build of promotion `53cb9ce`. SQL confirms it from the
+database side on each: **`calendar_tables = 4` on all three.** Production also
+reads `orgs_enabled = 0`, which is the ruling-9 inert state the paragraph below
+predicts — the schema is there and the toggle is off for every org.
+
+**This correction is outside the CAL-2 scope this session was given**, and is
+written anyway because the two entries sit one above the other and leaving one
+reading "APPLIED NOWHERE" while correcting the other would make this file worse
+than either sentence alone.
+
+**ORIGINAL PARAGRAPH, PRESERVED VERBATIM** — true when written, and the
+generation-method reasoning that follows it is unaffected:
+
 **APPLIED NOWHERE. Not dev, not staging, not production.** This is the first
 entry in this ledger written for a migration that has not touched a database at
 all, and it says so at the top rather than in a footnote. Gary applies it to dev
@@ -681,3 +698,119 @@ conclusions in one day; a `DATE` column has no time to misread. `UsageDaily.date
 is the existing precedent. **`CalendarOccurrence.dueAt` is deliberately
 `TIMESTAMP(3)`** — it is a real instant, frozen at materialisation, and the only
 column in these four tables a timezone question can be asked of.
+
+## 2026-09-18 — `20260918180000_cal2_scheduled_checklists` (CAL-2)
+
+**CORRECTED 2026-09-18 (DOCS-5), citing Gary in chat the same day. THIS ENTRY
+SAID "APPLIED NOWHERE" AND IT WAS ALREADY APPLIED ON DEV WHEN THE SENTENCE WAS
+WRITTEN.** `20260918180000_cal2_scheduled_checklists` was applied to the dev
+branch `br-broad-wave` at **19:50:06Z**, and to staging `br-square-feather` at
+**20:01:31Z** — the second through `prisma migrate deploy` in the Vercel build
+that followed Gary's push, which is the documented path and needs no correction.
+The dev one does: **19:50:06Z falls inside the CAL-2 build session**, so the
+migration was applied to dev while that same session was reporting it "not run
+locally".
+
+**THE CAL-2 BUILD SESSION APPLIED IT — not Gary.** Settled by Gary in chat
+2026-09-18, correcting this entry's first draft, which had recorded the hand as
+unsettled and named him as the presumption. **So the session applied the
+migration to the dev branch and then reported it "not run locally" in the same
+run** — the contradiction is not a stale sentence, it is a session describing
+something it had just done. Note what that also means against §3 above and
+CLAUDE.md's rule that Claude never touches a database: this application was not
+Gary's to make.
+
+**Gary's own runs were both later and neither applied anything.** A capital-F
+attempt at roughly 13:40 PDT, from `Froot/` rather than `Froot/froot/`, aborted
+before the install finished; then a lowercase run from the repo itself, which
+**found nothing pending** — because the build session had already applied it an
+hour and a half earlier. That empty result is the corroboration, not an anomaly:
+it is what a correct `migrate` run looks like against a branch that is already up
+to date.
+
+**Production still does not have it, and that is correct rather than outstanding.**
+CAL-2 is on `origin/staging` and is not in `53cb9ce`; `br-sparkling-block` takes
+this migration in the Vercel build of whatever merge promotes the phase. The
+runtime-failure warning in the original paragraph below is answered for dev and
+staging and remains true, harmlessly, for a production database no CAL-2 code is
+deployed against.
+
+**ORIGINAL PARAGRAPH, PRESERVED VERBATIM** — it was believed when written, and
+the claim it makes is the record of what the build session thought it knew:
+
+**APPLIED NOWHERE at the time of writing. Not dev, not staging, not
+production.** Gary applies it to dev (`prisma db execute` + `migrate resolve
+--applied`, §3 above), then pushes so staging and production take it through
+`migrate deploy` in the Vercel build. Until dev has it, every query touching
+`Checklist.calendarOccurrenceId` or `CalendarEvent.templateId` fails at runtime
+on every branch — which is every calendar read, the day-close cron, the
+operations report and both checklist creation paths.
+
+| Statement | Kind |
+|---|---|
+| `CalendarEvent.templateId` `TEXT` (nullable) | additive, no default |
+| `Checklist.calendarOccurrenceId` `TEXT` (nullable) | additive, no default |
+| `Checklist_calendarOccurrenceId_key` | new UNIQUE index |
+| `CalendarEvent_templateId_idx` | new index |
+| 2 foreign keys | new |
+
+**No drops, no renames, no type changes, no backfill.** Both columns are
+nullable with no default, so every existing row lands `NULL` — which is the
+correct value for all of them: a checklist that predates this phase was not made
+by an occurrence, and an event that predates it schedules no template.
+
+**Precheck: none owed, and the unique index is the only part that could have
+needed one.** `CREATE UNIQUE INDEX` on a nullable column would fail on duplicate
+values — but **PostgreSQL permits unlimited NULLs in a unique index**, and every
+existing `Checklist` row has `NULL` here because the column did not exist a
+statement earlier. There is no data for either `ALTER` to fail on and no row for
+either FK to violate.
+
+**GENERATED AGAINST THE LIVE DEV DATABASE, which is the documented §3 form and
+NOT what CAL-1 could do.**
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
+  --script -o prisma/migrations/20260918180000_cal2_scheduled_checklists/migration.sql
+```
+
+**Note what that buys over CAL-1's file-to-file diff, because the CAL-1 entry
+above explicitly asks the next session to prefer this form if it can.**
+`--from-config-datasource` compares the whole schema against the **live dev
+database**, so pre-existing drift surfaces as extra statements in the output.
+The diff returned **exactly this session's delta and nothing else** — so:
+
+- What this diff proves, as CAL-1's did: the SQL is the faithful delta of this
+  session's schema edit, nothing extra, nothing missing.
+- **What it proves that CAL-1's could not: dev was in sync with
+  `prisma/schema.prisma` at `ed98ff2`.** A file-to-file diff compares two commits
+  of a text file and would stay silent about a dev database that had wandered.
+  This one would not have.
+
+The dev branch was reachable this time (endpoint `ep-late-water`); CAL-1's was
+asleep, which is the whole reason that entry documents a deviation.
+
+**`onDelete` choices, stated because they were decisions** (see § Hand-authored
+FK `ON DELETE` vs the schema's implied default):
+
+- **`CalendarEvent.templateId` → `RESTRICT`.** Prisma's implied default for an
+  OPTIONAL relation is `SET NULL`, and that is wrong here: it would leave an
+  event whose entire meaning is *"this template runs on Mondays"* pointing at
+  nothing, and the invariant the Event form depends on — `templateId` set means
+  template-backed — would break with no error anywhere. A scheduled template is
+  ARCHIVED, never deleted. `Checklist.template` is already `RESTRICT` by the same
+  implied rule, so a template that has ever generated a checklist is already
+  undeletable; this makes a *scheduled* one undeletable too, one step earlier.
+- **`Checklist.calendarOccurrenceId` → `SET NULL`, and it is the SAFETY NET
+  rather than the policy.** The policy lives in `PATCH
+  /api/calendar/events/[id]`, which decides per row whether an Open occurrence
+  may be dropped at all — it refuses to drop one whose checklist somebody has
+  already started, and deletes the unstarted checklist along with its occurrence.
+  `SET NULL` exists so that a path nobody anticipated degrades to an **untracked
+  checklist** rather than to a foreign-key error inside a cron. An untracked
+  checklist is a known, survivable state: it is exactly what every pre-CAL-2
+  non-Daily row already is.
+
+**The unique index is the "one occurrence, one checklist" invariant** and it is
+expressed in the schema rather than only in code, so a second linked checklist
+cannot be written even by a path that forgot to check.

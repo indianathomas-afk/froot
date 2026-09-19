@@ -54,8 +54,13 @@ export async function GET(req: Request) {
       event: { isArchived: false },
     },
     include: {
-      event: { select: { title: true, category: true, priority: true } },
+      // CAL-2: `templateId` is what tells the banner to render "Open checklist"
+      // instead of an inline Complete (ruling 3) — and the complete route
+      // refuses a template-backed row independently, so the banner is the
+      // affordance and not the gate.
+      event: { select: { title: true, category: true, priority: true, templateId: true } },
       store: { select: { name: true, timezone: true } },
+      checklist: { select: { id: true } },
     },
     orderBy: { dueAt: "asc" },
   })
@@ -71,7 +76,18 @@ export async function GET(req: Request) {
     timeZone: o.store.timezone,
     dueDate: o.dueDate.toISOString().slice(0, 10),
     dueAt: o.dueAt.toISOString(),
-    daysOverdue: daysOverdue(o.dueAt, now),
+    // CAL-2b / DEBT-101: CALENDAR DAYS, counted in THIS store's zone. The
+    // cutoff above takes the WIDEST store-local today across the scope because
+    // it decides what is VISIBLE; the count is per row because it decides what a
+    // store is told about its own reminder, and a store two zones east must not
+    // be handed another store's today. Same distinction as dueDate vs dueAt.
+    daysOverdue: daysOverdue(
+      { dueAt: o.dueAt, dueDate: o.dueDate.toISOString().slice(0, 10) },
+      localDateStr(now, o.store.timezone),
+      now
+    ),
+    templateId: o.event.templateId,
+    checklistId: o.checklist?.id ?? null,
   }))
 
   const overdue = items.filter((i) => i.dueAt <= now.toISOString())
