@@ -163,10 +163,15 @@ export function CalendarDueBanner() {
                 somebody reads on the way past would be a small, daily lie. */}
             {data.items.length} item{plural} due
           </p>
-          {overdue && data.maxDaysOverdue > 0 && (
+          {/* CAL-2b / DEBT-101 — "DUE TODAY", NEVER "0 DAYS OVERDUE".
+              The count is calendar days now, so an item past its store close on
+              its own due date is genuinely overdue AND genuinely zero days old.
+              The banner already went red for it; this line says what the number
+              means instead of leaving the escalation unexplained. */}
+          {overdue && (
             <p className="text-xs opacity-90">
               <strong className="font-bold">
-                {data.maxDaysOverdue} {dayWord} overdue
+                {data.maxDaysOverdue > 0 ? `${data.maxDaysOverdue} ${dayWord} overdue` : "Due today"}
               </strong>
             </p>
           )}

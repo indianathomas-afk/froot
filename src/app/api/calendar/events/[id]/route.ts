@@ -8,6 +8,11 @@ import {
   resolveEventStoreWrite,
 } from "@/lib/calendar-access"
 import { CALENDAR_PRIORITIES, CALENDAR_RECURRENCES, normalizeCategory } from "@/lib/calendar"
+import {
+  STARTED_SELECT,
+  deleteOpenOccurrencesWithCleanup,
+  isStarted,
+} from "@/lib/calendar-occurrence-cleanup"
 
 // CAL-1 — edit and archive. Both are calendar.manage (ruling 5).
 
@@ -161,12 +166,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // ones go, and their checklist goes with them — nothing was lost, and
     // leaving an unstarted checklist behind would be litter of a new kind.
     if (scheduleChanged) {
+      // CAL-2b: the predicate and its SELECT now live in
+      // src/lib/calendar-occurrence-cleanup.ts, shared with the three ARCHIVE
+      // paths. The split below is still this route's own — an archive deletes
+      // every Open occurrence and only the CHECKLIST's fate turns on "started",
+      // whereas a re-derive keeps the started OCCURRENCE too, because its date
+      // still has to happen. Two behaviours, one definition of started.
       const open = await tx.calendarOccurrence.findMany({
         where: { eventId: id, status: "Open" },
-        select: { id: true, checklist: { select: { id: true, _count: { select: { taskLogs: true } } } } },
+        select: STARTED_SELECT,
       })
-      const started = open.filter((o) => (o.checklist?._count.taskLogs ?? 0) > 0)
-      const droppable = open.filter((o) => (o.checklist?._count.taskLogs ?? 0) === 0)
+      const started = open.filter(isStarted)
+      const droppable = open.filter((o) => !isStarted(o))
 
       keptStarted = started.length
 
@@ -204,6 +215,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 // schedule was retired is worse than leaving a row day close will no longer
 // judge. It is a hand-archived event, not a cron path, so it is a deliberate
 // act with a person behind it.
+//
+// ── CAL-2b — THE TRADE ABOVE WAS PRICED FOR A CHECKLIST SOMEBODY WAS PART-WAY
+// THROUGH, AND IT WAS APPLIED TO ALL OF THEM ─────────────────────────────────
+// "Somebody may be part-way through it" is the whole argument, and it is only
+// true of a STARTED checklist. CAL-2's materialise cron creates them UNSTARTED,
+// so in practice this branch produced untracked Pending rows nobody had touched
+// — twelve of them from one archive, observed on staging 2026-09-18, all of
+// them then skipped by day close as `frequencyExcluded`. That is DEBT-61's
+// litter, remade by the feature that closed DEBT-61, and the paragraph above
+// authorised it without ever meaning to.
+//
+// So the trade is now made per row, on S5-D78's own definition of started
+// (src/lib/calendar-occurrence-cleanup.ts): a checklist with task logs on it is
+// kept and unlinked exactly as described above, and one with none is deleted
+// with the occurrence that created it. Nothing that records work is destroyed;
+// nothing that records nothing survives. COMPLETED occurrences are still never
+// touched, and neither are their checklists.
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const access = await requireCalendar("calendar.manage")
   if (!access.ok) return NextResponse.json(calendarDenialBody(access.reason), { status: calendarDenialStatus(access.reason) })
@@ -215,10 +243,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   })
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  await prisma.$transaction([
-    prisma.calendarEvent.update({ where: { id }, data: { isArchived: true } }),
-    prisma.calendarOccurrence.deleteMany({ where: { eventId: id, status: "Open" } }),
-  ])
+  const cascade = await prisma.$transaction(async (tx) => {
+    await tx.calendarEvent.update({ where: { id }, data: { isArchived: true } })
+    return deleteOpenOccurrencesWithCleanup(tx, { eventId: id, organizationId: access.org.id })
+  })
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, cascade })
 }

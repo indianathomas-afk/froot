@@ -349,12 +349,42 @@ export function dueAtFor(
   return dayCloseInstant(hoursRow, dueDate, store.timezone, 0).at
 }
 
-/** Whole days an occurrence is overdue at `now`, or 0 if it is not yet overdue.
- *  The banner's "N days overdue" (B7) — one definition, because the banner and
- *  any later report must not each round it their own way. Counts ELAPSED whole
- *  days, so an occurrence two hours past its dueAt is 0 days overdue and reads
- *  as simply "due" rather than "0 days overdue". */
-export function daysOverdue(dueAt: Date, now: Date): number {
-  const ms = now.getTime() - dueAt.getTime()
-  return ms <= 0 ? 0 : Math.floor(ms / 86_400_000)
+/**
+ * Calendar days an occurrence is overdue at `now`, or 0 if it is not yet
+ * overdue. The banner's "N days overdue" (B7) — one definition, because the
+ * banner and any later report must not each round it their own way.
+ *
+ * ── CAL-2b — DATES, NOT 24-HOUR PERIODS (DEBT-101) ──────────────────────────
+ * Ruled by Gary, 2026-09-18, in one word: "date."
+ *
+ * THIS USED TO COUNT ELAPSED MILLISECONDS and floor them to whole days, which
+ * made the number depend on the TIME OF DAY the reminder was due and the time of
+ * day somebody happened to look. A reminder due late Monday afternoon read "3
+ * days overdue" at breakfast on Friday and "4" that evening — the same reminder,
+ * the same Friday, two answers. Nobody counts overdue-ness that way out loud.
+ *
+ * It now counts STORE-LOCAL CALENDAR DAYS from `dueDate` to `today`, so a
+ * reminder due Monday reads "4 days overdue" at ANY hour on Friday.
+ *
+ * WHAT DID NOT CHANGE, AND THE DISTINCTION IS THE WHOLE RULING: OVERDUE-NESS
+ * STILL BEGINS AT `dueAt` (ruling 8 — store close, or the explicit dueTime).
+ * The instant decides WHETHER; the dates decide HOW MANY. So an occurrence due
+ * at 17:00 and looked at at 19:00 is overdue — and is 0 days overdue, which the
+ * banner renders as "due today" rather than as "0 days overdue".
+ *
+ * `today` IS PASSED IN, not derived, for the reason stated at the top of this
+ * file: nothing here reads a timezone except dueAtFor(). The caller resolves the
+ * store's local today — per STORE, never per server (CAL-2a) — and hands it over
+ * as a "YYYY-MM-DD".
+ */
+export function daysOverdue(
+  occurrence: { dueAt: Date; dueDate: string },
+  today: string,
+  now: Date
+): number {
+  // Ruling 8's gate, unchanged and deliberately first: before the due instant
+  // there is no overdue-ness to count, whatever the calendar says.
+  if (now.getTime() <= occurrence.dueAt.getTime()) return 0
+  const days = daysBetween(occurrence.dueDate, today)
+  return days > 0 ? days : 0
 }

@@ -59,12 +59,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // any of them created — the same rule DELETE /api/calendar/events/[id]
     // already follows. They record work that happened, and archiving a
     // definition cannot unmake it.
+    //
+    // CAL-2b: the cascade now READS before it deletes (it has to ask whether
+    // each Open occurrence's checklist was started), so this is an interactive
+    // transaction rather than an array of promises. The counts come back so the
+    // caller — and a staging run — can see what the archive actually did.
     if (body.isArchived === true) {
-      const [updated] = await prisma.$transaction([
-        prisma.template.update({ where: { id }, data: { isArchived: true } }),
-        ...archiveCalendarEventsForTemplates(org.id, [id]),
-      ])
-      return NextResponse.json(updated)
+      const { updated, cascade } = await prisma.$transaction(async (tx) => {
+        const row = await tx.template.update({ where: { id }, data: { isArchived: true } })
+        return { updated: row, cascade: await archiveCalendarEventsForTemplates(tx, org.id, [id]) }
+      })
+      return NextResponse.json({ ...updated, cascade })
     }
 
     const updated = await prisma.template.update({ where: { id }, data: { isArchived: body.isArchived } })

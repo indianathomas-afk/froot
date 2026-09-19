@@ -1,4 +1,8 @@
-import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
+import {
+  deleteOpenOccurrencesWithCleanup,
+  type OccurrenceCleanupReport,
+} from "@/lib/calendar-occurrence-cleanup"
 
 // CAL-2 — RULING 6, AS REWORDED BY R4 (Gary, 2026-09-18).
 //
@@ -33,24 +37,39 @@ import { prisma } from "@/lib/prisma"
 // undoing it means adding the template to the calendar again, which is one
 // click and is honest about what it is doing.
 
+// ── CAL-2b — AND THE OPEN OCCURRENCES NO LONGER LEAVE THEIR CHECKLISTS BEHIND
+// The paragraph above says Checklists are never touched. That was written when
+// "never touched" and "never orphaned" looked like the same sentence; they are
+// not. Deleting an Open occurrence SetNulls its checklist's link, and CAL-2's
+// materialised checklists are created UNSTARTED — so an archive left a pile of
+// Pending, unlinked rows that day close then skips as `frequencyExcluded`.
+// Twelve of them, from one archive, on staging on 2026-09-18.
+//
+// So the sentence is now precise: a checklist SOMEBODY STARTED is never
+// touched, and an unstarted one is deleted with the occurrence that made it.
+// The predicate is S5-D78's, shared with the PATCH re-derive rather than
+// restated here — see src/lib/calendar-occurrence-cleanup.ts. COMPLETED
+// occurrences are still not touched at all, and neither are their checklists.
+
 /** Archive every calendar event for these templates and drop their Open
- *  occurrences. Call INSIDE the same transaction as the template write, so a
- *  template can never be archived with its events left live. */
-export function archiveCalendarEventsForTemplates(
+ *  occurrences, cleaning up the unstarted checklists those occurrences created.
+ *
+ *  MUST BE CALLED INSIDE THE SAME TRANSACTION as the template write, so a
+ *  template can never be archived with its events left live. It reads before it
+ *  deletes, so it takes the transaction client rather than returning an array of
+ *  promises the way it did before CAL-2b. */
+export async function archiveCalendarEventsForTemplates(
+  tx: Prisma.TransactionClient,
   orgId: string,
   templateIds: string[]
-) {
-  return [
-    prisma.calendarEvent.updateMany({
-      where: { templateId: { in: templateIds }, organizationId: orgId, isArchived: false },
-      data: { isArchived: true },
-    }),
-    prisma.calendarOccurrence.deleteMany({
-      where: {
-        organizationId: orgId,
-        status: "Open",
-        event: { templateId: { in: templateIds } },
-      },
-    }),
-  ]
+): Promise<OccurrenceCleanupReport> {
+  await tx.calendarEvent.updateMany({
+    where: { templateId: { in: templateIds }, organizationId: orgId, isArchived: false },
+    data: { isArchived: true },
+  })
+
+  return deleteOpenOccurrencesWithCleanup(tx, {
+    organizationId: orgId,
+    event: { templateId: { in: templateIds } },
+  })
 }

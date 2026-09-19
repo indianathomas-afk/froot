@@ -180,13 +180,39 @@ check(
   "2026-09-18T07:00:00.000Z" // 00:00 PDT on the 18th = 07:00 UTC
 )
 
-console.log("\n8 · daysOverdue — one definition, so the banner cannot round its own way")
+console.log("\n8 · daysOverdue — CALENDAR DAYS (DEBT-101), so the banner cannot round its own way")
 
-const due = new Date("2026-09-17T07:00:00.000Z")
-check("22a. before dueAt → 0", daysOverdue(due, new Date("2026-09-17T06:00:00.000Z")), 0)
-check("22b. two hours past → still 0 (reads as 'due', not '0 days overdue')", daysOverdue(due, new Date("2026-09-17T09:00:00.000Z")), 0)
-check("22c. one full day → 1", daysOverdue(due, new Date("2026-09-18T08:00:00.000Z")), 1)
-check("22d. three full days → 3", daysOverdue(due, new Date("2026-09-20T08:00:00.000Z")), 3)
+// ── CAL-2b — THIS SECTION CHANGED, AND THE CHANGE IS THE RULING ──────────────
+// Gary, 2026-09-18, in one word: "date." daysOverdue() used to floor ELAPSED
+// MILLISECONDS to whole days, so the answer depended on the hour a reminder was
+// due and the hour somebody looked. It now counts store-local CALENDAR DAYS from
+// dueDate to today. Overdue-ness still BEGINS at dueAt (ruling 8) — the instant
+// decides whether, the dates decide how many — which is why 22a and 22b below
+// still read 0 and are the cases that prove the gate survived the change.
+//
+// The fixture store is America/Los_Angeles (PDT in September), so 14:00 local on
+// the 17th is 21:00Z on the 17th.
+const dueDate = "2026-09-17"
+const dueAt = dueAtFor(store, null, dueDate, "14:00")
+check("22. the fixture's dueAt is 14:00 PDT", dueAt.toISOString(), "2026-09-17T21:00:00.000Z")
+
+const at = (iso: string, today: string) => daysOverdue({ dueAt, dueDate }, today, new Date(iso))
+
+check("22a. before dueAt → 0 (ruling 8's gate, unchanged)", at("2026-09-17T20:00:00.000Z", "2026-09-17"), 0)
+check("22b. two hours past close, same local day → 0 (reads as 'due today')", at("2026-09-17T23:00:00.000Z", "2026-09-17"), 0)
+check("22c. next calendar day → 1", at("2026-09-18T15:00:00.000Z", "2026-09-18"), 1)
+check("22d. three calendar days → 3", at("2026-09-20T15:00:00.000Z", "2026-09-20"), 3)
+
+// THE RULING'S OWN EXAMPLE, and the case the old rule got wrong. Due Monday the
+// 14th at 14:00 PDT, looked at on Friday the 18th: elapsed-hours floors to 3
+// until 14:00 on Friday and only then says 4. The answer is 4 ALL DAY.
+const monday = "2026-09-14"
+const mondayDueAt = dueAtFor(store, null, monday, "14:00")
+const onFriday = (iso: string) =>
+  daysOverdue({ dueAt: mondayDueAt, dueDate: monday }, "2026-09-18", new Date(iso))
+check("22e. due Monday, Friday 00:30 PDT → 4 (old rule: 3)", onFriday("2026-09-18T07:30:00.000Z"), 4)
+check("22f. due Monday, Friday 09:00 PDT → 4 (old rule: 3)", onFriday("2026-09-18T16:00:00.000Z"), 4)
+check("22g. due Monday, Friday 20:00 PDT → 4 (old rule: 4 — the only hour it agreed)", onFriday("2026-09-19T03:00:00.000Z"), 4)
 
 console.log(failures === 0 ? "\n✓ ALL PASS\n" : `\n✗ ${failures} CHECK(S) FAILED\n`)
 process.exit(failures === 0 ? 0 : 1)

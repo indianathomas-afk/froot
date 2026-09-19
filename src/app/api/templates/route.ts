@@ -71,16 +71,21 @@ export async function PATCH(req: Request) {
   //
   // Deactivate (`isActive`) is untouched and REVERSIBLE by design — R4. Only an
   // archive cascades.
-  const cascade = isArchived === true ? archiveCalendarEventsForTemplates(org.id, ids) : []
-  await prisma.$transaction([
-    prisma.template.updateMany({
+  //
+  // CAL-2b: the cascade READS before it deletes — it asks, per Open occurrence,
+  // whether the checklist it created was ever started — so this is now an
+  // interactive transaction. The counts are returned rather than swallowed: an
+  // archive that silently deleted or silently kept a checklist is exactly what
+  // this fix exists to stop being invisible.
+  const cascade = await prisma.$transaction(async (tx) => {
+    await tx.template.updateMany({
       where: { id: { in: ids }, organizationId: org.id },
       data,
-    }),
-    ...cascade,
-  ])
+    })
+    return isArchived === true ? await archiveCalendarEventsForTemplates(tx, org.id, ids) : null
+  })
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, ...(cascade ? { cascade } : {}) })
 }
 
 export async function POST(req: Request) {

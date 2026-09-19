@@ -135,6 +135,12 @@ function Chip({
   // Ruling 8 says overdue begins at store close; re-expressing this as a
   // store-local DATE comparison would say a reminder due at 17:00 is not
   // overdue at 19:00, which is the ruling changed rather than the zone fixed.
+  //
+  // CAL-2b RE-CONFIRMS IT, and this is the line that could most easily have been
+  // swept up by mistake. DEBT-101 moved the COUNT to calendar days ("date.",
+  // Gary 2026-09-18) and left the GATE at `dueAt` untouched — whether, not how
+  // many. The chip only ever draws the gate: it shows a red edge, never a
+  // number, so there was nothing here for that ruling to change.
   const overdue = !!occurrence && occurrence.status === "Open" && occurrence.dueAt <= new Date().toISOString()
   return (
     <button
