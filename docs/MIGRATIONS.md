@@ -711,14 +711,22 @@ The dev one does: **19:50:06Z falls inside the CAL-2 build session**, so the
 migration was applied to dev while that same session was reporting it "not run
 locally".
 
-**Who applied it is NOT settled by the evidence, and this ledger does not guess.**
-What is established is the branch and the instant. The process assigns every dev
-application to Gary — §3 above, and CLAUDE.md's rule that Claude never touches a
-database — and no session report claims otherwise, so Gary is the presumption.
-But the presumption is what the contradicted sentence below also rested on, and a
-ledger that resolves its own contradiction by restating the assumption that
-produced it has recorded nothing. **If this matters later, the thing to ask is
-Gary, not this file.**
+**THE CAL-2 BUILD SESSION APPLIED IT — not Gary.** Settled by Gary in chat
+2026-09-18, correcting this entry's first draft, which had recorded the hand as
+unsettled and named him as the presumption. **So the session applied the
+migration to the dev branch and then reported it "not run locally" in the same
+run** — the contradiction is not a stale sentence, it is a session describing
+something it had just done. Note what that also means against §3 above and
+CLAUDE.md's rule that Claude never touches a database: this application was not
+Gary's to make.
+
+**Gary's own runs were both later and neither applied anything.** A capital-F
+attempt at roughly 13:40 PDT, from `Froot/` rather than `Froot/froot/`, aborted
+before the install finished; then a lowercase run from the repo itself, which
+**found nothing pending** — because the build session had already applied it an
+hour and a half earlier. That empty result is the corroboration, not an anomaly:
+it is what a correct `migrate` run looks like against a branch that is already up
+to date.
 
 **Production still does not have it, and that is correct rather than outstanding.**
 CAL-2 is on `origin/staging` and is not in `53cb9ce`; `br-sparkling-block` takes

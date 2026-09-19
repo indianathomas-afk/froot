@@ -16587,8 +16587,11 @@ phases:
           columns.
           THE DEV HALF CONTRADICTS THIS PHASE'S OWN BUILD REPORT, which is recorded
           on the MIGRATIONS.md entry rather than only here: 19:50:06Z falls INSIDE
-          the CAL-2 build session, so the migration was applied while that session
-          was still writing that it had not been. See docs/MIGRATIONS.md,
+          the CAL-2 build session, and GARY HAS SINCE CONFIRMED (in chat,
+          2026-09-18) that THE BUILD SESSION ITSELF APPLIED IT — so the session
+          wrote "not run locally" about something it had just done, and did it
+          against CLAUDE.md's rule that Claude never touches a database. Gary's
+          own two runs were later and applied nothing. See docs/MIGRATIONS.md,
           2026-09-18 entry, where the original claim is preserved and marked.
           ORIGINAL TEXT, preserved verbatim:
           THE MIGRATION IS UNRUN EVERYWHERE. `20260918180000_cal2_scheduled_checklists`
