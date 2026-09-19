@@ -17441,10 +17441,41 @@ phases:
   - id: NOTIFY-1
     track: platform
     size: S
-    status: in_progress
-    commits: ["1c21368"]
+    # `in_progress` -> `staging` 2026-09-19 BY THIS PRE-PUSH-CHECK, per WORKFLOW.md
+    # session rule 4 and PRE-PUSH-CHECK Step 4: `staging` means the code is on the
+    # branch, and this check is the last thing that runs before Gary pushes. NOT
+    # PUSHED AT THE MOMENT OF WRITING — Claude never pushes.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED BY
+    # THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "8a10f8d" did not exist when
+    # the row was composed, and the two-commit pattern cannot record it. The third
+    # is the commit this line is being written in, so it is named as "the commit
+    # immediately after 8a10f8d" rather than guessed at. Same shape as CAL-2,
+    # CAL-2a and CAL-2b.
+    commits: ["1c21368", "8a10f8d"]
     title: "Real email delivery — Resend behind src/lib/notify.ts, admin test route"
     notes: >
+      ── PRE-PUSH-CHECK 2026-09-19. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here, per
+      Step 4; the line at the foot saying the check "flips this row to `staging`
+      when Gary pushes" is kept unedited and is now spent — the flip happens at the
+      check, not at the push, because nothing between the two owns it (DEBT-104).
+      NO RULING: NOTIFY-1 added and changed nothing in docs/DECISIONS.md, so Step 1
+      is a no-op and nothing was put to Gary for ratification.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. docs/DEPLOY_LOG.md entry written into the
+      file by this check, headed "UNPROMOTED — 2026-09-19", heading count 52 -> 53
+      with the `__` gate at 0. docs/FORECASTING.md § Hardening (F-5) and CLAUDE.md
+      § Environment Variables both carry the three variables. docs/prompts/NOTIFY-1.md
+      committed in "8a10f8d". Preserve-and-mark intact; no meta.updated key.
+      THE VERIFICATION STATEMENT BELOW IS UNCHANGED AND STILL BINDS: nothing has
+      been seen in an inbox, and this check observed nothing either. It read code,
+      counted lines and ran `npm run build`. Staging evidence comes after Gary
+      pushes and provisions Resend.
+      ONE FLAW FOUND AND FILED, NOT FIXED: DEBT-105. The env-validation move
+      recorded in deviation (2) below protects the CONFIG case only; a runtime send
+      failure still burns a store's monthly PaceAlertLog lock, because the row is
+      written before the send. TIER 1 — no code change here.
       Built 2026-09-19. Env-var configuration only (NOTIFY_EMAIL_PROVIDER,
       RESEND_API_KEY, NOTIFY_FROM_EMAIL); org-level recipient settings are
       HR-16's job. Fail-closed: provider=resend with a missing key or from
@@ -28295,6 +28326,56 @@ debt:
       and is still not built.
       NO STATUS — OPEN. Filed 2026-09-19 by DOCS-6b. The eight rows are flipped;
       what is open is the ritual line and Gary's ruling on it.
+
+  - id: DEBT-105
+    title: >
+      pace-alerts.ts writes the PaceAlertLog idempotency row BEFORE the send, so
+      once the provider is "resend" a failed send burns that store's
+      one-alert-per-month lock and no email ever goes out
+    notes: >
+      FOUND 2026-09-19 BY NOTIFY-1'S PRE-PUSH-CHECK, in NOTIFY-1's own commit
+      message — the message explains why the env validation was MOVED OUT of
+      send(), and the reason it gives is this flaw. The mitigation is real and the
+      flaw it describes is not fixed by it.
+      THE SEQUENCE. src/lib/pace-alerts.ts:103-122 creates the PaceAlertLog row
+      before sending, deliberately: the comment says the row IS the idempotency
+      lock, written first so a crash or a concurrent run cannot double-alert, and a
+      P2002 unique violation is read as "already alerted this month". The send
+      follows at :135. So the lock is taken on INTENT TO SEND, and nothing releases
+      it if the send then fails.
+      WHY IT WAS HARMLESS UNTIL NOW AND IS NOT ANY MORE. With the console sender,
+      send() cannot fail — it writes to stdout. NOTIFY-1 (work "1c21368") adds a
+      sender that can: a non-2xx from Resend throws, and so does the 10s
+      AbortController timeout. The moment NOTIFY_EMAIL_PROVIDER is set to "resend"
+      in an environment, every one of those failures lands AFTER the row is
+      committed.
+      WHAT THE OPERATOR SEES, WHICH IS THE WORST PART. The cron's per-store
+      try/catch (src/app/api/cron/pace-alerts/route.ts:38-43) catches the throw,
+      pushes `error: …` into its results array, console.errors it and continues —
+      correct behaviour for one bad address, and it means the run still reports
+      ok: true. The NEXT day's run finds the row and returns the clean, reassuring
+      "already alerted this month". Nothing in Froot distinguishes that from a
+      delivered alert: no AuditLog entry, no dashboard surface, no retry. The store
+      is locked out for the rest of the calendar month, and the only trace is one
+      line in a Vercel function log from the day it happened.
+      NOT THE SAME BUG NOTIFY-1 ALREADY CLOSED, and conflating them would close
+      this wrongly. NOTIFY-1 moved RESEND_API_KEY and NOTIFY_FROM_EMAIL validation
+      into getEmailSender(), which the cron calls once at route.ts:25 before its
+      store loop, so a MISCONFIGURED deployment now fails with zero rows written.
+      That covers the config case completely. It does nothing for a send that fails
+      at runtime on a correctly configured deployment, which is the case here.
+      FIX DIRECTION, EITHER OF TWO, NOT RULED. (1) Write the row AFTER a successful
+      send — simplest, and it trades this failure for the one the current order was
+      chosen to prevent: a crash between send and write, or two concurrent runs,
+      double-alerts. (2) Give PaceAlertLog a delivery status: write it first as
+      today, mark it sent on success, and let the next day's run re-attempt a row
+      that is still unsent. Keeps the double-send guard, costs a migration and a
+      decision about how many days a failed alert keeps retrying before the month
+      is written off. GARY RULES; this row does not choose.
+      NO STATUS — OPEN. Filed by NOTIFY-1's PRE-PUSH-CHECK, TIER 1, which changes
+      no code. Nothing about this is exercisable until NOTIFY-1 is pushed and
+      NOTIFY_EMAIL_PROVIDER is set to "resend" somewhere — unset today in every
+      environment, so the flaw is latent at the moment of filing.
 
 
 

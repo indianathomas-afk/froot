@@ -2,6 +2,82 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-19 — NOTIFY-1: real email delivery, Resend behind getEmailSender()
+
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed. Written by this phase's
+PRE-PUSH-CHECK, into the file, before the push — not left as a command for
+somebody to run at promotion time.
+
+**Work SHA:** `1c21368` on `staging`. **Docs SHA:** `8a10f8d`. **This check's
+own commit** is the one immediately after `8a10f8d`.
+
+**Payload: 3 commits** — the work, the docs, and this check's. **No migration,
+no schema change, no new cron, no Square call, no Clerk change, no new page
+route.** One new API route, one lib file, one fixture script.
+
+**What it does.** `src/lib/notify.ts` gains a second `EmailSender`.
+`NOTIFY_EMAIL_PROVIDER` selects it: unset or `console` keeps
+`consoleEmailSender` byte-for-byte, `resend` returns a plain-`fetch` sender
+against `https://api.resend.com/emails` with no SDK, and any other value throws
+naming the value it got and the two it accepts. `POST /api/notify/test`
+(`requireAdmin`, no request body) proves delivery from a deployed environment;
+the recipient is the caller's OWN Clerk primary email resolved server-side, so
+the route cannot be aimed at anyone else.
+
+**NOTHING HAS LEFT ANY ENVIRONMENT AND NOTHING HAS BEEN SEEN IN AN INBOX.** A
+green `npm run build` is the whole of the verification for this entry. Delivery
+is proven on staging, after Gary provisions the Resend domain, DNS and the
+Preview-scope variables, by calling the test route from an ADMIN session. The
+prompt's own "Gary's side" checklist is the procedure and includes the
+instruction NOT to fire the pace-alerts cron on staging — real manager
+addresses, fake numbers.
+
+**THE BLAST RADIUS IS AN ENVIRONMENT VARIABLE, NOT THIS MERGE.** Promoting this
+code changes nothing observable: with `NOTIFY_EMAIL_PROVIDER` unset, production
+behaves exactly as before and the console sender is unchanged byte-for-byte.
+**Setting that variable to `resend` in the Production scope is the event** — it
+is what makes the daily pace-alert cron start emailing real managers, and it can
+happen long after this promotion, from the Vercel dashboard, with no deploy. The
+variable is per-environment; read CLAUDE.md § Environment Variables before
+setting it anywhere.
+
+**Fail-closed, and it is closed at the right moment.** `RESEND_API_KEY` and
+`NOTIFY_FROM_EMAIL` are required when the provider is `resend`, and a missing one
+throws. They are validated in `getEmailSender()` rather than inside `send()`
+because `src/lib/pace-alerts.ts:103-122` writes the `PaceAlertLog` idempotency
+row BEFORE it sends: a throw at send time would burn a store's
+one-alert-per-month lock with no email delivered. The cron resolves the sender
+once at `api/cron/pace-alerts/route.ts:25`, before its store loop, so a
+misconfigured deployment fails with zero rows written.
+
+**THAT MITIGATION IS NOT A FIX, AND THE UNDERLYING FLAW SHIPS WITH THIS CODE.**
+Config errors now fail before any row is written; a RUNTIME send failure does
+not. Once the provider is `resend`, a non-2xx from Resend or the 10s
+`AbortController` timeout throws AFTER `PaceAlertLog` is committed — the cron's
+per-store `try/catch` (`route.ts:38-43`) logs it and continues, and the next
+day's run reads the row and returns "already alerted this month". The store is
+locked out for the calendar month with no email sent. **Filed as DEBT-105**, open,
+by this check.
+
+**Rollback is code-only and needs no database step.** No migration, no data
+written by this code, nothing to undo in any database. Reverting the work commit
+restores the previous `notify.ts` and removes `/api/notify/test`; any
+`PaceAlertLog` rows written by a real send in the meantime are the cron's, not
+this merge's, and stay.
+
+**Three deviations from the session prompt, all recorded on the row** — no
+`.env.example` (`.gitignore` line 34 is `.env*`; the variables are in CLAUDE.md
+instead), the env validation moved to `getEmailSender()` for the reason above,
+and a third file touched (`scripts/verify-f5-polish.ts`, the one `EmailSender`
+implementation outside `src/`, which the audit's `src/`-scoped grep missed and
+`npm run build` caught).
+
+**Known and not built:** Resend delivery and bounce webhooks into `AuditLog`.
+Named out of scope by the prompt and carried on the NOTIFY-1 row as a ROW
+candidate — today a bounce is visible only in the Resend dashboard, so Froot
+cannot tell a delivered alert from one that hard-bounced.
+
 ## d2b8d79 — 2026-09-18 — Scheduled checklists: weekly and monthly templates finally run
 
 **Merge SHA:** `d2b8d796b570708d3c47b6a88516e84fc6ae2609`
