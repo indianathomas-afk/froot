@@ -16452,6 +16452,29 @@ phases:
         is that five cron routes share it and one fixed with four not is a
         divergence nobody can see. Its own row owns the sweep.
     notes: >
+      ── RIDER 2026-09-18 (CAL-2a). PREPENDED; NOTHING BELOW IS EDITED. ──
+      TWO DEFECTS IN THIS BUILD WERE FOUND BY GARY ON STAGING AND ARE FIXED ON
+      CAL-2a ("9e39b56"), A FOURTH COMMIT ON THIS SURFACE AND THE ONLY
+      UNPUSHED ONE — this row's own three reached `origin/staging` after the
+      PRE-PUSH-CHECK rider below was written, and that rider was true when it
+      was written.
+      Neither is a CAL-2 regression and that is worth stating precisely,
+      because this row should not be read as having shipped them: BOTH ARE
+      CAL-1's, surfaced by CAL-2 putting enough on the grid to trip over them.
+      (1) A day cell offered no way to create a SECOND item — the model never
+      stopped it (uniqueness is per event / store / dueDate) and the chips
+      already stopped propagation, so this was an affordance gap and not a
+      rule: a cell with chips in it had less and less blank area to click, and
+      there was no header control at all. (2) "today" was a UTC calendar date
+      (`iso(new Date())`, calendar-client.tsx:104 at this commit), so at 18:35
+      PDT on 2026-09-18 the marker sat on Sat 19 Sep — and the SAME read fed
+      the initial month anchor and the Today button, which opens the wrong
+      MONTH on the last evening of every month in a western zone. CAL-2's own
+      server work was already store-local on both paths CAL-2a audited — the
+      materialise cron's "<= today" (:256) and the due feed's cutoff (:37) —
+      so the defect was confined to the client, which had no store zone to
+      read. THE STAGING PROTOCOL ON THIS ROW IS UNAFFECTED and is still owed in
+      full; CAL-2a changes no route, no query and no schema.
       ── PRE-PUSH-CHECK 2026-09-18 (TIER 1). PREPENDED; NOTHING BELOW IS
       EDITED. ──
       READY TO PUSH, AND STILL NOT PUSHED — Claude never pushes. Three commits
@@ -16581,6 +16604,122 @@ phases:
       Missed. Sequence it after Gary has run CAL-1's migration and the staging
       pass has actually happened - CAL-2 builds on tables nothing has yet
       written a row to.
+
+  - id: CAL-2a
+    track: cal
+    size: S
+    status: in_progress
+    # The work commit only. The docs commit is the one immediately after
+    # "9e39b56" and cannot be named from inside itself — CAL-2's own comment
+    # above records why the two-commit pattern has this hole.
+    commits: ["9e39b56"]
+    title: "Only one item could be created per day, and \"today\" on the grid was computed in UTC"
+    blockers:
+      - >
+        NOTHING HERE HAS BEEN SEEN IN A BROWSER AND CLAUDE NEVER PUSHES, so the
+        default assumption is that staging does not have this work. The SHA-match
+        precondition binds before any observation.
+        CAL-2's OWN THREE COMMITS ARE ALREADY ON `origin/staging` — verified by
+        `git branch -r --contains ed98ff2` — and `git log
+        origin/staging..staging` returns THIS phase's two and nothing else, so
+        CAL-2a is the entire unpushed surface. Which means CAL-2's staging
+        protocol, if it is run before Gary pushes these two, runs against a
+        deployment that does NOT contain them.
+        THE CHECKS A FIXTURE CANNOT REPLACE, all of them layout or clock:
+        a day cell that already holds a chip still opens the CREATE form when
+        its blank area is clicked; a cell holding four or more items shows three
+        chips and "+N more", and the list's rows open DETAIL; "+ New" appears
+        for calendar.manage and not for calendar.view, and opens on today; the
+        today marker sits on the right day READ AFTER 17:00 PACIFIC, which is
+        the window the defect lived in and the only one that proves anything;
+        and with the store picker moved between two stores in DIFFERENT zones on
+        a day where their local dates differ, the marker follows the selection.
+      - >
+        A FIFTH UTC "today" WAS FOUND OUTSIDE THIS PHASE'S SCOPE AND LEFT:
+        src/app/(app)/templates/template-form.tsx:1721 seeds the "Add to
+        calendar" Event form with `new Date().toISOString().slice(0, 10)`.
+        Same class, smaller cost — it is a DEFAULT in a form the operator can
+        change before saving, not a marker that silently reads wrong. Fixing it
+        needs a store timezone on /templates' server page, which is a second
+        page and outside a contained fix; CAL-2a deliberately did not widen the
+        shared `StoreOption` type, which would have dragged that page in by the
+        typecheck rather than by a decision. Gary's call whether it gets a row.
+    notes: >
+      BUILT 2026-09-18 ("9e39b56"), TIER 2. Two defects Gary observed on
+      staging the same day CAL-2 was built, both of them CAL-1's, both surfaced
+      by CAL-2 putting enough on the grid to trip over them. Prompt of record:
+      docs/prompts/CAL-2a_multi_item_and_today.md.
+      DEFECT 1 — THE SECOND ITEM, AND HALF THE STATED FIX WAS ALREADY THERE.
+      The prompt asked for chips to stop click propagation and open detail;
+      they already did, at calendar-client.tsx:383 as CAL-1 shipped it. So the
+      cell's blank area DID open the create form and always had. What was
+      actually missing was (a) a guarantee that blank area still exists — a
+      cell is min-h-24 and chips stack downward, so a busy day ate the target
+      — and (b) any control at all in the place a person looks for "new". The
+      cell is now a flex column ending in an aria-hidden spacer that claims the
+      leftover height and never falls below ~20px, chips cap at three with
+      "+N more" opening a centred list that hands off to detail, and the header
+      carries a "+ New" button on `canManage` defaulting to today.
+      WHY THE CAP EXISTS AT ALL: to PROTECT the strip, not to save space. A
+      cap with no strip below it would just move the problem to four items.
+      THE CHIP IS NOW ONE COMPONENT rendered by both the cell and the overflow
+      list, because two copies of that markup drift the first time a glyph is
+      added to one of them — the argument CAL-1b made for reusing the create
+      form as the edit form, one layer down.
+      DEFECT 2 — "TODAY" WAS UTC, AND IT WAS THREE READS, NOT ONE. The grid
+      marker (`iso(new Date())`), the initial month anchor and the Today button
+      all derived a calendar date from a browser INSTANT. The marker is what
+      Gary saw — 18:35 PDT on 2026-09-18 marked Sat 19 Sep — but the anchor is
+      the worse one: on the last evening of any month in a western zone the
+      page OPENS ON THE WRONG MONTH, and nothing on screen says so. Same class
+      as CLAUDE.md § Database Evidence, one layer out.
+      THE FIX RESOLVES IT SERVER-SIDE, PER STORE, and the shape is
+      forecasting's (forecasting/page.tsx:53): each store option carries its own
+      `today` from localDateStr(now, Store.timezone) — the same helper the due
+      feed's cutoff (:37) and the materialise cron's "<= today" (:256) already
+      go through — and the grid reads the SELECTED store's. Per store and not
+      per page because two stores in different zones are not on the same day
+      and the grid is store-scoped. An actor with NO store in scope falls to
+      Organization.timezone -> DEFAULT_TIME_ZONE, DEBT-70a's chain, with no
+      bare-UTC arm anywhere. `new Date()` is no longer read for a calendar date
+      anywhere in calendar-client.tsx.
+      BAKED AT RENDER AND THAT IS DELIBERATE: a tab left open across midnight
+      shows a stale marker until reload. Harmless, because the marker is a hint
+      and every write that depends on a date is bounded server-side per
+      request. Forecasting made the same trade and said so.
+      TWO COMPARISONS WERE AUDITED AND LEFT, WHICH IS THE FINDING WORTH
+      KEEPING. The chip's overdue rule (`dueAt <= new Date().toISOString()`)
+      and daysOverdue() are INSTANT-vs-INSTANT: `dueAt` is the frozen ruling-8
+      moment, so no calendar date is derived and no timezone enters. They are
+      not UTC-wrong; they are zone-FREE. The prompt listed both among the
+      things to make store-local, and doing that would have CHANGED RULING 8
+      rather than fixed a zone — overdue begins at store close, so a date
+      comparison would call a reminder due at 17:00 not-overdue at 19:00. The
+      same prompt says ruling 8 stands, and verify-cal1-projection §8 already
+      asserts the current meaning ("two hours past -> still 0"), which the
+      prompt also requires to stay green and unchanged. Left, and commented at
+      the site so the next reader does not file the surviving `new Date()` as a
+      miss. NO RULING WAS NEEDED and no DECISIONS entry was added: this is not
+      an ambiguity about WHICH today, it is two expressions that never asked.
+      THE CRON WAS CONFIRMED STORE-LOCAL AND LEFT, as the prompt anticipated —
+      one correction to its wording: the "<= today" test reaches store zone
+      through localDateStr(now, store.timezone), not through dayCloseInstant.
+      dayCloseInstant is reached separately, via dueAtFor at :265, to freeze
+      dueAt — also store-local, also unchanged.
+      SCOPE HELD. No schema change, no migration, no new capability, no route
+      change, no query change. Two files. `StoreOption` stayed {id, name} and
+      the grid got a new `CalendarStoreOption` on purpose — widening the shared
+      type would have pulled /templates into a contained fix by typecheck
+      rather than by decision, and that page's own UTC today is filed as a
+      blocker above rather than swept in.
+      GATES: npm run build green (TypeScript green, no errors; the roadmap and
+      guide warnings are pre-existing and repo-wide), scoped eslint clean on
+      all four calendar files, and verify-cal1-projection, verify-cal2-generation
+      and verify-store-hours-engine all UNCHANGED and ALL PASS.
+      CROSS-REFS: CAL-1 (the grid and ruling 8), CAL-1a (Dialog-not-Popover,
+      which the overflow list obeys), CAL-1b (one component for two surfaces),
+      CAL-2 (the row this rides), DEBT-70 and DEBT-70a (the store-local
+      display convention and its no-bare-UTC-arm chain), DEBT-61.
 
 bugs:
   - id: BUG-1

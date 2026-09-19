@@ -17,6 +17,15 @@ written inside itself.
 
 **Payload:** **3 commits** on `staging` — the work, the docs, and the
 PRE-PUSH-CHECK commit that ratified the rulings and recorded deviation S5-D78.
+**CARRIES CAL-2a (`9e39b56`, 2026-09-18) — two CAL-1 defects Gary found on this
+surface, fixed on top of the three above. THE THREE ARE ALREADY ON
+`origin/staging`; CAL-2a's two are NOT, so whatever is deployed from staging
+today does not contain them. The defects: a day cell would not offer a create
+form for a SECOND item (an affordance gap — nothing in the model ever stopped
+one), and the grid's "today" was a UTC calendar date, so after 17:00 Pacific
+the marker, the initial month anchor and the Today button all read a day
+ahead. Client-only, two files, no schema, no route and no query change; CAL-2's
+own server paths were already store-local.**
 **ONE ADDITIVE MIGRATION**, `20260918180000_cal2_scheduled_checklists`. 29 files
 in the work commit. Four API routes gain behaviour, two crons change, one new
 route, one new component, one new fixture.
