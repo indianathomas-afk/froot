@@ -2,8 +2,30 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-18 — Scheduled checklists: weekly and monthly templates finally run
+## d2b8d79 — 2026-09-18 — Scheduled checklists: weekly and monthly templates finally run
 
+**Merge SHA:** `d2b8d796b570708d3c47b6a88516e84fc6ae2609`
+**Promoted 2026-09-18 22:31:23 -0600** in `d2b8d79` ("promote: CAL-1b, DOCS-4,
+CAL-2, CAL-2a, DOCS-5, CAL-2b") — late evening Pacific. THE SHA IS THE
+`--no-ff` MERGE COMMIT, parents `53cb9ce` and `c0528ad`, and the rollback
+recipe reads the merge, not the tip of `main`. **16 commits** in
+`d2b8d79^1..d2b8d79^2` — CAL-1b's three, DOCS-4's two, CAL-2's three, CAL-2a's
+three, DOCS-5's two and CAL-2b's three.
+**STAMPED AFTER THE FACT, 2026-09-19, BY DOCS-6**, not at promotion time. This
+is the third promotion running whose entry was stamped by a later docs session
+rather than by the promotion itself; the amended rule at the foot of CLAUDE.md
+§ DEPLOY_LOG is the response to the previous one.
+**THE MIGRATION REACHES PRODUCTION IN THIS MERGE'S VERCEL BUILD.**
+`20260918180000_cal2_scheduled_checklists` goes to `br-sparkling-block` through
+`migrate deploy`, which is the documented path and is exactly what the
+MIGRATIONS.md entry named as correctly outstanding while CAL-2 sat on staging.
+NOT VERIFIED AGAINST THE BRANCH HERE — a docs session does not read a deployed
+database — so this records the path, not a count.
+**WHAT CONTAINS ALL OF IT: the calendar module is off for every org in
+production.** `orgs_enabled = 0`, SQL on `br-sparkling-block` 2026-09-18,
+recorded on the `53cb9ce` entry below. The code is live and unreachable.
+Turning it on for an org is Gary's action in the UI and is gated on the six
+checks in CAL-1's second ROADMAP blocker, none of which has been run anywhere.
 **Unpromoted — staging only, and not yet pushed to staging either.** The heading
 is stamped with the merge SHA at promotion, from `git rev-parse`, never
 hand-typed.
@@ -14,6 +36,12 @@ inside the docs commit.
 **Check SHA:** the commit immediately after `55b6e87`, which carries this line
 and the ratification. Named this way rather than guessed, since it is being
 written inside itself.
+*(The nine lines above are the entry as written on 2026-09-18 at PRE-PUSH-CHECK
+time and are kept unedited; the stamp that supersedes them is above. The three
+check commits they name by position rather than by SHA all resolve now, and are
+written out here rather than inside them: the one after `55b6e87` is `b95d506`
+(CAL-2), the one after `293ae36` is `6d69b6c` (CAL-2a), and the one after
+`493348f` is `c0528ad` (CAL-2b), which is also the merge's second parent.)*
 
 **Payload:** **3 commits** on `staging` — the work, the docs, and the
 PRE-PUSH-CHECK commit that ratified the rulings and recorded deviation S5-D78.
@@ -164,6 +192,14 @@ after the 09:05 merge, so its three commits — `9936610`, the docs commit
 `00db87e` and the check commit `dfbfe6e` — are on `origin/staging` and nowhere
 else; `git log --oneline origin/main..origin/staging` returns those three and
 nothing more. This carry line gets its own stamp when CAL-1b is promoted.
+**STAMPED 2026-09-19 BY DOCS-6 — THIS IS THE STAMP THE LINE ABOVE ASKS FOR.**
+CAL-1b reached production 2026-09-18 in `d2b8d79` ("promote: CAL-1b, DOCS-4,
+CAL-2, CAL-2a, DOCS-5, CAL-2b"), the entry at the head of this log, with all
+three of its commits — `9936610`, `00db87e` and `dfbfe6e` — inside
+`d2b8d79^1..d2b8d79^2`. The paragraph above is kept exactly as written: it was
+true from the 09:05 merge until that evening, and **IT IS NOT IN `53cb9ce`**
+is still true and is the whole reason this carry line needed a second stamp
+rather than an edit.
 
 **Payload:** **3 commits** on `staging` — the work, the docs, and the
 PRE-PUSH-CHECK commit that added this entry. **This is a schema change and the

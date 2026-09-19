@@ -735,6 +735,16 @@ runtime-failure warning in the original paragraph below is answered for dev and
 staging and remains true, harmlessly, for a production database no CAL-2 code is
 deployed against.
 
+**THE PROMOTION HAPPENED — added 2026-09-19 (DOCS-6), the paragraph above kept
+as written.** CAL-2 reached `main` on 2026-09-18 in `d2b8d79` ("promote:
+CAL-1b, DOCS-4, CAL-2, CAL-2a, DOCS-5, CAL-2b"), so "the merge that promotes
+the phase" is no longer hypothetical and `br-sparkling-block` takes this
+migration in that merge's Vercel build. **Not verified against the branch
+here** — a docs session does not read a deployed database (CLAUDE.md
+§ Environment Variables) — so what is recorded is the promotion and the path,
+not a production count. The next session with a reason to look at
+`br-sparkling-block` owes the count.
+
 **ORIGINAL PARAGRAPH, PRESERVED VERBATIM** — it was believed when written, and
 the claim it makes is the record of what the build session thought it knew:
 

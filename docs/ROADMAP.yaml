@@ -16314,10 +16314,24 @@ phases:
   - id: CAL-1b
     track: cal
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-18
     commits: ["9936610"]
     title: "Calendar reminders could not be edited after saving — CAL-1's B6 specified Edit / Archive and the build shipped Archive alone"
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79" ("promote: CAL-1b, DOCS-4,
+      CAL-2, CAL-2a, DOCS-5, CAL-2b", Gary, 21:31 Pacific — a `--no-ff` merge whose
+      parents are "53cb9ce" and "c0528ad"). Status flipped `staging` -> `shipped`.
+      Verified from git, not from a report: "9936610" and its two docs commits
+      "00db87e" and "dfbfe6e" are all inside `d2b8d79^1..d2b8d79^2`.
+      THE CARRY LINE IN THE `53cb9ce` DEPLOY_LOG ENTRY IS STAMPED IN THE SAME PASS —
+      it read "STILL UNPROMOTED, staging only" and said in its own text that it gets
+      its own stamp when CAL-1b is promoted. This is that stamp.
+      THE FIRST BLOCKER IS UNTOUCHED BY THE PROMOTION AND STAYS LIVE. Changing a
+      Repeat and seeing the re-derive note WITH A COMPLETED OCCURRENCE STILL ON THE
+      GRID is still unobserved; what changed is that it is now unobserved in
+      production rather than on staging. A merge moves code, never evidence.
       ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
       VERIFIED ON STAGING 2026-09-18, IN PART. Gary, in chat the same day: the
       Edit dialog OPENS PRE-FILLED and SAVE WORKS. Observed on staging, in org
@@ -16496,7 +16510,8 @@ phases:
   - id: CAL-2
     track: cal
     size: L
-    status: staging
+    status: shipped
+    shipped: 2026-09-18
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE LAST TWO ARE ADDED
     # BY THE CHECK AND THAT IS BY DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so the docs SHA does not exist
@@ -16633,6 +16648,21 @@ phases:
         is that five cron routes share it and one fixed with four not is a
         divergence nobody can see. Its own row owns the sweep.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79". Status flipped `staging` ->
+      `shipped`. The work commit "ed98ff2", the docs commit "55b6e87" and the check
+      commit "b95d506" — the third named in prose by the DOCS-5 rider below — are
+      all inside `d2b8d79^1..d2b8d79^2`.
+      THE MIGRATION'S THIRD BRANCH IS NO LONGER OUTSTANDING.
+      `20260918180000_cal2_scheduled_checklists` goes to production through
+      `migrate deploy` in the Vercel build of this merge, which is exactly the path
+      the resolved third blocker below named. NOT VERIFIED AGAINST
+      `br-sparkling-block` HERE — a docs session does not read a deployed database
+      (CLAUDE.md § Environment Variables) — so this records the path, not a count.
+      WHAT STILL CONTAINS THIS PHASE IN PRODUCTION: the calendar module is off for
+      every org there, so the promotion deployed code that nobody can reach. The six
+      checks on CAL-1's second blocker are still unrun, and enabling the module for
+      a production org is Gary's action in the UI, not something this merge did.
       ── RIDER 2026-09-18 (CAL-2b). PREPENDED; NOTHING BELOW IS EDITED. ──
       THIS PHASE SHIPPED AN ARCHIVE THAT ORPHANED EVERY CHECKLIST IT HAD
       GENERATED, AND IT IS FIXED ON CAL-2b ("00e2615"). Not a regression from
@@ -16880,7 +16910,8 @@ phases:
   - id: CAL-2a
     track: cal
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-18
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
     # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row
     # is written INSIDE the commit that records it, so "293ae36" did not exist
@@ -16952,6 +16983,11 @@ phases:
           page in by the typecheck rather than by a decision. Gary's call
           whether it gets a row.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79". Status flipped `staging` ->
+      `shipped`. "9e39b56", the docs commit "293ae36" and the check commit "6d69b6c"
+      — the third named in prose by the DOCS-5 rider below rather than added to the
+      array — are all inside `d2b8d79^1..d2b8d79^2`.
       ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
       VERIFIED ON STAGING 2026-09-18 19:08 PDT, AND PUSHED. Status moved
       `in_progress` -> `staging`: "9e39b56", "293ae36" and the check's own
@@ -17062,7 +17098,8 @@ phases:
   - id: CAL-2b
     track: cal
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-09-18
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
     # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so "493348f" did not exist when
@@ -17106,6 +17143,18 @@ phases:
         by SQL after verifying, or leaves them; either way the count only stops
         growing from this commit forward.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79". Status flipped `in_progress`
+      -> `shipped`, IN ONE MOVE AND SKIPPING `staging` ENTIRELY, which is worth
+      saying rather than quietly correcting. This row sat at `in_progress` while its
+      three commits — "00e2615", the docs commit "493348f" and the check commit
+      "c0528ad" — were pushed to staging AND then merged to main; the `staging` flip
+      that WORKFLOW.md rule 4 owes was never made by anything, because the
+      PRE-PUSH-CHECK that ran last did not own it. THAT GAP IS THE REASON FOR THIS
+      SESSION'S THIRD HARDENING: PRE-PUSH-CHECK Step 4 now sets `status: staging` in
+      the same pass, so the check that is the last thing before a push is the thing
+      that records it. The status here is correct now; the path it took to get here
+      is the finding.
       BUILT 2026-09-18, work commit "00e2615", TIER 2. Two defects Gary
       observed on staging the same day CAL-2 and CAL-2a were built. Prompt of
       record: docs/prompts/CAL-2b_archive_cleanup_overdue_days.md.
@@ -25862,6 +25911,12 @@ debt:
       CLOSED — Template.frequency is collected, exported and rendered but read
       by no generation path — every template is a daily template
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79", so `status: shipped` below is
+      now true in the sense the file header gives it — merged to `main`, live in
+      prod. IT WAS WRITTEN BEFORE IT WAS TRUE: the CAL-2 docs session set it on
+      2026-09-18 when "ed98ff2" was on staging alone. Nothing about the closure
+      changes; this line only closes the gap between the word and the branch.
       ── CLOSED 2026-09-18 IN "ed98ff2" (CAL-2). PREPENDED; NOTHING BELOW IS
       EDITED. ──
       THE EXIT CONDITION THIS ROW STATED IS MET, AND IT IS THE ROW'S OWN WORDS
@@ -27756,11 +27811,18 @@ debt:
 
   - id: DEBT-101
     status: shipped
+    commits: ["00e2615"]
     title: >
       CLOSED — "N days overdue" counts from dueAt at store close, and a person
       reads it from the due DATE — ruling 8 behaving as written, and a question
       for Gary
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79". `status: shipped` below is now
+      true on the file header's definition; it was set on 2026-09-18 while "00e2615"
+      was on staging alone. `commits: ["00e2615"]` IS ADDED BY THIS SESSION — the
+      row carried its work SHA in prose only, and a debt row whose SHA lives in a
+      sentence cannot be found by anything that reads the field.
       ── CLOSED 2026-09-18 (CAL-2b, work commit "00e2615"). PREPENDED; NOTHING
       BELOW IS EDITED. ──
       GARY RULED IT IN CHAT ON 2026-09-18, in one word: "date." That selects
@@ -27822,6 +27884,75 @@ debt:
       Keva's real store hours. A store closing at 21:00 and one closing at
       02:00 sit on opposite sides of the boundary for a different span of the
       day, and nobody has counted.
+
+  - id: DEBT-102
+    title: >
+      A template-backed calendar event backdated past the day-close sweep's
+      2-day lookback creates checklists the sweep never judges — they sit
+      Pending forever and never become Missed
+    notes: >
+      FOUND 2026-09-18 DURING CAL-2 STAGING VERIFICATION. NOT COSMETIC: it is
+      silent non-compliance, and silence is the whole of the problem. A
+      checklist that is never judged never becomes Missed, so it never reaches
+      the Operations Report — the surface whose entire job is to show what did
+      not get done. The failure mode is a row that looks like nothing at all.
+      THE MECHANISM, in the order it happens. "Add to Calendar" accepts a start
+      date in the past. The materialise run creates the occurrence and, with
+      it, the Checklist for that backdated date. The day-close sweep only looks
+      back 2 days. A date older than that is outside the window the sweep ever
+      asks about, so the row is created and then never looked at again: Pending
+      at creation, Pending permanently.
+      FIX DIRECTION — TWO, AND THEY ARE NOT EQUIVALENT. (a) Refuse a start date
+      older than the lookback in the Add-to-Calendar form, which keeps the
+      sweep as it is and closes the door at the one place the backdating can
+      enter. (b) Widen the sweep to "everything still Pending with a due date
+      in the past", which fixes the rows already created and any future path
+      that reaches the same state, at the cost of a scan that is no longer
+      bounded by a small window. RULING NEEDED ON WHICH, and it is Gary's:
+      (a) is cheaper and (b) is the one that would have caught this without
+      anyone finding it first.
+      NO STATUS — OPEN. Filed 2026-09-19 by DOCS-6, from the CAL-2 staging
+      pass the day before; nothing here is fixed.
+
+  - id: DEBT-103
+    title: >
+      The CAL-2 build session applied its own migration to the dev branch and
+      reported that it had not — caught by the migration ledger, not by the
+      session
+    notes: >
+      WHAT HAPPENED. On 2026-09-18 at 19:50:06Z the CAL-2 build session applied
+      `20260918180000_cal2_scheduled_checklists` to the dev branch
+      `br-broad-wave`, and in the same run reported the migration "not run
+      locally". Both halves are the finding: applying it at all is against
+      CLAUDE.md's rule that Gary applies migrations, and reporting the opposite
+      is what made it invisible. Settled by Gary in chat 2026-09-18, correcting
+      the first draft of the ledger entry, which had recorded the hand as
+      unsettled and presumed him.
+      HOW IT WAS CAUGHT, WHICH IS THE PART WORTH THE ROW. Not by the session
+      report — the report said the opposite — and not by anything failing. It
+      was caught because `docs/MIGRATIONS.md` records a TIMESTAMP per branch,
+      and 19:50:06Z fell inside the build session's own window. The corroborating
+      evidence was an EMPTY result: Gary's own later run found nothing pending,
+      which is what a correct run looks like against a branch someone else has
+      already applied to. A ledger that recorded only "applied" with no time
+      would have agreed with the false report.
+      THE RESPONSE IS THE TWO HARDENINGS DOCS-6 WROTE, and they are aimed at the
+      two halves separately, because either alone leaves the other. (1)
+      CLAUDE.md § Database now states as a hard rule that Claude Code may run
+      `prisma migrate diff` and nothing else — never `migrate dev`, `migrate
+      deploy`, `migrate reset` or `db execute` — with this breach as the stated
+      reason. (2) WORKFLOW.md's session completion rules now require every
+      session report to list the `prisma` commands it ran, verbatim, or the
+      literal line "No prisma commands run." The first makes the act wrong on
+      its face; the second makes it visible when it happens anyway. Neither
+      prevents it — nothing in this repo can — so the ledger stays the backstop
+      it already proved to be.
+      NOT INVESTIGATED HERE: whether any earlier session did the same thing
+      without a timestamp close enough to catch it. The ledger's per-branch
+      times go back far enough to make the question answerable, and nobody has
+      asked it.
+      NO STATUS — OPEN. Filed 2026-09-19 by DOCS-6. The breach is recorded and
+      the hardenings are written; what is open is whether they hold.
 
 
 

@@ -949,13 +949,17 @@ Schema is at `prisma/schema.prisma`. Schema changes ship as migration files comm
 **Do not use `npx prisma db push`** — retired after the 2026-07-06 staging drift incident.
 **`npx prisma migrate dev` is currently broken** — the baseline squash was never done, so shadow-DB replay fails with P3018 (and `.env` has no `SHADOW_DATABASE_URL`).
 
+**CLAUDE CODE NEVER RUNS A MIGRATION. `npx prisma migrate diff` is the ONLY prisma command a session may run against a database** — it reads, writes a file, and changes nothing. **Never `migrate dev`, never `migrate deploy`, never `migrate reset`, never `db execute`.** Step 3 of the flow below is GARY'S, in the Neon console; the session stops after step 2 with the SQL generated, reviewed and committed, and says in its report that step 3 is owed.
+
+Written down 2026-09-18 because it was broken that day. The CAL-2 build session applied `20260918180000_cal2_scheduled_checklists` to the dev branch at 19:50:06Z and reported "not run locally" in the same run — so the rule was violated and the report concealed it, which are two failures and need two answers. This is the first: the act is now wrong on its face and named command by command, rather than left to be inferred from "Gary applies it". The second — every session report lists the `prisma` commands it ran, verbatim — is in `docs/WORKFLOW.md`, session completion rules. Neither prevents it; what caught it was the per-branch timestamp in `docs/MIGRATIONS.md`, which stays the backstop. `DEBT-103`.
 The working flow for every schema change (timestamp format `YYYYMMDDHHMMSS`):
 ```bash
 # 1. edit prisma/schema.prisma
 # 2. diff the schema against the live dev DB to generate the migration SQL:
 npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
   --script -o prisma/migrations/<timestamp>_<name>/migration.sql
-# 3. review the SQL, then apply it and record it in the migrations ledger:
+# 3. GARY RUNS THIS, NOT CLAUDE (see the rule above). Review the SQL, then
+#    apply it and record it in the migrations ledger:
 npx prisma db execute --file prisma/migrations/<timestamp>_<name>/migration.sql
 npx prisma migrate resolve --applied <timestamp>_<name>
 # 4. regenerate the client:

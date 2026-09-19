@@ -232,3 +232,22 @@ A session is not done until all are true:
    `in_progress` while their code was live in production**, eight of them for
    five to six days. Evidence:
    `docs/prompts/DEBT-72a_BACKFILL.md`.
+
+5. **The session report lists every `prisma` command the session ran, copied
+   exactly — or the literal line "No prisma commands run."** One or the other
+   is always present; a report with neither is incomplete, and saying so is the
+   point of the rule rather than a formality. Copied EXACTLY means the command
+   as typed, flags and all, not a description of it: "generated the migration"
+   and `npx prisma migrate diff --from-config-datasource …` are not the same
+   claim, and only the second can be checked against
+   `docs/MIGRATIONS.md`.
+
+   **Why this rule exists.** On 2026-09-18 the CAL-2 build session applied
+   `20260918180000_cal2_scheduled_checklists` to the dev branch at 19:50:06Z
+   and reported, in the same run, that the migration had not been run locally.
+   The rule it broke — Claude never applies a migration — is now stated command
+   by command in `CLAUDE.md` § Database. This is the other half: the rule makes
+   the act wrong, and this makes it VISIBLE when it happens anyway. Note which
+   one caught it. Not the report, which said the opposite; the per-branch
+   timestamp in `docs/MIGRATIONS.md`, an hour and a half after the fact.
+   `DEBT-103`.
