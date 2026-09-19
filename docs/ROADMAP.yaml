@@ -15806,6 +15806,56 @@ phases:
     commits: ["bb675e1", "a4b63cf", "9d91aa3"]
     title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
     notes: >
+      ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE STAGING EVIDENCE EXISTS NOW, AND IT IS GARY'S, REPORTED IN CHAT ON
+      2026-09-18 — that message is the citation for everything in this rider.
+      Unless a branch is named, every observation below was made on STAGING, in
+      org org_3G02wO4QlVVSWppi8aqlnSZnsDa, through the Clerk instance
+      verified-snapper-7.
+      THE MIGRATION IS APPLIED ON ALL THREE LIVE BRANCHES, now with times and
+      methods rather than by inference. Dev `br-broad-wave` 13:26Z, Gary's own
+      `migrate deploy`. Staging `br-square-feather`, through the Vercel build.
+      Production `br-sparkling-block`, through the Vercel build of promotion
+      53cb9ce. SQL `calendar_tables = 4` on all three. Production
+      `orgs_enabled = 0` still holds, so the containment DOCS-4 recorded is
+      unchanged: the code is live in production and unreachable.
+      THE CRON RAN, TWICE, AND THE BODIES ARE THE EVIDENCE. 17:04Z:
+      `materialized 1`, `skippedDisabled 9`. 17:06Z: `materialized 0`,
+      `skippedFuture 1`. `skippedDisabled 9` is ruling 9 working — nine orgs
+      have the calendar off and the run SAYS so rather than reading as a quiet
+      nothing, which is the CHK-3 reason that counter exists at all.
+      THE BANNER RENDERED, AS A MANAGER, AND IT READ RULING 8 LITERALLY. Gary
+      signed in as Tommy (MANAGER, Las Brisas) and /dashboard showed "1
+      reminder due · 3 days overdue" against a Sep 14 reminder. THE AGE IS
+      COUNTED FROM `dueAt`, which ruling 8 puts at store close — or at the end
+      of the store's local day for a store with no hours — and NOT from the due
+      date. That is the ruling behaving exactly as written. It is also not the
+      arithmetic a person does when they read the sentence, so it is filed as
+      DEBT-101 as a QUESTION FOR GARY and explicitly not as a defect. Complete
+      cleared the banner.
+      IT STACKS. The calendar banner rendered as a SECOND red bar beneath the
+      SELF-1 banner on the same /dashboard. Neither phase is wrong and nothing
+      is broken; two full-width red bars at once is a design question, filed as
+      DEBT-100.
+      VERCEL CRON DOES NOT FIRE ON PREVIEW DEPLOYMENTS, which is why both runs
+      above are manual curls carrying the Preview-scope CRON_SECRET (length
+      64). THIS IS A STANDING PROPERTY OF THE CAL TRACK and not a fact about
+      this session: every staging protocol on this track, for every phase that
+      follows, must curl the cron by hand or it is testing nothing. Written
+      into WORKFLOW.md § 1 by this session as a standing note rather than filed
+      as a row, because it is a procedure fact and not work anybody can close.
+      TWO CHECKS REMAIN UNRUN AND ARE STILL OWED, unchanged by all of the
+      above: the PERM-8 grant flipping a MANAGER's day-click, and a STORE
+      account completing an occurrence. Both are carried on CAL-2's first
+      blocker, where Gary folded them, and neither is answered by the Carson
+      completion recorded on CAL-2 — that completion was not made by a STORE
+      account.
+      NO BLOCKER ON THIS ROW IS RETIRED BY THIS RIDER, stated plainly so the
+      omission is not read as an oversight. The two blockers this evidence
+      would have answered were already marked resolved, by DOCS-4 and by CAL-2
+      respectively. The two still live are DEBT-98's shared cron-secret
+      comparison and the missing /calendar help article, and nothing observed
+      on staging touches either.
       ── RIDER 2026-09-18 (DOCS-4). PREPENDED; NOTHING BELOW IS EDITED. ──
       THE PROMOTION RAN BEFORE THE STAGING PROTOCOL, AND BEFORE THIS ROW SAID
       ANYTHING BUT `staging`. Gary ran the promotion template end to end at
@@ -16023,22 +16073,23 @@ phases:
       refused in anger, no occurrence was materialised, and no pixel was
       rendered - see blockers.
     blockers:
-      - >
-        RESOLVED 2026-09-18 (DOCS-4). `20260917143000_cal1_calendar` IS APPLIED
-        ON ALL THREE LIVE BRANCHES. Dev: `migrate deploy` output, endpoint
-        ep-late-water. Staging: a rendered /calendar, which is unreachable
-        without the tables. Production: SQL `calendar_tables = 4` on
-        `br-sparkling-block-a620qvg4`, re-confirmed the day of the promotion.
-        Evidence is Gary's, recorded first in CAL-1b's correction rider. THE
-        BLOCKER TEXT IS KEPT VERBATIM BELOW because it was true when written
-        and its runtime-failure reasoning is what the evidence answers.
-        ORIGINAL TEXT, preserved verbatim:
-        THE MIGRATION HAS NOT BEEN RUN ANYWHERE. Gary runs it on dev
-        (`prisma db execute` + `migrate resolve --applied`, MIGRATIONS.md §3),
-        then pushes so staging and production take it through `migrate deploy`
-        in the Vercel build. Until then every calendar query fails at runtime
-        against a database with no CalendarEvent table, on EVERY branch
-        including local dev.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-18 (DOCS-4). `20260917143000_cal1_calendar` IS APPLIED
+          ON ALL THREE LIVE BRANCHES. Dev: `migrate deploy` output, endpoint
+          ep-late-water. Staging: a rendered /calendar, which is unreachable
+          without the tables. Production: SQL `calendar_tables = 4` on
+          `br-sparkling-block-a620qvg4`, re-confirmed the day of the promotion.
+          Evidence is Gary's, recorded first in CAL-1b's correction rider. THE
+          BLOCKER TEXT IS KEPT VERBATIM BELOW because it was true when written
+          and its runtime-failure reasoning is what the evidence answers.
+          ORIGINAL TEXT, preserved verbatim:
+          THE MIGRATION HAS NOT BEEN RUN ANYWHERE. Gary runs it on dev
+          (`prisma db execute` + `migrate resolve --applied`, MIGRATIONS.md §3),
+          then pushes so staging and production take it through `migrate deploy`
+          in the Vercel build. Until then every calendar query fails at runtime
+          against a database with no CalendarEvent table, on EVERY branch
+          including local dev.
       - >
         RESOLVED 2026-09-18 (CAL-2). THE CRON AND COMPLETION CHECKS RAN ON
         STAGING. Gary, in chat, 2026-09-18, quoted as the evidence of record:
@@ -16135,6 +16186,17 @@ phases:
     commits: ["d4e13af", "6f4b842"]
     title: "Calendar create form clipped off-screen on the top grid rows — anchored popover replaced with the shared Dialog"
     notes: >
+      ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
+      VERIFIED ON STAGING 2026-09-18. Gary, in chat the same day: a click on a
+      day in the FIRST grid row opens a CENTRED DIALOG. Observed on staging, in
+      org org_3G02wO4QlVVSWppi8aqlnSZnsDa, through Clerk verified-snapper-7.
+      THAT IS A RE-OBSERVATION, NOT A NEW FACT, and it is recorded anyway
+      because the first one was reported as a single click and this one was
+      made in the middle of a full CAL-2 pass across the same grid. The blocker
+      below was already marked resolved by DOCS-4 on that first observation and
+      stays resolved; nothing on this row is reopened, retired or changed by
+      this rider. CAL-1a's whole surface is this one behaviour, and it has now
+      held twice.
       ── RIDER 2026-09-18 (DOCS-4). PREPENDED; NOTHING BELOW IS EDITED. ──
       SHIPPED IN THE SAME PROMOTION, "53cb9ce" ("promote: UM-3, CAL-1,
       CAL-1a", Gary, 2026-09-18 09:05). Status jumped `in_progress` ->
@@ -16212,20 +16274,21 @@ phases:
       is to a rendered position, which is the one thing a build cannot check.
       Gary sees it on staging after the push.
     blockers:
-      - >
-        RESOLVED 2026-09-18 (DOCS-4). THE FIX HAS NOW BEEN SEEN. Gary ran
-        exactly the one click this blocker specifies on staging — /calendar,
-        a day in the FIRST grid row — and the create form opened as a centred
-        dialog with its title visible. That is the whole of what CAL-1a
-        claimed, observed rather than inferred, so the row is right and the
-        Dialog is the container being rendered. This is the only one of the
-        CAL-1 family's checks that the staging session completed.
-        ORIGINAL TEXT, preserved verbatim:
-        THE FIX IS UNSEEN. A clipping defect is visual by definition and this
-        session verified it by diff and build only. The check on staging is one
-        click: open /calendar, click a day in the FIRST grid row, and confirm
-        the form is centred with its title visible. If it is still clipped, the
-        Dialog is not the container being rendered and this row is wrong.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-18 (DOCS-4). THE FIX HAS NOW BEEN SEEN. Gary ran
+          exactly the one click this blocker specifies on staging — /calendar,
+          a day in the FIRST grid row — and the create form opened as a centred
+          dialog with its title visible. That is the whole of what CAL-1a
+          claimed, observed rather than inferred, so the row is right and the
+          Dialog is the container being rendered. This is the only one of the
+          CAL-1 family's checks that the staging session completed.
+          ORIGINAL TEXT, preserved verbatim:
+          THE FIX IS UNSEEN. A clipping defect is visual by definition and this
+          session verified it by diff and build only. The check on staging is one
+          click: open /calendar, click a day in the FIRST grid row, and confirm
+          the form is centred with its title visible. If it is still clipped, the
+          Dialog is not the container being rendered and this row is wrong.
 
   - id: CAL-1b
     track: cal
@@ -16234,6 +16297,23 @@ phases:
     commits: ["9936610"]
     title: "Calendar reminders could not be edited after saving — CAL-1's B6 specified Edit / Archive and the build shipped Archive alone"
     notes: >
+      ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
+      VERIFIED ON STAGING 2026-09-18, IN PART. Gary, in chat the same day: the
+      Edit dialog OPENS PRE-FILLED and SAVE WORKS. Observed on staging, in org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, through Clerk verified-snapper-7.
+      WHAT THAT ANSWERS AND WHAT IT DOES NOT, stated precisely because the
+      first blocker below names two checks and this evidence reaches one of
+      them. ANSWERED: the dialog renders pre-filled and the save path works end
+      to end — which is the half the DOCS-4 rider called "the save path end to
+      end" and carried as unobserved. NOT ANSWERED: changing a Repeat and
+      confirming the re-derive note appears WITH A COMPLETED OCCURRENCE STILL
+      ON THE GRID. That is ruling 3's guarantee and it is the half worth having
+      — an edit that silently dropped a completed occurrence would look exactly
+      like a successful save. THE FIRST BLOCKER STAYS LIVE for that reason, and
+      is marked rather than resolved.
+      STATUS IS UNCHANGED AT `staging`: CAL-1b is still the code on
+      origin/staging that is not in `53cb9ce`, and this session promoted
+      nothing.
       ── RIDER 2026-09-18 (DOCS-4). PREPENDED; NOTHING BELOW IS EDITED. ──
       PUSHED, AND NOT PROMOTED. Status moved `in_progress` -> `staging`. All
       three of this phase's commits are on `origin/staging` and on NO other
@@ -16356,6 +16436,19 @@ phases:
       PROMPT: docs/prompts/CAL-1b_edit_reminders.md.
     blockers:
       - >
+        PARTIALLY ANSWERED 2026-09-18 (DOCS-5), STILL LIVE. Gary saw the Edit
+        dialog open PRE-FILLED and a SAVE WORK on staging (org
+        org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7), which is the
+        first of the two checks this blocker names. THE SECOND IS UNRUN: change
+        the Repeat and confirm the re-derive note appears with a COMPLETED
+        occurrence still on the grid. The blocker is marked rather than resolved
+        because that second check is the one that proves ruling 3 — the PATCH
+        route scopes its deleteMany to `status: "Open"` — and a save that
+        silently dropped a completed occurrence is indistinguishable from a save
+        that worked.
+        THE FIRST SENTENCE BELOW IS NOW FALSE AND IS KEPT ANYWAY, preserve-and-
+        mark: the fix is no longer unseen. Everything after it still stands.
+        ORIGINAL TEXT AND ITS PRE-PUSH-CHECK CORRECTION, preserved verbatim:
         THE FIX IS UNSEEN. CORRECTED 2026-09-18 (PRE-PUSH-CHECK): this blocker
         used to read "unseeable until CAL-1's migration runs", on the false
         premise that the tables did not exist. They do —
@@ -16366,22 +16459,23 @@ phases:
         title, Save — the dialog should stay open on that reminder showing the
         new title. Then change its Repeat and confirm the re-derive note
         appears and any COMPLETED occurrence is still on the grid.
-      - >
-        RESOLVED 2026-09-18 (DOCS-4). PUSHED. All three commits are on
-        `origin/staging`, and the status has moved `in_progress` -> `staging`
-        in this session — which is WORKFLOW.md rule 4 working as designed for
-        once, since Gary's push had no session of its own and this docs
-        session is the first thing with a reason to look. NOT promoted: CAL-1b
-        is not in "53cb9ce" and is the only unpromoted work on the branch.
-        ORIGINAL TEXT, preserved verbatim:
-        NOT PUSHED. Status stays `in_progress` per WORKFLOW.md rule 4 — a row
-        moves to `staging` in the session whose code reached staging, and this
-        session committed only.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-18 (DOCS-4). PUSHED. All three commits are on
+          `origin/staging`, and the status has moved `in_progress` -> `staging`
+          in this session — which is WORKFLOW.md rule 4 working as designed for
+          once, since Gary's push had no session of its own and this docs
+          session is the first thing with a reason to look. NOT promoted: CAL-1b
+          is not in "53cb9ce" and is the only unpromoted work on the branch.
+          ORIGINAL TEXT, preserved verbatim:
+          NOT PUSHED. Status stays `in_progress` per WORKFLOW.md rule 4 — a row
+          moves to `staging` in the session whose code reached staging, and this
+          session committed only.
 
   - id: CAL-2
     track: cal
     size: L
-    status: in_progress
+    status: staging
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE LAST TWO ARE ADDED
     # BY THE CHECK AND THAT IS BY DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so the docs SHA does not exist
@@ -16394,6 +16488,40 @@ phases:
     title: "Calendar events from templates — \"Add to Calendar\", checklist generation from occurrences, and the close of DEBT-61"
     blockers:
       - >
+        LARGELY ANSWERED 2026-09-18 (DOCS-5) AND STILL LIVE ON FOUR ITEMS. Gary
+        ran the protocol on staging that day, org
+        org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7. ANSWERED:
+        "Add to Calendar" writing an event with a templateId — /calendar renders
+        "CAL-2 test" with the checklist glyph on every Friday, which is a
+        template-backed event on the grid and nothing else draws that glyph; and
+        the cron materialising occurrences AND linked checklists — the 22:14Z
+        curl returned `events 3`, `scanned 14`, `materialized 13`,
+        `checklistsCreated 12`, `checklistFailed 0`. The 12 is the template
+        applied to ALL STORES, which is ruling 2. SQL on `br-square-feather`
+        agrees from the other side: "CAL-2 test" has 12 occurrences and 12
+        checklists, and the two plain reminders have 1 and 0.
+        A CHECKLIST WAS COMPLETED FROM THE CALENDAR: Gary opened the Carson
+        checklist via "Open checklist" and submitted it, and the calendar then
+        showed the occurrence Completed. THAT IS NOT THE STORE-ACCOUNT CHECK.
+        This blocker names "completing that checklist as a STORE account", and
+        the completion above was not made by one. The lifecycle is proved; the
+        ACTOR is not. Do not read it as closing the CAL-1 check folded in below.
+        THE DAY-CLOSE CRON RAN AT 00:34Z ON SEP 19 AND ITS ZERO IS CORRECT, which
+        is the only reading that costs anything to get wrong: `occurrencesMissed
+        0`, because NO STORE HAD CLOSED for Sep 18 yet. A zero from "the sweep
+        found nothing to miss" and a zero from "the sweep never ran" are the same
+        character, and this one is the first. `frequencyLeftOpen 0` across 23
+        store-days. So the MISSED SWEEP IS NOT PROVEN by that run and is still
+        owed: it needs a backdated event swept to Missed with the occurrence
+        following and the next date projected.
+        STILL OWED, AND THIS BLOCKER STAYS LIVE FOR THEM: (1) the Missed sweep
+        above; (2) the `afterDate` proof that follows it, which nothing else in
+        this protocol and no fixture can supply; (3) bulk generate reporting
+        `skippedNonDaily` for an unscheduled Weekly template; (4) the CHK-5
+        report showing the calendar-generated rows under the new exclusion text;
+        and (5) BOTH CAL-1 checks Gary folded here — the PERM-8 grant flipping a
+        MANAGER's day-click, and a STORE account completing an occurrence.
+        ORIGINAL TEXT, preserved verbatim:
         THE STAGING PROTOCOL HAS NOT RUN AND NOTHING IN THIS BUILD HAS BEEN SEEN
         IN A BROWSER. The session report carries it unrun. Claude never pushes,
         so per CLAUDE.md the default assumption is that staging does not have
@@ -16424,6 +16552,18 @@ phases:
         than running twice (his message, 2026-09-18): the PERM-8 grant flipping
         a MANAGER's day-click, and a STORE account completing an occurrence.
       - >
+        MEASURED FROM THE CRON, NOT FROM THE SQL — STILL LIVE 2026-09-18
+        (DOCS-5). The 00:34Z day-close run on Sep 19 reported `frequencyExcluded
+        25`, and those 25 are the pre-existing litter this blocker is about.
+        THAT NUMBER DOES NOT CLOSE THIS BLOCKER and the distinction is the whole
+        point of the row: a cron counter is a number the application computed
+        while doing something else, on one branch, in one run. What is owed is
+        the §A7 SQL in docs/prompts/CAL-2_AUDIT.md, run per live branch and
+        carrying the branch id — which is what CLAUDE.md § Database Evidence
+        asks for and what makes the count comparable across dev, staging and
+        production. The 25 is recorded as a staging-side expectation for that
+        SQL to confirm or contradict, and nothing more.
+        ORIGINAL TEXT, preserved verbatim:
         THE DEBT-61 LITTER IS UNMEASURED. The SQL is drafted in
         docs/prompts/CAL-2_AUDIT.md §A7 — two queries, branch-id-carrying, org
         named by ID — and is Gary's to run per live branch (dev
@@ -16433,25 +16573,99 @@ phases:
         that answers with clean, plausible, wrong results). Nothing in this
         phase deletes any of those rows — the audit recommended leaving them and
         filing the count, and the count is what is owed.
-      - >
-        THE MIGRATION IS UNRUN EVERYWHERE. `20260918180000_cal2_scheduled_checklists`
-        was generated by `migrate diff` against the LIVE dev database and NOT
-        applied. Gary applies it on dev (`prisma db execute` + `migrate resolve
-        --applied`, MIGRATIONS.md §3), then pushes so staging and production take
-        it through `migrate deploy` in the Vercel build. Until dev has it, every
-        query touching `Checklist.calendarOccurrenceId` or
-        `CalendarEvent.templateId` fails at runtime on every branch.
-        ONE THING THE GENERATION METHOD DID PROVE, unlike CAL-1's: the diff was
-        taken `--from-config-datasource` against the live dev branch and returned
-        EXACTLY this session's delta and nothing else, so dev carries no drift
-        against schema.prisma at this commit. CAL-1's file-to-file diff could not
-        see drift at all and its ledger entry says so.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-18 (DOCS-5). THE MIGRATION IS APPLIED ON BOTH BRANCHES
+          THAT SHOULD HAVE IT. Dev `br-broad-wave` at 19:50:06Z; staging
+          `br-square-feather` at 20:01:31Z, through `migrate deploy` in the Vercel
+          build that followed Gary's push. PRODUCTION DOES NOT HAVE IT AND THAT IS
+          CORRECT, not an outstanding item: CAL-2 is not promoted, and
+          `br-sparkling-block` takes the migration in the Vercel build of whatever
+          merge carries this phase to main. The runtime-failure reasoning below is
+          answered — no query touching `Checklist.calendarOccurrenceId` or
+          `CalendarEvent.templateId` is running against a branch that lacks the
+          columns.
+          THE DEV HALF CONTRADICTS THIS PHASE'S OWN BUILD REPORT, which is recorded
+          on the MIGRATIONS.md entry rather than only here: 19:50:06Z falls INSIDE
+          the CAL-2 build session, so the migration was applied while that session
+          was still writing that it had not been. See docs/MIGRATIONS.md,
+          2026-09-18 entry, where the original claim is preserved and marked.
+          ORIGINAL TEXT, preserved verbatim:
+          THE MIGRATION IS UNRUN EVERYWHERE. `20260918180000_cal2_scheduled_checklists`
+          was generated by `migrate diff` against the LIVE dev database and NOT
+          applied. Gary applies it on dev (`prisma db execute` + `migrate resolve
+          --applied`, MIGRATIONS.md §3), then pushes so staging and production take
+          it through `migrate deploy` in the Vercel build. Until dev has it, every
+          query touching `Checklist.calendarOccurrenceId` or
+          `CalendarEvent.templateId` fails at runtime on every branch.
+          ONE THING THE GENERATION METHOD DID PROVE, unlike CAL-1's: the diff was
+          taken `--from-config-datasource` against the live dev branch and returned
+          EXACTLY this session's delta and nothing else, so dev carries no drift
+          against schema.prisma at this commit. CAL-1's file-to-file diff could not
+          see drift at all and its ledger entry says so.
       - >
         THE CRON'S SECRET COMPARISON IS STILL UN-TRIMMED AND NON-CONSTANT-TIME.
         Unchanged by this phase and deliberately so — the standing instruction
         is that five cron routes share it and one fixed with four not is a
         divergence nobody can see. Its own row owns the sweep.
     notes: >
+      ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
+      PUSHED, AND THE STAGING PROTOCOL IS MOSTLY RUN. Status moved
+      `in_progress` -> `staging`. All three of this phase's commits are on
+      `origin/staging` and on no other remote branch, confirmed by
+      `git branch -r --contains` on each: the work commit "ed98ff2", the docs
+      commit "55b6e87", and the check's own commit "b95d506". That third SHA is
+      the one the comment above `commits` names as "the commit immediately
+      after 55b6e87"; it is written here in prose rather than added to the
+      array, following the precedent DOCS-4 set on CAL-1b — this session is
+      scoped to staging evidence, and editing a `commits` array is not that.
+      WHY THE ROW WAS STALE, which is the same mechanism for the fourth phase
+      running: Gary pushed, Gary is not a session, and WORKFLOW.md rule 4
+      assigns the status move to "the session that moved the code". This docs
+      session is the first thing with a reason to look. `staging` here means
+      THE CODE IS ON THE BRANCH; the evidence below is separate and is what the
+      blockers read.
+      THE EVIDENCE, all Gary's, reported in chat 2026-09-18, all on STAGING in
+      org org_3G02wO4QlVVSWppi8aqlnSZnsDa through Clerk verified-snapper-7
+      except where a branch is named.
+      THE MIGRATION APPLIED. `20260918180000_cal2_scheduled_checklists` on dev
+      `br-broad-wave` at 19:50:06Z and on staging `br-square-feather` at
+      20:01:31Z, the latter through `migrate deploy` in the Vercel build after
+      the push. Production does not have it and should not: this phase is not
+      promoted. The dev timestamp falls INSIDE the CAL-2 build session, which
+      contradicts that session's own report — corrected on the MIGRATIONS.md
+      ledger entry with the original claim preserved and marked, and on this
+      row's third blocker, now resolved.
+      THE TEMPLATE PATH WORKS END TO END. The template form copy is updated,
+      and /calendar renders "CAL-2 test" with the CHECKLIST GLYPH on every
+      Friday — a template-backed event on the grid, which is the only thing
+      that draws that glyph.
+      THE CRON DID THE WORK, 22:14Z: `events 3`, `scanned 14`,
+      `materialized 13`, `checklistsCreated 12`, `checklistFailed 0`. THE 12 IS
+      RULING 2 — the template applied to ALL STORES, not to one. SQL on
+      `br-square-feather` confirms it from the database side rather than from
+      the run: "CAL-2 test" has 12 occurrences and 12 checklists, and the two
+      plain reminders have 1 and 0. `checklistFailed 0` is the number worth
+      naming separately, because a non-zero there would mean occurrences
+      materialised WITHOUT the checklist that is the entire point of the phase.
+      COMPLETION FROM THE CALENDAR WORKS. Gary opened the Carson checklist via
+      "Open checklist" on the calendar and submitted it; the calendar then read
+      Completed. THE ACTOR WAS NOT A STORE ACCOUNT, so the CAL-1 check Gary
+      folded onto this row is NOT answered by it — see the first blocker.
+      THE DAY-CLOSE SWEEP RAN AT 00:34Z ON SEP 19 AND RETURNED
+      `occurrencesMissed 0`, WHICH IS THE RIGHT ANSWER: no store had closed for
+      Sep 18 yet. A zero that means "nothing was missable" and a zero that
+      means "the sweep never looked" are the same character, and this one is
+      the first. `frequencyLeftOpen 0` across 23 store-days;
+      `frequencyExcluded 25`, the pre-existing DEBT-61 litter, which is a cron
+      counter and not the branch-carrying §A7 SQL the second blocker asks for.
+      SO THE MISSED SWEEP IS STILL UNPROVEN, and the `afterDate` proof that
+      depends on it cannot start until it is. Both stay live on the first
+      blocker, along with the litter count on the second.
+      VERCEL CRON DOES NOT FIRE ON PREVIEW DEPLOYMENTS. Every cron number above
+      came from a manual curl carrying the Preview-scope CRON_SECRET. That is a
+      standing property of this track, written into WORKFLOW.md § 1 by this
+      session rather than filed as a row.
       ── RIDER 2026-09-18 (CAL-2a). PREPENDED; NOTHING BELOW IS EDITED. ──
       TWO DEFECTS IN THIS BUILD WERE FOUND BY GARY ON STAGING AND ARE FIXED ON
       CAL-2a ("9e39b56"), A FOURTH COMMIT ON THIS SURFACE AND THE ONLY
@@ -16608,7 +16822,7 @@ phases:
   - id: CAL-2a
     track: cal
     size: S
-    status: in_progress
+    status: staging
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
     # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row
     # is written INSIDE the commit that records it, so "293ae36" did not exist
@@ -16619,6 +16833,28 @@ phases:
     title: "Only one item could be created per day, and \"today\" on the grid was computed in UTC"
     blockers:
       - >
+        LARGELY ANSWERED 2026-09-18 (DOCS-5) AND STILL LIVE ON THREE ITEMS. The
+        premise is gone first: THIS HAS BEEN SEEN IN A BROWSER, and the two
+        commits ARE on `origin/staging` — Gary pushed them, and this session
+        verified it by `git branch -r --contains 9e39b56` rather than taking the
+        report. The sentence below about Claude never pushing is still true and
+        still the right default; it just no longer describes this row.
+        ANSWERED, all Gary's on staging in org org_3G02wO4QlVVSWppi8aqlnSZnsDa
+        through Clerk verified-snapper-7: the today marker sits on FRI 18 read at
+        19:08 PDT — past 17:00 Pacific, which this blocker names as the only
+        window that proves anything, and where the defect put it on Sat 19; a
+        SECOND reminder was created on the 18th via the day number, so a cell
+        that already holds a chip still reaches the create form; the header
+        "+ New" works; an empty-day click works; and TWO CHIPS render on the
+        18th, which is the multi-item case this phase exists for.
+        STILL OWED, AND THIS BLOCKER STAYS LIVE FOR THEM: a cell holding FOUR OR
+        MORE items showing three chips and "+N more", with the overflow list's
+        rows opening DETAIL; "+ New" appearing for `calendar.manage` and NOT for
+        `calendar.view`; and the marker FOLLOWING THE STORE PICKER between two
+        stores in different zones on a day where their local dates differ. The
+        last is the one the fix is actually about — per-store rather than
+        per-page resolution — and two chips on one day does not touch it.
+        ORIGINAL TEXT, preserved verbatim:
         NOTHING HERE HAS BEEN SEEN IN A BROWSER AND CLAUDE NEVER PUSHES, so the
         default assumption is that staging does not have this work. The SHA-match
         precondition binds before any observation.
@@ -16658,6 +16894,37 @@ phases:
           page in by the typecheck rather than by a decision. Gary's call
           whether it gets a row.
     notes: >
+      ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
+      VERIFIED ON STAGING 2026-09-18 19:08 PDT, AND PUSHED. Status moved
+      `in_progress` -> `staging`: "9e39b56", "293ae36" and the check's own
+      "6d69b6c" are all on `origin/staging` and on no other remote branch,
+      confirmed by `git branch -r --contains` on each. `git log --oneline
+      origin/main..origin/staging` returns eleven commits — CAL-1b's three,
+      CAL-2's three, CAL-2a's three and DOCS-4's two — so the unpromoted
+      surface is the whole CAL family from CAL-1b forward.
+      THE SESSION PROMPT FOR THIS RECORDING ASSUMED THIS ROW ALREADY READ
+      `staging` AND IT READ `in_progress`, which is worth a line because it is
+      the fourth consecutive CAL row to be found stale by the next session
+      rather than moved by its own. Gary pushes, Gary is not a session, and
+      WORKFLOW.md rule 4 has no owner for that gap. DEBT-72b is the gate that
+      would close it and is not built.
+      THE THIRD SHA IS "6d69b6c", the commit the comment above `commits` names
+      as "the commit immediately after 293ae36". Written here in prose rather
+      than added to the array, for the reason DOCS-4 gave on CAL-1b.
+      WHAT WAS OBSERVED, all Gary's, on staging in org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa through Clerk verified-snapper-7. THE
+      TODAY MARKER SAT ON FRI 18 AT 19:08 PDT — before the fix it sat on Sat
+      19, and 19:08 PDT is inside the post-17:00 window that is the only one
+      where the UTC read and the store-local read disagree. A second reminder
+      was created on the 18th via the DAY NUMBER; the header "+ New" works; an
+      empty-day click works; and TWO CHIPS render on the 18th. Both defects
+      this phase names are fixed and seen.
+      WHAT IS STILL OWED is on the first blocker, marked rather than resolved:
+      the "+N more" overflow at four or more items, the `calendar.view` half of
+      the "+ New" affordance, and — the one that matters most — the marker
+      following the store picker between two stores in DIFFERENT ZONES. That
+      last is what "per store, not per page" means, and nothing observed so far
+      has exercised it.
       BUILT 2026-09-18 ("9e39b56"), TIER 2. Two defects Gary observed on
       staging the same day CAL-2 was built, both of them CAL-1's, both surfaced
       by CAL-2 putting enough on the grid to trip over them. Prompt of record:
@@ -27239,6 +27506,79 @@ debt:
       the form's store selection is made AFTER the date is defaulted. Whether
       the default should follow the selected store or the org is a question
       this row does not answer.
+  - id: DEBT-100
+    status: planned
+    title: >
+      Two full-width red banners stack on /dashboard when a compliance item and
+      a calendar reminder are both due — consider one bar
+    notes: >
+      FILED 2026-09-18 (DOCS-5) FROM GARY'S STAGING PASS, as a DESIGN QUESTION
+      and not a defect. Neither phase is wrong and nothing is broken; this row
+      exists because the composition was never designed, only arrived at.
+      WHAT WAS SEEN. Signed in as Tommy (MANAGER, Las Brisas) on staging, org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7: /dashboard
+      rendered the CAL-1 calendar banner ("1 reminder due · 3 days overdue") as
+      a SECOND red bar BENEATH the SELF-1 banner. Two full-width red bars, one
+      above the other, before any of the page's own content.
+      WHY IT IS WORTH A ROW. Each banner was built by a phase that could only
+      see its own: SELF-1 shipped an identity banner and CAL-1 shipped a
+      due/overdue banner, and neither had a reason to ask what happens when the
+      other one is also on screen. The cost is not correctness, it is that RED
+      IS THE ESCALATION and two of them at once spend it — a person who sees
+      two red bars every morning stops reading either, which is the one
+      failure mode a due/overdue banner cannot survive. Nothing today caps the
+      count: a third source would stack the same way.
+      WHAT THIS ROW DOES NOT DECIDE. Whether the answer is one bar that
+      aggregates ("2 things need you"), a priority order with the lower one
+      demoted out of red, a single bar that cycles, or leaving it exactly as
+      it is because two is not many. That is Gary's call and the reason this
+      is filed rather than fixed.
+      NOT INVESTIGATED HERE: whether /checklists, which CAL-1 also banners,
+      has the same stack, and whether any third banner source exists on either
+      page. The observation is /dashboard's only.
+
+  - id: DEBT-101
+    status: planned
+    title: >
+      "N days overdue" counts from dueAt at store close, and a person reads it
+      from the due DATE — ruling 8 behaving as written, and a question for Gary
+    notes: >
+      FILED 2026-09-18 (DOCS-5) AS A QUESTION, NOT A BUG, and the distinction
+      is the row. Gary's instruction at the time of recording is that this is a
+      ruling-8 question for him rather than a defect, and nothing here should
+      be read as saying the code is wrong. It is doing exactly what ruling 8
+      says.
+      WHAT WAS SEEN. On staging (org org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk
+      verified-snapper-7) as Tommy, MANAGER, Las Brisas: /dashboard read
+      "1 reminder due · 3 days overdue" for a reminder whose due date was
+      Sep 14.
+      THE MECHANISM. Ruling 8 puts a reminder's overdue instant at STORE CLOSE
+      — or at the end of the store's local day for a store with no hours —
+      which is `CalendarOccurrence.dueAt`, a real TIMESTAMP frozen at
+      materialisation, and deliberately NOT the three-hours-later day close a
+      checklist gets. The age is counted from that instant. A person reading
+      the sentence counts from the DUE DATE on the calendar, in whole days.
+      The two answers differ by up to a day depending on the hour the page is
+      read and on when that store closes.
+      WHY IT IS NOT A BUG. `dueAt` is the correct instant for DECIDING
+      overdue-ness — that is the whole content of ruling 8, and moving it would
+      change when a reminder escalates, not merely how the escalation is
+      described. The question is narrower: whether the DISPLAYED age should
+      count from the same instant the decision uses, or from the due date the
+      reader can see.
+      THE OPTIONS, so the ruling has something to choose between. (a) Leave it:
+      the number is internally consistent and the discrepancy is at most a day.
+      (b) Count the displayed age in whole store-local days from `dueDate`,
+      leaving `dueAt` as the sole overdue trigger — the sentence then matches
+      the arithmetic a reader does, at the cost of the display and the decision
+      reading from two different columns. (c) Say what the clock is in the copy
+      ("overdue since Sun close") and drop the day count, which removes the
+      ambiguity instead of resolving it.
+      NOT MEASURED HERE: how far apart the two readings actually run across
+      Keva's real store hours. A store closing at 21:00 and one closing at
+      02:00 sit on opposite sides of the boundary for a different span of the
+      day, and nobody has counted.
+
 
 
 rulings:

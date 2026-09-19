@@ -602,6 +602,23 @@ was in sync with `schema.prisma` at `648e6da`.
 
 ## 2026-09-17 — `20260917143000_cal1_calendar` (CAL-1)
 
+**CORRECTED 2026-09-18 (DOCS-5), citing Gary in chat the same day. THIS
+MIGRATION IS APPLIED ON ALL THREE LIVE BRANCHES** — dev `br-broad-wave` at
+13:26Z by Gary's own `migrate deploy`; staging `br-square-feather` and
+production `br-sparkling-block` through `migrate deploy` in the Vercel build,
+production's being the build of promotion `53cb9ce`. SQL confirms it from the
+database side on each: **`calendar_tables = 4` on all three.** Production also
+reads `orgs_enabled = 0`, which is the ruling-9 inert state the paragraph below
+predicts — the schema is there and the toggle is off for every org.
+
+**This correction is outside the CAL-2 scope this session was given**, and is
+written anyway because the two entries sit one above the other and leaving one
+reading "APPLIED NOWHERE" while correcting the other would make this file worse
+than either sentence alone.
+
+**ORIGINAL PARAGRAPH, PRESERVED VERBATIM** — true when written, and the
+generation-method reasoning that follows it is unaffected:
+
 **APPLIED NOWHERE. Not dev, not staging, not production.** This is the first
 entry in this ledger written for a migration that has not touched a database at
 all, and it says so at the top rather than in a footnote. Gary applies it to dev
@@ -683,6 +700,35 @@ is the existing precedent. **`CalendarOccurrence.dueAt` is deliberately
 column in these four tables a timezone question can be asked of.
 
 ## 2026-09-18 — `20260918180000_cal2_scheduled_checklists` (CAL-2)
+
+**CORRECTED 2026-09-18 (DOCS-5), citing Gary in chat the same day. THIS ENTRY
+SAID "APPLIED NOWHERE" AND IT WAS ALREADY APPLIED ON DEV WHEN THE SENTENCE WAS
+WRITTEN.** `20260918180000_cal2_scheduled_checklists` was applied to the dev
+branch `br-broad-wave` at **19:50:06Z**, and to staging `br-square-feather` at
+**20:01:31Z** — the second through `prisma migrate deploy` in the Vercel build
+that followed Gary's push, which is the documented path and needs no correction.
+The dev one does: **19:50:06Z falls inside the CAL-2 build session**, so the
+migration was applied to dev while that same session was reporting it "not run
+locally".
+
+**Who applied it is NOT settled by the evidence, and this ledger does not guess.**
+What is established is the branch and the instant. The process assigns every dev
+application to Gary — §3 above, and CLAUDE.md's rule that Claude never touches a
+database — and no session report claims otherwise, so Gary is the presumption.
+But the presumption is what the contradicted sentence below also rested on, and a
+ledger that resolves its own contradiction by restating the assumption that
+produced it has recorded nothing. **If this matters later, the thing to ask is
+Gary, not this file.**
+
+**Production still does not have it, and that is correct rather than outstanding.**
+CAL-2 is on `origin/staging` and is not in `53cb9ce`; `br-sparkling-block` takes
+this migration in the Vercel build of whatever merge promotes the phase. The
+runtime-failure warning in the original paragraph below is answered for dev and
+staging and remains true, harmlessly, for a production database no CAL-2 code is
+deployed against.
+
+**ORIGINAL PARAGRAPH, PRESERVED VERBATIM** — it was believed when written, and
+the claim it makes is the record of what the build session thought it knew:
 
 **APPLIED NOWHERE at the time of writing. Not dev, not staging, not
 production.** Gary applies it to dev (`prisma db execute` + `migrate resolve
