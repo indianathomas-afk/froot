@@ -16609,10 +16609,13 @@ phases:
     track: cal
     size: S
     status: in_progress
-    # The work commit only. The docs commit is the one immediately after
-    # "9e39b56" and cannot be named from inside itself — CAL-2's own comment
-    # above records why the two-commit pattern has this hole.
-    commits: ["9e39b56"]
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
+    # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row
+    # is written INSIDE the commit that records it, so "293ae36" did not exist
+    # when the row was composed. The third is the commit this line is being
+    # written in, so it is named as "the commit immediately after 293ae36"
+    # rather than guessed at.
+    commits: ["9e39b56", "293ae36"]
     title: "Only one item could be created per day, and \"today\" on the grid was computed in UTC"
     blockers:
       - >
@@ -16634,16 +16637,26 @@ phases:
         the window the defect lived in and the only one that proves anything;
         and with the store picker moved between two stores in DIFFERENT zones on
         a day where their local dates differ, the marker follows the selection.
-      - >
-        A FIFTH UTC "today" WAS FOUND OUTSIDE THIS PHASE'S SCOPE AND LEFT:
-        src/app/(app)/templates/template-form.tsx:1721 seeds the "Add to
-        calendar" Event form with `new Date().toISOString().slice(0, 10)`.
-        Same class, smaller cost — it is a DEFAULT in a form the operator can
-        change before saving, not a marker that silently reads wrong. Fixing it
-        needs a store timezone on /templates' server page, which is a second
-        page and outside a contained fix; CAL-2a deliberately did not widen the
-        shared `StoreOption` type, which would have dragged that page in by the
-        typecheck rather than by a decision. Gary's call whether it gets a row.
+      - resolved: true
+        text: >
+          MOVED TO A ROW OF ITS OWN BY GARY'S RULING, 2026-09-18, VERBATIM:
+          "template-form.tsx:1721 (UTC start-date default on Add to Calendar)
+          stays unfixed and is filed as a ROW, not a CAL-2a blocker." It is now
+          DEBT-99. Resolved as a BLOCKER ON THIS PHASE only — the defect itself
+          is untouched and open. The text below is kept exactly as the build
+          session wrote it, per preserve-and-mark; its closing sentence
+          ("Gary's call whether it gets a row") is the question this ruling
+          answers.
+          A FIFTH UTC "today" WAS FOUND OUTSIDE THIS PHASE'S SCOPE AND LEFT:
+          src/app/(app)/templates/template-form.tsx:1721 seeds the "Add to
+          calendar" Event form with `new Date().toISOString().slice(0, 10)`.
+          Same class, smaller cost — it is a DEFAULT in a form the operator can
+          change before saving, not a marker that silently reads wrong. Fixing
+          it needs a store timezone on /templates' server page, which is a
+          second page and outside a contained fix; CAL-2a deliberately did not
+          widen the shared `StoreOption` type, which would have dragged that
+          page in by the typecheck rather than by a decision. Gary's call
+          whether it gets a row.
     notes: >
       BUILT 2026-09-18 ("9e39b56"), TIER 2. Two defects Gary observed on
       staging the same day CAL-2 was built, both of them CAL-1's, both surfaced
@@ -27173,6 +27186,59 @@ debt:
       src/lib, trimming both sides and comparing in constant time, called by
       every route — so the NEXT cron cannot reintroduce this by being written
       from scratch.
+
+  - id: DEBT-99
+    status: planned
+    title: >
+      "Add to Calendar" on the template editor seeds its start date from a UTC
+      calendar date, so after 17:00 Pacific it offers tomorrow
+    notes: >
+      FILED 2026-09-18 ON GARY'S RULING at the CAL-2a pre-push check, verbatim:
+      "template-form.tsx:1721 (UTC start-date default on Add to Calendar) stays
+      unfixed and is filed as a ROW, not a CAL-2a blocker." It was found by
+      CAL-2a's timezone audit, outside that phase's four named surfaces, and
+      was carried as a CAL-2a blocker until this ruling moved it here. That
+      blocker is now `resolved: true` on CAL-2a — resolved AS A BLOCKER ONLY;
+      the defect below is open and untouched.
+      THE FACT. src/app/(app)/templates/template-form.tsx:1721 renders
+      CreateEventForm with `date={new Date().toISOString().slice(0, 10)}`.
+      That is a UTC calendar date read off a browser instant, so from 17:00
+      Pacific (16:00 during PST) the form opens on TOMORROW. Same class as the
+      two CAL-2a fixed and as CLAUDE.md § Database Evidence — an instant read
+      as a day.
+      WHY IT IS SMALLER THAN THE TWO CAL-2a FIXED, which is the whole reason it
+      is a row and not part of that phase. This is a DEFAULT in a form field
+      the operator sees and can change before saving. The grid's today marker
+      was not: it silently rendered a wrong day with nothing on screen
+      admitting it, and the month anchor opened the wrong MONTH. A wrong
+      default that is visible and editable is a different severity from a wrong
+      fact that is neither.
+      IT IS STILL WORTH FIXING. Nobody proof-reads a pre-filled date, and a
+      Weekly event created a day late is phase-shifted for its whole life —
+      projectDueDates() anchors Weekly and Biweekly to `startDate`, so the
+      error does not wash out on the next occurrence, it repeats on every one.
+      WHY CAL-2a DID NOT FIX IT. The fix needs a store timezone, and
+      /templates' server page does not select one — so this reaches a second
+      page's data loading, which is outside a contained TIER 2. CAL-2a
+      deliberately kept `StoreOption` as {id, name} and gave the grid a new
+      `CalendarStoreOption` for exactly this reason: widening the shared type
+      would have dragged /templates in BY THE TYPECHECK rather than by a
+      decision, which is how an unrelated page ends up half-converted in a
+      commit that never meant to touch it.
+      THE RIGHT SHAPE when it is picked up: /templates' page resolves the
+      store-local date server-side through localDateStr(now, Store.timezone) —
+      the same helper the calendar page (:84), the due feed (:37) and the
+      materialise cron (:256) all go through — with the DEBT-70a fallback chain
+      behind it (Store.timezone -> Organization.timezone -> DEFAULT_TIME_ZONE,
+      no bare-UTC arm) and passes it down. NOT a second mechanism, and not a
+      client-side `Intl` call, which would only move the question from the
+      server's zone to the viewer's — DEBT-70's still-open client half is the
+      record of why that is not a fix.
+      ONE THING TO CHECK IN THE SAME PASS, not investigated here: /templates
+      renders this form for an ADMIN who may hold stores in several zones, and
+      the form's store selection is made AFTER the date is defaulted. Whether
+      the default should follow the selected store or the org is a question
+      this row does not answer.
 
 
 rulings:

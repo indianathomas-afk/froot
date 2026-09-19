@@ -17,9 +17,11 @@ written inside itself.
 
 **Payload:** **3 commits** on `staging` — the work, the docs, and the
 PRE-PUSH-CHECK commit that ratified the rulings and recorded deviation S5-D78.
-**CARRIES CAL-2a (`9e39b56`, 2026-09-18) — two CAL-1 defects Gary found on this
+**CARRIES CAL-2a — work `9e39b56`, docs `293ae36`, and its PRE-PUSH-CHECK
+commit, which is the one immediately after `293ae36` and carries this line.
+2026-09-18. Two CAL-1 defects Gary found on this
 surface, fixed on top of the three above. THE THREE ARE ALREADY ON
-`origin/staging`; CAL-2a's two are NOT, so whatever is deployed from staging
+`origin/staging`; CAL-2a's THREE are NOT, so whatever is deployed from staging
 today does not contain them. The defects: a day cell would not offer a create
 form for a SECOND item (an affordance gap — nothing in the model ever stopped
 one), and the grid's "today" was a UTC calendar date, so after 17:00 Pacific
