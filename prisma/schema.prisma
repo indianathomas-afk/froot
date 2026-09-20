@@ -54,6 +54,25 @@ model Organization {
   // DEFAULT false, so every existing org lands inert and the migration needs no
   // backfill.
   calendarEnabled         Boolean   @default(false)
+  // F-5b (Gary, 2026-09-20). THE PER-ORG SWITCH FOR BEHIND-PACE ALERT EMAILS.
+  // A DEDICATED COLUMN on the calendarEnabled pattern above, and deliberately
+  // NOT an activeModules entry: activeModules is the BILLABLE ADD-ON list
+  // driving the module cards on /settings, and pace alerts are part of
+  // Forecasting — which every org already has — not a separate purchase.
+  //
+  // Off = the cron never evaluates the org's stores, so no PaceAlertLog row is
+  // written and no email is sent. The gate is in the store query itself
+  // (src/app/api/cron/pace-alerts/route.ts), not a per-store early return, so a
+  // disabled org's store cannot burn its one-alert-per-month lock while dark.
+  //
+  // DEFAULT false, AND THAT IS THE SAFETY ARGUMENT RATHER THAN A CONVENTION
+  // (F1, Gary 2026-09-20). Pace alerts are the only email Froot sends to
+  // MANAGERS, and production is about to set NOTIFY_EMAIL_PROVIDER=resend so
+  // HR-16 can deliver; the two features share one sender. A default of true
+  // would make that env flip start mailing real Keva admins and managers at the
+  // next 15:00 UTC cron, as a side effect of a change made for a different
+  // feature. false means the flip sends nothing until an admin turns this on.
+  paceAlertsEnabled       Boolean   @default(false)
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
   // HR-11b: governs inline `Date:` field stamps ONLY ("dateOnly" | "dateTime").

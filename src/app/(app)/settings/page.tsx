@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, TrendingDown } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
 import { getCurrentUser, hrModuleAvailable, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
@@ -14,6 +14,7 @@ import { HrAckRecipientsField, HrModuleToggle } from "./hr-actions"
 import { LaborModuleToggle } from "./labor-actions"
 import { SquareLaborToggle } from "./square-labor-actions"
 import { CalendarModuleToggle } from "./calendar-actions"
+import { PaceAlertsToggle } from "./pace-alerts-actions"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -69,6 +70,10 @@ export default async function SettingsPage() {
   const showSquareLabor = laborAvailable && laborActive && squareLaborAvailable(org?.clerkOrgId)
   // CAL-1 (ruling 9). One column, no availability gate — see the card below.
   const calendarActive = !!org?.calendarEnabled
+  // F-5b (F1, Gary 2026-09-20). Same shape as calendarActive: one column, no
+  // availability gate. DEFAULT false, so every org — Keva included — reads
+  // disabled until an admin turns it on here.
+  const paceAlertsActive = !!org?.paceAlertsEnabled
 
   const addOns = [
     { name: "Inventory Management", desc: "Physical counts, COGS tracking, storage areas, and adjustments", module: "inventory" },
@@ -348,6 +353,48 @@ export default async function SettingsPage() {
                   </div>
                 </div>
                 <CalendarModuleToggle enabled={calendarActive} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* F-5b. NO AVAILABILITY GATE, same as the Calendar card above: F-5
+              shipped to every org in July and was never a staged rollout, so the
+              column is the only gate. The help text names WHO is emailed and
+              HOW OFTEN because this is the only mail Froot sends to managers —
+              an admin flipping this on is choosing to put their managers on a
+              mailing list, and the switch should say so before it is flipped. */}
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Behind-pace alerts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                    <TrendingDown className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Behind-pace alert emails</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">
+                      Emails admins and the store&apos;s assigned managers once per store per month when
+                      month-to-date sales fall below the alert threshold.
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {paceAlertsActive ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                          <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                          <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <PaceAlertsToggle enabled={paceAlertsActive} />
               </div>
             </CardContent>
           </Card>
