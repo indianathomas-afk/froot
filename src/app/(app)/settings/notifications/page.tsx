@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { paceThresholdPct } from "@/lib/pace-alerts"
+import { listRecentEmails } from "@/lib/notification-log"
 import { HrAckRecipientsField } from "./hr-ack-recipients"
 import { PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
+import { RecentEmails } from "./recent-emails"
 
 // NOTIFY-2a — every email setting on one page (Gary's ruling, 2026-09-20).
 // Before this, HR-16's acknowledgment recipients and F-5b's behind-pace toggle
@@ -26,6 +28,13 @@ import { PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions
 //
 // NO PLACEHOLDER CARDS. Operational reports and employee-facing notifications
 // get a card each when they exist and not before.
+//
+// NOTIFY-2b ADDED A THIRD CARD, "Recent emails", AND IT IS NOT A PLACEHOLDER —
+// it reads the AuditLog rows the three senders write. It is UNGATED by module,
+// deliberately: the two cards above are per-consumer settings and hide when
+// their consumer does not exist here, but the log is about this page's own
+// subject (what Froot emailed) and an org with HR switched off still sends
+// pace alerts and test messages.
 
 export default async function NotificationSettingsPage() {
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
@@ -57,6 +66,10 @@ export default async function NotificationSettingsPage() {
   // toggle (HR-16), so nothing is at risk in the gap between the two.
   const hrAvailable = hrModuleAvailable(org.clerkOrgId)
   const hrActive = org.activeModules.includes("hr")
+
+  // F2: the newest 50. Fetched here rather than behind a route — the page is
+  // already the ADMIN_ONLY gate and the card neither refreshes nor paginates.
+  const recentEmails = await listRecentEmails(org.id)
 
   const paceAlertsActive = org.paceAlertsEnabled
   // The fallback an empty threshold resolves to, read here rather than assumed
@@ -158,9 +171,24 @@ export default async function NotificationSettingsPage() {
               reading the page does not go looking for the recipient box that
               the card above this one has. */}
           <p className="text-sm text-[var(--color-muted-foreground)] mt-4">
-            <span className="font-medium text-[var(--color-foreground)]">Recipients:</span> sent to
-            every admin and the store&apos;s assigned managers. This is not editable.
+            <span className="font-medium text-[var(--color-foreground)]">Recipients:</span>{" "}
+            sent to every admin and the store&apos;s assigned managers. This is not editable.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Recent emails</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+            The last {recentEmails.length === 1 ? "email" : `${recentEmails.length} emails`} Froot sent
+            for this organization, newest first. <span className="font-medium text-[var(--color-foreground)]">Delivered</span>{" "}
+            means the receiving mail server accepted it; <span className="font-medium text-[var(--color-foreground)]">Sent</span>{" "}
+            means it was handed to the provider and no delivery result has come back yet.
+          </p>
+          <RecentEmails entries={recentEmails} timeZone={org.timezone} />
         </CardContent>
       </Card>
     </div>

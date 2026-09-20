@@ -132,6 +132,29 @@ load and the nightly cron covers the last 3 days.
       per send, and the idempotency lock is keyed on store-month and knows
       nothing about the number — so a store that already alerted at 90 does not
       alert again when the org moves to 75.
+  - **The alert is now sent as HTML as well as text (NOTIFY-2b, 2026-09-20).**
+    `src/lib/email-template.ts` renders the branded body; the alert goes out
+    multipart, and a client that wants plain text still gets it.
+    - **THE TEXT PART DID NOT CHANGE — not a word, not a space.** The template
+      is given the consumer's existing lines verbatim rather than regenerating
+      them, because the pace alert's wording is not a two-column table (its
+      `Month to date:` and `Dashboard:` lines are prose with a single space
+      after the colon) and the template's own row format cannot reproduce them.
+      `scripts/verify-f5-polish.ts` pins all seven lines, the line count and
+      the two label prefixes, so editing that builder fails the fixture.
+    - **The pace path now writes an `AuditLog` row per send** — `entityType
+      "Notification"`, `action email.sent | email.failed`, `metadata {kind:
+      "pace.alert", provider, recipients, subject, resendId | error}` — which
+      it did not before. `PaceAlertLog` is unchanged and is still the
+      idempotency lock; it is not a log, carries no provider and has no failure
+      rows, so it could not feed the "Recent emails" card on
+      `/settings/notifications` or give a Resend delivery event an org to
+      attach to. The row is written AFTER the send, never before: the lock is
+      the thing that precedes the send, and this is a record of what happened.
+    - **The org name costs one extra query, on the alert path only.**
+      `processPaceAlertForStore` is typed `store: Store` and stays that way
+      (NOTIFY-2a's reasoning), so the template's header reads the name
+      directly — at most once per store per month, by construction.
   - **The per-org switch (F-5b, 2026-09-20)**. `Organization.paceAlertsEnabled`,
     **default `false`**, migration `20260920190000_f5b_pace_alerts_toggle`.
     Toggled at **/settings/notifications → Behind-pace alerts** (ADMIN) via

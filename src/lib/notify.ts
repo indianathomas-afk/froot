@@ -20,6 +20,12 @@ export type EmailMessage = {
   // Reply on an acknowledgment confirmation reaches their own office rather
   // than the no-reply sending address.
   replyTo?: string
+  // NOTIFY-2b. The alternative body, rendered by src/lib/email-template.ts.
+  // OPTIONAL AND IT STAYS OPTIONAL: `text` is the part that must always exist,
+  // because it is what a plain-text client and every spam filter read. A
+  // message with html and no text is the one shape this type must not permit,
+  // which is why html is the field that was made nullable and not the reverse.
+  html?: string
 }
 
 // `id` is the provider's message id where the provider returns one. The
@@ -48,8 +54,15 @@ export function emailProviderName(): string {
 // Default sender: logs the full message instead of delivering it.
 export const consoleEmailSender: EmailSender = {
   async send(msg) {
+    // THE HTML IS NOT PRINTED, only its length. A branded body is ~4KB of
+    // table markup that would bury the message it wraps in every local run and
+    // every Vercel function log — and the text part directly below is the same
+    // content in the form a human can actually read. The note exists so that a
+    // console-mode run still says whether the HTML was built at all, which is
+    // the one thing the text alone cannot tell you (NOTIFY-2b).
+    const html = msg.html ? ` html=${msg.html.length}b` : " html=(none)"
     console.log(
-      `[notify:console] to=${recipients(msg.to).join(", ")} subject="${msg.subject}"\n${msg.text}`
+      `[notify:console] to=${recipients(msg.to).join(", ")} subject="${msg.subject}"${html}\n${msg.text}`
     )
     return {}
   },
@@ -70,6 +83,9 @@ export function createResendEmailSender(config: { apiKey: string; from: string }
         subject: msg.subject,
         text: msg.text,
       }
+      // Sending both makes it multipart/alternative; the client picks. `text`
+      // is never dropped when html is present (NOTIFY-2b).
+      if (msg.html) body.html = msg.html
       if (msg.replyTo) body.reply_to = msg.replyTo
 
       const controller = new AbortController()

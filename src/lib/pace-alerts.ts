@@ -5,6 +5,8 @@ import { projectMonthEnd, round2 } from "@/lib/pacing"
 import { addDaysStr } from "@/lib/goal-engine"
 import { localDateStr, dbDate } from "@/lib/reports"
 import type { EmailSender } from "@/lib/notify"
+import { renderEmail } from "@/lib/email-template"
+import { ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
 
 // ─── Behind-pace alerts (Phase F-5) ──────────────────────────────────────────
 // A store is "behind pace" when MTD actual ÷ MTD goal drops below the
@@ -142,6 +144,61 @@ export async function processPaceAlertForStore(
   const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.usefroot.com"
 
+  // NOTIFY-2b. THE ORG NAME IS FETCHED HERE RATHER THAN WIDENING THE SIGNATURE.
+  // processPaceAlertForStore is typed `store: Store` and NOTIFY-2a deliberately
+  // kept it that way — including `organization` on the cron's store query would
+  // make every caller, the fixture included, carry a payload the function does
+  // not read. This query runs ONLY on the alert path, which by construction
+  // happens at most once per store per month, so it is one round trip a year
+  // per store and not one per cron run. A missing row cannot happen (the store
+  // has a foreign key to it) but is tolerated rather than thrown on: an
+  // untitled header is not worth losing the alert over.
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: store.organizationId },
+    select: { name: true },
+  })
+  const orgName = orgRow?.name ?? store.name
+
+  // THE SUBJECT AND TEXT ARE UNCHANGED FROM F-5, BYTE FOR BYTE. They are
+  // assembled here instead of inline at the send so the audit row below can
+  // name the subject and the template can take the text verbatim. Anything
+  // that edits these lines is changing the wording of a live alert, which is
+  // NOT what NOTIFY-2b was asked to do — the phase adds an HTML alternative
+  // body and nothing else about what this email says.
+  const subject = `${store.name} is behind pace for ${monthName} — ${verdict.pacePct!.toFixed(1)}% of MTD goal`
+  const headline = `${store.name} is trailing its ${monthName} sales goal (through ${asOf}).`
+  const mtdLine = `${usd(mtdActual)} of ${usd(goal.mtdGoal)} goal (${verdict.pacePct!.toFixed(1)}%)`
+  const projectedLine =
+    goal.goalAmount !== null
+      ? `${usd(projected)} vs ${usd(goal.goalAmount)} goal (${((projected / goal.goalAmount) * 100).toFixed(1)}%)`
+      : null
+  const text = [
+    headline,
+    ``,
+    `Month to date: ${mtdLine}`,
+    projectedLine !== null ? `Projected month end: ${projectedLine}` : null,
+    ``,
+    `Alert threshold: ${opts.thresholdPct}% of MTD goal. You'll get at most one alert per store per month.`,
+    `Dashboard: ${appUrl}/dashboard`,
+  ]
+    .filter((l) => l !== null)
+    .join("\n")
+
+  const { html } = renderEmail({
+    orgName,
+    heading: headline,
+    intro: "",
+    rows: [
+      { label: "Month to date", value: mtdLine },
+      ...(projectedLine !== null ? [{ label: "Projected month end", value: projectedLine }] : []),
+      { label: "Alert threshold", value: `${opts.thresholdPct}% of MTD goal` },
+    ],
+    cta: { label: "Open the dashboard", url: `${appUrl}/dashboard` },
+    footer: `You'll get at most one alert per store per month. Sent by USE Froot on behalf of ${orgName}. This address does not accept replies.`,
+    appUrl,
+    text,
+  })
+
   // RELEASE ON FAILURE. Deleting BY ID is the whole of the concurrency
   // argument and is not a style choice: a delete by the {storeId, month} unique
   // key would destroy whichever row is there, and on a concurrent run that is
@@ -155,24 +212,37 @@ export async function processPaceAlertForStore(
   // may alert; a double-alert stays impossible, because a send that SUCCEEDS
   // leaves the row exactly where it has always been.
   try {
-    await opts.sender.send({
-      to: recipients,
-      subject: `${store.name} is behind pace for ${monthName} — ${verdict.pacePct!.toFixed(1)}% of MTD goal`,
-      text: [
-        `${store.name} is trailing its ${monthName} sales goal (through ${asOf}).`,
-        ``,
-        `Month to date: ${usd(mtdActual)} of ${usd(goal.mtdGoal)} goal (${verdict.pacePct!.toFixed(1)}%)`,
-        goal.goalAmount !== null
-          ? `Projected month end: ${usd(projected)} vs ${usd(goal.goalAmount)} goal (${((projected / goal.goalAmount) * 100).toFixed(1)}%)`
-          : null,
-        ``,
-        `Alert threshold: ${opts.thresholdPct}% of MTD goal. You'll get at most one alert per store per month.`,
-        `Dashboard: ${appUrl}/dashboard`,
-      ]
-        .filter((l) => l !== null)
-        .join("\n"),
+    const { id } = await opts.sender.send({ to: recipients, subject, text, html })
+    // NOTIFY-2b. THE FIRST AuditLog ROW THIS PATH HAS EVER WRITTEN. PaceAlertLog
+    // above records that an alert went out, but it is a per-store-month
+    // idempotency lock — it carries no provider, no subject and no failure row,
+    // so nothing in it can tell a real send from a console-mode one, and a
+    // Resend delivery event had no row to find its org by. Both of those are
+    // what the send log and the webhook need. AFTER the send, never before: the
+    // lock is the thing that must precede the send, and this is a record of
+    // what happened rather than a claim staked in advance.
+    await recordEmailAttempt({
+      organizationId: store.organizationId,
+      entityId: store.id,
+      kind: "pace.alert",
+      action: ACTION_SENT,
+      recipients,
+      subject,
+      resendId: id ?? null,
     })
   } catch (e) {
+    // Recorded BEFORE the lock release below, so the row exists even if the
+    // delete then throws. recordEmailAttempt never throws (it catches its own
+    // failures), so it cannot displace the original error on the way out.
+    await recordEmailAttempt({
+      organizationId: store.organizationId,
+      entityId: store.id,
+      kind: "pace.alert",
+      action: ACTION_FAILED,
+      recipients,
+      subject,
+      error: e instanceof Error ? e.message : String(e),
+    })
     // The release itself must not mask the send failure. If the delete also
     // throws — the row is already gone, the connection is down — the ORIGINAL
     // error is still what gets rethrown, because that is the one that explains

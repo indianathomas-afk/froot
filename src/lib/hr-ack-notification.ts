@@ -14,8 +14,9 @@
 
 import { after } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { emailProviderName, getEmailSender } from "@/lib/notify"
-import { writeAuditLog } from "@/lib/audit"
+import { getEmailSender } from "@/lib/notify"
+import { renderEmail } from "@/lib/email-template"
+import { ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
 
 // AuditLog shape, ruled by Gary 2026-09-20 (F2). entityType is the CHANNEL and
 // action is the OUTCOME, so a future /settings/notifications page (NOTIFY-2)
@@ -28,9 +29,10 @@ import { writeAuditLog } from "@/lib/audit"
 // reader is /api/forecasting/audit, which filters to GOAL_ENTITY_TYPES
 // (src/lib/audit.ts:16) and cannot see them. NOTIFY-2 is the row that builds
 // the reader.
-const AUDIT_ENTITY_TYPE = "Notification"
-const AUDIT_ACTION_SENT = "email.sent"
-const AUDIT_ACTION_FAILED = "email.failed"
+// NOTIFY-2b moved these to src/lib/notification-log.ts, which is now the one
+// file that knows the row shape — three consumers write it as of this phase,
+// and three copies of the strings is how a log ends up with two spellings of
+// the same kind.
 const AUDIT_KIND = "hr.ack"
 
 // Same format the Certificate of Acknowledgment prints (hr-signed-pdf.ts:66).
@@ -164,18 +166,23 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
   // new variable is introduced. Unset is a REAL failure and is recorded as one
   // — a link with no host helps nobody, and a silent send with a broken link is
   // the kind of thing that goes unnoticed for months.
+  // NOTIFY-2b: BUILT BEFORE THE HOST GATE BELOW, DELIBERATELY. The subject
+  // needs no URL, and the `email.failed` row written when the host is missing
+  // is far more useful naming the email it could not send than leaving the
+  // send log a row that says only "failed".
+  const subject = `Signed: ${title} v${versionNumber} — ${nameOnRecord}${
+    lastAck.storeName ? ` (${lastAck.storeName})` : ""
+  }`
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
   if (!appUrl) {
     const error = "NEXT_PUBLIC_APP_URL is not set — the record link has no host"
     console.error(`[hr-ack] record=${signedRecordId} not sent: ${error}`)
-    await recordOutcome(org.id, signedRecordId, AUDIT_ACTION_FAILED, { recipients, error })
+    await recordOutcome(org.id, signedRecordId, ACTION_FAILED, subject, { recipients, error })
     return { status: "failed", recipients, error }
   }
   const recordUrl = new URL(`/api/hr/signed-records/${record.id}/download`, appUrl).toString()
 
-  const subject = `Signed: ${title} v${versionNumber} — ${nameOnRecord}${
-    lastAck.storeName ? ` (${lastAck.storeName})` : ""
-  }`
   const text = [
     `${nameOnRecord} completed all required acknowledgments.`,
     "",
@@ -200,59 +207,68 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
     // it; the HR-16 ruling is the later instruction and says no per-merchant
     // reply address. Sending is `USE Froot <noreply@notify.usefroot.com>`
     // (NOTIFY_FROM_EMAIL) for every recipient.
-    const { id } = await sender.send({ to: recipients, subject, text })
+    //
+    // NOTIFY-2b: THE HTML IS NEW, THE TEXT IS NOT. `text` above is passed
+    // through the template verbatim rather than regenerated from the rows —
+    // this email's wording predates the template and its lines are what the
+    // HR-16 ruling settled. The template's own text generator would produce a
+    // different (correct, but different) body, and changing the wording was
+    // never what "one template" was asked to buy.
+    const { html } = renderEmail({
+      orgName: org.name,
+      heading: `${nameOnRecord} completed all required acknowledgments.`,
+      intro: "",
+      rows: [
+        { label: "Document", value: `${title}, version ${versionNumber}` },
+        { label: "Signer", value: `${nameOnRecord}  (executed as: ${executedName})` },
+        { label: "Store", value: storeName },
+        { label: "Completed", value: utc(record.completedAt) },
+      ],
+      cta: { label: "Download the record", url: recordUrl },
+      footer: `Sent by USE Froot on behalf of ${org.name}. This address does not accept replies.`,
+      appUrl,
+      text,
+    })
+    const { id } = await sender.send({ to: recipients, subject, text, html })
     console.log(
       `[hr-ack] record=${signedRecordId} sent to ${recipients.length} recipient(s) id=${id ?? "(none)"}`
     )
-    await recordOutcome(org.id, signedRecordId, AUDIT_ACTION_SENT, { recipients, resendId: id ?? null })
+    await recordOutcome(org.id, signedRecordId, ACTION_SENT, subject, { recipients, resendId: id ?? null })
     return { status: "sent", recipients, id }
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
     console.error(`[hr-ack] record=${signedRecordId} send failed: ${error}`)
-    await recordOutcome(org.id, signedRecordId, AUDIT_ACTION_FAILED, { recipients, error })
+    await recordOutcome(org.id, signedRecordId, ACTION_FAILED, subject, { recipients, error })
     return { status: "failed", recipients, error }
   }
 }
 
-// writeAuditLog already swallows and logs its own failures (src/lib/audit.ts:45-47,
-// "writes NEVER block the user action"), so this needs no second try/catch —
-// but it is wrapped anyway, because the whole point of this file is that
-// nothing downstream of a signature can throw.
+// NOTIFY-2b: the row shape moved to src/lib/notification-log.ts, which stamps
+// `provider` itself and swallows its own failures. This wrapper survives only
+// because the whole point of this file is that nothing downstream of a
+// signature can throw, and one more catch costs nothing.
+//
+// WHAT NOTIFY-2a WROTE HERE IS PRESERVED IN THAT FILE AND IS WORTH RE-READING
+// BEFORE ANYONE "SIMPLIFIES" IT: `provider` is what stops a console-mode
+// "sent" from reading as delivery, and `resendId` is NOT a usable proxy for it
+// — the console sender returns {} so console mode stores null, but so does a
+// real Resend 2xx whose body failed to parse (notify.ts:112-117, which
+// deliberately keeps the send successful and loses the id).
 async function recordOutcome(
   organizationId: string,
   signedRecordId: string,
-  action: string,
+  action: typeof ACTION_SENT | typeof ACTION_FAILED,
+  subject: string,
   extra: { recipients: string[]; resendId?: string | null; error?: string }
 ): Promise<void> {
   try {
-    await writeAuditLog({
+    await recordEmailAttempt({
       organizationId,
-      // No acting user: the send runs in after(), detached from the request,
-      // and the signer is a StaffMember rather than a Clerk user. The column is
-      // nullable and this is the honest value.
-      userId: null,
-      action,
-      entityType: AUDIT_ENTITY_TYPE,
       entityId: signedRecordId,
-      // NOTIFY-2a. `provider` IS WHAT STOPS A CONSOLE-MODE "SENT" FROM READING
-      // AS DELIVERY. Without it the row says an email was sent and names the
-      // recipients, and nothing in it distinguishes a real Resend send from a
-      // deployment that only logged the message to stdout — which is exactly
-      // what production did until NOTIFY_EMAIL_PROVIDER was set, and exactly
-      // what any environment does when the variable is unset.
-      //
-      // resendId IS NOT A USABLE PROXY and that is the trap this closes: the
-      // console sender returns {} (notify.ts:54) so console mode stores null,
-      // but so does a REAL Resend 2xx whose body failed to parse
-      // (notify.ts:112-117, which deliberately keeps the send successful and
-      // loses the id). A null means "console" or "Resend, id lost" and the row
-      // cannot tell them apart.
-      //
-      // emailProviderName() reports the RESOLVED string WITHOUT validating it
-      // (notify.ts:41-46), which is the right reader here: on an email.failed
-      // row caused by a bad provider value, the bad value is the thing worth
-      // recording.
-      metadata: { kind: AUDIT_KIND, provider: emailProviderName(), ...extra },
+      kind: AUDIT_KIND,
+      action,
+      subject,
+      ...extra,
     })
   } catch (err) {
     console.error(`[hr-ack] record=${signedRecordId} audit write failed:`, err)

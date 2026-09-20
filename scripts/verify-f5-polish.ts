@@ -228,6 +228,145 @@ async function main() {
       )
       check("alert email names the store", (sent[0]?.subject ?? "").includes(storeBehind.name))
 
+      // ── NOTIFY-2b: THE TEXT PART DID NOT MOVE ───────────────────────────
+      // The phase adds an HTML alternative body and changes nothing about what
+      // this email SAYS. The expected lines below are the pre-2b wording,
+      // embedded here so that editing pace-alerts.ts's text builder fails this
+      // fixture rather than quietly changing a live alert.
+      //
+      // WHAT THIS PROVES, EXACTLY, so nobody reads more into it: every fixed
+      // byte is asserted literally — the headline, both blank lines, the two
+      // label prefixes, the whole threshold sentence, the Dashboard line and
+      // the line COUNT. The four money figures and two percentages are pinned
+      // by format instead of by value, because they are computed from seeded
+      // sales that differ per run. A reworded line, a moved line, an added line
+      // or a dropped line all fail here; only a changed NUMBER can pass, and a
+      // changed number is not a wording change.
+      const alertLines = (sent[0]?.text ?? "").split("\n")
+      const expectedAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.usefroot.com"
+      const alertMonthName = new Date(`${mStart}T12:00:00Z`).toLocaleDateString("en-US", { month: "long" })
+      check(
+        "NOTIFY-2b: pace-alert text is still 7 lines",
+        alertLines.length === 7,
+        `${alertLines.length} lines`
+      )
+      check(
+        "NOTIFY-2b: line 1 is the unchanged headline",
+        alertLines[0] === `${storeBehind.name} is trailing its ${alertMonthName} sales goal (through ${asOf}).`,
+        alertLines[0]
+      )
+      check("NOTIFY-2b: line 2 is blank", alertLines[1] === "", JSON.stringify(alertLines[1]))
+      check(
+        "NOTIFY-2b: line 3 is the unchanged Month to date line",
+        /^Month to date: \$[\d,]+ of \$[\d,]+ goal \(\d+\.\d%\)$/.test(alertLines[2] ?? ""),
+        alertLines[2]
+      )
+      check(
+        "NOTIFY-2b: line 4 is the unchanged Projected month end line",
+        /^Projected month end: \$[\d,]+ vs \$[\d,]+ goal \(\d+\.\d%\)$/.test(alertLines[3] ?? ""),
+        alertLines[3]
+      )
+      check("NOTIFY-2b: line 5 is blank", alertLines[4] === "", JSON.stringify(alertLines[4]))
+      check(
+        "NOTIFY-2b: line 6 is the unchanged threshold sentence",
+        alertLines[5] === "Alert threshold: 90% of MTD goal. You'll get at most one alert per store per month.",
+        alertLines[5]
+      )
+      check(
+        "NOTIFY-2b: line 7 is the unchanged Dashboard line",
+        alertLines[6] === `Dashboard: ${expectedAppUrl}/dashboard`,
+        alertLines[6]
+      )
+
+      const alertHtml = sent[0]?.html ?? ""
+      check("NOTIFY-2b: the alert now carries an HTML body", alertHtml.length > 0, `${alertHtml.length} bytes`)
+      check(
+        "NOTIFY-2b: the HTML names the store",
+        alertHtml.includes(storeBehind.name),
+        storeBehind.name
+      )
+
+      // ── NOTIFY-2b: THE PACE PATH NOW WRITES A Notification ROW ──────────
+      // It wrote none before this phase (PaceAlertLog is an idempotency lock,
+      // not a log), so the send-log card showed one kind of email out of three
+      // and a Resend delivery event for an alert had no row to find its org by.
+      const paceAudit = await prisma.auditLog.findFirst({
+        where: { organizationId: org.id, entityType: "Notification", action: "email.sent" },
+        orderBy: { createdAt: "desc" },
+      })
+      const paceMeta = (paceAudit?.metadata ?? {}) as Record<string, unknown>
+      check("NOTIFY-2b: the pace send wrote an email.sent row", !!paceAudit, paceAudit?.action)
+      check("NOTIFY-2b: the row is kind pace.alert", paceMeta.kind === "pace.alert", String(paceMeta.kind))
+      check(
+        "NOTIFY-2b: the row records the provider and the subject",
+        typeof paceMeta.provider === "string" && typeof paceMeta.subject === "string" &&
+          String(paceMeta.subject).includes(storeBehind.name),
+        `${paceMeta.provider} / ${paceMeta.subject}`
+      )
+      check(
+        "NOTIFY-2b: the row names the same recipients the email went to",
+        Array.isArray(paceMeta.recipients) && (paceMeta.recipients as string[]).length === to.length,
+        JSON.stringify(paceMeta.recipients)
+      )
+
+      // The F3 correlation the webhook and the send log both depend on: a
+      // Prisma JSON-path filter on metadata.resendId. Asserted against a REAL
+      // row on a real Postgres rather than assumed to work — it is the one
+      // query in this phase with no column behind it.
+      const { listRecentEmails, recordEmailAttempt, findAttemptByResendId, deliveryEventExists } =
+        await import("../src/lib/notification-log")
+      const probeId = `fixture-resend-${tag}`
+      await recordEmailAttempt({
+        organizationId: org.id,
+        entityId: null,
+        kind: "test",
+        action: "email.sent",
+        recipients: [admin.email],
+        subject: `NOTIFY-2b fixture probe ${tag}`,
+        resendId: probeId,
+      })
+      const found = await findAttemptByResendId(probeId)
+      check(
+        "NOTIFY-2b: metadata.resendId JSON filter resolves a row to its org",
+        found?.organizationId === org.id && found?.kind === "test",
+        JSON.stringify(found)
+      )
+      check(
+        "NOTIFY-2b: the idempotency probe is false before any delivery event",
+        (await deliveryEventExists(probeId, "email.delivered")) === false
+      )
+      await prisma.auditLog.create({
+        data: {
+          organizationId: org.id,
+          userId: null,
+          action: "email.delivered",
+          entityType: "Notification",
+          entityId: null,
+          metadata: { resendId: probeId, kind: "test", recipients: [admin.email] },
+        },
+      })
+      check(
+        "NOTIFY-2b: the idempotency probe is true once the event is recorded",
+        (await deliveryEventExists(probeId, "email.delivered")) === true
+      )
+      const log = await listRecentEmails(org.id)
+      const probeRow = log.find((r) => r.subject === `NOTIFY-2b fixture probe ${tag}`)
+      check(
+        "NOTIFY-2b: the send log resolves that attempt to delivered",
+        probeRow?.status === "delivered",
+        probeRow?.status
+      )
+      check(
+        "NOTIFY-2b: the send log lists the pace alert too, newest first",
+        log.some((r) => r.kind === "pace.alert" && r.kindLabel === "Behind-pace alert"),
+        log.map((r) => r.kind).join(", ")
+      )
+      check(
+        "NOTIFY-2b: a delivery-event row is NOT itself listed as an attempt",
+        log.every((r) => r.kind !== "unknown"),
+        log.map((r) => r.kind).join(", ")
+      )
+
       const second = await processPaceAlertForStore(storeBehind, { thresholdPct: 90, sender: capture })
       check("duplicate suppressed within the month", !second.alerted && sent.length === 1, second.reason)
 
