@@ -101,15 +101,44 @@ load and the nightly cron covers the last 3 days.
   sales-reconcile) checks every store with a current-month plan **whose org has
   pace alerts switched on**. Pace = MTD actual ÷ MTD goal **through yesterday**
   (store-local, complete days only), using the same `month-goal.ts`/`pacing.ts`
-  helpers as the dashboard. Below the threshold
-  (`PACE_ALERT_THRESHOLD_PCT`, default 90) it emails org admins + the store's
-  assigned managers — **at most one alert per store per month**
+  helpers as the dashboard. Below **the org's threshold** it emails org admins +
+  the store's assigned managers — **at most one alert per store per month**
   (`PaceAlertLog` unique row is the idempotency lock, migration
   `20260710220000_f5_pace_alerts_audit_index`).
+  - **THE THRESHOLD IS PER ORG (NOTIFY-2a, 2026-09-20).**
+    `Organization.paceAlertThresholdPct Int?`, migration
+    `20260920210000_notify2a_pace_threshold`, set at
+    **/settings/notifications** (ADMIN). **`NULL` means fall back** to
+    `PACE_ALERT_THRESHOLD_PCT` and then to 90 — which is what every org does
+    until someone types a number, so applying the migration moves no behaviour.
+    The env var is **not retired** (F1, Gary 2026-09-20); it is the fallback.
+    - The cron resolves it from a `Map` built alongside the enabled-orgs query,
+      which **replaced** the `organization.count()` that used to compute
+      `orgsEnabled` — so per-org thresholds cost no extra round trip. It is a
+      Map rather than a relation on the store query because
+      `processPaceAlertForStore` is typed `store: Store` and widening that
+      parameter would make every caller carry a payload it does not read.
+    - **The two validators do not agree, deliberately.** `paceThresholdPct()`
+      accepts any finite value in `(0,100]` including fractions; the column is
+      `Int` and the write route accepts **50–100** only. A fractional value is
+      legal for the FALLBACK and impossible for the ORG value. Nothing sets one.
+    - **The run log and the JSON response report the threshold per org**, with
+      `source: "org" | "env"` marking a fallback, and orgs named by **ID**
+      (CLAUDE.md § Database Evidence — five rows on staging answer to
+      "Microsoft"). The old scalar `thresholdPct` in that response is gone,
+      replaced by `fallbackThresholdPct` + a `thresholds` array.
+    - **Changing the threshold never rewrites history, and never re-opens a
+      spent month.** `PaceAlertLog.thresholdPct` records what was actually used
+      per send, and the idempotency lock is keyed on store-month and knows
+      nothing about the number — so a store that already alerted at 90 does not
+      alert again when the org moves to 75.
   - **The per-org switch (F-5b, 2026-09-20)**. `Organization.paceAlertsEnabled`,
     **default `false`**, migration `20260920190000_f5b_pace_alerts_toggle`.
-    Toggled at **/settings → Integrations → Behind-pace alerts** (ADMIN) via
-    `POST /api/pace-alerts/toggle`. No availability env var — F-5 shipped to
+    Toggled at **/settings/notifications → Behind-pace alerts** (ADMIN) via
+    `PUT /api/pace-alerts/settings` — NOTIFY-2a moved the card off `/settings`
+    and replaced `POST /api/pace-alerts/toggle`, which is deleted. The body is
+    partial (`{ enabled? , thresholdPct? }`), so the switch and the threshold
+    cannot clobber each other. No availability env var — F-5 shipped to
     every org and was never a staged rollout, so **the column is the only
     gate**, exactly as with `calendarEnabled`.
     - **The gate is in the cron's store query, not a per-store early return**,

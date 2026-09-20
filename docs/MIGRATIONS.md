@@ -971,3 +971,73 @@ schema's implied default): the column is a scalar boolean, not a relation.
 
 **No protected index is involved**, so § Protected indexes needs no new row and
 a future baseline squash has nothing extra to re-append for this migration.
+
+---
+
+## 2026-09-20 — `20260920210000_notify2a_pace_threshold` (NOTIFY-2a)
+
+**APPLIED NOWHERE. Not to dev, not to staging, not to production.** The session
+ran `migrate diff` and nothing else — CLAUDE.md § Database, `DEBT-103`. Step 3
+of the documented flow (`db execute` + `migrate resolve` against dev) is GARY'S
+and is owed. Staging and production get it via `prisma migrate deploy` in the
+Vercel build on Gary's push.
+
+| Statement | Kind |
+|---|---|
+| `Organization.paceAlertThresholdPct` `INTEGER` (nullable, no default) | additive, nullable — no backfill, no rewrite |
+
+One column and nothing else. **No drops, no renames, no type changes, no index
+changes, no backfill.**
+
+**NULLABLE WITH NO DEFAULT IS THE RULING, NOT A SHORTCUT (F1, Gary
+2026-09-20).** The alternative was `INTEGER NOT NULL DEFAULT 90` with
+`PACE_ALERT_THRESHOLD_PCT` retired — simpler to reason about afterwards, and
+rejected because it makes applying this migration a *behaviour change* in any
+environment that sets the variable to something other than 90. As written,
+every existing row lands `NULL`, the cron resolves `paceThresholdPct()` for a
+null org exactly as it did before, and promoting this migration moves no
+behaviour at all. The env var keeps its current meaning: the fallback for every
+org that has not set its own value.
+
+**A nullable `ADD COLUMN` with no default does not rewrite the table** — under
+Postgres it is a catalogue-only change, so this is safe to apply to a table of
+any size under `migrate deploy`, and there is no nullable-then-backfill window
+because `NULL` is the intended terminal state for most rows.
+
+**The two validators for this number do not agree, and that is deliberate.**
+`paceThresholdPct()` (`src/lib/pace-alerts.ts:20-23`) accepts any finite value
+in `(0,100]` including fractions; this column is `INTEGER` and
+`PUT /api/pace-alerts/settings` accepts `50`–`100` only. So `87.5` is a legal
+FALLBACK and an impossible ORG value. Nothing sets a fractional value anywhere
+today — `PACE_ALERT_THRESHOLD_PCT` is unset in every environment — and the
+narrower range is the one an admin types into a box, where `5` and `95` are one
+keystroke apart and one of them silences every alert for the month. Recorded in
+`docs/DECISIONS.md` under NOTIFY-2a so a future reader finds the asymmetry
+stated rather than discovering it from a rejected form submission.
+
+**Changing this value never rewrites history.** `PaceAlertLog.thresholdPct` has
+recorded the threshold actually used, per send, since F-5
+(`20260710220000_f5_pace_alerts_audit_index`), so an org that lowers its
+threshold in October does not alter what September's alerts say they were
+measured against.
+
+**GENERATED AGAINST THE LIVE DEV DATABASE — the documented §3 form.**
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
+  --script -o prisma/migrations/20260920210000_notify2a_pace_threshold/migration.sql
+```
+
+**The pre-check the F-5b entry above demands was run and came back clean.**
+Before any schema edit, the same command with no `-o` returned `-- This is an
+empty migration.` — so the live dev database was in sync with
+`prisma/schema.prisma` at 59/59 and this file is the faithful delta of this
+session's one-column edit alone, with no contamination from an unapplied
+predecessor. That check is the whole point of F-5b's long section and it fired
+correctly here on the first attempt.
+
+**No `ON DELETE` choice was made** (see § Hand-authored FK `ON DELETE` vs the
+schema's implied default): the column is a scalar integer, not a relation.
+
+**No protected index is involved**, so § Protected indexes needs no new row and
+a future baseline squash has nothing extra to re-append for this migration.

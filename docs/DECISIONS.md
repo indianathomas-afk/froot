@@ -6,6 +6,106 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-20 — NOTIFY-2a: every email setting on one page — F1–F3 (Gary)
+
+**The standing ruling this phase implements.** *Every email setting lives on
+one page.* Before it, HR-16's acknowledgment recipients and F-5b's behind-pace
+toggle were two unrelated cards on `/settings` — one inside the HR module card,
+one three cards below it — and the pace threshold was not a setting at all but
+a deployment-wide env var. NOTIFY-2a builds `/settings/notifications`, moves
+both there, and makes the threshold per-org. Later consumers (operational
+reports, employee notifications) get a card each on the same page when they
+exist.
+
+**F1 — threshold storage: `Organization.paceAlertThresholdPct Int?`, null =
+fall back to the existing env/90 reader.** The env var is **not** retired; it
+becomes the fallback. The alternative — non-null `@default(90)` with
+`PACE_ALERT_THRESHOLD_PCT` retired — is simpler to reason about afterwards and
+was rejected because it makes *applying the migration* a behaviour change in
+any environment that sets the variable to something other than 90. As ruled,
+every existing row lands `NULL`, the cron resolves the same number it resolved
+yesterday, and promoting the migration moves nothing.
+
+**The rider Gary attached, recorded because it is an inconsistency on purpose
+and would otherwise read as an oversight:** the input validates an **integer
+50–100**, while the env reader accepts **any finite value in `(0,100]`,
+fractions included**. So `87.5` is a legal *fallback* and an impossible *org
+value*. **Nobody sets one** — the variable is unset in every environment today
+— and the narrower range is the one an admin types into a box, where `5` and
+`95` are one keystroke apart and one of them silences every alert for a month.
+The asymmetry is stated in `prisma/schema.prisma`, in
+`PUT /api/pace-alerts/settings`, and in `docs/MIGRATIONS.md`.
+
+**F2 — the HR card gates on `hrAvailable` (the ENV gate), not on the org's
+module switch.** Where the deployment has no HR module, there is **no card** —
+the field writes a column whose only consumer is code that is not present.
+Where the org has HR available but **inactive**, the card renders **disabled
+with one line: "Turn on the HR module to use acknowledgment emails."** The
+setting is real and the org could have it, so the honest thing is to name what
+is missing rather than to hide the row and let an admin wonder where it went.
+
+**`PUT /api/hr/settings` stays exactly as it was** — gated on availability
+alone, with no `activeModules` check. That gap is deliberate and safe: the
+column is inert while the module is off, and HR-16 ruled that it deliberately
+**survives a toggle**, so turning HR off and on again does not clear who gets
+notified. (The audit raised this as a possible ambiguity in F2's wording — two
+gates, two readings — and the ruling names which one it means.)
+
+**F3 — both cards come off `/settings`; one "Email notifications →" link card
+replaces them.** Not "leave the pace toggle in both places": two screens that
+can flip one switch is the thing this phase exists to end, so the cautious-
+sounding option was the rejected one. The link card carries **no
+Enabled/Disabled badge**, which is a smaller call made under the same
+reasoning — a state badge there would be a second claim about a setting the
+page no longer owns, and the first thing to go stale when a third consumer is
+added. Nor was a second link added inside the HR card: one door.
+
+### The standing rulings this phase does not touch, restated so they are not re-derived
+
+- **Pace-alert recipients are ROLE-BASED and there is no list to edit.** Every
+  ADMIN plus the store's assigned MANAGERs, resolved per store at send time
+  (`src/lib/pace-alerts.ts:91-98`). **No per-user opt-out.** The org toggle is
+  the only switch. `/settings/notifications` states the rule as a read-only
+  line precisely so an admin does not go looking for the recipient box that the
+  card above it has — the two cards look parallel and are not.
+- **Employee-facing emails are DEFERRED** (assignment notifications, "you have
+  something to sign"). Filed as a planned row, not built.
+- **Email wording and format are unchanged by this phase.** Branding — a shared
+  HTML template for every consumer — is NOTIFY-2b.
+
+### Two consequences worth recording, neither of them forks
+
+**The route was replaced, not extended.** `POST /api/pace-alerts/toggle` is
+**deleted** and `PUT /api/pace-alerts/settings` takes its place; the moved
+island was its only caller, and leaving the old one alive would have left two
+write paths to the same column — the same defect as two pages, one layer down.
+The body is **partial** (`{ enabled?, thresholdPct? }`, at least one required)
+rather than a full-state PUT, because the two controls have different save
+semantics: the switch writes instantly and reverts on failure, the threshold
+has a Save button. A full-state body would have the switch posting a threshold
+it was not asked to change.
+
+**The cron's JSON response changed shape**, and it is recorded here rather than
+discovered later: the scalar `thresholdPct` could not survive a per-org number
+and is replaced by `fallbackThresholdPct` plus a `thresholds` array of
+`{ organizationId, thresholdPct, source: "org" | "env" }`. Orgs are named by
+**ID** per CLAUDE.md § Database Evidence. Nothing consumes that response
+programmatically — it is read by a human in the Vercel function log.
+
+### Also shipped here: `provider` on the acknowledgment audit rows
+
+One field, and it is what stops a console-mode "sent" from reading as delivery.
+HR-16's `email.sent` rows recorded `kind`, `recipients` and `resendId` and
+nothing naming the channel. **`resendId` is not a usable proxy**: the console
+sender returns `{}`, so console mode stores `null` — but so does a *real*
+Resend 2xx whose body failed to parse, which the provider deliberately treats
+as a successful send with the id lost. A null therefore meant "console" **or**
+"Resend, id lost", and the row could not tell them apart. `provider` now
+records `emailProviderName()`, which reports the resolved string without
+validating it — the right reader, because on an `email.failed` row caused by a
+bad provider value, the bad value is the thing worth keeping.
+
+
 ## 2026-09-20 — F-5b: pace-alert org toggle, burned-lock fix, recipient hygiene — F1–F5 (Gary)
 
 **Why this phase existed, because it explains every ruling below.** F-5's

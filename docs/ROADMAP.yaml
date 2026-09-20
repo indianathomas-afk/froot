@@ -4049,6 +4049,18 @@ phases:
       production the day after the env flip by the run-count log line.
     deferred:
       - >
+        RESOLVED 2026-09-20 BY NOTIFY-2a ("a16bab2"), WITH A RIDER. The text
+        below is the deferral as F-5b wrote it and is NOT edited. What shipped:
+        Organization.paceAlertThresholdPct Int?, migration
+        20260920210000_notify2a_pace_threshold, set at /settings/notifications.
+        THE ENV VAR WAS NOT RETIRED — F1 (Gary, 2026-09-20) made NULL mean "fall
+        back to PACE_ALERT_THRESHOLD_PCT, then 90", so the sentence below stays
+        true of every org that has not set its own number, which today is all of
+        them. THE RIDER: the input validates an INTEGER 50–100 while the env
+        reader accepts any finite value in (0,100] including fractions, so a
+        fractional value is legal for the FALLBACK and impossible for the ORG
+        value. Nobody sets one. Recorded in docs/DECISIONS.md, the schema
+        comment and docs/MIGRATIONS.md.
         Per-org alert threshold. PACE_ALERT_THRESHOLD_PCT stays a single
         deployment-wide env var (default 90). Recorded, not built.
       - >
@@ -17791,12 +17803,127 @@ phases:
       one that hard-bounced.
       PRE-PUSH-CHECK flips this row to `staging` when Gary pushes.
 
-  - id: NOTIFY-2
+  - id: NOTIFY-2a
     track: platform
     size: M
-    status: planned
-    title: "Notification visibility — /settings/notifications over the AuditLog rows + Resend delivery webhooks"
+    status: in_progress
+    # Work commit only at the time of writing. This row is composed INSIDE the
+    # docs commit that records it, so that commit's own SHA cannot appear here
+    # (the two-commit pattern, same as F-5b, HR-16 and CAL-2).
+    commits: ["a16bab2"]
+    title: "Email settings hub — /settings/notifications; per-org pace threshold; provider on ack audit rows"
     notes: >
+      ── RIDER 2026-09-20 (NOTIFY-2a). PREPENDED; NOTHING BELOW IT IS EDITED. ──
+      THIS ROW WAS FILED AS NOTIFY-2 and is split. It becomes NOTIFY-2a (built
+      2026-09-20, this row) and NOTIFY-2b (the read surface, still planned, the
+      row below). The original text is preserved verbatim under "── THE ORIGINAL
+      NOTIFY-2 ROW ──" at the foot, because the half it describes is NOT what
+      2a built and a future reader needs the difference visible rather than
+      reconstructed.
+      THE SCOPE NOTE AT THE FOOT IS INVERTED BY RULING, AND THAT IS WORTH
+      READING BEFORE ANYTHING ELSE HERE. It says, verbatim - "SCOPE NOTE - the
+      page is a READ surface. Editing recipients stays on /settings under
+      HR-16's field; a second place to set them is the thing this row must not
+      become." NOTIFY-2a does the opposite - the page is the WRITE surface and
+      /settings loses the field. Gary's ruling, 2026-09-20. THE TWO ARE NOT IN
+      CONFLICT ONCE THE SPLIT IS SEEN - what the note was protecting is ONE
+      PLACE PER SETTING, and 2a delivers exactly that by MOVING the controls
+      rather than copying them (/settings keeps a link card and nothing else).
+      What the note assumed was that the one place would be /settings; the
+      ruling moved it. 2b is the read surface the note was actually describing.
+      A future reader finding the two statements side by side should read this
+      paragraph, not assume one of them is a mistake.
+      WHAT 2a BUILT. /settings/notifications, on the /settings/labor pattern
+      (no layout file anywhere under settings/ - the chrome is the (app) shell;
+      a ChevronLeft back-link, an h1, then cards). ADMIN only, settings.access,
+      which is ADMIN_ONLY and held out of the override grid, re-checked in both
+      write routes per PERM-2. Two cards and NO placeholders for future
+      consumers - (1) signed-acknowledgment emails, HR-16's recipients field
+      moved verbatim apart from its root margin; (2) behind-pace alerts, F-5b's
+      toggle moved verbatim plus a threshold input and a read-only recipients
+      line. /settings keeps one "Email notifications ->" link card.
+      F1 - THRESHOLD STORAGE. Organization.paceAlertThresholdPct Int?, null =
+      fall back to PACE_ALERT_THRESHOLD_PCT and then 90. Migration
+      "20260920210000_notify2a_pace_threshold", additive, nullable, no backfill,
+      APPLIED NOWHERE by the build session - step 3 of the CLAUDE.md flow is
+      Gary's. The env var is NOT retired; it is the fallback. The rejected
+      alternative (NOT NULL DEFAULT 90, env var retired) is simpler afterwards
+      and was rejected because it makes APPLYING THE MIGRATION a behaviour
+      change in any environment that sets the variable to something other
+      than 90.
+      F1 RIDER - THE TWO VALIDATORS DISAGREE ON PURPOSE. The input takes an
+      INTEGER 50-100; the env reader takes any finite value in (0,100],
+      fractions included. So 87.5 is a legal FALLBACK and an impossible ORG
+      value. Nobody sets one - the variable is unset in every environment. The
+      narrower range is the one an admin types into a box, where 5 and 95 are
+      one keystroke apart and one of them silences every alert for a month.
+      Stated in the schema comment, the route and docs/MIGRATIONS.md so it reads
+      as a decision rather than an oversight.
+      F2 - THE HR CARD GATES ON hrAvailable (THE ENV GATE), NOT ON THE ORG'S
+      MODULE SWITCH. No HR module in the deployment = no card. HR available but
+      the org has it INACTIVE = the card renders DISABLED with one line, "Turn
+      on the HR module to use acknowledgment emails", rather than hidden. PUT
+      /api/hr/settings is UNCHANGED - still gated on availability alone, with no
+      activeModules check. That gap is deliberate and safe - the column is inert
+      while the module is off and HR-16 ruled it deliberately SURVIVES a toggle.
+      The audit raised the two-readings ambiguity and the ruling names which one
+      it means.
+      F3 - BOTH CARDS COME OFF /settings, ONE LINK CARD REPLACES THEM. Not
+      "leave the pace toggle in both places" - two screens that can flip one
+      switch is the thing this phase exists to end, so the cautious-sounding
+      option was the rejected one. The link card carries NO Enabled/Disabled
+      badge - a state badge there would be a second claim about a setting the
+      page no longer owns, and the first thing to go stale when a third consumer
+      is added. No second link was added inside the HR card either - one door.
+      THE ROUTE WAS REPLACED, NOT EXTENDED. POST /api/pace-alerts/toggle is
+      DELETED; PUT /api/pace-alerts/settings takes its place. The moved island
+      was its only caller (verified by grep across src, scripts, docs and
+      vercel.json before deleting), and leaving it alive would have left two
+      write paths to the same column - the same defect as two pages, one layer
+      down. The body is PARTIAL - {enabled?, thresholdPct?}, at least one
+      required - rather than a full-state PUT, because the switch writes
+      instantly and reverts on failure while the threshold has a Save button; a
+      full-state body would have the switch posting a threshold it was not asked
+      to change.
+      THE CRON'S JSON RESPONSE CHANGED SHAPE, named here rather than discovered
+      later. The scalar `thresholdPct` could not survive a per-org number and is
+      replaced by `fallbackThresholdPct` plus a `thresholds` array of
+      {organizationId, thresholdPct, source: "org"|"env"}. Orgs are named by ID
+      per CLAUDE.md § Database Evidence - five rows on staging answer to
+      "Microsoft". Nothing consumes that response programmatically; it is read
+      by a human in the Vercel function log.
+      THE THRESHOLD LOOKUP IS A MAP, NOT A RELATION ON THE STORE QUERY. The
+      findMany that builds it REPLACED the organization.count() that used to
+      compute orgsEnabled, so per-org thresholds cost no extra round trip. It is
+      a Map because processPaceAlertForStore is typed `store: Store`, and
+      including `organization` on the store query would widen that parameter for
+      every caller - the fixture included - to carry a payload the function does
+      not read. src/lib/pace-alerts.ts was NOT touched.
+      PROVIDER ON THE ACK AUDIT ROWS, one field, from the audit's finding 6.
+      HR-16's email.sent rows recorded kind, recipients and resendId and nothing
+      naming the channel. resendId IS NOT A USABLE PROXY - the console sender
+      returns {} so console mode stores null, but so does a REAL Resend 2xx
+      whose body failed to parse, which the provider deliberately treats as a
+      successful send with the id lost. A null meant "console" OR "Resend, id
+      lost" and the row could not tell them apart. metadata now carries
+      provider: emailProviderName(), which reports the resolved string WITHOUT
+      validating it - the right reader, because on an email.failed row caused by
+      a bad provider value, the bad value is the thing worth keeping.
+      FIXTURE - scripts/verify-f5-polish.ts, 28 checks -> 32. The cron's lookup
+      resolves the org's own threshold; a store that alerts at the fallback is
+      SILENT under its org's lower threshold; clearing the column falls back and
+      alerts again; the PaceAlertLog row records the threshold actually used.
+      THE DIRECTION OF THE SECOND CHECK IS THE POINT - the store alerts at 90
+      too, so a check that merely FIRES cannot tell which threshold produced it;
+      only the silence can. Same known cost as F-5b's gate check - it asserts
+      the RESOLUTION the cron performs, not the route handler, so editing the
+      route's lookup alone would leave it passing.
+      NOT RUN ANYWHERE, AND THE FIXTURE COULD NOT BE RUN AT ALL. Every
+      Organization read selects the new column, so verify-f5-polish.ts fails at
+      org creation until Gary applies the migration to dev. `npm run build` is
+      the whole of the build session's verification. No email left any
+      environment and the pace-alerts cron was not fired.
+      ── THE ORIGINAL NOTIFY-2 ROW, VERBATIM AND UNEDITED ──
       FILED 2026-09-20 BY GARY'S F2 RULING, in the HR-16 docs commit. It is the
       reader for rows HR-16 is already writing, and it is the row NOTIFY-1's own
       notes asked for ("ROW, NOT BUILT: Resend delivery/bounce webhooks into
@@ -17832,6 +17959,105 @@ phases:
       SCOPE NOTE: the page is a READ surface. Editing recipients stays on
       /settings under HR-16's field; a second place to set them is the thing
       this row must not become.
+
+  - id: NOTIFY-2b
+    track: platform
+    size: M
+    status: planned
+    title: "Notification branding + visibility — shared HTML template, send log, Resend delivery webhooks"
+    notes: >
+      SPLIT OUT OF NOTIFY-2 ON 2026-09-20 when NOTIFY-2a took the settings half.
+      This is the half the original row's SCOPE NOTE was actually describing: a
+      READ surface. 2a moved the controls; 2b renders what happened.
+      THREE PIECES, filed together because each is useless without the others.
+      (a) A SHARED BRANDED HTML TEMPLATE for every consumer. Today every email
+      is plain text assembled at its own call site - the pace alert in
+      src/lib/pace-alerts.ts, the acknowledgment confirmation in
+      src/lib/hr-ack-notification.ts - and NOTIFY-2a explicitly did not touch
+      wording or format. One template, every sender through it.
+      (b) THE SEND LOG, on /settings/notifications, over the AuditLog rows HR-16
+      already writes: entityType "Notification", action "email.sent" |
+      "email.failed", metadata {kind, recipients, provider, resendId | error}.
+      The index @@index([organizationId, entityType, createdAt]) already serves
+      exactly this query; nothing schema-side is owed for the read. NOTIFY-2a
+      added `provider` to that metadata, so the log can distinguish a real send
+      from a console-mode one - without it the page would have shown "sent" for
+      mail that never left.
+      (c) RESEND DELIVERY WEBHOOKS - delivered / bounced / complained, landing
+      against the row its resendId already identifies. THIS IS THE HALF THAT
+      NEEDS A DECISION AND PROBABLY A COLUMN, and it is carried forward from the
+      original row unresolved: an AuditLog row is written once and read as a
+      claim about what was ATTEMPTED, so a later delivery verdict is either a
+      SECOND row (append-only, two rows per email, the page joins on resendId)
+      or a MUTATION of the first (one row, but AuditLog stops being append-only
+      for every other writer too). NOT DECIDED.
+      NOTE WHAT (c) WOULD ANSWER THAT NOTHING TODAY CAN. A hard bounce is
+      visible only in the Resend dashboard, so Froot cannot tell a delivered
+      alert from one that bounced - see the DEBT-109 deliverability row, where
+      the first sends to a new inbox land in Junk and nothing in the product
+      says so.
+      PACE ALERTS WRITE NO AuditLog ROW AT ALL TODAY. Only the HR-16 path does.
+      PaceAlertLog records that an alert was sent, but it is a per-store-month
+      idempotency lock, not a notification log, and it carries no provider, no
+      subject and no failure rows. Whether the pace path starts writing
+      Notification rows is part of this phase and was deliberately left out of
+      2a, which changed no sending behaviour.
+      DEPENDS ON: HR-16 ("23da754") for the writer, NOTIFY-2a ("a16bab2") for
+      the page and the provider field. Reuses NOTIFY-1's provider config; adds
+      no provider env vars of its own.
+
+  - id: NOTIFY-3
+    track: platform
+    size: M
+    status: planned
+    title: "Employee-facing notifications — assignment emails and 'you have something to sign'"
+    notes: >
+      FILED 2026-09-20, DEFERRED BY RULING IN THE SAME BREATH. Gary, 2026-09-20,
+      recorded in docs/DECISIONS.md under NOTIFY-2a: employee-facing emails are
+      deferred. This row exists so the deferral is a decision with a home rather
+      than an absence.
+      WHAT IT WOULD COVER: a team member is emailed when something is assigned
+      to them (training, a document to acknowledge, a checklist), and reminded
+      while it is outstanding. Every email Froot sends today goes to an ADMIN or
+      a MANAGER - the pace alert to admins and assigned managers, the
+      acknowledgment confirmation to the org's recipient list. Nothing goes to
+      the person who did the work.
+      WHY IT IS NOT A TAIL ON NOTIFY-2a. It is the first email aimed at a
+      STAFF MEMBER rather than a User, and StaffMember is not a Clerk identity -
+      so it needs a decision about which address is authoritative, what an
+      opt-out looks like for someone who cannot open Settings, and what happens
+      to a staff member with no email at all. None of that is a card on a page.
+      THE RECIPIENT MODEL IS THE WHOLE PHASE. Pace-alert recipients are
+      ROLE-BASED with no opt-out by standing ruling; that is defensible for a
+      manager reading a store's numbers and is NOT obviously defensible for
+      routine mail to an hourly employee. Do not assume the pace-alert model
+      carries over - it is the thing to rule on first.
+      SURFACE: a card on /settings/notifications, per Gary's "every email
+      setting lives on one page" ruling. NOTIFY-2a deliberately left no
+      placeholder for it.
+
+  - id: NOTIFY-4
+    track: platform
+    size: S-M
+    status: planned
+    title: "Operational reports email — the scheduled digest Gary wants, recipient model TBD"
+    notes: >
+      FILED 2026-09-20 as a named consumer of the /settings/notifications hub.
+      Gary's, and explicitly LATER - it has no design yet beyond "operational
+      reports go out by email on a schedule".
+      WHAT IS ALREADY THERE TO BUILD ON: /reports and /reports/operations
+      render the data in-app today, and the daily cron pattern
+      (vercel.json + CRON_SECRET + a route under api/cron/) is established by
+      the pace-alert and sales-reconcile jobs. NOTIFY-1's swappable EmailSender
+      is the transport.
+      OPEN, AND NONE OF IT DECIDED: what is in the digest, on what cadence,
+      whether it is per-store or per-org, and WHO GETS IT - which is the same
+      recipient-model question NOTIFY-3 carries, and the two should probably be
+      ruled together rather than each inventing a model.
+      SURFACE: a card on /settings/notifications when it exists, per the "every
+      email setting lives on one page" ruling. NOTIFY-2a deliberately left no
+      placeholder for it - a card for a consumer that does not exist is a
+      control over nothing.
 
 
 bugs:
@@ -28820,6 +29046,57 @@ debt:
       recipient. It documents this gap rather than endorsing it, and is EXPECTED
       TO FAIL when the webhook is fixed — at which point it should be updated to
       assert the opposite, not worked around.
+
+  - id: DEBT-109
+    status: planned
+    title: >
+      Deliverability — mail from the new sending domain lands in Outlook Junk;
+      there is no code fix, only a warm-up and a DMARC tightening
+    notes: >
+      FILED 2026-09-20 BY GARY, in the NOTIFY-2a docs commit. NOT A BUG AND NOT
+      A CODE ROW. Nothing in src/ is wrong and nothing in src/ will fix it —
+      this is filed so the next person who sees an alert "not arrive" checks the
+      Junk folder before opening the cron, and so the two remedies are written
+      down in the order they must happen rather than re-derived.
+      THE SYMPTOM. Mail from the NOTIFY-1 sending domain — a SUBDOMAIN, never
+      the root, per CLAUDE.md § Environment Variables — lands in Outlook's Junk
+      folder at inboxes seeing it for the first time. This is ordinary behaviour
+      for a domain with no sending history, not a misconfiguration: a brand-new
+      subdomain has no reputation, and Outlook in particular treats that as a
+      reason for suspicion rather than neutrality.
+      WHY IT MATTERS MORE HERE THAN IT WOULD ELSEWHERE. Every email Froot sends
+      is one a manager or an admin is expected to ACT on — a store is behind
+      pace, a document was signed — and none of them is ever re-sent. The pace
+      alert is capped at ONE PER STORE PER MONTH by the PaceAlertLog lock, so an
+      alert that lands in Junk is not retried in four days; it is gone for the
+      month. A junked alert and a suppressed alert are indistinguishable from
+      inside the product, which is the same class of invisibility DEBT-106 has.
+      STEP 1 — NOT-JUNK THE FIRST SENDS AT EACH NEW INBOX. Manual, per
+      recipient, and it is the whole of the short-term fix. Marking a message
+      Not Junk is the signal that builds the sender's reputation at that
+      tenant; nothing automated substitutes for it. Do it at every new
+      recipient inbox as pace alerts and acknowledgment emails start reaching
+      real people, and expect to do it more than once per inbox early on.
+      STEP 2 — TIGHTEN DMARC TO p=quarantine, AND ONLY AFTER WEEKS OF CLEAN
+      DELIVERY. Not first, and not at the same time as step 1. A policy
+      tightened while the domain is still being rejected takes a sender with no
+      reputation and adds a rule telling receivers what to do with mail that
+      fails — which makes an early misalignment louder rather than quieter. The
+      order is: send, get marked Not Junk, accumulate clean delivery over weeks,
+      then tighten. Aligned SPF and DKIM are the precondition for that step, not
+      part of it.
+      WHAT WOULD MAKE THIS VISIBLE RATHER THAN FOLKLORE: NOTIFY-2b's Resend
+      delivery webhooks (delivered / bounced / complained). Today a bounce is
+      visible only in the Resend dashboard, and a JUNKED message is not a bounce
+      at all — it is accepted, so even the webhooks will report it delivered.
+      That limit is worth knowing before anyone treats a green send log as proof
+      somebody read it.
+      NO CODE FIX, DELIBERATELY. There is nothing to change in src/ — not the
+      sender, not the wording, not the from address. Resist the pull to "fix"
+      this in the product; the temptation will be to add retries to the pace
+      alert, which would break the one-alert-per-store-per-month promise F-5
+      exists to keep. RELATED: NOTIFY-1 provisioned the domain and the three env
+      vars; NOTIFY-2b is where visibility lands.
 
 rulings:
   - id: R1

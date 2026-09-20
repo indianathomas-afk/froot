@@ -1037,7 +1037,7 @@ SQUARE_ENVIRONMENT=            # "sandbox" or "production"
 NEXT_PUBLIC_APP_URL=           # e.g. https://www.usefroot.com
 CRON_SECRET=                   # auth for /api/cron/* (Vercel sends it on cron invocations)
 SQUARE_WEBHOOK_SIGNATURE_KEY=  # per-app webhook subscription key (docs/FORECASTING.md § Square order webhooks)
-PACE_ALERT_THRESHOLD_PCT=      # optional — behind-pace alert threshold, default 90 (docs/FORECASTING.md § Hardening)
+PACE_ALERT_THRESHOLD_PCT=      # optional — the FALLBACK behind-pace alert threshold, default 90 (docs/FORECASTING.md § Hardening). NOT deployment-wide since NOTIFY-2a: an org that sets Organization.paceAlertThresholdPct at /settings/notifications is evaluated at ITS number and never reads this. NULL there means fall back to here. Accepts any finite value in (0,100]; the per-org input accepts integers 50–100 only.
 NOTIFY_EMAIL_PROVIDER=         # optional — "console" (default: logs only, nothing leaves) or "resend". PER-ENVIRONMENT: setting it to "resend" in Production is what makes the daily pace-alert cron start emailing real managers. Any other value throws (NOTIFY-1).
 RESEND_API_KEY=                # required when NOTIFY_EMAIL_PROVIDER="resend" — Resend API key. Missing → throws; there is NO fallback to the console sender.
 NOTIFY_FROM_EMAIL=             # required when NOTIFY_EMAIL_PROVIDER="resend" — e.g. `USE Froot <noreply@notify.usefroot.com>`. The sending domain is a SUBDOMAIN, never the root. Missing → throws.
