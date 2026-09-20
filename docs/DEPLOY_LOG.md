@@ -2,6 +2,112 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-20 — HR-16: signed-acknowledgment completion emails + org-level recipients
+
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed. Written by this phase's
+PRE-PUSH-CHECK, into the file, before the push.
+
+**Work SHA:** `23da754` on `staging`. **Docs SHA:** `558d532`. **This check's
+own commit** is the one immediately after `558d532`.
+
+**Payload: 3 commits** — the work, the docs, and this check's.
+
+**THIS MERGE CARRIES A MIGRATION.** `20260920120000_hr16_ack_recipients`
+applies to STAGING through `prisma migrate deploy` in `vercel-build` on this
+push, and **is not yet on production** — production gets it in whichever later
+merge to `main` carries this code, through that merge's own Vercel build. One
+statement:
+
+```sql
+ALTER TABLE "Organization" ADD COLUMN "hrAckRecipients" TEXT[] DEFAULT ARRAY[]::TEXT[];
+```
+
+Additive. No drops, no renames, no type changes, no index changes, **no
+backfill**. Every existing row lands on the empty array. **It was applied to no
+database by the build session** — `migrate diff` was the only prisma command
+run, per CLAUDE.md § Database, and dev has not had it either. Ledger entry in
+`docs/MIGRATIONS.md`.
+
+**What it does.** When a staff member completes every required acknowledgment
+on a document, Froot mints an `HrSignedRecord` and now emails the addresses in
+the new `Organization.hrAckRecipients` — who signed (both HR-11c names), the
+document and version, the store, `completedAt` in UTC, and a link to the
+record. Plain text, no `replyTo`, from `NOTIFY_FROM_EMAIL`. First real consumer
+of NOTIFY-1. One new lib (`src/lib/hr-ack-notification.ts`), one new API route
+(`PUT /api/hr/settings`, ADMIN), one new field on the existing `/settings` HR
+card. No new page route, no new cron, no Square call, no Clerk change.
+
+**THE BLAST RADIUS IS AN EMPTY COLUMN, AND THAT IS THE WHOLE SAFETY ARGUMENT.**
+The column defaults to `ARRAY[]::TEXT[]`, so on the staging database every
+organization lands with no recipients and **nothing sends until an admin types
+an address into /settings**. This matters more than a default usually does:
+staging runs `NOTIFY_EMAIL_PROVIDER=resend` (NOTIFY-1), so this deploy is
+wired to a live provider from the moment it is Ready. The code path still runs
+on the first completed acknowledgment after the deploy — it finds no
+recipients, logs `[hr-ack] record=… skipped: no recipients configured`, and
+sends nothing.
+
+**THE SIGNING CEREMONY CANNOT BE HARMED BY THIS, WHICH IS THE PROPERTY TO
+RE-CHECK IF ANYTHING HERE IS EVER EDITED.** The send is scheduled through
+Next's `after()`, so it runs once the response is out; it is wrapped in
+try/catch **around `getEmailSender()` as well as `send()`**, because
+`getEmailSender()` throws on a misconfigured deployment and never degrades to
+the console sender — on staging, where the provider is `resend`, a missing
+`RESEND_API_KEY` throws at construction rather than at send time. Even the
+`after()` scheduling call is guarded. An employee's signing completes
+identically whether email is up, down, or unconfigured.
+
+**Where it is wired, and why it fires once.** Inside `ensureSignedRecord`
+(`src/lib/hr-signed-pdf.ts`), after the row is committed, on the CREATE path
+only — not at the two call sites. That covers the ceremony
+(`POST /api/hr/documents/[id]/acknowledgments`) and the recovery /
+`recordMissing` path (`POST /api/hr/documents/[id]/signed-record`) with one
+line, and it fires once per record: the function early-returns an existing
+current-cycle record, so a reload or a second press of Generate never reaches
+it. HR-15b's rehire is a new `signingCycle`, so a new unique key, so a mint, so
+an email. Not on the concurrent-completion race path — the invocation that won
+the unique constraint is the one that sends.
+
+**Audit rows start accruing with this deploy and nothing reads them.** Per
+ruling F2 every attempt writes an `AuditLog` row — `entityType "Notification"`,
+action `email.sent` / `email.failed`, metadata carrying `kind "hr.ack"`, the
+recipient list, the record id, and the Resend id or the error. **Write-only by
+ruling**: the only `AuditLog` reader is `/api/forecasting/audit`, which filters
+to `GOAL_ENTITY_TYPES` and cannot see them. **NOTIFY-2** is filed (planned) to
+build the reader and the Resend delivery webhooks. Until it ships, the only
+visibility is the function log and the Resend dashboard, neither of which is in
+the product and neither of which survives log retention.
+
+**Rollback needs a decision the previous entries did not.** The code half is
+clean: reverting `23da754` removes the lib, the route, the settings field and
+the one call inside `ensureSignedRecord`, and minting returns to its previous
+behaviour with nothing to undo. **The column is not removed by that revert, and
+must not be** — additive-only schema is a rule at every tier (CLAUDE.md § What
+does NOT tier down), so a rolled-back HR-16 leaves `hrAckRecipients` in place,
+holding whatever addresses an admin had typed. That is the correct end state: a
+dropped column would destroy configuration, and an unused column costs nothing.
+Any `AuditLog` rows written before the revert stay; they are a record of sends
+that really happened.
+
+**NOTHING HAS BEEN SEEN IN AN INBOX FOR HR-16.** A green `npm run build` and a
+source audit (`docs/prompts/HR-16_AUDIT.md`) are the whole of this entry's
+verification. What *has* been proven is the PROVIDER, by NOTIFY-1 on staging
+2026-09-20 09:34 PT — Resend id `01a0bfab-3a0c-70f7-8c95-6c336460b07e`,
+delivered from deployment `13bccff`. That evidence is what let this session mark
+the shared NO-REAL-EMAIL-PROVIDER blocker resolved on **HR-16, F-5 and HR-8**;
+it is not evidence that HR-16's own email sends. That comes from the staging
+pass after this push: set recipients to your own address only, sign a document
+end to end through `/my`, expect one email whose link opens the record, confirm
+Delivered in Resend, then clear the field and sign a second document to see the
+named skip line and no email.
+
+**Known and not built:** HR-8 reminder emails (next phase, reuses this
+recipient field), CAL overdue emails, HTML templates, and the NOTIFY-2 reader
+and webhooks above. **DEBT-105** is adjacent and untouched by this merge — a
+runtime send failure still burns a store's monthly `PaceAlertLog` lock, which
+is F-5's path, not this one's.
+
 ## UNPROMOTED — 2026-09-19 — NOTIFY-1: real email delivery, Resend behind getEmailSender()
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at

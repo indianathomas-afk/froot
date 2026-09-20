@@ -8,6 +8,12 @@ decisions too.)
 
 ## 2026-09-20 — HR-16: signed-acknowledgment completion emails — F1–F5 (Gary)
 
+**RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratified as written. Proceed."* Nothing below was changed by the ratification
+— this paragraph is additive, per the DEBT-101 precedent (2026-09-18), and the
+prose it sits above is the text he ratified.
+
 Ruled by Gary in the build session, 2026-09-20, after the Phase 1 audit
 (`docs/prompts/HR-16_AUDIT.md`). **His reply, quoted exactly:**
 

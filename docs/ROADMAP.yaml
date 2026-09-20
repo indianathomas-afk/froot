@@ -4305,13 +4305,46 @@ phases:
   - id: HR-16
     track: hr
     size: S-M
-    # `planned` -> `in_progress`: built 2026-09-20, on the branch, NOT PUSHED.
-    # Claude never pushes. The CHK-4 "in_progress at SHA" convention — `staging`
-    # is for the PRE-PUSH-CHECK to set, as it did on NOTIFY-1.
-    status: in_progress
-    commits: ["23da754"]
+    # `in_progress` -> `staging` 2026-09-20 BY THIS PRE-PUSH-CHECK, per WORKFLOW.md
+    # session rule 4 and PRE-PUSH-CHECK Step 4: `staging` means the code is on the
+    # branch, and this check is the last thing that runs before Gary pushes. NOT
+    # PUSHED AT THE MOMENT OF WRITING — Claude never pushes. The build session's
+    # own comment, which said this flip was the check's to make, is superseded
+    # here and was correct.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED BY
+    # THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "558d532" did not exist when
+    # the row was composed, and the two-commit pattern cannot record it. The third
+    # is the commit this line is being written in, so it is named as "the commit
+    # immediately after 558d532" rather than guessed at. Same shape as NOTIFY-1,
+    # CAL-2, CAL-2a and CAL-2b.
+    commits: ["23da754", "558d532"]
     title: "Signed-acknowledgment completion emails + org-level recipient routing"
     notes: >
+      ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
+      per Step 4; the build session's comment saying the flip was this check's to
+      make is kept and is now spent.
+      RULING RATIFIED AS WRITTEN. The docs/DECISIONS.md HR-16 entry (F1–F5) was
+      printed verbatim and put to Gary; his whole reply, recorded exactly:
+      "Ratified as written. Proceed." No rewording, so the entry's prose is
+      unchanged and carries an additive ratification paragraph only.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. docs/DEPLOY_LOG.md entry written into the
+      file by this check, headed "UNPROMOTED — 2026-09-20", heading count 53 -> 54
+      with every prior entry intact. PRESERVE-AND-MARK PROVEN MECHANICALLY rather
+      than eyeballed: every line the work commits deleted from this file reappears
+      in it, the sole exception being the `notes:` KEY on this row, whose value
+      moved verbatim into the block scalar below. No meta.updated key. CLAUDE.md
+      untouched — this phase changed no house rule. docs/prompts/HR-16.md and
+      docs/prompts/HR-16_AUDIT.md both committed in "558d532".
+      THE MIGRATION IS NAMED IN THE DEPLOY_LOG ENTRY and has been applied to NO
+      DATABASE. `20260920120000_hr16_ack_recipients` reaches STAGING through
+      `migrate deploy` in vercel-build on this push; PRODUCTION DOES NOT HAVE IT
+      and gets it in whichever later merge to `main` carries this code.
+      THE VERIFICATION STATEMENT BELOW STILL BINDS: no HR-16 email has been seen
+      in an inbox, and this check saw nothing either — it read files, counted
+      lines and ran `npm run build`. Staging evidence comes after Gary pushes.
       ── BUILT 2026-09-20 ("23da754"). PREPENDED; NOTHING BELOW IS EDITED. ──
       One email per MINTED HrSignedRecord to Organization.hrAckRecipients, the
       first real consumer of NOTIFY-1. Migration
