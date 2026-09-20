@@ -17797,6 +17797,17 @@ phases:
       Preview-scope vars; the prompt's own "Gary's side" checklist is the
       procedure, including the instruction NOT to fire the pace-alerts cron on
       staging (real manager addresses, fake numbers).
+      RESOLVED 2026-09-20 BY NOTIFY-2b ("8ab4ee8"), WITH A RIDER. The note
+      immediately below — "ROW, NOT BUILT: Resend delivery/bounce webhooks into
+      AuditLog" — is spent as a gap: the row was filed (NOTIFY-2b) and the
+      webhook is BUILT, at src/app/api/webhooks/resend/route.ts, appending a
+      second AuditLog row per delivery event and surfacing it as a status on
+      /settings/notifications. THE RIDER IS THAT ITS CLOSING SENTENCE IS STILL
+      TRUE TODAY AND WILL BE UNTIL GARY PROVISIONS THE ENDPOINT. Froot cannot
+      yet tell a delivered alert from a hard-bounced one in any deployed
+      environment, because no Resend endpoint exists and RESEND_WEBHOOK_SECRET
+      is unset everywhere — the route 500s and records nothing, by design. See
+      the `open` list on NOTIFY-2b for the procedure. Nothing below is edited.
       ROW, NOT BUILT: Resend delivery/bounce webhooks into AuditLog. Named out
       of scope by the prompt and worth its own row — today a bounce is visible
       only in the Resend dashboard, so Froot cannot tell a delivered alert from
@@ -18008,9 +18019,139 @@ phases:
   - id: NOTIFY-2b
     track: platform
     size: M
-    status: planned
+    status: in_progress
+    # Work commit only. This row is composed INSIDE the docs commit that
+    # records it, so that commit's own SHA cannot appear here (the two-commit
+    # pattern, same as NOTIFY-2a, F-5b, HR-16 and CAL-2). The docs SHA is the
+    # PRE-PUSH-CHECK's to add — it is the step that owns it.
+    commits: ["8ab4ee8"]
     title: "Notification branding + visibility — shared HTML template, send log, Resend delivery webhooks"
+    open:
+      - >
+        THE WEBHOOK IS UNPROVEN. Nothing has verified it end to end, and
+        nothing can until Gary creates the Resend endpoint and sets
+        RESEND_WEBHOOK_SECRET in the Preview scope. The route's LOGIC is
+        fixtured (correlation by metadata.resendId, the idempotency probe, the
+        derived statuses — all green against dev branch br-broad-wave-a6vpjdw0);
+        what is NOT proven is that a real Svix-signed request from Resend
+        verifies against a real secret and lands a row. Until that happens the
+        send log will show `sent` forever and never advance to `delivered`,
+        and that is indistinguishable from a webhook that is misconfigured.
+        The procedure is in docs/prompts/NOTIFY-2b.md under "Staging
+        verification — Gary's side": add the endpoint for delivered / bounced
+        / complained / delivery_delayed, copy the signing secret into Vercel
+        Preview, then AN EMPTY COMMIT AND A PUSH — the Redeploy button does not
+        pick up a new variable, and a deployment carries the env values that
+        existed when it was BUILT (CLAUDE.md § Provisioning a secret).
+      - >
+        ONE PER ENDPOINT, NOT ONE PER ACCOUNT. Preview and Production need
+        DIFFERENT RESEND_WEBHOOK_SECRET values, because the secret is issued by
+        the endpoint. Pasting staging's into Production makes every production
+        delivery event fail its signature with a 401 that looks exactly like an
+        attack. The Production endpoint is deliberately NOT set up by this
+        phase; it belongs to promotion time.
+      - >
+        NOTHING HAS BEEN SEEN IN AN INBOX. The three rendered bodies were
+        reviewed in a BROWSER, from /tmp files the template fixture wrote —
+        which proves layout and nothing about how Gmail, Outlook or Apple Mail
+        each rewrite it. The mark on a white tile inside the orange bar (the F1
+        rider) is the part most worth a real-client look, followed by whether
+        the bordered CTA survives Outlook.
     notes: >
+      BUILT 2026-09-20 (work "8ab4ee8"). TIER 2, no schema, no migration. The
+      three pieces the row was filed with are all here — the template, the send
+      log, the webhook — plus one the row anticipated as a question and the
+      prompt answered: the pace path and the test route now write Notification
+      rows.
+      F1 - HOSTED PNG, WITH A RIDER THE PROMPT DID NOT ANTICIPATE. public/logo.png
+      is a real 500x500 PNG and ${NEXT_PUBLIC_APP_URL}/logo.png is reachable
+      unauthenticated (src/proxy.ts:22's matcher excludes .png, so Clerk does
+      not 307 it). So the lean held and no stop was needed. BUT THE MARK IS AN
+      ORANGE CITRUS SLICE ON TRANSPARENCY - placed straight onto the orange
+      header bar the prompt describes, it disappears. It sits on a WHITE TILE
+      inside the bar instead, which is the smallest change that keeps both. With
+      no app url the mark is OMITTED rather than broken: mail has no base URL to
+      resolve a relative src against, so a relative src is worse than none.
+      F2 - LAST 50, NEWEST FIRST, as the lean. A count and not a window, because
+      a 30-day window shows an empty card to any org that had a quiet month.
+      F3 - CORRELATION BY metadata.resendId JSON FILTER, as the lean, no column.
+      NOT A BET: the same `metadata: { path: [...], equals: ... }` shape is
+      already in production against this same column at
+      api/forecasting/audit/route.ts:53 on this Prisma and this Postgres. The
+      fixture exercises it against real rows anyway.
+      THE TEXT PART IS BUILDER-PRESERVED FOR ALL THREE CONSUMERS, NOT JUST THE
+      PACE ALERT. The prompt offered this as the fallback where the template's
+      row format cannot reproduce a line exactly, and it was taken everywhere:
+      NEITHER pre-existing email is a padded two-column table. The pace alert's
+      "Month to date:" and "Dashboard:" lines are prose with one space after
+      the colon; HR-16 renders its record URL as a ROW while the generator puts
+      the CTA on its own line after the rows. Reproducing either would change
+      bytes in an email whose wording the F-5 and HR-16 rulings settled.
+      renderEmail still GENERATES a text part for a consumer that has no
+      wording yet - NOTIFY-3 and NOTIFY-4 are who will use it, and
+      scripts/verify-notify-template.ts is what exercises it meanwhile.
+      THE PACE PATH AND THE TEST ROUTE NOW WRITE Notification ROWS, and without
+      them the phase does not function. This row filed the question - "Whether
+      the pace path starts writing Notification rows is part of this phase" -
+      and this is the answer. Only HR-16 wrote them before. PaceAlertLog is a
+      per-store-month idempotency lock with no provider, no subject and no
+      failure rows, and the test route recorded nothing at all, so the card's
+      pace.alert and test labels had nothing to render and a delivery event for
+      either could never find its org (the lookup is by the sent row's
+      resendId). The prompt's own staging step 3 is unsatisfiable without it.
+      Written AFTER the send, never before - the lock is the thing that
+      precedes the send.
+      APPEND, NEVER UPDATE - the half this row carried forward as NOT DECIDED.
+      A delivery verdict is a SECOND row keyed to the same resendId. The
+      rejected alternative (mutate the sent row) is cheaper to read and ends
+      AuditLog's append-only property for every other writer in the app.
+      A MISSING `provider` RENDERS AS "Unknown", per the ruling already in
+      docs/DEPLOY_LOG.md. Both other readings are positively wrong: console
+      would claim mail that did reach an inbox never left, sent would claim the
+      opposite.
+      THE WEBHOOK READS THE RAW BODY, DEVIATING FROM THE CLERK PRECEDENT ON
+      PURPOSE. api/webhooks/clerk/route.ts:25-26 verifies
+      JSON.stringify(await req.json()), which holds only while the payload
+      round-trips through JSON byte-identically and nothing guarantees that.
+      api/webhooks/square/route.ts:56 reads req.text() and verifies the bytes
+      Svix signed; that is what this route does. THE CLERK ROUTE IS NOT CHANGED
+      BY THIS PHASE - it works today and touching a live auth path was not this
+      session's mandate, but it is worth a look by whoever next opens it.
+      NO PROXY CHANGE AND NO NEW DEPENDENCY. /api/webhooks(.*) is already
+      public (src/proxy.ts:9) and `svix` was already a dependency at 1.96.1.
+      One new env var, RESEND_WEBHOOK_SECRET, documented in CLAUDE.md.
+      THE SEND LOG IS A SERVER COMPONENT WITH NO ROUTE BEHIND IT. The page is
+      already the settings.access (ADMIN_ONLY) gate and the card neither
+      refreshes nor paginates, so an endpoint would be a new place to get the
+      gate wrong in exchange for nothing.
+      THE "Recipients:sent" MISSING SPACE WAS REAL, AND THE AUDIT GOT IT WRONG
+      FIRST. Reading the JSX by the whitespace rules, the space after </span>
+      sits on the same line as the tag and looked preserved; the session
+      reported it as a probably-false premise and said it would verify rather
+      than "fix" a non-defect. The rendered textContent was
+      "Recipients:sent to every admin". MEASURED IN A BROWSER, which is the only
+      reason the fix is in this commit - the reasoning would have left it. Now
+      `{" "}`.
+      TWO DEFECTS FOUND WHILE LOOKING AT THE CARD, BOTH FIXED IN THE SAME PASS,
+      both of the class that only a browser shows. (1) The table had `w-full`
+      and no min-width inside an overflow-x-auto wrapper, so it COMPRESSED
+      instead of scrolling and hyphenated mid-word - "Tommy Tester" rendered as
+      "To mmy Tester". (2) `bg-[var(--color-success)]/12` renders NO background
+      at all: Tailwind cannot parse a CSS variable to apply alpha to it, so the
+      opacity-modifier form fails silently. The -bg/-text token pairs in
+      globals.css are used instead, and `bg-red-50` for the error states, which
+      is the tint /settings already uses (settings/page.tsx:127).
+      VERIFICATION. scripts/verify-f5-polish.ts 32 -> 51 checks, ALL GREEN
+      against dev (branch br-broad-wave-a6vpjdw0) - the seven pace-alert lines
+      and the line count pinned byte-exact, the new audit row's kind/provider/
+      subject/recipients, the JSON-path correlation, the idempotency probe and
+      the derived statuses, the last four against real rows. New
+      scripts/verify-notify-template.ts, 35 checks, no DB and no network. The
+      card itself was rendered under a TEMPORARY page on the public /menu route
+      (deleted before the commit; it is not in the tree) because the real page
+      needs a session - all six statuses, the empty state and the fixed
+      Recipients line were read off the DOM there.
+      ── THE ROW AS FILED, 2026-09-20. NOTHING BELOW THIS LINE IS EDITED. ──
       SPLIT OUT OF NOTIFY-2 ON 2026-09-20 when NOTIFY-2a took the settings half.
       This is the half the original row's SCOPE NOTE was actually describing: a
       READ surface. 2a moved the controls; 2b renders what happened.

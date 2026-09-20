@@ -5,6 +5,89 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-20 — NOTIFY-2b: one branded template, the send log, delivery webhooks (Gary)
+
+**NOT YET RATIFIED.** Written by the build session; the PRE-PUSH-CHECK is what
+puts it to Gary. Everything below is either a ruling carried in the prompt or a
+choice this session made, and the two are labelled.
+
+**The template rules, and every one of them is forced by mail clients rather
+than taste.** Tables not divs (Outlook renders through Word's engine, where
+flex and grid do not exist). Inline styles only — Gmail strips `<style>` in
+some contexts and every client strips `<link>`. Hex colours, never the app's
+`oklch()` tokens, which no major client supports: `src/app/globals.css` stays
+the source and the conversion is done once, in `src/lib/email-template.ts`,
+with the derivation written down so the next person re-derives rather than
+guesses. System font stack, no `@font-face`. One image, the mark, and no
+tracking pixel. 600px, single column.
+
+**EVERY CONSUMER'S PLAIN TEXT IS PRESERVED BYTE FOR BYTE, AND THAT IS THE
+RULING THIS PHASE IS MOST LIKELY TO BE "SIMPLIFIED" OUT OF LATER.** The prompt
+ruled the text part is kept as the alternative body and that the pace-alert
+wording stays identical, with a stated fallback: where the template's row
+format cannot reproduce a line exactly, keep the consumer's own text builder
+and use the template for HTML only. **That fallback was taken for all three
+consumers, not just the pace alert** — reported in session as the prompt
+requires. Neither pre-existing email is a padded two-column table. The pace
+alert's `Month to date:` and `Dashboard:` lines are prose with a single space
+after the colon; HR-16 renders its record URL as a ROW rather than as a
+trailing CTA line, and the generator puts the CTA on its own line after the
+rows. Either could be reproduced only by changing bytes in an email whose
+wording the HR-16 and F-5 rulings already settled, and "one template" was asked
+to buy one LOOK, not one set of words. `renderEmail` still generates a text
+part for the consumer that has no wording of its own yet; NOTIFY-3 and
+NOTIFY-4 are what will use it, and the template fixture is what exercises it
+meanwhile.
+
+**Delivery events are APPEND-ONLY — a second row, never an update.** The
+NOTIFY-2b roadmap row carried this forward from NOTIFY-2 explicitly undecided;
+the prompt decides it. An `email.sent` row is a claim about what was
+ATTEMPTED, written at send time and true forever; a verdict that arrives
+minutes later is a separate fact. The rejected alternative — mutate the sent
+row, one row per email, no join — is cheaper to read and costs `AuditLog` its
+append-only property **for every other writer in the app**, which is not a
+trade one consumer gets to make on behalf of the rest.
+
+**A MISSING `provider` IS "Unknown", NOT "console".** Rows written before
+NOTIFY-2a cannot be backfilled — the ruling is already in `docs/DEPLOY_LOG.md`
+and this entry only records where it landed. Note that BOTH readings are
+positively wrong rather than merely imprecise: console would claim mail that
+did reach an inbox never left the building, and sent would claim the opposite.
+The row does not say. The page does not either.
+
+**The pace path and the test route now write `Notification` rows, and this is
+the one piece of scope the prompt implied rather than stated.** Before this
+phase only HR-16 wrote them. `PaceAlertLog` records that an alert went out but
+is a per-store-month idempotency lock — no provider, no subject, no failure
+rows — and the test route recorded nothing at all. Without the new writes the
+card's `pace.alert` and `test` labels have nothing to render, and a Resend
+delivery event for either can never find its org, because the lookup is by the
+sent row's `resendId`. The prompt's own staging check (fire the test route, see
+a `delivered` row within a minute) is unsatisfiable without them. The NOTIFY-2b
+row named it in scope — *"Whether the pace path starts writing Notification
+rows is part of this phase"* — so this is that question answered, not scope
+creep on the page. The row is written AFTER the send: the lock is the thing
+that precedes the send, and this is a record of what happened rather than a
+claim staked in advance.
+
+**Claude's choice, recorded because it deviates from a house precedent.** The
+Resend webhook verifies the RAW request body (`req.text()`), following
+`api/webhooks/square/route.ts:56` rather than `api/webhooks/clerk/route.ts:25`,
+which verifies `JSON.stringify(await req.json())`. Re-serialising is only safe
+while the payload round-trips through JSON byte-identically, and nothing
+guarantees that. **The Clerk route is NOT changed by this phase** — it works
+today and touching a live auth path was not this session's mandate; it is worth
+a look by whoever next has reason to open it.
+
+**Claude's choice.** The send log is a server component on the existing page
+with no route behind it. The page is already the `settings.access` (ADMIN_ONLY)
+gate and the card neither refreshes nor paginates, so an endpoint would be a
+new place to get the gate wrong in exchange for nothing.
+
+**Unchanged by ruling:** recipients, thresholds, toggles and the cron (all
+NOTIFY-2a's). Employee-facing emails (NOTIFY-3) and operational reports
+(NOTIFY-4) are not this phase. Subjects are unchanged for all three consumers.
+
 
 ## 2026-09-20 — NOTIFY-2a: every email setting on one page — F1–F3 (Gary)
 
