@@ -14,7 +14,7 @@
 
 import { after } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getEmailSender } from "@/lib/notify"
+import { emailProviderName, getEmailSender } from "@/lib/notify"
 import { writeAuditLog } from "@/lib/audit"
 
 // AuditLog shape, ruled by Gary 2026-09-20 (F2). entityType is the CHANNEL and
@@ -234,7 +234,25 @@ async function recordOutcome(
       action,
       entityType: AUDIT_ENTITY_TYPE,
       entityId: signedRecordId,
-      metadata: { kind: AUDIT_KIND, ...extra },
+      // NOTIFY-2a. `provider` IS WHAT STOPS A CONSOLE-MODE "SENT" FROM READING
+      // AS DELIVERY. Without it the row says an email was sent and names the
+      // recipients, and nothing in it distinguishes a real Resend send from a
+      // deployment that only logged the message to stdout — which is exactly
+      // what production did until NOTIFY_EMAIL_PROVIDER was set, and exactly
+      // what any environment does when the variable is unset.
+      //
+      // resendId IS NOT A USABLE PROXY and that is the trap this closes: the
+      // console sender returns {} (notify.ts:54) so console mode stores null,
+      // but so does a REAL Resend 2xx whose body failed to parse
+      // (notify.ts:112-117, which deliberately keeps the send successful and
+      // loses the id). A null means "console" or "Resend, id lost" and the row
+      // cannot tell them apart.
+      //
+      // emailProviderName() reports the RESOLVED string WITHOUT validating it
+      // (notify.ts:41-46), which is the right reader here: on an email.failed
+      // row caused by a bad provider value, the bad value is the thing worth
+      // recording.
+      metadata: { kind: AUDIT_KIND, provider: emailProviderName(), ...extra },
     })
   } catch (err) {
     console.error(`[hr-ack] record=${signedRecordId} audit write failed:`, err)

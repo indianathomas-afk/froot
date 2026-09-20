@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, TrendingDown } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, Mail } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
 import { getCurrentUser, hrModuleAvailable, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
@@ -10,11 +10,10 @@ import { can, type PermissionUser } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 import { getInstagramTokenStatus } from "@/lib/instagram"
 import { InstagramActions, InstagramConnectButton } from "./instagram-actions"
-import { HrAckRecipientsField, HrModuleToggle } from "./hr-actions"
+import { HrModuleToggle } from "./hr-actions"
 import { LaborModuleToggle } from "./labor-actions"
 import { SquareLaborToggle } from "./square-labor-actions"
 import { CalendarModuleToggle } from "./calendar-actions"
-import { PaceAlertsToggle } from "./pace-alerts-actions"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -70,10 +69,6 @@ export default async function SettingsPage() {
   const showSquareLabor = laborAvailable && laborActive && squareLaborAvailable(org?.clerkOrgId)
   // CAL-1 (ruling 9). One column, no availability gate — see the card below.
   const calendarActive = !!org?.calendarEnabled
-  // F-5b (F1, Gary 2026-09-20). Same shape as calendarActive: one column, no
-  // availability gate. DEFAULT false, so every org — Keva included — reads
-  // disabled until an admin turns it on here.
-  const paceAlertsActive = !!org?.paceAlertsEnabled
 
   const addOns = [
     { name: "Inventory Management", desc: "Physical counts, COGS tracking, storage areas, and adjustments", module: "inventory" },
@@ -254,13 +249,14 @@ export default async function SettingsPage() {
                   </div>
                   <HrModuleToggle enabled={hrActive} />
                 </div>
-                {/* HR-16. Only while the module is ON, for the same reason the
-                    Labor card hides its settings link: nothing can be
-                    acknowledged while HR is off, so a recipient list would be
-                    a control over an event that cannot happen. The column
-                    keeps its value across a toggle — turning HR off and on
-                    again does not clear who gets notified. */}
-                {hrActive && <HrAckRecipientsField recipients={org?.hrAckRecipients ?? []} />}
+                {/* HR-16's acknowledgment-recipients field USED TO RENDER HERE,
+                    behind hrActive. NOTIFY-2a moved it to
+                    /settings/notifications (Gary's ruling, 2026-09-20 — one
+                    page for every email setting), where F2 renders it disabled
+                    rather than hidden when the module is off. NO SECOND LINK IS
+                    ADDED HERE: F3 ruled ONE link card, and a card that also
+                    links there is a second door to the page whose whole purpose
+                    is that there is one. */}
               </CardContent>
             </Card>
           )}
@@ -357,45 +353,46 @@ export default async function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* F-5b. NO AVAILABILITY GATE, same as the Calendar card above: F-5
-              shipped to every org in July and was never a staged rollout, so the
-              column is the only gate. The help text names WHO is emailed and
-              HOW OFTEN because this is the only mail Froot sends to managers —
-              an admin flipping this on is choosing to put their managers on a
-              mailing list, and the switch should say so before it is flipped. */}
+          {/* NOTIFY-2a (F3, Gary 2026-09-20). THE ONLY EMAIL CONTROL LEFT ON
+              THIS PAGE, AND IT IS A LINK, NOT A SWITCH. F-5b's behind-pace
+              toggle and HR-16's recipients field both rendered here until this
+              phase; the pace toggle's own card lived at this spot. Both moved
+              to /settings/notifications, and nothing was left behind in either
+              place — two screens that can flip one switch is the thing the
+              ruling exists to end, so leaving the toggle here "as well" was the
+              rejected option rather than the cautious one.
+
+              NO STATE IS SHOWN ON THIS CARD ON PURPOSE. An Enabled/Disabled
+              badge here would be a second claim about a setting this page no
+              longer owns, and the first thing to go stale when a consumer is
+              added. The card says where the settings are and nothing else. */}
           <Card className="mt-4">
             <CardHeader>
-              <CardTitle>Behind-pace alerts</CardTitle>
+              <CardTitle>Email notifications</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg">
+              <Link
+                href="/settings/notifications"
+                className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors"
+              >
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
-                    <TrendingDown className="h-5 w-5" />
+                    <Mail className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-[var(--color-foreground)]">Behind-pace alert emails</h3>
+                    <h3 className="font-medium text-[var(--color-foreground)]">
+                      Behind-pace alerts and signed-acknowledgment emails
+                    </h3>
                     <p className="text-sm text-[var(--color-muted-foreground)]">
-                      Emails admins and the store&apos;s assigned managers once per store per month when
-                      month-to-date sales fall below the alert threshold.
+                      Turn each one on or off, set the pace threshold, and choose who hears about a
+                      completed acknowledgment.
                     </p>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      {paceAlertsActive ? (
-                        <>
-                          <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
-                          <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
-                          <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
-                        </>
-                      )}
-                    </div>
                   </div>
                 </div>
-                <PaceAlertsToggle enabled={paceAlertsActive} />
-              </div>
+                <span className="text-sm font-medium text-[var(--color-primary)] whitespace-nowrap">
+                  Email notifications &rarr;
+                </span>
+              </Link>
             </CardContent>
           </Card>
         </TabsContent>

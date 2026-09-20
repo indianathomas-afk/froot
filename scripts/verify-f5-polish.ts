@@ -20,6 +20,9 @@
  *      NO PaceAlertLog row behind and the next run alerts rather than reporting
  *      a phantom send. Plus one characterization check pinning the offboarding
  *      recipient gap that F2 ruled out of scope.
+ *   5. NOTIFY-2a: the threshold is resolved PER ORG — an org that sets
+ *      paceAlertThresholdPct is evaluated at that number and not at the
+ *      deployment fallback, and clearing it falls back again.
  * Everything is deleted afterwards.
  */
 import "dotenv/config"
@@ -31,7 +34,7 @@ import { monthStart, daysInMonth, round2 } from "../src/lib/pacing"
 import { writeAuditLog } from "../src/lib/audit"
 import { buildForecastCsv } from "../src/lib/forecast-csv"
 import { parseImportRows } from "../src/lib/forecast-import"
-import { evaluatePaceAlert, processPaceAlertForStore } from "../src/lib/pace-alerts"
+import { evaluatePaceAlert, paceThresholdPct, processPaceAlertForStore } from "../src/lib/pace-alerts"
 import type { EmailMessage, EmailSender } from "../src/lib/notify"
 
 const TZ = "America/Los_Angeles"
@@ -336,6 +339,80 @@ async function main() {
         "characterization (DEBT row): an assignment-less ADMIN is still a recipient",
         to2.includes(departedAdmin.email),
         "documents the offboarding gap; expected to fail once the Clerk webhook is fixed"
+      )
+
+      // ── NOTIFY-2a: the per-org threshold (F1, Gary 2026-09-20) ──
+      // SAME CAVEAT AS F-5b CHECK 1 ABOVE: this asserts the RESOLUTION the cron
+      // performs, not the route handler, because the handler needs a
+      // CRON_SECRET and a Request. The two lines below are copied from
+      // api/cron/pace-alerts/route.ts and carry the same known cost — edit the
+      // route's lookup without editing this and the check keeps passing.
+      //
+      // THE DIRECTION OF THE TEST IS THE POINT. storeThrow paces far enough
+      // behind to alert at the 90% fallback, so setting the org to 40 and
+      // getting SILENCE proves the org value was used. Asserting an alert at
+      // some other number would not: the store alerts at 90 too, so a check
+      // that merely fires cannot tell which threshold produced it.
+      const envFallbackPct = paceThresholdPct()
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { paceAlertThresholdPct: 40 },
+      })
+      const withOwn = await prisma.organization.findMany({
+        where: { paceAlertsEnabled: true },
+        select: { id: true, paceAlertThresholdPct: true },
+      })
+      const ownThreshold = new Map(withOwn.map((o) => [o.id, o.paceAlertThresholdPct])).get(org.id) ?? null
+      check(
+        "NOTIFY-2a: the cron's lookup resolves the org's own threshold",
+        ownThreshold === 40 && ownThreshold !== envFallbackPct,
+        `org=${ownThreshold} fallback=${envFallbackPct}`
+      )
+
+      const sentAtOwn: EmailMessage[] = []
+      const capture3: EmailSender = { send: async (m: EmailMessage) => { sentAtOwn.push(m); return {} } }
+      await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
+      const atOwn = await processPaceAlertForStore(storeThrow, {
+        thresholdPct: ownThreshold ?? envFallbackPct,
+        sender: capture3,
+      })
+      check(
+        "NOTIFY-2a: a store that alerts at the fallback is SILENT under its org's lower threshold",
+        !atOwn.alerted && sentAtOwn.length === 0,
+        `${atOwn.reason} (pace ${atOwn.pacePct?.toFixed(1)}%)`
+      )
+
+      // And back: null means fall back, which is the state every existing org
+      // lands in on the migration. Same store, same month, same sales — only
+      // the column changed.
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { paceAlertThresholdPct: null },
+      })
+      const cleared = await prisma.organization.findMany({
+        where: { paceAlertsEnabled: true },
+        select: { id: true, paceAlertThresholdPct: true },
+      })
+      const clearedThreshold = new Map(cleared.map((o) => [o.id, o.paceAlertThresholdPct])).get(org.id) ?? null
+      await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
+      const atFallback = await processPaceAlertForStore(storeThrow, {
+        thresholdPct: clearedThreshold ?? envFallbackPct,
+        sender: capture3,
+      })
+      check(
+        "NOTIFY-2a: clearing the column falls back to the deployment threshold and alerts again",
+        clearedThreshold === null && atFallback.alerted,
+        `resolved ${clearedThreshold ?? envFallbackPct}%: ${atFallback.reason}`
+      )
+      // The PaceAlertLog row records the threshold ACTUALLY used, per send —
+      // which is why moving this column never rewrites history.
+      const fallbackRow = await prisma.paceAlertLog.findUnique({
+        where: { storeId_month: { storeId: storeThrow.id, month: dbDate(mStart) } },
+      })
+      check(
+        "NOTIFY-2a: the log row records the threshold that was actually used",
+        fallbackRow?.thresholdPct === envFallbackPct,
+        `${fallbackRow?.thresholdPct} vs ${envFallbackPct}`
       )
     } else {
       console.log("… skipping live pace-alert checks (month just started)")
