@@ -6,6 +6,120 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-20 — F-5b: pace-alert org toggle, burned-lock fix, recipient hygiene — F1–F5 (Gary)
+
+**Why this phase existed, because it explains every ruling below.** F-5's
+behind-pace alert is the only email Froot sends to **managers**. Production was
+about to set `NOTIFY_EMAIL_PROVIDER=resend` so HR-16 could deliver, and the two
+features share one sender — so the moment that variable flipped, the 15:00 UTC
+pace-alert cron would have begun emailing real Keva admins and managers *as a
+side effect of a change made for a different feature*. Every fork here is a
+version of "put a switch between them, and do not quietly widen the blast
+radius while doing it." **Email wording was not touched**, and that was proven
+mechanically rather than by eye: all 15 payload lines diff byte-identical
+against `ad0c8f2` once indentation is stripped.
+
+**F1 — the toggle defaults to `false`.** `Organization.paceAlertsEnabled
+Boolean @default(false)`. Nothing sends until someone turns it on, Keva
+included. The alternative — `true`, preserving current behaviour for existing
+orgs — was rejected precisely because it makes the production env flip a
+*sending event*: an operator setting a variable for HR-16 would have had no
+reason to expect manager mail to start. Every existing row lands on `false`, so
+promoting the migration moves no behaviour on its own. Same safety shape as
+HR-16's empty `hrAckRecipients` array, and it matters for the same reason.
+
+**F2 — the recipient query is left exactly as it is, and the defect is filed
+where it actually lives.** *The audit asked a narrower question than the answer
+it got.* It asked whether a departed **manager** could still match
+`src/lib/pace-alerts.ts:91-98`; the answer split in two. A departed manager
+**cannot** — `organizationMembership.deleted` deletes their
+`StoreUserAssignment` rows and the MANAGER arm of the query requires one, so
+that half is already clean, by accident rather than design. A departed **admin**
+**can, permanently** — the ADMIN arm is only `organizationId` + `role: "ADMIN"`,
+and it cannot carry an assignment test, because admins deliberately hold no
+assignment rows at all. `User` has **no** active/deleted/status column to filter
+on.
+
+Gary ruled: **do not filter in the cron.** The defect is not that pace alerts
+read the wrong rows — it is that the rows are wrong. Filtering here would fix
+one consumer and leave every other org-scoped query reading the same stale row.
+**Filed as DEBT-106**, to be fixed in the Clerk webhook handler (clear
+`organizationId`, or add a status column), linked to **DEBT-47**, the parent
+webhook-hardening row that already tracks orphaned `User` rows on production.
+
+**The consequence, accepted rather than overlooked:** until DEBT-106 is fixed, an
+org that enables pace alerts may mail a former admin a store's sales performance
+against goal, and **nothing in Froot will show that it is happening** — `/users`
+renders from the Clerk membership list, so a `User` row with no Clerk membership
+appears on no screen in the product.
+
+**F3 — compensating delete by id, which is a THIRD path outside the two DEBT-105
+itself offered.** That row proposed (1) write the row *after* a successful send,
+or (2) add a delivery-status column. Gary chose neither. (1) is rejected by a
+standing ruling — lock-before-send is what makes a crash between send and write
+unable to double-alert. (2) is bigger, costs a migration and a decision about
+how many days a failed alert keeps retrying, and is **deferred, not dead**. The
+compensating delete keeps the concurrency guard at no schema cost. Ordering is
+now **lock → send → release on failure**.
+
+**Deleting BY ID rather than by the `{storeId, month}` unique key is the whole
+of the concurrency argument, not a style preference.** A delete by key would
+destroy whichever row is present — which on a concurrent run is the **winner's**
+row, the one whose email is in flight or already delivered. The id captured from
+the `create` can only ever name the row this call made.
+
+**F4 — the link stays `/dashboard`.** *This fork resolved itself on the
+findings.* The audit went looking for a per-store dashboard URL and there is
+none: `dashboard/page.tsx` takes no `searchParams`, there is no
+`/dashboard/[storeId]`, and store selection is `localStorage` only
+(`"froot.dashboard.store"`, read through `useSyncExternalStore`). **The
+consequence, stated because it was accepted rather than missed:** a multi-store
+manager following the link lands on whichever store their browser last had.
+Deferred on the F-5b row, with `/checklists?store=<id>` named as the precedent —
+and with the note that a pace alert's version must validate the store against
+the caller's scope the way that page does, since the recipient list and a
+store's audience are not the same set.
+
+**F5 — the migration was generated against a dev database brought up to date
+first, rather than generated dirty and hand-stripped.** *This fork did not exist
+in the prompt; the audit raised it.* HR-16's migration had been applied
+**nowhere**, so a `migrate diff` taken at that moment emitted **both** columns —
+and committing that would have failed the staging deploy with Postgres `42701`
+on the second `ADD COLUMN`, blocking every later migration behind it. The file
+would have looked correct in review: both statements additive, nothing dropped.
+The defect would not have been in the SQL but in the SQL having been generated
+against a database one migration behind the repo.
+
+Gary applied HR-16 to dev and the session re-ran the read-only diff until it
+came back empty before generating anything. **It took two attempts** — the first
+re-run still showed HR-16 outstanding, and the session stopped rather than
+proceed. The generated file is one statement.
+
+**The general rule this is worth remembering as:** `migrate diff
+--from-config-datasource` is only as trustworthy as the database it is pointed
+at. When the previous phase's migration has not been applied to dev, the next
+phase's generated file is contaminated by default, and it is contaminated in a
+way that reads as correct.
+
+**Not run anywhere.** The pace-alerts cron was not fired on staging or
+production. Staging runs `NOTIFY_EMAIL_PROVIDER=resend` and would have mailed
+real staging admin and manager addresses; the fixture is the proof of the lock
+release and the gate, and the cron gate is proven on production the day after
+the env flip, by the run-count log line.
+
+**Two fixture limits are named at their checks rather than left to be
+discovered.** The gate check asserts the cron's **predicate**, not the route
+handler — which needs a `CRON_SECRET` and a `Request` — so an edit to the
+route's filter alone would not fail it. And the last check is a
+**characterization** of the DEBT-106 gap, not an endorsement: it pins that an
+assignment-less ADMIN is still a recipient, and is **expected to fail** once the
+webhook is fixed, at which point it should be updated rather than worked around.
+
+**Deferred by this phase, recorded and not built:** a per-org alert threshold
+(`PACE_ALERT_THRESHOLD_PCT` stays one deployment-wide env var) and an admin
+daily digest.
+
+
 ## 2026-09-20 — HR-16: signed-acknowledgment completion emails — F1–F5 (Gary)
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The

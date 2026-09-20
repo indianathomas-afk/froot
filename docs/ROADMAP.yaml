@@ -3925,6 +3925,17 @@ phases:
     commits: [cb3f1bb]
     title: "Forecasting polish — goal-edit audit log, CSV export, behind-pace alerts"
     notes: >
+      ── F-5b 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      F-5b ("1ab1149") added the org toggle; production sends nothing until an
+      org enables it. Organization.paceAlertsEnabled defaults to false, and the
+      cron's store query requires it, so every org on every environment reads
+      disabled the moment the migration lands. The pace-alert cron described
+      below is therefore INERT until an admin flips the switch on /settings —
+      which is the point: NOTIFY_EMAIL_PROVIDER=resend in the Production scope no
+      longer starts mailing managers as a side effect of a change made for
+      HR-16. F-5b also fixed DEBT-105 (the burned lock) and left F-5's recipient
+      query untouched by ruling, filing DEBT-106 for the offboarding gap in it.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Seed correction: seed said planned; shipped 7-10.
       CLOSED BLOCKER (2026-07-27): "Pace-alert cron depends on the F-1
       CRON_SECRET blocker" is resolved — CRON_SECRET was verified present as
@@ -3962,6 +3973,95 @@ phases:
           email provider is wired into src/lib/notify.ts (also blocks HR-8
           reminders and HR-16). Re-verify at the next reconcile; a blocker with no
           verification date is a blocker nobody owns.
+
+  - id: F-5b
+    track: forecasting
+    size: S
+    status: in_progress
+    # Work commit only at the time of writing. This row is composed INSIDE the
+    # docs commit that records it, so that commit's own SHA cannot appear here
+    # (the two-commit pattern, same as HR-16 and CAL-2).
+    commits: ["1ab1149"]
+    title: "Pace alerts — per-org toggle, burned-lock fix (DEBT-105), recipient hygiene ruling"
+    notes: >
+      WHY THIS PHASE EXISTED. F-5's behind-pace alert is the only email Froot
+      sends to MANAGERS. Production was about to set NOTIFY_EMAIL_PROVIDER=resend
+      so HR-16 could deliver, and the two features share one sender — so the
+      moment that variable flipped, the 15:00 UTC pace-alert cron would have
+      started emailing real Keva admins and managers as a side effect of a change
+      made for a different feature. F-5b put a switch between them and fixed what
+      the 2026-09-20 read-only pass found. EMAIL WORDING WAS NOT TOUCHED, proven
+      mechanically rather than by eye: all 15 payload lines diff byte-identical
+      against "ad0c8f2" once indentation is stripped.
+      F1 — TOGGLE DEFAULT false. Gary, 2026-09-20. Nothing sends until someone
+      turns it on, Keva included. The alternative (true, preserving current
+      behaviour) was rejected because it makes the production env flip a sending
+      event. Organization.paceAlertsEnabled Boolean @default(false), migration
+      "20260920190000_f5b_pace_alerts_toggle". Every existing row lands on false,
+      so promoting the migration moves no behaviour on its own.
+      F2 — RECIPIENT QUERY LEFT EXACTLY AS IT IS. Gary, 2026-09-20. The audit
+      asked whether a departed manager can still match src/lib/pace-alerts.ts:91-98
+      and the answer split: a departed MANAGER cannot, because
+      organizationMembership.deleted deletes their StoreUserAssignment rows and
+      that arm of the query requires one — but a departed ADMIN CAN, forever,
+      because the ADMIN arm has no assignment requirement and cannot have one
+      (admins hold no assignment rows by design). User has NO active/deleted/
+      status column, so there is nothing to filter on; the only available test
+      would be a live Clerk membership lookup from inside the cron, which means a
+      paginated Clerk API call per org and a new failure mode when Clerk is down.
+      RULED: leave the query alone, fix it where the defect actually is — the
+      Clerk webhook handler — and file DEBT-106.
+      F3 — COMPENSATING DELETE BY ID, and this is a THIRD path outside the two
+      DEBT-105's own row offered. Gary, 2026-09-20. That row proposed
+      write-after-send (rejected: the standing ruling keeps lock-before-send, so
+      a crash cannot double-alert) or a delivery-status column (bigger, deferred).
+      The delete keeps the concurrency guard at no schema cost. BY ID rather than
+      by the {storeId, month} unique key is the whole argument: a delete by key
+      would destroy whichever row is present, which on a concurrent run is the
+      WINNER'S row — the one whose mail is in flight.
+      F4 — LINK STAYS /dashboard. Gary, 2026-09-20. The audit found there is NO
+      per-store dashboard URL: dashboard/page.tsx takes no searchParams, there is
+      no /dashboard/[storeId], and store selection is localStorage only
+      ("froot.dashboard.store", read through useSyncExternalStore). The accepted
+      consequence, stated rather than glossed: a multi-store manager following the
+      link lands on whichever store their browser last had. Deferred below.
+      F5 — MIGRATION GENERATED AGAINST A DEV DATABASE BROUGHT UP TO DATE FIRST,
+      rather than generated dirty and hand-stripped. Gary, 2026-09-20. This fork
+      did not exist in the prompt; the audit raised it. HR-16's migration had been
+      applied NOWHERE, so a diff taken at that moment emitted BOTH columns, and
+      committing that would have failed the staging deploy with 42701 on the
+      second ADD COLUMN and blocked every later migration. Gary applied HR-16 to
+      dev and the session re-ran the read-only diff until it came back empty
+      before generating anything. The generated file is one statement.
+      VERIFICATION. Fixture scripts/verify-f5-polish.ts, 27 checks, 0 failures —
+      19 pre-existing plus 8 new. TWO LIMITS ARE NAMED AT THEIR CHECKS rather than
+      left for a reader to discover. (a) The gate check asserts the cron's
+      PREDICATE, not the route handler, which needs a CRON_SECRET and a Request:
+      edit the route's filter alone and the check still passes. (b) The last check
+      is a CHARACTERIZATION of the DEBT-106 gap, not an endorsement of it — it
+      pins that an assignment-less ADMIN is still a recipient, and IS EXPECTED TO
+      FAIL when the Clerk webhook is fixed, at which point it should be updated
+      rather than worked around.
+      NOT RUN ANYWHERE. The pace-alerts cron was not fired on staging or
+      production by this session. Staging runs NOTIFY_EMAIL_PROVIDER=resend and
+      would have mailed real staging admin and manager addresses; the fixture is
+      the proof of the lock release and the gate, and the cron gate is proven on
+      production the day after the env flip by the run-count log line.
+    deferred:
+      - >
+        Per-org alert threshold. PACE_ALERT_THRESHOLD_PCT stays a single
+        deployment-wide env var (default 90). Recorded, not built.
+      - >
+        Admin daily digest — one mail summarising every behind-pace store
+        instead of one mail per store. Recorded, not built.
+      - >
+        Per-store dashboard URL, so the alert can link a manager to the store it
+        is about rather than to whichever store their browser last had (F4). The
+        precedent already in the codebase is /checklists?store=<id>
+        (checklists/page.tsx), which validates the requested store against the
+        caller's own scope before trusting it — a pace alert's link must do the
+        same, since the recipient list and the store's audience are not the same
+        set. /dashboard today takes no searchParams at all.
 
   # ---- HR / signing ----
   # Built 7-12…7-14, promoted to prod 7-21 (9743899) with HR dark in prod:
@@ -28554,11 +28654,57 @@ debt:
       what is open is the ritual line and Gary's ruling on it.
 
   - id: DEBT-105
+    # NOT `resolved` / NOT a `resolved:` date field. DebtItem in
+    # src/lib/roadmap.ts carries id/title/status/commits/notes ONLY, and a
+    # `resolved:` key type-errors the build (the same trap DEBT-7 recorded for
+    # `shipped:`). `in_progress` matches F-5b, the phase that fixes it: the code
+    # is committed on `staging` and NOT pushed. Both flip together.
+    status: in_progress
+    commits: ["1ab1149"]
     title: >
       pace-alerts.ts writes the PaceAlertLog idempotency row BEFORE the send, so
       once the provider is "resend" a failed send burns that store's
       one-alert-per-month lock and no email ever goes out
     notes: >
+      ── RESOLVED 2026-09-20 BY F-5b, work "1ab1149". PREPENDED; NOTHING BELOW IS
+      EDITED EXCEPT THE ONE CORRECTION NAMED IN THIS BLOCK. ──
+      THE FIX IS A THIRD PATH, AND NEITHER OF THE TWO THIS ROW OFFERED. The row
+      below proposed (1) write the row AFTER a successful send, or (2) add a
+      delivery-status column. Gary ruled F3 on 2026-09-20 and chose neither. (1)
+      was rejected outright: the lock-before-send ordering is a standing ruling,
+      because it is what makes a crash between send and write unable to
+      double-alert. (2) is bigger — a migration plus a decision about how many
+      days a failed alert keeps retrying — and is DEFERRED, not dead.
+      WHAT SHIPPED INSTEAD: a compensating delete. The send at
+      src/lib/pace-alerts.ts is now wrapped; on a throw, the PaceAlertLog row
+      just created is deleted and the error rethrown, so the per-store catch in
+      the cron still records `error:` and the run continues to the next store.
+      Tomorrow's run then re-evaluates the store from scratch. A double-alert
+      stays impossible, because a send that SUCCEEDS leaves the row exactly where
+      it has always been. Ordering is now LOCK -> SEND -> RELEASE ON FAILURE and
+      is commented as such at the site.
+      DELETED BY ID, NOT BY THE UNIQUE KEY, and that is the whole of the
+      concurrency argument rather than a style preference. A delete by
+      {storeId, month} would destroy whichever row is present — which on a
+      concurrent run is the WINNER'S row, the one whose email is in flight or
+      already delivered. The id captured from the create can only ever name the
+      row this call made. A release that itself fails is logged and swallowed so
+      it cannot mask the send error; that degrades to exactly the behaviour
+      described below and is no worse.
+      PROVEN BY FIXTURE, NOT BY INSPECTION. scripts/verify-f5-polish.ts gained
+      three checks on a dedicated third store: a thrown send propagates, NO
+      PaceAlertLog row survives it, and the next run alerts rather than returning
+      the phantom "already alerted this month". 27 checks, 0 failures. The cron
+      itself was NOT run in any environment.
+      ── CORRECTION TO THE TEXT BELOW (the premise, not the ruling) ──
+      The closing paragraph says NOTIFY_EMAIL_PROVIDER is "unset today in every
+      environment, so the flaw is latent at the moment of filing". That was true
+      when filed on 2026-09-19 and IS NO LONGER TRUE FOR STAGING: staging has run
+      NOTIFY_EMAIL_PROVIDER=resend since 2026-09-20 (docs/DEPLOY_LOG.md, NOTIFY-1
+      "1c21368"), which is why F-5b's own staging verification forbids firing the
+      cron there. Production remains unset at the time of writing. The sentence is
+      left standing below per preserve-and-mark; this paragraph is the correction.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       FOUND 2026-09-19 BY NOTIFY-1'S PRE-PUSH-CHECK, in NOTIFY-1's own commit
       message — the message explains why the env validation was MOVED OUT of
       send(), and the reason it gives is this flaw. The mitigation is real and the
@@ -28603,7 +28749,77 @@ debt:
       NOTIFY_EMAIL_PROVIDER is set to "resend" somewhere — unset today in every
       environment, so the flaw is latent at the moment of filing.
 
-
+  - id: DEBT-106
+    title: >
+      organizationMembership.deleted leaves the User row with role ADMIN, so a
+      departed admin matches the pace-alert recipient query forever and appears
+      on no Froot screen
+    notes: >
+      THE ID FILLS A GAP RATHER THAN CONTINUING THE SEQUENCE. Gary, 2026-09-20:
+      DEBT-106 was left free when DEBT-97/98's duplicates were renumbered to
+      107/108. Confirmed unreferenced before use — no occurrence in any document
+      and `git log -S DEBT-106 -- docs/ROADMAP.yaml` returns nothing, so this is
+      the first row ever to carry the id and no stale reference can resolve to it.
+      FOUND 2026-09-20 BY F-5b'S AUDIT, which asked a narrower question — can a
+      departed MANAGER still receive a pace alert — and found the manager half
+      already clean and the admin half broken.
+      THE MECHANISM. src/app/api/webhooks/clerk/route.ts handles
+      organizationMembership.deleted: it unlinks the staff profile and DELETES
+      every StoreUserAssignment row for the user. It does NOT delete the User
+      row, does NOT change User.role, and does NOT clear User.organizationId.
+      There is also no user.deleted handler at all — the file handles exactly
+      five events (organization.created, organization.updated,
+      organizationMembership.created, user.updated, organizationMembership
+      .deleted).
+      WHY THE MANAGER HALF IS FINE AND THE ADMIN HALF IS NOT. The recipient query
+      at src/lib/pace-alerts.ts:91-98 has two arms. The MANAGER arm requires
+      `storeAssignments: { some: { storeId } }` — exactly the rows the webhook
+      deletes — so a departed manager drops out on the next run, by accident
+      rather than by design. The ADMIN arm is only organizationId + role ADMIN,
+      with no assignment requirement, and CANNOT have one: admins deliberately
+      hold no StoreUserAssignment rows at all (recorded on User.defaultStoreId in
+      prisma/schema.prisma). So the one signal that retires a departed manager
+      does not exist for an admin.
+      THE QUIET PART. /users renders from the CLERK membership list
+      (getOrganizationMembershipList, then `memberList.map(...)`), using database
+      rows only as a lookup map. A User row with no Clerk membership therefore
+      appears on NO screen in Froot while still matching this query. Nothing in
+      the product would show an operator that a former admin is still being
+      emailed.
+      COST OF DOING NOTHING: LIVE, not latent, the moment an org enables pace
+      alerts. Staging already runs NOTIFY_EMAIL_PROVIDER=resend and production is
+      expected to follow, so this is real mail to a real former employee
+      containing a store's sales performance against goal. Trigger: any admin
+      removed from an org in Clerk. DEBT-47 records that production already
+      carries at least one such orphaned User row from 2026-08-04.
+      WHERE THE FIX BELONGS — RULED, AND IT IS NOT IN THE CRON. Gary's F2,
+      2026-09-20: the pace-alert query is left exactly as it is, because the
+      defect is not that pace alerts read the wrong rows, it is that the rows are
+      wrong. Filtering in the cron would fix one consumer and leave every other
+      org-scoped query reading the same stale row. The fix is in the Clerk webhook
+      handler — clear organizationId, or add a status/deleted column to User —
+      and it is a schema-or-webhook decision that was deliberately not taken
+      inside a forecasting phase.
+      WHAT WAS CONSIDERED AND REJECTED FOR F-5b. Filtering by an existing
+      active/status field: impossible, User has none (full scalar list is id,
+      clerkUserId, organizationId, email, name, role, defaultStoreId,
+      deniedCapabilities, grantedCapabilities, lastSeenAt, lastSeenLocation,
+      createdAt). Testing for a live Clerk membership from inside the cron:
+      possible — the codebase already paginates that call with fetchAllClerkPages
+      — but it puts a per-org Clerk API round-trip inside a cron and introduces a
+      new failure mode when Clerk is down, which is its own decision. A
+      lastSeenAt cutoff: answers the wrong question (ENG-1 activity, not
+      membership) and would silence a legitimate admin who does not browse.
+      RELATED: DEBT-47 is the parent webhook-hardening row — same handler, same
+      class of orphan, and it already tracks the production rows. This row is the
+      specific consequence DEBT-47's orphans have for outbound email, filed
+      separately because it has a live sending consequence that DEBT-47's
+      member-count drift does not. Fixing DEBT-47 properly should close this too.
+      PINNED IN EXECUTABLE FORM. scripts/verify-f5-polish.ts carries a
+      CHARACTERIZATION check asserting that an assignment-less ADMIN IS still a
+      recipient. It documents this gap rather than endorsing it, and is EXPECTED
+      TO FAIL when the webhook is fixed — at which point it should be updated to
+      assert the opposite, not worked around.
 
 rulings:
   - id: R1

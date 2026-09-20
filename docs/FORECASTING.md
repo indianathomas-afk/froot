@@ -98,13 +98,64 @@ load and the nightly cron covers the last 3 days.
   (verified in the fixture).
 - **Behind-pace alerts**: daily cron (`vercel.json` → `GET
   /api/cron/pace-alerts` at 15:00 UTC, `CRON_SECRET`-guarded, after the 11:00
-  sales-reconcile) checks every store with a current-month plan. Pace =
-  MTD actual ÷ MTD goal **through yesterday** (store-local, complete days
-  only), using the same `month-goal.ts`/`pacing.ts` helpers as the dashboard.
-  Below the threshold (`PACE_ALERT_THRESHOLD_PCT`, default 90) it emails org
-  admins + the store's assigned managers — **at most one alert per store per
-  month** (`PaceAlertLog` unique row is the idempotency lock, migration
+  sales-reconcile) checks every store with a current-month plan **whose org has
+  pace alerts switched on**. Pace = MTD actual ÷ MTD goal **through yesterday**
+  (store-local, complete days only), using the same `month-goal.ts`/`pacing.ts`
+  helpers as the dashboard. Below the threshold
+  (`PACE_ALERT_THRESHOLD_PCT`, default 90) it emails org admins + the store's
+  assigned managers — **at most one alert per store per month**
+  (`PaceAlertLog` unique row is the idempotency lock, migration
   `20260710220000_f5_pace_alerts_audit_index`).
+  - **The per-org switch (F-5b, 2026-09-20)**. `Organization.paceAlertsEnabled`,
+    **default `false`**, migration `20260920190000_f5b_pace_alerts_toggle`.
+    Toggled at **/settings → Integrations → Behind-pace alerts** (ADMIN) via
+    `POST /api/pace-alerts/toggle`. No availability env var — F-5 shipped to
+    every org and was never a staged rollout, so **the column is the only
+    gate**, exactly as with `calendarEnabled`.
+    - **The gate is in the cron's store query, not a per-store early return**,
+      and that is load-bearing: a disabled org's store is never evaluated, so
+      nothing reads its goal, nothing writes a `PaceAlertLog` row, and **its
+      one-alert-per-month lock cannot be burned while the org is dark**. An
+      early return placed after the lock write would do the opposite.
+    - **Why the default is `false`, since it is the safety argument rather than
+      a convention.** These are the only emails Froot sends to MANAGERS, and
+      they share a sender with HR-16. A default of `true` would make setting
+      `NOTIFY_EMAIL_PROVIDER=resend` in Production start mailing real managers
+      as a side effect of a change made for a different feature.
+    - **Neither edge of the toggle touches a `PaceAlertLog` row.** Disabling
+      keeps this month's sent rows, so re-enabling mid-month does not re-send an
+      alert the managers already got; enabling writes nothing, and the next run
+      evaluates on the numbers as they are that day.
+    - Each run logs **orgs enabled / stores evaluated / alerted / skipped**, and
+      the skipped count is measured rather than inferred — "the gate suppressed
+      12 stores" and "no store qualified this month" are otherwise
+      indistinguishable.
+  - **Lock → send → release on failure (DEBT-105, fixed by F-5b).** The
+    `PaceAlertLog` row is still written **before** the send, so a crash or a
+    concurrent run cannot double-alert. What F-5b added is the **release**: the
+    send is wrapped, and on a throw the row just created is deleted and the
+    error rethrown, so the cron's per-store catch still records `error:` and the
+    run continues. The next day's run then re-evaluates the store from scratch.
+    A double-alert stays impossible, because a send that **succeeds** leaves the
+    row exactly where it always was.
+    - **The delete is BY ID, never by the `{storeId, month}` unique key.** A
+      delete by key would destroy whichever row is present — on a concurrent run
+      that is the **winner's** row, the one whose mail is in flight. The id
+      captured from the `create` can only ever name the row that call made. **Do
+      not "simplify" this to a `deleteMany` on the unique key.**
+    - A release that itself fails is logged and swallowed so it cannot mask the
+      send error; that degrades to the pre-F-5b behaviour and no worse.
+    - Before this fix, one runtime send failure burned a store's
+      one-alert-per-month lock and the next day's run reported the reassuring
+      "already alerted this month" for a mail that never left.
+  - **Recipients are unchanged, and carry a known gap — `DEBT-106`.** Admins +
+    the store's assigned managers, as before. A departed **manager** drops out
+    (the Clerk webhook deletes their `StoreUserAssignment` rows, which that arm
+    of the query requires); a departed **admin does not**, because the ADMIN arm
+    has no assignment test and `User` has no status column. F2 (Gary,
+    2026-09-20) ruled the fix belongs in the Clerk webhook handler rather than
+    here, so **do not add a filter to this query** — see `DEBT-106` and
+    `DEBT-47`.
   - **Email delivery — two providers since NOTIFY-1 (2026-09-19)**.
     `src/lib/notify.ts` still hands every caller an `EmailSender` from
     `getEmailSender()`; what changed is that there is now something real

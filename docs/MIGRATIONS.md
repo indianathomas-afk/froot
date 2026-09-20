@@ -882,3 +882,92 @@ not belong to a Froot user at all.
 
 **No protected index is involved**, so § Protected indexes needs no new row and
 a future baseline squash has nothing extra to re-append for this migration.
+
+---
+
+## 2026-09-20 — `20260920190000_f5b_pace_alerts_toggle` (F-5b)
+
+**APPLIED TO DEV BY GARY, not by this session; applied to neither staging nor
+production.** Staging and production get it via `prisma migrate deploy` in the
+Vercel build on Gary's push. The session ran `migrate diff` and nothing else —
+CLAUDE.md § Database, `DEBT-103`.
+
+| Statement | Kind |
+|---|---|
+| `Organization.paceAlertsEnabled` `BOOLEAN NOT NULL DEFAULT false` | additive, defaulted, NOT NULL — no nullable window, no backfill |
+
+One column and nothing else. **No drops, no renames, no type changes, no index
+changes, no backfill.**
+
+**Every existing row lands on `false`, and that is the phase's safety argument
+rather than a convention.** The column gates the only email Froot sends to
+MANAGERS. Staging already runs `NOTIFY_EMAIL_PROVIDER=resend` and production is
+expected to follow — and the two features share one sender with HR-16, so a
+default of `true` would have made setting that variable in the Production scope
+start mailing real Keva admins and managers as a *side effect of a change made
+for a different feature*. `false` means promoting this migration moves no
+behaviour at all: the cron's store query requires the column, finds no org with
+it set, evaluates nothing, writes no `PaceAlertLog` row and sends nothing until
+an admin turns it on at /settings.
+
+**`NOT NULL DEFAULT false` means the `ALTER` has no data to fail on and leaves
+no row in an unreadable state.** Prisma's `Boolean @default(false)` generates
+exactly that; there is no nullable phase and no separate backfill statement, so
+the migration is safe to apply to a table of any size under `migrate deploy`.
+
+### THE PART OF THIS ENTRY WORTH READING — the diff was NOT clean on the first attempt, and committing it would have broken the staging deploy
+
+**`docs/MIGRATIONS.md`'s HR-16 entry states that
+`20260920120000_hr16_ack_recipients` was "APPLIED NOWHERE. Not to dev, not to
+staging, not to production." That was still true when F-5b's audit ran, and the
+audit measured it rather than assuming it.** A read-only diff taken at that
+moment returned HR-16's column as still outstanding against the live dev
+database.
+
+**Consequence, had the documented §3 command simply been run and its output
+committed:** `migrate diff --from-config-datasource` would have emitted **two**
+`ALTER TABLE` statements into this folder — `hrAckRecipients` *and*
+`paceAlertsEnabled`. On the staging build, `migrate deploy` applies migrations in
+timestamp order: `20260920120000_hr16_ack_recipients` first, adding the column,
+then this folder, re-adding it → **Postgres `42701`, column already exists →
+the deploy fails**, and the failed migration blocks every later one until it is
+resolved by hand.
+
+**The file would have passed review.** Both statements are additive, neither
+drops anything, and it satisfies every rule in § 3 and § Protected indexes. The
+defect would not have been in the SQL — it would have been in the SQL having
+been generated against a database one migration behind the repo.
+
+**How it was resolved (F5, Gary, 2026-09-20):** Gary applied HR-16 to dev, and
+the session **re-ran the read-only diff until it came back empty before
+generating anything.** It took two attempts — the first re-run still showed
+HR-16 outstanding and the session stopped rather than proceed. The alternative
+considered and rejected was to generate the dirty file and hand-strip the
+duplicate statement.
+
+**The general rule, which is the reason this section exists at length:**
+`--from-config-datasource` compares the schema against **the live dev
+database**, so it is only as trustworthy as that database is current. **When the
+previous phase's migration has not been applied to dev, the next phase's
+generated file is contaminated by default — and contaminated in a way that reads
+as correct.** Before generating any migration, run the diff with no `-o` and
+confirm what comes back is only your own change.
+
+**GENERATED AGAINST THE LIVE DEV DATABASE — the documented §3 form.**
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
+  --script -o prisma/migrations/20260920190000_f5b_pace_alerts_toggle/migration.sql
+```
+
+**The diff came back clean on the run that produced this file** — exactly one
+`ALTER TABLE` and nothing else — so dev was in sync with `prisma/schema.prisma`
+apart from this session's one-column edit, and the SQL is the faithful delta of
+that edit. Confirmed a third time after Gary applied this folder to dev: the
+same command with no `-o` returned `-- This is an empty migration.`
+
+**No `ON DELETE` choice was made** (see § Hand-authored FK `ON DELETE` vs the
+schema's implied default): the column is a scalar boolean, not a relation.
+
+**No protected index is involved**, so § Protected indexes needs no new row and
+a future baseline squash has nothing extra to re-append for this migration.
