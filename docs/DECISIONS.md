@@ -230,6 +230,16 @@ isolation." He also accepted the fourth bespoke nav flag (`requiresCalendar`) fo
 this phase, noting that `requiresModule` is group-level only and a later NAV
 phase generalises it.
 
+**── RIDER 2026-09-19 (DOCS-6c collision fix). ── THOSE TWO IDS HAVE MOVED.**
+The paragraph above is kept as written; both rows it names were renumbered on
+Gary's ruling of 2026-09-19. `checklists.execute` is now **DEBT-107** and the
+cron secret comparison is now **DEBT-108**. Both were filed by CAL-1's docs
+commit `a4b63cf` (2026-09-18) under ids SELF-1 had already taken on 2026-09-07,
+so `docs/ROADMAP.yaml` carried two unrelated rows under each number. SELF-1 filed
+first and keeps both ids. Nothing about either ruling changed — only the id it
+points at. The DEBT-97 named further down this file, under SELF-1's own entry,
+is the `findStaffMemberForEmail` divergence and is NOT affected.
+
 **A correction to R3's own wording, recorded rather than silently absorbed —
 and NOT edited into Gary's words, on his instruction (2026-09-18).** R3 says
 "the four existing callers". **There are five**, verified by grep at base

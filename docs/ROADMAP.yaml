@@ -16049,6 +16049,9 @@ phases:
       respectively. The two still live are DEBT-98's shared cron-secret
       comparison and the missing /calendar help article, and nothing observed
       on staging touches either.
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── THE "DEBT-98" IN THE SENTENCE ABOVE IS NOW
+      DEBT-108. The cron-secret row was renumbered out of a collision with SELF-1's
+      DEBT-98; the sentence is kept as written.
       ── RIDER 2026-09-18 (DOCS-4). PREPENDED; NOTHING BELOW IS EDITED. ──
       THE PROMOTION RAN BEFORE THE STAGING PROTOCOL, AND BEFORE THIS ROW SAID
       ANYTHING BUT `staging`. Gary ran the promotion template end to end at
@@ -16119,6 +16122,9 @@ phases:
       means the CODE IS ON THE BRANCH, not that anything was verified: the
       migration's state on dev is unknown to this session, the staging pass has
       still not run, DEBT-98 is open, and /calendar still has no help article.
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── THE "DEBT-98" IN THE SENTENCE ABOVE IS NOW
+      DEBT-108 — the cron-secret row, renumbered out of a collision with SELF-1's
+      DEBT-98. Still open; only the id moved.
       Do not read the status change as evidence.
       ONE THING THE PUSH DID PROVE, and it is worth keeping because it was a
       named blocker risk: staging deployed. The Vercel build runs
@@ -16198,6 +16204,9 @@ phases:
       registered capability with ZERO call sites app-wide. R1 ruled it stays
       that way - CAL-1 does not change checklist semantics - and the gap is
       filed as DEBT-97.
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── THE "DEBT-97" IN THE SENTENCE ABOVE IS NOW
+      DEBT-107 — the `checklists.execute` row, renumbered out of a collision with
+      SELF-1's DEBT-97. Still open; only the id moved.
       R2 - Organization.calendarEnabled is a DEDICATED BOOLEAN COLUMN, not a
       fifth entry in activeModules. The schema's own comment makes activeModules
       "the BILLABLE ADD-ON list", and the calendar is part of Checklists rather
@@ -16341,6 +16350,9 @@ phases:
         COPIED DELIBERATELY FROM THE DAY-CLOSE CRON ON GARY'S RULING rather
         than fixed here. Five cron routes share it; one fixed and four not is a
         divergence nobody can see. Tracked as DEBT-98, which covers all of them.
+        ── RIDER 2026-09-19 (DOCS-6c collision fix). ── THAT ROW IS NOW DEBT-108, renumbered
+        out of a collision with SELF-1's DEBT-98. This blocker is unchanged and
+        still live.
       - >
         /calendar HAS NO HELP ARTICLE. `scripts/generate-guide.mjs` warns at
         every build that 42 of 66 claimable routes are unclaimed and /calendar
@@ -27894,12 +27906,22 @@ debt:
       neither absence should be inferred from the other rows being green.
 
 
-  - id: DEBT-97
+  - id: DEBT-107
     status: planned
     title: >
       `checklists.execute` is registered with zero call sites — the control
       exists and the consumer is missing (the TPL-1 pattern)
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── PREPENDED; NOTHING BELOW IS EDITED.
+      THIS ROW WAS FILED AS DEBT-97 and is renumbered DEBT-107 on Gary's ruling of
+      2026-09-19. It was filed by CAL-1's docs commit "a4b63cf" on 2026-09-18 under
+      an id SELF-1 had already taken on 2026-09-07 ("e8145d5"), so docs/ROADMAP.yaml
+      carried two unrelated rows under DEBT-97 for a day. SELF-1 filed first and
+      keeps the id; this row moves. Which of the two lines "a4b63cf" added was
+      established with `git log -S` before anything was touched, not by reading the
+      titles. CITATIONS THAT MEANT THIS ROW carry their own riders and are listed
+      in the commit; citations of SELF-1's DEBT-97 — the findStaffMemberForEmail /
+      resolveSelfStaff divergence — were deliberately left alone.
       FILED 2026-09-17 ON GARY'S RULING at the CAL-1 audit stop: "checklists.execute
       is registered with zero call sites (TPL-1 pattern: control exists, consumer
       missing). File it; PERM track decides." DO NOT FIX IT IN CAL-1.
@@ -27944,12 +27966,23 @@ debt:
       be the documented answer. Both are defensible; picking one is the PERM
       track's, not a passing session's.
 
-  - id: DEBT-98
+  - id: DEBT-108
     status: planned
     title: >
       Every cron route's CRON_SECRET comparison is un-trimmed and
       non-constant-time — fix all five together or none
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── PREPENDED; NOTHING BELOW IS EDITED.
+      THIS ROW WAS FILED AS DEBT-98 and is renumbered DEBT-108 on Gary's ruling of
+      2026-09-19. It was filed by CAL-1's docs commit "a4b63cf" on 2026-09-18 under
+      an id SELF-1 had already taken on 2026-09-07 — by "649da45", not "e8145d5",
+      which is the sibling commit that filed SELF-1's DEBT-97; the ruling named
+      "e8145d5" for the pair and the DEBT-98 half traces to "649da45". Either way
+      SELF-1 filed first and keeps the id; this row moves. Which of the two lines
+      "a4b63cf" added was established with `git log -S` before anything was
+      touched. CITATIONS THAT MEANT THIS ROW carry their own riders; citations of
+      SELF-1's DEBT-98 — Jamie Pilk's staging staff record left terminated — were
+      deliberately left alone.
       FILED 2026-09-17 ON GARY'S RULING at the CAL-1 audit stop: "Cron secret
       compare is un-trimmed and non-constant-time in every cron route. Copy the
       existing pattern as-is in CAL-1 for consistency and file one row covering

@@ -595,6 +595,11 @@ Jamie Pilk's unrestored staging record; the other two, filed earlier, are
 comparison. Read the title, not the id. Found 2026-09-19 (DOCS-6c) while writing
 this entry and reported rather than renumbered — renumbering a debt id is not a
 DEPLOY_LOG session's call.
+**RESOLVED the same day on Gary's ruling:** SELF-1 keeps `DEBT-97` and `DEBT-98`;
+CAL-1's two rows, filed LATER by `a4b63cf` on 2026-09-18 and NOT earlier as the
+sentence above says, are renumbered `DEBT-107` (`checklists.execute`) and
+`DEBT-108` (`CRON_SECRET`), and `scripts/generate-roadmap.mjs` now throws on any
+duplicate id so `npm run build` catches the next one.
 
 **THIS ENTRY MAKES NO VERIFICATION CLAIM.** It was assembled from git on
 2026-09-19. No gate output, no browser pass, no environment check and no

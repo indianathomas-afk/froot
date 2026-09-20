@@ -110,6 +110,67 @@ const debt = withStringCommits(normalize(raw.debt ?? []))
 // the type error that is supposed to catch it.
 const rulings = normalize(raw.rulings ?? [])
 
+// ─── DUPLICATE-ID GATE ───────────────────────────────────────────────
+//
+// An id must be unique across ALL FOUR lists, not merely within its own.
+// /internal/roadmap renders by id and CLAUDE.md cites rows by id, so a
+// collision is invisible in the YAML and shows up as a duplicate card, or as a
+// citation that silently points at the wrong row.
+//
+// THIS THROWS. It is the opposite call from the unflagged-closure WARNING at
+// the foot of this file, and the difference is that a duplicate id is a FACT
+// with no false-positive class: two rows either share a string or they do not.
+// The warning asks a human to look at a judgement call; this one states that
+// the file is wrong.
+//
+// FILED FROM A REAL COLLISION, 2026-09-19 (DOCS-6c). SELF-1 filed DEBT-97 and
+// DEBT-98 on 2026-09-07; CAL-1's docs commit a4b63cf filed two unrelated rows
+// under the SAME two ids on 2026-09-18, and eleven days and four sessions went
+// by before anyone noticed — including three that edited this file. The CAL-1
+// rows became DEBT-107 and DEBT-108 on Gary's ruling. Nothing in the build
+// would have caught it, which is why this exists.
+//
+// It checks ALL FOUR lists together rather than four times separately, because
+// the prefixes are a convention and not a rule: nothing stops a phase row from
+// being called DEBT-anything, and the id is the only handle a citation has.
+const seenIds = new Map()
+const duplicateIds = []
+for (const [listName, list] of [
+  ["phases", phases],
+  ["bugs", bugs],
+  ["debt", debt],
+  ["rulings", rulings],
+]) {
+  for (const [index, entry] of list.entries()) {
+    const id = entry?.id
+    // A row with no id at all is a different defect and not this gate's job;
+    // the generated file's type check catches it.
+    if (typeof id !== "string" || id === "") continue
+    const previous = seenIds.get(id)
+    if (previous) {
+      duplicateIds.push({ id, first: previous, second: `${listName}[${index}]` })
+    } else {
+      seenIds.set(id, `${listName}[${index}]`)
+    }
+  }
+}
+
+if (duplicateIds.length > 0) {
+  const lines = duplicateIds.map(
+    (d) => `  "${d.id}" appears at ${d.first} and again at ${d.second}`,
+  )
+  throw new Error(
+    `${SOURCE_FOR_GIT}: ${duplicateIds.length} DUPLICATE ID${duplicateIds.length === 1 ? "" : "S"}` +
+      ` across phases/bugs/debt/rulings — ids must be unique file-wide, because` +
+      ` /internal/roadmap renders by id and every citation in docs/ resolves by id:\n` +
+      `${lines.join("\n")}\n` +
+      `  Renumber the LATER-FILED row — establish which one that is with` +
+      ` \`git log -S\`, not from its position in this list — to the next free id,` +
+      ` and leave a rider on it naming the original id, the filing commit and the` +
+      ` collision.`,
+  )
+}
+
 const fromGit = gitCommitDate()
 const fromMeta = metaUpdatedToIso(raw.meta?.updated)
 
