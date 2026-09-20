@@ -6,6 +6,103 @@ instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
 
+## 2026-09-20 — HR-16: signed-acknowledgment completion emails — F1–F5 (Gary)
+
+Ruled by Gary in the build session, 2026-09-20, after the Phase 1 audit
+(`docs/prompts/HR-16_AUDIT.md`). **His reply, quoted exactly:**
+
+> Rulings. F1: ADMIN only, on /settings. F2: AuditLog row per attempt —
+> entityType "Notification", action "email.sent" or "email.failed", metadata
+> carrying kind ("hr.ack"), recipient list, signed-record id, and the Resend id
+> or the error message; the rows are write-only for now. File a ROADMAP row
+> NOTIFY-2 (planned): a /settings/notifications page reading those rows plus
+> Resend delivery webhooks for delivered/bounced status. F3: silent skip with a
+> named log line, matching pace-alerts.ts:100. F4: link to the download API URL.
+> F5: prepend the resolution to HR-8's notes; do not create a blockers array.
+> Wrap getEmailSender() construction inside the try/catch, not just send().
+> File goes at src/lib/hr-ack-notification.ts. Go.
+
+Built as `23da754`. What each ruling settles:
+
+**F1 — ADMIN only, on /settings.** Recipients are "who at corporate hears about
+signatures", not a store-level choice, so the manage tier was not extended.
+`/settings` makes this free rather than merely convenient: `settings.access` is
+`ADMIN_ONLY` (`src/lib/permissions.ts:273`) and is deliberately absent from
+`GRANTABLE_CAPABILITIES`, so the gate cannot be granted down from the /users
+grid. `PUT /api/hr/settings` checks `requireAdmin()` independently of the page,
+behind `hrModuleAvailable()` — the PERM-2 rule that a gate on a page is not a
+gate on an endpoint.
+
+**F2 — an AuditLog row per attempt, write-only for now.** `entityType` is the
+CHANNEL ("Notification") and `action` is the OUTCOME, so one indexed value
+selects every notification an org has sent —
+`@@index([organizationId, entityType, createdAt])` already serves that query.
+`kind: "hr.ack"` inside metadata distinguishes HR-16's mail from the next
+consumer's, so a second consumer needs no new entityType. `userId` is null and
+that is the honest value: the send runs in `after()`, detached from the request,
+and the signer is a `StaffMember` rather than a Clerk user.
+
+**Write-only was ruled, not conceded.** Nothing reads these rows — the only
+AuditLog reader is `/api/forecasting/audit`, filtered to `GOAL_ENTITY_TYPES`
+(`src/lib/audit.ts:16`), which cannot see them. **NOTIFY-2 was filed in the same
+breath as the ruling** to build the reader, so the gap is a dated commitment
+rather than a silence. The rows accumulate from the day HR-16 lands, so that
+phase starts with real data instead of an empty table.
+
+**F3 — empty recipients is a silent skip with a named log line.** The shape
+comes from F-5, which already answers this exact situation with a named reason
+rather than a bare return (`src/lib/pace-alerts.ts:100`,
+`"no admin/manager recipients"`). An org that never filled the field and an org
+whose provider broke must not look the same in a log. **No audit row on a skip:**
+the ruling is one row per *attempt*, and nothing was attempted.
+
+**F4 — the link is the download API.** *This fork did not exist in the prompt.*
+The prompt asked for "the ADMIN/MANAGER route for the same record"; the audit
+found **there is no admin page for a single signed record** — `/hr/signed-records`
+is an ADMIN-only list of the 50 most recent with no per-row anchor, and
+`/my/documents/records/[recordId]` is the signer's own. The email carries
+`/api/hr/signed-records/<id>/download`, the only URL that names the record. It is
+ADMIN-or-in-scope-MANAGER (HR-7 rule 5) and 307s to a short-lived signed blob
+URL, so a recipient outside that tier gets a refusal rather than the bytes.
+**The consequence, stated because it was accepted rather than overlooked:**
+clicking the link downloads a PDF; it does not open a screen.
+
+**F5 — HR-8's clearance is prepended to its notes; no blockers array is
+created.** HR-8 never had one — its email gate existed only as a clause at the
+foot of its note. Adding an array to hold a single already-closed entry would
+put a `blockers:` key on a shipped row that has never carried one, which reads
+on /internal/roadmap as a phase that *acquired* a problem. The preserve-and-mark
+convention applies to the notes instead: the spent clause is kept verbatim and
+the clearance sits above it.
+
+**The try/catch instruction, which is a correctness ruling and not a style
+note.** `getEmailSender()` **throws** on a misconfigured deployment and never
+degrades to the console sender — NOTIFY-1's fail-closed design
+(`src/lib/notify.ts:138-157`), because "a deployment that believes it is emailing
+and is not" is the failure that provider exists to end. On staging,
+`NOTIFY_EMAIL_PROVIDER=resend`, so a missing `RESEND_API_KEY` throws at
+construction, not at `send()`. Wrapping only `send()` would let that throw reach
+the signing path — which is the one thing HR-16 must not do.
+
+**Standing rulings this phase did not relitigate:** recipients are an org-level
+setting and never a hardcoded address; sending is
+`USE Froot <noreply@notify.usefroot.com>` with no per-merchant domains;
+`replyTo` is not set (`src/lib/notify.ts:19-22` anticipates the opposite and is
+superseded, left in place rather than edited); plain text for all NOTIFY
+consumers until a design pass says otherwise.
+
+**One placement decision was Claude's, and is recorded as such.** The
+notification fires **inside `ensureSignedRecord`, after the create, on the
+create path only** — not at the two call sites. The prompt said "at the minting
+moment"; the audit surfaced that the two readings differ observably, and Gary
+did not rule between them. Inside covers both call sites (the ceremony and the
+recovery/`recordMissing` path) with one line, and fires **once per record**,
+which the call sites cannot do: the function early-returns an existing
+current-cycle record, so a reload or a second press of Generate never reaches it.
+HR-15b's rehire is a new `signingCycle`, so a new unique key, so a mint, so an
+email. Deliberately not on the concurrent-completion race path — the invocation
+that won the unique constraint is the one that sends.
+
 ## 2026-09-18 — DEBT-101: "N days overdue" counts DATES — RATIFIED 2026-09-18
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-18, in the PRE-PUSH-CHECK session.** The

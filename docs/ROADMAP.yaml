@@ -3932,15 +3932,36 @@ phases:
       notify.ts blocker below is untouched by this and still stands: the cron
       can now authenticate, but it still has nowhere to send mail.
     blockers:
-      - >
-        VERIFIED STILL TRUE 2026-07-27 (reconcile Pass 2a) — re-read at source,
-        not assumed. src/lib/notify.ts:21 is still
-        `console.log("[notify:console] ...")` and :26 documents
-        NOTIFY_EMAIL_PROVIDER as "console" (default), with "resend" | "smtp"
-        listed as future options. Pace alerts log to console only — no real
-        email provider is wired into src/lib/notify.ts (also blocks HR-8
-        reminders and HR-16). Re-verify at the next reconcile; a blocker with no
-        verification date is a blocker nobody owns.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-20 — THE PROVIDER EXISTS AND HAS DELIVERED. The entry
+          below is kept verbatim per preserve-and-mark; it is the claim this
+          answers, and it asked to be re-verified at the next reconcile rather
+          than assumed, which is what happened.
+          WHAT CLOSED IT: NOTIFY-1 ("1c21368") — Resend behind getEmailSender(),
+          fail-closed, no fallback to the console sender. Delivery PROVEN ON
+          STAGING 2026-09-20 09:34 PT, Resend id
+          01a0bfab-3a0c-70f7-8c95-6c336460b07e, delivered to Gary's inbox from
+          deployment "13bccff". The same mark lands on HR-16 and HR-8 in this
+          commit ("23da754" is HR-16's work); one integration, three entries,
+          exactly as HR-16's blocker predicted.
+          WHAT STAYS OPEN FOR F-5 SPECIFICALLY, and is NOT cleared here: the
+          pace-alert cron can now reach a real provider, but DEBT-105 is live —
+          a runtime send failure still burns a store's monthly PaceAlertLog lock,
+          because the row is written before the send. That is a different defect
+          from "there is nowhere to send mail" and it keeps its own row.
+          NOTHING ABOUT F-5's OWN ALERTS WAS OBSERVED IN AN INBOX. What was
+          proven is the provider, through NOTIFY-1's admin test route.
+      - resolved: true
+        text: >
+          VERIFIED STILL TRUE 2026-07-27 (reconcile Pass 2a) — re-read at source,
+          not assumed. src/lib/notify.ts:21 is still
+          `console.log("[notify:console] ...")` and :26 documents
+          NOTIFY_EMAIL_PROVIDER as "console" (default), with "resend" | "smtp"
+          listed as future options. Pace alerts log to console only — no real
+          email provider is wired into src/lib/notify.ts (also blocks HR-8
+          reminders and HR-16). Re-verify at the next reconcile; a blocker with no
+          verification date is a blocker nobody owns.
 
   # ---- HR / signing ----
   # Built 7-12…7-14, promoted to prod 7-21 (9743899) with HR dark in prod:
@@ -4051,6 +4072,25 @@ phases:
     commits: [61eea85]
     title: "Compliance rollup dashboard — live-computed, /hr/compliance, real /staff column"
     notes: >
+      ── EMAIL BLOCKER RESOLVED 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      PREPENDED TO NOTES RATHER THAN MARKED ON A BLOCKER ENTRY, by Gary's F5
+      ruling (2026-09-20), BECAUSE THIS ROW HAS NO `blockers:` ARRAY — its email
+      gate has only ever existed as the clause at the foot of this note. Creating
+      an array to hold a single already-closed entry would put a `blockers:` key
+      on a shipped row that has never carried one, which reads on
+      /internal/roadmap as a phase that acquired a problem rather than one that
+      lost one.
+      THE CLAUSE BELOW — "reminder emails blocked on the notify.ts provider (see
+      F-5 blocker)" — IS SPENT. NOTIFY-1 ("1c21368") put Resend behind
+      getEmailSender(); delivery was PROVEN ON STAGING 2026-09-20 09:34 PT,
+      Resend id 01a0bfab-3a0c-70f7-8c95-6c336460b07e, delivered to Gary's inbox
+      from deployment "13bccff". F-5's and HR-16's blocker entries carry the same
+      mark, applied in the same commit as HR-16's work ("23da754").
+      HR-8's REMINDERS ARE STILL UNBUILT, and that is the whole remaining
+      distance: what cleared is the reason they COULD NOT be built, not the
+      building. They are explicitly out of HR-16's scope and are the next phase;
+      they reuse HR-16's Organization.hrAckRecipients rather than introducing a
+      second recipient source.
       Built 7-22, staging pass complete 7-22 (caught BUG-2), prod via 942bc59.
       No prod smoke test recorded. Follow-ups spun out as HR-11/12/13/14;
       reminder emails blocked on the notify.ts provider (see F-5 blocker).
@@ -4265,24 +4305,102 @@ phases:
   - id: HR-16
     track: hr
     size: S-M
-    status: planned
+    # `planned` -> `in_progress`: built 2026-09-20, on the branch, NOT PUSHED.
+    # Claude never pushes. The CHK-4 "in_progress at SHA" convention — `staging`
+    # is for the PRE-PUSH-CHECK to set, as it did on NOTIFY-1.
+    status: in_progress
+    commits: ["23da754"]
     title: "Signed-acknowledgment completion emails + org-level recipient routing"
-    notes: Prerequisite — wire a real email provider into src/lib/notify.ts (see F-5 blocker).
+    notes: >
+      ── BUILT 2026-09-20 ("23da754"). PREPENDED; NOTHING BELOW IS EDITED. ──
+      One email per MINTED HrSignedRecord to Organization.hrAckRecipients, the
+      first real consumer of NOTIFY-1. Migration
+      20260920120000_hr16_ack_recipients — one column,
+      `hrAckRecipients TEXT[] DEFAULT ARRAY[]::TEXT[]`, additive, no backfill.
+      GENERATED ONLY AND APPLIED TO NO DATABASE: `migrate diff` was the only
+      prisma command this session ran, and it lands on staging via
+      `migrate deploy` in the Vercel build when Gary pushes. docs/MIGRATIONS.md
+      carries the entry.
+      WIRED INSIDE ensureSignedRecord (src/lib/hr-signed-pdf.ts), after the
+      create, on the CREATE PATH ONLY — not at the two call sites. That covers
+      the ceremony AND the recovery/`recordMissing` path with one line, and it
+      fires ONCE PER RECORD, which the call sites cannot do: the function
+      early-returns an existing current-cycle record, so a reload or a second
+      press of Generate never reaches it. HR-15b's rehire is a new signingCycle,
+      therefore a new unique key, therefore a mint, therefore an email — the
+      ruling this placement satisfies rather than merely permits. Deliberately
+      NOT on the concurrent-completion race path: the invocation that won the
+      unique constraint is the one that sends.
+      THE SIGNING PATH IS UNTOUCHED BY A BROKEN PROVIDER. The send runs in
+      Next's after(); getEmailSender() is INSIDE the try/catch rather than only
+      send(), because it throws on a misconfigured deployment and never degrades
+      to console (NOTIFY-1's fail-closed design). Every failure logs and, per F2,
+      writes an AuditLog row; nothing throws into the response.
+      THE EMAIL RE-DERIVES ITS FACTS FROM THE ACKNOWLEDGMENT SNAPSHOTS on the
+      same three keys the mint uses (version, staff, signingCycle), exactly as
+      the Certificate of Acknowledgment derives them — both HR-11c names, the
+      store, the version. The cheap alternative (StaffMember.fullName) is the
+      LIVE name and would disagree with the frozen artifact the email links to
+      the moment anyone is renamed.
+      RULINGS (Gary, 2026-09-20; full text in docs/DECISIONS.md). F1 — ADMIN
+      only, on /settings, which gives it for free: settings.access is ADMIN_ONLY
+      and not grantable, and PUT /api/hr/settings enforces independently.
+      F2 — an AuditLog row per attempt, entityType "Notification", action
+      "email.sent"/"email.failed", metadata carrying kind "hr.ack", the
+      recipient list, the signed-record id, and the Resend id or the error;
+      WRITE-ONLY FOR NOW, with NOTIFY-2 filed to build the reader.
+      F3 — empty recipients is a silent skip with a NAMED log line, matching
+      F-5's "no admin/manager recipients" (src/lib/pace-alerts.ts:100). No audit
+      row: the ruling is one row per ATTEMPT and nothing was attempted.
+      F4 (raised by the audit, not by the prompt) — THERE IS NO ADMIN PAGE FOR
+      ONE RECORD; the prompt asked for a route that does not exist. The link is
+      /api/hr/signed-records/<id>/download, the only URL that names the record.
+      F5 — HR-8's clearance is PREPENDED TO ITS NOTES; no blockers array is
+      created for it.
+      replyTo IS NOT SET. src/lib/notify.ts:19-22 says "HR-16 needs it"; that
+      comment is superseded by this row's ruling and is left in place rather
+      than edited.
+      NOT VERIFIED, AND NOTHING WAS SEEN IN AN INBOX BY THIS SESSION. The build
+      is green and the audit is docs/prompts/HR-16_AUDIT.md; staging evidence is
+      owed after Gary pushes, per the prompt's six-step pass. The blocker below
+      is marked resolved on NOTIFY-1's PROVEN STAGING DELIVERY, which is a
+      different claim from HR-16's own send having been observed.
+      ── THE 2026-08-06 ROW TEXT IS NEXT, UNEDITED ──
+      Prerequisite — wire a real email provider into src/lib/notify.ts (see F-5 blocker).
     blockers:
-      - >
-        NO REAL EMAIL PROVIDER EXISTS — promoted from prose to a blocker entry
-        2026-08-06 so the board can tell this row from a ready one. Verified at
-        source the same day: src/lib/notify.ts:19-24 is `consoleEmailSender`,
-        which console.logs the message instead of delivering it, and
-        getEmailSender() returns it unconditionally — NOTIFY_EMAIL_PROVIDER is
-        documented at :25 as "console" (default) with "resend" | "smtp" as
-        future options, and nothing reads the variable. This phase is entirely
-        the sending of email, so it cannot start at all, not merely ship
-        degraded.
-        CLEARS WHEN: a provider integration lands behind getEmailSender().
-        THIS ONE GATE BLOCKS THREE THINGS, which is the argument for doing it:
-        HR-16 (this row, wholly), F-5's pace alerts (its own live blocker, same
-        file, same line) and HR-8's reminders. One integration clears all three.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-20 — A REAL PROVIDER EXISTS AND HAS DELIVERED. The
+          entry below is kept verbatim per preserve-and-mark; it records what was
+          true on 2026-08-06, which is what makes this clearance legible.
+          WHAT CLOSED IT: NOTIFY-1 ("1c21368") put Resend behind
+          getEmailSender(), and delivery was PROVEN ON STAGING 2026-09-20
+          09:34 PT — Resend id 01a0bfab-3a0c-70f7-8c95-6c336460b07e, delivered
+          to Gary's inbox from deployment "13bccff". NOTIFY-1's own row named
+          this pass as the one that would flag the three entries once delivery
+          was proven, rather than flagging them at build time on the strength of
+          code alone.
+          WHAT THIS DOES NOT CLAIM. Nobody has yet seen an HR-16 email in an
+          inbox. The cleared gate is "no provider exists", which is answered at
+          source and in Resend's own log; HR-16's own send is verified by the
+          staging pass Gary runs after pushing "23da754", not by this mark.
+          THE SAME MARK LANDS ON F-5 AND ON HR-8 in this commit — one
+          integration, three entries, as the text below predicted.
+      - resolved: true
+        text: >
+          NO REAL EMAIL PROVIDER EXISTS — promoted from prose to a blocker entry
+          2026-08-06 so the board can tell this row from a ready one. Verified at
+          source the same day: src/lib/notify.ts:19-24 is `consoleEmailSender`,
+          which console.logs the message instead of delivering it, and
+          getEmailSender() returns it unconditionally — NOTIFY_EMAIL_PROVIDER is
+          documented at :25 as "console" (default) with "resend" | "smtp" as
+          future options, and nothing reads the variable. This phase is entirely
+          the sending of email, so it cannot start at all, not merely ship
+          degraded.
+          CLEARS WHEN: a provider integration lands behind getEmailSender().
+          THIS ONE GATE BLOCKS THREE THINGS, which is the argument for doing it:
+          HR-16 (this row, wholly), F-5's pace alerts (its own live blocker, same
+          file, same line) and HR-8's reminders. One integration clears all three.
 
   - id: HR-17
     track: hr
@@ -17539,6 +17657,48 @@ phases:
       only in the Resend dashboard, so Froot cannot tell a delivered alert from
       one that hard-bounced.
       PRE-PUSH-CHECK flips this row to `staging` when Gary pushes.
+
+  - id: NOTIFY-2
+    track: platform
+    size: M
+    status: planned
+    title: "Notification visibility — /settings/notifications over the AuditLog rows + Resend delivery webhooks"
+    notes: >
+      FILED 2026-09-20 BY GARY'S F2 RULING, in the HR-16 docs commit. It is the
+      reader for rows HR-16 is already writing, and it is the row NOTIFY-1's own
+      notes asked for ("ROW, NOT BUILT: Resend delivery/bounce webhooks into
+      AuditLog") — the two halves turned out to be one phase, because a webhook
+      with nowhere to display its verdict is as useless as a page with no
+      delivery status on it.
+      TWO HALVES.
+      (a) /settings/notifications — a page reading the AuditLog rows HR-16
+      writes: entityType "Notification", action "email.sent" | "email.failed",
+      metadata `{ kind, recipients, entityId, resendId | error }`. The index
+      @@index([organizationId, entityType, createdAt]) already serves exactly
+      this query; nothing schema-side is owed for the read.
+      (b) Resend delivery webhooks — delivered / bounced / complained, landing
+      against the row its `resendId` already identifies. This is the half that
+      needs a decision and probably a column: an AuditLog row is written once
+      and read as a claim about what was ATTEMPTED, so a later delivery verdict
+      is either a second row (append-only, two rows per email, the page joins
+      them on resendId) or a mutation of the first (one row, but AuditLog stops
+      being append-only for every other writer too). NOT DECIDED HERE.
+      WHY IT IS A SEPARATE PHASE AND NOT HR-16's TAIL. Until this ships the
+      HR-16 rows are WRITE-ONLY BY RULING — nothing reads them, because the only
+      AuditLog reader is /api/forecasting/audit and it filters to
+      GOAL_ENTITY_TYPES (src/lib/audit.ts:16), so an HR-16 row is invisible to
+      it. That is a deliberate, named gap rather than an oversight: the rows
+      accumulate from the day HR-16 lands, so this phase starts with real data
+      to render instead of an empty table.
+      WHAT IS VISIBLE IN THE MEANTIME: the function log (every attempt logs
+      `[hr-ack] record=… sent/send failed`) and the Resend dashboard. Neither is
+      in the product, and neither survives log retention.
+      DEPENDS ON: HR-16 ("23da754") for the writer. Reuses NOTIFY-1's provider
+      config; adds no provider env vars of its own. DEBT-105 (a runtime send
+      failure burning a PaceAlertLog lock) is adjacent and separate.
+      SCOPE NOTE: the page is a READ surface. Editing recipients stays on
+      /settings under HR-16's field; a second place to set them is the thing
+      this row must not become.
 
 
 bugs:
