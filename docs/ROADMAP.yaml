@@ -17806,13 +17806,58 @@ phases:
   - id: NOTIFY-2a
     track: platform
     size: M
-    status: in_progress
+    status: staging
     # Work commit only at the time of writing. This row is composed INSIDE the
     # docs commit that records it, so that commit's own SHA cannot appear here
     # (the two-commit pattern, same as F-5b, HR-16 and CAL-2).
-    commits: ["a16bab2"]
+    # The docs SHA and this check's own SHA were added by the PRE-PUSH-CHECK,
+    # which is the step that owns them — see its rider at the head of the notes.
+    commits: ["a16bab2", "e4dc158", "19cc329"]
     title: "Email settings hub — /settings/notifications; per-org pace threshold; provider on ack audit rows"
     notes: >
+      ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
+      per Step 4 — this check is the last thing that runs before Gary pushes, so
+      it is the step that owns the flip (DOCS-6, after CAL-2b was merged to main
+      with its row still reading in_progress).
+      SHAs. Work "a16bab2". Docs "e4dc158". "19cc329" is a CLAUDE.md house rule
+      that RIDES IN THE SAME PUSH AND IS NOT PART OF THIS PHASE — it is listed
+      in `commits` because it ships with this payload, not because NOTIFY-2a
+      built it. THIS CHECK'S OWN COMMIT is the one immediately after "19cc329";
+      it cannot name its own SHA, by construction.
+      RULING: RATIFIED AS WRITTEN. docs/DECISIONS.md gained a NOTIFY-2a entry
+      (F1-F3 plus the standing rulings restated), so Step 1 was NOT a no-op. It
+      was printed verbatim and put to Gary; his whole reply, recorded exactly -
+      "Ratified as written. Commit and report." The ratification paragraph is
+      ADDITIVE at the head of that entry; nothing below it was changed.
+      RIDER ON THE FIXTURE COUNT, GARY 2026-09-20. THE "28 -> 32" BELOW COUNTS
+      `check(` CALL SITES, NOT EXECUTED CHECKS. A green run reports 31, and 31
+      is correct: one call site is a FAILURE-PATH BRANCH — "export parses
+      through the importer" at scripts/verify-f5-polish.ts:193 — which fires
+      only when the CSV round-trip fails to parse and is skipped on a pass. The
+      pre-NOTIFY-2a green count was 27, not 28. Anyone re-running this fixture
+      and reading 31 against a row that says 32 should stop here rather than
+      hunt a missing check.
+      FIXTURE RAN GREEN AFTER THE DEV APPLY: 31/31, zero failures, on dev branch
+      br-broad-wave-a6vpjdw0, after Gary applied
+      20260920210000_notify2a_pace_threshold. All four new checks passed. This
+      closes the "NOT RUN ANYWHERE" paragraph below, which was accurate when
+      written and is now spent — the fixture could not run at commit time
+      because every Organization read selects the new column.
+      MIGRATION STATUS AT PUSH: staging gets
+      20260920210000_notify2a_pace_threshold via `prisma migrate deploy` in
+      vercel-build on this push; PRODUCTION DOES NOT HAVE IT and gets it in
+      whichever later merge to main carries this code. Dev has it.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. docs/DEPLOY_LOG.md entry written into the
+      file by this check, headed "UNPROMOTED — 2026-09-20 — NOTIFY-2a…",
+      heading count 54 -> 55 with both splice seams read back. DECISIONS,
+      FORECASTING, MIGRATIONS and the CLAUDE.md env line all carry this phase's
+      changes. docs/prompts/NOTIFY-2a.md and NOTIFY-2a_AUDIT.md committed in
+      "e4dc158". Preserve-and-mark intact; no meta.updated key.
+      NOTHING HAS BEEN SEEN IN AN INBOX AND THIS CHECK OBSERVED NOTHING EITHER.
+      It read code, counted lines and ran `npm run build`. Staging evidence
+      comes after Gary pushes, and it is UI-ONLY — the pace toggle stays OFF on
+      staging (real manager addresses, fixture numbers).
       ── RIDER 2026-09-20 (NOTIFY-2a). PREPENDED; NOTHING BELOW IT IS EDITED. ──
       THIS ROW WAS FILED AS NOTIFY-2 and is split. It becomes NOTIFY-2a (built
       2026-09-20, this row) and NOTIFY-2b (the read surface, still planned, the

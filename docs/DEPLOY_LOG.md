@@ -2,6 +2,164 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-20 — NOTIFY-2a: email settings hub, per-org pace threshold, provider on ack audit rows
+
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed. Written by this phase's
+PRE-PUSH-CHECK, into the file, before the push.
+
+**Work SHA:** `a16bab2` on `staging`. **Docs SHA:** `e4dc158`. **This check's
+own commit** is the one immediately after the CLAUDE.md commit named below.
+
+**Payload: 4 commits** — the work, the docs, `19cc329` (a CLAUDE.md house
+rule, riding along), and this check's.
+
+**`19cc329` IS NOT PART OF NOTIFY-2a AND CARRIES NO CODE.** It adds one house
+rule to CLAUDE.md § Database — *after generating a migration file the session
+STOPS; nothing is committed until Gary has applied it to dev and the fixture
+has run against the applied schema* — and amends the sentence three lines above
+it, which used to say the session stops "with the SQL generated, reviewed and
+committed". It rides in this push because it was written in the same sitting.
+It changes no runtime behaviour and has no rollback consideration of its own.
+
+**THIS MERGE CARRIES A MIGRATION.** `20260920210000_notify2a_pace_threshold`
+applies to STAGING through `prisma migrate deploy` in `vercel-build` on this
+push, and **is not yet on production** — production gets it in whichever later
+merge to `main` carries this code, through that merge's own Vercel build. One
+statement:
+
+```sql
+ALTER TABLE "Organization" ADD COLUMN "paceAlertThresholdPct" INTEGER;
+```
+
+Additive, **nullable, no default, no backfill**. No drops, no renames, no type
+changes, no index changes. A nullable `ADD COLUMN` with no default is a
+catalogue-only change in Postgres — no table rewrite — so it is safe on a table
+of any size under `migrate deploy`. Ledger entry in `docs/MIGRATIONS.md`.
+
+**IT WAS APPLIED TO DEV BY GARY, not by the build session** — `migrate diff`
+was the only prisma command that session ran against a database, per CLAUDE.md
+§ Database. Staging and production have it in neither branch yet.
+
+**What it does.** Gary's ruling, 2026-09-20: every email setting lives on one
+page. HR-16's acknowledgment recipients and F-5b's behind-pace toggle were two
+unrelated cards on `/settings`, and the pace threshold was a deployment-wide
+env var. This phase builds `/settings/notifications`, moves both controls
+there, makes the threshold per-org, and leaves one "Email notifications →" link
+card on `/settings`. One new page route, one new API route
+(`PUT /api/pace-alerts/settings`, ADMIN), one deleted API route
+(`POST /api/pace-alerts/toggle`), one new column, one changed cron. No new
+cron job, no Square call, no Clerk change, no permission change — the page and
+both write routes use `settings.access` / `requireAdmin()`, which already
+existed.
+
+**THE BLAST RADIUS IS A NULL COLUMN AND A MOVED CONTROL. NOTHING ABOUT WHAT
+GETS SENT, TO WHOM, OR WHEN, CHANGES ON THIS DEPLOY.** Every existing row lands
+`NULL`, which means *fall back to `PACE_ALERT_THRESHOLD_PCT`, then to 90* — so
+every org is evaluated at exactly the number it was evaluated at yesterday. The
+env var is **not retired**; it is the fallback (F1). Email wording and format
+are untouched. Recipients are untouched. The pace toggle keeps its value across
+the move, and it is `false` for every org on staging, so the 15:00 UTC cron
+still evaluates nothing.
+
+**THE ONE USER-VISIBLE REGRESSION RISK IS A 404, AND IT IS WORTH NAMING.**
+`POST /api/pace-alerts/toggle` is deleted. A browser tab left open on the old
+`/settings` from before this deploy would post to a route that no longer
+exists; the island reverts its optimistic flip and the switch snaps back. A
+reload fixes it. Nothing else in the repo referenced that route — verified by
+grep across `src`, `scripts`, `docs` and `vercel.json` before deleting.
+
+**The three rulings, as built.** F1 — `Organization.paceAlertThresholdPct
+Int?`, null = fall back; the rejected alternative was non-null `@default(90)`
+with the env var retired, which would have made *applying the migration* a
+behaviour change wherever the variable is set to something other than 90. F2 —
+the HR card gates on `hrAvailable` (the env gate), so a deployment without the
+HR module shows no card; an org with HR available but inactive gets the card
+**disabled** with one line rather than hidden. F3 — both cards come off
+`/settings` entirely; the link card that replaces them carries **no
+Enabled/Disabled badge**, because a state badge there would be a second claim
+about a setting the page no longer owns. Full text in `docs/DECISIONS.md`.
+
+**The threshold has two validators and they disagree on purpose.** The input
+takes an **integer 50–100**; the env reader takes any finite value in
+`(0,100]`, fractions included. So `87.5` is a legal *fallback* and an
+impossible *org value*. Nothing sets a fractional value — the variable is unset
+in every environment. Stated in the schema comment, the route, and
+`docs/MIGRATIONS.md`, so it reads as a decision rather than an oversight.
+
+**The cron's JSON response changed shape**, named here rather than discovered
+later. The scalar `thresholdPct` could not survive a per-org number; it is
+replaced by `fallbackThresholdPct` plus a `thresholds` array of
+`{ organizationId, thresholdPct, source: "org" | "env" }`, with orgs named by
+**ID** per CLAUDE.md § Database Evidence. Nothing consumes that response
+programmatically — it is read by a human in the Vercel function log. The
+per-org lookup is a `Map` built by a `findMany` that **replaced** the
+`organization.count()` that used to compute `orgsEnabled`, so it costs no extra
+round trip, and `src/lib/pace-alerts.ts` was not touched.
+
+**`provider` on the acknowledgment audit rows — one field, and it is what stops
+a console-mode "sent" from reading as delivery.** HR-16's `email.sent` rows
+recorded `kind`, `recipients` and `resendId` and nothing naming the channel.
+`resendId` is not a usable proxy: the console sender returns `{}` so console
+mode stores `null`, but so does a *real* Resend 2xx whose body failed to parse.
+A null meant "console" **or** "Resend, id lost". Rows written from this deploy
+onward carry `provider`; rows written before it do not, and cannot be
+backfilled — NOTIFY-2b's send log must treat a missing `provider` as unknown
+rather than as console.
+
+**VERIFICATION: THE FIXTURE RAN 31/31 GREEN AGAINST THE APPLIED SCHEMA.**
+`npx tsx scripts/verify-f5-polish.ts`, after Gary applied the migration to dev
+(branch `br-broad-wave-a6vpjdw0`) on 2026-09-20 — "All F-5 polish checks
+passed", zero failures. Four of those checks are new: the cron's lookup
+resolves the org's own threshold (`org=40 fallback=90`); a store that alerts at
+the fallback is **silent** under its org's lower threshold; clearing the column
+falls back and alerts again; and the `PaceAlertLog` row records the threshold
+actually used. The direction of the second one is the point — the same store
+paces at 49.6% and alerts at 90 too, so a check that merely *fires* cannot tell
+which threshold produced it; only the silence can.
+
+**31, not 32.** `scripts/verify-f5-polish.ts` holds 32 `check(` call sites but
+one is a failure-path branch (`"export parses through the importer"`, line 193)
+that runs only when the CSV round-trip fails to parse. 31 is the correct green
+number and always was; the pre-NOTIFY-2a green count was 27. The row's
+"28 → 32" counts call sites.
+
+**The work commit was made before that run, and the rule that now forbids it
+rides in this same push.** `a16bab2` committed the fixture unrun, because it
+*could not* run — every `Organization` read selects the new column, so it
+failed at org creation against a dev branch that did not have it. The commit
+message said so and the session's report named it, so nothing was concealed,
+and it passed once applied. `19cc329` is the rule that stops the next one:
+after generating a migration the session stops and commits nothing until dev
+has it and the fixture is green.
+
+**NOTHING HAS BEEN SEEN IN AN INBOX FOR NOTIFY-2a, AND NOTHING SHOULD BE.** No
+email left any environment from this code and the pace-alerts cron was not
+fired. Staging runs `NOTIFY_EMAIL_PROVIDER=resend` with real manager addresses
+against fixture numbers, so **leave the pace toggle OFF on staging**. The
+staging pass after this push is UI only: `/settings` shows the link card and
+neither old card; `/settings/notifications` renders both cards; the HR
+recipients field shows the value saved earlier today and saves; the pace toggle
+flips and persists; set the threshold to 75, reload, still 75; clear it,
+reload, blank and reading "Using the default (90%)".
+
+**Rollback.** Reverting `a16bab2` restores `/settings`' two cards, restores
+`POST /api/pace-alerts/toggle`, removes the page, the settings route and the
+per-org lookup, and returns the cron to a single deployment-wide threshold —
+which is the pre-deploy behaviour for every org, since nothing will have set a
+value. **The column is not removed by that revert and must not be**:
+additive-only schema is a rule at every tier (CLAUDE.md § What does NOT tier
+down). An org that had typed a threshold keeps it in the column, unread, until
+the code returns. `AuditLog` rows already carrying `provider` stay; they are a
+record of sends that really happened.
+
+**Known and not built:** NOTIFY-2b (shared branded HTML template, the send log
+over these `AuditLog` rows, Resend delivery webhooks), NOTIFY-3 (employee-facing
+emails, deferred by ruling), NOTIFY-4 (operational reports email). DEBT-109
+records that mail from the new sending subdomain lands in Outlook Junk at
+first-time inboxes — no code fix; Not-Junk the first sends, then tighten DMARC
+to `p=quarantine` after weeks of clean delivery.
+
 ## UNPROMOTED — 2026-09-20 — HR-16: signed-acknowledgment completion emails + org-level recipients
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at

@@ -8,6 +8,15 @@ decisions too.)
 
 ## 2026-09-20 — NOTIFY-2a: every email setting on one page — F1–F3 (Gary)
 
+**RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratified as written. Commit and report."* Nothing below was changed by the
+ratification — this paragraph is additive, per the DEBT-101 precedent
+(2026-09-18) and the HR-16 entry below, and the prose it sits above is the text
+he ratified. **The ratification covers the wording, including the places this
+entry attributes a sentence to Gary that is Claude's paraphrase of his
+message** — that risk was named when the entry was put to him.
+
 **The standing ruling this phase implements.** *Every email setting lives on
 one page.* Before it, HR-16's acknowledgment recipients and F-5b's behind-pace
 toggle were two unrelated cards on `/settings` — one inside the HR module card,
