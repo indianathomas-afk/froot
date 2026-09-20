@@ -10,7 +10,7 @@ import { can, type PermissionUser } from "@/lib/permissions"
 import { redirect } from "next/navigation"
 import { getInstagramTokenStatus } from "@/lib/instagram"
 import { InstagramActions, InstagramConnectButton } from "./instagram-actions"
-import { HrModuleToggle } from "./hr-actions"
+import { HrAckRecipientsField, HrModuleToggle } from "./hr-actions"
 import { LaborModuleToggle } from "./labor-actions"
 import { SquareLaborToggle } from "./square-labor-actions"
 import { CalendarModuleToggle } from "./calendar-actions"
@@ -249,6 +249,13 @@ export default async function SettingsPage() {
                   </div>
                   <HrModuleToggle enabled={hrActive} />
                 </div>
+                {/* HR-16. Only while the module is ON, for the same reason the
+                    Labor card hides its settings link: nothing can be
+                    acknowledged while HR is off, so a recipient list would be
+                    a control over an event that cannot happen. The column
+                    keeps its value across a toggle — turning HR off and on
+                    again does not clear who gets notified. */}
+                {hrActive && <HrAckRecipientsField recipients={org?.hrAckRecipients ?? []} />}
               </CardContent>
             </Card>
           )}

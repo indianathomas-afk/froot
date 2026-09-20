@@ -824,3 +824,61 @@ FK `ON DELETE` vs the schema's implied default):
 **The unique index is the "one occurrence, one checklist" invariant** and it is
 expressed in the schema rather than only in code, so a second linked checklist
 cannot be written even by a path that forgot to check.
+
+## 2026-09-20 — `20260920120000_hr16_ack_recipients` (HR-16)
+
+**APPLIED NOWHERE. Not to dev, not to staging, not to production.** This is the
+first entry in this file whose migration has been applied to no database at all
+at the time of writing, and that is the CLAUDE.md § Database rule working as
+intended rather than an omission: `migrate diff` reads and writes a file,
+Claude runs nothing else, and step 3 is Gary's. Dev gets it by hand or not at
+all; staging and production get it via `prisma migrate deploy` in the Vercel
+build on Gary's push.
+
+| Statement | Kind |
+|---|---|
+| `Organization.hrAckRecipients` `TEXT[] DEFAULT ARRAY[]::TEXT[]` | additive, defaulted, not null-able-relevant — an empty array, never NULL |
+
+One column and nothing else. **No drops, no renames, no type changes, no index
+changes, no backfill.**
+
+**Every existing row lands on `ARRAY[]::TEXT[]`, which is the correct value for
+all of them, and this matters more here than for a typical default.** The column
+decides who receives real email: staging runs
+`NOTIFY_EMAIL_PROVIDER=resend` (NOTIFY-1, `1c21368`), so a default that
+resolved to anything other than empty would mail a live address the moment the
+first acknowledgment completed after the deploy. Empty means the code path runs,
+finds no recipients, logs a named skip and sends nothing — so promoting this
+migration moves no behaviour on its own, and cannot until an admin types an
+address into /settings.
+
+**A Postgres array column with a default is never NULL here.** Prisma's
+`String[]` maps to `TEXT[] NOT NULL`-in-effect via the default; the generated
+statement carries `DEFAULT ARRAY[]::TEXT[]`, so the `ALTER` has no data to fail
+on and no row to leave in an unreadable state. `src/lib/hr-ack-notification.ts`
+reads `.length === 0` with no null guard, which is correct for this shape.
+
+**GENERATED AGAINST THE LIVE DEV DATABASE — the documented §3 form.**
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
+  --script -o prisma/migrations/20260920120000_hr16_ack_recipients/migration.sql
+```
+
+**The diff came back clean, and that is the part worth recording.**
+`--from-config-datasource` compares the whole schema against the live dev
+database, so any pre-existing drift would have surfaced as extra statements in
+the output. **Exactly one `ALTER TABLE` came out and nothing else** — so dev was
+in sync with `prisma/schema.prisma` at `13bccff`, and the SQL is the faithful
+delta of this session's one-column edit.
+
+**No `ON DELETE` choice was made** (see § Hand-authored FK `ON DELETE` vs the
+schema's implied default): the column is a scalar list, not a relation. It holds
+addresses as text, deliberately not a join to `User` — F-5's pace alerts derive
+recipients from ADMIN/MANAGER user emails (`src/lib/pace-alerts.ts:98`) and
+HR-16 does not, because "who at corporate hears about signatures" is a choice an
+admin makes rather than a consequence of who holds a role. An address here need
+not belong to a Froot user at all.
+
+**No protected index is involved**, so § Protected indexes needs no new row and
+a future baseline squash has nothing extra to re-append for this migration.

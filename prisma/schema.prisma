@@ -60,6 +60,21 @@ model Organization {
   // Validation stamps and the Certificate of Acknowledgment always render full
   // date+time regardless (court-defensibility, per DECISIONS F5b).
   hrDateStampFormat       String    @default("dateOnly")
+  // HR-16 (Gary, 2026-09-20). WHO HEARS ABOUT A COMPLETED ACKNOWLEDGMENT.
+  // One email per minted HrSignedRecord goes to these addresses; the column is
+  // the ONLY recipient source — there is no hardcoded address and no fallback
+  // to admin users' emails (which is what F-5's pace alerts do,
+  // src/lib/pace-alerts.ts:98, and is deliberately NOT what this does: "who at
+  // corporate hears about signatures" is a choice, not a role).
+  //
+  // DEFAULT EMPTY IS THE SAFETY ARGUMENT. Every existing org lands with no
+  // recipients, so the migration needs no backfill and nothing sends until an
+  // admin types an address — which matters more here than for most columns,
+  // because staging runs NOTIFY_EMAIL_PROVIDER=resend and delivers real mail.
+  //
+  // Validation (max 10, trimmed, lowercased, deduplicated, each a valid email)
+  // lives at the write route; the column stores what that route produced.
+  hrAckRecipients         String[]  @default([])
   // DEBT-70a (Gary, 2026-08-16). THE FALLBACK ZONE FOR PEOPLE WHO HAVE NO
   // STORE. Inline `Date:` stamps on minted PDFs render the STORE-LOCAL day, and
   // the store's own `Store.timezone` answers that for almost everyone — but
