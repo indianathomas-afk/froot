@@ -496,6 +496,33 @@ Deny-by-default: unknown capability → `false`.
 | `hr.compliance.view` | ADMIN, MANAGER (scoped) | PG-31 |
 | `hr.toggle` | ADMIN | HR-13 |
 | `my.access` | linked ACTIVE staff | PG-33, MY-1/2, `getActiveStaffSelf` |
+| `notify.pace.receive` | ADMIN, MANAGER (assigned stores only — the assignment half is the recipient query's, not this entry's). **Deniable, never grantable.** Added by NOTIFY-2c, 2026-09-20 | `src/lib/pace-alerts.ts` recipient query; grid row "Email notifications" |
+
+### Notification capabilities are DENIABLE-ONLY (NOTIFY-2c, Gary, 2026-09-20)
+
+`notify.*` is a namespace for **who receives a Froot email**, one entry per
+user-addressed email (`notify.pace.receive` is the first and today the only
+one). Three rules hold for every entry in it, and they are rules rather than
+this one entry's accidents:
+
+1. **Deniable — a row in `ENFORCED_CAPABILITIES`, so an ADMIN unticks it on the
+   person's row in Edit User on `/users`.** That is the only control, and it is
+   **admin-set, never self-service**: there is no user-facing opt-out and no
+   unsubscribe anywhere in the product.
+2. **Never in `GRANTABLE_CAPABILITIES`.** An email goes to a person because
+   their role puts them on the list, and the per-user control only takes them
+   off it. STORE and STAFF therefore cannot be added to a mailing list one
+   account at a time — `PATCH /api/users/[id]` 400s on the grant (it filters on
+   `isGrantable`) and `can()` refuses a smuggled one at read time.
+3. **The org-level switch outranks it.** `/settings/notifications` decides
+   whether the email exists for the org at all; these capabilities only narrow
+   the recipient list below it. Org off → nobody, whatever any user's row says.
+
+**What makes these rows unlike every other row in the grid:** they take away no
+access. Denying one removes a message from someone's inbox and leaves every
+page, route and permission they hold exactly as it was. The `removes` copy on
+each row has to say so in the admin's words, because an unticked box in a
+capability grid otherwise reads as a loss of power.
 
 `*` = the derived tier is what the *page/UI and sibling routes* enforce; the
 starred API rows currently under-enforce (see §2). The shim must reproduce

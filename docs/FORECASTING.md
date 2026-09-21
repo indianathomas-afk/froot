@@ -200,14 +200,37 @@ load and the nightly cron covers the last 3 days.
     - Before this fix, one runtime send failure burned a store's
       one-alert-per-month lock and the next day's run reported the reassuring
       "already alerted this month" for a mail that never left.
-  - **Recipients are unchanged, and carry a known gap — `DEBT-106`.** Admins +
-    the store's assigned managers, as before. A departed **manager** drops out
-    (the Clerk webhook deletes their `StoreUserAssignment` rows, which that arm
-    of the query requires); a departed **admin does not**, because the ADMIN arm
-    has no assignment test and `User` has no status column. F2 (Gary,
-    2026-09-20) ruled the fix belongs in the Clerk webhook handler rather than
-    here, so **do not add a filter to this query** — see `DEBT-106` and
-    `DEBT-47`.
+  - **Recipients: role-based, minus a per-user denial, and they still carry a
+    known gap — `DEBT-106`.** Admins + the store's assigned managers, as
+    before. A departed **manager** drops out (the Clerk webhook deletes their
+    `StoreUserAssignment` rows, which that arm of the query requires); a
+    departed **admin does not**, because the ADMIN arm has no assignment test
+    and `User` has no status column. F2 (Gary, 2026-09-20) ruled the fix belongs
+    in the Clerk webhook handler rather than here, so **do not add an
+    offboarding filter to this query** — see `DEBT-106` and `DEBT-47`.
+    - **THE PER-USER DENIAL (NOTIFY-2c, Gary, 2026-09-20).** An ADMIN may take
+      one person off this list from **Edit User on `/users`** — the "Email
+      notifications" section, row "Receives behind-pace alert emails". Unticking
+      it writes `notify.pace.receive` to that user's `deniedCapabilities`; the
+      recipient query selects `role`, `deniedCapabilities` and
+      `grantedCapabilities` on the same round trip and filters the rows through
+      `can()`. **No second query, and no SQL predicate**: `can()` is a
+      fail-closed load, a role baseline and an elevation branch evaluated in
+      that order, and an array test in the `where` could express today's
+      snapshot of that but not its precedence — so the grid and the mailing list
+      would be free to drift.
+    - **Admin-set, never self-service.** Self-service opt-out was ruled out the
+      same day and stays ruled out; there is no unsubscribe anywhere.
+      `STAFF`/`STORE` cannot be added to the list at all — the capability is
+      deniable-only (`docs/PERMISSIONS_INVENTORY.md` §5).
+    - **The denial lands BEFORE the lock is written**, so
+      `PaceAlertLog.recipients` records who was actually mailed. If every
+      eligible person is denied, no alert is sent, **no lock row is written**,
+      and the run reports `every admin/manager has behind-pace alerts denied` —
+      deliberately distinct from `no admin/manager recipients`, which means
+      nobody holds the role.
+    - **The org toggle outranks it** — off at `/settings/notifications` means
+      nobody, whatever any user's row says.
   - **Email delivery — two providers since NOTIFY-1 (2026-09-19)**.
     `src/lib/notify.ts` still hands every caller an `EmailSender` from
     `getEmailSender()`; what changed is that there is now something real

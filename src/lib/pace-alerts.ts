@@ -7,6 +7,7 @@ import { localDateStr, dbDate } from "@/lib/reports"
 import type { EmailSender } from "@/lib/notify"
 import { renderEmail } from "@/lib/email-template"
 import { ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
+import { can, grantsFrom, overridesFrom } from "@/lib/permissions"
 
 // ─── Behind-pace alerts (Phase F-5) ──────────────────────────────────────────
 // A store is "behind pace" when MTD actual ÷ MTD goal drops below the
@@ -90,16 +91,63 @@ export async function processPaceAlertForStore(
     }
   }
 
+  // NOTIFY-2c — ROLE ARM IN SQL, PER-USER DENIAL IN can(), AND IT IS STILL ONE
+  // QUERY. The `where` is untouched: every ADMIN plus the store's assigned
+  // MANAGERs, exactly as before. What is new is three more COLUMNS on the same
+  // round trip and a filter through can() on the rows that come back — so the
+  // "post-filter" costs no second query, and the choice between the two
+  // placements is about correctness alone (F2, 2026-09-20).
+  //
+  // WHY NOT `NOT: { deniedCapabilities: { has: … } }` IN THE QUERY. It would be
+  // right today and quietly wrong later. can() is not a single array test — it
+  // is a fail-closed load (overridesFrom), a role baseline, and an elevation
+  // branch gated on GRANTABLE_CAPABILITIES, evaluated in that order. An SQL
+  // predicate can express today's snapshot of that and cannot express the
+  // ordering, so the day a precedence rule moves, the grid and the mailing list
+  // would disagree with nothing to say which was right. The rule this file
+  // follows is the registry's own: ask can(), never re-derive it.
+  //
+  // THE THREE COLUMNS ARE ALL REQUIRED. `deniedCapabilities` is the answer;
+  // `role` is what the baseline is read against; `grantedCapabilities` is
+  // selected even though notify.pace.receive is NOT in GRANTABLE_CAPABILITIES
+  // today — a select that omits it would become an under-mail the moment that
+  // changed, and overridesFrom's three-state contract exists precisely because
+  // a forgotten column looks identical to an empty one.
   const users = await prisma.user.findMany({
     where: {
       organizationId: store.organizationId,
       OR: [{ role: "ADMIN" }, { role: "MANAGER", storeAssignments: { some: { storeId: store.id } } }],
     },
-    select: { email: true },
+    select: { email: true, role: true, deniedCapabilities: true, grantedCapabilities: true },
   })
-  const recipients = [...new Set(users.map((u) => u.email).filter(Boolean))]
+  const recipients = [
+    ...new Set(
+      users
+        .filter((u) =>
+          can(
+            {
+              role: u.role,
+              overrides: overridesFrom(u.deniedCapabilities),
+              grants: grantsFrom(u.grantedCapabilities),
+            },
+            "notify.pace.receive"
+          )
+        )
+        .map((u) => u.email)
+        .filter(Boolean)
+    ),
+  ]
   if (recipients.length === 0) {
-    return { ...base, pacePct: verdict.pacePct, alerted: false, reason: "no admin/manager recipients" }
+    // TWO DIFFERENT SILENCES, AND THE CRON LOG MUST TELL THEM APART. "Nobody
+    // holds the role" is a setup problem; "every eligible person has the row
+    // unticked" is an admin's deliberate choice, and reading the first when it
+    // was the second is how someone goes looking for a bug in the query. No
+    // lock is written on either path, so tomorrow re-evaluates from scratch.
+    const reason =
+      users.length === 0
+        ? "no admin/manager recipients"
+        : "every admin/manager has behind-pace alerts denied"
+    return { ...base, pacePct: verdict.pacePct, alerted: false, reason }
   }
 
   // ORDERING: LOCK -> SEND -> RELEASE ON FAILURE (DEBT-105, F3, Gary 2026-09-20).

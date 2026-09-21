@@ -144,6 +144,19 @@ export type Capability =
   | "hr.compliance.view"
   | "hr.toggle"
   | "my.access"
+  // NOTIFY-2c — THE FIRST NOTIFICATION CAPABILITY, and the namespace is meant
+  // to grow: `notify.<email>.receive`, one entry per user-addressed email.
+  // Convention is this file's, not the prompt's — `domain.resource.action`,
+  // all lower case (§5 of docs/PERMISSIONS_INVENTORY.md). No key in this union
+  // carries a capital letter, so `notify.paceAlerts` would have been the first
+  // and would have made the convention unreadable for the next entry.
+  //
+  // IT GOVERNS A MAILING LIST, NOT AN ACCESS DECISION, which is why it is the
+  // only kind of capability in this registry that removes nothing a person can
+  // see or do. Denying it stops one email reaching one person; every page,
+  // every route and every other capability they hold is untouched (Gary, F3,
+  // 2026-09-20).
+  | "notify.pace.receive"
 
 const ALL: readonly PermissionRole[] = ["ADMIN", "MANAGER", "STORE", "STAFF"]
 const MANAGE: readonly PermissionRole[] = ["ADMIN", "MANAGER"]
@@ -447,6 +460,30 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   "hr.toggle": ADMIN_ONLY,
   // Role tier only — the linked-ACTIVE-staff predicate is getActiveStaffSelf's.
   "my.access": ALL,
+  // NOTIFY-2c (Gary, 2026-09-20) — WHO RECEIVES THE BEHIND-PACE ALERT EMAIL.
+  //
+  // MANAGE, and the tier IS the ruling: "ADMIN and assigned MANAGER receive by
+  // default; STAFF never." The assignment half is not expressible here and is
+  // not meant to be — the recipient query in src/lib/pace-alerts.ts still joins
+  // StoreUserAssignment for the MANAGER arm, exactly as it did before this
+  // phase. This entry only decides who is ELIGIBLE; the query decides which
+  // stores each eligible person hears about.
+  //
+  // DENIABLE, NOT GRANTABLE — the shape the phase was asked for, and the
+  // capability model already had it. Deniable comes from the row in
+  // ENFORCED_CAPABILITIES below; not-grantable comes from this key's ABSENCE
+  // from GRANTABLE_CAPABILITIES, which makes can()'s elevation branch
+  // unreachable for it no matter what a hand-rolled request writes to
+  // User.grantedCapabilities. STORE is excluded on the same line as STAFF: a
+  // shared iPad login is not a person, and an email addressed to one reaches
+  // whoever is holding it.
+  //
+  // ROLE-BASED RECIPIENTS REMAIN THE DEFAULT. Every ADMIN and every assigned
+  // MANAGER holds this from the moment it ships; nobody's mail changes until
+  // an admin unticks a row. The org-level toggle and threshold at
+  // /settings/notifications sit ABOVE this: org off → nobody, whatever this
+  // says.
+  "notify.pace.receive": MANAGE,
 }
 
 function isPermissionRole(role: unknown): role is PermissionRole {
@@ -921,6 +958,30 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "See scheduled and clocked-in staffing",
     removes:
       "The scheduled and clocked-in curves overlaid on the Labor Coverage card. The suggested coverage curve itself, the labor % readouts, the Labor module and the weekly budget are unaffected.",
+  },
+  // NOTIFY-2c append — THE FIRST ROW IN THIS GRID THAT TAKES AWAY NO ACCESS.
+  // Every other row removes a page, a route or a field. This one removes an
+  // EMAIL: the person keeps every permission they had, and one message stops
+  // arriving. That is Gary's F3 and the `removes` copy below says it in the
+  // admin's words rather than leaving it to be inferred from an unticked box.
+  //
+  // THE AREA IS NEW AND IS MEANT TO FILL UP. ENFORCED_CAPABILITY_AREAS derives
+  // from this list in order, so "Email notifications" renders last today and
+  // every future user-addressed email is ONE ENTRY HERE — no new section, no
+  // grid change, no route change. That one-line property is the phase's whole
+  // point (Gary, 2026-09-20).
+  //
+  // WHAT AN UNTICKED ROW MEANS PER ROLE, since the grid renders all three
+  // kinds from the same declaration: ADMIN and MANAGER see it ticked (baseline)
+  // and untick to deny; STORE and STAFF see a padlock and "Not granted by this
+  // role", because the key is absent from GRANTABLE_CAPABILITIES. No
+  // special-casing anywhere in user-actions.tsx.
+  {
+    capability: "notify.pace.receive",
+    area: "Email notifications",
+    label: "Receives behind-pace alert emails",
+    removes:
+      "Sent when a store they manage falls behind its month-to-date goal. Admins receive alerts for every store. Nothing else changes — they keep every other permission, and only the email stops.",
   },
 ]
 

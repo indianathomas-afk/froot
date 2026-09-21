@@ -23,6 +23,13 @@
  *   5. NOTIFY-2a: the threshold is resolved PER ORG — an org that sets
  *      paceAlertThresholdPct is evaluated at that number and not at the
  *      deployment fallback, and clearing it falls back again.
+ *   6. NOTIFY-2c: the per-user email control. An ADMIN and a MANAGER with
+ *      notify.pace.receive denied drop out of BOTH the recipient list and the
+ *      PaceAlertLog.recipients array; an undenied peer of each still receives;
+ *      and a STAFF account cannot hold the capability at all — the grant is
+ *      REJECTED at the route (isGrantable is false, so PATCH /api/users/[id]
+ *      400s) and IGNORED at read time even if one is written straight to the
+ *      column.
  * Everything is deleted afterwards.
  */
 import "dotenv/config"
@@ -36,6 +43,7 @@ import { buildForecastCsv } from "../src/lib/forecast-csv"
 import { parseImportRows } from "../src/lib/forecast-import"
 import { evaluatePaceAlert, paceThresholdPct, processPaceAlertForStore } from "../src/lib/pace-alerts"
 import type { EmailMessage, EmailSender } from "../src/lib/notify"
+import { can, grantsFrom, isGrantable, overridesFrom } from "../src/lib/permissions"
 
 const TZ = "America/Los_Angeles"
 
@@ -448,10 +456,13 @@ async function main() {
       check("DEBT-105: the successful retry does leave a lock behind", !!retryRow)
 
       // ── F-5b check 3: recipients ──
-      // F2 (Gary, 2026-09-20) ruled the query at pace-alerts.ts:91-98 is LEFT
-      // AS-IS and the offboarding gap is filed as a DEBT row instead. So there
-      // is no new exclusion to assert, and inventing one would test code that
-      // was deliberately not written.
+      // F2 (Gary, 2026-09-20) ruled the recipient query is LEFT AS-IS for the
+      // OFFBOARDING gap, which is filed as a DEBT row instead. So there is no
+      // new exclusion to assert here, and inventing one would test code that
+      // was deliberately not written. (NOTIFY-2c later added a DIFFERENT
+      // filter to that query — the per-user denial below — under its own
+      // ruling. It does not touch this gap: a departed admin who was never
+      // denied is still a recipient, which is what this check pins.)
       //
       // What follows is a CHARACTERIZATION check, not an endorsement: it pins
       // the gap the DEBT row describes so the claim is executable rather than
@@ -552,6 +563,155 @@ async function main() {
         "NOTIFY-2a: the log row records the threshold that was actually used",
         fallbackRow?.thresholdPct === envFallbackPct,
         `${fallbackRow?.thresholdPct} vs ${envFallbackPct}`
+      )
+
+      // ── NOTIFY-2c: per-user email controls (Gary, 2026-09-20) ──
+      // FOUR PRINCIPALS, AND THE UNDENIED PAIR IS NOT PADDING. A check that
+      // only asserts absence passes just as happily when the whole send is
+      // broken — so each denied account has a peer of the SAME role on the same
+      // store that must still be mailed. Absence plus presence in one list is
+      // what proves the filter is per-user rather than per-role.
+      //
+      // Named for the phase, per CLAUDE.md § Name every test principal.
+      const [c2Admin, c2AdminKept, c2Mgr, c2MgrKept, c2Staff] = await Promise.all([
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-denied-admin-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-denied-admin-${tag}@example.com`,
+            role: "ADMIN",
+            deniedCapabilities: ["notify.pace.receive"],
+          },
+        }),
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-kept-admin-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-kept-admin-${tag}@example.com`,
+            role: "ADMIN",
+          },
+        }),
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-denied-mgr-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-denied-mgr-${tag}@example.com`,
+            role: "MANAGER",
+            deniedCapabilities: ["notify.pace.receive"],
+          },
+        }),
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-kept-mgr-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-kept-mgr-${tag}@example.com`,
+            role: "MANAGER",
+          },
+        }),
+        // WRITTEN STRAIGHT TO THE COLUMN, which no supported path can do: PATCH
+        // /api/users/[id] rejects this exact body with a 400 because
+        // isGrantable("notify.pace.receive", "STAFF") is false. The row exists
+        // to prove the READ side refuses it too — the registry's rule that a
+        // stale or smuggled grant elevates nothing.
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-staff-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-staff-${tag}@example.com`,
+            role: "STAFF",
+            grantedCapabilities: ["notify.pace.receive"],
+          },
+        }),
+      ])
+      await prisma.storeUserAssignment.createMany({
+        data: [c2Mgr, c2MgrKept, c2Staff].map((u) => ({ userId: u.id, storeId: storeThrow.id })),
+      })
+
+      const sent2c: EmailMessage[] = []
+      const capture2c: EmailSender = { send: async (m: EmailMessage) => { sent2c.push(m); return {} } }
+      await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
+      const run2c = await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture2c })
+      const to2craw = sent2c[0]?.to ?? []
+      const to2c = Array.isArray(to2craw) ? to2craw : [to2craw]
+
+      check("NOTIFY-2c: the alert still sends", run2c.alerted && sent2c.length === 1, run2c.reason)
+      check(
+        "NOTIFY-2c: a DENIED admin is not a recipient",
+        !to2c.includes(c2Admin.email),
+        JSON.stringify(to2c)
+      )
+      check(
+        "NOTIFY-2c: an undenied admin on the same org still is",
+        to2c.includes(c2AdminKept.email),
+        JSON.stringify(to2c)
+      )
+      check(
+        "NOTIFY-2c: a DENIED assigned manager is not a recipient",
+        !to2c.includes(c2Mgr.email),
+        JSON.stringify(to2c)
+      )
+      check(
+        "NOTIFY-2c: an undenied assigned manager still is",
+        to2c.includes(c2MgrKept.email),
+        JSON.stringify(to2c)
+      )
+      check(
+        "NOTIFY-2c: a STAFF account with the capability written to grantedCapabilities is still not a recipient",
+        !to2c.includes(c2Staff.email),
+        JSON.stringify(to2c)
+      )
+
+      // THE LOG ROW IS THE SECOND HALF OF THE RULING — it must reflect who was
+      // actually mailed, so the denial has to land BEFORE the recipients array
+      // is written, not after. Asserting the email alone would pass even if the
+      // filter ran late and the log kept claiming the denied pair.
+      const log2c = await prisma.paceAlertLog.findUnique({
+        where: { storeId_month: { storeId: storeThrow.id, month: dbDate(mStart) } },
+      })
+      check(
+        "NOTIFY-2c: PaceAlertLog.recipients excludes the denied pair",
+        !!log2c && !log2c.recipients.includes(c2Admin.email) && !log2c.recipients.includes(c2Mgr.email),
+        JSON.stringify(log2c?.recipients)
+      )
+      check(
+        "NOTIFY-2c: PaceAlertLog.recipients is exactly who was mailed",
+        !!log2c && log2c.recipients.length === to2c.length && log2c.recipients.every((r) => to2c.includes(r)),
+        `log ${JSON.stringify(log2c?.recipients)} vs to ${JSON.stringify(to2c)}`
+      )
+
+      // THE MODEL-LEVEL HALF, and it says WHICH of "rejected or ignored" the
+      // model does: BOTH, at two different layers. isGrantable is the exact
+      // function PATCH /api/users/[id] filters on, so a false here IS the 400
+      // that route returns; can() is the read gate, and it refuses the stored
+      // grant independently.
+      check(
+        "NOTIFY-2c: the capability is NOT grantable to STAFF (PATCH /api/users/[id] 400s on it)",
+        !isGrantable("notify.pace.receive", "STAFF") && !isGrantable("notify.pace.receive", "STORE")
+      )
+      check(
+        "NOTIFY-2c: a stored STAFF grant is ignored by can() as well as refused by the route",
+        !can(
+          {
+            role: "STAFF",
+            overrides: overridesFrom([]),
+            grants: grantsFrom(["notify.pace.receive"]),
+          },
+          "notify.pace.receive"
+        )
+      )
+      check(
+        "NOTIFY-2c: ADMIN and MANAGER hold it by role baseline, so nobody's mail changes on deploy",
+        can({ role: "ADMIN", overrides: overridesFrom([]) }, "notify.pace.receive") &&
+          can({ role: "MANAGER", overrides: overridesFrom([]) }, "notify.pace.receive")
+      )
+      // FAIL-CLOSED ON AN UNSELECTED COLUMN. If a future edit drops
+      // deniedCapabilities from the recipient query's select, overridesFrom
+      // returns { loaded: false } and can() denies — the mail stops rather than
+      // silently going to everyone. That direction is the whole reason the
+      // query passes an override object instead of an array.
+      check(
+        "NOTIFY-2c: an unloaded override column denies rather than restoring the baseline",
+        !can({ role: "ADMIN", overrides: overridesFrom(undefined) }, "notify.pace.receive")
       )
     } else {
       console.log("… skipping live pace-alert checks (month just started)")

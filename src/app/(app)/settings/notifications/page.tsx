@@ -163,16 +163,30 @@ export default async function NotificationSettingsPage() {
             defaultPct={paceDefaultPct}
           />
 
-          {/* RECIPIENTS ARE ROLE-BASED AND THERE IS NO LIST TO EDIT — standing
-              ruling, restated in docs/DECISIONS.md under NOTIFY-2a. Every ADMIN
-              plus the store's assigned MANAGERs, resolved per store at send
-              time (src/lib/pace-alerts.ts:91-98). No per-user opt-out; the
-              toggle above is the only switch. This line exists so an admin
-              reading the page does not go looking for the recipient box that
-              the card above this one has. */}
+          {/* RECIPIENTS ARE STILL ROLE-BASED AND THERE IS STILL NO LIST TO EDIT
+              HERE. Every ADMIN plus the store's assigned MANAGERs, resolved per
+              store at send time (the recipient query in src/lib/pace-alerts.ts).
+
+              NOTIFY-2c CHANGED THE LAST SENTENCE, NOT THE RULE. This used to
+              read "This is not editable", which stopped being true the moment
+              an admin could untick a person's row on /users — and a settings
+              page that denies the existence of a control someone else on the
+              team is using is worse than one that says nothing. What is still
+              true, and is why the line stays: there is no recipient BOX on this
+              page, because the decision is made per user, on the user.
+
+              STILL NOT SELF-SERVICE (Gary, 2026-09-20). An ADMIN sets it, from
+              the row of the person it affects; nobody opts themselves out and
+              there is no unsubscribe anywhere. The org toggle above outranks it
+              — off here means nobody, whatever any user's row says. */}
           <p className="text-sm text-[var(--color-muted-foreground)] mt-4">
             <span className="font-medium text-[var(--color-foreground)]">Recipients:</span>{" "}
-            sent to every admin and the store&apos;s assigned managers. This is not editable.
+            sent to every admin and the store&apos;s assigned managers. Turn this off for an
+            individual user from their row on the{" "}
+            <Link href="/users" className="underline hover:text-[var(--color-foreground)]">
+              Users page
+            </Link>
+            .
           </p>
         </CardContent>
       </Card>
