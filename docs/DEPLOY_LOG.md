@@ -2,7 +2,122 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-20 — NOTIFY-2c: per-user email controls in the Edit User grid
+## 076ccf8 — 2026-09-20 — PRODUCTION PROMOTION: the whole email stack, six phases in one merge
+
+**Merge SHA:** `076ccf8701001b53c507fdf15e3033bd5dc19618`
+**Promoted 2026-09-20 20:31:24 -0700 (Pacific)** in `076ccf8` ("Merge branch
+'staging'"), parents `d2b8d79` and `c73d14d`. **25 commits** in
+`076ccf8^1..076ccf8^2`. Gary reports the production deploy is live; this entry
+and the six row flips below it were written by the promotion pass afterwards.
+
+**THIS IS THE UMBRELLA ENTRY. Each phase also has its own entry below**, written
+by its PRE-PUSH-CHECK before the push and stamped `076ccf8` in this same pass —
+except F-5b, which has none. See the F-5b paragraph below; it is the one thing
+in this promotion that has no per-phase record of its own.
+
+**What it carried — six phases, in the order they were built:**
+
+| Phase | What reached production | Row |
+|---|---|---|
+| NOTIFY-1 | `getEmailSender()` — a real Resend sender behind the console one, admin test route | shipped |
+| HR-16 | Signed-acknowledgment completion emails; `Organization.hrAckRecipients` | shipped |
+| F-5b | Pace-alert org toggle; the burned-lock fix (DEBT-105) | shipped |
+| NOTIFY-2a | `/settings/notifications` hub; per-org pace threshold | shipped |
+| NOTIFY-2b | One branded HTML template for every email; send log; Resend delivery webhook | shipped |
+| NOTIFY-2c | Per-user email controls in the Edit User grid | shipped |
+
+**THE WHOLE STACK IS DARK ON ARRIVAL, AND THAT IS THE DESIGN RATHER THAN LUCK.**
+Six phases of email machinery reached production in one merge and **not one
+email can leave it today**, because three independent switches are all still
+off:
+
+1. `NOTIFY_EMAIL_PROVIDER` is unset or `"console"` in the Production scope, so
+   `getEmailSender()` returns the console sender and nothing leaves.
+2. `Organization.paceAlertsEnabled` defaults to `false`, so the 15:00 UTC
+   pace-alert cron evaluates no store even if (1) flips.
+3. `Organization.hrAckRecipients` defaults to `ARRAY[]::TEXT[]`, so an
+   acknowledgment has nobody to notify.
+
+**That stack of defaults is F-5b's F1 ruling working exactly as argued.** The
+hazard it was written against: NOTIFY_EMAIL_PROVIDER would be flipped to
+`"resend"` for HR-16's sake, and the pace-alert cron — a different feature,
+sharing one sender — would start emailing real Keva managers as a side effect
+of a change made for something else. Flipping (1) is now safe on its own.
+
+**THREE MIGRATIONS REACHED `br-sparkling-block` IN THIS MERGE'S VERCEL BUILD**,
+through `prisma migrate deploy`:
+
+| Migration | Column | Lands on |
+|---|---|---|
+| `20260920120000_hr16_ack_recipients` | `Organization.hrAckRecipients` | `ARRAY[]::TEXT[]` |
+| `20260920190000_f5b_pace_alerts_toggle` | `Organization.paceAlertsEnabled` | `false` |
+| `20260920210000_notify2a_pace_threshold` | `Organization.paceAlertThresholdPct` | `NULL` |
+
+All three are additive, defaulted or nullable, and **no existing row changes
+behaviour** — every default above is the value production already behaved as if
+it held. **NOT VERIFIED AGAINST THE BRANCH HERE — a docs session does not read
+a deployed database (CLAUDE.md § Environment Variables), so this records the
+PATH, not a count.** The chain the claim rests on is: `migrate deploy` runs in
+`vercel-build`, a failed migration fails the build, and Gary reports the
+production deploy succeeded. **A SQL confirmation on `br-sparkling-block` is
+owed and is Gary's to run in the Neon console** — `docs/MIGRATIONS.md` carries
+the same distinction on each of the three entries.
+
+**F-5b HAS NO DEPLOY_LOG ENTRY OF ITS OWN, AND THIS PARAGRAPH IS ITS RECORD.**
+Every other phase here has one, written by its PRE-PUSH-CHECK. F-5b never had a
+check session, which is also why its ROADMAP row went to production still
+reading `in_progress` — the DOCS-6 gap reappearing on the one phase that
+skipped the step DOCS-6 added to close it. **No backdated entry was
+fabricated**: a pre-push entry written after the push would claim a moment that
+never happened, which is worse than the gap it papers over. What F-5b put in
+production: `Organization.paceAlertsEnabled` (default `false`), and the
+compensating delete-by-id that releases a `PaceAlertLog` lock when a send
+throws, so one runtime failure no longer burns a store's one-alert-per-month
+lock. Work `1ab1149`, docs `5dc7d27`.
+
+**Rollback.** `git revert -m 1 076ccf8` per `docs/WORKFLOW.md` § 2, keeping
+`docs/DEPLOY_LOG.md` at `HEAD` — the revert conflicts on this file every time,
+structurally, and keeping the log is the correct resolution rather than a
+workaround. **The three columns stay**; reverting the code leaves them unread,
+which is harmless, while dropping them is a destructive migration against
+production for no benefit. **Two things a revert does NOT undo**, both worth
+knowing before reaching for it: any `notify.pace.receive` string already
+written to a `User.deniedCapabilities` row stays in the column and goes inert
+(`overridesFrom()` drops unregistered strings), so **people an admin took off
+the behind-pace list would start receiving alerts again with no screen showing
+it**; and any address typed into `hrAckRecipients` stays stored. Faster posture
+if production is actively broken: Vercel → Deployments → promote the previous
+production deployment, then revert at leisure.
+
+**What is owed, none of it in this merge.** The Production Resend endpoint and
+its own `RESEND_WEBHOOK_SECRET` (per-endpoint, never shared with Preview —
+pasting staging's makes every production delivery event 401 in a way that looks
+exactly like an attack). The `NOTIFY_EMAIL_PROVIDER` flip, if production is
+meant to send at all. A SQL confirmation of the three columns on
+`br-sparkling-block`. And NOTIFY-2c's staging UI pass, which was never run
+before the push and is now a production observation instead.
+
+**Also carried, and not part of any phase:** `DEBT-111` (the
+PERMISSIONS_INVENTORY §5 drift, filed by NOTIFY-2c's check), `DEBT-110` (the
+Clerk webhook's re-serialised signature), `DEBT-106` (the offboarded-admin
+recipient gap), and the DOCS-6b/6c docs passes. `DEBT-105` flipped to `shipped`
+with F-5b, which is the phase that fixed it.
+
+## 076ccf8 — 2026-09-20 — NOTIFY-2c: per-user email controls in the Edit User grid
+
+**Merge SHA:** `076ccf8701001b53c507fdf15e3033bd5dc19618`
+**Promoted 2026-09-20 20:31:24 -0700 (Pacific)** in `076ccf8` ("Merge branch
+'staging'"). THE SHA IS THE MERGE COMMIT, parents `d2b8d79` and `c73d14d`, and
+the rollback recipe reads the merge, not the tip of `main`. **25 commits** in
+`076ccf8^1..076ccf8^2`, carrying SIX PHASES — NOTIFY-1, HR-16, F-5b, NOTIFY-2a,
+NOTIFY-2b, NOTIFY-2c — plus DOCS-6/6b/6c docs passes and one rebuild commit.
+**STAMPED AT THE PROMOTION PASS, 2026-09-20**, by the session Gary ran after
+the deploy. The full promotion entry is at the head of this file.
+**IN PRODUCTION AND CHANGING NOTHING YET.** ADMIN and MANAGER hold
+`notify.pace.receive` at baseline, so the behind-pace recipient list is
+identical to what it was before this merge until an admin unticks somebody. The
+staging pass in `docs/prompts/NOTIFY-2c.md` is STILL UNRUN; a merge moves code,
+never evidence.
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed. Written into this file by
@@ -69,7 +184,22 @@ the UI proof and comes after this push.
 capabilities declared, 58 documented). It ships in the same push because it was
 filed by this check, not because NOTIFY-2c caused it.
 
-## UNPROMOTED — 2026-09-20 — NOTIFY-2b: branded email template, the send log, Resend delivery webhooks
+## 076ccf8 — 2026-09-20 — NOTIFY-2b: branded email template, the send log, Resend delivery webhooks
+
+**Merge SHA:** `076ccf8701001b53c507fdf15e3033bd5dc19618`
+**Promoted 2026-09-20 20:31:24 -0700 (Pacific)** in `076ccf8` ("Merge branch
+'staging'"). THE SHA IS THE MERGE COMMIT, parents `d2b8d79` and `c73d14d`, and
+the rollback recipe reads the merge, not the tip of `main`. **25 commits** in
+`076ccf8^1..076ccf8^2`, carrying SIX PHASES — NOTIFY-1, HR-16, F-5b, NOTIFY-2a,
+NOTIFY-2b, NOTIFY-2c — plus DOCS-6/6b/6c docs passes and one rebuild commit.
+**STAMPED AT THE PROMOTION PASS, 2026-09-20**, by the session Gary ran after
+the deploy. The full promotion entry is at the head of this file.
+**THE WEBHOOK IS STILL UNPROVEN, AND PRODUCTION NEEDS ITS OWN SECRET.**
+`RESEND_WEBHOOK_SECRET` is issued PER ENDPOINT, so the Production Resend
+endpoint and its own value are owed before any production delivery event can
+verify its signature. Nothing in this merge created that endpoint. Until it
+exists the production send log shows `sent` forever and never advances to
+`delivered` — indistinguishable from a misconfigured webhook.
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed. Written into this file by
@@ -184,7 +314,22 @@ route is **untouched** by this deploy; it fails closed if it ever breaks (a
 signature mismatch, a 400, sync stops — nothing forged is admitted).
 
 
-## UNPROMOTED — 2026-09-20 — NOTIFY-2a: email settings hub, per-org pace threshold, provider on ack audit rows
+## 076ccf8 — 2026-09-20 — NOTIFY-2a: email settings hub, per-org pace threshold, provider on ack audit rows
+
+**Merge SHA:** `076ccf8701001b53c507fdf15e3033bd5dc19618`
+**Promoted 2026-09-20 20:31:24 -0700 (Pacific)** in `076ccf8` ("Merge branch
+'staging'"). THE SHA IS THE MERGE COMMIT, parents `d2b8d79` and `c73d14d`, and
+the rollback recipe reads the merge, not the tip of `main`. **25 commits** in
+`076ccf8^1..076ccf8^2`, carrying SIX PHASES — NOTIFY-1, HR-16, F-5b, NOTIFY-2a,
+NOTIFY-2b, NOTIFY-2c — plus DOCS-6/6b/6c docs passes and one rebuild commit.
+**STAMPED AT THE PROMOTION PASS, 2026-09-20**, by the session Gary ran after
+the deploy. The full promotion entry is at the head of this file.
+**`20260920210000_notify2a_pace_threshold` REACHES PRODUCTION IN THIS MERGE'S
+VERCEL BUILD**, through `prisma migrate deploy`. NOT VERIFIED AGAINST
+`br-sparkling-block` HERE — a docs session does not read a deployed database
+(CLAUDE.md § Environment Variables) — so this records the path, not a count.
+Inert on arrival: every existing row lands on NULL, which means fall back to
+`PACE_ALERT_THRESHOLD_PCT` and then 90, the number production already used.
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed. Written by this phase's
@@ -342,7 +487,21 @@ records that mail from the new sending subdomain lands in Outlook Junk at
 first-time inboxes — no code fix; Not-Junk the first sends, then tighten DMARC
 to `p=quarantine` after weeks of clean delivery.
 
-## UNPROMOTED — 2026-09-20 — HR-16: signed-acknowledgment completion emails + org-level recipients
+## 076ccf8 — 2026-09-20 — HR-16: signed-acknowledgment completion emails + org-level recipients
+
+**Merge SHA:** `076ccf8701001b53c507fdf15e3033bd5dc19618`
+**Promoted 2026-09-20 20:31:24 -0700 (Pacific)** in `076ccf8` ("Merge branch
+'staging'"). THE SHA IS THE MERGE COMMIT, parents `d2b8d79` and `c73d14d`, and
+the rollback recipe reads the merge, not the tip of `main`. **25 commits** in
+`076ccf8^1..076ccf8^2`, carrying SIX PHASES — NOTIFY-1, HR-16, F-5b, NOTIFY-2a,
+NOTIFY-2b, NOTIFY-2c — plus DOCS-6/6b/6c docs passes and one rebuild commit.
+**STAMPED AT THE PROMOTION PASS, 2026-09-20**, by the session Gary ran after
+the deploy. The full promotion entry is at the head of this file.
+**`20260920120000_hr16_ack_recipients` REACHES PRODUCTION IN THIS MERGE'S
+VERCEL BUILD.** Path, not a count — same reason as the NOTIFY-2a entry. Inert
+on arrival: every existing Organization row lands on `ARRAY[]::TEXT[]`, and an
+empty recipient list sends nothing until an admin types addresses at
+`/settings/notifications`.
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed. Written by this phase's
@@ -448,7 +607,23 @@ and webhooks above. **DEBT-105** is adjacent and untouched by this merge — a
 runtime send failure still burns a store's monthly `PaceAlertLog` lock, which
 is F-5's path, not this one's.
 
-## UNPROMOTED — 2026-09-19 — NOTIFY-1: real email delivery, Resend behind getEmailSender()
+## 076ccf8 — 2026-09-19 — NOTIFY-1: real email delivery, Resend behind getEmailSender()
+
+**Merge SHA:** `076ccf8701001b53c507fdf15e3033bd5dc19618`
+**Promoted 2026-09-20 20:31:24 -0700 (Pacific)** in `076ccf8` ("Merge branch
+'staging'"). THE SHA IS THE MERGE COMMIT, parents `d2b8d79` and `c73d14d`, and
+the rollback recipe reads the merge, not the tip of `main`. **25 commits** in
+`076ccf8^1..076ccf8^2`, carrying SIX PHASES — NOTIFY-1, HR-16, F-5b, NOTIFY-2a,
+NOTIFY-2b, NOTIFY-2c — plus DOCS-6/6b/6c docs passes and one rebuild commit.
+**STAMPED AT THE PROMOTION PASS, 2026-09-20**, by the session Gary ran after
+the deploy. The full promotion entry is at the head of this file.
+**WHETHER PRODUCTION ACTUALLY SENDS MAIL IS AN ENV QUESTION THIS MERGE DID NOT
+ANSWER.** `getEmailSender()` reads `NOTIFY_EMAIL_PROVIDER` per environment;
+unset or `"console"` logs and sends nothing. This promotion deployed the
+ABILITY to send. Setting that variable to `"resend"` in the Production scope is
+a separate action, and it is the one that makes the 15:00 UTC pace-alert cron
+start emailing real people — which is why F-5b's toggle defaults to `false` and
+shipped in the same merge.
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed. Written by this phase's

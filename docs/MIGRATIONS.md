@@ -827,6 +827,27 @@ cannot be written even by a path that forgot to check.
 
 ## 2026-09-20 — `20260920120000_hr16_ack_recipients` (HR-16)
 
+**APPLIED TO PRODUCTION 2026-09-20 in promotion `076ccf8`** (staging -> main,
+merged 20:31:24 -0700 Pacific), through `prisma migrate deploy` in that merge's
+Vercel build. **THIS RECORDS THE PATH, NOT A COUNT.** No production database
+was read by the session that wrote this line — `br-sparkling-block` is reached
+only through the Neon console (CLAUDE.md § Environment Variables), and a docs
+session does not read a deployed database. The chain the claim rests on is:
+`migrate deploy` runs in `vercel-build`, a failed migration fails the build,
+and Gary reported the production deploy succeeded. **A SQL confirmation on
+`br-sparkling-block` is owed and is Gary's**, on the CAL-1 precedent above
+where the correction cited a real count on each of the three branches.
+
+**DEV AND STAGING ARE ALSO NO LONGER OUTSTANDING**, so the "APPLIED NOWHERE"
+paragraph preserved below is spent in full. Dev has it: `verify-f5-polish.ts`
+ran 63/63 against the dev branch on 2026-09-20, and every `Organization` create
+in that fixture selects all scalar columns — including this one — so the run
+could not have passed without it (the same mechanism NOTIFY-2a's row names).
+Staging took it through `migrate deploy` on the push that preceded this
+promotion.
+
+**ORIGINAL PARAGRAPH, PRESERVED VERBATIM** — true when written:
+
 **APPLIED NOWHERE. Not to dev, not to staging, not to production.** This is the
 first entry in this file whose migration has been applied to no database at all
 at the time of writing, and that is the CLAUDE.md § Database rule working as
@@ -886,6 +907,25 @@ a future baseline squash has nothing extra to re-append for this migration.
 ---
 
 ## 2026-09-20 — `20260920190000_f5b_pace_alerts_toggle` (F-5b)
+
+**APPLIED TO PRODUCTION 2026-09-20 in promotion `076ccf8`** (staging -> main,
+merged 20:31:24 -0700 Pacific), through `prisma migrate deploy` in that merge's
+Vercel build. **THIS RECORDS THE PATH, NOT A COUNT.** No production database
+was read by the session that wrote this line — `br-sparkling-block` is reached
+only through the Neon console (CLAUDE.md § Environment Variables), and a docs
+session does not read a deployed database. The chain the claim rests on is:
+`migrate deploy` runs in `vercel-build`, a failed migration fails the build,
+and Gary reported the production deploy succeeded. **A SQL confirmation on
+`br-sparkling-block` is owed and is Gary's**, on the CAL-1 precedent above
+where the correction cited a real count on each of the three branches.
+
+**DEV WAS ALREADY RECORDED BELOW AND STILL HOLDS** — re-confirmed 2026-09-20
+by `verify-f5-polish.ts` passing 63/63 against dev, which creates and reads
+`Organization` rows carrying this column. Staging took it through
+`migrate deploy` on the push that preceded this promotion, so the "neither
+staging nor production" half of the paragraph below is now spent.
+
+**ORIGINAL PARAGRAPH, PRESERVED VERBATIM** — true when written:
 
 **APPLIED TO DEV BY GARY, not by this session; applied to neither staging nor
 production.** Staging and production get it via `prisma migrate deploy` in the
@@ -975,6 +1015,26 @@ a future baseline squash has nothing extra to re-append for this migration.
 ---
 
 ## 2026-09-20 — `20260920210000_notify2a_pace_threshold` (NOTIFY-2a)
+
+**APPLIED TO PRODUCTION 2026-09-20 in promotion `076ccf8`** (staging -> main,
+merged 20:31:24 -0700 Pacific), through `prisma migrate deploy` in that merge's
+Vercel build. **THIS RECORDS THE PATH, NOT A COUNT.** No production database
+was read by the session that wrote this line — `br-sparkling-block` is reached
+only through the Neon console (CLAUDE.md § Environment Variables), and a docs
+session does not read a deployed database. The chain the claim rests on is:
+`migrate deploy` runs in `vercel-build`, a failed migration fails the build,
+and Gary reported the production deploy succeeded. **A SQL confirmation on
+`br-sparkling-block` is owed and is Gary's**, on the CAL-1 precedent above
+where the correction cited a real count on each of the three branches.
+
+**DEV AND STAGING ARE ALSO NO LONGER OUTSTANDING.** Gary applied this to dev
+on 2026-09-20 — recorded on the NOTIFY-2a ROADMAP row, whose PRE-PUSH-CHECK
+rider notes the fixture went green only after that apply, because every
+`Organization` read selects this column. Re-confirmed by the 63/63 run on
+2026-09-20. Staging took it through `migrate deploy` on the push that preceded
+this promotion.
+
+**ORIGINAL PARAGRAPH, PRESERVED VERBATIM** — true when written:
 
 **APPLIED NOWHERE. Not to dev, not to staging, not to production.** The session
 ran `migrate diff` and nothing else — CLAUDE.md § Database, `DEBT-103`. Step 3

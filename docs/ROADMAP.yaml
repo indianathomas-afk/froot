@@ -3977,13 +3977,43 @@ phases:
   - id: F-5b
     track: forecasting
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-09-20
     # Work commit only at the time of writing. This row is composed INSIDE the
     # docs commit that records it, so that commit's own SHA cannot appear here
     # (the two-commit pattern, same as HR-16 and CAL-2).
     commits: ["1ab1149"]
     title: "Pace alerts — per-org toggle, burned-lock fix (DEBT-105), recipient hygiene ruling"
     notes: >
+      ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
+      20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
+      Status flipped `in_progress` -> `shipped`, `shipped: 2026-09-20` added.
+      VERIFIED FROM GIT, NOT FROM A REPORT: the work commit "1ab1149" and the docs commit "5dc7d27" are both inside
+      `076ccf8^1..076ccf8^2`.
+      THIS ROW WENT TO PRODUCTION STILL READING `in_progress`, AND THAT IS THE
+      DOCS-6 GAP ITSELF RATHER THAN A TYPO. Every other phase in this promotion
+      had a PRE-PUSH-CHECK that flipped it to `staging`; F-5b had NO CHECK
+      SESSION AT ALL, so nothing between its build session and this merge had
+      the job of flipping it - which is the exact hole DOCS-6 was written to
+      close, reappearing on the one phase that skipped the step that closes it.
+      TWO CONSEQUENCES, BOTH RECORDED RATHER THAN QUIETLY REPAIRED.
+      (1) `commits` carried only the work SHA "1ab1149"; the docs commit
+      "5dc7d27" is named here in prose, per the DOCS-6 precedent for a SHA a
+      row could not record itself.
+      (2) THERE IS NO docs/DEPLOY_LOG.md ENTRY FOR F-5b. Every other phase in
+      this merge has one, written by its check. F-5b's code is in production
+      with no entry of its own, so the promotion entry for "076ccf8" names it
+      explicitly and carries its rollback note. NO BACKDATED ENTRY WAS
+      FABRICATED - a pre-push entry written after the push would claim a moment
+      that never happened, which is worse than the gap it papers over.
+      `20260920190000_f5b_pace_alerts_toggle` reaches production through
+      `migrate deploy` in this merge's build - the path, not a count.
+      THE TOGGLE DEFAULTS TO false, SO PRODUCTION IS DARK ON ARRIVAL. Every
+      existing Organization row lands on `paceAlertsEnabled = false` and the
+      cron evaluates no store. That was F1's entire point: the production env
+      flip for NOTIFY-1 must not become a sending event.
+
       WHY THIS PHASE EXISTED. F-5's behind-pace alert is the only email Froot
       sends to MANAGERS. Production was about to set NOTIFY_EMAIL_PROVIDER=resend
       so HR-16 could deliver, and the two features share one sender — so the
@@ -4423,7 +4453,8 @@ phases:
     # PUSHED AT THE MOMENT OF WRITING — Claude never pushes. The build session's
     # own comment, which said this flip was the check's to make, is superseded
     # here and was correct.
-    status: staging
+    status: shipped
+    shipped: 2026-09-20
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED BY
     # THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so "558d532" did not exist when
@@ -4434,6 +4465,22 @@ phases:
     commits: ["23da754", "558d532"]
     title: "Signed-acknowledgment completion emails + org-level recipient routing"
     notes: >
+      ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
+      20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
+      Status flipped `staging` -> `shipped`, `shipped: 2026-09-20` added.
+      VERIFIED FROM GIT, NOT FROM A REPORT: the work commit "23da754", the docs commit "558d532" and the
+      PRE-PUSH-CHECK commit "ad0c8f2" are all inside
+      `076ccf8^1..076ccf8^2`.
+      `20260920120000_hr16_ack_recipients` reaches production through
+      `prisma migrate deploy` in the Vercel build of this merge. NOT VERIFIED
+      AGAINST `br-sparkling-block` HERE, for the reason recorded on NOTIFY-2a's
+      rider and in docs/MIGRATIONS.md - the path, not a count.
+      INERT ON ARRIVAL for the same reason the column was shaped that way:
+      every existing Organization row lands on `ARRAY[]::TEXT[]`, and an empty
+      recipient list sends nothing. An admin typing addresses at
+      /settings/notifications is what turns it on, per org.
+
       ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
       READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
       per Step 4; the build session's comment saying the flip was this check's to
@@ -17720,7 +17767,8 @@ phases:
     # session rule 4 and PRE-PUSH-CHECK Step 4: `staging` means the code is on the
     # branch, and this check is the last thing that runs before Gary pushes. NOT
     # PUSHED AT THE MOMENT OF WRITING — Claude never pushes.
-    status: staging
+    status: shipped
+    shipped: 2026-09-20
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED BY
     # THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so "8a10f8d" did not exist when
@@ -17731,6 +17779,22 @@ phases:
     commits: ["1c21368", "8a10f8d"]
     title: "Real email delivery — Resend behind src/lib/notify.ts, admin test route"
     notes: >
+      ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
+      20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
+      Status flipped `staging` -> `shipped`, `shipped: 2026-09-20` added.
+      VERIFIED FROM GIT, NOT FROM A REPORT: the work commit "1c21368", the docs commit "8a10f8d" and the
+      PRE-PUSH-CHECK commit "b4c313f" are all inside
+      `076ccf8^1..076ccf8^2`.
+      WHETHER PRODUCTION ACTUALLY SENDS MAIL IS AN ENV QUESTION, NOT A CODE
+      QUESTION, AND THIS MERGE DID NOT ANSWER IT. getEmailSender() reads
+      NOTIFY_EMAIL_PROVIDER per environment: unset or "console" logs and sends
+      nothing. So this promotion deployed the ABILITY to send. Setting that
+      variable to "resend" in the Production scope is Gary's separate action,
+      and it is the act that makes the 15:00 UTC pace-alert cron start emailing
+      real people - which is precisely why F-5b's toggle defaults to false and
+      shipped in the same merge.
+
       ── PRE-PUSH-CHECK 2026-09-19. PREPENDED; NOTHING BELOW IS EDITED. ──
       READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here, per
       Step 4; the line at the foot saying the check "flips this row to `staging`
@@ -17817,7 +17881,8 @@ phases:
   - id: NOTIFY-2a
     track: platform
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-09-20
     # Work commit only at the time of writing. This row is composed INSIDE the
     # docs commit that records it, so that commit's own SHA cannot appear here
     # (the two-commit pattern, same as F-5b, HR-16 and CAL-2).
@@ -17826,6 +17891,25 @@ phases:
     commits: ["a16bab2", "e4dc158", "19cc329"]
     title: "Email settings hub — /settings/notifications; per-org pace threshold; provider on ack audit rows"
     notes: >
+      ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
+      20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
+      Status flipped `staging` -> `shipped`, `shipped: 2026-09-20` added.
+      VERIFIED FROM GIT, NOT FROM A REPORT: the work commit "a16bab2", the docs commit "e4dc158", the
+      CLAUDE.md commit "19cc329" and the PRE-PUSH-CHECK commit "f3f6d77" are all inside
+      `076ccf8^1..076ccf8^2`.
+      THE MIGRATION'S THIRD BRANCH IS NO LONGER OUTSTANDING.
+      `20260920210000_notify2a_pace_threshold` reaches production through
+      `prisma migrate deploy` in the Vercel build of this merge. NOT VERIFIED
+      AGAINST `br-sparkling-block` HERE - a docs session does not read a
+      deployed database (CLAUDE.md § Environment Variables) - so this records
+      the PATH, not a count. docs/MIGRATIONS.md carries the same distinction.
+      THE PER-ORG THRESHOLD IS INERT IN PRODUCTION ON ARRIVAL. Every existing
+      Organization row lands on NULL, which means "fall back to
+      PACE_ALERT_THRESHOLD_PCT, then 90" - exactly the number production was
+      already evaluated at. Applying the migration moved no behaviour, which
+      was F1's whole argument for nullable-with-no-default.
+
       ── NOTIFY-2c RIDER, 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
       ONE OF THIS ROW'S RESTATED STANDING RULINGS HAS BEEN AMENDED, AND IT IS
       NAMED HERE RATHER THAN EDITED BELOW. The bullet restated as "pace-alert
@@ -18044,7 +18128,8 @@ phases:
     # and this check is the last thing that runs before Gary pushes, so it owns
     # the flip (DOCS-6, after CAL-2b was merged to main still reading
     # in_progress). NOT PUSHED AT THE MOMENT OF WRITING — Claude never pushes.
-    status: staging
+    status: shipped
+    shipped: 2026-09-20
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
     # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so "6d07f06" did not exist when
@@ -18085,6 +18170,22 @@ phases:
         rider) is the part most worth a real-client look, followed by whether
         the bordered CTA survives Outlook.
     notes: >
+      ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
+      20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
+      Status flipped `staging` -> `shipped`, `shipped: 2026-09-20` added.
+      VERIFIED FROM GIT, NOT FROM A REPORT: the work commit "8ab4ee8", the docs commit "6d07f06" and the
+      PRE-PUSH-CHECK commit "15d8f4a" are all inside
+      `076ccf8^1..076ccf8^2`.
+      THE THREE `open:` ITEMS BELOW SURVIVE THIS PROMOTION AND ONE OF THEM GOT
+      WORSE. The Resend webhook is still unproven, and it now needs a SECOND
+      secret: RESEND_WEBHOOK_SECRET is issued PER ENDPOINT, so the Production
+      endpoint and its own value are owed before any production delivery event
+      can verify. Until then the production send log shows `sent` forever and
+      never advances to `delivered` - indistinguishable from a misconfigured
+      webhook. Nothing in this merge created that endpoint.
+      Also still true in production: nothing has been seen in a real inbox.
+
       ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
       THE CODE WAS PUSHED MID-CHECK, WHICH IS NOT THE ORDER THIS STEP ASSUMES.
       Gary pushed "f3f6d77", "8ab4ee8" and "6d07f06" at 17:40:29 local while
@@ -18279,7 +18380,8 @@ phases:
     # and this check is the last thing that runs before Gary pushes, so it owns
     # the flip (DOCS-6). NOT PUSHED AT THE MOMENT OF WRITING — Claude never
     # pushes, so staging does not yet contain this code.
-    status: staging
+    status: shipped
+    shipped: 2026-09-20
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
     # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so "6c2cbc1" did not exist when
@@ -18289,6 +18391,25 @@ phases:
     commits: ["d273026", "6c2cbc1"]
     title: "Per-user email controls in the Edit User grid — pace alerts honour deniedCapabilities"
     notes: >
+      ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
+      20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
+      Status flipped `staging` -> `shipped`, `shipped: 2026-09-20` added.
+      VERIFIED FROM GIT, NOT FROM A REPORT: the work commit "d273026", the docs commit "6c2cbc1" and the
+      PRE-PUSH-CHECK commit "c73d14d" are all inside
+      `076ccf8^1..076ccf8^2`.
+      THE CHECK COMMIT "c73d14d" IS NAMED HERE RATHER THAN APPENDED TO
+      `commits`, following the DOCS-6 precedent: a check commit cannot name its
+      own SHA when it writes the row, and this pass records it in prose rather
+      than rewriting the phase's own field afterwards.
+      WHAT IS IN PRODUCTION NOW AND WHAT IS NOT. The capability, the grid
+      section and the filtered recipient query are deployed. NOBODY IS DENIED
+      ANYTHING YET - ADMIN and MANAGER hold notify.pace.receive at baseline, so
+      the recipient list is byte-identical to what it was before this merge
+      until an admin unticks a row. The staging pass in docs/prompts/NOTIFY-2c.md
+      (untick, save, reopen; the STAFF padlock; the Users link) IS STILL UNRUN -
+      a merge moves code, never evidence.
+
       ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
       READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
       per Step 4.
@@ -29274,13 +29395,26 @@ debt:
     # `resolved:` key type-errors the build (the same trap DEBT-7 recorded for
     # `shipped:`). `in_progress` matches F-5b, the phase that fixes it: the code
     # is committed on `staging` and NOT pushed. Both flip together.
-    status: in_progress
+    status: shipped
     commits: ["1ab1149"]
     title: >
       pace-alerts.ts writes the PaceAlertLog idempotency row BEFORE the send, so
       once the provider is "resend" a failed send burns that store's
       one-alert-per-month lock and no email ever goes out
     notes: >
+      ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
+      IN PRODUCTION 2026-09-20 in promotion "076ccf8". Status flipped
+      `in_progress` -> `shipped`, which is what the comment on the status key
+      above committed this row to: "in_progress matches F-5b, the phase that
+      fixes it ... Both flip together." They have.
+      NO `shipped:` KEY, AND THAT IS THE SAME TRAP THE COMMENT ABOVE NAMES.
+      DebtItem in src/lib/roadmap.ts carries id/title/status/commits/notes only
+      - it has no `shipped` field, so adding the date every PHASE row in this
+      promotion just got would type-error the build. The date lives in the
+      DEPLOY_LOG entry for "076ccf8" instead.
+      The fix commit "1ab1149" is inside `076ccf8^1..076ccf8^2`, verified from
+      git.
+
       ── RESOLVED 2026-09-20 BY F-5b, work "1ab1149". PREPENDED; NOTHING BELOW IS
       EDITED EXCEPT THE ONE CORRECTION NAMED IN THIS BLOCK. ──
       THE FIX IS A THIRD PATH, AND NEITHER OF THE TWO THIS ROW OFFERED. The row
