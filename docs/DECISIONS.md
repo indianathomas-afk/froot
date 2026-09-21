@@ -7,6 +7,26 @@ decisions too.)
 
 ## 2026-09-20 — CAL-2c: the calendar due banner rolls up, and collapse is not dismiss (Gary)
 
+**RATIFIED BY GARY, 2026-09-20, in the PRE-PUSH-CHECK session. THE "DRAFT —
+PENDING RATIFICATION" MARKER DIRECTLY BELOW IS SUPERSEDED BY THIS PARAGRAPH AND
+IS PRESERVED RATHER THAN EDITED**, per the NOTIFY-2c and DEBT-101 precedent:
+this paragraph is ADDITIVE at the head and nothing below it was changed.
+
+The entry was printed verbatim and put to him with two things flagged — that the
+ruling's phrase *"by anyone who sees it"* is built literally, with NO ROLE GATE
+on the chevron, so a STORE or STAFF account can roll the banner up exactly as an
+ADMIN can; and that the headline reads *"7 items due"* rather than *"7 reminders
+due"*, keeping CAL-2's noun. **His whole reply, recorded exactly:**
+
+> "By anyone who sees it": yes, that's what you asked for.
+>
+> "Item": keep it.
+
+**He gave no rewording, so the ruling below stands as written.** Recorded this
+way rather than as the words "ratify as written", which he did not say: he
+answered the two questions put to him, and both answers confirm the entry as
+committed. The noun stays `item`; the rollup stays ungated.
+
 **DRAFT — pending ratification.** Recorded by the CAL-2c build session from the
 planning chat of 2026-09-20. It is put to Gary verbatim at the PRE-PUSH-CHECK
 and is not a ratified ruling until he says so.

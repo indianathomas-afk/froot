@@ -17782,17 +17782,52 @@ phases:
   - id: CAL-2c
     track: cal
     size: S
-    # `in_progress` DELIBERATELY. The code is committed on `staging` and NOT
-    # PUSHED — Claude never pushes — so `staging` would be a claim about a
-    # branch this session cannot make. PRE-PUSH-CHECK flips it.
-    status: in_progress
-    # THE DOCS SHA IS ABSENT AND THAT IS THE EXPECTED STATE, NOT DRIFT: this row
-    # is written INSIDE the commit that records it, so the two-commit pattern
-    # cannot name it. PRE-PUSH-CHECK adds it, as it did on CAL-2, CAL-2a, CAL-2b
-    # and NOTIFY-1.
-    commits: ["355496b"]
+    # `in_progress` -> `staging` 2026-09-20 BY THIS PRE-PUSH-CHECK, per Step 4
+    # and WORKFLOW.md session rule 4: `staging` means the code is on the branch,
+    # and this check is the last thing that runs before Gary pushes, so it owns
+    # the flip (DOCS-6). NOT PUSHED AT THE MOMENT OF WRITING — Claude never
+    # pushes, so staging does not yet contain this code. The build session's own
+    # note, preserved: `in_progress` was correct when it wrote the row, because
+    # `staging` would have been a claim about a branch it could not make.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
+    # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "35340ca" did not exist when
+    # the row was composed. The third is the commit this line is being written
+    # in, so it is named as "the commit immediately after 35340ca" rather than
+    # guessed at. Same shape as NOTIFY-1, NOTIFY-2a, NOTIFY-2b, NOTIFY-2c,
+    # CAL-2, CAL-2a and CAL-2b.
+    commits: ["355496b", "35340ca"]
     title: "Calendar due banner rolls up behind a chevron, with per-store chips — an all-stores reminder no longer paints the dashboard red"
     notes: >
+      ── RIDER 2026-09-20 (PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      RULING RATIFIED. The docs/DECISIONS.md CAL-2c entry was printed verbatim
+      and put to Gary with two things flagged — that "by anyone who sees it" is
+      built literally, with NO ROLE GATE on the chevron, and that the headline
+      keeps CAL-2's noun ("7 items due", not "7 reminders due"). His whole
+      reply, recorded exactly: "\"By anyone who sees it\": yes, that's what you
+      asked for." / "\"Item\": keep it." HE GAVE NO REWORDING, so the ruling
+      stands as written; the ratification paragraph is ADDITIVE at the head of
+      that entry and nothing below it was changed. Recorded this way rather than
+      as the words "ratify as written", which he did not say.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. Row present with the work SHA;
+      preserve-and-mark intact (the build session's two commits carry ZERO
+      deletion lines — 19/0, 132/0, 105/0); no meta.updated key; DECISIONS entry
+      present; CLAUDE.md untouched, correctly, because this phase changed no
+      house rule; docs/prompts/CAL-2c_banner_rollup.md committed. The absent
+      docs SHA was the EXPECTED state and not drift — the build session's row is
+      written inside the commit that records it — and is added here.
+      docs/DEPLOY_LOG.md HAD NO ENTRY: WRITTEN INTO THE FILE BY THIS CHECK, in
+      three chunked verified writes. Heading count 58 -> 59, line count 5093 ->
+      5170, both splice seams read back, the 076ccf8 promotion entry intact
+      directly below. The part of it worth keeping here: ROLLBACK IS A REVERT OF
+      "355496b" AND NOTHING ELSE — no migration to unwind, no env var, and the
+      only state that outlives it is the froot.calBanner.open key in individual
+      browsers, which becomes inert and unread the moment the component is gone.
+      STILL NOT OBSERVED RUNNING, and this check did not change that. The
+      expand/collapse height animation on /dashboard is the one thing a human
+      eye is owed; a green build cannot show it.
       BUILT 2026-09-20, TIER 2, ONE FILE:
       src/components/calendar-due-banner.tsx. No schema, no capability, no cron,
       no route change, nothing added to package.json, no fixture touched and no
