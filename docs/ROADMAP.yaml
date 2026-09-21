@@ -18019,12 +18019,19 @@ phases:
   - id: NOTIFY-2b
     track: platform
     size: M
-    status: in_progress
-    # Work commit only. This row is composed INSIDE the docs commit that
-    # records it, so that commit's own SHA cannot appear here (the two-commit
-    # pattern, same as NOTIFY-2a, F-5b, HR-16 and CAL-2). The docs SHA is the
-    # PRE-PUSH-CHECK's to add — it is the step that owns it.
-    commits: ["8ab4ee8"]
+    # `in_progress` -> `staging` 2026-09-20 BY THIS PRE-PUSH-CHECK, per Step 4
+    # and WORKFLOW.md session rule 4: `staging` means the code is on the branch,
+    # and this check is the last thing that runs before Gary pushes, so it owns
+    # the flip (DOCS-6, after CAL-2b was merged to main still reading
+    # in_progress). NOT PUSHED AT THE MOMENT OF WRITING — Claude never pushes.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
+    # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "6d07f06" did not exist when
+    # the row was composed. The third is the commit this line is being written
+    # in, so it is named as "the commit immediately after 6d07f06" rather than
+    # guessed at. Same shape as NOTIFY-1, NOTIFY-2a, CAL-2, CAL-2a and CAL-2b.
+    commits: ["8ab4ee8", "6d07f06"]
     title: "Notification branding + visibility — shared HTML template, send log, Resend delivery webhooks"
     open:
       - >
@@ -18058,6 +18065,58 @@ phases:
         rider) is the part most worth a real-client look, followed by whether
         the bordered CTA survives Outlook.
     notes: >
+      ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE CODE WAS PUSHED MID-CHECK, WHICH IS NOT THE ORDER THIS STEP ASSUMES.
+      Gary pushed "f3f6d77", "8ab4ee8" and "6d07f06" at 17:40:29 local while
+      this check was writing its DEPLOY_LOG entry; the check's own commit
+      followed at 17:43:05. Step 3's "anything unexpected: STOP" caught it -
+      `git log @{u}..` returned ONE commit where the build session had reported
+      three. So `staging` briefly carried the code with this row still reading
+      `in_progress` and no DEPLOY_LOG entry: the DOCS-6 gap, arriving from the
+      direction DOCS-6 did not anticipate, which is the push landing INSIDE the
+      check rather than after it. Nothing was lost - the entry was already
+      composed. WHAT IT MEANS IN PRACTICE: the deployment built from "6d07f06"
+      does NOT contain this rider, this row's `staging` status, the DEPLOY_LOG
+      entry or DEBT-110. Those arrive with the check commit, which was still
+      unpushed when this was written. Claude never pushes.
+      Status flipped `in_progress` -> `staging` here.
+      SHAs. Work "8ab4ee8". Docs "6d07f06". THIS CHECK'S OWN COMMIT is the one
+      immediately after "6d07f06"; it cannot name its own SHA, by construction.
+      "f3f6d77" — NOTIFY-2a's PRE-PUSH-CHECK — RIDES IN THE SAME PUSH AND IS NOT
+      PART OF THIS PHASE. It is deliberately NOT listed in `commits` above: it
+      was already on the branch when this phase started, it belongs to
+      NOTIFY-2a's row, and a SHA listed twice is how two phases end up claiming
+      one commit. Named here so the three-commit push is not read as three
+      NOTIFY-2b commits.
+      RULING: RATIFIED AS WRITTEN. The docs/DECISIONS.md entry was printed
+      verbatim and put to Gary; Step 1 was NOT a no-op. His whole reply,
+      recorded exactly - "Ratify as written. Also file a DEBT row (next free
+      id): api/webhooks/clerk/route.ts verifies the Svix signature over
+      JSON.stringify(await req.json()) rather than the raw body; safe only while
+      the payload round-trips byte-identically; fix is to read req.text() as the
+      Square and Resend routes do. Open, no status."
+      THAT SECOND SENTENCE IS FILED AS DEBT-110, in this commit, with no
+      `status` key per his instruction (on a debt row omission reads as OPEN).
+      It comes out of this phase's audit: the Resend route deliberately did not
+      copy the Clerk precedent, the deviation is recorded in DECISIONS.md under
+      NOTIFY-2b, and the row is the other half of that observation - the
+      deviation said which route is right, DEBT-110 says the wrong one is still
+      there. The Clerk route is untouched by this phase and by this check.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. docs/DEPLOY_LOG.md entry written into the
+      file by this check, headed "UNPROMOTED — 2026-09-20 — NOTIFY-2b…", heading
+      count 55 -> 56. ROADMAP row present with the work SHA, preserve-and-mark
+      intact, no meta.updated key. DECISIONS.md heading count 81 -> 82.
+      CLAUDE.md carries RESEND_WEBHOOK_SECRET in § Environment Variables.
+      docs/prompts/NOTIFY-2b.md committed in "6d07f06".
+      ONE THING THAT LOOKS LIKE DRIFT AND IS NOT: docs/DEPLOY_LOG.md still says
+      "Known and not built: NOTIFY-2b (shared branded HTML template, the send
+      log…, Resend delivery webhooks)". That sits inside NOTIFY-2a's dated entry
+      and was true when written - a CLAIM, never edited (CLAUDE.md § Where
+      documents live). The new entry supersedes it by sitting above it.
+      THE VERIFICATION STATEMENT FROM THE BUILD SESSION IS UNCHANGED AND STILL
+      BINDS: the webhook is unproven, nothing has been seen in an inbox, and
+      this check observed neither. It read files, counted headings and ran
+      `npm run build`. See the `open` list.
       BUILT 2026-09-20 (work "8ab4ee8"). TIER 2, no schema, no migration. The
       three pieces the row was filed with are all here — the template, the send
       log, the webhook — plus one the row anticipated as a question and the
@@ -29284,6 +29343,51 @@ debt:
       exists to keep. RELATED: NOTIFY-1 provisioned the domain and the three env
       vars; NOTIFY-2b is where visibility lands.
 
+
+  - id: DEBT-110
+    title: >
+      The Clerk webhook verifies its Svix signature over a RE-SERIALISED body,
+      not the raw bytes — safe only while the payload round-trips through JSON
+      unchanged
+    notes: >
+      FILED 2026-09-20 BY GARY, in the NOTIFY-2b PRE-PUSH-CHECK, out of that
+      phase's audit. NO STATUS KEY, which on a debt row reads as OPEN.
+      THE DEFECT. src/app/api/webhooks/clerk/route.ts:25-26 reads the request as
+      `const payload = await req.json()` and then verifies
+      `JSON.stringify(payload)` against the Svix headers. THE SIGNATURE COVERS
+      THE EXACT BYTES SVIX SENT. A parse-then-restringify round trip is only
+      byte-identical while nothing in the payload survives JSON differently than
+      it arrived — key order is preserved by V8 for string keys but NOT for
+      integer-like ones, non-ASCII escaping, number formatting (1.0, 1e3,
+      -0), and any whitespace all differ freely between an emitter and
+      JSON.stringify. Clerk's payloads happen to round-trip today. Nothing
+      guarantees they will after a Clerk-side serialiser change, and the
+      guarantee is not Froot's to make.
+      NOTE THE FAILURE DIRECTION, which is what keeps this a debt row rather
+      than a bug. The break is CLOSED, not open: a body that fails to
+      round-trip produces a signature MISMATCH and a 400, so the webhook stops
+      accepting events rather than starting to accept forged ones. Nothing is
+      admitted that should not be. What it costs is availability — org and user
+      sync silently stops — and a 400 from a signature check is exactly the
+      shape that reads as an attack rather than as a serialisation drift, so
+      the diagnosis would start in the wrong place.
+      THE FIX IS FOUR LINES AND HAS TWO WORKING EXEMPLARS IN THIS REPO.
+      Read `const rawBody = await req.text()`, verify THAT, then
+      `JSON.parse(rawBody)` for the event. src/app/api/webhooks/square/route.ts:56
+      has done it that way since F-4 ("Signature covers the exact raw body —
+      read text, verify, then parse"), and src/app/api/webhooks/resend/route.ts
+      does it as of NOTIFY-2b ("8ab4ee8"), which is the audit that turned this
+      up — the Resend route deliberately did NOT copy the Clerk precedent, and
+      that deviation is recorded in docs/DECISIONS.md under NOTIFY-2b.
+      WHY NOTIFY-2b DID NOT JUST FIX IT. It is a live auth path on a webhook
+      that currently works, and touching it was not that phase's mandate; a
+      TIER 2 session that edits a signature check it was not asked to edit is
+      the shape of change that gets found later by the person debugging why
+      user sync stopped. It wants its own sitting, with a replayed Clerk event
+      against the changed route as the evidence.
+      SCOPE — THIS IS THE ONLY REMAINING ONE. The census at "8ab4ee8": Clerk
+      (re-serialises, this row), Square (raw, correct), Resend (raw, correct).
+      Three inbound signed webhooks, one wrong.
 rulings:
   - id: R1
     status: ruled

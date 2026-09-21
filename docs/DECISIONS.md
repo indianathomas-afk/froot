@@ -7,9 +7,29 @@ decisions too.)
 
 ## 2026-09-20 — NOTIFY-2b: one branded template, the send log, delivery webhooks (Gary)
 
-**NOT YET RATIFIED.** Written by the build session; the PRE-PUSH-CHECK is what
-puts it to Gary. Everything below is either a ruling carried in the prompt or a
-choice this session made, and the two are labelled.
+**RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratify as written. Also file a DEBT row (next free id):
+api/webhooks/clerk/route.ts verifies the Svix signature over
+JSON.stringify(await req.json()) rather than the raw body; safe only while the
+payload round-trips byte-identically; fix is to read req.text() as the Square
+and Resend routes do. Open, no status."* The second sentence is filed as
+**DEBT-110** and changes nothing here — it acts on the "Claude's choice"
+paragraph below about the raw-body deviation, by recording that the Clerk route
+still has the old shape. Nothing below was changed by the ratification; this
+paragraph is additive, per the DEBT-101 precedent (2026-09-18) and the
+NOTIFY-2a entry below it.
+
+**The ratification covers the wording, including the places this entry stamps
+(Gary) on a sentence that is Claude's read of his prompt** — the heading
+carries his name while two paragraphs are labelled *Claude's choice* and a
+third says outright that the pace-path scope was *implied* rather than stated.
+That risk was named when the entry was put to him.
+
+The original pre-ratification line read: *"NOT YET RATIFIED. Written by the
+build session; the PRE-PUSH-CHECK is what puts it to Gary."* Everything below
+is either a ruling carried in the prompt or a choice this session made, and the
+two are labelled.
 
 **The template rules, and every one of them is forced by mail clients rather
 than taste.** Tables not divs (Outlook renders through Word's engine, where

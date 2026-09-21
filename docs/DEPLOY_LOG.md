@@ -2,6 +2,121 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-20 — NOTIFY-2b: branded email template, the send log, Resend delivery webhooks
+
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed. Written into this file by
+the PRE-PUSH-CHECK (the UM-3 / CAL-1 shape, ratified 2026-09-18).
+
+**THIS ENTRY LANDED AFTER THE CODE PUSH, NOT BEFORE IT, AND SAYS SO RATHER THAN
+CLAIMING OTHERWISE.** Gary pushed `f3f6d77`, `8ab4ee8` and `6d07f06` to
+`origin/staging` at **17:40:29 local** on 2026-09-20, while this check was
+mid-run; the check's own commit followed at **17:43:05**. So for about three
+minutes `staging` carried the code with its ROADMAP row still reading
+`in_progress` and this file carrying no entry for it — which is precisely the
+DOCS-6 gap the check exists to close, arriving from the one direction DOCS-6
+did not anticipate: the push landing *inside* the check rather than after it.
+Nothing was lost, because the entry was already composed and the check commit
+carries it. **The practical consequence for anyone reading this at promotion
+time: the deployment built from `6d07f06` does NOT contain this entry, this
+row's `staging` status, or DEBT-110.** They arrive with the check commit.
+
+**Commits.** Work `8ab4ee8`, docs `6d07f06`, and this check's own commit — the
+one immediately after `6d07f06`, which cannot name itself.
+
+**`f3f6d77` CAME ALONG IN THE SAME PUSH AND IS NOT PART OF THIS PHASE.** It is
+NOTIFY-2a's own PRE-PUSH-CHECK commit, which was already sitting unpushed on
+`staging` when NOTIFY-2b started — Claude never pushes, so an unpushed check
+commit waits for the next push whatever produces it. **So that push carried
+THREE commits and TWO phases.** Anyone reading a rollback decision off this
+entry needs that: reverting NOTIFY-2b does not revert NOTIFY-2a, and the
+NOTIFY-2a entry immediately below this one describes code that arrived in the
+same push as this one.
+
+**What shipped.** One shared HTML template (`src/lib/email-template.ts`) that
+every email Froot sends now renders through — HR-16's acknowledgment
+confirmation, F-5's behind-pace alert, NOTIFY-1's admin test route. A "Recent
+emails" card on `/settings/notifications`, ADMIN only, the newest 50 attempts
+with a derived delivery status. And `POST /api/webhooks/resend`, which appends
+a delivery verdict to the `AuditLog` row the send already wrote.
+**THE WEBHOOK IS UNPROVEN, AND THAT IS THE FIRST THING TO KNOW ABOUT THIS
+DEPLOY.** Nothing has verified it end to end and nothing can until Gary creates
+the Resend endpoint and sets `RESEND_WEBHOOK_SECRET` in the Vercel **Preview**
+scope. What IS proven is the route's LOGIC, fixtured against dev branch
+`br-broad-wave-a6vpjdw0`: the `metadata.resendId` correlation, the
+`(resendId, action)` idempotency probe, and the derived statuses, all against
+real rows. What is NOT proven is that a genuine Svix-signed request from Resend
+verifies against a genuine secret and lands a row.
+
+**What that looks like on the deployed page, stated plainly so nobody
+diagnoses it as a bug.** Until the endpoint exists, every row in "Recent
+emails" will read **Sent** forever and never advance to **Delivered**. That is
+indistinguishable from a webhook that exists and is misconfigured. The route
+itself **500s and records nothing** while the secret is unset — deliberate, it
+never degrades to accepting unverified events — so a Resend endpoint pointed at
+it before the variable is set will show failures on Resend's side, which is the
+honest signal and not a fault to chase.
+
+**The provisioning order matters and has bitten this repo before.** Save the
+secret in Vercel → **empty commit and push** → confirm the new deployment's
+created time POSTDATES the save → only then fire a test. The Redeploy button
+does **not** pick up a new variable: a deployment carries the env values that
+existed when it was BUILT (CLAUDE.md § Provisioning a secret; the measured case
+is `docs/prompts/CRON-DIAG_findings.md`, where a deployment built 1 h 33 m
+before the edit spent an afternoon being diagnosed as a scoping problem).
+
+**`RESEND_WEBHOOK_SECRET` IS ONE PER ENDPOINT, NOT ONE PER ACCOUNT.** Preview
+and Production take **different** values. Pasting staging's into Production
+makes every production delivery event fail its signature with a 401 that looks
+exactly like an attack. The Production endpoint is deliberately **not** set up
+by this phase — it belongs to promotion time, and this paragraph is here
+because that is when this entry gets read.
+
+**THE PACE PATH AND THE TEST ROUTE NOW WRITE `AuditLog` ROWS, WHICH IS A
+BEHAVIOUR CHANGE ON A CRON.** Before this deploy only HR-16 wrote
+`entityType "Notification"` rows. `PaceAlertLog` is unchanged and is still the
+idempotency lock; the new row is additive and is written AFTER the send, so a
+failed audit write cannot burn a store's monthly lock. The write is swallowed
+on failure, like every other audit write in the app. Volume is trivial — the
+pace alert is capped at one per store per month, and the test route is
+hand-fired by an admin.
+
+**No schema, no migration.** The rows go into the existing `AuditLog` table on
+the existing `@@index([organizationId, entityType, createdAt])`. Correlation is
+a Prisma JSON-path filter on `metadata.resendId`, the same shape already
+running in production at `api/forecasting/audit/route.ts:53`.
+
+**Plain-text bodies are byte-identical to what these emails sent yesterday** —
+all three consumers, not just the pace alert. Only `html` is new. If a
+recipient reports that the wording changed, that is a defect and not this
+deploy working as intended; `scripts/verify-f5-polish.ts` pins all seven
+pace-alert lines and the line count.
+
+**Rollback.** Reverting `8ab4ee8` returns every email to plain text and removes
+the card and the route. **It does NOT remove the `Notification` rows already
+written**, and must not: they are a record of sends that really happened, and
+`AuditLog` is append-only. A reverted deployment simply stops adding to them,
+and the pre-existing HR-16 writer carries on. There is no column to drop and
+nothing in the schema to undo. Reverting does not touch NOTIFY-2a, which rides
+in the same push under `f3f6d77` and its own work commit.
+
+**Verification that exists.** `scripts/verify-f5-polish.ts` 32 → 51 checks, all
+green against dev (`br-broad-wave-a6vpjdw0`). New
+`scripts/verify-notify-template.ts`, 35 checks, no database and no network. The
+"Recent emails" card was rendered under a **temporary** page on the public
+`/menu` route — deleted before the work commit, it is not in the tree — where
+all six statuses, the empty state and the fixed `Recipients:` spacing were read
+off the DOM. `npm run build` green. **Nothing has been seen in an inbox**; the
+three branded bodies were reviewed as files in a browser, which proves layout
+and nothing about how Gmail, Outlook or Apple Mail each rewrite it.
+
+**Also in this push, and not NOTIFY-2b's:** `DEBT-110` — the Clerk webhook
+verifies its Svix signature over a re-serialised body rather than the raw
+bytes. Filed by Gary at ratification, out of this phase's audit. The Clerk
+route is **untouched** by this deploy; it fails closed if it ever breaks (a
+signature mismatch, a 400, sync stops — nothing forged is admitted).
+
+
 ## UNPROMOTED — 2026-09-20 — NOTIFY-2a: email settings hub, per-org pace threshold, provider on ack audit rows
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
