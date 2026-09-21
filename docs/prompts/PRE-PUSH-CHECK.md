@@ -59,3 +59,13 @@ git status                 → tree clean.
 ## Step 4 — report and stop
 "Ready to push. N commits: <list>. Gary runs the push. Staging evidence
 is next, in chat, after deploy." Do NOT push. Do not suggest further work.
+
+**SET THE ROW'S `status: staging` IN THIS SAME PASS** — in `docs/ROADMAP.yaml`,
+in the Step 1/2 docs commit, before the report. Per WORKFLOW.md session rule 4
+the flip belongs to the session that moved the code, and this check is the last
+thing that runs before Gary pushes, so it is the step that owns it. A debt row
+declares the status explicitly; omission on a debt row reads as OPEN.
+
+Added 2026-09-19 (DOCS-6). CAL-2b is why: it was pushed to staging and then
+merged to `main` in `d2b8d79` while its row still read `in_progress`, because
+nothing between the build session and the promotion had the job of flipping it.

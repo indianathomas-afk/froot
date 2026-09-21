@@ -5,6 +5,532 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-20 — NOTIFY-2c: per-user email controls, set by an admin on the user's row (Gary)
+
+**RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratify as written."* Nothing below was changed by the ratification; this
+paragraph is ADDITIVE at the head, per the DEBT-101 precedent (2026-09-18) and
+the NOTIFY-2a and NOTIFY-2b entries below.
+
+**The ruling.** An ADMIN decides, **per user**, which of Froot's emails that
+user receives, from the **Edit User dialog on `/users`** — the same place they
+decide what the user can do. Today the only user-addressed email is the
+behind-pace alert (F-5: every ADMIN plus the store's assigned MANAGERs); more
+are planned, so the grid had to make each new email **one line to add**.
+
+### Admin-set per-user control (allowed) vs self-service opt-out (still ruled out)
+
+These two produce the same stored value and are opposite decisions. The
+distinction is the ruling, and it is written down here because the column
+cannot carry it:
+
+- **Admin-set** — an administrator, acting on someone else's row, in the
+  dialog where that person's permissions already live. The decision is visible
+  to the team that made it, sits beside every other decision about that
+  account, and is auditable in the same place. **This is what NOTIFY-2c
+  built.**
+- **Self-service** — the recipient silencing their own mail, from a settings
+  page or an unsubscribe link. **Ruled out earlier the same day and still
+  ruled out.** There is no user-facing opt-out anywhere in the product, no
+  unsubscribe in any template, and no surface a STAFF or STORE account can
+  reach to take themselves off a list. An operator's alert about a store's
+  performance is not a newsletter.
+
+**The standing ruling this amends, named rather than reworded.** NOTIFY-2a's
+entry below restates: *"Pace-alert recipients are ROLE-BASED and there is no
+list to edit … No per-user opt-out. The org toggle is the only switch."* Half
+of that still stands — recipients are role-based, there is still no recipient
+**box** on `/settings/notifications`, and the org toggle still outranks
+everything (org off → nobody, whatever any user's row says). The half that
+changed is the last clause: the org toggle is no longer the *only* switch.
+That sentence is left exactly as written, per the rule that a decision record's
+ruling is never reworded; this entry is where the change lives.
+
+### The forks
+
+**F1 — the model is CAPABILITIES, not a new column.** One new capability,
+`notify.pace.receive`, declared in `src/lib/permissions.ts` like every other.
+The audit's first job was to prove the model can express **"deniable but not
+grantable beyond role"** — because if it could not, this was TIER 3 and stopped
+for a ruling. It can, and all three halves already existed: a `MANAGE` baseline
+in `GRANTS`, a row in `ENFORCED_CAPABILITIES` (which is both what the grid
+renders and what `PATCH /api/users/[id]` enforces as its deniable set), and
+**absence** from `GRANTABLE_CAPABILITIES`, which makes `can()`'s elevation
+branch unreachable for this key regardless of what is written to
+`User.grantedCapabilities`. A dedicated `notificationPrefs` column would have
+been a second per-user permission store beside the two that exist, with its own
+load path, its own fail-closed question and its own grid. **No schema change,
+no migration, no prisma command.**
+
+**F2 — the denial is applied by `can()`, and it is still one query.** *The
+"one query vs post-filter" framing turned out to be a false trade.* The
+recipient query keeps its `where` verbatim and selects three more **columns**
+on the same round trip (`role`, `deniedCapabilities`, `grantedCapabilities`);
+the rows that come back are filtered through `can()`. So the choice was decided
+on correctness alone. `can()` is a fail-closed load, then a role baseline, then
+an elevation branch, **evaluated in that order** — an array test in the `where`
+can express today's snapshot of that and not its precedence, so the day one of
+those rules moves, the Edit User grid and the mailing list would be free to
+disagree with nothing to say which was right. `grantedCapabilities` is selected
+although this key is not grantable today: omitting it becomes a silent
+under-mail the moment that changes, which is the same failure `overridesFrom`'s
+three-state contract exists to prevent. **The filter lands before the
+`PaceAlertLog` lock is written**, so that row records who was actually mailed.
+
+**F3 — an unticked admin loses the email and nothing else.** They keep every
+other admin power. This is the **first row in the capability grid that takes
+away no access**, and the row's `removes` copy says so in the admin's words
+rather than leaving it to be inferred: *"Nothing else changes — they keep every
+other permission, and only the email stops."* An unticked box in a grid of
+permissions otherwise reads as a loss of power.
+
+### Two things recorded so they are not re-derived
+
+**F-5b's F2 is not overturned.** That ruling — *do not filter in the cron* —
+was about the **offboarding** gap (a departed admin who still matches the ADMIN
+arm), and it stands: the fix belongs in the Clerk webhook, `DEBT-106` is open
+and untouched, and the fixture's characterization check still passes. NOTIFY-2c
+adds a **different** filter under its own ruling. The two are distinguishable
+by what they test — membership vs a stored denial — and the comments at both
+sites say which is which.
+
+**`notify.*` is a deniable-only namespace** (`docs/PERMISSIONS_INVENTORY.md`
+§5): one entry per user-addressed email, never in `GRANTABLE_CAPABILITIES`, and
+always below the org-level switch. The consequence worth stating is that a
+STORE or STAFF account can never be added to a mailing list one login at a
+time — an email goes to a person because their role puts them on the list, and
+the per-user control only takes them off it.
+
+## 2026-09-20 — NOTIFY-2b: one branded template, the send log, delivery webhooks (Gary)
+
+**RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratify as written. Also file a DEBT row (next free id):
+api/webhooks/clerk/route.ts verifies the Svix signature over
+JSON.stringify(await req.json()) rather than the raw body; safe only while the
+payload round-trips byte-identically; fix is to read req.text() as the Square
+and Resend routes do. Open, no status."* The second sentence is filed as
+**DEBT-110** and changes nothing here — it acts on the "Claude's choice"
+paragraph below about the raw-body deviation, by recording that the Clerk route
+still has the old shape. Nothing below was changed by the ratification; this
+paragraph is additive, per the DEBT-101 precedent (2026-09-18) and the
+NOTIFY-2a entry below it.
+
+**The ratification covers the wording, including the places this entry stamps
+(Gary) on a sentence that is Claude's read of his prompt** — the heading
+carries his name while two paragraphs are labelled *Claude's choice* and a
+third says outright that the pace-path scope was *implied* rather than stated.
+That risk was named when the entry was put to him.
+
+The original pre-ratification line read: *"NOT YET RATIFIED. Written by the
+build session; the PRE-PUSH-CHECK is what puts it to Gary."* Everything below
+is either a ruling carried in the prompt or a choice this session made, and the
+two are labelled.
+
+**The template rules, and every one of them is forced by mail clients rather
+than taste.** Tables not divs (Outlook renders through Word's engine, where
+flex and grid do not exist). Inline styles only — Gmail strips `<style>` in
+some contexts and every client strips `<link>`. Hex colours, never the app's
+`oklch()` tokens, which no major client supports: `src/app/globals.css` stays
+the source and the conversion is done once, in `src/lib/email-template.ts`,
+with the derivation written down so the next person re-derives rather than
+guesses. System font stack, no `@font-face`. One image, the mark, and no
+tracking pixel. 600px, single column.
+
+**EVERY CONSUMER'S PLAIN TEXT IS PRESERVED BYTE FOR BYTE, AND THAT IS THE
+RULING THIS PHASE IS MOST LIKELY TO BE "SIMPLIFIED" OUT OF LATER.** The prompt
+ruled the text part is kept as the alternative body and that the pace-alert
+wording stays identical, with a stated fallback: where the template's row
+format cannot reproduce a line exactly, keep the consumer's own text builder
+and use the template for HTML only. **That fallback was taken for all three
+consumers, not just the pace alert** — reported in session as the prompt
+requires. Neither pre-existing email is a padded two-column table. The pace
+alert's `Month to date:` and `Dashboard:` lines are prose with a single space
+after the colon; HR-16 renders its record URL as a ROW rather than as a
+trailing CTA line, and the generator puts the CTA on its own line after the
+rows. Either could be reproduced only by changing bytes in an email whose
+wording the HR-16 and F-5 rulings already settled, and "one template" was asked
+to buy one LOOK, not one set of words. `renderEmail` still generates a text
+part for the consumer that has no wording of its own yet; NOTIFY-3 and
+NOTIFY-4 are what will use it, and the template fixture is what exercises it
+meanwhile.
+
+**Delivery events are APPEND-ONLY — a second row, never an update.** The
+NOTIFY-2b roadmap row carried this forward from NOTIFY-2 explicitly undecided;
+the prompt decides it. An `email.sent` row is a claim about what was
+ATTEMPTED, written at send time and true forever; a verdict that arrives
+minutes later is a separate fact. The rejected alternative — mutate the sent
+row, one row per email, no join — is cheaper to read and costs `AuditLog` its
+append-only property **for every other writer in the app**, which is not a
+trade one consumer gets to make on behalf of the rest.
+
+**A MISSING `provider` IS "Unknown", NOT "console".** Rows written before
+NOTIFY-2a cannot be backfilled — the ruling is already in `docs/DEPLOY_LOG.md`
+and this entry only records where it landed. Note that BOTH readings are
+positively wrong rather than merely imprecise: console would claim mail that
+did reach an inbox never left the building, and sent would claim the opposite.
+The row does not say. The page does not either.
+
+**The pace path and the test route now write `Notification` rows, and this is
+the one piece of scope the prompt implied rather than stated.** Before this
+phase only HR-16 wrote them. `PaceAlertLog` records that an alert went out but
+is a per-store-month idempotency lock — no provider, no subject, no failure
+rows — and the test route recorded nothing at all. Without the new writes the
+card's `pace.alert` and `test` labels have nothing to render, and a Resend
+delivery event for either can never find its org, because the lookup is by the
+sent row's `resendId`. The prompt's own staging check (fire the test route, see
+a `delivered` row within a minute) is unsatisfiable without them. The NOTIFY-2b
+row named it in scope — *"Whether the pace path starts writing Notification
+rows is part of this phase"* — so this is that question answered, not scope
+creep on the page. The row is written AFTER the send: the lock is the thing
+that precedes the send, and this is a record of what happened rather than a
+claim staked in advance.
+
+**Claude's choice, recorded because it deviates from a house precedent.** The
+Resend webhook verifies the RAW request body (`req.text()`), following
+`api/webhooks/square/route.ts:56` rather than `api/webhooks/clerk/route.ts:25`,
+which verifies `JSON.stringify(await req.json())`. Re-serialising is only safe
+while the payload round-trips through JSON byte-identically, and nothing
+guarantees that. **The Clerk route is NOT changed by this phase** — it works
+today and touching a live auth path was not this session's mandate; it is worth
+a look by whoever next has reason to open it.
+
+**Claude's choice.** The send log is a server component on the existing page
+with no route behind it. The page is already the `settings.access` (ADMIN_ONLY)
+gate and the card neither refreshes nor paginates, so an endpoint would be a
+new place to get the gate wrong in exchange for nothing.
+
+**Unchanged by ruling:** recipients, thresholds, toggles and the cron (all
+NOTIFY-2a's). Employee-facing emails (NOTIFY-3) and operational reports
+(NOTIFY-4) are not this phase. Subjects are unchanged for all three consumers.
+
+
+## 2026-09-20 — NOTIFY-2a: every email setting on one page — F1–F3 (Gary)
+
+**RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratified as written. Commit and report."* Nothing below was changed by the
+ratification — this paragraph is additive, per the DEBT-101 precedent
+(2026-09-18) and the HR-16 entry below, and the prose it sits above is the text
+he ratified. **The ratification covers the wording, including the places this
+entry attributes a sentence to Gary that is Claude's paraphrase of his
+message** — that risk was named when the entry was put to him.
+
+**The standing ruling this phase implements.** *Every email setting lives on
+one page.* Before it, HR-16's acknowledgment recipients and F-5b's behind-pace
+toggle were two unrelated cards on `/settings` — one inside the HR module card,
+one three cards below it — and the pace threshold was not a setting at all but
+a deployment-wide env var. NOTIFY-2a builds `/settings/notifications`, moves
+both there, and makes the threshold per-org. Later consumers (operational
+reports, employee notifications) get a card each on the same page when they
+exist.
+
+**F1 — threshold storage: `Organization.paceAlertThresholdPct Int?`, null =
+fall back to the existing env/90 reader.** The env var is **not** retired; it
+becomes the fallback. The alternative — non-null `@default(90)` with
+`PACE_ALERT_THRESHOLD_PCT` retired — is simpler to reason about afterwards and
+was rejected because it makes *applying the migration* a behaviour change in
+any environment that sets the variable to something other than 90. As ruled,
+every existing row lands `NULL`, the cron resolves the same number it resolved
+yesterday, and promoting the migration moves nothing.
+
+**The rider Gary attached, recorded because it is an inconsistency on purpose
+and would otherwise read as an oversight:** the input validates an **integer
+50–100**, while the env reader accepts **any finite value in `(0,100]`,
+fractions included**. So `87.5` is a legal *fallback* and an impossible *org
+value*. **Nobody sets one** — the variable is unset in every environment today
+— and the narrower range is the one an admin types into a box, where `5` and
+`95` are one keystroke apart and one of them silences every alert for a month.
+The asymmetry is stated in `prisma/schema.prisma`, in
+`PUT /api/pace-alerts/settings`, and in `docs/MIGRATIONS.md`.
+
+**F2 — the HR card gates on `hrAvailable` (the ENV gate), not on the org's
+module switch.** Where the deployment has no HR module, there is **no card** —
+the field writes a column whose only consumer is code that is not present.
+Where the org has HR available but **inactive**, the card renders **disabled
+with one line: "Turn on the HR module to use acknowledgment emails."** The
+setting is real and the org could have it, so the honest thing is to name what
+is missing rather than to hide the row and let an admin wonder where it went.
+
+**`PUT /api/hr/settings` stays exactly as it was** — gated on availability
+alone, with no `activeModules` check. That gap is deliberate and safe: the
+column is inert while the module is off, and HR-16 ruled that it deliberately
+**survives a toggle**, so turning HR off and on again does not clear who gets
+notified. (The audit raised this as a possible ambiguity in F2's wording — two
+gates, two readings — and the ruling names which one it means.)
+
+**F3 — both cards come off `/settings`; one "Email notifications →" link card
+replaces them.** Not "leave the pace toggle in both places": two screens that
+can flip one switch is the thing this phase exists to end, so the cautious-
+sounding option was the rejected one. The link card carries **no
+Enabled/Disabled badge**, which is a smaller call made under the same
+reasoning — a state badge there would be a second claim about a setting the
+page no longer owns, and the first thing to go stale when a third consumer is
+added. Nor was a second link added inside the HR card: one door.
+
+### The standing rulings this phase does not touch, restated so they are not re-derived
+
+- **Pace-alert recipients are ROLE-BASED and there is no list to edit.** Every
+  ADMIN plus the store's assigned MANAGERs, resolved per store at send time
+  (the recipient query in `src/lib/pace-alerts.ts`). **No per-user opt-out.** The org toggle is
+  the only switch. `/settings/notifications` states the rule as a read-only
+  line precisely so an admin does not go looking for the recipient box that the
+  card above it has — the two cards look parallel and are not.
+- **Employee-facing emails are DEFERRED** (assignment notifications, "you have
+  something to sign"). Filed as a planned row, not built.
+- **Email wording and format are unchanged by this phase.** Branding — a shared
+  HTML template for every consumer — is NOTIFY-2b.
+
+### Two consequences worth recording, neither of them forks
+
+**The route was replaced, not extended.** `POST /api/pace-alerts/toggle` is
+**deleted** and `PUT /api/pace-alerts/settings` takes its place; the moved
+island was its only caller, and leaving the old one alive would have left two
+write paths to the same column — the same defect as two pages, one layer down.
+The body is **partial** (`{ enabled?, thresholdPct? }`, at least one required)
+rather than a full-state PUT, because the two controls have different save
+semantics: the switch writes instantly and reverts on failure, the threshold
+has a Save button. A full-state body would have the switch posting a threshold
+it was not asked to change.
+
+**The cron's JSON response changed shape**, and it is recorded here rather than
+discovered later: the scalar `thresholdPct` could not survive a per-org number
+and is replaced by `fallbackThresholdPct` plus a `thresholds` array of
+`{ organizationId, thresholdPct, source: "org" | "env" }`. Orgs are named by
+**ID** per CLAUDE.md § Database Evidence. Nothing consumes that response
+programmatically — it is read by a human in the Vercel function log.
+
+### Also shipped here: `provider` on the acknowledgment audit rows
+
+One field, and it is what stops a console-mode "sent" from reading as delivery.
+HR-16's `email.sent` rows recorded `kind`, `recipients` and `resendId` and
+nothing naming the channel. **`resendId` is not a usable proxy**: the console
+sender returns `{}`, so console mode stores `null` — but so does a *real*
+Resend 2xx whose body failed to parse, which the provider deliberately treats
+as a successful send with the id lost. A null therefore meant "console" **or**
+"Resend, id lost", and the row could not tell them apart. `provider` now
+records `emailProviderName()`, which reports the resolved string without
+validating it — the right reader, because on an `email.failed` row caused by a
+bad provider value, the bad value is the thing worth keeping.
+
+
+## 2026-09-20 — F-5b: pace-alert org toggle, burned-lock fix, recipient hygiene — F1–F5 (Gary)
+
+**Why this phase existed, because it explains every ruling below.** F-5's
+behind-pace alert is the only email Froot sends to **managers**. Production was
+about to set `NOTIFY_EMAIL_PROVIDER=resend` so HR-16 could deliver, and the two
+features share one sender — so the moment that variable flipped, the 15:00 UTC
+pace-alert cron would have begun emailing real Keva admins and managers *as a
+side effect of a change made for a different feature*. Every fork here is a
+version of "put a switch between them, and do not quietly widen the blast
+radius while doing it." **Email wording was not touched**, and that was proven
+mechanically rather than by eye: all 15 payload lines diff byte-identical
+against `ad0c8f2` once indentation is stripped.
+
+**F1 — the toggle defaults to `false`.** `Organization.paceAlertsEnabled
+Boolean @default(false)`. Nothing sends until someone turns it on, Keva
+included. The alternative — `true`, preserving current behaviour for existing
+orgs — was rejected precisely because it makes the production env flip a
+*sending event*: an operator setting a variable for HR-16 would have had no
+reason to expect manager mail to start. Every existing row lands on `false`, so
+promoting the migration moves no behaviour on its own. Same safety shape as
+HR-16's empty `hrAckRecipients` array, and it matters for the same reason.
+
+**F2 — the recipient query is left exactly as it is, and the defect is filed
+where it actually lives.** *The audit asked a narrower question than the answer
+it got.* It asked whether a departed **manager** could still match
+the recipient query in `src/lib/pace-alerts.ts`; the answer split in two. A departed manager
+**cannot** — `organizationMembership.deleted` deletes their
+`StoreUserAssignment` rows and the MANAGER arm of the query requires one, so
+that half is already clean, by accident rather than design. A departed **admin**
+**can, permanently** — the ADMIN arm is only `organizationId` + `role: "ADMIN"`,
+and it cannot carry an assignment test, because admins deliberately hold no
+assignment rows at all. `User` has **no** active/deleted/status column to filter
+on.
+
+Gary ruled: **do not filter in the cron.** The defect is not that pace alerts
+read the wrong rows — it is that the rows are wrong. Filtering here would fix
+one consumer and leave every other org-scoped query reading the same stale row.
+**Filed as DEBT-106**, to be fixed in the Clerk webhook handler (clear
+`organizationId`, or add a status column), linked to **DEBT-47**, the parent
+webhook-hardening row that already tracks orphaned `User` rows on production.
+
+**The consequence, accepted rather than overlooked:** until DEBT-106 is fixed, an
+org that enables pace alerts may mail a former admin a store's sales performance
+against goal, and **nothing in Froot will show that it is happening** — `/users`
+renders from the Clerk membership list, so a `User` row with no Clerk membership
+appears on no screen in the product.
+
+**F3 — compensating delete by id, which is a THIRD path outside the two DEBT-105
+itself offered.** That row proposed (1) write the row *after* a successful send,
+or (2) add a delivery-status column. Gary chose neither. (1) is rejected by a
+standing ruling — lock-before-send is what makes a crash between send and write
+unable to double-alert. (2) is bigger, costs a migration and a decision about
+how many days a failed alert keeps retrying, and is **deferred, not dead**. The
+compensating delete keeps the concurrency guard at no schema cost. Ordering is
+now **lock → send → release on failure**.
+
+**Deleting BY ID rather than by the `{storeId, month}` unique key is the whole
+of the concurrency argument, not a style preference.** A delete by key would
+destroy whichever row is present — which on a concurrent run is the **winner's**
+row, the one whose email is in flight or already delivered. The id captured from
+the `create` can only ever name the row this call made.
+
+**F4 — the link stays `/dashboard`.** *This fork resolved itself on the
+findings.* The audit went looking for a per-store dashboard URL and there is
+none: `dashboard/page.tsx` takes no `searchParams`, there is no
+`/dashboard/[storeId]`, and store selection is `localStorage` only
+(`"froot.dashboard.store"`, read through `useSyncExternalStore`). **The
+consequence, stated because it was accepted rather than missed:** a multi-store
+manager following the link lands on whichever store their browser last had.
+Deferred on the F-5b row, with `/checklists?store=<id>` named as the precedent —
+and with the note that a pace alert's version must validate the store against
+the caller's scope the way that page does, since the recipient list and a
+store's audience are not the same set.
+
+**F5 — the migration was generated against a dev database brought up to date
+first, rather than generated dirty and hand-stripped.** *This fork did not exist
+in the prompt; the audit raised it.* HR-16's migration had been applied
+**nowhere**, so a `migrate diff` taken at that moment emitted **both** columns —
+and committing that would have failed the staging deploy with Postgres `42701`
+on the second `ADD COLUMN`, blocking every later migration behind it. The file
+would have looked correct in review: both statements additive, nothing dropped.
+The defect would not have been in the SQL but in the SQL having been generated
+against a database one migration behind the repo.
+
+Gary applied HR-16 to dev and the session re-ran the read-only diff until it
+came back empty before generating anything. **It took two attempts** — the first
+re-run still showed HR-16 outstanding, and the session stopped rather than
+proceed. The generated file is one statement.
+
+**The general rule this is worth remembering as:** `migrate diff
+--from-config-datasource` is only as trustworthy as the database it is pointed
+at. When the previous phase's migration has not been applied to dev, the next
+phase's generated file is contaminated by default, and it is contaminated in a
+way that reads as correct.
+
+**Not run anywhere.** The pace-alerts cron was not fired on staging or
+production. Staging runs `NOTIFY_EMAIL_PROVIDER=resend` and would have mailed
+real staging admin and manager addresses; the fixture is the proof of the lock
+release and the gate, and the cron gate is proven on production the day after
+the env flip, by the run-count log line.
+
+**Two fixture limits are named at their checks rather than left to be
+discovered.** The gate check asserts the cron's **predicate**, not the route
+handler — which needs a `CRON_SECRET` and a `Request` — so an edit to the
+route's filter alone would not fail it. And the last check is a
+**characterization** of the DEBT-106 gap, not an endorsement: it pins that an
+assignment-less ADMIN is still a recipient, and is **expected to fail** once the
+webhook is fixed, at which point it should be updated rather than worked around.
+
+**Deferred by this phase, recorded and not built:** a per-org alert threshold
+(`PACE_ALERT_THRESHOLD_PCT` stays one deployment-wide env var) and an admin
+daily digest.
+
+
+## 2026-09-20 — HR-16: signed-acknowledgment completion emails — F1–F5 (Gary)
+
+**RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratified as written. Proceed."* Nothing below was changed by the ratification
+— this paragraph is additive, per the DEBT-101 precedent (2026-09-18), and the
+prose it sits above is the text he ratified.
+
+Ruled by Gary in the build session, 2026-09-20, after the Phase 1 audit
+(`docs/prompts/HR-16_AUDIT.md`). **His reply, quoted exactly:**
+
+> Rulings. F1: ADMIN only, on /settings. F2: AuditLog row per attempt —
+> entityType "Notification", action "email.sent" or "email.failed", metadata
+> carrying kind ("hr.ack"), recipient list, signed-record id, and the Resend id
+> or the error message; the rows are write-only for now. File a ROADMAP row
+> NOTIFY-2 (planned): a /settings/notifications page reading those rows plus
+> Resend delivery webhooks for delivered/bounced status. F3: silent skip with a
+> named log line, matching pace-alerts.ts:100. F4: link to the download API URL.
+> F5: prepend the resolution to HR-8's notes; do not create a blockers array.
+> Wrap getEmailSender() construction inside the try/catch, not just send().
+> File goes at src/lib/hr-ack-notification.ts. Go.
+
+Built as `23da754`. What each ruling settles:
+
+**F1 — ADMIN only, on /settings.** Recipients are "who at corporate hears about
+signatures", not a store-level choice, so the manage tier was not extended.
+`/settings` makes this free rather than merely convenient: `settings.access` is
+`ADMIN_ONLY` (`src/lib/permissions.ts:273`) and is deliberately absent from
+`GRANTABLE_CAPABILITIES`, so the gate cannot be granted down from the /users
+grid. `PUT /api/hr/settings` checks `requireAdmin()` independently of the page,
+behind `hrModuleAvailable()` — the PERM-2 rule that a gate on a page is not a
+gate on an endpoint.
+
+**F2 — an AuditLog row per attempt, write-only for now.** `entityType` is the
+CHANNEL ("Notification") and `action` is the OUTCOME, so one indexed value
+selects every notification an org has sent —
+`@@index([organizationId, entityType, createdAt])` already serves that query.
+`kind: "hr.ack"` inside metadata distinguishes HR-16's mail from the next
+consumer's, so a second consumer needs no new entityType. `userId` is null and
+that is the honest value: the send runs in `after()`, detached from the request,
+and the signer is a `StaffMember` rather than a Clerk user.
+
+**Write-only was ruled, not conceded.** Nothing reads these rows — the only
+AuditLog reader is `/api/forecasting/audit`, filtered to `GOAL_ENTITY_TYPES`
+(`src/lib/audit.ts:16`), which cannot see them. **NOTIFY-2 was filed in the same
+breath as the ruling** to build the reader, so the gap is a dated commitment
+rather than a silence. The rows accumulate from the day HR-16 lands, so that
+phase starts with real data instead of an empty table.
+
+**F3 — empty recipients is a silent skip with a named log line.** The shape
+comes from F-5, which already answers this exact situation with a named reason
+rather than a bare return (`src/lib/pace-alerts.ts:100`,
+`"no admin/manager recipients"`). An org that never filled the field and an org
+whose provider broke must not look the same in a log. **No audit row on a skip:**
+the ruling is one row per *attempt*, and nothing was attempted.
+
+**F4 — the link is the download API.** *This fork did not exist in the prompt.*
+The prompt asked for "the ADMIN/MANAGER route for the same record"; the audit
+found **there is no admin page for a single signed record** — `/hr/signed-records`
+is an ADMIN-only list of the 50 most recent with no per-row anchor, and
+`/my/documents/records/[recordId]` is the signer's own. The email carries
+`/api/hr/signed-records/<id>/download`, the only URL that names the record. It is
+ADMIN-or-in-scope-MANAGER (HR-7 rule 5) and 307s to a short-lived signed blob
+URL, so a recipient outside that tier gets a refusal rather than the bytes.
+**The consequence, stated because it was accepted rather than overlooked:**
+clicking the link downloads a PDF; it does not open a screen.
+
+**F5 — HR-8's clearance is prepended to its notes; no blockers array is
+created.** HR-8 never had one — its email gate existed only as a clause at the
+foot of its note. Adding an array to hold a single already-closed entry would
+put a `blockers:` key on a shipped row that has never carried one, which reads
+on /internal/roadmap as a phase that *acquired* a problem. The preserve-and-mark
+convention applies to the notes instead: the spent clause is kept verbatim and
+the clearance sits above it.
+
+**The try/catch instruction, which is a correctness ruling and not a style
+note.** `getEmailSender()` **throws** on a misconfigured deployment and never
+degrades to the console sender — NOTIFY-1's fail-closed design
+(`src/lib/notify.ts:138-157`), because "a deployment that believes it is emailing
+and is not" is the failure that provider exists to end. On staging,
+`NOTIFY_EMAIL_PROVIDER=resend`, so a missing `RESEND_API_KEY` throws at
+construction, not at `send()`. Wrapping only `send()` would let that throw reach
+the signing path — which is the one thing HR-16 must not do.
+
+**Standing rulings this phase did not relitigate:** recipients are an org-level
+setting and never a hardcoded address; sending is
+`USE Froot <noreply@notify.usefroot.com>` with no per-merchant domains;
+`replyTo` is not set (`src/lib/notify.ts:19-22` anticipates the opposite and is
+superseded, left in place rather than edited); plain text for all NOTIFY
+consumers until a design pass says otherwise.
+
+**One placement decision was Claude's, and is recorded as such.** The
+notification fires **inside `ensureSignedRecord`, after the create, on the
+create path only** — not at the two call sites. The prompt said "at the minting
+moment"; the audit surfaced that the two readings differ observably, and Gary
+did not rule between them. Inside covers both call sites (the ceremony and the
+recovery/`recordMissing` path) with one line, and fires **once per record**,
+which the call sites cannot do: the function early-returns an existing
+current-cycle record, so a reload or a second press of Generate never reaches it.
+HR-15b's rehire is a new `signingCycle`, so a new unique key, so a mint, so an
+email. Deliberately not on the concurrent-completion race path — the invocation
+that won the unique constraint is the one that sends.
 
 ## 2026-09-18 — DEBT-101: "N days overdue" counts DATES — RATIFIED 2026-09-18
 
@@ -229,6 +755,16 @@ existing pattern as-is in CAL-1 for consistency" and "Do not fix one route in
 isolation." He also accepted the fourth bespoke nav flag (`requiresCalendar`) for
 this phase, noting that `requiresModule` is group-level only and a later NAV
 phase generalises it.
+
+**── RIDER 2026-09-19 (DOCS-6c collision fix). ── THOSE TWO IDS HAVE MOVED.**
+The paragraph above is kept as written; both rows it names were renumbered on
+Gary's ruling of 2026-09-19. `checklists.execute` is now **DEBT-107** and the
+cron secret comparison is now **DEBT-108**. Both were filed by CAL-1's docs
+commit `a4b63cf` (2026-09-18) under ids SELF-1 had already taken on 2026-09-07,
+so `docs/ROADMAP.yaml` carried two unrelated rows under each number. SELF-1 filed
+first and keeps both ids. Nothing about either ruling changed — only the id it
+points at. The DEBT-97 named further down this file, under SELF-1's own entry,
+is the `findStaffMemberForEmail` divergence and is NOT affected.
 
 **A correction to R3's own wording, recorded rather than silently absorbed —
 and NOT edited into Gary's words, on his instruction (2026-09-18).** R3 says

@@ -98,17 +98,172 @@ load and the nightly cron covers the last 3 days.
   (verified in the fixture).
 - **Behind-pace alerts**: daily cron (`vercel.json` → `GET
   /api/cron/pace-alerts` at 15:00 UTC, `CRON_SECRET`-guarded, after the 11:00
-  sales-reconcile) checks every store with a current-month plan. Pace =
-  MTD actual ÷ MTD goal **through yesterday** (store-local, complete days
-  only), using the same `month-goal.ts`/`pacing.ts` helpers as the dashboard.
-  Below the threshold (`PACE_ALERT_THRESHOLD_PCT`, default 90) it emails org
-  admins + the store's assigned managers — **at most one alert per store per
-  month** (`PaceAlertLog` unique row is the idempotency lock, migration
+  sales-reconcile) checks every store with a current-month plan **whose org has
+  pace alerts switched on**. Pace = MTD actual ÷ MTD goal **through yesterday**
+  (store-local, complete days only), using the same `month-goal.ts`/`pacing.ts`
+  helpers as the dashboard. Below **the org's threshold** it emails org admins +
+  the store's assigned managers — **at most one alert per store per month**
+  (`PaceAlertLog` unique row is the idempotency lock, migration
   `20260710220000_f5_pace_alerts_audit_index`).
-  - **Email delivery**: `src/lib/notify.ts` is a thin, swappable sender.
-    Current default is the **console sender** — alerts appear in Vercel
-    function logs, no email actually leaves. To go live, implement a provider
-    in `getEmailSender()` (e.g. Resend via fetch) — callers don't change.
+  - **THE THRESHOLD IS PER ORG (NOTIFY-2a, 2026-09-20).**
+    `Organization.paceAlertThresholdPct Int?`, migration
+    `20260920210000_notify2a_pace_threshold`, set at
+    **/settings/notifications** (ADMIN). **`NULL` means fall back** to
+    `PACE_ALERT_THRESHOLD_PCT` and then to 90 — which is what every org does
+    until someone types a number, so applying the migration moves no behaviour.
+    The env var is **not retired** (F1, Gary 2026-09-20); it is the fallback.
+    - The cron resolves it from a `Map` built alongside the enabled-orgs query,
+      which **replaced** the `organization.count()` that used to compute
+      `orgsEnabled` — so per-org thresholds cost no extra round trip. It is a
+      Map rather than a relation on the store query because
+      `processPaceAlertForStore` is typed `store: Store` and widening that
+      parameter would make every caller carry a payload it does not read.
+    - **The two validators do not agree, deliberately.** `paceThresholdPct()`
+      accepts any finite value in `(0,100]` including fractions; the column is
+      `Int` and the write route accepts **50–100** only. A fractional value is
+      legal for the FALLBACK and impossible for the ORG value. Nothing sets one.
+    - **The run log and the JSON response report the threshold per org**, with
+      `source: "org" | "env"` marking a fallback, and orgs named by **ID**
+      (CLAUDE.md § Database Evidence — five rows on staging answer to
+      "Microsoft"). The old scalar `thresholdPct` in that response is gone,
+      replaced by `fallbackThresholdPct` + a `thresholds` array.
+    - **Changing the threshold never rewrites history, and never re-opens a
+      spent month.** `PaceAlertLog.thresholdPct` records what was actually used
+      per send, and the idempotency lock is keyed on store-month and knows
+      nothing about the number — so a store that already alerted at 90 does not
+      alert again when the org moves to 75.
+  - **The alert is now sent as HTML as well as text (NOTIFY-2b, 2026-09-20).**
+    `src/lib/email-template.ts` renders the branded body; the alert goes out
+    multipart, and a client that wants plain text still gets it.
+    - **THE TEXT PART DID NOT CHANGE — not a word, not a space.** The template
+      is given the consumer's existing lines verbatim rather than regenerating
+      them, because the pace alert's wording is not a two-column table (its
+      `Month to date:` and `Dashboard:` lines are prose with a single space
+      after the colon) and the template's own row format cannot reproduce them.
+      `scripts/verify-f5-polish.ts` pins all seven lines, the line count and
+      the two label prefixes, so editing that builder fails the fixture.
+    - **The pace path now writes an `AuditLog` row per send** — `entityType
+      "Notification"`, `action email.sent | email.failed`, `metadata {kind:
+      "pace.alert", provider, recipients, subject, resendId | error}` — which
+      it did not before. `PaceAlertLog` is unchanged and is still the
+      idempotency lock; it is not a log, carries no provider and has no failure
+      rows, so it could not feed the "Recent emails" card on
+      `/settings/notifications` or give a Resend delivery event an org to
+      attach to. The row is written AFTER the send, never before: the lock is
+      the thing that precedes the send, and this is a record of what happened.
+    - **The org name costs one extra query, on the alert path only.**
+      `processPaceAlertForStore` is typed `store: Store` and stays that way
+      (NOTIFY-2a's reasoning), so the template's header reads the name
+      directly — at most once per store per month, by construction.
+  - **The per-org switch (F-5b, 2026-09-20)**. `Organization.paceAlertsEnabled`,
+    **default `false`**, migration `20260920190000_f5b_pace_alerts_toggle`.
+    Toggled at **/settings/notifications → Behind-pace alerts** (ADMIN) via
+    `PUT /api/pace-alerts/settings` — NOTIFY-2a moved the card off `/settings`
+    and replaced `POST /api/pace-alerts/toggle`, which is deleted. The body is
+    partial (`{ enabled? , thresholdPct? }`), so the switch and the threshold
+    cannot clobber each other. No availability env var — F-5 shipped to
+    every org and was never a staged rollout, so **the column is the only
+    gate**, exactly as with `calendarEnabled`.
+    - **The gate is in the cron's store query, not a per-store early return**,
+      and that is load-bearing: a disabled org's store is never evaluated, so
+      nothing reads its goal, nothing writes a `PaceAlertLog` row, and **its
+      one-alert-per-month lock cannot be burned while the org is dark**. An
+      early return placed after the lock write would do the opposite.
+    - **Why the default is `false`, since it is the safety argument rather than
+      a convention.** These are the only emails Froot sends to MANAGERS, and
+      they share a sender with HR-16. A default of `true` would make setting
+      `NOTIFY_EMAIL_PROVIDER=resend` in Production start mailing real managers
+      as a side effect of a change made for a different feature.
+    - **Neither edge of the toggle touches a `PaceAlertLog` row.** Disabling
+      keeps this month's sent rows, so re-enabling mid-month does not re-send an
+      alert the managers already got; enabling writes nothing, and the next run
+      evaluates on the numbers as they are that day.
+    - Each run logs **orgs enabled / stores evaluated / alerted / skipped**, and
+      the skipped count is measured rather than inferred — "the gate suppressed
+      12 stores" and "no store qualified this month" are otherwise
+      indistinguishable.
+  - **Lock → send → release on failure (DEBT-105, fixed by F-5b).** The
+    `PaceAlertLog` row is still written **before** the send, so a crash or a
+    concurrent run cannot double-alert. What F-5b added is the **release**: the
+    send is wrapped, and on a throw the row just created is deleted and the
+    error rethrown, so the cron's per-store catch still records `error:` and the
+    run continues. The next day's run then re-evaluates the store from scratch.
+    A double-alert stays impossible, because a send that **succeeds** leaves the
+    row exactly where it always was.
+    - **The delete is BY ID, never by the `{storeId, month}` unique key.** A
+      delete by key would destroy whichever row is present — on a concurrent run
+      that is the **winner's** row, the one whose mail is in flight. The id
+      captured from the `create` can only ever name the row that call made. **Do
+      not "simplify" this to a `deleteMany` on the unique key.**
+    - A release that itself fails is logged and swallowed so it cannot mask the
+      send error; that degrades to the pre-F-5b behaviour and no worse.
+    - Before this fix, one runtime send failure burned a store's
+      one-alert-per-month lock and the next day's run reported the reassuring
+      "already alerted this month" for a mail that never left.
+  - **Recipients: role-based, minus a per-user denial, and they still carry a
+    known gap — `DEBT-106`.** Admins + the store's assigned managers, as
+    before. A departed **manager** drops out (the Clerk webhook deletes their
+    `StoreUserAssignment` rows, which that arm of the query requires); a
+    departed **admin does not**, because the ADMIN arm has no assignment test
+    and `User` has no status column. F2 (Gary, 2026-09-20) ruled the fix belongs
+    in the Clerk webhook handler rather than here, so **do not add an
+    offboarding filter to this query** — see `DEBT-106` and `DEBT-47`.
+    - **THE PER-USER DENIAL (NOTIFY-2c, Gary, 2026-09-20).** An ADMIN may take
+      one person off this list from **Edit User on `/users`** — the "Email
+      notifications" section, row "Receives behind-pace alert emails". Unticking
+      it writes `notify.pace.receive` to that user's `deniedCapabilities`; the
+      recipient query selects `role`, `deniedCapabilities` and
+      `grantedCapabilities` on the same round trip and filters the rows through
+      `can()`. **No second query, and no SQL predicate**: `can()` is a
+      fail-closed load, a role baseline and an elevation branch evaluated in
+      that order, and an array test in the `where` could express today's
+      snapshot of that but not its precedence — so the grid and the mailing list
+      would be free to drift.
+    - **Admin-set, never self-service.** Self-service opt-out was ruled out the
+      same day and stays ruled out; there is no unsubscribe anywhere.
+      `STAFF`/`STORE` cannot be added to the list at all — the capability is
+      deniable-only (`docs/PERMISSIONS_INVENTORY.md` §5).
+    - **The denial lands BEFORE the lock is written**, so
+      `PaceAlertLog.recipients` records who was actually mailed. If every
+      eligible person is denied, no alert is sent, **no lock row is written**,
+      and the run reports `every admin/manager has behind-pace alerts denied` —
+      deliberately distinct from `no admin/manager recipients`, which means
+      nobody holds the role.
+    - **The org toggle outranks it** — off at `/settings/notifications` means
+      nobody, whatever any user's row says.
+  - **Email delivery — two providers since NOTIFY-1 (2026-09-19)**.
+    `src/lib/notify.ts` still hands every caller an `EmailSender` from
+    `getEmailSender()`; what changed is that there is now something real
+    behind it. The choice is per-environment, by `NOTIFY_EMAIL_PROVIDER`:
+    - unset or `"console"` → `consoleEmailSender`, exactly as before.
+    - `"resend"` → Resend over plain `fetch` to `https://api.resend.com/emails`
+      (no SDK — one fewer package to audit). Requires `RESEND_API_KEY` and
+      `NOTIFY_FROM_EMAIL` (`USE Froot <noreply@notify.usefroot.com>` — the
+      sending domain is a **subdomain**, never the root). **Either one missing
+      throws, and it NEVER falls back to console**: a deployment that believes
+      it is emailing and is not is the exact failure this provider exists to
+      end. Both are read in `getEmailSender()` rather than at send time, so
+      the pace-alert cron fails before it writes a single `PaceAlertLog` row —
+      a throw after that write would burn a store's one-alert-per-month lock
+      with no email delivered. Ten-second `AbortController` timeout, so a hung
+      provider can't hold the cron open. A non-2xx logs the status and body
+      and then **throws** — nothing is swallowed, the caller decides.
+    - any other value → throws, naming the value and the two accepted ones.
+    - **Proving delivery**: `POST /api/notify/test` (ADMIN, no request body).
+      The recipient is the CALLER'S OWN Clerk primary email, resolved
+      server-side — there is deliberately no way to aim it at anyone else.
+      Returns `{ provider, to, ok: true, id? }`, or 502 with the thrown
+      message. In console mode it returns `ok: true` with
+      `provider: "console"`; that is correct behaviour, not a bug.
+    - **`NOTIFY_EMAIL_PROVIDER` is per-environment, and Production is the
+      loaded one.** Setting it to `resend` in Production is what makes this
+      daily cron start emailing real managers about real numbers. That is a
+      separate, deliberate decision — not a side effect of shipping the code.
+    The original F-5 note, still accurate for the default, unchanged:
+    `src/lib/notify.ts` is a thin, swappable sender. Current default is the
+    **console sender** — alerts appear in Vercel function logs, no email
+    actually leaves. To go live, implement a provider in `getEmailSender()`
+    (e.g. Resend via fetch) — callers don't change.
 
 ## Ops
 

@@ -6,6 +6,11 @@ import { Switch } from "@/components/ui/switch"
 
 // Interactive island for the Settings → Integrations HR card: the on/off
 // switch that flips "hr" in the org's activeModules (InstagramActions pattern).
+//
+// HrAckRecipientsField USED TO LIVE HERE. NOTIFY-2a moved it to
+// settings/notifications/hr-ack-recipients.tsx, where the rest of the email
+// settings now are (Gary's ruling, 2026-09-20 — one page for every email
+// setting). This file is back to the module toggle alone.
 
 export function HrModuleToggle({ enabled: initialEnabled }: { enabled: boolean }) {
   const router = useRouter()

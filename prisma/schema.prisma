@@ -54,12 +54,67 @@ model Organization {
   // DEFAULT false, so every existing org lands inert and the migration needs no
   // backfill.
   calendarEnabled         Boolean   @default(false)
+  // F-5b (Gary, 2026-09-20). THE PER-ORG SWITCH FOR BEHIND-PACE ALERT EMAILS.
+  // A DEDICATED COLUMN on the calendarEnabled pattern above, and deliberately
+  // NOT an activeModules entry: activeModules is the BILLABLE ADD-ON list
+  // driving the module cards on /settings, and pace alerts are part of
+  // Forecasting — which every org already has — not a separate purchase.
+  //
+  // Off = the cron never evaluates the org's stores, so no PaceAlertLog row is
+  // written and no email is sent. The gate is in the store query itself
+  // (src/app/api/cron/pace-alerts/route.ts), not a per-store early return, so a
+  // disabled org's store cannot burn its one-alert-per-month lock while dark.
+  //
+  // DEFAULT false, AND THAT IS THE SAFETY ARGUMENT RATHER THAN A CONVENTION
+  // (F1, Gary 2026-09-20). Pace alerts are the only email Froot sends to
+  // MANAGERS, and production is about to set NOTIFY_EMAIL_PROVIDER=resend so
+  // HR-16 can deliver; the two features share one sender. A default of true
+  // would make that env flip start mailing real Keva admins and managers at the
+  // next 15:00 UTC cron, as a side effect of a change made for a different
+  // feature. false means the flip sends nothing until an admin turns this on.
+  paceAlertsEnabled       Boolean   @default(false)
+  // NOTIFY-2a (F1, Gary 2026-09-20). THE PER-ORG BEHIND-PACE THRESHOLD.
+  // NULL MEANS FALL BACK, and that is the whole safety argument for the type:
+  // every existing row lands null, the cron resolves paceThresholdPct() for it
+  // exactly as it did before (PACE_ALERT_THRESHOLD_PCT, else 90), and the
+  // deploy is behaviour-identical. The alternative considered and rejected was
+  // a non-null @default(90) with the env var retired — simpler to reason about,
+  // but it makes this migration a behaviour change in any environment that sets
+  // the variable to something other than 90.
+  //
+  // THE TWO VALIDATORS DO NOT AGREE, DELIBERATELY. The env reader accepts any
+  // finite value in (0,100] including fractions (src/lib/pace-alerts.ts:20-23);
+  // this column is Int and the write route accepts 50-100 only. A fractional
+  // env value is therefore legal for the FALLBACK and impossible for the ORG
+  // value. Nobody sets one — the variable is unset everywhere today — and the
+  // narrower range is the one an admin is typing into a box, where 5 and 95 are
+  // one fat-fingered keystroke apart and one of them silences every alert.
+  //
+  // What was actually used on a given send is never inferred from this column:
+  // PaceAlertLog.thresholdPct records it per row (F-5), so changing this value
+  // does not rewrite history.
+  paceAlertThresholdPct   Int?
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
   // HR-11b: governs inline `Date:` field stamps ONLY ("dateOnly" | "dateTime").
   // Validation stamps and the Certificate of Acknowledgment always render full
   // date+time regardless (court-defensibility, per DECISIONS F5b).
   hrDateStampFormat       String    @default("dateOnly")
+  // HR-16 (Gary, 2026-09-20). WHO HEARS ABOUT A COMPLETED ACKNOWLEDGMENT.
+  // One email per minted HrSignedRecord goes to these addresses; the column is
+  // the ONLY recipient source — there is no hardcoded address and no fallback
+  // to admin users' emails (which is what F-5's pace alerts do,
+  // src/lib/pace-alerts.ts:98, and is deliberately NOT what this does: "who at
+  // corporate hears about signatures" is a choice, not a role).
+  //
+  // DEFAULT EMPTY IS THE SAFETY ARGUMENT. Every existing org lands with no
+  // recipients, so the migration needs no backfill and nothing sends until an
+  // admin types an address — which matters more here than for most columns,
+  // because staging runs NOTIFY_EMAIL_PROVIDER=resend and delivers real mail.
+  //
+  // Validation (max 10, trimmed, lowercased, deduplicated, each a valid email)
+  // lives at the write route; the column stores what that route produced.
+  hrAckRecipients         String[]  @default([])
   // DEBT-70a (Gary, 2026-08-16). THE FALLBACK ZONE FOR PEOPLE WHO HAVE NO
   // STORE. Inline `Date:` stamps on minted PDFs render the STORE-LOCAL day, and
   // the store's own `Store.timezone` answers that for almost everyone — but

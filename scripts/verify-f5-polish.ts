@@ -14,6 +14,22 @@
  *      it and without a goal; processPaceAlertForStore sends once with the
  *      right recipients (admin + assigned manager, not the unrelated manager),
  *      suppresses the duplicate on a second run, and skips no-plan stores.
+ *   4. F-5b: a new org defaults to paceAlertsEnabled=false (F1); the cron's
+ *      store predicate evaluates nothing while the org is disabled and
+ *      evaluates again once it is enabled; DEBT-105 — a send that throws leaves
+ *      NO PaceAlertLog row behind and the next run alerts rather than reporting
+ *      a phantom send. Plus one characterization check pinning the offboarding
+ *      recipient gap that F2 ruled out of scope.
+ *   5. NOTIFY-2a: the threshold is resolved PER ORG — an org that sets
+ *      paceAlertThresholdPct is evaluated at that number and not at the
+ *      deployment fallback, and clearing it falls back again.
+ *   6. NOTIFY-2c: the per-user email control. An ADMIN and a MANAGER with
+ *      notify.pace.receive denied drop out of BOTH the recipient list and the
+ *      PaceAlertLog.recipients array; an undenied peer of each still receives;
+ *      and a STAFF account cannot hold the capability at all — the grant is
+ *      REJECTED at the route (isGrantable is false, so PATCH /api/users/[id]
+ *      400s) and IGNORED at read time even if one is written straight to the
+ *      column.
  * Everything is deleted afterwards.
  */
 import "dotenv/config"
@@ -25,8 +41,9 @@ import { monthStart, daysInMonth, round2 } from "../src/lib/pacing"
 import { writeAuditLog } from "../src/lib/audit"
 import { buildForecastCsv } from "../src/lib/forecast-csv"
 import { parseImportRows } from "../src/lib/forecast-import"
-import { evaluatePaceAlert, processPaceAlertForStore } from "../src/lib/pace-alerts"
-import type { EmailMessage } from "../src/lib/notify"
+import { evaluatePaceAlert, paceThresholdPct, processPaceAlertForStore } from "../src/lib/pace-alerts"
+import type { EmailMessage, EmailSender } from "../src/lib/notify"
+import { can, grantsFrom, isGrantable, overridesFrom } from "../src/lib/permissions"
 
 const TZ = "America/Los_Angeles"
 
@@ -67,8 +84,11 @@ async function main() {
   console.log(`Fixture org ${org.id} · month ${mStart} · through ${asOf}\n`)
 
   try {
-    const [storeBehind, storeNoPlan] = await Promise.all(
-      [1, 2].map((i) =>
+    // F-5b adds a THIRD store, used only by the send-failure check below. It
+    // needs its own store because the DEBT-105 assertion is "no PaceAlertLog row
+    // remains", which cannot be made about a store that already has one.
+    const [storeBehind, storeNoPlan, storeThrow] = await Promise.all(
+      [1, 2, 3].map((i) =>
         prisma.store.create({
           data: { organizationId: org.id, name: `ZZ F-5 Store ${i}`, timezone: TZ },
         })
@@ -105,6 +125,33 @@ async function main() {
       data: mtdDates.map((dateStr) => ({
         organizationId: org.id,
         storeId: storeBehind.id,
+        date: dbDate(dateStr),
+        netSales: 500,
+        grossSales: 540,
+        taxTotal: 40,
+        orderCount: 5,
+      })),
+    })
+
+    // Same $1,000/day plan and $500/day sales for the send-failure store, so it
+    // is behind pace on identical numbers and the only variable under test is
+    // whether the sender throws.
+    const throwPlan = await prisma.goalPlan.create({
+      data: { organizationId: org.id, storeId: storeThrow.id, year, basisType: "MANUAL", updatedById: "fixture" },
+    })
+    await prisma.dailyGoal.createMany({
+      data: monthDates.map((dateStr, i) => ({
+        planId: throwPlan.id,
+        storeId: storeThrow.id,
+        date: dbDate(dateStr),
+        basisAmount: 1000 + i,
+        goalAmount: 1000 + i,
+      })),
+    })
+    await prisma.salesPeriodCache.createMany({
+      data: mtdDates.map((dateStr) => ({
+        organizationId: org.id,
+        storeId: storeThrow.id,
         date: dbDate(dateStr),
         netSales: 500,
         grossSales: 540,
@@ -168,18 +215,165 @@ async function main() {
 
     if (asOf.slice(0, 7) === today.slice(0, 7)) {
       const sent: EmailMessage[] = []
-      const capture = { send: async (m: EmailMessage) => void sent.push(m) }
+      // NOTIFY-1: send() now resolves to an EmailSendResult (the provider
+      // message id where there is one), so the capture returns {} rather
+      // than undefined. Typed as EmailSender so the next signature change
+      // fails here rather than at the call site.
+      const capture: EmailSender = { send: async (m: EmailMessage) => { sent.push(m); return {} } }
 
       const first = await processPaceAlertForStore(storeBehind, { thresholdPct: 90, sender: capture })
       check("behind-pace store alerts", first.alerted && sent.length === 1, first.reason)
       check("pace is ~50%", first.pacePct !== null && Math.abs(first.pacePct - 50) < 2, `${first.pacePct?.toFixed(1)}%`)
-      const to = sent[0]?.to ?? []
+      // NOTIFY-1 widened EmailMessage.to to `string | string[]`.
+      // pace-alerts.ts still passes an array; normalise so this fixture
+      // keeps checking the recipient LIST either way.
+      const capturedTo = sent[0]?.to ?? []
+      const to = Array.isArray(capturedTo) ? capturedTo : [capturedTo]
       check(
         "recipients = admin + assigned manager only",
         to.includes(admin.email) && to.includes(manager.email) && !to.includes(otherManager.email),
         to.join(", ")
       )
       check("alert email names the store", (sent[0]?.subject ?? "").includes(storeBehind.name))
+
+      // ── NOTIFY-2b: THE TEXT PART DID NOT MOVE ───────────────────────────
+      // The phase adds an HTML alternative body and changes nothing about what
+      // this email SAYS. The expected lines below are the pre-2b wording,
+      // embedded here so that editing pace-alerts.ts's text builder fails this
+      // fixture rather than quietly changing a live alert.
+      //
+      // WHAT THIS PROVES, EXACTLY, so nobody reads more into it: every fixed
+      // byte is asserted literally — the headline, both blank lines, the two
+      // label prefixes, the whole threshold sentence, the Dashboard line and
+      // the line COUNT. The four money figures and two percentages are pinned
+      // by format instead of by value, because they are computed from seeded
+      // sales that differ per run. A reworded line, a moved line, an added line
+      // or a dropped line all fail here; only a changed NUMBER can pass, and a
+      // changed number is not a wording change.
+      const alertLines = (sent[0]?.text ?? "").split("\n")
+      const expectedAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.usefroot.com"
+      const alertMonthName = new Date(`${mStart}T12:00:00Z`).toLocaleDateString("en-US", { month: "long" })
+      check(
+        "NOTIFY-2b: pace-alert text is still 7 lines",
+        alertLines.length === 7,
+        `${alertLines.length} lines`
+      )
+      check(
+        "NOTIFY-2b: line 1 is the unchanged headline",
+        alertLines[0] === `${storeBehind.name} is trailing its ${alertMonthName} sales goal (through ${asOf}).`,
+        alertLines[0]
+      )
+      check("NOTIFY-2b: line 2 is blank", alertLines[1] === "", JSON.stringify(alertLines[1]))
+      check(
+        "NOTIFY-2b: line 3 is the unchanged Month to date line",
+        /^Month to date: \$[\d,]+ of \$[\d,]+ goal \(\d+\.\d%\)$/.test(alertLines[2] ?? ""),
+        alertLines[2]
+      )
+      check(
+        "NOTIFY-2b: line 4 is the unchanged Projected month end line",
+        /^Projected month end: \$[\d,]+ vs \$[\d,]+ goal \(\d+\.\d%\)$/.test(alertLines[3] ?? ""),
+        alertLines[3]
+      )
+      check("NOTIFY-2b: line 5 is blank", alertLines[4] === "", JSON.stringify(alertLines[4]))
+      check(
+        "NOTIFY-2b: line 6 is the unchanged threshold sentence",
+        alertLines[5] === "Alert threshold: 90% of MTD goal. You'll get at most one alert per store per month.",
+        alertLines[5]
+      )
+      check(
+        "NOTIFY-2b: line 7 is the unchanged Dashboard line",
+        alertLines[6] === `Dashboard: ${expectedAppUrl}/dashboard`,
+        alertLines[6]
+      )
+
+      const alertHtml = sent[0]?.html ?? ""
+      check("NOTIFY-2b: the alert now carries an HTML body", alertHtml.length > 0, `${alertHtml.length} bytes`)
+      check(
+        "NOTIFY-2b: the HTML names the store",
+        alertHtml.includes(storeBehind.name),
+        storeBehind.name
+      )
+
+      // ── NOTIFY-2b: THE PACE PATH NOW WRITES A Notification ROW ──────────
+      // It wrote none before this phase (PaceAlertLog is an idempotency lock,
+      // not a log), so the send-log card showed one kind of email out of three
+      // and a Resend delivery event for an alert had no row to find its org by.
+      const paceAudit = await prisma.auditLog.findFirst({
+        where: { organizationId: org.id, entityType: "Notification", action: "email.sent" },
+        orderBy: { createdAt: "desc" },
+      })
+      const paceMeta = (paceAudit?.metadata ?? {}) as Record<string, unknown>
+      check("NOTIFY-2b: the pace send wrote an email.sent row", !!paceAudit, paceAudit?.action)
+      check("NOTIFY-2b: the row is kind pace.alert", paceMeta.kind === "pace.alert", String(paceMeta.kind))
+      check(
+        "NOTIFY-2b: the row records the provider and the subject",
+        typeof paceMeta.provider === "string" && typeof paceMeta.subject === "string" &&
+          String(paceMeta.subject).includes(storeBehind.name),
+        `${paceMeta.provider} / ${paceMeta.subject}`
+      )
+      check(
+        "NOTIFY-2b: the row names the same recipients the email went to",
+        Array.isArray(paceMeta.recipients) && (paceMeta.recipients as string[]).length === to.length,
+        JSON.stringify(paceMeta.recipients)
+      )
+
+      // The F3 correlation the webhook and the send log both depend on: a
+      // Prisma JSON-path filter on metadata.resendId. Asserted against a REAL
+      // row on a real Postgres rather than assumed to work — it is the one
+      // query in this phase with no column behind it.
+      const { listRecentEmails, recordEmailAttempt, findAttemptByResendId, deliveryEventExists } =
+        await import("../src/lib/notification-log")
+      const probeId = `fixture-resend-${tag}`
+      await recordEmailAttempt({
+        organizationId: org.id,
+        entityId: null,
+        kind: "test",
+        action: "email.sent",
+        recipients: [admin.email],
+        subject: `NOTIFY-2b fixture probe ${tag}`,
+        resendId: probeId,
+      })
+      const found = await findAttemptByResendId(probeId)
+      check(
+        "NOTIFY-2b: metadata.resendId JSON filter resolves a row to its org",
+        found?.organizationId === org.id && found?.kind === "test",
+        JSON.stringify(found)
+      )
+      check(
+        "NOTIFY-2b: the idempotency probe is false before any delivery event",
+        (await deliveryEventExists(probeId, "email.delivered")) === false
+      )
+      await prisma.auditLog.create({
+        data: {
+          organizationId: org.id,
+          userId: null,
+          action: "email.delivered",
+          entityType: "Notification",
+          entityId: null,
+          metadata: { resendId: probeId, kind: "test", recipients: [admin.email] },
+        },
+      })
+      check(
+        "NOTIFY-2b: the idempotency probe is true once the event is recorded",
+        (await deliveryEventExists(probeId, "email.delivered")) === true
+      )
+      const log = await listRecentEmails(org.id)
+      const probeRow = log.find((r) => r.subject === `NOTIFY-2b fixture probe ${tag}`)
+      check(
+        "NOTIFY-2b: the send log resolves that attempt to delivered",
+        probeRow?.status === "delivered",
+        probeRow?.status
+      )
+      check(
+        "NOTIFY-2b: the send log lists the pace alert too, newest first",
+        log.some((r) => r.kind === "pace.alert" && r.kindLabel === "Behind-pace alert"),
+        log.map((r) => r.kind).join(", ")
+      )
+      check(
+        "NOTIFY-2b: a delivery-event row is NOT itself listed as an attempt",
+        log.every((r) => r.kind !== "unknown"),
+        log.map((r) => r.kind).join(", ")
+      )
 
       const second = await processPaceAlertForStore(storeBehind, { thresholdPct: 90, sender: capture })
       check("duplicate suppressed within the month", !second.alerted && sent.length === 1, second.reason)
@@ -191,6 +385,334 @@ async function main() {
         where: { storeId_month: { storeId: storeBehind.id, month: dbDate(mStart) } },
       })
       check("PaceAlertLog row records the send", !!logRow && logRow.thresholdPct === 90 && logRow.recipients.length === to.length)
+
+      // ── F-5b check 1: the org gate ──
+      // THIS ASSERTS THE PREDICATE, NOT THE ROUTE HANDLER. The cron's gate lives
+      // in its store query (api/cron/pace-alerts/route.ts) and the handler needs
+      // a CRON_SECRET and a Request to call, so the fixture runs the same query
+      // instead. The duplication is the known cost: if the route's filter is
+      // edited and this one is not, this check keeps passing. It is still worth
+      // having — it proves the COLUMN excludes a store that otherwise qualifies,
+      // which is the thing F-5b added.
+      const storeFilter = {
+        isActive: true,
+        dailyGoals: { some: { date: { gte: new Date(`${mStart.slice(0, 7)}-01T00:00:00.000Z`) } } },
+        organizationId: org.id,
+      }
+      // The fixture org was created without paceAlertsEnabled, so it lands on
+      // the F1 default — which is itself the first thing worth asserting.
+      const orgRow = await prisma.organization.findUnique({ where: { id: org.id } })
+      check("new org defaults to pace alerts DISABLED (F1)", orgRow?.paceAlertsEnabled === false)
+
+      const whileDisabled = await prisma.store.findMany({
+        where: { ...storeFilter, organization: { paceAlertsEnabled: true } },
+      })
+      const skippedWhileDisabled = await prisma.store.count({
+        where: { ...storeFilter, organization: { paceAlertsEnabled: false } },
+      })
+      check(
+        "disabled org: no store is evaluated, and the skipped count names them",
+        whileDisabled.length === 0 && skippedWhileDisabled === 2,
+        `evaluated ${whileDisabled.length}, skipped ${skippedWhileDisabled}`
+      )
+
+      await prisma.organization.update({ where: { id: org.id }, data: { paceAlertsEnabled: true } })
+      const whileEnabled = await prisma.store.findMany({
+        where: { ...storeFilter, organization: { paceAlertsEnabled: true } },
+      })
+      check(
+        "enabled org: the planned stores are evaluated again",
+        whileEnabled.length === 2,
+        `evaluated ${whileEnabled.length}`
+      )
+
+      // ── F-5b check 2: DEBT-105, the lock is released on a failed send ──
+      const boom: EmailSender = {
+        send: async () => {
+          throw new Error("simulated provider 500")
+        },
+      }
+      let sendThrew = false
+      try {
+        await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: boom })
+      } catch {
+        sendThrew = true
+      }
+      check("send failure propagates to the cron's per-store catch", sendThrew)
+
+      const burned = await prisma.paceAlertLog.findUnique({
+        where: { storeId_month: { storeId: storeThrow.id, month: dbDate(mStart) } },
+      })
+      check("DEBT-105: no PaceAlertLog row survives a failed send", burned === null)
+
+      // The whole point of releasing the lock: the NEXT run must be able to
+      // alert. Pre-F-5b this returned "already alerted this month" and the store
+      // was dark for the rest of the calendar month.
+      const retry = await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture })
+      check("DEBT-105: the next run alerts instead of reporting a phantom send", retry.alerted, retry.reason)
+      const retryRow = await prisma.paceAlertLog.findUnique({
+        where: { storeId_month: { storeId: storeThrow.id, month: dbDate(mStart) } },
+      })
+      check("DEBT-105: the successful retry does leave a lock behind", !!retryRow)
+
+      // ── F-5b check 3: recipients ──
+      // F2 (Gary, 2026-09-20) ruled the recipient query is LEFT AS-IS for the
+      // OFFBOARDING gap, which is filed as a DEBT row instead. So there is no
+      // new exclusion to assert here, and inventing one would test code that
+      // was deliberately not written. (NOTIFY-2c later added a DIFFERENT
+      // filter to that query — the per-user denial below — under its own
+      // ruling. It does not touch this gap: a departed admin who was never
+      // denied is still a recipient, which is what this check pins.)
+      //
+      // What follows is a CHARACTERIZATION check, not an endorsement: it pins
+      // the gap the DEBT row describes so the claim is executable rather than
+      // prose. An ADMIN with no store assignments — the exact shape a departed
+      // admin leaves behind, since organizationMembership.deleted deletes the
+      // assignments but not the User row and never touches the role — is still
+      // a recipient. WHEN THE WEBHOOK IS FIXED, THIS CHECK IS EXPECTED TO FAIL
+      // AND SHOULD BE UPDATED, NOT WORKED AROUND.
+      const departedAdmin = await prisma.user.create({
+        data: {
+          clerkUserId: `fixture-f5b-departed-${tag}`,
+          organizationId: org.id,
+          email: `f5b-departed-${tag}@example.com`,
+          role: "ADMIN",
+        },
+      })
+      const sentAfter: EmailMessage[] = []
+      const capture2: EmailSender = { send: async (m: EmailMessage) => { sentAfter.push(m); return {} } }
+      await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
+      await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture2 })
+      const to2raw = sentAfter[0]?.to ?? []
+      const to2 = Array.isArray(to2raw) ? to2raw : [to2raw]
+      check(
+        "characterization (DEBT row): an assignment-less ADMIN is still a recipient",
+        to2.includes(departedAdmin.email),
+        "documents the offboarding gap; expected to fail once the Clerk webhook is fixed"
+      )
+
+      // ── NOTIFY-2a: the per-org threshold (F1, Gary 2026-09-20) ──
+      // SAME CAVEAT AS F-5b CHECK 1 ABOVE: this asserts the RESOLUTION the cron
+      // performs, not the route handler, because the handler needs a
+      // CRON_SECRET and a Request. The two lines below are copied from
+      // api/cron/pace-alerts/route.ts and carry the same known cost — edit the
+      // route's lookup without editing this and the check keeps passing.
+      //
+      // THE DIRECTION OF THE TEST IS THE POINT. storeThrow paces far enough
+      // behind to alert at the 90% fallback, so setting the org to 40 and
+      // getting SILENCE proves the org value was used. Asserting an alert at
+      // some other number would not: the store alerts at 90 too, so a check
+      // that merely fires cannot tell which threshold produced it.
+      const envFallbackPct = paceThresholdPct()
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { paceAlertThresholdPct: 40 },
+      })
+      const withOwn = await prisma.organization.findMany({
+        where: { paceAlertsEnabled: true },
+        select: { id: true, paceAlertThresholdPct: true },
+      })
+      const ownThreshold = new Map(withOwn.map((o) => [o.id, o.paceAlertThresholdPct])).get(org.id) ?? null
+      check(
+        "NOTIFY-2a: the cron's lookup resolves the org's own threshold",
+        ownThreshold === 40 && ownThreshold !== envFallbackPct,
+        `org=${ownThreshold} fallback=${envFallbackPct}`
+      )
+
+      const sentAtOwn: EmailMessage[] = []
+      const capture3: EmailSender = { send: async (m: EmailMessage) => { sentAtOwn.push(m); return {} } }
+      await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
+      const atOwn = await processPaceAlertForStore(storeThrow, {
+        thresholdPct: ownThreshold ?? envFallbackPct,
+        sender: capture3,
+      })
+      check(
+        "NOTIFY-2a: a store that alerts at the fallback is SILENT under its org's lower threshold",
+        !atOwn.alerted && sentAtOwn.length === 0,
+        `${atOwn.reason} (pace ${atOwn.pacePct?.toFixed(1)}%)`
+      )
+
+      // And back: null means fall back, which is the state every existing org
+      // lands in on the migration. Same store, same month, same sales — only
+      // the column changed.
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { paceAlertThresholdPct: null },
+      })
+      const cleared = await prisma.organization.findMany({
+        where: { paceAlertsEnabled: true },
+        select: { id: true, paceAlertThresholdPct: true },
+      })
+      const clearedThreshold = new Map(cleared.map((o) => [o.id, o.paceAlertThresholdPct])).get(org.id) ?? null
+      await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
+      const atFallback = await processPaceAlertForStore(storeThrow, {
+        thresholdPct: clearedThreshold ?? envFallbackPct,
+        sender: capture3,
+      })
+      check(
+        "NOTIFY-2a: clearing the column falls back to the deployment threshold and alerts again",
+        clearedThreshold === null && atFallback.alerted,
+        `resolved ${clearedThreshold ?? envFallbackPct}%: ${atFallback.reason}`
+      )
+      // The PaceAlertLog row records the threshold ACTUALLY used, per send —
+      // which is why moving this column never rewrites history.
+      const fallbackRow = await prisma.paceAlertLog.findUnique({
+        where: { storeId_month: { storeId: storeThrow.id, month: dbDate(mStart) } },
+      })
+      check(
+        "NOTIFY-2a: the log row records the threshold that was actually used",
+        fallbackRow?.thresholdPct === envFallbackPct,
+        `${fallbackRow?.thresholdPct} vs ${envFallbackPct}`
+      )
+
+      // ── NOTIFY-2c: per-user email controls (Gary, 2026-09-20) ──
+      // FOUR PRINCIPALS, AND THE UNDENIED PAIR IS NOT PADDING. A check that
+      // only asserts absence passes just as happily when the whole send is
+      // broken — so each denied account has a peer of the SAME role on the same
+      // store that must still be mailed. Absence plus presence in one list is
+      // what proves the filter is per-user rather than per-role.
+      //
+      // Named for the phase, per CLAUDE.md § Name every test principal.
+      const [c2Admin, c2AdminKept, c2Mgr, c2MgrKept, c2Staff] = await Promise.all([
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-denied-admin-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-denied-admin-${tag}@example.com`,
+            role: "ADMIN",
+            deniedCapabilities: ["notify.pace.receive"],
+          },
+        }),
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-kept-admin-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-kept-admin-${tag}@example.com`,
+            role: "ADMIN",
+          },
+        }),
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-denied-mgr-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-denied-mgr-${tag}@example.com`,
+            role: "MANAGER",
+            deniedCapabilities: ["notify.pace.receive"],
+          },
+        }),
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-kept-mgr-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-kept-mgr-${tag}@example.com`,
+            role: "MANAGER",
+          },
+        }),
+        // WRITTEN STRAIGHT TO THE COLUMN, which no supported path can do: PATCH
+        // /api/users/[id] rejects this exact body with a 400 because
+        // isGrantable("notify.pace.receive", "STAFF") is false. The row exists
+        // to prove the READ side refuses it too — the registry's rule that a
+        // stale or smuggled grant elevates nothing.
+        prisma.user.create({
+          data: {
+            clerkUserId: `fixture-notify2c-staff-${tag}`,
+            organizationId: org.id,
+            email: `notify2c-staff-${tag}@example.com`,
+            role: "STAFF",
+            grantedCapabilities: ["notify.pace.receive"],
+          },
+        }),
+      ])
+      await prisma.storeUserAssignment.createMany({
+        data: [c2Mgr, c2MgrKept, c2Staff].map((u) => ({ userId: u.id, storeId: storeThrow.id })),
+      })
+
+      const sent2c: EmailMessage[] = []
+      const capture2c: EmailSender = { send: async (m: EmailMessage) => { sent2c.push(m); return {} } }
+      await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
+      const run2c = await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture2c })
+      const to2craw = sent2c[0]?.to ?? []
+      const to2c = Array.isArray(to2craw) ? to2craw : [to2craw]
+
+      check("NOTIFY-2c: the alert still sends", run2c.alerted && sent2c.length === 1, run2c.reason)
+      check(
+        "NOTIFY-2c: a DENIED admin is not a recipient",
+        !to2c.includes(c2Admin.email),
+        JSON.stringify(to2c)
+      )
+      check(
+        "NOTIFY-2c: an undenied admin on the same org still is",
+        to2c.includes(c2AdminKept.email),
+        JSON.stringify(to2c)
+      )
+      check(
+        "NOTIFY-2c: a DENIED assigned manager is not a recipient",
+        !to2c.includes(c2Mgr.email),
+        JSON.stringify(to2c)
+      )
+      check(
+        "NOTIFY-2c: an undenied assigned manager still is",
+        to2c.includes(c2MgrKept.email),
+        JSON.stringify(to2c)
+      )
+      check(
+        "NOTIFY-2c: a STAFF account with the capability written to grantedCapabilities is still not a recipient",
+        !to2c.includes(c2Staff.email),
+        JSON.stringify(to2c)
+      )
+
+      // THE LOG ROW IS THE SECOND HALF OF THE RULING — it must reflect who was
+      // actually mailed, so the denial has to land BEFORE the recipients array
+      // is written, not after. Asserting the email alone would pass even if the
+      // filter ran late and the log kept claiming the denied pair.
+      const log2c = await prisma.paceAlertLog.findUnique({
+        where: { storeId_month: { storeId: storeThrow.id, month: dbDate(mStart) } },
+      })
+      check(
+        "NOTIFY-2c: PaceAlertLog.recipients excludes the denied pair",
+        !!log2c && !log2c.recipients.includes(c2Admin.email) && !log2c.recipients.includes(c2Mgr.email),
+        JSON.stringify(log2c?.recipients)
+      )
+      check(
+        "NOTIFY-2c: PaceAlertLog.recipients is exactly who was mailed",
+        !!log2c && log2c.recipients.length === to2c.length && log2c.recipients.every((r) => to2c.includes(r)),
+        `log ${JSON.stringify(log2c?.recipients)} vs to ${JSON.stringify(to2c)}`
+      )
+
+      // THE MODEL-LEVEL HALF, and it says WHICH of "rejected or ignored" the
+      // model does: BOTH, at two different layers. isGrantable is the exact
+      // function PATCH /api/users/[id] filters on, so a false here IS the 400
+      // that route returns; can() is the read gate, and it refuses the stored
+      // grant independently.
+      check(
+        "NOTIFY-2c: the capability is NOT grantable to STAFF (PATCH /api/users/[id] 400s on it)",
+        !isGrantable("notify.pace.receive", "STAFF") && !isGrantable("notify.pace.receive", "STORE")
+      )
+      check(
+        "NOTIFY-2c: a stored STAFF grant is ignored by can() as well as refused by the route",
+        !can(
+          {
+            role: "STAFF",
+            overrides: overridesFrom([]),
+            grants: grantsFrom(["notify.pace.receive"]),
+          },
+          "notify.pace.receive"
+        )
+      )
+      check(
+        "NOTIFY-2c: ADMIN and MANAGER hold it by role baseline, so nobody's mail changes on deploy",
+        can({ role: "ADMIN", overrides: overridesFrom([]) }, "notify.pace.receive") &&
+          can({ role: "MANAGER", overrides: overridesFrom([]) }, "notify.pace.receive")
+      )
+      // FAIL-CLOSED ON AN UNSELECTED COLUMN. If a future edit drops
+      // deniedCapabilities from the recipient query's select, overridesFrom
+      // returns { loaded: false } and can() denies — the mail stops rather than
+      // silently going to everyone. That direction is the whole reason the
+      // query passes an override object instead of an array.
+      check(
+        "NOTIFY-2c: an unloaded override column denies rather than restoring the baseline",
+        !can({ role: "ADMIN", overrides: overridesFrom(undefined) }, "notify.pace.receive")
+      )
     } else {
       console.log("… skipping live pace-alert checks (month just started)")
     }

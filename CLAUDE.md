@@ -949,20 +949,77 @@ Schema is at `prisma/schema.prisma`. Schema changes ship as migration files comm
 **Do not use `npx prisma db push`** — retired after the 2026-07-06 staging drift incident.
 **`npx prisma migrate dev` is currently broken** — the baseline squash was never done, so shadow-DB replay fails with P3018 (and `.env` has no `SHADOW_DATABASE_URL`).
 
+**CLAUDE CODE NEVER RUNS A MIGRATION. `npx prisma migrate diff` is the ONLY prisma command a session may run against a database** — it reads, writes a file, and changes nothing. **Never `migrate dev`, never `migrate deploy`, never `migrate reset`, never `db execute`.** Step 3 of the flow below is GARY'S, in the Neon console; the session stops after step 2 with the SQL generated and reviewed, and says in its report that step 3 is owed. **It does not commit yet — see § A migration STOPS the session, below.**
+
+Written down 2026-09-18 because it was broken that day. The CAL-2 build session applied `20260918180000_cal2_scheduled_checklists` to the dev branch at 19:50:06Z and reported "not run locally" in the same run — so the rule was violated and the report concealed it, which are two failures and need two answers. This is the first: the act is now wrong on its face and named command by command, rather than left to be inferred from "Gary applies it". The second — every session report lists the `prisma` commands it ran, verbatim — is in `docs/WORKFLOW.md`, session completion rules. Neither prevents it; what caught it was the per-branch timestamp in `docs/MIGRATIONS.md`, which stays the backstop. `DEBT-103`.
 The working flow for every schema change (timestamp format `YYYYMMDDHHMMSS`):
 ```bash
 # 1. edit prisma/schema.prisma
 # 2. diff the schema against the live dev DB to generate the migration SQL:
 npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
   --script -o prisma/migrations/<timestamp>_<name>/migration.sql
-# 3. review the SQL, then apply it and record it in the migrations ledger:
+# 3. GARY RUNS THIS, NOT CLAUDE (see the rule above). Review the SQL, then
+#    apply it and record it in the migrations ledger:
 npx prisma db execute --file prisma/migrations/<timestamp>_<name>/migration.sql
 npx prisma migrate resolve --applied <timestamp>_<name>
 # 4. regenerate the client:
 npx prisma generate
 ```
 
-Commit the migration folder with the code that uses it. Staging and production apply it via `prisma migrate deploy` in the Vercel build — never run migrations against those branches by hand.
+Commit the migration folder with the code that uses it — **after step 3, never before**
+(§ A migration STOPS the session). Staging and production apply it via
+`prisma migrate deploy` in the Vercel build — never run migrations against those branches by hand.
+
+### A migration STOPS the session
+
+**AFTER GENERATING A MIGRATION FILE, THE SESSION STOPS. NOTHING IS COMMITTED
+UNTIL GARY HAS APPLIED IT TO DEV AND THE PHASE'S FIXTURE HAS RUN AGAINST THE
+APPLIED SCHEMA.** Ruled by Gary, 2026-09-20. The stopping point is step 2 of the
+flow above; the session reports the SQL, says step 3 is owed, and waits. The
+commit gate for a schema phase is `npm run build` **plus a green fixture run** —
+not the build alone.
+
+**THIS AMENDS THE SENTENCE ABOVE, which used to read "the session stops after
+step 2 with the SQL generated, reviewed and committed".** What changed is WHEN
+the commit happens, and nothing else: Claude still never applies a migration,
+step 3 is still Gary's, and the report still names it as owed. The two-commit
+pattern is unaffected in shape — the work commit simply waits for the fixture.
+
+**Why the build gate is not enough on a schema phase, which is the whole
+argument.** `next build` typechecks the generated client, so it proves the code
+agrees with `schema.prisma`. It cannot execute a query, so it proves nothing
+about the database — and on a schema phase the database is the thing that
+changed. The fixture is the only artifact that runs against real rows, which
+makes committing it unrun a commit whose correctness claim rests on a file that
+has never executed.
+
+**The case: NOTIFY-2a (work commit `a16bab2`, 2026-09-20).** The phase added
+`Organization.paceAlertThresholdPct`, generated
+`20260920210000_notify2a_pace_threshold`, and added four fixture checks to
+`scripts/verify-f5-polish.ts` — then committed all of it with `npm run build` as
+the only gate, because the fixture **could not run**: every `Organization` read
+selects the new column, so `verify-f5-polish.ts` failed at org creation against
+a dev branch that did not have it yet. The commit message said so plainly and
+the report named it, so nothing was concealed. **It passed 31/31 when Gary
+applied the migration and it was re-run.** That is the point worth keeping: the
+rule does not exist because something broke, it exists because the phase's only
+real evidence was produced AFTER the commit that claimed it, and whether that
+was fine was luck rather than method. A fixture written against a schema and
+never executed against it is exactly the shape of thing that passes review.
+
+**Note what this costs, so nobody quietly widens it back.** A schema phase now
+spans two sittings with a wait in the middle, and the temptation will be to
+commit "just the code" and add the fixture afterwards. That is the same defect
+with an extra step: the commit still claims a schema change nothing has
+exercised. If waiting is genuinely impossible, say so in the report and commit
+nothing — an uncommitted tree is recoverable, a green-looking history is not.
+
+**What this does NOT change.** A phase with no migration is untouched — the
+build stays the gate. Claude still never runs `db execute`, `migrate deploy`,
+`migrate dev`, `migrate reset` or `migrate resolve`; the stop makes that harder
+to violate, not softer. And `docs/MIGRATIONS.md`'s per-branch timestamps remain
+the backstop (`DEBT-103`), because a rule about when to commit cannot catch a
+session that applied a migration it should not have.
 
 `npx prisma studio` — GUI to inspect data.
 
@@ -1033,7 +1090,11 @@ SQUARE_ENVIRONMENT=            # "sandbox" or "production"
 NEXT_PUBLIC_APP_URL=           # e.g. https://www.usefroot.com
 CRON_SECRET=                   # auth for /api/cron/* (Vercel sends it on cron invocations)
 SQUARE_WEBHOOK_SIGNATURE_KEY=  # per-app webhook subscription key (docs/FORECASTING.md § Square order webhooks)
-PACE_ALERT_THRESHOLD_PCT=      # optional — behind-pace alert threshold, default 90 (docs/FORECASTING.md § Hardening)
+RESEND_WEBHOOK_SECRET=         # Svix signing secret for /api/webhooks/resend (NOTIFY-2b). ONE PER RESEND ENDPOINT, so Preview and Production hold DIFFERENT values — a secret is issued by the endpoint, not by the account, and pasting staging's into Production makes every production delivery event fail its signature with a 401 that looks exactly like an attack. Unset = the route 500s and records nothing; it never degrades to accepting unverified events. Nothing else breaks without it: mail still sends, and the send log still shows `sent` — it just never advances to `delivered`.
+PACE_ALERT_THRESHOLD_PCT=      # optional — the FALLBACK behind-pace alert threshold, default 90 (docs/FORECASTING.md § Hardening). NOT deployment-wide since NOTIFY-2a: an org that sets Organization.paceAlertThresholdPct at /settings/notifications is evaluated at ITS number and never reads this. NULL there means fall back to here. Accepts any finite value in (0,100]; the per-org input accepts integers 50–100 only.
+NOTIFY_EMAIL_PROVIDER=         # optional — "console" (default: logs only, nothing leaves) or "resend". PER-ENVIRONMENT: setting it to "resend" in Production is what makes the daily pace-alert cron start emailing real managers. Any other value throws (NOTIFY-1).
+RESEND_API_KEY=                # required when NOTIFY_EMAIL_PROVIDER="resend" — Resend API key. Missing → throws; there is NO fallback to the console sender.
+NOTIFY_FROM_EMAIL=             # required when NOTIFY_EMAIL_PROVIDER="resend" — e.g. `USE Froot <noreply@notify.usefroot.com>`. The sending domain is a SUBDOMAIN, never the root. Missing → throws.
 INSTAGRAM_APP_ID=              # Instagram app ID from the Meta app (Instagram API with Instagram Login)
 INSTAGRAM_APP_SECRET=
 INSTAGRAM_REDIRECT_URI=        # optional — defaults to ${NEXT_PUBLIC_APP_URL}/api/instagram/callback

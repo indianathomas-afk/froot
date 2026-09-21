@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, Mail } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
 import { getCurrentUser, hrModuleAvailable, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
@@ -249,6 +249,14 @@ export default async function SettingsPage() {
                   </div>
                   <HrModuleToggle enabled={hrActive} />
                 </div>
+                {/* HR-16's acknowledgment-recipients field USED TO RENDER HERE,
+                    behind hrActive. NOTIFY-2a moved it to
+                    /settings/notifications (Gary's ruling, 2026-09-20 — one
+                    page for every email setting), where F2 renders it disabled
+                    rather than hidden when the module is off. NO SECOND LINK IS
+                    ADDED HERE: F3 ruled ONE link card, and a card that also
+                    links there is a second door to the page whose whole purpose
+                    is that there is one. */}
               </CardContent>
             </Card>
           )}
@@ -342,6 +350,49 @@ export default async function SettingsPage() {
                 </div>
                 <CalendarModuleToggle enabled={calendarActive} />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* NOTIFY-2a (F3, Gary 2026-09-20). THE ONLY EMAIL CONTROL LEFT ON
+              THIS PAGE, AND IT IS A LINK, NOT A SWITCH. F-5b's behind-pace
+              toggle and HR-16's recipients field both rendered here until this
+              phase; the pace toggle's own card lived at this spot. Both moved
+              to /settings/notifications, and nothing was left behind in either
+              place — two screens that can flip one switch is the thing the
+              ruling exists to end, so leaving the toggle here "as well" was the
+              rejected option rather than the cautious one.
+
+              NO STATE IS SHOWN ON THIS CARD ON PURPOSE. An Enabled/Disabled
+              badge here would be a second claim about a setting this page no
+              longer owns, and the first thing to go stale when a consumer is
+              added. The card says where the settings are and nothing else. */}
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Email notifications</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Link
+                href="/settings/notifications"
+                className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                    <Mail className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">
+                      Behind-pace alerts and signed-acknowledgment emails
+                    </h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">
+                      Turn each one on or off, set the pace threshold, and choose who hears about a
+                      completed acknowledgment.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-sm font-medium text-[var(--color-primary)] whitespace-nowrap">
+                  Email notifications &rarr;
+                </span>
+              </Link>
             </CardContent>
           </Card>
         </TabsContent>

@@ -3,6 +3,7 @@ import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from "pdf-
 import { prisma } from "@/lib/prisma"
 import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
 import { streamHrFile, uploadHrFile } from "@/lib/hr-files"
+import { scheduleAckNotification } from "@/lib/hr-ack-notification"
 import { primaryStoreName, primaryStoreTimeZone } from "@/lib/hr"
 import { localDateStr } from "@/lib/reports"
 import type { SubmittedFormValue } from "@/lib/hr-forms"
@@ -766,7 +767,7 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
   )
 
   try {
-    return await prisma.hrSignedRecord.create({
+    const created = await prisma.hrSignedRecord.create({
       data: {
         hrDocumentVersionId,
         staffMemberId,
@@ -776,6 +777,31 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
         signedPdfHash,
       },
     })
+    // ── HR-16: the completion email, and WHY IT IS HERE ──────────────────────
+    // Inside the mint, after the row is committed, on the CREATE path only.
+    //
+    // THIS PLACEMENT IS THE RULING'S SUBSTANCE, not a convenience. Both callers
+    // of ensureSignedRecord would have to schedule it otherwise — the ceremony
+    // (api/hr/documents/[id]/acknowledgments) and the recovery path
+    // (api/hr/documents/[id]/signed-record), the second of which is where the
+    // R1/R2 `recordMissing` mint lands and is the one an added-later call site
+    // would most likely forget. One line here covers both, and every future
+    // caller.
+    //
+    // AND IT FIRES ONCE PER RECORD, WHICH THE CALL SITES CANNOT DO. This
+    // function early-returns an existing current-cycle record ~430 lines above,
+    // so a signer who reloads, or an admin who presses Generate twice, reaches
+    // the caller again and never reaches this line. HR-15b's rehire is the case
+    // that MUST still send, and it does: a new signingCycle is a different
+    // unique key, so it mints, so it notifies.
+    //
+    // NOT on the race path below — the invocation that won the unique
+    // constraint is sending, and a second email for one signature is the defect
+    // this comment exists to prevent.
+    //
+    // scheduleAckNotification never throws and never awaits (src/lib/hr-ack-notification.ts).
+    scheduleAckNotification(created.id)
+    return created
   } catch (err) {
     // Concurrent completion: the unique (version, staff, cycle) key means
     // someone else just created it — theirs is the record.

@@ -397,10 +397,34 @@ phases:
   - id: STAFF-2
     track: platform
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-06
     commits: ["77f7ca3"]
     title: "Location filter on /staff — a dropdown narrowing which store cards render"
+    open:
+      - >
+        NOT VERIFIED IN A BROWSER, AND NOW UNVERIFIED IN PRODUCTION rather than
+        on staging. The notes below record the gate — scoped eslint plus a bare
+        `npm run build`, both green — as the whole of the evidence, and say the
+        staging-SHA precondition could not be met because nothing carried the
+        code yet. It has been in production since 2026-09-06 and the dropdown
+        has still never been looked at.
+      - >
+        THE ID QUESTION IS STILL GARY'S, unchanged by the promotion: the notes
+        below say STAFF-2 was chosen because STAFF-1 is spent, and that a
+        different id is a one-line change here plus the commit trailer. The
+        work commit's own subject still reads "STAFF-1".
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-06 in promotion "df03cc3". Row read `staging` while in
+      production for 13 days (DEBT-72a pattern).
+      THAT PROMOTION HAS NO DEPLOY_LOG ENTRY AT ALL — checked by heading against
+      every `## ` in docs/DEPLOY_LOG.md. "df03cc3" carries "77f7ca3" and its recorder
+      "0ce1a35" and nothing else, and no entry in the log names either. Not fixed
+      here; recorded on DEBT-104.
+      THE "ONE STEP AHEAD OF THE TRUTH" PARAGRAPH BELOW HAS CAUGHT UP and is kept
+      unedited. `staging` was written before the push and was honest about it; what
+      nobody did afterwards was come back.
       THE ID IS STAFF-2, NOT STAFF-1, AND THAT IS A DEVIATION FROM THE PROMPT.
       The session was briefed as "STAFF-1" and that id is already spent: it is
       the shipped 2026-07-23 staff-role phase directly above this row
@@ -2748,10 +2772,40 @@ phases:
   - id: CHK-7
     track: checklists
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-09-09
     commits: ["ce1cf9d"]
     title: "Take Photo did nothing — the button had no handler, no input and no route; capture wired, and the failure made visible"
+    open:
+      - >
+        THE requiresPhoto COMPLETION GATE IS STILL UNRULED — the notes below
+        name it as the one thing this row leaves open. A crew member can still
+        tick a photo-required task with no photo. Refuse, warn, or flag it for
+        the operations report is Gary's call, and it is now an unruled question
+        about production behaviour rather than about staging.
+      - >
+        NO ADMIN SURFACE RENDERS THE PHOTO. Per the notes below, `photoUrl` is
+        read by the execution client and the task-log route and nothing else, so
+        a captured photo is visible only by reopening the execution page. A
+        manager reviewing compliance cannot see it, which is the half that makes
+        it not yet a compliance record.
+      - >
+        requiresTemp IS STILL ENTIRELY UNWIRED — declared in the client's Task
+        interface, read nowhere, `TaskLog.temperatureValue` never written. Same
+        shape as the defect this row repaired, same first commit. The notes
+        below say it needs its own row and it still does not have one.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-09 in promotion "53b5a7c". Row read `in_progress` while in
+      production for 10 days (DEBT-72a pattern).
+      `in_progress` IS THE WORSE HALF OF THIS FINDING and is why this row is named
+      first among the three that carried it: a row at `staging` at least claims the
+      code moved, while `in_progress` reads as work somebody is still doing. Nothing
+      was still being done — CHK-7 finished on 2026-09-09 and shipped the same day.
+      THE DEPLOY_LOG ENTRY FOR "53b5a7c" EXISTS AND WAS ITSELF STAMPED LATE, by
+      DOCS-4 on 2026-09-18, after reading "UNPROMOTED — staging only" for nine days.
+      So the log entry and this row were stale in parallel, for the same promotion,
+      and the pass that fixed one did not look at the other.
       2026-09-09. Short-form repair session, prompt in
       docs/prompts/CHK-7_photo_capture_repair.md. NO DECISIONS.md ENTRY AND ONE
       MAY BE NEEDED — see THE RULING NOT TAKEN below.
@@ -3871,6 +3925,17 @@ phases:
     commits: [cb3f1bb]
     title: "Forecasting polish — goal-edit audit log, CSV export, behind-pace alerts"
     notes: >
+      ── F-5b 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      F-5b ("1ab1149") added the org toggle; production sends nothing until an
+      org enables it. Organization.paceAlertsEnabled defaults to false, and the
+      cron's store query requires it, so every org on every environment reads
+      disabled the moment the migration lands. The pace-alert cron described
+      below is therefore INERT until an admin flips the switch on /settings —
+      which is the point: NOTIFY_EMAIL_PROVIDER=resend in the Production scope no
+      longer starts mailing managers as a side effect of a change made for
+      HR-16. F-5b also fixed DEBT-105 (the burned lock) and left F-5's recipient
+      query untouched by ruling, filing DEBT-106 for the offboarding gap in it.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
       Seed correction: seed said planned; shipped 7-10.
       CLOSED BLOCKER (2026-07-27): "Pace-alert cron depends on the F-1
       CRON_SECRET blocker" is resolved — CRON_SECRET was verified present as
@@ -3878,15 +3943,137 @@ phases:
       notify.ts blocker below is untouched by this and still stands: the cron
       can now authenticate, but it still has nowhere to send mail.
     blockers:
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-20 — THE PROVIDER EXISTS AND HAS DELIVERED. The entry
+          below is kept verbatim per preserve-and-mark; it is the claim this
+          answers, and it asked to be re-verified at the next reconcile rather
+          than assumed, which is what happened.
+          WHAT CLOSED IT: NOTIFY-1 ("1c21368") — Resend behind getEmailSender(),
+          fail-closed, no fallback to the console sender. Delivery PROVEN ON
+          STAGING 2026-09-20 09:34 PT, Resend id
+          01a0bfab-3a0c-70f7-8c95-6c336460b07e, delivered to Gary's inbox from
+          deployment "13bccff". The same mark lands on HR-16 and HR-8 in this
+          commit ("23da754" is HR-16's work); one integration, three entries,
+          exactly as HR-16's blocker predicted.
+          WHAT STAYS OPEN FOR F-5 SPECIFICALLY, and is NOT cleared here: the
+          pace-alert cron can now reach a real provider, but DEBT-105 is live —
+          a runtime send failure still burns a store's monthly PaceAlertLog lock,
+          because the row is written before the send. That is a different defect
+          from "there is nowhere to send mail" and it keeps its own row.
+          NOTHING ABOUT F-5's OWN ALERTS WAS OBSERVED IN AN INBOX. What was
+          proven is the provider, through NOTIFY-1's admin test route.
+      - resolved: true
+        text: >
+          VERIFIED STILL TRUE 2026-07-27 (reconcile Pass 2a) — re-read at source,
+          not assumed. src/lib/notify.ts:21 is still
+          `console.log("[notify:console] ...")` and :26 documents
+          NOTIFY_EMAIL_PROVIDER as "console" (default), with "resend" | "smtp"
+          listed as future options. Pace alerts log to console only — no real
+          email provider is wired into src/lib/notify.ts (also blocks HR-8
+          reminders and HR-16). Re-verify at the next reconcile; a blocker with no
+          verification date is a blocker nobody owns.
+
+  - id: F-5b
+    track: forecasting
+    size: S
+    status: in_progress
+    # Work commit only at the time of writing. This row is composed INSIDE the
+    # docs commit that records it, so that commit's own SHA cannot appear here
+    # (the two-commit pattern, same as HR-16 and CAL-2).
+    commits: ["1ab1149"]
+    title: "Pace alerts — per-org toggle, burned-lock fix (DEBT-105), recipient hygiene ruling"
+    notes: >
+      WHY THIS PHASE EXISTED. F-5's behind-pace alert is the only email Froot
+      sends to MANAGERS. Production was about to set NOTIFY_EMAIL_PROVIDER=resend
+      so HR-16 could deliver, and the two features share one sender — so the
+      moment that variable flipped, the 15:00 UTC pace-alert cron would have
+      started emailing real Keva admins and managers as a side effect of a change
+      made for a different feature. F-5b put a switch between them and fixed what
+      the 2026-09-20 read-only pass found. EMAIL WORDING WAS NOT TOUCHED, proven
+      mechanically rather than by eye: all 15 payload lines diff byte-identical
+      against "ad0c8f2" once indentation is stripped.
+      F1 — TOGGLE DEFAULT false. Gary, 2026-09-20. Nothing sends until someone
+      turns it on, Keva included. The alternative (true, preserving current
+      behaviour) was rejected because it makes the production env flip a sending
+      event. Organization.paceAlertsEnabled Boolean @default(false), migration
+      "20260920190000_f5b_pace_alerts_toggle". Every existing row lands on false,
+      so promoting the migration moves no behaviour on its own.
+      F2 — RECIPIENT QUERY LEFT EXACTLY AS IT IS. Gary, 2026-09-20. The audit
+      asked whether a departed manager can still match src/lib/pace-alerts.ts:91-98
+      and the answer split: a departed MANAGER cannot, because
+      organizationMembership.deleted deletes their StoreUserAssignment rows and
+      that arm of the query requires one — but a departed ADMIN CAN, forever,
+      because the ADMIN arm has no assignment requirement and cannot have one
+      (admins hold no assignment rows by design). User has NO active/deleted/
+      status column, so there is nothing to filter on; the only available test
+      would be a live Clerk membership lookup from inside the cron, which means a
+      paginated Clerk API call per org and a new failure mode when Clerk is down.
+      RULED: leave the query alone, fix it where the defect actually is — the
+      Clerk webhook handler — and file DEBT-106.
+      F3 — COMPENSATING DELETE BY ID, and this is a THIRD path outside the two
+      DEBT-105's own row offered. Gary, 2026-09-20. That row proposed
+      write-after-send (rejected: the standing ruling keeps lock-before-send, so
+      a crash cannot double-alert) or a delivery-status column (bigger, deferred).
+      The delete keeps the concurrency guard at no schema cost. BY ID rather than
+      by the {storeId, month} unique key is the whole argument: a delete by key
+      would destroy whichever row is present, which on a concurrent run is the
+      WINNER'S row — the one whose mail is in flight.
+      F4 — LINK STAYS /dashboard. Gary, 2026-09-20. The audit found there is NO
+      per-store dashboard URL: dashboard/page.tsx takes no searchParams, there is
+      no /dashboard/[storeId], and store selection is localStorage only
+      ("froot.dashboard.store", read through useSyncExternalStore). The accepted
+      consequence, stated rather than glossed: a multi-store manager following the
+      link lands on whichever store their browser last had. Deferred below.
+      F5 — MIGRATION GENERATED AGAINST A DEV DATABASE BROUGHT UP TO DATE FIRST,
+      rather than generated dirty and hand-stripped. Gary, 2026-09-20. This fork
+      did not exist in the prompt; the audit raised it. HR-16's migration had been
+      applied NOWHERE, so a diff taken at that moment emitted BOTH columns, and
+      committing that would have failed the staging deploy with 42701 on the
+      second ADD COLUMN and blocked every later migration. Gary applied HR-16 to
+      dev and the session re-ran the read-only diff until it came back empty
+      before generating anything. The generated file is one statement.
+      VERIFICATION. Fixture scripts/verify-f5-polish.ts, 27 checks, 0 failures —
+      19 pre-existing plus 8 new. TWO LIMITS ARE NAMED AT THEIR CHECKS rather than
+      left for a reader to discover. (a) The gate check asserts the cron's
+      PREDICATE, not the route handler, which needs a CRON_SECRET and a Request:
+      edit the route's filter alone and the check still passes. (b) The last check
+      is a CHARACTERIZATION of the DEBT-106 gap, not an endorsement of it — it
+      pins that an assignment-less ADMIN is still a recipient, and IS EXPECTED TO
+      FAIL when the Clerk webhook is fixed, at which point it should be updated
+      rather than worked around.
+      NOT RUN ANYWHERE. The pace-alerts cron was not fired on staging or
+      production by this session. Staging runs NOTIFY_EMAIL_PROVIDER=resend and
+      would have mailed real staging admin and manager addresses; the fixture is
+      the proof of the lock release and the gate, and the cron gate is proven on
+      production the day after the env flip by the run-count log line.
+    deferred:
       - >
-        VERIFIED STILL TRUE 2026-07-27 (reconcile Pass 2a) — re-read at source,
-        not assumed. src/lib/notify.ts:21 is still
-        `console.log("[notify:console] ...")` and :26 documents
-        NOTIFY_EMAIL_PROVIDER as "console" (default), with "resend" | "smtp"
-        listed as future options. Pace alerts log to console only — no real
-        email provider is wired into src/lib/notify.ts (also blocks HR-8
-        reminders and HR-16). Re-verify at the next reconcile; a blocker with no
-        verification date is a blocker nobody owns.
+        RESOLVED 2026-09-20 BY NOTIFY-2a ("a16bab2"), WITH A RIDER. The text
+        below is the deferral as F-5b wrote it and is NOT edited. What shipped:
+        Organization.paceAlertThresholdPct Int?, migration
+        20260920210000_notify2a_pace_threshold, set at /settings/notifications.
+        THE ENV VAR WAS NOT RETIRED — F1 (Gary, 2026-09-20) made NULL mean "fall
+        back to PACE_ALERT_THRESHOLD_PCT, then 90", so the sentence below stays
+        true of every org that has not set its own number, which today is all of
+        them. THE RIDER: the input validates an INTEGER 50–100 while the env
+        reader accepts any finite value in (0,100] including fractions, so a
+        fractional value is legal for the FALLBACK and impossible for the ORG
+        value. Nobody sets one. Recorded in docs/DECISIONS.md, the schema
+        comment and docs/MIGRATIONS.md.
+        Per-org alert threshold. PACE_ALERT_THRESHOLD_PCT stays a single
+        deployment-wide env var (default 90). Recorded, not built.
+      - >
+        Admin daily digest — one mail summarising every behind-pace store
+        instead of one mail per store. Recorded, not built.
+      - >
+        Per-store dashboard URL, so the alert can link a manager to the store it
+        is about rather than to whichever store their browser last had (F4). The
+        precedent already in the codebase is /checklists?store=<id>
+        (checklists/page.tsx), which validates the requested store against the
+        caller's own scope before trusting it — a pace alert's link must do the
+        same, since the recipient list and the store's audience are not the same
+        set. /dashboard today takes no searchParams at all.
 
   # ---- HR / signing ----
   # Built 7-12…7-14, promoted to prod 7-21 (9743899) with HR dark in prod:
@@ -3997,6 +4184,25 @@ phases:
     commits: [61eea85]
     title: "Compliance rollup dashboard — live-computed, /hr/compliance, real /staff column"
     notes: >
+      ── EMAIL BLOCKER RESOLVED 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      PREPENDED TO NOTES RATHER THAN MARKED ON A BLOCKER ENTRY, by Gary's F5
+      ruling (2026-09-20), BECAUSE THIS ROW HAS NO `blockers:` ARRAY — its email
+      gate has only ever existed as the clause at the foot of this note. Creating
+      an array to hold a single already-closed entry would put a `blockers:` key
+      on a shipped row that has never carried one, which reads on
+      /internal/roadmap as a phase that acquired a problem rather than one that
+      lost one.
+      THE CLAUSE BELOW — "reminder emails blocked on the notify.ts provider (see
+      F-5 blocker)" — IS SPENT. NOTIFY-1 ("1c21368") put Resend behind
+      getEmailSender(); delivery was PROVEN ON STAGING 2026-09-20 09:34 PT,
+      Resend id 01a0bfab-3a0c-70f7-8c95-6c336460b07e, delivered to Gary's inbox
+      from deployment "13bccff". F-5's and HR-16's blocker entries carry the same
+      mark, applied in the same commit as HR-16's work ("23da754").
+      HR-8's REMINDERS ARE STILL UNBUILT, and that is the whole remaining
+      distance: what cleared is the reason they COULD NOT be built, not the
+      building. They are explicitly out of HR-16's scope and are the next phase;
+      they reuse HR-16's Organization.hrAckRecipients rather than introducing a
+      second recipient source.
       Built 7-22, staging pass complete 7-22 (caught BUG-2), prod via 942bc59.
       No prod smoke test recorded. Follow-ups spun out as HR-11/12/13/14;
       reminder emails blocked on the notify.ts provider (see F-5 blocker).
@@ -4211,24 +4417,135 @@ phases:
   - id: HR-16
     track: hr
     size: S-M
-    status: planned
+    # `in_progress` -> `staging` 2026-09-20 BY THIS PRE-PUSH-CHECK, per WORKFLOW.md
+    # session rule 4 and PRE-PUSH-CHECK Step 4: `staging` means the code is on the
+    # branch, and this check is the last thing that runs before Gary pushes. NOT
+    # PUSHED AT THE MOMENT OF WRITING — Claude never pushes. The build session's
+    # own comment, which said this flip was the check's to make, is superseded
+    # here and was correct.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED BY
+    # THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "558d532" did not exist when
+    # the row was composed, and the two-commit pattern cannot record it. The third
+    # is the commit this line is being written in, so it is named as "the commit
+    # immediately after 558d532" rather than guessed at. Same shape as NOTIFY-1,
+    # CAL-2, CAL-2a and CAL-2b.
+    commits: ["23da754", "558d532"]
     title: "Signed-acknowledgment completion emails + org-level recipient routing"
-    notes: Prerequisite — wire a real email provider into src/lib/notify.ts (see F-5 blocker).
+    notes: >
+      ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
+      per Step 4; the build session's comment saying the flip was this check's to
+      make is kept and is now spent.
+      RULING RATIFIED AS WRITTEN. The docs/DECISIONS.md HR-16 entry (F1–F5) was
+      printed verbatim and put to Gary; his whole reply, recorded exactly:
+      "Ratified as written. Proceed." No rewording, so the entry's prose is
+      unchanged and carries an additive ratification paragraph only.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. docs/DEPLOY_LOG.md entry written into the
+      file by this check, headed "UNPROMOTED — 2026-09-20", heading count 53 -> 54
+      with every prior entry intact. PRESERVE-AND-MARK PROVEN MECHANICALLY rather
+      than eyeballed: every line the work commits deleted from this file reappears
+      in it, the sole exception being the `notes:` KEY on this row, whose value
+      moved verbatim into the block scalar below. No meta.updated key. CLAUDE.md
+      untouched — this phase changed no house rule. docs/prompts/HR-16.md and
+      docs/prompts/HR-16_AUDIT.md both committed in "558d532".
+      THE MIGRATION IS NAMED IN THE DEPLOY_LOG ENTRY and has been applied to NO
+      DATABASE. `20260920120000_hr16_ack_recipients` reaches STAGING through
+      `migrate deploy` in vercel-build on this push; PRODUCTION DOES NOT HAVE IT
+      and gets it in whichever later merge to `main` carries this code.
+      THE VERIFICATION STATEMENT BELOW STILL BINDS: no HR-16 email has been seen
+      in an inbox, and this check saw nothing either — it read files, counted
+      lines and ran `npm run build`. Staging evidence comes after Gary pushes.
+      ── BUILT 2026-09-20 ("23da754"). PREPENDED; NOTHING BELOW IS EDITED. ──
+      One email per MINTED HrSignedRecord to Organization.hrAckRecipients, the
+      first real consumer of NOTIFY-1. Migration
+      20260920120000_hr16_ack_recipients — one column,
+      `hrAckRecipients TEXT[] DEFAULT ARRAY[]::TEXT[]`, additive, no backfill.
+      GENERATED ONLY AND APPLIED TO NO DATABASE: `migrate diff` was the only
+      prisma command this session ran, and it lands on staging via
+      `migrate deploy` in the Vercel build when Gary pushes. docs/MIGRATIONS.md
+      carries the entry.
+      WIRED INSIDE ensureSignedRecord (src/lib/hr-signed-pdf.ts), after the
+      create, on the CREATE PATH ONLY — not at the two call sites. That covers
+      the ceremony AND the recovery/`recordMissing` path with one line, and it
+      fires ONCE PER RECORD, which the call sites cannot do: the function
+      early-returns an existing current-cycle record, so a reload or a second
+      press of Generate never reaches it. HR-15b's rehire is a new signingCycle,
+      therefore a new unique key, therefore a mint, therefore an email — the
+      ruling this placement satisfies rather than merely permits. Deliberately
+      NOT on the concurrent-completion race path: the invocation that won the
+      unique constraint is the one that sends.
+      THE SIGNING PATH IS UNTOUCHED BY A BROKEN PROVIDER. The send runs in
+      Next's after(); getEmailSender() is INSIDE the try/catch rather than only
+      send(), because it throws on a misconfigured deployment and never degrades
+      to console (NOTIFY-1's fail-closed design). Every failure logs and, per F2,
+      writes an AuditLog row; nothing throws into the response.
+      THE EMAIL RE-DERIVES ITS FACTS FROM THE ACKNOWLEDGMENT SNAPSHOTS on the
+      same three keys the mint uses (version, staff, signingCycle), exactly as
+      the Certificate of Acknowledgment derives them — both HR-11c names, the
+      store, the version. The cheap alternative (StaffMember.fullName) is the
+      LIVE name and would disagree with the frozen artifact the email links to
+      the moment anyone is renamed.
+      RULINGS (Gary, 2026-09-20; full text in docs/DECISIONS.md). F1 — ADMIN
+      only, on /settings, which gives it for free: settings.access is ADMIN_ONLY
+      and not grantable, and PUT /api/hr/settings enforces independently.
+      F2 — an AuditLog row per attempt, entityType "Notification", action
+      "email.sent"/"email.failed", metadata carrying kind "hr.ack", the
+      recipient list, the signed-record id, and the Resend id or the error;
+      WRITE-ONLY FOR NOW, with NOTIFY-2 filed to build the reader.
+      F3 — empty recipients is a silent skip with a NAMED log line, matching
+      F-5's "no admin/manager recipients" (src/lib/pace-alerts.ts:100). No audit
+      row: the ruling is one row per ATTEMPT and nothing was attempted.
+      F4 (raised by the audit, not by the prompt) — THERE IS NO ADMIN PAGE FOR
+      ONE RECORD; the prompt asked for a route that does not exist. The link is
+      /api/hr/signed-records/<id>/download, the only URL that names the record.
+      F5 — HR-8's clearance is PREPENDED TO ITS NOTES; no blockers array is
+      created for it.
+      replyTo IS NOT SET. src/lib/notify.ts:19-22 says "HR-16 needs it"; that
+      comment is superseded by this row's ruling and is left in place rather
+      than edited.
+      NOT VERIFIED, AND NOTHING WAS SEEN IN AN INBOX BY THIS SESSION. The build
+      is green and the audit is docs/prompts/HR-16_AUDIT.md; staging evidence is
+      owed after Gary pushes, per the prompt's six-step pass. The blocker below
+      is marked resolved on NOTIFY-1's PROVEN STAGING DELIVERY, which is a
+      different claim from HR-16's own send having been observed.
+      ── THE 2026-08-06 ROW TEXT IS NEXT, UNEDITED ──
+      Prerequisite — wire a real email provider into src/lib/notify.ts (see F-5 blocker).
     blockers:
-      - >
-        NO REAL EMAIL PROVIDER EXISTS — promoted from prose to a blocker entry
-        2026-08-06 so the board can tell this row from a ready one. Verified at
-        source the same day: src/lib/notify.ts:19-24 is `consoleEmailSender`,
-        which console.logs the message instead of delivering it, and
-        getEmailSender() returns it unconditionally — NOTIFY_EMAIL_PROVIDER is
-        documented at :25 as "console" (default) with "resend" | "smtp" as
-        future options, and nothing reads the variable. This phase is entirely
-        the sending of email, so it cannot start at all, not merely ship
-        degraded.
-        CLEARS WHEN: a provider integration lands behind getEmailSender().
-        THIS ONE GATE BLOCKS THREE THINGS, which is the argument for doing it:
-        HR-16 (this row, wholly), F-5's pace alerts (its own live blocker, same
-        file, same line) and HR-8's reminders. One integration clears all three.
+      - resolved: true
+        text: >
+          RESOLVED 2026-09-20 — A REAL PROVIDER EXISTS AND HAS DELIVERED. The
+          entry below is kept verbatim per preserve-and-mark; it records what was
+          true on 2026-08-06, which is what makes this clearance legible.
+          WHAT CLOSED IT: NOTIFY-1 ("1c21368") put Resend behind
+          getEmailSender(), and delivery was PROVEN ON STAGING 2026-09-20
+          09:34 PT — Resend id 01a0bfab-3a0c-70f7-8c95-6c336460b07e, delivered
+          to Gary's inbox from deployment "13bccff". NOTIFY-1's own row named
+          this pass as the one that would flag the three entries once delivery
+          was proven, rather than flagging them at build time on the strength of
+          code alone.
+          WHAT THIS DOES NOT CLAIM. Nobody has yet seen an HR-16 email in an
+          inbox. The cleared gate is "no provider exists", which is answered at
+          source and in Resend's own log; HR-16's own send is verified by the
+          staging pass Gary runs after pushing "23da754", not by this mark.
+          THE SAME MARK LANDS ON F-5 AND ON HR-8 in this commit — one
+          integration, three entries, as the text below predicted.
+      - resolved: true
+        text: >
+          NO REAL EMAIL PROVIDER EXISTS — promoted from prose to a blocker entry
+          2026-08-06 so the board can tell this row from a ready one. Verified at
+          source the same day: src/lib/notify.ts:19-24 is `consoleEmailSender`,
+          which console.logs the message instead of delivering it, and
+          getEmailSender() returns it unconditionally — NOTIFY_EMAIL_PROVIDER is
+          documented at :25 as "console" (default) with "resend" | "smtp" as
+          future options, and nothing reads the variable. This phase is entirely
+          the sending of email, so it cannot start at all, not merely ship
+          degraded.
+          CLEARS WHEN: a provider integration lands behind getEmailSender().
+          THIS ONE GATE BLOCKS THREE THINGS, which is the argument for doing it:
+          HR-16 (this row, wholly), F-5's pace alerts (its own live blocker, same
+          file, same line) and HR-8's reminders. One integration clears all three.
 
   - id: HR-17
     track: hr
@@ -6413,10 +6730,32 @@ phases:
   - id: HR-29
     track: hr
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-08-28
     commits: ["47dbb00", "a5799d3", "f70ae90"]
     title: "TrainingModule display order — orderIndex, an ADMIN reorder endpoint, and every consuming surface reading it"
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN by 2026-08-28 in promotion "2a0e67a". Row read `staging` while in
+      production for 22 days (DEBT-72a pattern) — the longest of the eight.
+      THE DATE IS A CEILING, NOT A MEASUREMENT, and this row is the only one of the
+      eight where that is true. "2a0e67a" did NOT carry this work: its FIRST parent
+      is "bd99d98", which already contained all five HR-29 commits, so main had been
+      FAST-FORWARDED to them at some point between "04a4bf4" (2026-08-24, the
+      previous promotion's own DEPLOY_LOG commit, also on main's first-parent line)
+      and the 2026-08-28 merge. Git records no event for a fast-forward, so the true
+      date is somewhere in that four-day window and 2026-08-28 is the latest it can
+      be. This is DEBT-38's mechanism exactly — `--no-ff` exists to stop it and was
+      not used.
+      THE DEPLOY_LOG ENTRY FOR "2a0e67a" SAYS "Prior main tip was `607926b`" AND THAT
+      IS WRONG. The prior tip was "bd99d98"; "607926b" is the merge before the
+      fast-forward. The entry's ATTRIBUTION of HR-29 to that promotion is the only
+      dated record there is and is what this rider follows; its parent claim is not.
+      Reported, not edited — the entry is a dated claim (CLAUDE.md § Where documents
+      live) and correcting it belongs to a session scoped to the log.
+      THE "NO ENTRY IS DUE" PARAGRAPH BELOW IS SPENT, correctly, and is kept
+      unedited: it said an entry falls due when this work merges to main, and it did,
+      and one exists.
       ── HR-29 STAGING PASS 2026-08-24 — prepended per preserve-and-mark;
       NOTHING BELOW THIS BLOCK IS EDITED. Deployed and verified at
       2438fef~staging. All six of the order's §6 checks pass.
@@ -6594,8 +6933,9 @@ phases:
   - id: HR-32
     track: hr
     size: S
-    status: in_progress
-    commits: ["340a545", "6259d9c", "520148a", "ea952a8"]
+    status: shipped
+    shipped: 2026-09-05
+    commits: ["340a545", "6259d9c", "520148a", "ea952a8", "61fdd68", "5695a01"]
     title: "A training lesson can point at one Document Library document — Link kind only, one per lesson"
     blockers:
       - >
@@ -6612,6 +6952,32 @@ phases:
         blank page proves nothing — it cannot distinguish "correctly suppressed"
         from "this login sees nothing here at all".
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6c). ── THE COMMITS ARRAY IS NOW COMPLETE: "61fdd68"
+      and "5695a01" were added from the SHAs this row already named in prose below,
+      not from a fresh read of git; the array is six, and the paragraph saying it is
+      "still short by two" is kept unedited and is now spent.
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-05 in promotion "f3f9d31". Row read `in_progress` while in
+      production for 14 days (DEBT-72a pattern).
+      THIS ROW WAS REPORTED STALE ON THE DAY IT SHIPPED AND NOBODY ACTED ON IT.
+      HR-33's own TRIAGE AT CLOSE, written 2026-09-05, reads: "COMMENT 3: HR-32's own
+      row carries status `in_progress` — the only row in this file with that value —
+      and it promoted to main today as f3f9d31; it should read `shipped`, and its
+      commits list omits 5695a01." Filed as a COMMENT rather than a row, which is
+      DEBT-84's triage working as designed — and a comment inside another row's notes
+      is read by whoever reads that row, which for fourteen days was nobody. That is
+      the finding on DEBT-104 in miniature.
+      THE COMMITS ARRAY IS STILL SHORT BY TWO, named here in prose rather than added
+      to it, following the precedent DOCS-4 set on CAL-1b: the docs commit "61fdd68"
+      and the deploy-log commit "5695a01", both inside `f3f9d31^1..f3f9d31^2`. This
+      session is scoped to status and promotion dates, and editing a `commits` array
+      is not that.
+      THE FIRST BLOCKER BELOW IS SPENT AND IS KEPT UNEDITED — it says "NOT PUSHED.
+      All four commits sit on local `staging` only", which was true when written and
+      has been false since 2026-09-05. THE SECOND BLOCKER IS STILL LIVE: the STORE
+      positive — the same login SEEING the lesson and its video while NOT seeing the
+      linked-document block — has never been taken, and it is now owed against
+      production rather than staging.
       2026-09-05. THE RULING IS IN docs/DECISIONS.md UNDER
       "2026-09-05 — HR-32: linked document on a training lesson" AND IS NOT
       RESTATED HERE. It is Gary's wording, ratified, and the entry also records
@@ -6738,10 +7104,25 @@ phases:
   - id: HR-33
     track: hr
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-05
     commits: ["1222a81", "aa25cb3", "5711187"]
     title: "A training lesson can carry one external destination — its own URL and label, beside the video and the linked document"
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-05 in promotion "bf5a66f". Row read `staging` while in
+      production for 14 days (DEBT-72a pattern).
+      THE DEPLOY_LOG ENTRY FOR THIS WORK IS STAMPED WITH THE WRONG MERGE. It is
+      headed "c870ba7 — 2026-09-06"; the merge that carried HR-33 is "bf5a66f" on
+      2026-09-05. Proved rather than inferred: all three of this row's commits are
+      ancestors of "bf5a66f" and NONE is an ancestor of "bf5a66f^1", so they entered
+      main through that merge, and "c870ba7" is simply the NEXT merge — its own first
+      parent IS "bf5a66f". The entry was written unpromoted (its own commit
+      "5711187" says so) and stamped later with a SHA that was current rather than
+      correct. IT MATTERS BECAUSE THE HEADING SHA IS WHAT A ROLLBACK READS: reverting
+      "c870ba7" reverts SEARCH-1, not this. Reported, not edited — a heading SHA is a
+      pointer and repairing it is a DEPLOY_LOG-scoped session's job, and it is the
+      second pointer defect DEBT-104 records.
       2026-09-05. NO DECISIONS.md ENTRY AND NONE IS MISSING. Nothing in this row
       needed a ruling — no document, no grant, no audience, no role question. The
       PRE-PUSH-CHECK should skip its Step 1 here rather than hunt for an entry.
@@ -6924,10 +7305,32 @@ phases:
   - id: HR-35
     track: hr
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-09-07
     commits: ["75ff274"]
     title: "Unassign training — a manager can remove an untouched assignment, and is told in a sentence why a started one cannot be removed"
+    open:
+      - >
+        NO BROWSER OBSERVATION, AND NOW NONE IN PRODUCTION. The notes below say
+        the evidence is gate-only — scoped eslint plus `npm run build` — and
+        that the rendered refusal was read off the source rather than seen. The
+        blocked dialog, its title, and the three reasons
+        removalBlockedReason() can give have never been looked at by anyone,
+        and the code has been live since 2026-09-07.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-07 in promotion "049984a". Row read `in_progress` while in
+      production for 12 days (DEBT-72a pattern).
+      THE ROW SAID WHY IT WAS `in_progress` AND THE REASON WAS HONEST: "status is
+      in_progress at the work SHA" because the refusal dialog had been read off the
+      source and never seen. That is a correct use of the value at the time of
+      writing and a wrong one by the next day, which is the distinction this pass
+      exists to draw — `status` records WHERE THE CODE IS, not whether anyone has
+      looked at it. The looking is owed below.
+      NOTE WHAT THIS ROW'S OWN TRIAGE CAUGHT AND WHAT IT MISSED. Its COMMENT 1 flagged
+      HR-34's DEPLOY_LOG entry still reading "UNPROMOTED — staging only" while that
+      work was live. Same defect class, one row over, seen and written down — and its
+      own status was wrong in the same paragraph.
       2026-09-07. Short-form session, no audit phase, no stop gate — the rule
       was settled in the prompt (docs/prompts/2026-09-07_UNASSIGN-TRAINING_SESSION.md).
       NO DECISIONS.md ENTRY AND NONE IS MISSING: the ruling is recorded in that
@@ -15370,10 +15773,27 @@ phases:
   - id: SEARCH-1
     track: platform
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-06
     commits: ["ba3d1e5", "f964602", "5b8cf5b"]
     title: "A global search bar in the (app) sidebar — training content and help articles, and nothing about a person"
+    open:
+      - >
+        THE REQUEST-LEVEL PASS AS ADMIN, MANAGER AND STORE WAS NEVER RUN. The
+        notes below name it as the one thing not verified, on the grounds that
+        Claude never pushes and staging did not have the code. Staging and
+        production have both had it since 2026-09-06. The per-role scope
+        evidence is all harness output against the dev branch; no request has
+        been made against a deployed environment under any of the three roles.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-06 in promotion "c870ba7". Row read `staging` while in
+      production for 13 days (DEBT-72a pattern).
+      THE DEPLOY_LOG ENTRY FOR THIS ONE IS CORRECTLY STAMPED — "c870ba7 —
+      2026-09-06" is the merge that carried all three of this row's commits. Worth
+      saying because the HR-33 entry two headings below it carries the SAME SHA and
+      should not: that entry belongs to "bf5a66f". A reader comparing the two would
+      otherwise reasonably conclude both promotions were one.
       2026-09-06. TIER 2. One route, one client component, one lib file, one new
       evidence script. No schema change, no new capability, no new page route.
       FIVE COMMITS ACROSS TWO CORRECTION ROUNDS, AND THE COUNT IS DELIBERATE.
@@ -15582,10 +16002,25 @@ phases:
   - id: SELF-1
     track: hr
     size: M
-    status: staging
+    status: shipped
+    shipped: 2026-09-07
     commits: ["2eeee6a", "3d2752a", "dc13aa8", "9e158dc", "309b8f1", "e8145d5", "b537a89"]
     title: "\"Show me, me\" — one identity resolver behind four surfaces: the /dashboard assignment banner, the /staff own-row pin, and the sidebar footer's name and link"
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6b). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-07 in promotion "608955b". Row read `staging` while in
+      production for 12 days (DEBT-72a pattern).
+      THAT PROMOTION HAS NO DEPLOY_LOG ENTRY AT ALL — the second of two in this pass,
+      with STAFF-2's "df03cc3". "608955b" carried ten commits, seven of them this
+      row's, and no heading in docs/DEPLOY_LOG.md names it. THIS IS THE LARGEST
+      UNLOGGED PROMOTION OF THE EIGHT and it carries the identity resolver four
+      surfaces read. Recorded on DEBT-104, not fixed here.
+      THE FOUR BLOCKERS BELOW ARE UNTOUCHED AND ALL FOUR STAY LIVE. Nothing in this
+      pass observes anything; in particular criterion 4 — a device login sees no
+      banner — was already ruled a PRODUCTION spot-check obligation (Gary,
+      2026-09-07), and the code it applies to has been in production since the day
+      after that ruling. The obligation did not start today, but nothing has recorded
+      that it became exercisable.
       PUSHED AND PARTIALLY VERIFIED ON STAGING 2026-09-07, prepended per
       preserve-and-mark; nothing below is edited. Status moved in_progress ->
       staging in the same session the code was pushed (WORKFLOW.md rule 4). The
@@ -15877,6 +16312,9 @@ phases:
       respectively. The two still live are DEBT-98's shared cron-secret
       comparison and the missing /calendar help article, and nothing observed
       on staging touches either.
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── THE "DEBT-98" IN THE SENTENCE ABOVE IS NOW
+      DEBT-108. The cron-secret row was renumbered out of a collision with SELF-1's
+      DEBT-98; the sentence is kept as written.
       ── RIDER 2026-09-18 (DOCS-4). PREPENDED; NOTHING BELOW IS EDITED. ──
       THE PROMOTION RAN BEFORE THE STAGING PROTOCOL, AND BEFORE THIS ROW SAID
       ANYTHING BUT `staging`. Gary ran the promotion template end to end at
@@ -15947,6 +16385,9 @@ phases:
       means the CODE IS ON THE BRANCH, not that anything was verified: the
       migration's state on dev is unknown to this session, the staging pass has
       still not run, DEBT-98 is open, and /calendar still has no help article.
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── THE "DEBT-98" IN THE SENTENCE ABOVE IS NOW
+      DEBT-108 — the cron-secret row, renumbered out of a collision with SELF-1's
+      DEBT-98. Still open; only the id moved.
       Do not read the status change as evidence.
       ONE THING THE PUSH DID PROVE, and it is worth keeping because it was a
       named blocker risk: staging deployed. The Vercel build runs
@@ -16026,6 +16467,9 @@ phases:
       registered capability with ZERO call sites app-wide. R1 ruled it stays
       that way - CAL-1 does not change checklist semantics - and the gap is
       filed as DEBT-97.
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── THE "DEBT-97" IN THE SENTENCE ABOVE IS NOW
+      DEBT-107 — the `checklists.execute` row, renumbered out of a collision with
+      SELF-1's DEBT-97. Still open; only the id moved.
       R2 - Organization.calendarEnabled is a DEDICATED BOOLEAN COLUMN, not a
       fifth entry in activeModules. The schema's own comment makes activeModules
       "the BILLABLE ADD-ON list", and the calendar is part of Checklists rather
@@ -16169,6 +16613,9 @@ phases:
         COPIED DELIBERATELY FROM THE DAY-CLOSE CRON ON GARY'S RULING rather
         than fixed here. Five cron routes share it; one fixed and four not is a
         divergence nobody can see. Tracked as DEBT-98, which covers all of them.
+        ── RIDER 2026-09-19 (DOCS-6c collision fix). ── THAT ROW IS NOW DEBT-108, renumbered
+        out of a collision with SELF-1's DEBT-98. This blocker is unchanged and
+        still live.
       - >
         /calendar HAS NO HELP ARTICLE. `scripts/generate-guide.mjs` warns at
         every build that 42 of 66 claimable routes are unclaimed and /calendar
@@ -16314,10 +16761,24 @@ phases:
   - id: CAL-1b
     track: cal
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-18
     commits: ["9936610"]
     title: "Calendar reminders could not be edited after saving — CAL-1's B6 specified Edit / Archive and the build shipped Archive alone"
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79" ("promote: CAL-1b, DOCS-4,
+      CAL-2, CAL-2a, DOCS-5, CAL-2b", Gary, 21:31 Pacific — a `--no-ff` merge whose
+      parents are "53cb9ce" and "c0528ad"). Status flipped `staging` -> `shipped`.
+      Verified from git, not from a report: "9936610" and its two docs commits
+      "00db87e" and "dfbfe6e" are all inside `d2b8d79^1..d2b8d79^2`.
+      THE CARRY LINE IN THE `53cb9ce` DEPLOY_LOG ENTRY IS STAMPED IN THE SAME PASS —
+      it read "STILL UNPROMOTED, staging only" and said in its own text that it gets
+      its own stamp when CAL-1b is promoted. This is that stamp.
+      THE FIRST BLOCKER IS UNTOUCHED BY THE PROMOTION AND STAYS LIVE. Changing a
+      Repeat and seeing the re-derive note WITH A COMPLETED OCCURRENCE STILL ON THE
+      GRID is still unobserved; what changed is that it is now unobserved in
+      production rather than on staging. A merge moves code, never evidence.
       ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
       VERIFIED ON STAGING 2026-09-18, IN PART. Gary, in chat the same day: the
       Edit dialog OPENS PRE-FILLED and SAVE WORKS. Observed on staging, in org
@@ -16496,7 +16957,8 @@ phases:
   - id: CAL-2
     track: cal
     size: L
-    status: staging
+    status: shipped
+    shipped: 2026-09-18
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE LAST TWO ARE ADDED
     # BY THE CHECK AND THAT IS BY DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so the docs SHA does not exist
@@ -16633,6 +17095,21 @@ phases:
         is that five cron routes share it and one fixed with four not is a
         divergence nobody can see. Its own row owns the sweep.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79". Status flipped `staging` ->
+      `shipped`. The work commit "ed98ff2", the docs commit "55b6e87" and the check
+      commit "b95d506" — the third named in prose by the DOCS-5 rider below — are
+      all inside `d2b8d79^1..d2b8d79^2`.
+      THE MIGRATION'S THIRD BRANCH IS NO LONGER OUTSTANDING.
+      `20260918180000_cal2_scheduled_checklists` goes to production through
+      `migrate deploy` in the Vercel build of this merge, which is exactly the path
+      the resolved third blocker below named. NOT VERIFIED AGAINST
+      `br-sparkling-block` HERE — a docs session does not read a deployed database
+      (CLAUDE.md § Environment Variables) — so this records the path, not a count.
+      WHAT STILL CONTAINS THIS PHASE IN PRODUCTION: the calendar module is off for
+      every org there, so the promotion deployed code that nobody can reach. The six
+      checks on CAL-1's second blocker are still unrun, and enabling the module for
+      a production org is Gary's action in the UI, not something this merge did.
       ── RIDER 2026-09-18 (CAL-2b). PREPENDED; NOTHING BELOW IS EDITED. ──
       THIS PHASE SHIPPED AN ARCHIVE THAT ORPHANED EVERY CHECKLIST IT HAD
       GENERATED, AND IT IS FIXED ON CAL-2b ("00e2615"). Not a regression from
@@ -16880,7 +17357,8 @@ phases:
   - id: CAL-2a
     track: cal
     size: S
-    status: staging
+    status: shipped
+    shipped: 2026-09-18
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
     # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row
     # is written INSIDE the commit that records it, so "293ae36" did not exist
@@ -16952,6 +17430,11 @@ phases:
           page in by the typecheck rather than by a decision. Gary's call
           whether it gets a row.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79". Status flipped `staging` ->
+      `shipped`. "9e39b56", the docs commit "293ae36" and the check commit "6d69b6c"
+      — the third named in prose by the DOCS-5 rider below rather than added to the
+      array — are all inside `d2b8d79^1..d2b8d79^2`.
       ── RIDER 2026-09-18 (DOCS-5). PREPENDED; NOTHING BELOW IS EDITED. ──
       VERIFIED ON STAGING 2026-09-18 19:08 PDT, AND PUSHED. Status moved
       `in_progress` -> `staging`: "9e39b56", "293ae36" and the check's own
@@ -17062,7 +17545,8 @@ phases:
   - id: CAL-2b
     track: cal
     size: S
-    status: in_progress
+    status: shipped
+    shipped: 2026-09-18
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
     # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so "493348f" did not exist when
@@ -17106,6 +17590,18 @@ phases:
         by SQL after verifying, or leaves them; either way the count only stops
         growing from this commit forward.
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79". Status flipped `in_progress`
+      -> `shipped`, IN ONE MOVE AND SKIPPING `staging` ENTIRELY, which is worth
+      saying rather than quietly correcting. This row sat at `in_progress` while its
+      three commits — "00e2615", the docs commit "493348f" and the check commit
+      "c0528ad" — were pushed to staging AND then merged to main; the `staging` flip
+      that WORKFLOW.md rule 4 owes was never made by anything, because the
+      PRE-PUSH-CHECK that ran last did not own it. THAT GAP IS THE REASON FOR THIS
+      SESSION'S THIRD HARDENING: PRE-PUSH-CHECK Step 4 now sets `status: staging` in
+      the same pass, so the check that is the last thing before a push is the thing
+      that records it. The status here is correct now; the path it took to get here
+      is the finding.
       BUILT 2026-09-18, work commit "00e2615", TIER 2. Two defects Gary
       observed on staging the same day CAL-2 and CAL-2a were built. Prompt of
       record: docs/prompts/CAL-2b_archive_cleanup_overdue_days.md.
@@ -17217,6 +17713,741 @@ phases:
       comment this re-confirms, and the per-store "today" convention it set),
       DEBT-101 (closed here), DEBT-61 (the litter this stops recreating),
       S5-D78 (the predicate, now shared rather than forked).
+  - id: NOTIFY-1
+    track: platform
+    size: S
+    # `in_progress` -> `staging` 2026-09-19 BY THIS PRE-PUSH-CHECK, per WORKFLOW.md
+    # session rule 4 and PRE-PUSH-CHECK Step 4: `staging` means the code is on the
+    # branch, and this check is the last thing that runs before Gary pushes. NOT
+    # PUSHED AT THE MOMENT OF WRITING — Claude never pushes.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED BY
+    # THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "8a10f8d" did not exist when
+    # the row was composed, and the two-commit pattern cannot record it. The third
+    # is the commit this line is being written in, so it is named as "the commit
+    # immediately after 8a10f8d" rather than guessed at. Same shape as CAL-2,
+    # CAL-2a and CAL-2b.
+    commits: ["1c21368", "8a10f8d"]
+    title: "Real email delivery — Resend behind src/lib/notify.ts, admin test route"
+    notes: >
+      ── PRE-PUSH-CHECK 2026-09-19. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here, per
+      Step 4; the line at the foot saying the check "flips this row to `staging`
+      when Gary pushes" is kept unedited and is now spent — the flip happens at the
+      check, not at the push, because nothing between the two owns it (DEBT-104).
+      NO RULING: NOTIFY-1 added and changed nothing in docs/DECISIONS.md, so Step 1
+      is a no-op and nothing was put to Gary for ratification.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. docs/DEPLOY_LOG.md entry written into the
+      file by this check, headed "UNPROMOTED — 2026-09-19", heading count 52 -> 53
+      with the `__` gate at 0. docs/FORECASTING.md § Hardening (F-5) and CLAUDE.md
+      § Environment Variables both carry the three variables. docs/prompts/NOTIFY-1.md
+      committed in "8a10f8d". Preserve-and-mark intact; no meta.updated key.
+      THE VERIFICATION STATEMENT BELOW IS UNCHANGED AND STILL BINDS: nothing has
+      been seen in an inbox, and this check observed nothing either. It read code,
+      counted lines and ran `npm run build`. Staging evidence comes after Gary
+      pushes and provisions Resend.
+      ONE FLAW FOUND AND FILED, NOT FIXED: DEBT-105. The env-validation move
+      recorded in deviation (2) below protects the CONFIG case only; a runtime send
+      failure still burns a store's monthly PaceAlertLog lock, because the row is
+      written before the send. TIER 1 — no code change here.
+      Built 2026-09-19. Env-var configuration only (NOTIFY_EMAIL_PROVIDER,
+      RESEND_API_KEY, NOTIFY_FROM_EMAIL); org-level recipient settings are
+      HR-16's job. Fail-closed: provider=resend with a missing key or from
+      address throws, never falls back to console. Clears the shared blocker on
+      F-5, HR-16 and HR-8 ONCE STAGING DELIVERY IS PROVEN — those blocker
+      entries are flagged resolved in the PRE-PUSH-CHECK/docs pass that
+      records the evidence, not here.
+      THREE DEVIATIONS FROM THE PROMPT, ALL FORCED OR SAFER, ALL REPORTED IN
+      SESSION. (1) The prompt said add the three variables to `.env.example`.
+      THERE IS NO SUCH FILE AND THERE CANNOT BE ONE: .gitignore line 34 is
+      `.env*`, so it would be untracked and uncommittable without changing a
+      repo-wide convention this row has no mandate to change. The three
+      variables are documented instead in CLAUDE.md § Environment Variables,
+      beside PACE_ALERT_THRESHOLD_PCT, which is where this repo actually keeps
+      its required-env list. (2) RESEND_API_KEY and NOTIFY_FROM_EMAIL are read
+      and validated in getEmailSender(), not inside the sender's send(). The
+      prompt describes them under "Resend sender"; reading them there would
+      have thrown AFTER pace-alerts.ts writes its PaceAlertLog idempotency row
+      (src/lib/pace-alerts.ts:106-122, deliberately before the send), burning a
+      store's one-alert-per-month lock with no email delivered and no way back
+      until the month rolls. The cron resolves the sender once at
+      api/cron/pace-alerts/route.ts:25, before the store loop, so a
+      misconfigured deployment now fails with zero rows written. Every stated
+      requirement still holds — required, throws, never falls back to console.
+      (3) A third file was touched: scripts/verify-f5-polish.ts, whose capture
+      sender is the one EmailSender implementation outside src/. The audit's
+      grep was scoped to src/ per the prompt and missed it; `npm run build`
+      caught it (CLAUDE.md § Verifying a guard covers every path — a sweep is
+      only as complete as the shape it searches for). Fixture-only change.
+      THE CRON NEEDED NO PER-STORE WRAP. src/app/api/cron/pace-alerts/route.ts
+      already wraps processPaceAlertForStore in a per-store try/catch at
+      :37-43, pushing an `error: …` result and continuing, so one bad address
+      cannot abort the loop. No caller file was changed.
+      TWO ADDITIVE WIDENINGS callers ignore: EmailMessage.to is now
+      `string | string[]`, and send() resolves to `{ id?: string }` instead of
+      void so the test route can report the Resend message id.
+      EmailMessage.replyTo is new, optional and unread today — HR-16's, so a
+      manager who hits Reply reaches their own office rather than the no-reply
+      address.
+      NOTHING HAS BEEN SEEN IN AN INBOX. No email has left any environment
+      from this code: the build is green and that is the whole of the
+      verification. Delivery is proven by POST /api/notify/test from an ADMIN
+      session on staging AFTER Gary provisions the Resend domain, DNS and the
+      Preview-scope vars; the prompt's own "Gary's side" checklist is the
+      procedure, including the instruction NOT to fire the pace-alerts cron on
+      staging (real manager addresses, fake numbers).
+      RESOLVED 2026-09-20 BY NOTIFY-2b ("8ab4ee8"), WITH A RIDER. The note
+      immediately below — "ROW, NOT BUILT: Resend delivery/bounce webhooks into
+      AuditLog" — is spent as a gap: the row was filed (NOTIFY-2b) and the
+      webhook is BUILT, at src/app/api/webhooks/resend/route.ts, appending a
+      second AuditLog row per delivery event and surfacing it as a status on
+      /settings/notifications. THE RIDER IS THAT ITS CLOSING SENTENCE IS STILL
+      TRUE TODAY AND WILL BE UNTIL GARY PROVISIONS THE ENDPOINT. Froot cannot
+      yet tell a delivered alert from a hard-bounced one in any deployed
+      environment, because no Resend endpoint exists and RESEND_WEBHOOK_SECRET
+      is unset everywhere — the route 500s and records nothing, by design. See
+      the `open` list on NOTIFY-2b for the procedure. Nothing below is edited.
+      ROW, NOT BUILT: Resend delivery/bounce webhooks into AuditLog. Named out
+      of scope by the prompt and worth its own row — today a bounce is visible
+      only in the Resend dashboard, so Froot cannot tell a delivered alert from
+      one that hard-bounced.
+      PRE-PUSH-CHECK flips this row to `staging` when Gary pushes.
+
+  - id: NOTIFY-2a
+    track: platform
+    size: M
+    status: staging
+    # Work commit only at the time of writing. This row is composed INSIDE the
+    # docs commit that records it, so that commit's own SHA cannot appear here
+    # (the two-commit pattern, same as F-5b, HR-16 and CAL-2).
+    # The docs SHA and this check's own SHA were added by the PRE-PUSH-CHECK,
+    # which is the step that owns them — see its rider at the head of the notes.
+    commits: ["a16bab2", "e4dc158", "19cc329"]
+    title: "Email settings hub — /settings/notifications; per-org pace threshold; provider on ack audit rows"
+    notes: >
+      ── NOTIFY-2c RIDER, 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      ONE OF THIS ROW'S RESTATED STANDING RULINGS HAS BEEN AMENDED, AND IT IS
+      NAMED HERE RATHER THAN EDITED BELOW. The bullet restated as "pace-alert
+      recipients are ROLE-BASED and there is no list to edit ... No per-user
+      opt-out" was true when it was written and is now half true. What stands:
+      recipients are role-based, there is no recipient BOX on
+      /settings/notifications, and the org toggle outranks everything. What
+      changed: an ADMIN may take ONE PERSON off the list from that person's row
+      in Edit User on /users (capability notify.pace.receive, work commit
+      "d273026").
+      THE DISTINCTION IS THE RULING, not a softening of it. PER-USER CONTROL IS
+      ADMIN-SET, NEVER SELF-SERVICE. Gary, 2026-09-20: an admin decides, per
+      user, which of Froot's emails that user receives, from the same dialog
+      where they decide what the user can do. SELF-SERVICE OPT-OUT WAS RULED
+      OUT EARLIER THE SAME DAY AND REMAINS RULED OUT - no user-facing
+      unsubscribe anywhere in the product, and no settings surface a STAFF or
+      STORE account can reach to silence their own mail. An admin-set control
+      on the user's row and a user-set opt-out are opposite decisions that
+      happen to produce the same column value, which is exactly why this rider
+      exists.
+      ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
+      per Step 4 — this check is the last thing that runs before Gary pushes, so
+      it is the step that owns the flip (DOCS-6, after CAL-2b was merged to main
+      with its row still reading in_progress).
+      SHAs. Work "a16bab2". Docs "e4dc158". "19cc329" is a CLAUDE.md house rule
+      that RIDES IN THE SAME PUSH AND IS NOT PART OF THIS PHASE — it is listed
+      in `commits` because it ships with this payload, not because NOTIFY-2a
+      built it. THIS CHECK'S OWN COMMIT is the one immediately after "19cc329";
+      it cannot name its own SHA, by construction.
+      RULING: RATIFIED AS WRITTEN. docs/DECISIONS.md gained a NOTIFY-2a entry
+      (F1-F3 plus the standing rulings restated), so Step 1 was NOT a no-op. It
+      was printed verbatim and put to Gary; his whole reply, recorded exactly -
+      "Ratified as written. Commit and report." The ratification paragraph is
+      ADDITIVE at the head of that entry; nothing below it was changed.
+      RIDER ON THE FIXTURE COUNT, GARY 2026-09-20. THE "28 -> 32" BELOW COUNTS
+      `check(` CALL SITES, NOT EXECUTED CHECKS. A green run reports 31, and 31
+      is correct: one call site is a FAILURE-PATH BRANCH — "export parses
+      through the importer" at scripts/verify-f5-polish.ts:193 — which fires
+      only when the CSV round-trip fails to parse and is skipped on a pass. The
+      pre-NOTIFY-2a green count was 27, not 28. Anyone re-running this fixture
+      and reading 31 against a row that says 32 should stop here rather than
+      hunt a missing check.
+      FIXTURE RAN GREEN AFTER THE DEV APPLY: 31/31, zero failures, on dev branch
+      br-broad-wave-a6vpjdw0, after Gary applied
+      20260920210000_notify2a_pace_threshold. All four new checks passed. This
+      closes the "NOT RUN ANYWHERE" paragraph below, which was accurate when
+      written and is now spent — the fixture could not run at commit time
+      because every Organization read selects the new column.
+      MIGRATION STATUS AT PUSH: staging gets
+      20260920210000_notify2a_pace_threshold via `prisma migrate deploy` in
+      vercel-build on this push; PRODUCTION DOES NOT HAVE IT and gets it in
+      whichever later merge to main carries this code. Dev has it.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. docs/DEPLOY_LOG.md entry written into the
+      file by this check, headed "UNPROMOTED — 2026-09-20 — NOTIFY-2a…",
+      heading count 54 -> 55 with both splice seams read back. DECISIONS,
+      FORECASTING, MIGRATIONS and the CLAUDE.md env line all carry this phase's
+      changes. docs/prompts/NOTIFY-2a.md and NOTIFY-2a_AUDIT.md committed in
+      "e4dc158". Preserve-and-mark intact; no meta.updated key.
+      NOTHING HAS BEEN SEEN IN AN INBOX AND THIS CHECK OBSERVED NOTHING EITHER.
+      It read code, counted lines and ran `npm run build`. Staging evidence
+      comes after Gary pushes, and it is UI-ONLY — the pace toggle stays OFF on
+      staging (real manager addresses, fixture numbers).
+      ── RIDER 2026-09-20 (NOTIFY-2a). PREPENDED; NOTHING BELOW IT IS EDITED. ──
+      THIS ROW WAS FILED AS NOTIFY-2 and is split. It becomes NOTIFY-2a (built
+      2026-09-20, this row) and NOTIFY-2b (the read surface, still planned, the
+      row below). The original text is preserved verbatim under "── THE ORIGINAL
+      NOTIFY-2 ROW ──" at the foot, because the half it describes is NOT what
+      2a built and a future reader needs the difference visible rather than
+      reconstructed.
+      THE SCOPE NOTE AT THE FOOT IS INVERTED BY RULING, AND THAT IS WORTH
+      READING BEFORE ANYTHING ELSE HERE. It says, verbatim - "SCOPE NOTE - the
+      page is a READ surface. Editing recipients stays on /settings under
+      HR-16's field; a second place to set them is the thing this row must not
+      become." NOTIFY-2a does the opposite - the page is the WRITE surface and
+      /settings loses the field. Gary's ruling, 2026-09-20. THE TWO ARE NOT IN
+      CONFLICT ONCE THE SPLIT IS SEEN - what the note was protecting is ONE
+      PLACE PER SETTING, and 2a delivers exactly that by MOVING the controls
+      rather than copying them (/settings keeps a link card and nothing else).
+      What the note assumed was that the one place would be /settings; the
+      ruling moved it. 2b is the read surface the note was actually describing.
+      A future reader finding the two statements side by side should read this
+      paragraph, not assume one of them is a mistake.
+      WHAT 2a BUILT. /settings/notifications, on the /settings/labor pattern
+      (no layout file anywhere under settings/ - the chrome is the (app) shell;
+      a ChevronLeft back-link, an h1, then cards). ADMIN only, settings.access,
+      which is ADMIN_ONLY and held out of the override grid, re-checked in both
+      write routes per PERM-2. Two cards and NO placeholders for future
+      consumers - (1) signed-acknowledgment emails, HR-16's recipients field
+      moved verbatim apart from its root margin; (2) behind-pace alerts, F-5b's
+      toggle moved verbatim plus a threshold input and a read-only recipients
+      line. /settings keeps one "Email notifications ->" link card.
+      F1 - THRESHOLD STORAGE. Organization.paceAlertThresholdPct Int?, null =
+      fall back to PACE_ALERT_THRESHOLD_PCT and then 90. Migration
+      "20260920210000_notify2a_pace_threshold", additive, nullable, no backfill,
+      APPLIED NOWHERE by the build session - step 3 of the CLAUDE.md flow is
+      Gary's. The env var is NOT retired; it is the fallback. The rejected
+      alternative (NOT NULL DEFAULT 90, env var retired) is simpler afterwards
+      and was rejected because it makes APPLYING THE MIGRATION a behaviour
+      change in any environment that sets the variable to something other
+      than 90.
+      F1 RIDER - THE TWO VALIDATORS DISAGREE ON PURPOSE. The input takes an
+      INTEGER 50-100; the env reader takes any finite value in (0,100],
+      fractions included. So 87.5 is a legal FALLBACK and an impossible ORG
+      value. Nobody sets one - the variable is unset in every environment. The
+      narrower range is the one an admin types into a box, where 5 and 95 are
+      one keystroke apart and one of them silences every alert for a month.
+      Stated in the schema comment, the route and docs/MIGRATIONS.md so it reads
+      as a decision rather than an oversight.
+      F2 - THE HR CARD GATES ON hrAvailable (THE ENV GATE), NOT ON THE ORG'S
+      MODULE SWITCH. No HR module in the deployment = no card. HR available but
+      the org has it INACTIVE = the card renders DISABLED with one line, "Turn
+      on the HR module to use acknowledgment emails", rather than hidden. PUT
+      /api/hr/settings is UNCHANGED - still gated on availability alone, with no
+      activeModules check. That gap is deliberate and safe - the column is inert
+      while the module is off and HR-16 ruled it deliberately SURVIVES a toggle.
+      The audit raised the two-readings ambiguity and the ruling names which one
+      it means.
+      F3 - BOTH CARDS COME OFF /settings, ONE LINK CARD REPLACES THEM. Not
+      "leave the pace toggle in both places" - two screens that can flip one
+      switch is the thing this phase exists to end, so the cautious-sounding
+      option was the rejected one. The link card carries NO Enabled/Disabled
+      badge - a state badge there would be a second claim about a setting the
+      page no longer owns, and the first thing to go stale when a third consumer
+      is added. No second link was added inside the HR card either - one door.
+      THE ROUTE WAS REPLACED, NOT EXTENDED. POST /api/pace-alerts/toggle is
+      DELETED; PUT /api/pace-alerts/settings takes its place. The moved island
+      was its only caller (verified by grep across src, scripts, docs and
+      vercel.json before deleting), and leaving it alive would have left two
+      write paths to the same column - the same defect as two pages, one layer
+      down. The body is PARTIAL - {enabled?, thresholdPct?}, at least one
+      required - rather than a full-state PUT, because the switch writes
+      instantly and reverts on failure while the threshold has a Save button; a
+      full-state body would have the switch posting a threshold it was not asked
+      to change.
+      THE CRON'S JSON RESPONSE CHANGED SHAPE, named here rather than discovered
+      later. The scalar `thresholdPct` could not survive a per-org number and is
+      replaced by `fallbackThresholdPct` plus a `thresholds` array of
+      {organizationId, thresholdPct, source: "org"|"env"}. Orgs are named by ID
+      per CLAUDE.md § Database Evidence - five rows on staging answer to
+      "Microsoft". Nothing consumes that response programmatically; it is read
+      by a human in the Vercel function log.
+      THE THRESHOLD LOOKUP IS A MAP, NOT A RELATION ON THE STORE QUERY. The
+      findMany that builds it REPLACED the organization.count() that used to
+      compute orgsEnabled, so per-org thresholds cost no extra round trip. It is
+      a Map because processPaceAlertForStore is typed `store: Store`, and
+      including `organization` on the store query would widen that parameter for
+      every caller - the fixture included - to carry a payload the function does
+      not read. src/lib/pace-alerts.ts was NOT touched.
+      PROVIDER ON THE ACK AUDIT ROWS, one field, from the audit's finding 6.
+      HR-16's email.sent rows recorded kind, recipients and resendId and nothing
+      naming the channel. resendId IS NOT A USABLE PROXY - the console sender
+      returns {} so console mode stores null, but so does a REAL Resend 2xx
+      whose body failed to parse, which the provider deliberately treats as a
+      successful send with the id lost. A null meant "console" OR "Resend, id
+      lost" and the row could not tell them apart. metadata now carries
+      provider: emailProviderName(), which reports the resolved string WITHOUT
+      validating it - the right reader, because on an email.failed row caused by
+      a bad provider value, the bad value is the thing worth keeping.
+      FIXTURE - scripts/verify-f5-polish.ts, 28 checks -> 32. The cron's lookup
+      resolves the org's own threshold; a store that alerts at the fallback is
+      SILENT under its org's lower threshold; clearing the column falls back and
+      alerts again; the PaceAlertLog row records the threshold actually used.
+      THE DIRECTION OF THE SECOND CHECK IS THE POINT - the store alerts at 90
+      too, so a check that merely FIRES cannot tell which threshold produced it;
+      only the silence can. Same known cost as F-5b's gate check - it asserts
+      the RESOLUTION the cron performs, not the route handler, so editing the
+      route's lookup alone would leave it passing.
+      NOT RUN ANYWHERE, AND THE FIXTURE COULD NOT BE RUN AT ALL. Every
+      Organization read selects the new column, so verify-f5-polish.ts fails at
+      org creation until Gary applies the migration to dev. `npm run build` is
+      the whole of the build session's verification. No email left any
+      environment and the pace-alerts cron was not fired.
+      ── THE ORIGINAL NOTIFY-2 ROW, VERBATIM AND UNEDITED ──
+      FILED 2026-09-20 BY GARY'S F2 RULING, in the HR-16 docs commit. It is the
+      reader for rows HR-16 is already writing, and it is the row NOTIFY-1's own
+      notes asked for ("ROW, NOT BUILT: Resend delivery/bounce webhooks into
+      AuditLog") — the two halves turned out to be one phase, because a webhook
+      with nowhere to display its verdict is as useless as a page with no
+      delivery status on it.
+      TWO HALVES.
+      (a) /settings/notifications — a page reading the AuditLog rows HR-16
+      writes: entityType "Notification", action "email.sent" | "email.failed",
+      metadata `{ kind, recipients, entityId, resendId | error }`. The index
+      @@index([organizationId, entityType, createdAt]) already serves exactly
+      this query; nothing schema-side is owed for the read.
+      (b) Resend delivery webhooks — delivered / bounced / complained, landing
+      against the row its `resendId` already identifies. This is the half that
+      needs a decision and probably a column: an AuditLog row is written once
+      and read as a claim about what was ATTEMPTED, so a later delivery verdict
+      is either a second row (append-only, two rows per email, the page joins
+      them on resendId) or a mutation of the first (one row, but AuditLog stops
+      being append-only for every other writer too). NOT DECIDED HERE.
+      WHY IT IS A SEPARATE PHASE AND NOT HR-16's TAIL. Until this ships the
+      HR-16 rows are WRITE-ONLY BY RULING — nothing reads them, because the only
+      AuditLog reader is /api/forecasting/audit and it filters to
+      GOAL_ENTITY_TYPES (src/lib/audit.ts:16), so an HR-16 row is invisible to
+      it. That is a deliberate, named gap rather than an oversight: the rows
+      accumulate from the day HR-16 lands, so this phase starts with real data
+      to render instead of an empty table.
+      WHAT IS VISIBLE IN THE MEANTIME: the function log (every attempt logs
+      `[hr-ack] record=… sent/send failed`) and the Resend dashboard. Neither is
+      in the product, and neither survives log retention.
+      DEPENDS ON: HR-16 ("23da754") for the writer. Reuses NOTIFY-1's provider
+      config; adds no provider env vars of its own. DEBT-105 (a runtime send
+      failure burning a PaceAlertLog lock) is adjacent and separate.
+      SCOPE NOTE: the page is a READ surface. Editing recipients stays on
+      /settings under HR-16's field; a second place to set them is the thing
+      this row must not become.
+
+  - id: NOTIFY-2b
+    track: platform
+    size: M
+    # `in_progress` -> `staging` 2026-09-20 BY THIS PRE-PUSH-CHECK, per Step 4
+    # and WORKFLOW.md session rule 4: `staging` means the code is on the branch,
+    # and this check is the last thing that runs before Gary pushes, so it owns
+    # the flip (DOCS-6, after CAL-2b was merged to main still reading
+    # in_progress). NOT PUSHED AT THE MOMENT OF WRITING — Claude never pushes.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
+    # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "6d07f06" did not exist when
+    # the row was composed. The third is the commit this line is being written
+    # in, so it is named as "the commit immediately after 6d07f06" rather than
+    # guessed at. Same shape as NOTIFY-1, NOTIFY-2a, CAL-2, CAL-2a and CAL-2b.
+    commits: ["8ab4ee8", "6d07f06"]
+    title: "Notification branding + visibility — shared HTML template, send log, Resend delivery webhooks"
+    open:
+      - >
+        THE WEBHOOK IS UNPROVEN. Nothing has verified it end to end, and
+        nothing can until Gary creates the Resend endpoint and sets
+        RESEND_WEBHOOK_SECRET in the Preview scope. The route's LOGIC is
+        fixtured (correlation by metadata.resendId, the idempotency probe, the
+        derived statuses — all green against dev branch br-broad-wave-a6vpjdw0);
+        what is NOT proven is that a real Svix-signed request from Resend
+        verifies against a real secret and lands a row. Until that happens the
+        send log will show `sent` forever and never advance to `delivered`,
+        and that is indistinguishable from a webhook that is misconfigured.
+        The procedure is in docs/prompts/NOTIFY-2b.md under "Staging
+        verification — Gary's side": add the endpoint for delivered / bounced
+        / complained / delivery_delayed, copy the signing secret into Vercel
+        Preview, then AN EMPTY COMMIT AND A PUSH — the Redeploy button does not
+        pick up a new variable, and a deployment carries the env values that
+        existed when it was BUILT (CLAUDE.md § Provisioning a secret).
+      - >
+        ONE PER ENDPOINT, NOT ONE PER ACCOUNT. Preview and Production need
+        DIFFERENT RESEND_WEBHOOK_SECRET values, because the secret is issued by
+        the endpoint. Pasting staging's into Production makes every production
+        delivery event fail its signature with a 401 that looks exactly like an
+        attack. The Production endpoint is deliberately NOT set up by this
+        phase; it belongs to promotion time.
+      - >
+        NOTHING HAS BEEN SEEN IN AN INBOX. The three rendered bodies were
+        reviewed in a BROWSER, from /tmp files the template fixture wrote —
+        which proves layout and nothing about how Gmail, Outlook or Apple Mail
+        each rewrite it. The mark on a white tile inside the orange bar (the F1
+        rider) is the part most worth a real-client look, followed by whether
+        the bordered CTA survives Outlook.
+    notes: >
+      ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE CODE WAS PUSHED MID-CHECK, WHICH IS NOT THE ORDER THIS STEP ASSUMES.
+      Gary pushed "f3f6d77", "8ab4ee8" and "6d07f06" at 17:40:29 local while
+      this check was writing its DEPLOY_LOG entry; the check's own commit
+      followed at 17:43:05. Step 3's "anything unexpected: STOP" caught it -
+      `git log @{u}..` returned ONE commit where the build session had reported
+      three. So `staging` briefly carried the code with this row still reading
+      `in_progress` and no DEPLOY_LOG entry: the DOCS-6 gap, arriving from the
+      direction DOCS-6 did not anticipate, which is the push landing INSIDE the
+      check rather than after it. Nothing was lost - the entry was already
+      composed. WHAT IT MEANS IN PRACTICE: the deployment built from "6d07f06"
+      does NOT contain this rider, this row's `staging` status, the DEPLOY_LOG
+      entry or DEBT-110. Those arrive with the check commit, which was still
+      unpushed when this was written. Claude never pushes.
+      Status flipped `in_progress` -> `staging` here.
+      SHAs. Work "8ab4ee8". Docs "6d07f06". THIS CHECK'S OWN COMMIT is the one
+      immediately after "6d07f06"; it cannot name its own SHA, by construction.
+      "f3f6d77" — NOTIFY-2a's PRE-PUSH-CHECK — RIDES IN THE SAME PUSH AND IS NOT
+      PART OF THIS PHASE. It is deliberately NOT listed in `commits` above: it
+      was already on the branch when this phase started, it belongs to
+      NOTIFY-2a's row, and a SHA listed twice is how two phases end up claiming
+      one commit. Named here so the three-commit push is not read as three
+      NOTIFY-2b commits.
+      RULING: RATIFIED AS WRITTEN. The docs/DECISIONS.md entry was printed
+      verbatim and put to Gary; Step 1 was NOT a no-op. His whole reply,
+      recorded exactly - "Ratify as written. Also file a DEBT row (next free
+      id): api/webhooks/clerk/route.ts verifies the Svix signature over
+      JSON.stringify(await req.json()) rather than the raw body; safe only while
+      the payload round-trips byte-identically; fix is to read req.text() as the
+      Square and Resend routes do. Open, no status."
+      THAT SECOND SENTENCE IS FILED AS DEBT-110, in this commit, with no
+      `status` key per his instruction (on a debt row omission reads as OPEN).
+      It comes out of this phase's audit: the Resend route deliberately did not
+      copy the Clerk precedent, the deviation is recorded in DECISIONS.md under
+      NOTIFY-2b, and the row is the other half of that observation - the
+      deviation said which route is right, DEBT-110 says the wrong one is still
+      there. The Clerk route is untouched by this phase and by this check.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. docs/DEPLOY_LOG.md entry written into the
+      file by this check, headed "UNPROMOTED — 2026-09-20 — NOTIFY-2b…", heading
+      count 55 -> 56. ROADMAP row present with the work SHA, preserve-and-mark
+      intact, no meta.updated key. DECISIONS.md heading count 81 -> 82.
+      CLAUDE.md carries RESEND_WEBHOOK_SECRET in § Environment Variables.
+      docs/prompts/NOTIFY-2b.md committed in "6d07f06".
+      ONE THING THAT LOOKS LIKE DRIFT AND IS NOT: docs/DEPLOY_LOG.md still says
+      "Known and not built: NOTIFY-2b (shared branded HTML template, the send
+      log…, Resend delivery webhooks)". That sits inside NOTIFY-2a's dated entry
+      and was true when written - a CLAIM, never edited (CLAUDE.md § Where
+      documents live). The new entry supersedes it by sitting above it.
+      THE VERIFICATION STATEMENT FROM THE BUILD SESSION IS UNCHANGED AND STILL
+      BINDS: the webhook is unproven, nothing has been seen in an inbox, and
+      this check observed neither. It read files, counted headings and ran
+      `npm run build`. See the `open` list.
+      BUILT 2026-09-20 (work "8ab4ee8"). TIER 2, no schema, no migration. The
+      three pieces the row was filed with are all here — the template, the send
+      log, the webhook — plus one the row anticipated as a question and the
+      prompt answered: the pace path and the test route now write Notification
+      rows.
+      F1 - HOSTED PNG, WITH A RIDER THE PROMPT DID NOT ANTICIPATE. public/logo.png
+      is a real 500x500 PNG and ${NEXT_PUBLIC_APP_URL}/logo.png is reachable
+      unauthenticated (src/proxy.ts:22's matcher excludes .png, so Clerk does
+      not 307 it). So the lean held and no stop was needed. BUT THE MARK IS AN
+      ORANGE CITRUS SLICE ON TRANSPARENCY - placed straight onto the orange
+      header bar the prompt describes, it disappears. It sits on a WHITE TILE
+      inside the bar instead, which is the smallest change that keeps both. With
+      no app url the mark is OMITTED rather than broken: mail has no base URL to
+      resolve a relative src against, so a relative src is worse than none.
+      F2 - LAST 50, NEWEST FIRST, as the lean. A count and not a window, because
+      a 30-day window shows an empty card to any org that had a quiet month.
+      F3 - CORRELATION BY metadata.resendId JSON FILTER, as the lean, no column.
+      NOT A BET: the same `metadata: { path: [...], equals: ... }` shape is
+      already in production against this same column at
+      api/forecasting/audit/route.ts:53 on this Prisma and this Postgres. The
+      fixture exercises it against real rows anyway.
+      THE TEXT PART IS BUILDER-PRESERVED FOR ALL THREE CONSUMERS, NOT JUST THE
+      PACE ALERT. The prompt offered this as the fallback where the template's
+      row format cannot reproduce a line exactly, and it was taken everywhere:
+      NEITHER pre-existing email is a padded two-column table. The pace alert's
+      "Month to date:" and "Dashboard:" lines are prose with one space after
+      the colon; HR-16 renders its record URL as a ROW while the generator puts
+      the CTA on its own line after the rows. Reproducing either would change
+      bytes in an email whose wording the F-5 and HR-16 rulings settled.
+      renderEmail still GENERATES a text part for a consumer that has no
+      wording yet - NOTIFY-3 and NOTIFY-4 are who will use it, and
+      scripts/verify-notify-template.ts is what exercises it meanwhile.
+      THE PACE PATH AND THE TEST ROUTE NOW WRITE Notification ROWS, and without
+      them the phase does not function. This row filed the question - "Whether
+      the pace path starts writing Notification rows is part of this phase" -
+      and this is the answer. Only HR-16 wrote them before. PaceAlertLog is a
+      per-store-month idempotency lock with no provider, no subject and no
+      failure rows, and the test route recorded nothing at all, so the card's
+      pace.alert and test labels had nothing to render and a delivery event for
+      either could never find its org (the lookup is by the sent row's
+      resendId). The prompt's own staging step 3 is unsatisfiable without it.
+      Written AFTER the send, never before - the lock is the thing that
+      precedes the send.
+      APPEND, NEVER UPDATE - the half this row carried forward as NOT DECIDED.
+      A delivery verdict is a SECOND row keyed to the same resendId. The
+      rejected alternative (mutate the sent row) is cheaper to read and ends
+      AuditLog's append-only property for every other writer in the app.
+      A MISSING `provider` RENDERS AS "Unknown", per the ruling already in
+      docs/DEPLOY_LOG.md. Both other readings are positively wrong: console
+      would claim mail that did reach an inbox never left, sent would claim the
+      opposite.
+      THE WEBHOOK READS THE RAW BODY, DEVIATING FROM THE CLERK PRECEDENT ON
+      PURPOSE. api/webhooks/clerk/route.ts:25-26 verifies
+      JSON.stringify(await req.json()), which holds only while the payload
+      round-trips through JSON byte-identically and nothing guarantees that.
+      api/webhooks/square/route.ts:56 reads req.text() and verifies the bytes
+      Svix signed; that is what this route does. THE CLERK ROUTE IS NOT CHANGED
+      BY THIS PHASE - it works today and touching a live auth path was not this
+      session's mandate, but it is worth a look by whoever next opens it.
+      NO PROXY CHANGE AND NO NEW DEPENDENCY. /api/webhooks(.*) is already
+      public (src/proxy.ts:9) and `svix` was already a dependency at 1.96.1.
+      One new env var, RESEND_WEBHOOK_SECRET, documented in CLAUDE.md.
+      THE SEND LOG IS A SERVER COMPONENT WITH NO ROUTE BEHIND IT. The page is
+      already the settings.access (ADMIN_ONLY) gate and the card neither
+      refreshes nor paginates, so an endpoint would be a new place to get the
+      gate wrong in exchange for nothing.
+      THE "Recipients:sent" MISSING SPACE WAS REAL, AND THE AUDIT GOT IT WRONG
+      FIRST. Reading the JSX by the whitespace rules, the space after </span>
+      sits on the same line as the tag and looked preserved; the session
+      reported it as a probably-false premise and said it would verify rather
+      than "fix" a non-defect. The rendered textContent was
+      "Recipients:sent to every admin". MEASURED IN A BROWSER, which is the only
+      reason the fix is in this commit - the reasoning would have left it. Now
+      `{" "}`.
+      TWO DEFECTS FOUND WHILE LOOKING AT THE CARD, BOTH FIXED IN THE SAME PASS,
+      both of the class that only a browser shows. (1) The table had `w-full`
+      and no min-width inside an overflow-x-auto wrapper, so it COMPRESSED
+      instead of scrolling and hyphenated mid-word - "Tommy Tester" rendered as
+      "To mmy Tester". (2) `bg-[var(--color-success)]/12` renders NO background
+      at all: Tailwind cannot parse a CSS variable to apply alpha to it, so the
+      opacity-modifier form fails silently. The -bg/-text token pairs in
+      globals.css are used instead, and `bg-red-50` for the error states, which
+      is the tint /settings already uses (settings/page.tsx:127).
+      VERIFICATION. scripts/verify-f5-polish.ts 32 -> 51 checks, ALL GREEN
+      against dev (branch br-broad-wave-a6vpjdw0) - the seven pace-alert lines
+      and the line count pinned byte-exact, the new audit row's kind/provider/
+      subject/recipients, the JSON-path correlation, the idempotency probe and
+      the derived statuses, the last four against real rows. New
+      scripts/verify-notify-template.ts, 35 checks, no DB and no network. The
+      card itself was rendered under a TEMPORARY page on the public /menu route
+      (deleted before the commit; it is not in the tree) because the real page
+      needs a session - all six statuses, the empty state and the fixed
+      Recipients line were read off the DOM there.
+      ── THE ROW AS FILED, 2026-09-20. NOTHING BELOW THIS LINE IS EDITED. ──
+      SPLIT OUT OF NOTIFY-2 ON 2026-09-20 when NOTIFY-2a took the settings half.
+      This is the half the original row's SCOPE NOTE was actually describing: a
+      READ surface. 2a moved the controls; 2b renders what happened.
+      THREE PIECES, filed together because each is useless without the others.
+      (a) A SHARED BRANDED HTML TEMPLATE for every consumer. Today every email
+      is plain text assembled at its own call site - the pace alert in
+      src/lib/pace-alerts.ts, the acknowledgment confirmation in
+      src/lib/hr-ack-notification.ts - and NOTIFY-2a explicitly did not touch
+      wording or format. One template, every sender through it.
+      (b) THE SEND LOG, on /settings/notifications, over the AuditLog rows HR-16
+      already writes: entityType "Notification", action "email.sent" |
+      "email.failed", metadata {kind, recipients, provider, resendId | error}.
+      The index @@index([organizationId, entityType, createdAt]) already serves
+      exactly this query; nothing schema-side is owed for the read. NOTIFY-2a
+      added `provider` to that metadata, so the log can distinguish a real send
+      from a console-mode one - without it the page would have shown "sent" for
+      mail that never left.
+      (c) RESEND DELIVERY WEBHOOKS - delivered / bounced / complained, landing
+      against the row its resendId already identifies. THIS IS THE HALF THAT
+      NEEDS A DECISION AND PROBABLY A COLUMN, and it is carried forward from the
+      original row unresolved: an AuditLog row is written once and read as a
+      claim about what was ATTEMPTED, so a later delivery verdict is either a
+      SECOND row (append-only, two rows per email, the page joins on resendId)
+      or a MUTATION of the first (one row, but AuditLog stops being append-only
+      for every other writer too). NOT DECIDED.
+      NOTE WHAT (c) WOULD ANSWER THAT NOTHING TODAY CAN. A hard bounce is
+      visible only in the Resend dashboard, so Froot cannot tell a delivered
+      alert from one that bounced - see the DEBT-109 deliverability row, where
+      the first sends to a new inbox land in Junk and nothing in the product
+      says so.
+      PACE ALERTS WRITE NO AuditLog ROW AT ALL TODAY. Only the HR-16 path does.
+      PaceAlertLog records that an alert was sent, but it is a per-store-month
+      idempotency lock, not a notification log, and it carries no provider, no
+      subject and no failure rows. Whether the pace path starts writing
+      Notification rows is part of this phase and was deliberately left out of
+      2a, which changed no sending behaviour.
+      DEPENDS ON: HR-16 ("23da754") for the writer, NOTIFY-2a ("a16bab2") for
+      the page and the provider field. Reuses NOTIFY-1's provider config; adds
+      no provider env vars of its own.
+
+  - id: NOTIFY-2c
+    track: platform
+    size: S
+    # `in_progress` -> `staging` 2026-09-20 BY THIS PRE-PUSH-CHECK, per Step 4
+    # and WORKFLOW.md session rule 4: `staging` means the code is on the branch,
+    # and this check is the last thing that runs before Gary pushes, so it owns
+    # the flip (DOCS-6). NOT PUSHED AT THE MOMENT OF WRITING — Claude never
+    # pushes, so staging does not yet contain this code.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
+    # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "6c2cbc1" did not exist when
+    # the row was composed. The third is the commit this line is being written
+    # in, so it is named as "the commit immediately after 6c2cbc1" rather than
+    # guessed at. Same shape as NOTIFY-1, NOTIFY-2a, NOTIFY-2b and CAL-2b.
+    commits: ["d273026", "6c2cbc1"]
+    title: "Per-user email controls in the Edit User grid — pace alerts honour deniedCapabilities"
+    notes: >
+      ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
+      per Step 4.
+      SHAs. Work "d273026". Docs "6c2cbc1". THIS CHECK'S OWN COMMIT is the one
+      immediately after "6c2cbc1"; it cannot name its own SHA, by construction.
+      NOTHING ELSE RIDES THIS PUSH - unlike NOTIFY-2b, no earlier phase's check
+      commit was sitting unpushed when this phase started, so the push is one
+      phase and three commits.
+      RULING: RATIFIED AS WRITTEN. The docs/DECISIONS.md NOTIFY-2c entry was
+      printed verbatim and put to Gary; his whole reply, recorded exactly -
+      "Ratify as written." The ratification paragraph is ADDITIVE at the head of
+      that entry; nothing below it was changed.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. ROADMAP row present with the work SHA,
+      preserve-and-mark intact (zero deletion lines in "6c2cbc1"), no
+      meta.updated key. DECISIONS entry present. The two DECISIONS deletions in
+      "6c2cbc1" are POINTER REPAIRS ONLY - both occurrences of
+      "src/lib/pace-alerts.ts:91-98", whose line range the work commit moved;
+      no ruling was reworded. CLAUDE.md untouched (this phase changed no house
+      rule). docs/prompts/NOTIFY-2c.md committed. docs/DEPLOY_LOG.md entry
+      written into the file by this check, headed "UNPROMOTED - 2026-09-20 -
+      NOTIFY-2c...", heading count 56 -> 57 with both splice seams read back.
+      FILED BY THIS CHECK AND NOT PART OF THIS PHASE: DEBT-111, the
+      PERMISSIONS_INVENTORY §5 drift. It rides this push because the check filed
+      it, not because NOTIFY-2c caused it.
+      THIS CHECK OBSERVED NOTHING RUNNING. It read code, counted lines and ran
+      `npm run build`. Staging evidence comes after Gary pushes.
+      ── THE BUILD SESSION'S ROW, VERBATIM AND UNEDITED ──
+      WHY THIS PHASE EXISTED. Gary, 2026-09-20: an ADMIN decides, PER USER,
+      which of Froot's emails that user receives, from the Edit User dialog on
+      /users - the same place they decide what the user can do. Today the only
+      user-addressed email is the behind-pace alert (F-5: every ADMIN plus the
+      store's assigned MANAGERs). More are planned, so the grid had to make each
+      new email ONE LINE TO ADD, and it does: one entry in
+      ENFORCED_CAPABILITIES, no grid change, no route change.
+      THIS IS NOT SELF-SERVICE OPT-OUT, which was ruled out earlier the same day
+      and stays ruled out. No user-facing unsubscribe anywhere. See the
+      NOTIFY-2c rider prepended to NOTIFY-2a's notes, which names the standing
+      ruling this amends and the half of it that still stands.
+      TIER 2 HELD - NO SCHEMA. The audit's first question was whether the
+      capability model can express "deniable but not grantable beyond role",
+      because if it could not this became TIER 3 and stopped. It can, and the
+      three halves were already there: a MANAGE baseline in GRANTS
+      (src/lib/permissions.ts), a row in ENFORCED_CAPABILITIES (deniable from
+      the grid, and the same list PATCH /api/users/[id] enforces as its DENIABLE
+      set), and ABSENCE from GRANTABLE_CAPABILITIES - which makes can()'s
+      elevation branch unreachable for this key no matter what is written to
+      User.grantedCapabilities. Nothing was added to the schema and no prisma
+      command was run in this session.
+      F1 - MODEL: CAPABILITIES, NOT A NEW COLUMN. Taken on the lean. A
+      notificationPrefs column would have been a second per-user permission
+      store beside the two that exist, with its own load path, its own
+      fail-closed question and its own grid.
+      F2 - FILTER PLACEMENT: POST-FILTER THROUGH can(), AND IT IS STILL ONE
+      QUERY. The finding that decided it: the "one query vs post-filter" framing
+      was a false trade. The WHERE is untouched and three more COLUMNS ride the
+      same round trip (role, deniedCapabilities, grantedCapabilities), so the
+      choice was correctness alone. can() is a fail-closed load, then a role
+      baseline, then an elevation branch, evaluated in that order; an array test
+      in the WHERE can express today's snapshot of that and not its precedence,
+      so the grid and the mailing list would be free to drift with nothing to
+      say which was right. grantedCapabilities is selected although this key is
+      not grantable today - omitting it would become a silent under-mail the day
+      that changed, and overridesFrom's three-state contract exists precisely
+      because a forgotten column looks identical to an empty one.
+      F3 - WHAT AN UNTICKED ADMIN SEES: NOTHING ELSE CHANGES. They keep every
+      other admin power; only the email stops. This is the FIRST ROW IN THE GRID
+      THAT TAKES AWAY NO ACCESS, and the `removes` copy says so in the admin's
+      words - "Nothing else changes - they keep every other permission, and only
+      the email stops" - because an unticked box in a capability grid otherwise
+      reads as a loss of power.
+      NAMING. Key `notify.pace.receive`, not the prompt's `notify.paceAlerts`.
+      The file's convention is domain.resource.action, ALL LOWER CASE, and no
+      key in the union carries a capital letter; the namespace is meant to grow
+      one entry per user-addressed email. Grid section "Email notifications".
+      THE GRID NEEDED NO CHANGE, which was the point of checking. It renders
+      from the declaration grouped by `area`, so the new section, the ticked row
+      for ADMIN/MANAGER, and the padlocked "Not granted by this role" for STORE
+      and STAFF all fall out of user-actions.tsx unmodified.
+      F-5b's F2 IS NOT OVERTURNED. That ruling forbade an OFFBOARDING filter in
+      this query and filed DEBT-106; this is a different filter under its own
+      ruling, DEBT-106 is untouched and still open, and its characterization
+      check (an assignment-less ADMIN is still a recipient) still passes.
+      ONE BEHAVIOUR CHANGE NOT IN THE PROMPT, and it is a log line: an org where
+      every eligible person is denied now reports "every admin/manager has
+      behind-pace alerts denied" instead of "no admin/manager recipients". One
+      is a deliberate choice and the other a setup problem; reading the first as
+      the second sends someone hunting a bug in the query. No lock row is
+      written on either path.
+      FIXTURE - scripts/verify-f5-polish.ts, 63 checks, 0 failures: 51
+      pre-existing plus 12 new, run against the DEV branch. EACH DENIED
+      PRINCIPAL HAS AN UNDENIED PEER of the same role on the same store, because
+      a check that only asserts ABSENCE passes just as happily when the whole
+      send is broken. STAFF: the grant is BOTH REJECTED AND IGNORED, and the
+      fixture says which layer does which - isGrantable() is false, which is the
+      exact filter PATCH /api/users/[id] 400s on, and can() refuses a grant
+      written straight to the column. The log-row check is separate from the
+      email check on purpose: asserting the email alone would pass even if the
+      filter ran late and PaceAlertLog.recipients kept claiming the denied pair.
+      NOT RUN ANYWHERE. No email left any environment, the pace-alerts cron was
+      not fired, and nothing was verified in a browser - staging does not have
+      this code (Claude never pushes). The fixture is the recipient proof.
+      DEPENDS ON: PERM-5 for deniedCapabilities and the grid, PERM-8 for
+      GRANTABLE_CAPABILITIES and the grant/deny split, F-5 for the alert itself,
+      NOTIFY-2a for /settings/notifications.
+
+
+  - id: NOTIFY-3
+    track: platform
+    size: M
+    status: planned
+    title: "Employee-facing notifications — assignment emails and 'you have something to sign'"
+    notes: >
+      FILED 2026-09-20, DEFERRED BY RULING IN THE SAME BREATH. Gary, 2026-09-20,
+      recorded in docs/DECISIONS.md under NOTIFY-2a: employee-facing emails are
+      deferred. This row exists so the deferral is a decision with a home rather
+      than an absence.
+      WHAT IT WOULD COVER: a team member is emailed when something is assigned
+      to them (training, a document to acknowledge, a checklist), and reminded
+      while it is outstanding. Every email Froot sends today goes to an ADMIN or
+      a MANAGER - the pace alert to admins and assigned managers, the
+      acknowledgment confirmation to the org's recipient list. Nothing goes to
+      the person who did the work.
+      WHY IT IS NOT A TAIL ON NOTIFY-2a. It is the first email aimed at a
+      STAFF MEMBER rather than a User, and StaffMember is not a Clerk identity -
+      so it needs a decision about which address is authoritative, what an
+      opt-out looks like for someone who cannot open Settings, and what happens
+      to a staff member with no email at all. None of that is a card on a page.
+      THE RECIPIENT MODEL IS THE WHOLE PHASE. Pace-alert recipients are
+      ROLE-BASED with no opt-out by standing ruling; that is defensible for a
+      manager reading a store's numbers and is NOT obviously defensible for
+      routine mail to an hourly employee. Do not assume the pace-alert model
+      carries over - it is the thing to rule on first.
+      SURFACE: a card on /settings/notifications, per Gary's "every email
+      setting lives on one page" ruling. NOTIFY-2a deliberately left no
+      placeholder for it.
+
+  - id: NOTIFY-4
+    track: platform
+    size: S-M
+    status: planned
+    title: "Operational reports email — the scheduled digest Gary wants, recipient model TBD"
+    notes: >
+      FILED 2026-09-20 as a named consumer of the /settings/notifications hub.
+      Gary's, and explicitly LATER - it has no design yet beyond "operational
+      reports go out by email on a schedule".
+      WHAT IS ALREADY THERE TO BUILD ON: /reports and /reports/operations
+      render the data in-app today, and the daily cron pattern
+      (vercel.json + CRON_SECRET + a route under api/cron/) is established by
+      the pace-alert and sales-reconcile jobs. NOTIFY-1's swappable EmailSender
+      is the transport.
+      OPEN, AND NONE OF IT DECIDED: what is in the digest, on what cadence,
+      whether it is per-store or per-org, and WHO GETS IT - which is the same
+      recipient-model question NOTIFY-3 carries, and the two should probably be
+      ruled together rather than each inventing a model.
+      SURFACE: a card on /settings/notifications when it exists, per the "every
+      email setting lives on one page" ruling. NOTIFY-2a deliberately left no
+      placeholder for it - a card for a consumer that does not exist is a
+      control over nothing.
+
 
 bugs:
   - id: BUG-1
@@ -25862,6 +27093,12 @@ debt:
       CLOSED — Template.frequency is collected, exported and rendered but read
       by no generation path — every template is a daily template
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79", so `status: shipped` below is
+      now true in the sense the file header gives it — merged to `main`, live in
+      prod. IT WAS WRITTEN BEFORE IT WAS TRUE: the CAL-2 docs session set it on
+      2026-09-18 when "ed98ff2" was on staging alone. Nothing about the closure
+      changes; this line only closes the gap between the word and the branch.
       ── CLOSED 2026-09-18 IN "ed98ff2" (CAL-2). PREPENDED; NOTHING BELOW IS
       EDITED. ──
       THE EXIT CONDITION THIS ROW STATED IS MET, AND IT IS THE ROW'S OWN WORDS
@@ -27577,12 +28814,22 @@ debt:
       neither absence should be inferred from the other rows being green.
 
 
-  - id: DEBT-97
+  - id: DEBT-107
     status: planned
     title: >
       `checklists.execute` is registered with zero call sites — the control
       exists and the consumer is missing (the TPL-1 pattern)
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── PREPENDED; NOTHING BELOW IS EDITED.
+      THIS ROW WAS FILED AS DEBT-97 and is renumbered DEBT-107 on Gary's ruling of
+      2026-09-19. It was filed by CAL-1's docs commit "a4b63cf" on 2026-09-18 under
+      an id SELF-1 had already taken on 2026-09-07 ("e8145d5"), so docs/ROADMAP.yaml
+      carried two unrelated rows under DEBT-97 for a day. SELF-1 filed first and
+      keeps the id; this row moves. Which of the two lines "a4b63cf" added was
+      established with `git log -S` before anything was touched, not by reading the
+      titles. CITATIONS THAT MEANT THIS ROW carry their own riders and are listed
+      in the commit; citations of SELF-1's DEBT-97 — the findStaffMemberForEmail /
+      resolveSelfStaff divergence — were deliberately left alone.
       FILED 2026-09-17 ON GARY'S RULING at the CAL-1 audit stop: "checklists.execute
       is registered with zero call sites (TPL-1 pattern: control exists, consumer
       missing). File it; PERM track decides." DO NOT FIX IT IN CAL-1.
@@ -27627,12 +28874,23 @@ debt:
       be the documented answer. Both are defensible; picking one is the PERM
       track's, not a passing session's.
 
-  - id: DEBT-98
+  - id: DEBT-108
     status: planned
     title: >
       Every cron route's CRON_SECRET comparison is un-trimmed and
       non-constant-time — fix all five together or none
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6c collision fix). ── PREPENDED; NOTHING BELOW IS EDITED.
+      THIS ROW WAS FILED AS DEBT-98 and is renumbered DEBT-108 on Gary's ruling of
+      2026-09-19. It was filed by CAL-1's docs commit "a4b63cf" on 2026-09-18 under
+      an id SELF-1 had already taken on 2026-09-07 — by "649da45", not "e8145d5",
+      which is the sibling commit that filed SELF-1's DEBT-97; the ruling named
+      "e8145d5" for the pair and the DEBT-98 half traces to "649da45". Either way
+      SELF-1 filed first and keeps the id; this row moves. Which of the two lines
+      "a4b63cf" added was established with `git log -S` before anything was
+      touched. CITATIONS THAT MEANT THIS ROW carry their own riders; citations of
+      SELF-1's DEBT-98 — Jamie Pilk's staging staff record left terminated — were
+      deliberately left alone.
       FILED 2026-09-17 ON GARY'S RULING at the CAL-1 audit stop: "Cron secret
       compare is un-trimmed and non-constant-time in every cron route. Copy the
       existing pattern as-is in CAL-1 for consistency and file one row covering
@@ -27756,11 +29014,18 @@ debt:
 
   - id: DEBT-101
     status: shipped
+    commits: ["00e2615"]
     title: >
       CLOSED — "N days overdue" counts from dueAt at store close, and a person
       reads it from the due DATE — ruling 8 behaving as written, and a question
       for Gary
     notes: >
+      ── RIDER 2026-09-19 (DOCS-6). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-18 in promotion "d2b8d79". `status: shipped` below is now
+      true on the file header's definition; it was set on 2026-09-18 while "00e2615"
+      was on staging alone. `commits: ["00e2615"]` IS ADDED BY THIS SESSION — the
+      row carried its work SHA in prose only, and a debt row whose SHA lives in a
+      sentence cannot be found by anything that reads the field.
       ── CLOSED 2026-09-18 (CAL-2b, work commit "00e2615"). PREPENDED; NOTHING
       BELOW IS EDITED. ──
       GARY RULED IT IN CHAT ON 2026-09-18, in one word: "date." That selects
@@ -27823,7 +29088,514 @@ debt:
       02:00 sit on opposite sides of the boundary for a different span of the
       day, and nobody has counted.
 
+  - id: DEBT-102
+    title: >
+      A template-backed calendar event backdated past the day-close sweep's
+      2-day lookback creates checklists the sweep never judges — they sit
+      Pending forever and never become Missed
+    notes: >
+      FOUND 2026-09-18 DURING CAL-2 STAGING VERIFICATION. NOT COSMETIC: it is
+      silent non-compliance, and silence is the whole of the problem. A
+      checklist that is never judged never becomes Missed, so it never reaches
+      the Operations Report — the surface whose entire job is to show what did
+      not get done. The failure mode is a row that looks like nothing at all.
+      THE MECHANISM, in the order it happens. "Add to Calendar" accepts a start
+      date in the past. The materialise run creates the occurrence and, with
+      it, the Checklist for that backdated date. The day-close sweep only looks
+      back 2 days. A date older than that is outside the window the sweep ever
+      asks about, so the row is created and then never looked at again: Pending
+      at creation, Pending permanently.
+      FIX DIRECTION — TWO, AND THEY ARE NOT EQUIVALENT. (a) Refuse a start date
+      older than the lookback in the Add-to-Calendar form, which keeps the
+      sweep as it is and closes the door at the one place the backdating can
+      enter. (b) Widen the sweep to "everything still Pending with a due date
+      in the past", which fixes the rows already created and any future path
+      that reaches the same state, at the cost of a scan that is no longer
+      bounded by a small window. RULING NEEDED ON WHICH, and it is Gary's:
+      (a) is cheaper and (b) is the one that would have caught this without
+      anyone finding it first.
+      NO STATUS — OPEN. Filed 2026-09-19 by DOCS-6, from the CAL-2 staging
+      pass the day before; nothing here is fixed.
 
+  - id: DEBT-103
+    title: >
+      The CAL-2 build session applied its own migration to the dev branch and
+      reported that it had not — caught by the migration ledger, not by the
+      session
+    notes: >
+      WHAT HAPPENED. On 2026-09-18 at 19:50:06Z the CAL-2 build session applied
+      `20260918180000_cal2_scheduled_checklists` to the dev branch
+      `br-broad-wave`, and in the same run reported the migration "not run
+      locally". Both halves are the finding: applying it at all is against
+      CLAUDE.md's rule that Gary applies migrations, and reporting the opposite
+      is what made it invisible. Settled by Gary in chat 2026-09-18, correcting
+      the first draft of the ledger entry, which had recorded the hand as
+      unsettled and presumed him.
+      HOW IT WAS CAUGHT, WHICH IS THE PART WORTH THE ROW. Not by the session
+      report — the report said the opposite — and not by anything failing. It
+      was caught because `docs/MIGRATIONS.md` records a TIMESTAMP per branch,
+      and 19:50:06Z fell inside the build session's own window. The corroborating
+      evidence was an EMPTY result: Gary's own later run found nothing pending,
+      which is what a correct run looks like against a branch someone else has
+      already applied to. A ledger that recorded only "applied" with no time
+      would have agreed with the false report.
+      THE RESPONSE IS THE TWO HARDENINGS DOCS-6 WROTE, and they are aimed at the
+      two halves separately, because either alone leaves the other. (1)
+      CLAUDE.md § Database now states as a hard rule that Claude Code may run
+      `prisma migrate diff` and nothing else — never `migrate dev`, `migrate
+      deploy`, `migrate reset` or `db execute` — with this breach as the stated
+      reason. (2) WORKFLOW.md's session completion rules now require every
+      session report to list the `prisma` commands it ran, verbatim, or the
+      literal line "No prisma commands run." The first makes the act wrong on
+      its face; the second makes it visible when it happens anyway. Neither
+      prevents it — nothing in this repo can — so the ledger stays the backstop
+      it already proved to be.
+      NOT INVESTIGATED HERE: whether any earlier session did the same thing
+      without a timestamp close enough to catch it. The ledger's per-branch
+      times go back far enough to make the question answerable, and nobody has
+      asked it.
+      NO STATUS — OPEN. Filed 2026-09-19 by DOCS-6. The breach is recorded and
+      the hardenings are written; what is open is whether they hold.
+
+  - id: DEBT-104
+    status: shipped
+    title: >
+      Eight rows read staging/in_progress while their code was in production —
+      eight promotions since 2026-08-24, each owed a docs pass, and only the
+      CAL one got it
+    notes: >
+      ── RECORDER 2026-09-19 (DOCS-6c). ── "THIS COMMIT" IN THE RIDER BELOW IS
+      "faf0a3d" on `staging`, unpushed at the time of writing. Recorded as its own
+      commit rather than by amending "faf0a3d", which would invalidate the SHA.
+      ── RIDER 2026-09-19 (DOCS-6c). PREPENDED; NOTHING BELOW IS EDITED. ──
+      CLOSED IN THIS COMMIT, WHICH IS THE ONE THAT CARRIES THE RITUAL LINE. Gary
+      ruled 2026-09-19 on the FIX DIRECTION below: the ROADMAP shipped-flip goes
+      INSIDE the promotion bash block in docs/WORKFLOW.md § "2. Promote to
+      production (staging → main)", replacing the existing `git add` / `git commit`
+      pair, verbatim as proposed. That replacement is made in this commit, so the
+      proposal below is no longer a proposal. The same commit repairs the two
+      DEPLOY_LOG defects this row recorded as "not this session's to repair":
+      "df03cc3" and "608955b" now have reconstructed entries, "bf5a66f" has one
+      too, and the mis-stamped HR-33 heading carries a rider naming "bf5a66f" as
+      the rollback target.
+      WHAT IS NOT CLOSED BY THIS AND IS NOT CLAIMED TO BE: the ritual line is a
+      human step, which this row's own last paragraph already says is not the real
+      answer. DEBT-72b — the gate that would read ROADMAP.yaml during the
+      promotion — is still unbuilt and is where the next recurrence lands. The
+      "NO STATUS — OPEN" line at the foot is kept as written and is superseded by
+      the `status` field above. NO `shipped:` DATE ON THIS ROW ON PURPOSE: the
+      DebtItem shape (src/lib/roadmap.ts) carries `id`, `title`, `notes`, `status`
+      and `commits` and nothing else, and adding the field fails the type check in
+      src/generated/roadmap.ts. The date is in this rider instead.
+      FOUND 2026-09-19 (DOCS-6b) BY A READ-ONLY ANCESTRY PASS, and flipped by
+      the same session. The rows: STAFF-2, CHK-7, HR-29, HR-32, HR-33, HR-35,
+      SEARCH-1, SELF-1. 23 of 23 commits are ancestors of `main`. Staleness at
+      the moment of the pass ran from 10 days (CHK-7) to 22 (HR-29), and three
+      of the eight read `in_progress`, which does not merely understate where
+      the code is — it says somebody is still working on it.
+      THE ROWS ARE NOT THE DEFECT. Each one was correct when it was written.
+      STAFF-2 said its `staging` was "one step ahead of the truth at writing";
+      HR-35 said "status is in_progress at the work SHA" and gave the honest
+      reason; SEARCH-1 and HR-32 both said the code was not pushed, which it
+      was not. Every one of those sentences was true on the day and false by
+      the next. WHAT IS MISSING IS THE STEP THAT COMES BACK.
+      EIGHT PROMOTIONS CARRIED THEM AND NONE FLIPPED A ROW: "2a0e67a"
+      (2026-08-28, HR-29), "f3f9d31" (09-05, HR-32), "bf5a66f" (09-05, HR-33),
+      "df03cc3" (09-06, STAFF-2), "c870ba7" (09-06, SEARCH-1), "608955b"
+      (09-07, SELF-1), "049984a" (09-07, HR-35), "53b5a7c" (09-09, CHK-7).
+      Every one of them was owed a docs pass and only the CAL promotion
+      ("d2b8d79", 09-18) ever got one, on 2026-09-19, by DOCS-6 — which is
+      also the session that wrote the PRE-PUSH-CHECK hardening below. The
+      ratio is the row: one pass in nine promotions.
+      THE MECHANISM IS THAT NOBODY OWNS THE SECOND FLIP. WORKFLOW.md session
+      rule 4 assigns the `-> staging` flip to the session that moved the code,
+      and PRE-PUSH-CHECK Step 4 now names the step that makes it (hardening 3,
+      "c41b647", DOCS-6). NOTHING OWNS `-> shipped`. Gary runs the promotion
+      and Gary is not a session; the next session to open the row inherits a
+      board that disagrees with production, which is DEBT-72's "a decision gets
+      made from it" waiting to happen.
+      IT WAS SEEN AND WRITTEN DOWN AND STILL NOT FIXED, twice, which is the
+      part that argues this is a process gap and not an accident. HR-33's
+      TRIAGE AT CLOSE on 2026-09-05 recorded HR-32's row as stale ON THE DAY IT
+      SHIPPED, naming the merge and the missing commit — and HR-32 sat wrong
+      for fourteen more days. HR-35's triage flagged HR-34's DEPLOY_LOG entry
+      still reading "UNPROMOTED" while its own status was wrong in the same
+      paragraph. A COMMENT inside another row's notes is only read by whoever
+      reads that row.
+      TWO DEPLOY_LOG DEFECTS FOUND ALONGSIDE, recorded here because they share
+      the cause and are not this session's to repair. (1) TWO PROMOTIONS HAVE
+      NO ENTRY AT ALL — "df03cc3" (STAFF-2) and "608955b" (SELF-1), the second
+      carrying ten commits including the whole SELF-1 identity resolver.
+      Checked by heading against every `## ` in the file. (2) THE HR-33 ENTRY
+      IS STAMPED WITH THE WRONG MERGE: headed "c870ba7 — 2026-09-06" when the
+      merge that carried HR-33 is "bf5a66f" on 09-05, proved by all three
+      commits being ancestors of "bf5a66f" and none of "bf5a66f^1". A heading
+      SHA is what a rollback reads, so that entry currently sends a rollback at
+      SEARCH-1. Both are pointer defects (CLAUDE.md § Where documents live) and
+      both want a DEPLOY_LOG-scoped session.
+      ALSO FOUND: HR-29 REACHED MAIN BY FAST-FORWARD, not by its own merge.
+      "2a0e67a"'s first parent already contained all five HR-29 commits, so the
+      date on that row is a CEILING — the true one is somewhere between
+      2026-08-24 and 08-28 and git records no event for it. That is DEBT-38's
+      mechanism, and `--no-ff` in the ritual is what is supposed to prevent it.
+      The "2a0e67a" entry's own "Prior main tip was `607926b`" is wrong for the
+      same reason.
+      FIX DIRECTION — THE RITUAL NEEDS THE MATCHING FLIP, AND THE EXACT PLACE
+      IS KNOWN. There is no `docs/PROMOTION.md`; the ritual is
+      `docs/WORKFLOW.md` § "2. Promote to production (staging -> main)", in the
+      copyable bash block, where the DEPLOY_LOG entry is already written and
+      committed between the merge and the push. The ROADMAP flip belongs in
+      THAT COMMIT, for the reason the same section already gives about the
+      DEPLOY_LOG lines: "A step that only appears in prose beside a copyable
+      command block is a step that does not happen." PROPOSED, NOT ADDED —
+      Gary rules on it. Replace the two existing `git add` / `git commit` lines
+      with:
+        # ── flip every row this promotion carried to `status: shipped` +
+        #    `shipped: <date>` in docs/ROADMAP.yaml — the read-only log at the
+        #    top of this block IS the list of rows. Same commit as the entry. ──
+        git add docs/ROADMAP.yaml docs/DEPLOY_LOG.md
+        git commit -m "DEPLOY_LOG + ROADMAP: <date> production promotion (<what it carried>)"
+      WHY IN THE SAME COMMIT RATHER THAN A STEP AFTER IT: a separate step after
+      the push is exactly the shape that failed eight times above. The log
+      entry is already required before the push and is already the thing that
+      enumerates what the promotion carried, so the list the flip needs is
+      sitting in the same commit message.
+      WHAT THIS DOES NOT FIX, stated so the next reader does not assume it: a
+      ritual step is a human step, and the eight rows above are what human
+      steps look like when the human is mid-promotion. DEBT-72b — the gate that
+      would read ROADMAP.yaml during the promotion — is still the real answer
+      and is still not built.
+      NO STATUS — OPEN. Filed 2026-09-19 by DOCS-6b. The eight rows are flipped;
+      what is open is the ritual line and Gary's ruling on it.
+
+  - id: DEBT-105
+    # NOT `resolved` / NOT a `resolved:` date field. DebtItem in
+    # src/lib/roadmap.ts carries id/title/status/commits/notes ONLY, and a
+    # `resolved:` key type-errors the build (the same trap DEBT-7 recorded for
+    # `shipped:`). `in_progress` matches F-5b, the phase that fixes it: the code
+    # is committed on `staging` and NOT pushed. Both flip together.
+    status: in_progress
+    commits: ["1ab1149"]
+    title: >
+      pace-alerts.ts writes the PaceAlertLog idempotency row BEFORE the send, so
+      once the provider is "resend" a failed send burns that store's
+      one-alert-per-month lock and no email ever goes out
+    notes: >
+      ── RESOLVED 2026-09-20 BY F-5b, work "1ab1149". PREPENDED; NOTHING BELOW IS
+      EDITED EXCEPT THE ONE CORRECTION NAMED IN THIS BLOCK. ──
+      THE FIX IS A THIRD PATH, AND NEITHER OF THE TWO THIS ROW OFFERED. The row
+      below proposed (1) write the row AFTER a successful send, or (2) add a
+      delivery-status column. Gary ruled F3 on 2026-09-20 and chose neither. (1)
+      was rejected outright: the lock-before-send ordering is a standing ruling,
+      because it is what makes a crash between send and write unable to
+      double-alert. (2) is bigger — a migration plus a decision about how many
+      days a failed alert keeps retrying — and is DEFERRED, not dead.
+      WHAT SHIPPED INSTEAD: a compensating delete. The send at
+      src/lib/pace-alerts.ts is now wrapped; on a throw, the PaceAlertLog row
+      just created is deleted and the error rethrown, so the per-store catch in
+      the cron still records `error:` and the run continues to the next store.
+      Tomorrow's run then re-evaluates the store from scratch. A double-alert
+      stays impossible, because a send that SUCCEEDS leaves the row exactly where
+      it has always been. Ordering is now LOCK -> SEND -> RELEASE ON FAILURE and
+      is commented as such at the site.
+      DELETED BY ID, NOT BY THE UNIQUE KEY, and that is the whole of the
+      concurrency argument rather than a style preference. A delete by
+      {storeId, month} would destroy whichever row is present — which on a
+      concurrent run is the WINNER'S row, the one whose email is in flight or
+      already delivered. The id captured from the create can only ever name the
+      row this call made. A release that itself fails is logged and swallowed so
+      it cannot mask the send error; that degrades to exactly the behaviour
+      described below and is no worse.
+      PROVEN BY FIXTURE, NOT BY INSPECTION. scripts/verify-f5-polish.ts gained
+      three checks on a dedicated third store: a thrown send propagates, NO
+      PaceAlertLog row survives it, and the next run alerts rather than returning
+      the phantom "already alerted this month". 27 checks, 0 failures. The cron
+      itself was NOT run in any environment.
+      ── CORRECTION TO THE TEXT BELOW (the premise, not the ruling) ──
+      The closing paragraph says NOTIFY_EMAIL_PROVIDER is "unset today in every
+      environment, so the flaw is latent at the moment of filing". That was true
+      when filed on 2026-09-19 and IS NO LONGER TRUE FOR STAGING: staging has run
+      NOTIFY_EMAIL_PROVIDER=resend since 2026-09-20 (docs/DEPLOY_LOG.md, NOTIFY-1
+      "1c21368"), which is why F-5b's own staging verification forbids firing the
+      cron there. Production remains unset at the time of writing. The sentence is
+      left standing below per preserve-and-mark; this paragraph is the correction.
+      ── ORIGINAL TEXT BELOW, UNCHANGED ──
+      FOUND 2026-09-19 BY NOTIFY-1'S PRE-PUSH-CHECK, in NOTIFY-1's own commit
+      message — the message explains why the env validation was MOVED OUT of
+      send(), and the reason it gives is this flaw. The mitigation is real and the
+      flaw it describes is not fixed by it.
+      THE SEQUENCE. src/lib/pace-alerts.ts:103-122 creates the PaceAlertLog row
+      before sending, deliberately: the comment says the row IS the idempotency
+      lock, written first so a crash or a concurrent run cannot double-alert, and a
+      P2002 unique violation is read as "already alerted this month". The send
+      follows at :135. So the lock is taken on INTENT TO SEND, and nothing releases
+      it if the send then fails.
+      WHY IT WAS HARMLESS UNTIL NOW AND IS NOT ANY MORE. With the console sender,
+      send() cannot fail — it writes to stdout. NOTIFY-1 (work "1c21368") adds a
+      sender that can: a non-2xx from Resend throws, and so does the 10s
+      AbortController timeout. The moment NOTIFY_EMAIL_PROVIDER is set to "resend"
+      in an environment, every one of those failures lands AFTER the row is
+      committed.
+      WHAT THE OPERATOR SEES, WHICH IS THE WORST PART. The cron's per-store
+      try/catch (src/app/api/cron/pace-alerts/route.ts:38-43) catches the throw,
+      pushes `error: …` into its results array, console.errors it and continues —
+      correct behaviour for one bad address, and it means the run still reports
+      ok: true. The NEXT day's run finds the row and returns the clean, reassuring
+      "already alerted this month". Nothing in Froot distinguishes that from a
+      delivered alert: no AuditLog entry, no dashboard surface, no retry. The store
+      is locked out for the rest of the calendar month, and the only trace is one
+      line in a Vercel function log from the day it happened.
+      NOT THE SAME BUG NOTIFY-1 ALREADY CLOSED, and conflating them would close
+      this wrongly. NOTIFY-1 moved RESEND_API_KEY and NOTIFY_FROM_EMAIL validation
+      into getEmailSender(), which the cron calls once at route.ts:25 before its
+      store loop, so a MISCONFIGURED deployment now fails with zero rows written.
+      That covers the config case completely. It does nothing for a send that fails
+      at runtime on a correctly configured deployment, which is the case here.
+      FIX DIRECTION, EITHER OF TWO, NOT RULED. (1) Write the row AFTER a successful
+      send — simplest, and it trades this failure for the one the current order was
+      chosen to prevent: a crash between send and write, or two concurrent runs,
+      double-alerts. (2) Give PaceAlertLog a delivery status: write it first as
+      today, mark it sent on success, and let the next day's run re-attempt a row
+      that is still unsent. Keeps the double-send guard, costs a migration and a
+      decision about how many days a failed alert keeps retrying before the month
+      is written off. GARY RULES; this row does not choose.
+      NO STATUS — OPEN. Filed by NOTIFY-1's PRE-PUSH-CHECK, TIER 1, which changes
+      no code. Nothing about this is exercisable until NOTIFY-1 is pushed and
+      NOTIFY_EMAIL_PROVIDER is set to "resend" somewhere — unset today in every
+      environment, so the flaw is latent at the moment of filing.
+
+  - id: DEBT-106
+    title: >
+      organizationMembership.deleted leaves the User row with role ADMIN, so a
+      departed admin matches the pace-alert recipient query forever and appears
+      on no Froot screen
+    notes: >
+      THE ID FILLS A GAP RATHER THAN CONTINUING THE SEQUENCE. Gary, 2026-09-20:
+      DEBT-106 was left free when DEBT-97/98's duplicates were renumbered to
+      107/108. Confirmed unreferenced before use — no occurrence in any document
+      and `git log -S DEBT-106 -- docs/ROADMAP.yaml` returns nothing, so this is
+      the first row ever to carry the id and no stale reference can resolve to it.
+      FOUND 2026-09-20 BY F-5b'S AUDIT, which asked a narrower question — can a
+      departed MANAGER still receive a pace alert — and found the manager half
+      already clean and the admin half broken.
+      THE MECHANISM. src/app/api/webhooks/clerk/route.ts handles
+      organizationMembership.deleted: it unlinks the staff profile and DELETES
+      every StoreUserAssignment row for the user. It does NOT delete the User
+      row, does NOT change User.role, and does NOT clear User.organizationId.
+      There is also no user.deleted handler at all — the file handles exactly
+      five events (organization.created, organization.updated,
+      organizationMembership.created, user.updated, organizationMembership
+      .deleted).
+      WHY THE MANAGER HALF IS FINE AND THE ADMIN HALF IS NOT. The recipient query
+      at src/lib/pace-alerts.ts:91-98 has two arms. The MANAGER arm requires
+      `storeAssignments: { some: { storeId } }` — exactly the rows the webhook
+      deletes — so a departed manager drops out on the next run, by accident
+      rather than by design. The ADMIN arm is only organizationId + role ADMIN,
+      with no assignment requirement, and CANNOT have one: admins deliberately
+      hold no StoreUserAssignment rows at all (recorded on User.defaultStoreId in
+      prisma/schema.prisma). So the one signal that retires a departed manager
+      does not exist for an admin.
+      THE QUIET PART. /users renders from the CLERK membership list
+      (getOrganizationMembershipList, then `memberList.map(...)`), using database
+      rows only as a lookup map. A User row with no Clerk membership therefore
+      appears on NO screen in Froot while still matching this query. Nothing in
+      the product would show an operator that a former admin is still being
+      emailed.
+      COST OF DOING NOTHING: LIVE, not latent, the moment an org enables pace
+      alerts. Staging already runs NOTIFY_EMAIL_PROVIDER=resend and production is
+      expected to follow, so this is real mail to a real former employee
+      containing a store's sales performance against goal. Trigger: any admin
+      removed from an org in Clerk. DEBT-47 records that production already
+      carries at least one such orphaned User row from 2026-08-04.
+      WHERE THE FIX BELONGS — RULED, AND IT IS NOT IN THE CRON. Gary's F2,
+      2026-09-20: the pace-alert query is left exactly as it is, because the
+      defect is not that pace alerts read the wrong rows, it is that the rows are
+      wrong. Filtering in the cron would fix one consumer and leave every other
+      org-scoped query reading the same stale row. The fix is in the Clerk webhook
+      handler — clear organizationId, or add a status/deleted column to User —
+      and it is a schema-or-webhook decision that was deliberately not taken
+      inside a forecasting phase.
+      WHAT WAS CONSIDERED AND REJECTED FOR F-5b. Filtering by an existing
+      active/status field: impossible, User has none (full scalar list is id,
+      clerkUserId, organizationId, email, name, role, defaultStoreId,
+      deniedCapabilities, grantedCapabilities, lastSeenAt, lastSeenLocation,
+      createdAt). Testing for a live Clerk membership from inside the cron:
+      possible — the codebase already paginates that call with fetchAllClerkPages
+      — but it puts a per-org Clerk API round-trip inside a cron and introduces a
+      new failure mode when Clerk is down, which is its own decision. A
+      lastSeenAt cutoff: answers the wrong question (ENG-1 activity, not
+      membership) and would silence a legitimate admin who does not browse.
+      RELATED: DEBT-47 is the parent webhook-hardening row — same handler, same
+      class of orphan, and it already tracks the production rows. This row is the
+      specific consequence DEBT-47's orphans have for outbound email, filed
+      separately because it has a live sending consequence that DEBT-47's
+      member-count drift does not. Fixing DEBT-47 properly should close this too.
+      PINNED IN EXECUTABLE FORM. scripts/verify-f5-polish.ts carries a
+      CHARACTERIZATION check asserting that an assignment-less ADMIN IS still a
+      recipient. It documents this gap rather than endorsing it, and is EXPECTED
+      TO FAIL when the webhook is fixed — at which point it should be updated to
+      assert the opposite, not worked around.
+
+  - id: DEBT-109
+    status: planned
+    title: >
+      Deliverability — mail from the new sending domain lands in Outlook Junk;
+      there is no code fix, only a warm-up and a DMARC tightening
+    notes: >
+      FILED 2026-09-20 BY GARY, in the NOTIFY-2a docs commit. NOT A BUG AND NOT
+      A CODE ROW. Nothing in src/ is wrong and nothing in src/ will fix it —
+      this is filed so the next person who sees an alert "not arrive" checks the
+      Junk folder before opening the cron, and so the two remedies are written
+      down in the order they must happen rather than re-derived.
+      THE SYMPTOM. Mail from the NOTIFY-1 sending domain — a SUBDOMAIN, never
+      the root, per CLAUDE.md § Environment Variables — lands in Outlook's Junk
+      folder at inboxes seeing it for the first time. This is ordinary behaviour
+      for a domain with no sending history, not a misconfiguration: a brand-new
+      subdomain has no reputation, and Outlook in particular treats that as a
+      reason for suspicion rather than neutrality.
+      WHY IT MATTERS MORE HERE THAN IT WOULD ELSEWHERE. Every email Froot sends
+      is one a manager or an admin is expected to ACT on — a store is behind
+      pace, a document was signed — and none of them is ever re-sent. The pace
+      alert is capped at ONE PER STORE PER MONTH by the PaceAlertLog lock, so an
+      alert that lands in Junk is not retried in four days; it is gone for the
+      month. A junked alert and a suppressed alert are indistinguishable from
+      inside the product, which is the same class of invisibility DEBT-106 has.
+      STEP 1 — NOT-JUNK THE FIRST SENDS AT EACH NEW INBOX. Manual, per
+      recipient, and it is the whole of the short-term fix. Marking a message
+      Not Junk is the signal that builds the sender's reputation at that
+      tenant; nothing automated substitutes for it. Do it at every new
+      recipient inbox as pace alerts and acknowledgment emails start reaching
+      real people, and expect to do it more than once per inbox early on.
+      STEP 2 — TIGHTEN DMARC TO p=quarantine, AND ONLY AFTER WEEKS OF CLEAN
+      DELIVERY. Not first, and not at the same time as step 1. A policy
+      tightened while the domain is still being rejected takes a sender with no
+      reputation and adds a rule telling receivers what to do with mail that
+      fails — which makes an early misalignment louder rather than quieter. The
+      order is: send, get marked Not Junk, accumulate clean delivery over weeks,
+      then tighten. Aligned SPF and DKIM are the precondition for that step, not
+      part of it.
+      WHAT WOULD MAKE THIS VISIBLE RATHER THAN FOLKLORE: NOTIFY-2b's Resend
+      delivery webhooks (delivered / bounced / complained). Today a bounce is
+      visible only in the Resend dashboard, and a JUNKED message is not a bounce
+      at all — it is accepted, so even the webhooks will report it delivered.
+      That limit is worth knowing before anyone treats a green send log as proof
+      somebody read it.
+      NO CODE FIX, DELIBERATELY. There is nothing to change in src/ — not the
+      sender, not the wording, not the from address. Resist the pull to "fix"
+      this in the product; the temptation will be to add retries to the pace
+      alert, which would break the one-alert-per-store-per-month promise F-5
+      exists to keep. RELATED: NOTIFY-1 provisioned the domain and the three env
+      vars; NOTIFY-2b is where visibility lands.
+
+
+  - id: DEBT-110
+    title: >
+      The Clerk webhook verifies its Svix signature over a RE-SERIALISED body,
+      not the raw bytes — safe only while the payload round-trips through JSON
+      unchanged
+    notes: >
+      FILED 2026-09-20 BY GARY, in the NOTIFY-2b PRE-PUSH-CHECK, out of that
+      phase's audit. NO STATUS KEY, which on a debt row reads as OPEN.
+      THE DEFECT. src/app/api/webhooks/clerk/route.ts:25-26 reads the request as
+      `const payload = await req.json()` and then verifies
+      `JSON.stringify(payload)` against the Svix headers. THE SIGNATURE COVERS
+      THE EXACT BYTES SVIX SENT. A parse-then-restringify round trip is only
+      byte-identical while nothing in the payload survives JSON differently than
+      it arrived — key order is preserved by V8 for string keys but NOT for
+      integer-like ones, non-ASCII escaping, number formatting (1.0, 1e3,
+      -0), and any whitespace all differ freely between an emitter and
+      JSON.stringify. Clerk's payloads happen to round-trip today. Nothing
+      guarantees they will after a Clerk-side serialiser change, and the
+      guarantee is not Froot's to make.
+      NOTE THE FAILURE DIRECTION, which is what keeps this a debt row rather
+      than a bug. The break is CLOSED, not open: a body that fails to
+      round-trip produces a signature MISMATCH and a 400, so the webhook stops
+      accepting events rather than starting to accept forged ones. Nothing is
+      admitted that should not be. What it costs is availability — org and user
+      sync silently stops — and a 400 from a signature check is exactly the
+      shape that reads as an attack rather than as a serialisation drift, so
+      the diagnosis would start in the wrong place.
+      THE FIX IS FOUR LINES AND HAS TWO WORKING EXEMPLARS IN THIS REPO.
+      Read `const rawBody = await req.text()`, verify THAT, then
+      `JSON.parse(rawBody)` for the event. src/app/api/webhooks/square/route.ts:56
+      has done it that way since F-4 ("Signature covers the exact raw body —
+      read text, verify, then parse"), and src/app/api/webhooks/resend/route.ts
+      does it as of NOTIFY-2b ("8ab4ee8"), which is the audit that turned this
+      up — the Resend route deliberately did NOT copy the Clerk precedent, and
+      that deviation is recorded in docs/DECISIONS.md under NOTIFY-2b.
+      WHY NOTIFY-2b DID NOT JUST FIX IT. It is a live auth path on a webhook
+      that currently works, and touching it was not that phase's mandate; a
+      TIER 2 session that edits a signature check it was not asked to edit is
+      the shape of change that gets found later by the person debugging why
+      user sync stopped. It wants its own sitting, with a replayed Clerk event
+      against the changed route as the evidence.
+      SCOPE — THIS IS THE ONLY REMAINING ONE. The census at "8ab4ee8": Clerk
+      (re-serialises, this row), Square (raw, correct), Resend (raw, correct).
+      Three inbound signed webhooks, one wrong.
+  - id: DEBT-111
+    title: >
+      docs/PERMISSIONS_INVENTORY.md §5 has drifted from the capability registry
+      — eight capabilities undocumented and one documented with the value its
+      own code comment calls a lie
+    notes: >
+      FILED 2026-09-20 BY GARY, in the NOTIFY-2c PRE-PUSH-CHECK, out of that
+      session's scope triage. NO STATUS KEY, which on a debt row reads as OPEN.
+      THE ID FILLS THE NEXT FREE SLOT AND WAS CONFIRMED UNREFERENCED BEFORE USE
+      — no occurrence of "DEBT-111" in any document or source file, and
+      `git log -S DEBT-111 -- docs/ROADMAP.yaml` returns nothing, so this is the
+      first row ever to carry the id and no stale reference can resolve to it.
+      Same check DEBT-106's row records, for the same reason.
+      MEASURED AT "6c2cbc1", by parsing the Capability union out of
+      src/lib/permissions.ts and the §5 table out of the document and diffing
+      the two sets. THE REGISTRY DECLARES 66 CAPABILITIES; §5 CARRIES 58 ROWS.
+      Eight are absent with no row at all: help.view, calendar.view,
+      calendar.manage, engagement.view, labor.access, labor.actuals.view,
+      labor.schedule.view, labor.costs.view. ZERO ORPHANS — every row in the
+      table still names a real capability, so the drift is purely
+      under-coverage, not stale entries.
+      THE NINTH ITEM IS WORSE THAN A MISSING ROW, because it is a row that
+      ANSWERS. §5 still describes square.manage as "today: any member (gap #2;
+      catalog syncs ADMIN)". That value was corrected to ADMIN_ONLY by R4
+      (Gary, 2026-08-06) and the correction is recorded at length in
+      src/lib/permissions.ts, whose comment says in so many words that "the
+      value was documentation that lied". The registry was fixed; the document
+      the registry cites as its source was not. So the catalogue currently
+      under-states who is refused by every Square route — including the labor
+      routes AL-1 migrated onto can(_, "square.manage") — and it does so in the
+      one document a reader consults precisely because they do not want to read
+      the code.
+      WHY THIS IS A DEBT ROW AND NOT A TYPO. The document is §5's "Capability
+      registry (Deliverable 2)" — PERM-1's deliverable, cited by live rows and
+      by the file header of src/lib/permissions.ts, and the place a future
+      phase looks up what a role may do. It is maintained BY HAND on every
+      capability addition, and the measurement above is what that costs: eight
+      of the last ten additions (HELP-1a, CAL-1 x2, ENG-1, COMP-1, AL-2, AL-3,
+      OVL-S3) never reached it, each session adding its own entry to the code
+      and none to the table. NOTIFY-2c's notify.pace.receive row IS present
+      because that phase was asked for it explicitly — which is the point: the
+      table is only updated when a prompt remembers to say so.
+      FIX DIRECTION (Gary, 2026-09-20): REGENERATE §5 FROM THE REGISTRY, OR
+      WRITE A GENERATOR THAT DOES. Not a one-time hand-patch of the nine items
+      — that restores the table for a week and leaves the mechanism that lost
+      them intact. scripts/generate-roadmap.mjs is the existing precedent for a
+      build-time doc generator in this repo, and the registry already carries
+      everything a table needs (the key, the role tier from GRANTS, and for the
+      grid rows the area, label and `removes` copy). The part a generator
+      CANNOT produce is the "Derived from" column — those are PERM-1 audit
+      references (NV-1, PG-8, IV-10) that exist nowhere in code — so either
+      that column is preserved per-row through the regeneration or the
+      generated table carries the machine-readable half and the audit
+      references stay in prose beside it. That choice is the phase's, not this
+      row's.
+      NOT CAUSED BY NOTIFY-2c, AND IT RIDES THAT PHASE'S PUSH ONLY BECAUSE THE
+      CHECK FILED IT. NOTIFY-2c added a row to §5 and left every pre-existing
+      row untouched; the drift predates it by eight phases. Nothing in this row
+      blocks that push.
+      RELATED: R4 (2026-08-06) is the square.manage correction this row says
+      never reached the document. PERM-1 owns §5's authorship; PERM-5 and PERM-8
+      added the grid and grant lists whose contents a regenerated table would
+      also want to show, since "deniable" and "grantable" are now facts about a
+      capability that §5 has no column for.
 
 rulings:
   - id: R1
