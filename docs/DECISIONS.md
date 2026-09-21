@@ -5,6 +5,97 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-20 — NOTIFY-2c: per-user email controls, set by an admin on the user's row (Gary)
+
+**The ruling.** An ADMIN decides, **per user**, which of Froot's emails that
+user receives, from the **Edit User dialog on `/users`** — the same place they
+decide what the user can do. Today the only user-addressed email is the
+behind-pace alert (F-5: every ADMIN plus the store's assigned MANAGERs); more
+are planned, so the grid had to make each new email **one line to add**.
+
+### Admin-set per-user control (allowed) vs self-service opt-out (still ruled out)
+
+These two produce the same stored value and are opposite decisions. The
+distinction is the ruling, and it is written down here because the column
+cannot carry it:
+
+- **Admin-set** — an administrator, acting on someone else's row, in the
+  dialog where that person's permissions already live. The decision is visible
+  to the team that made it, sits beside every other decision about that
+  account, and is auditable in the same place. **This is what NOTIFY-2c
+  built.**
+- **Self-service** — the recipient silencing their own mail, from a settings
+  page or an unsubscribe link. **Ruled out earlier the same day and still
+  ruled out.** There is no user-facing opt-out anywhere in the product, no
+  unsubscribe in any template, and no surface a STAFF or STORE account can
+  reach to take themselves off a list. An operator's alert about a store's
+  performance is not a newsletter.
+
+**The standing ruling this amends, named rather than reworded.** NOTIFY-2a's
+entry below restates: *"Pace-alert recipients are ROLE-BASED and there is no
+list to edit … No per-user opt-out. The org toggle is the only switch."* Half
+of that still stands — recipients are role-based, there is still no recipient
+**box** on `/settings/notifications`, and the org toggle still outranks
+everything (org off → nobody, whatever any user's row says). The half that
+changed is the last clause: the org toggle is no longer the *only* switch.
+That sentence is left exactly as written, per the rule that a decision record's
+ruling is never reworded; this entry is where the change lives.
+
+### The forks
+
+**F1 — the model is CAPABILITIES, not a new column.** One new capability,
+`notify.pace.receive`, declared in `src/lib/permissions.ts` like every other.
+The audit's first job was to prove the model can express **"deniable but not
+grantable beyond role"** — because if it could not, this was TIER 3 and stopped
+for a ruling. It can, and all three halves already existed: a `MANAGE` baseline
+in `GRANTS`, a row in `ENFORCED_CAPABILITIES` (which is both what the grid
+renders and what `PATCH /api/users/[id]` enforces as its deniable set), and
+**absence** from `GRANTABLE_CAPABILITIES`, which makes `can()`'s elevation
+branch unreachable for this key regardless of what is written to
+`User.grantedCapabilities`. A dedicated `notificationPrefs` column would have
+been a second per-user permission store beside the two that exist, with its own
+load path, its own fail-closed question and its own grid. **No schema change,
+no migration, no prisma command.**
+
+**F2 — the denial is applied by `can()`, and it is still one query.** *The
+"one query vs post-filter" framing turned out to be a false trade.* The
+recipient query keeps its `where` verbatim and selects three more **columns**
+on the same round trip (`role`, `deniedCapabilities`, `grantedCapabilities`);
+the rows that come back are filtered through `can()`. So the choice was decided
+on correctness alone. `can()` is a fail-closed load, then a role baseline, then
+an elevation branch, **evaluated in that order** — an array test in the `where`
+can express today's snapshot of that and not its precedence, so the day one of
+those rules moves, the Edit User grid and the mailing list would be free to
+disagree with nothing to say which was right. `grantedCapabilities` is selected
+although this key is not grantable today: omitting it becomes a silent
+under-mail the moment that changes, which is the same failure `overridesFrom`'s
+three-state contract exists to prevent. **The filter lands before the
+`PaceAlertLog` lock is written**, so that row records who was actually mailed.
+
+**F3 — an unticked admin loses the email and nothing else.** They keep every
+other admin power. This is the **first row in the capability grid that takes
+away no access**, and the row's `removes` copy says so in the admin's words
+rather than leaving it to be inferred: *"Nothing else changes — they keep every
+other permission, and only the email stops."* An unticked box in a grid of
+permissions otherwise reads as a loss of power.
+
+### Two things recorded so they are not re-derived
+
+**F-5b's F2 is not overturned.** That ruling — *do not filter in the cron* —
+was about the **offboarding** gap (a departed admin who still matches the ADMIN
+arm), and it stands: the fix belongs in the Clerk webhook, `DEBT-106` is open
+and untouched, and the fixture's characterization check still passes. NOTIFY-2c
+adds a **different** filter under its own ruling. The two are distinguishable
+by what they test — membership vs a stored denial — and the comments at both
+sites say which is which.
+
+**`notify.*` is a deniable-only namespace** (`docs/PERMISSIONS_INVENTORY.md`
+§5): one entry per user-addressed email, never in `GRANTABLE_CAPABILITIES`, and
+always below the org-level switch. The consequence worth stating is that a
+STORE or STAFF account can never be added to a mailing list one login at a
+time — an email goes to a person because their role puts them on the list, and
+the per-user control only takes them off it.
+
 ## 2026-09-20 — NOTIFY-2b: one branded template, the send log, delivery webhooks (Gary)
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
@@ -176,7 +267,7 @@ added. Nor was a second link added inside the HR card: one door.
 
 - **Pace-alert recipients are ROLE-BASED and there is no list to edit.** Every
   ADMIN plus the store's assigned MANAGERs, resolved per store at send time
-  (`src/lib/pace-alerts.ts:91-98`). **No per-user opt-out.** The org toggle is
+  (the recipient query in `src/lib/pace-alerts.ts`). **No per-user opt-out.** The org toggle is
   the only switch. `/settings/notifications` states the rule as a read-only
   line precisely so an admin does not go looking for the recipient box that the
   card above it has — the two cards look parallel and are not.
@@ -243,7 +334,7 @@ HR-16's empty `hrAckRecipients` array, and it matters for the same reason.
 **F2 — the recipient query is left exactly as it is, and the defect is filed
 where it actually lives.** *The audit asked a narrower question than the answer
 it got.* It asked whether a departed **manager** could still match
-`src/lib/pace-alerts.ts:91-98`; the answer split in two. A departed manager
+the recipient query in `src/lib/pace-alerts.ts`; the answer split in two. A departed manager
 **cannot** — `organizationMembership.deleted` deletes their
 `StoreUserAssignment` rows and the MANAGER arm of the query requires one, so
 that half is already clean, by accident rather than design. A departed **admin**

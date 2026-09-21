@@ -17826,6 +17826,26 @@ phases:
     commits: ["a16bab2", "e4dc158", "19cc329"]
     title: "Email settings hub — /settings/notifications; per-org pace threshold; provider on ack audit rows"
     notes: >
+      ── NOTIFY-2c RIDER, 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      ONE OF THIS ROW'S RESTATED STANDING RULINGS HAS BEEN AMENDED, AND IT IS
+      NAMED HERE RATHER THAN EDITED BELOW. The bullet restated as "pace-alert
+      recipients are ROLE-BASED and there is no list to edit ... No per-user
+      opt-out" was true when it was written and is now half true. What stands:
+      recipients are role-based, there is no recipient BOX on
+      /settings/notifications, and the org toggle outranks everything. What
+      changed: an ADMIN may take ONE PERSON off the list from that person's row
+      in Edit User on /users (capability notify.pace.receive, work commit
+      "d273026").
+      THE DISTINCTION IS THE RULING, not a softening of it. PER-USER CONTROL IS
+      ADMIN-SET, NEVER SELF-SERVICE. Gary, 2026-09-20: an admin decides, per
+      user, which of Froot's emails that user receives, from the same dialog
+      where they decide what the user can do. SELF-SERVICE OPT-OUT WAS RULED
+      OUT EARLIER THE SAME DAY AND REMAINS RULED OUT - no user-facing
+      unsubscribe anywhere in the product, and no settings surface a STAFF or
+      STORE account can reach to silence their own mail. An admin-set control
+      on the user's row and a user-set opt-out are opposite decisions that
+      happen to produce the same column value, which is exactly why this rider
+      exists.
       ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
       READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
       per Step 4 — this check is the last thing that runs before Gary pushes, so
@@ -18250,6 +18270,95 @@ phases:
       DEPENDS ON: HR-16 ("23da754") for the writer, NOTIFY-2a ("a16bab2") for
       the page and the provider field. Reuses NOTIFY-1's provider config; adds
       no provider env vars of its own.
+
+  - id: NOTIFY-2c
+    track: platform
+    size: S
+    status: in_progress
+    # Work commit only at the time of writing — this row is composed INSIDE the
+    # docs commit that records it, so that commit's own SHA cannot appear here
+    # (the two-commit pattern, same as NOTIFY-2a, NOTIFY-2b, F-5b and CAL-2).
+    commits: ["d273026"]
+    title: "Per-user email controls in the Edit User grid — pace alerts honour deniedCapabilities"
+    notes: >
+      WHY THIS PHASE EXISTED. Gary, 2026-09-20: an ADMIN decides, PER USER,
+      which of Froot's emails that user receives, from the Edit User dialog on
+      /users - the same place they decide what the user can do. Today the only
+      user-addressed email is the behind-pace alert (F-5: every ADMIN plus the
+      store's assigned MANAGERs). More are planned, so the grid had to make each
+      new email ONE LINE TO ADD, and it does: one entry in
+      ENFORCED_CAPABILITIES, no grid change, no route change.
+      THIS IS NOT SELF-SERVICE OPT-OUT, which was ruled out earlier the same day
+      and stays ruled out. No user-facing unsubscribe anywhere. See the
+      NOTIFY-2c rider prepended to NOTIFY-2a's notes, which names the standing
+      ruling this amends and the half of it that still stands.
+      TIER 2 HELD - NO SCHEMA. The audit's first question was whether the
+      capability model can express "deniable but not grantable beyond role",
+      because if it could not this became TIER 3 and stopped. It can, and the
+      three halves were already there: a MANAGE baseline in GRANTS
+      (src/lib/permissions.ts), a row in ENFORCED_CAPABILITIES (deniable from
+      the grid, and the same list PATCH /api/users/[id] enforces as its DENIABLE
+      set), and ABSENCE from GRANTABLE_CAPABILITIES - which makes can()'s
+      elevation branch unreachable for this key no matter what is written to
+      User.grantedCapabilities. Nothing was added to the schema and no prisma
+      command was run in this session.
+      F1 - MODEL: CAPABILITIES, NOT A NEW COLUMN. Taken on the lean. A
+      notificationPrefs column would have been a second per-user permission
+      store beside the two that exist, with its own load path, its own
+      fail-closed question and its own grid.
+      F2 - FILTER PLACEMENT: POST-FILTER THROUGH can(), AND IT IS STILL ONE
+      QUERY. The finding that decided it: the "one query vs post-filter" framing
+      was a false trade. The WHERE is untouched and three more COLUMNS ride the
+      same round trip (role, deniedCapabilities, grantedCapabilities), so the
+      choice was correctness alone. can() is a fail-closed load, then a role
+      baseline, then an elevation branch, evaluated in that order; an array test
+      in the WHERE can express today's snapshot of that and not its precedence,
+      so the grid and the mailing list would be free to drift with nothing to
+      say which was right. grantedCapabilities is selected although this key is
+      not grantable today - omitting it would become a silent under-mail the day
+      that changed, and overridesFrom's three-state contract exists precisely
+      because a forgotten column looks identical to an empty one.
+      F3 - WHAT AN UNTICKED ADMIN SEES: NOTHING ELSE CHANGES. They keep every
+      other admin power; only the email stops. This is the FIRST ROW IN THE GRID
+      THAT TAKES AWAY NO ACCESS, and the `removes` copy says so in the admin's
+      words - "Nothing else changes - they keep every other permission, and only
+      the email stops" - because an unticked box in a capability grid otherwise
+      reads as a loss of power.
+      NAMING. Key `notify.pace.receive`, not the prompt's `notify.paceAlerts`.
+      The file's convention is domain.resource.action, ALL LOWER CASE, and no
+      key in the union carries a capital letter; the namespace is meant to grow
+      one entry per user-addressed email. Grid section "Email notifications".
+      THE GRID NEEDED NO CHANGE, which was the point of checking. It renders
+      from the declaration grouped by `area`, so the new section, the ticked row
+      for ADMIN/MANAGER, and the padlocked "Not granted by this role" for STORE
+      and STAFF all fall out of user-actions.tsx unmodified.
+      F-5b's F2 IS NOT OVERTURNED. That ruling forbade an OFFBOARDING filter in
+      this query and filed DEBT-106; this is a different filter under its own
+      ruling, DEBT-106 is untouched and still open, and its characterization
+      check (an assignment-less ADMIN is still a recipient) still passes.
+      ONE BEHAVIOUR CHANGE NOT IN THE PROMPT, and it is a log line: an org where
+      every eligible person is denied now reports "every admin/manager has
+      behind-pace alerts denied" instead of "no admin/manager recipients". One
+      is a deliberate choice and the other a setup problem; reading the first as
+      the second sends someone hunting a bug in the query. No lock row is
+      written on either path.
+      FIXTURE - scripts/verify-f5-polish.ts, 63 checks, 0 failures: 51
+      pre-existing plus 12 new, run against the DEV branch. EACH DENIED
+      PRINCIPAL HAS AN UNDENIED PEER of the same role on the same store, because
+      a check that only asserts ABSENCE passes just as happily when the whole
+      send is broken. STAFF: the grant is BOTH REJECTED AND IGNORED, and the
+      fixture says which layer does which - isGrantable() is false, which is the
+      exact filter PATCH /api/users/[id] 400s on, and can() refuses a grant
+      written straight to the column. The log-row check is separate from the
+      email check on purpose: asserting the email alone would pass even if the
+      filter ran late and PaceAlertLog.recipients kept claiming the denied pair.
+      NOT RUN ANYWHERE. No email left any environment, the pace-alerts cron was
+      not fired, and nothing was verified in a browser - staging does not have
+      this code (Claude never pushes). The fixture is the recipient proof.
+      DEPENDS ON: PERM-5 for deniedCapabilities and the grid, PERM-8 for
+      GRANTABLE_CAPABILITIES and the grant/deny split, F-5 for the alert itself,
+      NOTIFY-2a for /settings/notifications.
+
 
   - id: NOTIFY-3
     track: platform
