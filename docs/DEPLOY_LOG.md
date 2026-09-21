@@ -2,7 +2,63 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-20 — CAL-2c: the calendar due banner rolls up behind a chevron
+## d417543 — 2026-09-21 — CAL-2c: the calendar due banner rolls up behind a chevron
+
+**Merge SHA:** `d41754366f1fe909c8d206fd4d3767eb0264c74c`
+**Promoted 2026-09-21 07:12:13 -0700 (Pacific)**, which is `2026-09-21T14:12:13Z`,
+in `d417543` ("Merge branch 'staging'"). THE SHA IS THE `--no-ff` MERGE COMMIT —
+parents `a9534ed` (the prior tip of `main`) and `786de83` (the tip of `staging`) —
+and the rollback recipe reads the merge, not the tip of `main`. **3 commits** in
+`d417543^1..d417543^2`. Every figure in this paragraph was read out of `git log`
+at the promotion pass; none of it is hand-typed. Gary pushed the merge to
+`origin/main`.
+**STAMPED POST-MERGE ON `main`, AND THAT IS THE STEP DEBT-104 SAYS NOBODY OWNS.**
+The PRE-PUSH-CHECK wrote this entry in the unpromoted state and flipped the row
+to `staging`; the promotion itself has no session of its own, so the stamp and
+the row flip are made here, on `main`, after the merge, in one commit. Appending
+on one side only is also the DEBT-90 fix holding: stamping on `staging` and
+merging forward would re-create the competing top-of-file appends that row
+exists to eliminate.
+**THE HEADING DATE MOVED `2026-09-20` -> `2026-09-21`** with the SHA, per the
+HR-33 precedent under `c870ba7` — an entry written unpromoted on one day and
+stamped at a promotion on the next carries the promotion's date in its heading.
+The 2026-09-20 date the entry was written under is preserved in the superseded
+paragraph below.
+
+**Payload: CAL-2c only.** The three commits in `d417543^1..d417543^2`, verified
+from git rather than from a report:
+
+| Commit | What it is |
+|---|---|
+| `355496b` | `feat(CAL-2c)`: the work — the whole of it is `src/components/calendar-due-banner.tsx` |
+| `35340ca` | `docs(CAL-2c)`: row, CAL-1 rider, DEBT-100 line, draft ruling |
+| `786de83` | `docs(CAL-2c PRE-PUSH-CHECK)`: ruling ratified, this DEPLOY_LOG entry, row to `staging`, docs SHA |
+
+**ONE CODE FILE REACHED PRODUCTION.** No migration, no env var, no new
+dependency, no schema change, no cron change, no new route, no capability. The
+merge's other four changed paths are `docs/DECISIONS.md`, `docs/DEPLOY_LOG.md`,
+`docs/ROADMAP.yaml` and `docs/prompts/CAL-2c_banner_rollup.md`.
+
+**Rollback:** `git revert -m 1 d417543` on `main`, then push. **No database
+step** — nothing was migrated and nothing was written. The only state that
+outlives the code is the `froot.calBanner.open` key in individual browsers,
+which becomes inert and unread the moment the component is gone.
+
+**THE CALENDAR MODULE IS OFF FOR EVERY PRODUCTION ORG, SO THIS PROMOTION CHANGES
+NOTHING A CUSTOMER SEES TODAY.** The banner renders nothing when the module is
+off, so in production it renders nothing. That is Gary's statement at the
+promotion, 2026-09-21 — a docs session does not query a production database
+(CLAUDE.md § Environment Variables), so this records the claim and its source,
+not a count of orgs.
+
+> **⚠ SUPERSEDED AT PROMOTION 2026-09-21 — the paragraph immediately below is
+> the PRE-PUSH-CHECK's own, written on 2026-09-20 before the push, and its
+> "Unpromoted — staging only" claim is now spent.** Marked in place, not
+> deleted, per the in-place correction convention this log already uses: it
+> records what was true when it was written, which is the part worth keeping.
+> The stamp above records what happened on 2026-09-21. **The check's own commit,
+> which it says could not name itself, is `786de83`** — the third row of the
+> payload table above.
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at
 promotion, from `git rev-parse`, never hand-typed. Written into this file by the
@@ -78,6 +134,54 @@ to `var(--radix-accordion-content-height)`, which only a Radix Accordion or
 Collapsible sets, and `package.json` has neither. Nothing in this repo could
 ever have run them. CAL-2c feeds that property a measured height from the
 component rather than installing Radix. `globals.css` is untouched.
+
+### Staging evidence, added at the promotion pass 2026-09-21
+
+The paragraph above saying the banner **was not observed running** was true when
+it was written and is now answered in part, and only in part. What follows is
+the whole of what was seen. Observed on the `786de83-staging` deployment, the
+staging org, Clerk instance `verified-snapper-7`; screenshots in the planning
+chat, 2026-09-21. **Nothing outside this list was observed, and the list is
+short.**
+
+- The headline reads **"1 item due · 1 overdue"** with **"4 days overdue"**
+  beneath it. The chevron is present.
+- The **3-or-fewer default is expanded**, as specified, and this is the case
+  that was on screen.
+- **Collapse and expand both work** — for `indianathomas` (ADMIN) and for
+  **Tommy Thomas (STORE)**. The "available to anyone who sees it" ruling was
+  therefore observed under a STORE account, not only asserted from the code.
+- **The collapsed row keeps the red surface, the counts and the days-overdue
+  line.** Collapse is not dismiss, observed rather than reasoned.
+
+### NOT observed — read this before trusting anything above it
+
+- **The more-than-3 case has never been seen.** Everything that only exists
+  above the threshold is unobserved: **starts collapsed**, the **store chips**,
+  the **grouped list**, the **chip filter**, **state surviving a reload**, and
+  the **`/checklists` mount**. A one-item, one-store, expanded banner cannot
+  show any of it.
+- **OPEN QUESTION, NOT DIAGNOSED.** A manual `calendar-materialize` curl at
+  `2026-09-21T14:04:04Z` returned `ok true, events 5, scanned 27,
+  materialized 25, skippedOpen 1, skippedFuture 1, errors 0` — yet screenshots
+  taken after it still read **"1 item due"** for both accounts. Either the pages
+  were not reloaded, or `GET /api/calendar/due` is not returning those
+  occurrences. **Nobody has established which**, and the second branch would be
+  a defect in the feed rather than in this phase's component.
+- **Gary promoted with both of these open, knowingly**, because the calendar
+  module is off in production. **THE CONDITION HE AGREED TO:** both items above
+  are **settled on staging BEFORE the calendar is enabled for any production
+  org**. That is a gate on enabling the module, not on this entry's status —
+  the code is in production now, inert.
+
+### COMMENT — one word owed, not this session's
+
+The chevron `title` reads **"Hide reminders" / "Show reminders"** while the
+headline it sits beside says **"items"**, and the phase kept the "item" noun
+deliberately because this banner carries scheduled checklists as well as
+reminders. The planning chat's prompt supplied the `title` wording, so the
+mismatch came in with the brief rather than out of the build. A one-word fix is
+owed; it was not made here.
 
 ## 076ccf8 — 2026-09-20 — PRODUCTION PROMOTION: the whole email stack, six phases in one merge
 

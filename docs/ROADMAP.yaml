@@ -17789,7 +17789,8 @@ phases:
     # pushes, so staging does not yet contain this code. The build session's own
     # note, preserved: `in_progress` was correct when it wrote the row, because
     # `staging` would have been a claim about a branch it could not make.
-    status: staging
+    status: shipped
+    shipped: 2026-09-21
     # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
     # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
     # written INSIDE the commit that records it, so "35340ca" did not exist when
@@ -17800,6 +17801,45 @@ phases:
     commits: ["355496b", "35340ca"]
     title: "Calendar due banner rolls up behind a chevron, with per-store chips — an all-stores reminder no longer paints the dashboard red"
     notes: >
+      ── RIDER 2026-09-21 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
+      REACHED MAIN 2026-09-21 in promotion "d417543" ("Merge branch 'staging'",
+      07:12:13 Pacific / 14:12:13Z - a `--no-ff` merge whose parents are
+      "a9534ed" and "786de83"). Status flipped `staging` -> `shipped`,
+      `shipped: 2026-09-21` added.
+      VERIFIED FROM GIT, NOT FROM A REPORT: the work commit "355496b", the docs
+      commit "35340ca" and the PRE-PUSH-CHECK commit "786de83" are the whole of
+      `d417543^1..d417543^2` - three commits, no fourth, CAL-2c and nothing else.
+      One code file, src/components/calendar-due-banner.tsx. No migration, no env
+      var, no new dependency. Rollback is `git revert -m 1 d417543` on main and a
+      push, with no database step. Stamped entry: docs/DEPLOY_LOG.md under
+      "d417543 - 2026-09-21".
+      THIS ROW IS `shipped` AND THE FEATURE IS INERT. The calendar module is off
+      for every production org (Gary, 2026-09-21), and the banner renders nothing
+      when the module is off, so the promotion changed nothing a customer sees.
+      TWO THINGS ARE STILL UNOBSERVED, AND THEY ARE A BLOCKER ON ENABLING THE
+      CALENDAR FOR ANY PRODUCTION ORG - NOT ON THIS ROW'S STATUS. The code is in
+      production; the evidence is not in hand. (1) THE MORE-THAN-3 CASE HAS NEVER
+      BEEN SEEN. Staging on 2026-09-21 showed a one-item banner - "1 item due · 1
+      overdue" / "4 days overdue", expanded by the 3-or-fewer default, collapsing
+      and expanding for `indianathomas` (ADMIN) and for Tommy Thomas (STORE),
+      with the collapsed row keeping the red surface, the counts and the
+      days-overdue line. Everything that only exists above the threshold is
+      therefore unobserved: starts collapsed, the store chips, the grouped list,
+      the chip filter, state surviving a reload, and the /checklists mount. (2)
+      OPEN QUESTION, NOT DIAGNOSED: a manual `calendar-materialize` curl at
+      2026-09-21T14:04:04Z returned `ok true, events 5, scanned 27, materialized
+      25, skippedOpen 1, skippedFuture 1, errors 0`, yet screenshots taken after
+      it still read "1 item due" for both accounts. Either the pages were not
+      reloaded or `GET /api/calendar/due` is not returning those occurrences -
+      and the second branch would be a defect in the feed, not in this
+      component. GARY PROMOTED WITH BOTH OPEN, KNOWINGLY, because the module is
+      off in production. THE CONDITION HE AGREED TO: both are settled on staging
+      BEFORE the calendar is enabled for any production org.
+      COMMENT, ONE WORD OWED AND NOT THIS SESSION'S: the chevron `title` reads
+      "Hide reminders" / "Show reminders" while the headline beside it says
+      "items", which this phase kept deliberately. The planning chat's prompt
+      supplied that `title` wording, so the mismatch arrived with the brief.
+
       ── RIDER 2026-09-20 (PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING BELOW IS
       EDITED. ──
       RULING RATIFIED. The docs/DECISIONS.md CAL-2c entry was printed verbatim
