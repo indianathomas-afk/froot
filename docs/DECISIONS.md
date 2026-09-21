@@ -5,6 +5,25 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-20 — CAL-2c: the calendar due banner rolls up, and collapse is not dismiss (Gary)
+
+**DRAFT — pending ratification.** Recorded by the CAL-2c build session from the
+planning chat of 2026-09-20. It is put to Gary verbatim at the PRE-PUSH-CHECK
+and is not a ratified ruling until he says so.
+
+> 2026-09-20 — Calendar banner rollup (CAL-2c). Collapse is not dismiss. The
+> banner can be rolled up to a summary by anyone who sees it, and the rolled-up
+> row always carries the count due, the count overdue, the "N days overdue"
+> figure and the red surface. There is still no dismiss control: the banner
+> clears on completion and on nothing else (CAL-1 B7 / SELF-1, unchanged).
+
+**The standing ruling this does NOT amend, named rather than reworded.** CAL-1's
+B7 and SELF-1 both ruled that the banner has no dismiss control and clears only
+when the work is done. CAL-2c leaves that ruling exactly where it is. A rollup
+and a dismiss produce different screens — the first keeps the red bar and its
+counts on the page, the second takes them off it — and this entry exists so the
+two are not later read as the same concession.
+
 ## 2026-09-20 — NOTIFY-2c: per-user email controls, set by an admin on the user's row (Gary)
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
