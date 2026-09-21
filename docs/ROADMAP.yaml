@@ -18274,13 +18274,48 @@ phases:
   - id: NOTIFY-2c
     track: platform
     size: S
-    status: in_progress
-    # Work commit only at the time of writing — this row is composed INSIDE the
-    # docs commit that records it, so that commit's own SHA cannot appear here
-    # (the two-commit pattern, same as NOTIFY-2a, NOTIFY-2b, F-5b and CAL-2).
-    commits: ["d273026"]
+    # `in_progress` -> `staging` 2026-09-20 BY THIS PRE-PUSH-CHECK, per Step 4
+    # and WORKFLOW.md session rule 4: `staging` means the code is on the branch,
+    # and this check is the last thing that runs before Gary pushes, so it owns
+    # the flip (DOCS-6). NOT PUSHED AT THE MOMENT OF WRITING — Claude never
+    # pushes, so staging does not yet contain this code.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
+    # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "6c2cbc1" did not exist when
+    # the row was composed. The third is the commit this line is being written
+    # in, so it is named as "the commit immediately after 6c2cbc1" rather than
+    # guessed at. Same shape as NOTIFY-1, NOTIFY-2a, NOTIFY-2b and CAL-2b.
+    commits: ["d273026", "6c2cbc1"]
     title: "Per-user email controls in the Edit User grid — pace alerts honour deniedCapabilities"
     notes: >
+      ── PRE-PUSH-CHECK 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
+      per Step 4.
+      SHAs. Work "d273026". Docs "6c2cbc1". THIS CHECK'S OWN COMMIT is the one
+      immediately after "6c2cbc1"; it cannot name its own SHA, by construction.
+      NOTHING ELSE RIDES THIS PUSH - unlike NOTIFY-2b, no earlier phase's check
+      commit was sitting unpushed when this phase started, so the push is one
+      phase and three commits.
+      RULING: RATIFIED AS WRITTEN. The docs/DECISIONS.md NOTIFY-2c entry was
+      printed verbatim and put to Gary; his whole reply, recorded exactly -
+      "Ratify as written." The ratification paragraph is ADDITIVE at the head of
+      that entry; nothing below it was changed.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. ROADMAP row present with the work SHA,
+      preserve-and-mark intact (zero deletion lines in "6c2cbc1"), no
+      meta.updated key. DECISIONS entry present. The two DECISIONS deletions in
+      "6c2cbc1" are POINTER REPAIRS ONLY - both occurrences of
+      "src/lib/pace-alerts.ts:91-98", whose line range the work commit moved;
+      no ruling was reworded. CLAUDE.md untouched (this phase changed no house
+      rule). docs/prompts/NOTIFY-2c.md committed. docs/DEPLOY_LOG.md entry
+      written into the file by this check, headed "UNPROMOTED - 2026-09-20 -
+      NOTIFY-2c...", heading count 56 -> 57 with both splice seams read back.
+      FILED BY THIS CHECK AND NOT PART OF THIS PHASE: DEBT-111, the
+      PERMISSIONS_INVENTORY §5 drift. It rides this push because the check filed
+      it, not because NOTIFY-2c caused it.
+      THIS CHECK OBSERVED NOTHING RUNNING. It read code, counted lines and ran
+      `npm run build`. Staging evidence comes after Gary pushes.
+      ── THE BUILD SESSION'S ROW, VERBATIM AND UNEDITED ──
       WHY THIS PHASE EXISTED. Gary, 2026-09-20: an ADMIN decides, PER USER,
       which of Froot's emails that user receives, from the Edit User dialog on
       /users - the same place they decide what the user can do. Today the only
@@ -29497,6 +29532,71 @@ debt:
       SCOPE — THIS IS THE ONLY REMAINING ONE. The census at "8ab4ee8": Clerk
       (re-serialises, this row), Square (raw, correct), Resend (raw, correct).
       Three inbound signed webhooks, one wrong.
+  - id: DEBT-111
+    title: >
+      docs/PERMISSIONS_INVENTORY.md §5 has drifted from the capability registry
+      — eight capabilities undocumented and one documented with the value its
+      own code comment calls a lie
+    notes: >
+      FILED 2026-09-20 BY GARY, in the NOTIFY-2c PRE-PUSH-CHECK, out of that
+      session's scope triage. NO STATUS KEY, which on a debt row reads as OPEN.
+      THE ID FILLS THE NEXT FREE SLOT AND WAS CONFIRMED UNREFERENCED BEFORE USE
+      — no occurrence of "DEBT-111" in any document or source file, and
+      `git log -S DEBT-111 -- docs/ROADMAP.yaml` returns nothing, so this is the
+      first row ever to carry the id and no stale reference can resolve to it.
+      Same check DEBT-106's row records, for the same reason.
+      MEASURED AT "6c2cbc1", by parsing the Capability union out of
+      src/lib/permissions.ts and the §5 table out of the document and diffing
+      the two sets. THE REGISTRY DECLARES 66 CAPABILITIES; §5 CARRIES 58 ROWS.
+      Eight are absent with no row at all: help.view, calendar.view,
+      calendar.manage, engagement.view, labor.access, labor.actuals.view,
+      labor.schedule.view, labor.costs.view. ZERO ORPHANS — every row in the
+      table still names a real capability, so the drift is purely
+      under-coverage, not stale entries.
+      THE NINTH ITEM IS WORSE THAN A MISSING ROW, because it is a row that
+      ANSWERS. §5 still describes square.manage as "today: any member (gap #2;
+      catalog syncs ADMIN)". That value was corrected to ADMIN_ONLY by R4
+      (Gary, 2026-08-06) and the correction is recorded at length in
+      src/lib/permissions.ts, whose comment says in so many words that "the
+      value was documentation that lied". The registry was fixed; the document
+      the registry cites as its source was not. So the catalogue currently
+      under-states who is refused by every Square route — including the labor
+      routes AL-1 migrated onto can(_, "square.manage") — and it does so in the
+      one document a reader consults precisely because they do not want to read
+      the code.
+      WHY THIS IS A DEBT ROW AND NOT A TYPO. The document is §5's "Capability
+      registry (Deliverable 2)" — PERM-1's deliverable, cited by live rows and
+      by the file header of src/lib/permissions.ts, and the place a future
+      phase looks up what a role may do. It is maintained BY HAND on every
+      capability addition, and the measurement above is what that costs: eight
+      of the last ten additions (HELP-1a, CAL-1 x2, ENG-1, COMP-1, AL-2, AL-3,
+      OVL-S3) never reached it, each session adding its own entry to the code
+      and none to the table. NOTIFY-2c's notify.pace.receive row IS present
+      because that phase was asked for it explicitly — which is the point: the
+      table is only updated when a prompt remembers to say so.
+      FIX DIRECTION (Gary, 2026-09-20): REGENERATE §5 FROM THE REGISTRY, OR
+      WRITE A GENERATOR THAT DOES. Not a one-time hand-patch of the nine items
+      — that restores the table for a week and leaves the mechanism that lost
+      them intact. scripts/generate-roadmap.mjs is the existing precedent for a
+      build-time doc generator in this repo, and the registry already carries
+      everything a table needs (the key, the role tier from GRANTS, and for the
+      grid rows the area, label and `removes` copy). The part a generator
+      CANNOT produce is the "Derived from" column — those are PERM-1 audit
+      references (NV-1, PG-8, IV-10) that exist nowhere in code — so either
+      that column is preserved per-row through the regeneration or the
+      generated table carries the machine-readable half and the audit
+      references stay in prose beside it. That choice is the phase's, not this
+      row's.
+      NOT CAUSED BY NOTIFY-2c, AND IT RIDES THAT PHASE'S PUSH ONLY BECAUSE THE
+      CHECK FILED IT. NOTIFY-2c added a row to §5 and left every pre-existing
+      row untouched; the drift predates it by eight phases. Nothing in this row
+      blocks that push.
+      RELATED: R4 (2026-08-06) is the square.manage correction this row says
+      never reached the document. PERM-1 owns §5's authorship; PERM-5 and PERM-8
+      added the grid and grant lists whose contents a regenerated table would
+      also want to show, since "deniable" and "grantable" are now facts about a
+      capability that §5 has no column for.
+
 rulings:
   - id: R1
     status: ruled

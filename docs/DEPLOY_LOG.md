@@ -2,6 +2,73 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-20 — NOTIFY-2c: per-user email controls in the Edit User grid
+
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed. Written into this file by
+the PRE-PUSH-CHECK (the UM-3 / CAL-1 shape, ratified 2026-09-18).
+
+**Commits.** Work `d273026`, docs `6c2cbc1`, and this check's own commit — the
+one immediately after `6c2cbc1`, which cannot name itself. **Nothing else rides
+this push**: unlike the NOTIFY-2b entry below, no earlier phase's check commit
+was sitting unpushed when this one started, so the push is one phase.
+
+**Blast radius: one email's recipient list, and one new row in an existing
+grid.** No schema change, no migration, no env var, no new route, no cron
+change. `npm run build` is green and the phase's fixture is green against dev.
+
+**What shipped.** One new capability, `notify.pace.receive` — declared in
+`src/lib/permissions.ts` exactly like every other, with a `MANAGE` baseline, a
+row in `ENFORCED_CAPABILITIES` under a new grid section **"Email
+notifications"**, and deliberate absence from `GRANTABLE_CAPABILITIES`. An
+ADMIN unticks it on a person's row in **Edit User on `/users`**; the recipient
+query in `src/lib/pace-alerts.ts` now selects `role`, `deniedCapabilities` and
+`grantedCapabilities` on its existing round trip and filters the rows through
+`can()`, so a denied user is dropped before the `PaceAlertLog` lock is written
+and that row records who was actually mailed. `/settings/notifications` gained
+a sentence pointing at the Users page.
+
+**The grid itself was not touched** — it renders from the declaration, so the
+new section, the ticked row for ADMIN/MANAGER and the padlocked "Not granted by
+this role" for STORE/STAFF all fall out of `user-actions.tsx` unmodified. That
+is the property the phase was asked for: every future user-addressed email is
+one entry in `ENFORCED_CAPABILITIES`.
+
+**What a rollback of this entry costs, which is the question this file exists
+to answer.** Reverting `d273026` removes the capability from the registry and
+restores the pre-phase recipient query. Any `notify.pace.receive` string an
+admin has by then written into `User.deniedCapabilities` **stays in the
+column** and becomes inert: `overridesFrom()` drops unregistered strings, so
+the row neither denies anything nor bricks the user, and re-applying the commit
+makes those denials live again. **The practical consequence of a revert is that
+people an admin took off the list start receiving pace alerts again, silently**
+— there is no screen that would show it, because the row would no longer render.
+
+**Behaviour on the day it deploys: none.** ADMIN and MANAGER hold the
+capability at baseline, so every existing recipient stays a recipient until an
+admin unticks someone. The org-level toggle and threshold are untouched and
+still outrank everything: off at `/settings/notifications` means nobody,
+whatever any user's row says.
+
+**One log line changed.** An org where every eligible person is denied now
+reports `every admin/manager has behind-pace alerts denied` instead of `no
+admin/manager recipients`. No `PaceAlertLog` row is written on either path, so
+the store is re-evaluated from scratch the next day.
+
+**Verification, and its limits.** `scripts/verify-f5-polish.ts` — **63 checks,
+0 failures** (51 pre-existing + 12 new) against the dev branch. **NOTHING WAS
+OBSERVED ON STAGING OR IN A BROWSER BY THE BUILD SESSION OR BY THIS CHECK**:
+Claude never pushes, so staging does not contain this code at the moment this
+entry is written, and the pace toggle stays OFF on staging regardless (real
+addresses, fixture numbers). No email left any environment and the pace-alerts
+cron was not fired. The fixture is the recipient proof; Gary's staging pass is
+the UI proof and comes after this push.
+
+**Also in the docs commit and NOT part of this phase's code:** `DEBT-111`
+(`docs/PERMISSIONS_INVENTORY.md` §5 has drifted from the registry — 66
+capabilities declared, 58 documented). It ships in the same push because it was
+filed by this check, not because NOTIFY-2c caused it.
+
 ## UNPROMOTED — 2026-09-20 — NOTIFY-2b: branded email template, the send log, Resend delivery webhooks
 
 **Unpromoted — staging only.** The heading is stamped with the merge SHA at

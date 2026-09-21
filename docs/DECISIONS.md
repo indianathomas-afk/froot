@@ -7,6 +7,12 @@ decisions too.)
 
 ## 2026-09-20 — NOTIFY-2c: per-user email controls, set by an admin on the user's row (Gary)
 
+**RATIFIED AS WRITTEN by Gary, 2026-09-20, in the PRE-PUSH-CHECK session.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratify as written."* Nothing below was changed by the ratification; this
+paragraph is ADDITIVE at the head, per the DEBT-101 precedent (2026-09-18) and
+the NOTIFY-2a and NOTIFY-2b entries below.
+
 **The ruling.** An ADMIN decides, **per user**, which of Froot's emails that
 user receives, from the **Edit User dialog on `/users`** — the same place they
 decide what the user can do. Today the only user-addressed email is the
