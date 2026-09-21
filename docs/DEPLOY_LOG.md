@@ -2,6 +2,83 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-20 — CAL-2c: the calendar due banner rolls up behind a chevron
+
+**Unpromoted — staging only.** The heading is stamped with the merge SHA at
+promotion, from `git rev-parse`, never hand-typed. Written into this file by the
+PRE-PUSH-CHECK (the UM-3 / CAL-1 shape, ratified 2026-09-18).
+
+**Commits.** Work `355496b`, docs `35340ca`, and this check's own commit — the
+one immediately after `35340ca`, which cannot name itself. **Nothing else rides
+this push**: `git log --oneline @{u}..` listed exactly the two CAL-2c commits
+before this check began, so the push is one phase.
+
+**Blast radius: one client component, and nothing else.**
+`src/components/calendar-due-banner.tsx` is the entire code surface. No schema
+change, no migration, no env var, no new route, no capability, no cron change,
+nothing added to `package.json`, no fixture touched, no helper extracted to
+`src/lib/`. `npm run build` exit 0 and scoped eslint on the touched file exit 0.
+
+**What shipped.** The due banner on `/dashboard` and `/checklists` listed every
+due and overdue occurrence as its own row. An all-stores reminder fans out to
+ONE OCCURRENCE PER STORE, so a multi-store org owing two things rendered a wall
+of red above any business data — Gary's dashboard on 2026-09-20 was thirteen
+rows. The list now rolls up behind a chevron:
+
+- **Row 1, always visible.** `7 items due · 4 overdue`, with the CAL-2b /
+  DEBT-101 subline beneath it unchanged — `3 days overdue`, or `Due today` when
+  the count is zero. The chevron is 44px, rotates 180 degrees, and carries
+  `aria-expanded` / `aria-controls` and a `Show reminders` / `Hide reminders`
+  title.
+- **Row 2, only when the list spans more than one store.** Chips reading
+  `Las Brisas 3`, overdue stores first then by count then by name, bold where
+  that store has anything overdue. Clicking filters the list to that store;
+  clicking again clears it; the filter clears itself when that store's last item
+  is completed.
+- **The expanded list** is today's rows, unchanged in behaviour — inline
+  Complete for reminders, `Open checklist` for template-backed occurrences —
+  grouped under a small store subheading when it spans stores.
+- **Default state.** More than 3 items starts collapsed, 3 or fewer starts
+  expanded. A person's own chevron click then wins at every count, remembered
+  per browser in `localStorage` under `froot.calBanner.open`. Every access is in
+  try/catch and a storage failure falls back to the threshold.
+
+**COLLAPSE IS NOT DISMISS, AND THAT IS THE RULING RATHER THAN A DETAIL.** The
+rolled-up row keeps the count due, the count overdue, the "N days overdue"
+figure and the red surface on the page. There is still NO DISMISS CONTROL
+anywhere on this banner: it clears on completion and on nothing else, which is
+CAL-1 B7 and SELF-1 unchanged. The ruling is in `docs/DECISIONS.md` under
+2026-09-20, put to Gary at this check and confirmed by him. **The rollup is
+available to anyone who sees the banner** — there is no role gate on the
+chevron, and a STORE or STAFF account can collapse it on their own browser
+exactly as an ADMIN can. Gary confirmed that is intended.
+
+**Unchanged, deliberately.** The one-shot overdue pulse still fires once on
+mount whether the list is collapsed or open — rolling it up does not make the
+work less late. "You're all caught up" still fires only on a non-empty to empty
+transition within a session. The banner still renders nothing when the list is
+empty, the fetch fails, or the module is off. Both mounts get the change from
+the one shared component; neither page was forked.
+
+**Rollback is a revert of `355496b` and nothing else.** No migration to unwind,
+no env var to unset, no stored state that outlives it except the
+`froot.calBanner.open` key in individual browsers, which becomes inert and
+unread the moment the component is gone. Nobody's data is touched by reverting.
+
+**THE BANNER WAS NOT OBSERVED RUNNING, AND THIS ENTRY MAKES NO CLAIM THAT IT
+WAS.** Verification was a green build, scoped eslint, and the diff read back
+against the brief — CLAUDE.md § Display-Only Changes. The one thing a human eye
+is owed is the expand/collapse height animation on `/dashboard`, which is the
+only part of this phase whose correctness a build cannot show. A merge moves
+code, never evidence.
+
+**One finding worth carrying forward.** The `accordion-down` / `accordion-up`
+keyframes in `src/app/globals.css` were DEAD CSS before this phase: they animate
+to `var(--radix-accordion-content-height)`, which only a Radix Accordion or
+Collapsible sets, and `package.json` has neither. Nothing in this repo could
+ever have run them. CAL-2c feeds that property a measured height from the
+component rather than installing Radix. `globals.css` is untouched.
+
 ## 076ccf8 — 2026-09-20 — PRODUCTION PROMOTION: the whole email stack, six phases in one merge
 
 **Merge SHA:** `076ccf8701001b53c507fdf15e3033bd5dc19618`

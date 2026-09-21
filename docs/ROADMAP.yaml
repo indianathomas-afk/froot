@@ -16288,6 +16288,25 @@ phases:
     commits: ["bb675e1", "a4b63cf", "9d91aa3"]
     title: "Calendar — recurring store reminders on a month grid, with a due/overdue banner and a per-org module toggle"
     notes: >
+      ── RIDER 2026-09-20 (CAL-2c). PREPENDED; NOTHING BELOW IS EDITED. ──
+      THE DUE BANNER THIS PHASE SHIPPED NOW ROLLS UP. CAL-2c ("355496b") puts
+      the item list behind a chevron: row 1 is a summary carrying the count due,
+      the count overdue and the "N days overdue" figure, row 2 is a strip of
+      per-store chips that filter the list, and the rows themselves are
+      unchanged in behaviour below them. Above 3 items it starts collapsed;
+      at 3 or fewer it starts expanded, which is exactly what this phase
+      rendered. The B7 section below describes a flat list of every due
+      occurrence, which is what CAL-1 built; read CAL-2c for what is on screen
+      now.
+      B7's NO-DISMISS RULE IS NOT AMENDED AND IS WORTH SAYING PLAINLY, because a
+      chevron is the control a dismiss would have used. COLLAPSE IS NOT DISMISS
+      (Gary, 2026-09-20, docs/DECISIONS.md, entered as a draft): the red surface
+      and every figure stay on the page, and the banner still clears on
+      completion and on nothing else.
+      WHAT PROVOKED IT, since this phase could not have seen it: an all-stores
+      reminder fans out to one occurrence PER STORE, so a multi-store org owing
+      two things rendered a wall of red. Gary's dashboard on 2026-09-20 was
+      thirteen rows.
       ── RIDER 2026-09-18 (CAL-2b). PREPENDED; NOTHING BELOW IS EDITED. ──
       "N DAYS OVERDUE" NOW COUNTS CALENDAR DAYS, NOT 24-HOUR PERIODS. Fixed on
       CAL-2b ("00e2615"); DEBT-101 closed there. This phase shipped
@@ -17760,6 +17779,149 @@ phases:
       comment this re-confirms, and the per-store "today" convention it set),
       DEBT-101 (closed here), DEBT-61 (the litter this stops recreating),
       S5-D78 (the predicate, now shared rather than forked).
+  - id: CAL-2c
+    track: cal
+    size: S
+    # `in_progress` -> `staging` 2026-09-20 BY THIS PRE-PUSH-CHECK, per Step 4
+    # and WORKFLOW.md session rule 4: `staging` means the code is on the branch,
+    # and this check is the last thing that runs before Gary pushes, so it owns
+    # the flip (DOCS-6). NOT PUSHED AT THE MOMENT OF WRITING — Claude never
+    # pushes, so staging does not yet contain this code. The build session's own
+    # note, preserved: `in_progress` was correct when it wrote the row, because
+    # `staging` would have been a claim about a branch it could not make.
+    status: staging
+    # Work, docs, and this PRE-PUSH-CHECK's own commit. THE DOCS SHA WAS ADDED
+    # BY THE CHECK AND THAT IS THE DESIGN, NOT DRIFT: the build session's row is
+    # written INSIDE the commit that records it, so "35340ca" did not exist when
+    # the row was composed. The third is the commit this line is being written
+    # in, so it is named as "the commit immediately after 35340ca" rather than
+    # guessed at. Same shape as NOTIFY-1, NOTIFY-2a, NOTIFY-2b, NOTIFY-2c,
+    # CAL-2, CAL-2a and CAL-2b.
+    commits: ["355496b", "35340ca"]
+    title: "Calendar due banner rolls up behind a chevron, with per-store chips — an all-stores reminder no longer paints the dashboard red"
+    notes: >
+      ── RIDER 2026-09-20 (PRE-PUSH-CHECK, TIER 1). PREPENDED; NOTHING BELOW IS
+      EDITED. ──
+      RULING RATIFIED. The docs/DECISIONS.md CAL-2c entry was printed verbatim
+      and put to Gary with two things flagged — that "by anyone who sees it" is
+      built literally, with NO ROLE GATE on the chevron, and that the headline
+      keeps CAL-2's noun ("7 items due", not "7 reminders due"). His whole
+      reply, recorded exactly: "\"By anyone who sees it\": yes, that's what you
+      asked for." / "\"Item\": keep it." HE GAVE NO REWORDING, so the ruling
+      stands as written; the ratification paragraph is ADDITIVE at the head of
+      that entry and nothing below it was changed. Recorded this way rather than
+      as the words "ratify as written", which he did not say.
+      DOCS SYNC: NO DRIFT ON ANY ITEM. Row present with the work SHA;
+      preserve-and-mark intact (the build session's two commits carry ZERO
+      deletion lines — 19/0, 132/0, 105/0); no meta.updated key; DECISIONS entry
+      present; CLAUDE.md untouched, correctly, because this phase changed no
+      house rule; docs/prompts/CAL-2c_banner_rollup.md committed. The absent
+      docs SHA was the EXPECTED state and not drift — the build session's row is
+      written inside the commit that records it — and is added here.
+      docs/DEPLOY_LOG.md HAD NO ENTRY: WRITTEN INTO THE FILE BY THIS CHECK, in
+      three chunked verified writes. Heading count 58 -> 59, line count 5093 ->
+      5170, both splice seams read back, the 076ccf8 promotion entry intact
+      directly below. The part of it worth keeping here: ROLLBACK IS A REVERT OF
+      "355496b" AND NOTHING ELSE — no migration to unwind, no env var, and the
+      only state that outlives it is the froot.calBanner.open key in individual
+      browsers, which becomes inert and unread the moment the component is gone.
+      STILL NOT OBSERVED RUNNING, and this check did not change that. The
+      expand/collapse height animation on /dashboard is the one thing a human
+      eye is owed; a green build cannot show it.
+      BUILT 2026-09-20, TIER 2, ONE FILE:
+      src/components/calendar-due-banner.tsx. No schema, no capability, no cron,
+      no route change, nothing added to package.json, no fixture touched and no
+      helper extracted to src/lib. Prompt of record:
+      docs/prompts/CAL-2c_banner_rollup.md.
+      WHAT PROVOKED IT. An all-stores reminder fans out to ONE OCCURRENCE PER
+      STORE, and the banner listed every one as its own row. Gary's dashboard on
+      2026-09-20 was thirteen red rows — one "BevSpot Inventory US Foods" per
+      store and one "De-Ice and Clean Dipping Cabinet" per store — above any
+      business data. The work was correctly owed and correctly red; the
+      PRESENTATION was the defect.
+      THE RULING IT IMPLEMENTS is in docs/DECISIONS.md under this date, entered
+      as a DRAFT pending ratification and not as a settled rule: collapse is not
+      dismiss, the rolled-up row always carries the count due, the count
+      overdue, the "N days overdue" figure and the red surface, and THERE IS
+      STILL NO DISMISS CONTROL.
+      ROW 1 — THE ROLLUP. The headline gains the overdue count and KEEPS ITS
+      NOUN: "7 items due · 4 overdue". "item" survives for the reason CAL-2
+      wrote into the component — this banner carries scheduled checklists as
+      well as reminders, and calling one of those a reminder in the one line
+      somebody reads on the way past would be a small, daily lie. The prompt's
+      illustrative "7 reminders due" was read as wording, not as an instruction
+      to undo that. The CAL-2b / DEBT-101 subline is UNTOUCHED and does not hide
+      with the list: "3 days overdue", or "Due today" when the count is zero,
+      which is that row's whole point. Chevron at the right edge, 44px, rotates
+      180 degrees, aria-expanded / aria-controls, title "Show reminders" /
+      "Hide reminders".
+      ROW 2 — THE STORE STRIP, rendered only when the list spans more than one
+      store. Chips read "Las Brisas 3", ordered overdue-stores-first then by
+      count then by name; a chip whose store has anything overdue is bold.
+      Clicking filters the list to that store, clicking again clears it, and the
+      filter clears itself when that store's last item is completed or when only
+      one store is left owing anything.
+      OVERDUE IN THE CHIPS IS `dueAt <= now` (ruling 8) AND NOT
+      `daysOverdue > 0`. Per DEBT-101 an item past its store close on its own
+      due date is genuinely overdue AND genuinely zero days old, so counting
+      days here would have silently dropped today's late work out of the tally.
+      Named because it is the one place in this phase where the obvious
+      predicate is the wrong one.
+      DEFAULT STATE. More than 3 items starts collapsed; 3 or fewer starts
+      expanded, so a single store owing one reminder sees exactly what it saw
+      the day before. Once a person clicks the chevron their choice wins at
+      every item count, remembered PER BROWSER in localStorage
+      `froot.calBanner.open` = "1"/"0". Every access in both directions is in
+      try/catch; a storage failure falls back to the threshold and cannot take
+      the banner down with it. NO DB COLUMN — a migration, a capability and a
+      write path is a TIER 3 shape for something that decides whether a list
+      starts open on one laptop.
+      THE `accordion-down` / `accordion-up` KEYFRAMES IN globals.css WERE DEAD
+      CSS, AND THIS PHASE REVIVED THEM WITHOUT A DEPENDENCY. They animate to
+      `var(--radix-accordion-content-height)`, which ONLY a Radix Accordion or
+      Collapsible sets, and package.json has NEITHER — so nothing in this repo
+      could ever have run them. Worth recording for whoever reaches for them
+      next. Installing Radix for a cosmetic toggle would have tripped this
+      prompt's own "needs a new dependency" STOP condition, so the measured
+      content height is written into that same custom property from the
+      component instead and globals.css is untouched. NAV-1's sidebar accordion
+      is likewise hand-rolled — useState, a preference read after mount, a
+      rotated ChevronDown — and this follows it rather than inventing a second
+      pattern.
+      TWO IMPLEMENTATION NOTES THAT WOULD OTHERWISE BE REDISCOVERED. (1) The
+      list STAYS MOUNTED while collapsed, clipped by a height-0 parent, so the
+      animation has something to measure and so completing the last item still
+      reflows; `inert` is what keeps a clipped row out of the tab order, because
+      aria-hidden alone would hide it from a screen reader while leaving its
+      Complete button focusable, which is the worse of the two failures. (2) The
+      stored preference is read IN THE FETCH CONTINUATION, not in a mount effect
+      of its own — a synchronous setState in an effect body is what
+      react-hooks/set-state-in-effect rejects, the same constraint
+      calendar-client.tsx documents for its feed. It costs nothing: the banner
+      renders nothing until the response lands.
+      THE DUE FEED NEEDED NO CHANGE. src/app/api/calendar/due/route.ts already
+      carried `storeId` and `storeName` on every item, from an existing
+      `store: { select: { name: true, timezone: true } }` include. The prompt's
+      first STOP condition — store identity unavailable without a query-shape
+      change — did not fire, and no query shape was touched.
+      UNCHANGED, DELIBERATELY. No dismiss. The one-shot pulse still fires once on
+      mount in the overdue state, collapsed or open — rolling the list up does
+      not make the work less late. "You're all caught up" still fires only on
+      non-empty -> empty within a session. Renders nothing when the list is
+      empty, the fetch fails, or the module is off. BOTH MOUNTS (/dashboard and
+      /checklists) get it from the one shared component and neither page was
+      forked.
+      NOT OBSERVED RUNNING. Gate was scoped eslint on the touched file plus
+      `npm run build` exit 0, and the diff read back against the brief. NOTHING
+      HERE IS A CLAIM ABOUT A DEPLOYED ENVIRONMENT. The one thing a human eye is
+      owed is the expand/collapse height animation, which is the only part whose
+      correctness a build cannot show.
+      CROSS-REFS: CAL-1 (the banner this rolls up, and B7's no-dismiss rule,
+      which stands), CAL-2 (the "item" noun and the template-backed row),
+      CAL-2b / DEBT-101 (the "N days overdue" figure and the overdue predicate),
+      NAV-1 (the hand-rolled accordion pattern this follows), SELF-1 (the shell,
+      and the other half of DEBT-100's stack), DEBT-100 (shorter now, still
+      open).
   - id: NOTIFY-1
     track: platform
     size: S
@@ -29108,6 +29270,11 @@ debt:
       Two full-width red banners stack on /dashboard when a compliance item and
       a calendar reminder are both due — consider one bar
     notes: >
+      2026-09-20 (CAL-2c): THE LOWER BAR IS NOW SHORTER, NOT GONE — the calendar
+      banner rolls up to a summary row behind a chevron ("355496b"), so the
+      stack is two bars of a few lines rather than two bars plus a wall of
+      rows. THE QUESTION THIS ROW ASKS IS UNTOUCHED: two full-width red bars
+      still stack, red is still the escalation, and nothing caps the count.
       FILED 2026-09-18 (DOCS-5) FROM GARY'S STAGING PASS, as a DESIGN QUESTION
       and not a defect. Neither phase is wrong and nothing is broken; this row
       exists because the composition was never designed, only arrived at.
