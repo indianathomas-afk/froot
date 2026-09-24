@@ -15389,10 +15389,14 @@ phases:
   - id: NAV-2
     track: platform
     size: S
-    # in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns the flip to
-    # staging and adds this row's docs SHA (the commit that writes it).
-    status: in_progress
-    commits: ["9e6131a"]
+    # `in_progress` -> `staging` 2026-09-23 BY THIS PRE-PUSH-CHECK (DOCS-6).
+    # NOT PUSHED AT THE MOMENT OF WRITING — Claude never pushes. The build
+    # session's note, preserved: "in_progress: committed, NOT pushed. The
+    # PRE-PUSH-CHECK owns the flip to staging and adds this row's docs SHA."
+    # Work, docs, and this check's own commit — the commit immediately after
+    # f4de0ad, which cannot name itself.
+    status: staging
+    commits: ["9e6131a", "f4de0ad"]
     title: "/my header links back to /dashboard for non-STAFF logins"
     notes: >
       THE BUG, reported from production 2026-09-23: Neesha Hartman (manager,

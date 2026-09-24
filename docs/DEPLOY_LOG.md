@@ -2,6 +2,37 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-23 — NAV-2: /my header links back to /dashboard for non-STAFF logins
+
+**Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
+stamped with the merge SHA at promotion, on `main`, after the merge.
+
+**Payload: NAV-2 only.** Three commits on `staging` ahead of `origin/staging`:
+
+| Commit | What it is |
+|---|---|
+| `9e6131a` | NAV-2 work — `my-shell.tsx` becomes a server wrapper, the client shell moves to `my-shell-client.tsx` |
+| `f4de0ad` | `docs(NAV-2)`: ROADMAP row + session prompt |
+| the commit immediately after `f4de0ad` | `docs(NAV-2 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHA |
+
+**TWO CODE FILES, BOTH UNDER `src/app/(my)/my/`.** No migration, no env var, no
+new dependency, no schema change, no cron, no new route, no capability. The
+wrapper adds one `getCurrentUser()` read (org + user row) to each `/my` render.
+
+**What changes for whom:** every non-STAFF login (ADMIN, MANAGER, STORE) on any
+`/my` page gets a logo link and a "← Dashboard" link to `/dashboard`. STAFF see
+the header exactly as before. Fails closed to the STAFF header if the role
+cannot be read. Reported from production by Neesha Hartman (manager, Carson),
+2026-09-23.
+
+**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+step** — nothing was migrated and nothing was written.
+
+**Staging evidence pending** — Gary tests after push: ADMIN (`indianathomas`)
+and STORE (`corporate@keva.com`) from the dashboard training banner, `/my/documents`
+and one `/my/training/[id]` page; one STAFF login for the unchanged header.
+Evidence to name the org ID and the Clerk instance.
+
 ## d417543 — 2026-09-21 — CAL-2c: the calendar due banner rolls up behind a chevron
 
 **Merge SHA:** `d41754366f1fe909c8d206fd4d3767eb0264c74c`
