@@ -1,90 +1,29 @@
-"use client"
+import { getCurrentUser } from "@/lib/auth"
+import { MyShellClient } from "./my-shell-client"
 
-import Link from "next/link"
-import Image from "next/image"
-import { usePathname } from "next/navigation"
-import { SignOutButton } from "@clerk/nextjs"
-import { FileText, Home, HelpCircle, MessageSquare } from "lucide-react"
-import { InstagramIcon } from "@/components/instagram-icon"
-
-// HR-7 staff portal chrome: slim header + fixed bottom tab bar (mobile-first,
-// ≥44px targets, store-view spirit — never the admin sidebar).
-// STAFF-1 tab set: Home · Messages · Instagram (when connected) · Documents.
-// Training dropped from the bar (F7) — the Home compliance card carries direct
-// links and /my/training/* routes stay live.
-const NAV = [
-  { href: "/my", label: "Home", icon: Home, exact: true },
-  { href: "/my/messages", label: "Messages", icon: MessageSquare, exact: false },
-  { href: "/my/instagram", label: "Instagram", icon: InstagramIcon, exact: false, instagram: true },
-  { href: "/my/documents", label: "Documents", icon: FileText, exact: false },
-]
-
-export function MyShell({
+// NAV-2 — the server half of the /my shell. Every /my page renders <MyShell>,
+// and this is the ONE place the viewer's role is read, so no page can forget
+// to pass it. A non-STAFF login (ADMIN, MANAGER, STORE) arrives here from the
+// dashboard compliance banner and needs a way back; STAFF live here.
+//
+// Fails closed: if the role cannot be resolved, no link — the STAFF header.
+export async function MyShell({
   children,
   showInstagram = false,
 }: {
   children: React.ReactNode
-  // Passed by each page from the org record it already fetched — the tab only
-  // renders when Instagram is connected AND enabled (same rule as the sidebar).
   showInstagram?: boolean
 }) {
-  const pathname = usePathname()
-  const nav = NAV.filter((item) => !item.instagram || showInstagram)
+  let showDashboardLink = false
+  try {
+    const { dbUser } = await getCurrentUser()
+    showDashboardLink = !!dbUser && dbUser.role !== "STAFF"
+  } catch {
+    showDashboardLink = false
+  }
   return (
-    <div className="max-w-lg mx-auto min-h-screen flex flex-col">
-      <header className="flex items-center justify-between px-4 py-3">
-        <Link href="/my" className="flex items-center gap-2 min-h-11">
-          <div className="w-8 h-8">
-            <Image src="/logo.png" alt="Froot" width={32} height={32} />
-          </div>
-          <span className="font-semibold text-[var(--color-foreground)]">froot</span>
-        </Link>
-        {/* HELP-1a — help lives in the HEADER, not the tab bar (audit §D.3).
-            The bar is flex-1 across its items and already flexes between 3 and
-            4 tabs depending on whether Instagram is connected; a fifth tab
-            makes each one ~20% narrower on the smallest phone this portal is
-            explicitly built for. A "?" beside Sign out costs no tab width and
-            matches where the "?" sits in the admin shell. */}
-        <div className="flex items-center gap-1">
-          <Link
-            href="/my/help"
-            aria-label="Help"
-            title="Help"
-            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--color-muted-foreground)]"
-          >
-            <HelpCircle className="h-5 w-5" />
-          </Link>
-          <SignOutButton redirectUrl="/sign-in">
-            <button className="min-h-11 px-4 rounded-md text-sm text-[var(--color-muted-foreground)]">
-              Sign out
-            </button>
-          </SignOutButton>
-        </div>
-      </header>
-
-      <main className="flex-1 px-4 pb-24">{children}</main>
-
-      <nav className="fixed bottom-0 inset-x-0 border-t border-[var(--color-border)] bg-[var(--color-card)]">
-        <div className="max-w-lg mx-auto flex">
-          {nav.map(({ href, label, icon: Icon, exact }) => {
-            const active = exact ? pathname === href : pathname.startsWith(href)
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-h-14 text-xs font-medium ${
-                  active
-                    ? "text-[var(--color-primary)]"
-                    : "text-[var(--color-muted-foreground)]"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {label}
-              </Link>
-            )
-          })}
-        </div>
-      </nav>
-    </div>
+    <MyShellClient showInstagram={showInstagram} showDashboardLink={showDashboardLink}>
+      {children}
+    </MyShellClient>
   )
 }
