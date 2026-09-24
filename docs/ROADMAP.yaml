@@ -15386,6 +15386,41 @@ phases:
       entirely without labor.access, never locked or disabled. It ratifies
       behaviour that already existed rather than changing any.
 
+  - id: NAV-2
+    track: platform
+    size: S
+    # in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns the flip to
+    # staging and adds this row's docs SHA (the commit that writes it).
+    status: in_progress
+    commits: ["9e6131a"]
+    title: "/my header links back to /dashboard for non-STAFF logins"
+    notes: >
+      THE BUG, reported from production 2026-09-23: Neesha Hartman (manager,
+      Carson) tapped her training on the /dashboard compliance banner, landed on
+      /my, and had no way back — logo went to /my, tab bar is /my-only — short
+      of signing out. STAFF are unaffected: /my is their home.
+      THE 2026-09-18 SPEC NEVER RAN. Step 0 found no NAV-2 commit on any branch,
+      nothing in main..staging, no row here, and no
+      docs/prompts/2026-09-18_NAV-2_my_back_to_dashboard.md on disk — so there
+      was no superseded record to commit either.
+      SHAPE: MyShell was a client component rendered by 10 pages (13 JSX sites).
+      It moved to my-shell-client.tsx as MyShellClient, and my-shell.tsx is now
+      a server wrapper of the SAME NAME that reads the role once via
+      getCurrentUser() — so every existing import picked it up with no call-site
+      edit and no page can forget it. Rule: dbUser.role !== "STAFF" (ADMIN,
+      MANAGER, STORE). FAILS CLOSED: an unresolvable role gets the STAFF header.
+      When true the logo links to /dashboard and a "← Dashboard" text link sits
+      beside it; STAFF markup unchanged; no new tab. Measured on a temp /menu
+      harness at 380px: one row, 30px spare, all four targets 44px tall, Sign
+      out spacing NOT shrunk.
+      NOT VERIFIED WITH A REAL LOGIN — the role read is exercised only on
+      staging. Gary's steps: as indianathomas (ADMIN) and corporate@keva.com
+      (STORE, Tommy) — /dashboard → training banner → /my shows "← Dashboard" →
+      tap → /dashboard; repeat from /my/documents and one /my/training/[id]
+      page. As a STAFF login, /my header unchanged, no link. Evidence names the
+      org ID and Clerk instance (verified-snapper-7 on staging).
+      Neesha only sees this once it is promoted to main.
+
   - id: ENG-1
     track: platform
     size: M
