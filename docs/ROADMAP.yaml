@@ -15428,14 +15428,17 @@ phases:
   - id: QREV-1
     track: hr
     size: S
+    # `staging` -> `shipped` 2026-09-27, stamped post-merge on `main` in the
+    # promotion commit after merge d929d1d (DEPLOY_LOG entry `d929d1d`).
     # `in_progress` -> `staging` 2026-09-27 BY THIS PRE-PUSH-CHECK (DOCS-6).
     # NOT PUSHED AT THE MOMENT OF WRITING — Claude never pushes. The build
     # session's note, preserved: "in_progress: committed, NOT pushed. The
     # PRE-PUSH-CHECK owns the flip to staging and adds this row's docs SHA."
     # Work, docs, and this check's own commit — the commit immediately after
     # 0f0fabc, which cannot name itself.
-    status: staging
-    commits: ["7db1804", "0f0fabc"]
+    status: shipped
+    shipped: 2026-09-27
+    commits: ["7db1804", "0f0fabc", "3b5eb57"]
     title: "Review a quiz attempt's answers (what they got wrong) on /staff/[id] Training"
     notes: >
       THE GAP: a failed attempt showed only "Failed · 38%"; a manager sitting

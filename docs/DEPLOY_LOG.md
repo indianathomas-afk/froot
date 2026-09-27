@@ -2,7 +2,27 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-27 — QREV-1: review a quiz attempt's answers on /staff/[id] Training
+## d929d1d — 2026-09-27 — QREV-1: review a quiz attempt's answers on /staff/[id] Training
+
+**Merge SHA:** `d929d1d47845061a30b540040d5d4c8264372a34`
+**Promoted 2026-09-27 14:50:12 -0700 (Pacific)**, which is `2026-09-27T21:50:12Z`,
+in `d929d1d` ("Merge branch 'staging'"). THE SHA IS THE `--no-ff` MERGE COMMIT —
+parents `3c0ffc9` (the prior tip of `main`) and `3b5eb57` (the tip of `staging`) —
+and the rollback recipe reads the merge, not the tip of `main`. **3 commits** in
+`d929d1d^1..d929d1d^2`: `7db1804`, `0f0fabc`, `3b5eb57` — read out of `git log`
+at this stamp, not hand-typed. **Not yet pushed to `origin/main` at the moment of
+writing** — Gary runs the push. Stamped post-merge on `main`, in the same commit
+that flips the QREV-1 row to `shipped`.
+
+**Rollback:** `git revert -m 1 d929d1d` on `main`, then push (keep this log per
+WORKFLOW.md § 2). **No database step** — nothing was migrated and nothing was
+written.
+
+> **⚠ SUPERSEDED AT PROMOTION 2026-09-27 — the "Unpromoted — staging only"
+> paragraph immediately below is the PRE-PUSH-CHECK's own, written before the
+> push, and its claim is now spent.** Marked in place, not deleted. **The check's
+> own commit, which it says could not name itself, is `3b5eb57`** — the third
+> row of the payload table below.
 
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
 stamped with the merge SHA at promotion, on `main`, after the merge.
@@ -33,6 +53,14 @@ differences).
 
 **Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
 step** — nothing was migrated and nothing was written.
+
+> **⚠ CORRECTED AT PROMOTION 2026-09-27 — the NAV-2 line immediately below was
+> WRONG WHEN WRITTEN.** NAV-2 (`9e6131a`, `f4de0ad`, `7cf7cdf`) was already on
+> `main` in merge `3c0ffc9` (2026-09-23), before QREV-1 was built;
+> `d929d1d^1..d929d1d^2` carries QREV-1's three commits and nothing else. The
+> PRE-PUSH-CHECK read the NAV-2 entry's UNPROMOTED heading instead of checking
+> ancestry. Kept in place, not deleted. NAV-2's own entry below still reads
+> UNPROMOTED — that stamp was never made and is not made here.
 
 **NAV-2 is also on `staging` unpromoted** (entry below); promoting `staging`
 carries both.
