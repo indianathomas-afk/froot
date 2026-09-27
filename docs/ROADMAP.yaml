@@ -15428,10 +15428,14 @@ phases:
   - id: QREV-1
     track: hr
     size: S
-    # in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns the flip to
-    # staging and adds this row's docs SHA.
-    status: in_progress
-    commits: ["7db1804"]
+    # `in_progress` -> `staging` 2026-09-27 BY THIS PRE-PUSH-CHECK (DOCS-6).
+    # NOT PUSHED AT THE MOMENT OF WRITING — Claude never pushes. The build
+    # session's note, preserved: "in_progress: committed, NOT pushed. The
+    # PRE-PUSH-CHECK owns the flip to staging and adds this row's docs SHA."
+    # Work, docs, and this check's own commit — the commit immediately after
+    # 0f0fabc, which cannot name itself.
+    status: staging
+    commits: ["7db1804", "0f0fabc"]
     title: "Review a quiz attempt's answers (what they got wrong) on /staff/[id] Training"
     notes: >
       THE GAP: a failed attempt showed only "Failed · 38%"; a manager sitting
@@ -15468,6 +15472,32 @@ phases:
       as an ADMIN, /staff/[id] → Training on someone with a failed portal
       attempt → Review answers → misses red with correct answers; Missed only
       filters; a Record-quiz-result attempt shows no link.
+      RULINGS RATIFIED 2026-09-27 (PRE-PUSH-CHECK): docs/DECISIONS.md
+      2026-09-27 — snapshot not live quiz, stored score is the record, and the
+      looser 0..written match — ratified as written. Same reply ruled the staff
+      side: "Staff don't see their own missed answers for now." /my/training
+      stays answer-free.
+      FOLLOW-ON FILED: QREV-2 (most-missed questions across all staff).
+
+  - id: QREV-2
+    track: hr
+    size: S-M
+    status: planned
+    title: "Most-missed questions per training module, across all staff"
+    notes: >
+      Filed 2026-09-27 by the QREV-1 PRE-PUSH-CHECK, at Gary's request. A
+      module-level report for ADMIN/MANAGER: for each quiz question, how many
+      attempts missed it — to spot badly worded questions or lessons that do
+      not teach the answer. Builds on QREV-1's attemptBreakdown
+      (src/lib/training-quiz.ts), which already resolves each attempt against
+      its own snapshot. OPEN QUESTIONS FOR THE BUILD SESSION, not answered
+      here: (1) a question edited after some attempts exists in several
+      snapshot versions under one id — count them together or per version;
+      (2) ManagerAttested attempts store no answers and cannot contribute;
+      (3) written questions have no per-question mark stored, so they can
+      only be counted as answered/blank; (4) store scope for a MANAGER — only
+      staff at their stores, matching the existing training access tier.
+      Must not reach the staff portal (QREV-1 ruling, 2026-09-27).
 
   - id: ENG-1
     track: platform

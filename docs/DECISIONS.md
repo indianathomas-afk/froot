@@ -7,6 +7,24 @@ decisions too.)
 
 ## 2026-09-27 — QREV-1: an attempt review reads the snapshot, and the stored score is the record (Claude)
 
+**RATIFIED AS WRITTEN by Gary, 2026-09-27, in the PRE-PUSH-CHECK session.**
+The entry was printed verbatim and put to him, with the implementation choice in
+its last paragraph flagged. **His whole reply, recorded exactly:**
+
+> Ratified as written. The review shows the quiz as the person took it, the
+> saved score is always the record, and the review never changes anything. For
+> quizzes with written questions, the looser match is fine because trainer
+> marks aren't saved per question. Staff don't see their own missed answers for
+> now.
+
+Nothing below was changed by the ratification; this paragraph is ADDITIVE at
+the head, per the DEBT-101, NOTIFY-2c and CAL-2c precedent, and the "DRAFT —
+UNRATIFIED" marker below is superseded by it and preserved rather than edited.
+**His last sentence is a separate ruling on the QREV-1 build session's RULING
+NOW finding:** the `/my/training` staff portal does not show a staff member
+their own missed questions or correct answers — "for now", so it is a standing
+answer, not a permanent one, and reopening it is his call.
+
 **DRAFT — UNRATIFIED.** Recorded by the QREV-1 build session from the session
 prompt's build rules 2 and 3. These are implementation rules the prompt set,
 not words Gary has said; they are put to him at the PRE-PUSH-CHECK and are not
