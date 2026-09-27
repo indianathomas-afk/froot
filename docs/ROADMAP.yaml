@@ -15425,6 +15425,50 @@ phases:
       org ID and Clerk instance (verified-snapper-7 on staging).
       Neesha only sees this once it is promoted to main.
 
+  - id: QREV-1
+    track: hr
+    size: S
+    # in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns the flip to
+    # staging and adds this row's docs SHA.
+    status: in_progress
+    commits: ["7db1804"]
+    title: "Review a quiz attempt's answers (what they got wrong) on /staff/[id] Training"
+    notes: >
+      THE GAP: a failed attempt showed only "Failed · 38%"; a manager sitting
+      down with the team member could not see which questions were missed. The
+      data was already stored — every TrainingQuizAttempt freezes
+      questionsSnapshot and answers — but the page only unpacked written answers
+      for PendingReview attempts.
+      SHAPE: each attempt line with stored answers gets a "Review answers" link
+      opening a read-only dialog — header "Attempt N · Failed · 38% (pass:
+      80%)" and "X of Y correct", questions in quiz order, ✓/✗ with missed ones
+      tinted red, "Their answer" and on a miss "Correct answer" as option
+      LABELS, written questions labelled "Written — graded by trainer" with no
+      ✓/✗ (per-question written marks are NOT stored — the review route writes
+      only the final score), "No answer" for blanks, a Missed-only toggle.
+      ManagerAttested attempts store answers {} — no link, the line reads
+      "Score recorded by manager — no answers captured".
+      ONE GRADING RULE: the grader moved verbatim to src/lib/training-quiz.ts
+      (pure, no Prisma) with one extracted seam, isObjectiveAnswerCorrect, that
+      countObjectiveCorrect and attemptBreakdown both call; training.ts
+      re-exports. HEAD-vs-extracted grader compared over 50,000 random cases:
+      0 differences.
+      SNAPSHOT, NOT LIVE QUIZ; STORED SCORE IS THE RECORD (draft rulings, see
+      DECISIONS.md 2026-09-27, UNRATIFIED). With written questions the stored
+      score is "consistent" when some count of written marks (0..written)
+      reproduces it; otherwise a muted "Question-level detail may not match
+      this attempt's recorded score." Nothing is written.
+      SCOPE: ADMIN/MANAGER only, inside the existing canSeeHrTabs query gate.
+      /my/training untouched — correct answers never reach the staff portal.
+      EVIDENCE: scripts/verify-quiz-review.ts 87/0 (pure). Dev
+      br-broad-wave-a6vpjdw0: 1 attempt with a non-null scorePct, 1 match, 0
+      mismatch — a thin sample, not proof. npm run build green. Dialog checked
+      on a temp /menu harness (deleted before the work commit).
+      NOT VERIFIED WITH A REAL LOGIN on staging. Gary's steps after the push:
+      as an ADMIN, /staff/[id] → Training on someone with a failed portal
+      attempt → Review answers → misses red with correct answers; Missed only
+      filters; a Record-quiz-result attempt shows no link.
+
   - id: ENG-1
     track: platform
     size: M

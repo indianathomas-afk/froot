@@ -5,6 +5,30 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-27 — QREV-1: an attempt review reads the snapshot, and the stored score is the record (Claude)
+
+**DRAFT — UNRATIFIED.** Recorded by the QREV-1 build session from the session
+prompt's build rules 2 and 3. These are implementation rules the prompt set,
+not words Gary has said; they are put to him at the PRE-PUSH-CHECK and are not
+rulings until he ratifies them.
+
+> 1. **Snapshot, not live quiz.** The "Review answers" dialog on `/staff/[id]`
+>    Training takes correct answers and option labels only from the attempt's
+>    own `questionsSnapshot`. A quiz edited after the attempt never changes
+>    what the review shows.
+> 2. **The stored score is the record.** If the breakdown's recomputed score
+>    cannot reproduce the attempt's stored `scorePct`, the dialog shows the
+>    stored score plus one muted line, "Question-level detail may not match
+>    this attempt's recorded score." The stored score is never overwritten or
+>    "corrected"; attempts stay append-only and the review writes nothing.
+
+**Claude's implementation choice under rule 2, flagged for the ratification:**
+per-question written grades are not stored (the trainer review route writes
+only the final score), so for an attempt with written questions "reproduce"
+means *some* count of written answers marked correct, from 0 to all of them,
+yields the stored score. Without written questions it is exact equality with
+the grader.
+
 ## 2026-09-20 — CAL-2c: the calendar due banner rolls up, and collapse is not dismiss (Gary)
 
 **RATIFIED BY GARY, 2026-09-20, in the PRE-PUSH-CHECK session. THE "DRAFT —
