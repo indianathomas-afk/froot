@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { Award, ChevronDown, ChevronRight, FileDown, GraduationCap, Plus, Trash2 } from "lucide-react"
+import { Award, Check, ChevronDown, ChevronRight, FileDown, GraduationCap, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -46,8 +46,23 @@ export type StaffTrainingAttempt = {
   status: string
   submittedAt: string
   authMethod: string
+  passThreshold: number
   // Present only while PendingReview: the written Q&A the trainer grades.
   writtenItems?: { questionId: string; prompt: string; answer: string }[]
+  // QREV-1: labels-only review of the attempt, built server-side from its own
+  // snapshot. Absent when no answers were captured (ManagerAttested).
+  breakdown?: {
+    items: {
+      prompt: string
+      type: string
+      answer: string[]
+      correctAnswer: string[]
+      result: "correct" | "incorrect" | "written" | "unanswered"
+    }[]
+    objectiveCorrect: number
+    writtenCount: number
+    scoreMatches: boolean
+  }
 }
 
 export type StaffTrainingAssignment = {
@@ -144,6 +159,10 @@ export function StaffTraining({
   // Written-answer review dialog state
   const [reviewFor, setReviewFor] = useState<{ assignment: StaffTrainingAssignment; attempt: StaffTrainingAttempt } | null>(null)
   const [writtenCorrect, setWrittenCorrect] = useState<Set<string>>(new Set())
+
+  // Attempt answer review (QREV-1) — read-only
+  const [answersFor, setAnswersFor] = useState<{ attempt: StaffTrainingAttempt; number: number } | null>(null)
+  const [missedOnly, setMissedOnly] = useState(false)
 
   async function call(path: string, init: RequestInit, busyKey: string) {
     setBusy(busyKey)
@@ -392,11 +411,29 @@ export function StaffTraining({
 
                     {a.attempts.length > 0 && (
                       <div className="text-xs text-[var(--color-muted-foreground)]">
-                        {a.attempts.map((t) => (
+                        {a.attempts.map((t, i) => (
                           <p key={t.id}>
                             {format(new Date(t.submittedAt), "MMM d, yyyy h:mm a")} — {t.status}
                             {t.scorePct !== null && ` · ${t.scorePct}%`}
-                            {t.authMethod === "ManagerAttested" && " · attested"}
+                            {t.authMethod === "ManagerAttested" && !t.breakdown
+                              ? " · Score recorded by manager — no answers captured"
+                              : t.authMethod === "ManagerAttested" && " · attested"}
+                            {t.breakdown && (
+                              <>
+                                {" · "}
+                                <button
+                                  type="button"
+                                  className="underline underline-offset-2 hover:text-[var(--color-foreground)]"
+                                  onClick={() => {
+                                    setMissedOnly(false)
+                                    // attempts arrive newest-first; number them oldest = 1
+                                    setAnswersFor({ attempt: t, number: a.attempts.length - i })
+                                  }}
+                                >
+                                  Review answers
+                                </button>
+                              </>
+                            )}
                           </p>
                         ))}
                       </div>
@@ -661,6 +698,88 @@ export function StaffTraining({
               }}
             >
               {busy === "review" ? "Saving..." : "Submit grades"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Attempt answer review dialog (QREV-1) — read-only */}
+      <Dialog open={!!answersFor} onOpenChange={(open) => !open && setAnswersFor(null)}>
+        <DialogContent>
+          {answersFor?.attempt.breakdown && (() => {
+            const t = answersFor.attempt
+            const b = t.breakdown!
+            const objectiveTotal = b.items.length - b.writtenCount
+            // Written answers carry no per-question grade (only the trainer's final
+            // score is stored), so they are never "missed" here.
+            const isMissed = (q: (typeof b.items)[number]) =>
+              q.type !== "written" && (q.result === "incorrect" || q.result === "unanswered")
+            const shown = missedOnly ? b.items.filter(isMissed) : b.items
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>
+                    Attempt {answersFor.number} · {t.status === "PendingReview" ? "Pending review" : t.status}
+                    {t.scorePct !== null && ` · ${t.scorePct}%`} (pass: {t.passThreshold}%)
+                  </DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-[var(--color-muted-foreground)]">
+                  {b.objectiveCorrect} of {b.writtenCount > 0 ? objectiveTotal : b.items.length} correct
+                  {b.writtenCount > 0 &&
+                    ` · ${b.writtenCount} written question${b.writtenCount === 1 ? "" : "s"} graded by trainer`}
+                </p>
+                {!b.scoreMatches && (
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    Question-level detail may not match this attempt&apos;s recorded score.
+                  </p>
+                )}
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={missedOnly} onChange={() => setMissedOnly((v) => !v)} />
+                  Missed only
+                </label>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {shown.length === 0 && (
+                    <p className="text-sm text-[var(--color-muted-foreground)]">No missed questions.</p>
+                  )}
+                  {shown.map((q) => {
+                    const idx = b.items.indexOf(q)
+                    const missed = isMissed(q)
+                    return (
+                      <div
+                        key={idx}
+                        className={`border rounded-md p-3 ${
+                          missed
+                            ? "border-red-200 bg-red-50"
+                            : "border-[var(--color-border)]"
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-[var(--color-foreground)] mb-1 flex gap-2">
+                          {q.result === "correct" && <Check className="h-4 w-4 shrink-0 text-[var(--color-success)] mt-0.5" aria-label="Correct" />}
+                          {missed && <X className="h-4 w-4 shrink-0 text-[var(--color-destructive)] mt-0.5" aria-label="Incorrect" />}
+                          <span>
+                            {idx + 1}. {q.prompt}
+                          </span>
+                        </p>
+                        {q.type === "written" && (
+                          <p className="text-xs text-[var(--color-muted-foreground)] mb-1">Written — graded by trainer</p>
+                        )}
+                        <p className="text-sm text-[var(--color-muted-foreground)] whitespace-pre-wrap">
+                          Their answer: {q.answer.length > 0 ? q.answer.join(", ") : "No answer"}
+                        </p>
+                        {missed && (
+                          <p className="text-sm text-[var(--color-foreground)]">
+                            Correct answer: {q.correctAnswer.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnswersFor(null)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

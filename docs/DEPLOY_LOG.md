@@ -2,6 +2,46 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-27 — QREV-1: review a quiz attempt's answers on /staff/[id] Training
+
+**Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
+stamped with the merge SHA at promotion, on `main`, after the merge.
+
+**Payload: QREV-1 only.** Three commits on `staging` ahead of `origin/staging`:
+
+| Commit | What it is |
+|---|---|
+| `7db1804` | QREV-1 work — grader moved to pure `src/lib/training-quiz.ts`, breakdown on the page, Review answers dialog |
+| `0f0fabc` | `docs(QREV-1)`: ROADMAP row, DECISIONS draft, session prompt |
+| the commit immediately after `0f0fabc` | `docs(QREV-1 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHA, QREV-2 filed |
+
+**FOUR CODE FILES, NONE UNDER `src/app/api/` OR `prisma/`.** `src/lib/training-quiz.ts`
+(new, pure), `src/lib/training.ts` (re-exports it), `src/app/(app)/staff/[id]/page.tsx`
+and `staff-training.tsx`; plus the fixture `scripts/verify-quiz-review.ts`. No
+migration, no env var, no new dependency, no schema change, no cron, no new
+route, no capability. **Read-only: nothing is written.** The page query adds one
+column (`passThresholdSnapshot`) to the existing quiz-attempt select.
+
+**What changes for whom:** ADMIN and MANAGER on `/staff/[id]` → Training get a
+"Review answers" link on each quiz attempt with stored answers — their answers
+and, on a miss, the correct answer, from the attempt's own snapshot. Attempts
+recorded by a manager read "Score recorded by manager — no answers captured".
+STAFF see nothing new; `/my/training` is untouched (Gary, 2026-09-27: staff do
+not see their own missed answers for now). The graders used by quiz submit and
+trainer review moved file but not behaviour (50,000-case HEAD comparison, 0
+differences).
+
+**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+step** — nothing was migrated and nothing was written.
+
+**NAV-2 is also on `staging` unpromoted** (entry below); promoting `staging`
+carries both.
+
+**Staging evidence pending** — Gary tests after push, as an ADMIN: `/staff/[id]`
+→ Training on someone with a failed portal attempt → Review answers → misses
+tinted red with correct answers; Missed only filters; an attempt from Record
+quiz result shows no link. Evidence to name the org ID and the Clerk instance.
+
 ## UNPROMOTED — 2026-09-23 — NAV-2: /my header links back to /dashboard for non-STAFF logins
 
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;

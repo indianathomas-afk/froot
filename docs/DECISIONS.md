@@ -5,6 +5,48 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-27 — QREV-1: an attempt review reads the snapshot, and the stored score is the record (Claude)
+
+**RATIFIED AS WRITTEN by Gary, 2026-09-27, in the PRE-PUSH-CHECK session.**
+The entry was printed verbatim and put to him, with the implementation choice in
+its last paragraph flagged. **His whole reply, recorded exactly:**
+
+> Ratified as written. The review shows the quiz as the person took it, the
+> saved score is always the record, and the review never changes anything. For
+> quizzes with written questions, the looser match is fine because trainer
+> marks aren't saved per question. Staff don't see their own missed answers for
+> now.
+
+Nothing below was changed by the ratification; this paragraph is ADDITIVE at
+the head, per the DEBT-101, NOTIFY-2c and CAL-2c precedent, and the "DRAFT —
+UNRATIFIED" marker below is superseded by it and preserved rather than edited.
+**His last sentence is a separate ruling on the QREV-1 build session's RULING
+NOW finding:** the `/my/training` staff portal does not show a staff member
+their own missed questions or correct answers — "for now", so it is a standing
+answer, not a permanent one, and reopening it is his call.
+
+**DRAFT — UNRATIFIED.** Recorded by the QREV-1 build session from the session
+prompt's build rules 2 and 3. These are implementation rules the prompt set,
+not words Gary has said; they are put to him at the PRE-PUSH-CHECK and are not
+rulings until he ratifies them.
+
+> 1. **Snapshot, not live quiz.** The "Review answers" dialog on `/staff/[id]`
+>    Training takes correct answers and option labels only from the attempt's
+>    own `questionsSnapshot`. A quiz edited after the attempt never changes
+>    what the review shows.
+> 2. **The stored score is the record.** If the breakdown's recomputed score
+>    cannot reproduce the attempt's stored `scorePct`, the dialog shows the
+>    stored score plus one muted line, "Question-level detail may not match
+>    this attempt's recorded score." The stored score is never overwritten or
+>    "corrected"; attempts stay append-only and the review writes nothing.
+
+**Claude's implementation choice under rule 2, flagged for the ratification:**
+per-question written grades are not stored (the trainer review route writes
+only the final score), so for an attempt with written questions "reproduce"
+means *some* count of written answers marked correct, from 0 to all of them,
+yields the stored score. Without written questions it is exact equality with
+the grader.
+
 ## 2026-09-20 — CAL-2c: the calendar due banner rolls up, and collapse is not dismiss (Gary)
 
 **RATIFIED BY GARY, 2026-09-20, in the PRE-PUSH-CHECK session. THE "DRAFT —
