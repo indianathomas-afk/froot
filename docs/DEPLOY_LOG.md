@@ -70,7 +70,31 @@ carries both.
 tinted red with correct answers; Missed only filters; an attempt from Record
 quiz result shows no link. Evidence to name the org ID and the Clerk instance.
 
-## UNPROMOTED — 2026-09-23 — NAV-2: /my header links back to /dashboard for non-STAFF logins
+## 3c0ffc9 — 2026-09-23 — NAV-2: /my header links back to /dashboard for non-STAFF logins
+
+**Merge SHA:** `3c0ffc99a3c5cb1271a7430049f31a1181e56c09`
+**Promoted 2026-09-23 18:02:40 -0700 (Pacific)**, which is `2026-09-24T01:02:40Z`,
+in `3c0ffc9` ("Merge branch 'staging'"). THE SHA IS THE `--no-ff` MERGE COMMIT —
+parents `8760f55` (the prior tip of `main`) and `7cf7cdf` (the tip of `staging`) —
+and the rollback recipe reads the merge, not the tip of `main`. **3 commits** in
+`3c0ffc9^1..3c0ffc9^2`: `9e6131a`, `f4de0ad`, `7cf7cdf` — read out of `git log`,
+not hand-typed. Gary pushed the merge to `origin/main`.
+
+**STAMPED LATE, 2026-09-27, ON `main` — FOUR DAYS AFTER THE PROMOTION.** No
+stamp was made at the 2026-09-23 merge (the post-merge step DEBT-104 says nobody
+owns). The gap surfaced at the QREV-1 promotion stamp (`d929d1d`), whose own
+entry had wrongly called NAV-2 unpromoted. The heading date is the promotion's,
+2026-09-23, not the day of this stamp.
+
+**Rollback:** `git revert -m 1 3c0ffc9` on `main`, then push (keep this log per
+WORKFLOW.md § 2). **No database step** — nothing was migrated and nothing was
+written.
+
+> **⚠ SUPERSEDED AT THE LATE STAMP 2026-09-27 — the "Unpromoted — staging only"
+> paragraph immediately below is the PRE-PUSH-CHECK's own, written before the
+> push, and its claim was spent on 2026-09-23.** Marked in place, not deleted.
+> **The check's own commit, which it says could not name itself, is `7cf7cdf`**
+> — the third row of the payload table below.
 
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
 stamped with the merge SHA at promotion, on `main`, after the merge.
