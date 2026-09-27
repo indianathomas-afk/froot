@@ -25,6 +25,7 @@ import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
 import { StaffCompliance } from "./staff-compliance"
 import { getStaffComplianceDetail, type StaffComplianceDetail } from "@/lib/hr-compliance"
 import { documentCompletion } from "@/lib/hr-completion"
+import { attemptBreakdown, breakdownMatchesScore } from "@/lib/training-quiz"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -479,6 +480,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               submittedAt: true,
               authMethod: true,
               questionsSnapshot: true,
+              passThresholdSnapshot: true,
               answers: true,
             },
           },
@@ -549,13 +551,30 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 answer: typeof answers[q.id as string] === "string" ? (answers[q.id as string] as string) : "",
               }))
           }
+          // QREV-1: every attempt with stored answers carries a labels-only
+          // breakdown built from its OWN snapshot (never the live quiz).
+          // ManagerAttested attempts store `{}` — no breakdown, and the line
+          // says so. The stored scorePct stays the record; scoreMatches only
+          // drives a muted caveat in the dialog.
+          const hasAnswers =
+            !!t.answers && typeof t.answers === "object" && Object.keys(t.answers).length > 0
+          const b = hasAnswers ? attemptBreakdown(t.questionsSnapshot, t.answers) : null
           return {
             id: t.id,
             scorePct: t.scorePct,
             status: t.status,
             submittedAt: t.submittedAt.toISOString(),
             authMethod: t.authMethod,
+            passThreshold: t.passThresholdSnapshot,
             writtenItems,
+            breakdown: b
+              ? {
+                  items: b.items,
+                  objectiveCorrect: b.objectiveCorrect,
+                  writtenCount: b.writtenCount,
+                  scoreMatches: breakdownMatchesScore(b, t.scorePct),
+                }
+              : undefined,
           }
         }),
       }

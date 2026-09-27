@@ -163,70 +163,19 @@ export async function recalcAssignmentStatus(trainingAssignmentId: string): Prom
 }
 
 // ── Quiz grading (HR-7) ──────────────────────────────────────────────────────
-// Objective questions (boolean/single/multi) grade against correctOptionIds;
-// written questions are never auto-scored — any written question puts the
-// attempt in PendingReview for the trainer (commit-4 review), UNLESS the
-// objective misses already make the threshold unreachable even with every
-// written answer counted correct: then it's an immediate Failed.
-
-export type QuizAnswerValue = string | string[]
-
-type GradableQuestion = {
-  id: string
-  type: "boolean" | "single" | "multi" | "written"
-  correctOptionIds?: string[]
-}
-
-// Objective tally shared by auto-grading (below) and the trainer's
-// written-answer review (which re-derives the objective half from the
-// attempt's snapshot before adding the written marks).
-export function countObjectiveCorrect(
-  questions: GradableQuestion[],
-  answers: Record<string, QuizAnswerValue>
-): { objectiveCorrect: number; writtenQuestionIds: string[] } {
-  let objectiveCorrect = 0
-  const writtenQuestionIds: string[] = []
-  for (const q of questions) {
-    const answer = answers[q.id]
-    if (q.type === "written") {
-      writtenQuestionIds.push(q.id)
-      continue
-    }
-    const correct = new Set(q.correctOptionIds ?? [])
-    if (q.type === "multi") {
-      const given = new Set(Array.isArray(answer) ? answer : answer ? [answer] : [])
-      if (given.size === correct.size && [...given].every((id) => correct.has(id))) objectiveCorrect++
-    } else {
-      // boolean / single: exactly one correct option id
-      const given = Array.isArray(answer) ? answer[0] : answer
-      if (given !== undefined && correct.has(given)) objectiveCorrect++
-    }
-  }
-  return { objectiveCorrect, writtenQuestionIds }
-}
-
-export function gradeQuizAnswers(
-  questions: GradableQuestion[],
-  answers: Record<string, QuizAnswerValue>,
-  passThreshold: number
-): { scorePct: number | null; status: "Passed" | "Failed" | "PendingReview" } {
-  const total = questions.length
-  if (total === 0) return { scorePct: 100, status: "Passed" }
-
-  const { objectiveCorrect, writtenQuestionIds } = countObjectiveCorrect(questions, answers)
-  const writtenCount = writtenQuestionIds.length
-
-  const pct = (n: number) => Math.round((n / total) * 100)
-  if (writtenCount === 0) {
-    const scorePct = pct(objectiveCorrect)
-    return { scorePct, status: scorePct >= passThreshold ? "Passed" : "Failed" }
-  }
-  const bestPossible = pct(objectiveCorrect + writtenCount)
-  if (bestPossible < passThreshold) {
-    return { scorePct: pct(objectiveCorrect), status: "Failed" }
-  }
-  return { scorePct: null, status: "PendingReview" }
-}
+// Lives in training-quiz.ts (pure, no Prisma) since QREV-1; re-exported here so
+// existing importers are unchanged.
+export {
+  attemptBreakdown,
+  breakdownMatchesScore,
+  countObjectiveCorrect,
+  gradeQuizAnswers,
+  isObjectiveAnswerCorrect,
+  type AttemptBreakdown,
+  type AttemptBreakdownItem,
+  type AttemptBreakdownResult,
+  type QuizAnswerValue,
+} from "@/lib/training-quiz"
 
 // The audit trail records the connecting client (HR-4 pattern). On Vercel
 // x-forwarded-for is set by the platform; first hop is the client.
