@@ -6478,10 +6478,14 @@ phases:
   - id: DOC-5
     track: hr
     size: M
-    # in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns the flip to
-    # staging and adds this row's docs SHA.
-    status: in_progress
-    commits: ["a7e9d86"]
+    # `in_progress` -> `staging` 2026-09-28 BY THIS PRE-PUSH-CHECK (DOCS-6).
+    # NOT PUSHED AT THE MOMENT OF WRITING — Claude never pushes. The build
+    # session's note, preserved: "in_progress: committed, NOT pushed. The
+    # PRE-PUSH-CHECK owns the flip to staging and adds this row's docs SHA."
+    # Work, docs, and this check's own commit — the commit immediately after
+    # c9426eb, which cannot name itself.
+    status: staging
+    commits: ["a7e9d86", "c9426eb"]
     title: "Document categories become a managed per-org entity (Manage Categories on /hr/documents)"
     notes: >
       THE ASK (Gary): on /hr/documents an ADMIN adds, renames, recolours,
@@ -6544,7 +6548,21 @@ phases:
       shows category names.
       Also check /hr/forms: form chips show their categories, and New Form
       pre-selects the first category.
-    links: [HR-20, DOC-1, DOC-3, DOC-4]
+      PRE-PUSH-CHECK 2026-09-28: DECISIONS.md entry RATIFIED AS WRITTEN by
+      Gary, including the three flagged implementation choices (docCategory,
+      chips only for categories with documents, explicit Uncategorized).
+      CLAUDE.md § Database gained the prisma-command rule: format, validate
+      and generate are allowed; migrate diff is the only database-touching
+      command; deploy, reset and execute are forbidden. `git show --stat
+      a7e9d86` checked: no temporary /menu preview page in the work commit
+      or its tree. DEPLOY_LOG entry written UNPROMOTED.
+      DRIFT FIXED IN THIS CHECK: the build session's row carried
+      `links: [HR-20, DOC-1, DOC-3, DOC-4]`, a field Phase does not have (it
+      exists on rulings), so c9426eb alone fails `npm run build` at the
+      generated roadmap.ts typecheck. The field was removed here, with Gary's
+      go-ahead. c9426eb is never deployed alone: the push carries all three
+      commits and Vercel builds the tip.
+      Cross-refs: HR-20, DOC-1, DOC-3, DOC-4.
 
   - id: HR-27
     track: hr

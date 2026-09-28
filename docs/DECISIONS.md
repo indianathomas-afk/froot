@@ -7,9 +7,18 @@ decisions too.)
 
 ## 2026-09-28 — DOC-5: document categories become a managed per-org entity (Gary)
 
-**DRAFT: TO BE RATIFIED AT PRE-PUSH-CHECK.** Rulings F1 to F9 were given by
-Gary in the DOC-5 build session on 2026-09-28, against the audit at
-`docs/prompts/DOC-5_AUDIT.md`. His words, verbatim:
+**RATIFIED 2026-09-28 at the DOC-5 PRE-PUSH-CHECK.** Gary's reply, verbatim:
+
+> DOC-5 ratified as written: F1–F9 as recorded. The relation is named
+> docCategory, chips show only for categories with documents, and dropdowns
+> offer Uncategorized explicitly.
+
+That reply covers the entry below, including the three implementation choices
+flagged at its end, which are therefore rulings now and no longer Claude's
+choices alone.
+
+Rulings F1 to F9 were given by Gary in the DOC-5 build session on 2026-09-28,
+against the audit at `docs/prompts/DOC-5_AUDIT.md`. His words, verbatim:
 
 > DOC-5 rulings: F1 Handbook seeds orange, and new orgs are seeded from both
 > Clerk webhook sites. F2 through F6 are as written. F3: the pencil dialog
@@ -51,7 +60,8 @@ wording, not Gary's.
 - **F9** The routes live at `/api/hr/documents/categories`, a static segment
   beside the `[id]` route.
 
-**Claude's implementation choices, flagged for the ratification:**
+**Claude's implementation choices, flagged for the ratification (ratified
+above):**
 - The relation field is named `docCategory`, because Prisma refuses a relation
   named `category` beside the legacy scalar.
 - Library chips show only categories with at least one visible, active document,
