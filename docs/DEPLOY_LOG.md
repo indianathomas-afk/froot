@@ -2,7 +2,32 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-28 — DOC-5: document categories become a managed per-org entity
+## 92df26b — 2026-09-28 — DOC-5: document categories become a managed per-org entity
+
+**Merge SHA:** `92df26bb4d404dcf3cd4f15d05e2e92d90ed70b8`
+**Promoted 2026-09-28 16:05:27 -0700 (Pacific)**, which is `2026-09-28T23:05:27Z`,
+in `92df26b` ("Merge branch 'staging'"). THE SHA IS THE `--no-ff` MERGE COMMIT —
+parents `9ac91b6` (the prior tip of `main`) and `d2bded4` (the tip of `staging`) —
+and the rollback recipe reads the merge, not the tip of `main`. **3 commits** in
+`92df26b^1..92df26b^2`: `a7e9d86`, `c9426eb`, `d2bded4` — read out of `git log`
+at this stamp, not hand-typed. **Not yet pushed to `origin/main` at the moment of
+writing** — Gary runs the push. Stamped post-merge on `main`, in the same commit
+that flips the DOC-5 row to `shipped`.
+
+**Rollback:** `git revert -m 1 92df26b` on `main`, then push (keep this log per
+WORKFLOW.md § 2). **No database step.** The migration only adds things, so the
+`HrDocumentCategory` table and the `HrDocument.categoryId` column stay behind
+harmlessly after a revert. Reverted code reads the legacy `category` column and
+never touches either.
+
+**Production evidence (Gary, 2026-09-28):** `br-sparkling-block` shows 0 of 6
+documents with `categoryId` NULL after the deploy.
+
+> **⚠ SUPERSEDED AT PROMOTION 2026-09-28 — the "Unpromoted — staging only"
+> paragraph immediately below is the PRE-PUSH-CHECK's own, written before the
+> push, and its claim is now spent.** Marked in place, not deleted. **The check's
+> own commit, which it says could not name itself, is `d2bded4`** — the third
+> row of the payload table below.
 
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
 stamped with the merge SHA at promotion, on `main`, after the merge.
@@ -11,6 +36,13 @@ stamped with the merge SHA at promotion, on `main`, after the merge.
 check, not inferred from headings. It showed exactly two commits, `a7e9d86`
 and `c9426eb`, on `staging` and not on `main`, and this check adds a third.
 All three are DOC-5's.
+
+> **⚠ CORRECTED AT PROMOTION 2026-09-28 — the payload sentence above is
+> incomplete.** `a7e9d86` and `c9426eb` were already pushed to `origin/staging`
+> before the check ran. The `origin/staging` reflog shows `c9426eb` pushed at
+> 2026-09-28 15:22:55 -0700, and the check's own commit `d2bded4` is stamped
+> 15:23:20 -0700. They were "on `staging` and not on `main`" as the sentence
+> says, but they were not unpushed. Kept in place, not rewritten.
 
 | Commit | What it is |
 |---|---|

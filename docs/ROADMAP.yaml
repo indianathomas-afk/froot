@@ -6478,16 +6478,38 @@ phases:
   - id: DOC-5
     track: hr
     size: M
+    # `staging` -> `shipped` 2026-09-28, stamped post-merge on `main` in the
+    # promotion commit after merge 92df26b (DEPLOY_LOG entry `92df26b`).
     # `in_progress` -> `staging` 2026-09-28 BY THIS PRE-PUSH-CHECK (DOCS-6).
     # NOT PUSHED AT THE MOMENT OF WRITING — Claude never pushes. The build
     # session's note, preserved: "in_progress: committed, NOT pushed. The
     # PRE-PUSH-CHECK owns the flip to staging and adds this row's docs SHA."
     # Work, docs, and this check's own commit — the commit immediately after
     # c9426eb, which cannot name itself.
-    status: staging
-    commits: ["a7e9d86", "c9426eb"]
+    status: shipped
+    shipped: 2026-09-28
+    commits: ["a7e9d86", "c9426eb", "d2bded4"]
     title: "Document categories become a managed per-org entity (Manage Categories on /hr/documents)"
     notes: >
+      SHIPPED — PROMOTED TO PRODUCTION 2026-09-28 in merge 92df26b
+      (92df26bb4d404dcf3cd4f15d05e2e92d90ed70b8; parents 9ac91b6 and d2bded4;
+      92df26b^1..92df26b^2 is exactly a7e9d86, c9426eb, d2bded4). Prepended;
+      nothing below is deleted. Rollback: git revert -m 1 92df26b.
+      CORRECTION 2026-09-28, AT PROMOTION: the PRE-PUSH-CHECK wrote below
+      "c9426eb is never deployed alone: the push carries all three commits
+      and Vercel builds the tip." That is SUPERSEDED. c9426eb was pushed to
+      origin/staging ALONE (origin/staging reflog: c9426eb at 15:22:55 -0700,
+      before the check's own commit d2bded4 at 15:23:20). Staging most likely
+      failed to build it, on the `links:` field that fails the generated
+      roadmap.ts typecheck, until d2bded4 removed the field and fixed it. The
+      quoted wording is kept in place below.
+      EVIDENCE PER BRANCH (the migration's null-count check,
+      SELECT count(*) FROM "HrDocument" WHERE "categoryId" IS NULL):
+      dev br-broad-wave: 0 of 3 uncategorized, 5 categories per org.
+      staging br-square-feather: 0 of 11; Gary's click test passed; as Tommy,
+      POST /api/hr/documents/categories returned 403, which closes the
+      "NOT VERIFIED OVER HTTP" gap below.
+      production br-sparkling-block: 0 of 6 after the deploy.
       THE ASK (Gary): on /hr/documents an ADMIN adds, renames, recolours,
       reorders and deletes document categories with the same setup as
       /training -> Manage Categories (HR-20); colour chips with counts; section

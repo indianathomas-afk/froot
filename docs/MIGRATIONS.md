@@ -1104,6 +1104,13 @@ a future baseline squash has nothing extra to re-append for this migration.
 
 ## 2026-09-28 — `20260928213037_doc5_document_category_entity` (DOC-5)
 
+**APPLIED TO PRODUCTION 2026-09-28 in promotion `92df26b`** (staging -> main,
+merged 16:05:27 -0700 Pacific), through `prisma migrate deploy` in that merge's
+`vercel-build`. Gary reported `br-sparkling-block` at 0 of 6 documents with
+`categoryId` NULL after the deploy. Staging (`br-square-feather`) had already
+received it through `vercel-build` on Gary's push, at 0 of 11. The "APPLIED TO
+DEV ONLY" paragraph below is the build session's, kept in place and now spent.
+
 **APPLIED TO DEV ONLY**, by Gary on 2026-09-28, using `prisma migrate deploy`
 against `br-broad-wave`. He reported 0 of 3 documents uncategorized, 5
 categories per org across 5 orgs, and no stray values. The session ran
