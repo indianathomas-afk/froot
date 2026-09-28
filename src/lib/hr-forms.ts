@@ -81,6 +81,7 @@ export async function createFillableForm({
   organizationId,
   createdByUserId,
   title,
+  categoryId,
   category,
   bodyText,
   fields,
@@ -88,6 +89,9 @@ export async function createFillableForm({
   organizationId: string
   createdByUserId: string
   title: string
+  // DOC-5: the org-scoped category row id (already resolved by the caller), and
+  // the legacy string derived from it (F3 — written on create only).
+  categoryId: string | null
   category: string
   bodyText: string
   fields: FormFieldInput[]
@@ -98,6 +102,7 @@ export async function createFillableForm({
       organizationId,
       kind: "FillableForm",
       title,
+      categoryId,
       category,
       bodyText,
       requiresAcknowledgment: false,

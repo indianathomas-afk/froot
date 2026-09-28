@@ -14,6 +14,7 @@ import {
   PenLine,
   Plus,
   Settings2,
+  Tags,
   Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -33,27 +34,35 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   EXTERNAL_URL_ERROR,
-  HR_CATEGORY_LABELS,
-  HR_CATEGORY_STYLES,
-  HR_DOCUMENT_CATEGORIES,
   HR_KIND_LABELS,
   externalUrlHost,
   hrAudienceChipStyle,
   hrAudienceLabel,
   hrScanMessage,
   isValidExternalDocumentUrl,
-  type HrDocumentCategory,
   type HrDocumentKind,
 } from "@/lib/hr-documents"
 import { uploadHrFileFromBrowser } from "@/lib/hr-upload-client"
 import { RichTextEditor } from "@/components/ui/rich-text-editor"
 import { DocumentInstructions } from "@/components/hr/document-instructions"
 import { AssignAudienceDialog, type AudienceDocumentRef } from "./assign-audience-dialog"
+import { DocumentCategoryManagerDialog, type DocumentCategory } from "./document-category-manager-dialog"
+import {
+  DocumentCategoryChip,
+  DocumentCategorySelect,
+  UNCATEGORIZED_LABEL,
+  defaultCategoryId,
+  type DocumentCategoryOption,
+} from "@/components/hr/document-category"
+import { badgePreset } from "@/lib/badge-presets"
 
 export interface HrDocumentRow {
   id: string
   title: string
-  category: string
+  // DOC-5: the relation, flattened. Null = uncategorized (F2).
+  categoryId: string | null
+  categoryName: string | null
+  categoryColorKey: string | null
   kind: HrDocumentKind
   fileName: string
   sizeBytes: number
@@ -78,30 +87,56 @@ function formatSize(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
+// The filter chip / section key for documents with no category.
+const UNCATEGORIZED = "__uncategorized__"
+
 export function HrDocumentsClient({
   documents,
+  categories,
   isAdmin,
 }: {
   documents: HrDocumentRow[]
+  categories: DocumentCategoryOption[]
   isAdmin: boolean
 }) {
-  const [filter, setFilter] = useState<HrDocumentCategory | "all">("all")
+  const [filter, setFilter] = useState<string>("all")
   const [showArchived, setShowArchived] = useState(false)
   const [assigning, setAssigning] = useState<AudienceDocumentRef | null>(null)
+  const [managerOpen, setManagerOpen] = useState(false)
+  // The manager dialog's list carries the org-wide, archived-inclusive,
+  // forms-inclusive counts that govern deletion — deliberately NOT the chip
+  // counts below (TPL-1's two-counts ruling, carried through HR-20). Fetched
+  // when the dialog opens rather than on every page render.
+  const [managed, setManaged] = useState<DocumentCategory[]>([])
   const router = useRouter()
 
-  const presentCategories = HR_DOCUMENT_CATEGORIES.filter((c) =>
-    documents.some((d) => d.category === c)
-  )
-  const visible = filter === "all" ? documents : documents.filter((d) => d.category === filter)
+  async function loadManaged() {
+    const res = await fetch("/api/hr/documents/categories")
+    if (res.ok) setManaged(await res.json())
+  }
+
+  const keyOf = (d: HrDocumentRow) => d.categoryId ?? UNCATEGORIZED
+  const visible = filter === "all" ? documents : documents.filter((d) => keyOf(d) === filter)
   // Archived rows only ever reach ADMIN — page.tsx keeps `isActive: true` in the
   // query for everyone else — so this split is a no-op for non-admins.
   const active = visible.filter((d) => d.isActive)
   const archived = visible.filter((d) => !d.isActive)
-  const grouped = HR_DOCUMENT_CATEGORIES.map((category) => ({
-    category,
-    docs: active.filter((d) => d.category === category),
-  })).filter((g) => g.docs.length > 0)
+
+  // DOC-5: chips and sections come from the ORG'S categories in sortOrder, with
+  // Uncategorized last. Chip counts are per-view (active documents this viewer
+  // can see), so a category with nothing visible here renders no chip.
+  const liveDocs = documents.filter((d) => d.isActive)
+  const countFor = (key: string) => liveDocs.filter((d) => keyOf(d) === key).length
+  const chipCategories = categories.filter((c) => countFor(c.id) > 0)
+  const uncategorizedCount = countFor(UNCATEGORIZED)
+  const grouped = [
+    ...categories.map((c) => ({
+      key: c.id,
+      label: c.name,
+      docs: active.filter((d) => d.categoryId === c.id),
+    })),
+    { key: UNCATEGORIZED, label: UNCATEGORIZED_LABEL, docs: active.filter((d) => d.categoryId === null) },
+  ].filter((g) => g.docs.length > 0)
 
   return (
     <div>
@@ -112,7 +147,23 @@ export function HrDocumentsClient({
             Handbooks, policies, and reference documents for your whole team
           </p>
         </div>
-        {isAdmin && <AddDocumentButton />}
+        {isAdmin && (
+          <div className="flex items-center gap-2 shrink-0">
+            {/* DOC-5: left of Add Document, outline — the /hr/training header's
+                Manage Categories button, copied. ADMIN only (F5). */}
+            <Button
+              variant="outline"
+              onClick={() => {
+                setManagerOpen(true)
+                loadManaged()
+              }}
+            >
+              <Tags className="h-4 w-4" />
+              Manage Categories
+            </Button>
+            <AddDocumentButton categories={categories} />
+          </div>
+        )}
       </div>
 
       {documents.length === 0 ? (
@@ -133,36 +184,52 @@ export function HrDocumentsClient({
             </p>
             {isAdmin && (
               <div className="mt-6 flex justify-center">
-                <AddDocumentButton label="Upload the first document" />
+                <AddDocumentButton label="Upload the first document" categories={categories} />
               </div>
             )}
           </div>
         </div>
       ) : (
         <>
-          {presentCategories.length > 1 && (
+          {/* DOC-5: colour-coded chips with counts, the /hr/training shape. */}
+          {liveDocs.length > 0 && (
             <div className="mb-6 flex items-center gap-2 flex-wrap">
               <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
-                All
+                All ({liveDocs.length})
               </FilterChip>
-              {presentCategories.map((c) => (
-                <FilterChip key={c} active={filter === c} onClick={() => setFilter(c)}>
-                  {HR_CATEGORY_LABELS[c]}
-                </FilterChip>
+              {chipCategories.map((c) => (
+                <CategoryFilterChip
+                  key={c.id}
+                  active={filter === c.id}
+                  colorKey={c.colorKey}
+                  onClick={() => setFilter(filter === c.id ? "all" : c.id)}
+                >
+                  {c.name} ({countFor(c.id)})
+                </CategoryFilterChip>
               ))}
+              {uncategorizedCount > 0 && (
+                <CategoryFilterChip
+                  active={filter === UNCATEGORIZED}
+                  colorKey={null}
+                  onClick={() => setFilter(filter === UNCATEGORIZED ? "all" : UNCATEGORIZED)}
+                >
+                  {UNCATEGORIZED_LABEL} ({uncategorizedCount})
+                </CategoryFilterChip>
+              )}
             </div>
           )}
           <div className="space-y-8">
-            {grouped.map(({ category, docs }) => (
-              <section key={category}>
+            {grouped.map(({ key, label, docs }) => (
+              <section key={key}>
                 <h2 className="text-sm font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wide mb-3">
-                  {HR_CATEGORY_LABELS[category]}
+                  {label}
                 </h2>
                 <div className="border border-[var(--color-border)] rounded-lg divide-y divide-[var(--color-border)] bg-[var(--color-card)]">
                   {docs.map((doc) => (
                     <DocumentRow
                       key={doc.id}
                       doc={doc}
+                      categories={categories}
                       isAdmin={isAdmin}
                       onAssign={() => setAssigning({ id: doc.id, title: doc.title })}
                     />
@@ -193,6 +260,7 @@ export function HrDocumentsClient({
                     <DocumentRow
                       key={doc.id}
                       doc={doc}
+                      categories={categories}
                       isAdmin={isAdmin}
                       onAssign={() => setAssigning({ id: doc.id, title: doc.title })}
                     />
@@ -212,20 +280,33 @@ export function HrDocumentsClient({
         onClose={() => setAssigning(null)}
         onSaved={() => router.refresh()}
       />
+
+      {isAdmin && (
+        <DocumentCategoryManagerDialog
+          open={managerOpen}
+          categories={managed}
+          onClose={() => setManagerOpen(false)}
+          onChanged={async () => {
+            await loadManaged()
+            router.refresh()
+          }}
+        />
+      )}
     </div>
   )
 }
 
 function DocumentRow({
   doc,
+  categories,
   isAdmin,
   onAssign,
 }: {
   doc: HrDocumentRow
+  categories: DocumentCategoryOption[]
   isAdmin: boolean
   onAssign: () => void
 }) {
-  const category = doc.category as HrDocumentCategory
   // DOC-3: everything about this row that differs for a link, decided once.
   const isLink = doc.kind === "Link"
   const host = externalUrlHost(doc.externalUrl)
@@ -241,9 +322,7 @@ function DocumentRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${HR_CATEGORY_STYLES[category]}`}>
-            {HR_CATEGORY_LABELS[category]}
-          </span>
+          <DocumentCategoryChip name={doc.categoryName} colorKey={doc.categoryColorKey} />
           {doc.kind === "Acknowledgment" && (
             <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">
               <PenLine className="h-3 w-3" />
@@ -355,7 +434,7 @@ function DocumentRow({
             <Settings2 className="h-4 w-4 text-[var(--color-muted-foreground)]" />
           </Link>
         )}
-        {isAdmin && <EditDocumentButton doc={doc} />}
+        {isAdmin && <EditDocumentButton doc={doc} categories={categories} />}
         {isAdmin &&
           (doc.isActive ? <ArchiveDocumentButton doc={doc} /> : <RestoreDocumentButton doc={doc} />)}
       </div>
@@ -386,12 +465,47 @@ function FilterChip({
   )
 }
 
-function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
+// DOC-5: a category chip wears its colour when selected and a colour dot
+// always — the /hr/training chip shape.
+function CategoryFilterChip({
+  active,
+  colorKey,
+  onClick,
+  children,
+}: {
+  active: boolean
+  colorKey: string | null
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+        active
+          ? badgePreset(colorKey).badge
+          : "bg-[var(--color-card)] text-[var(--color-muted-foreground)] border-[var(--color-border)] hover:bg-[var(--color-accent)]"
+      }`}
+    >
+      <span className={`h-2 w-2 rounded-full ${badgePreset(colorKey).dot}`} />
+      {children}
+    </button>
+  )
+}
+
+function AddDocumentButton({
+  label = "Add Document",
+  categories,
+}: {
+  label?: string
+  categories: DocumentCategoryOption[]
+}) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [title, setTitle] = useState("")
-  const [category, setCategory] = useState<HrDocumentCategory>("Handbook")
+  // DOC-5 (F7): pre-selects the first category in sort order.
+  const [categoryId, setCategoryId] = useState<string | null>(defaultCategoryId(categories))
   const [kind, setKind] = useState<HrDocumentKind>("Reference")
   // DOC-3. externalUrl is Link-only; the two instructions fields are for every
   // kind (ruling 3).
@@ -416,7 +530,7 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
 
   function resetForm() {
     setTitle("")
-    setCategory("Handbook")
+    setCategoryId(defaultCategoryId(categories))
     setKind("Reference")
     setExternalUrl("")
     setInstructionsHtml("")
@@ -454,7 +568,7 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title,
-            category,
+            categoryId,
             kind: "Link",
             externalUrl: externalUrl.trim(),
             ...instructionsPayload(),
@@ -497,7 +611,7 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          category,
+          categoryId,
           kind,
           url: uploaded.url,
           fileName: file.name,
@@ -608,16 +722,7 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as HrDocumentCategory)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {HR_DOCUMENT_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{HR_CATEGORY_LABELS[c]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <DocumentCategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
             {/* DOC-3: exactly one of these two renders. The File input is not
                 merely hidden on a Link — it is unmounted, so its `required`
@@ -698,12 +803,20 @@ function AddDocumentButton({ label = "Add Document" }: { label?: string }) {
   )
 }
 
-function EditDocumentButton({ doc }: { doc: HrDocumentRow }) {
+function EditDocumentButton({
+  doc,
+  categories,
+}: {
+  doc: HrDocumentRow
+  categories: DocumentCategoryOption[]
+}) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [title, setTitle] = useState(doc.title)
-  const [category, setCategory] = useState(doc.category as HrDocumentCategory)
+  // DOC-5: edits categoryId only — the legacy string is never written after
+  // create (F3, Gary 2026-09-28).
+  const [categoryId, setCategoryId] = useState<string | null>(doc.categoryId)
   // DOC-3 (4g). The URL is editable on a Link — unlike an uploaded file, which
   // is immutable by design — and instructions are editable on every kind.
   const [externalUrl, setExternalUrl] = useState(doc.externalUrl ?? "")
@@ -726,7 +839,7 @@ function EditDocumentButton({ doc }: { doc: HrDocumentRow }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          category,
+          categoryId,
           // externalUrl is sent ONLY for a Link. The route 400s it on any other
           // kind, so sending it unconditionally would break editing the title
           // of every Reference in the library.
@@ -768,16 +881,7 @@ function EditDocumentButton({ doc }: { doc: HrDocumentRow }) {
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as HrDocumentCategory)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {HR_DOCUMENT_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{HR_CATEGORY_LABELS[c]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <DocumentCategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
             {isLink && (
               <div className="space-y-1.5">

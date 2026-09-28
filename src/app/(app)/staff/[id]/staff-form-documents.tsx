@@ -9,11 +9,9 @@ import { Button } from "@/components/ui/button"
 import {
   FORM_STATUS_LABELS,
   FORM_STATUS_STYLES,
-  HR_CATEGORY_LABELS,
-  HR_CATEGORY_STYLES,
   type FormSubmissionStatus,
-  type HrDocumentCategory,
 } from "@/lib/hr-documents"
+import { DocumentCategoryChip } from "@/components/hr/document-category"
 
 // HR-5: the staff member's agreement forms — every applicable FillableForm
 // with the FULL chronological submission history (re-execution is routine:
@@ -34,7 +32,9 @@ export interface StaffFormSubRow {
 export interface StaffFormDocRow {
   documentId: string
   title: string
-  category: string
+  // DOC-5: the relation's name and colour; null = uncategorized.
+  categoryName: string | null
+  categoryColorKey: string | null
   linkedFormId: string | null
   active: boolean
   submissions: StaffFormSubRow[] // newest first
@@ -108,9 +108,7 @@ function FormRow({ form, staffId }: { form: StaffFormDocRow; staffId: string }) 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{form.title}</p>
-            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${HR_CATEGORY_STYLES[form.category as HrDocumentCategory] ?? HR_CATEGORY_STYLES.Other}`}>
-              {HR_CATEGORY_LABELS[form.category as HrDocumentCategory] ?? form.category}
-            </span>
+            <DocumentCategoryChip name={form.categoryName} colorKey={form.categoryColorKey} />
             {!form.active && (
               <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                 Archived

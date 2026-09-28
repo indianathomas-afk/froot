@@ -80,11 +80,23 @@ async function main() {
     return
   }
 
+  // DOC-5: forms carry the org's category row (F7). "HR Management" is a
+  // starter category and may have been renamed or deleted — then the pair is
+  // created uncategorized, which is legal (F2); the legacy string follows F3.
+  const hrCategory = await prisma.hrDocumentCategory.findFirst({
+    where: { organizationId: org.id, name: "HR Management" },
+    select: { id: true, name: true },
+  })
+  const categoryFields = {
+    categoryId: hrCategory?.id ?? null,
+    category: hrCategory?.name ?? "Other",
+  }
+
   const checkOut = await createFillableForm({
     organizationId: org.id,
     createdByUserId: admin.id,
     title: CHECK_OUT_TITLE,
-    category: "HRManagement",
+    ...categoryFields,
     bodyText: CHECK_OUT_BODY,
     fields: CHECK_OUT_FIELDS,
   })
@@ -94,7 +106,7 @@ async function main() {
     organizationId: org.id,
     createdByUserId: admin.id,
     title: CHECK_IN_TITLE,
-    category: "HRManagement",
+    ...categoryFields,
     bodyText: CHECK_IN_BODY,
     fields: CHECK_IN_FIELDS,
   })

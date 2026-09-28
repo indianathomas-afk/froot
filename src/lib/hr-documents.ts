@@ -1,31 +1,19 @@
 // HR document-library domain constants. Client-safe (no node imports) so both
 // the API routes and the /hr/documents UI share one source of truth.
 
-export const HR_DOCUMENT_CATEGORIES = [
-  "Handbook",
-  "PayAgreement",
-  "Policy",
-  "HRManagement",
-  "Other",
-] as const
-export type HrDocumentCategory = (typeof HR_DOCUMENT_CATEGORIES)[number]
-
-export const HR_CATEGORY_LABELS: Record<HrDocumentCategory, string> = {
-  Handbook: "Handbook",
-  PayAgreement: "Pay Agreement",
-  Policy: "Policy",
-  HRManagement: "HR Management",
-  Other: "Other",
-}
-
-// Chip styles — same shape as the /users ROLE_STYLES map.
-export const HR_CATEGORY_STYLES: Record<HrDocumentCategory, string> = {
-  Handbook: "bg-orange-100 text-orange-700 border border-orange-200",
-  PayAgreement: "bg-green-100 text-green-700 border border-green-200",
-  Policy: "bg-blue-100 text-blue-700 border border-blue-200",
-  HRManagement: "bg-purple-100 text-purple-700 border border-purple-200",
-  Other: "bg-gray-100 text-gray-600 border border-gray-200",
-}
+// DOC-5 (2026-09-28): THE CATEGORY CONSTANTS THAT LIVED HERE ARE GONE.
+// HR_DOCUMENT_CATEGORIES, HR_CATEGORY_LABELS and HR_CATEGORY_STYLES were a
+// hardcoded five-value taxonomy; categories are now the per-org
+// HrDocumentCategory entity (src/lib/document-categories.ts for the starter set
+// and queries, src/components/hr/document-category.tsx for the chip and the
+// picker). Do not reintroduce a literal list — readers render the relation,
+// and HrDocument.category is a stale legacy string (F3).
+//
+// The one piece that stays here: the label for a null category (F2). It lives
+// in this client-safe, NON-"use client" module so server pages (/my/documents)
+// and client components read the same string — a constant imported from a
+// "use client" file into a server component arrives as a reference, not a value.
+export const UNCATEGORIZED_LABEL = "Uncategorized"
 
 // Kinds creatable through the library upload dialog. FillableForm (HR-5) is
 // deliberately NOT here — forms are built at /hr/forms, never uploaded, and

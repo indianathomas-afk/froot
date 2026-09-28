@@ -6,6 +6,7 @@ import { slugify } from "@/lib/utils"
 import { getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
 import { ensureStarterTemplateTypes } from "@/lib/template-types"
 import { ensureStarterTrainingCategories } from "@/lib/training-categories"
+import { ensureStarterDocumentCategories } from "@/lib/document-categories"
 
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
@@ -59,6 +60,10 @@ export async function POST(req: Request) {
     // load-bearing (category is optional), seeded here so new orgs start with
     // the offered defaults. Idempotent — see src/lib/training-categories.ts.
     await ensureStarterTrainingCategories(row.id)
+    // DOC-5 (F1): document categories, same shape — the migration seeded every
+    // existing org; this seeds orgs born afterwards. Idempotent — see
+    // src/lib/document-categories.ts.
+    await ensureStarterDocumentCategories(row.id)
   }
 
   if (type === "organization.updated") {
@@ -95,6 +100,8 @@ export async function POST(req: Request) {
     await ensureStarterTemplateTypes(org.id)
     // HR-20: training categories, same reasoning as above.
     await ensureStarterTrainingCategories(org.id)
+    // DOC-5: document categories, same reasoning as above.
+    await ensureStarterDocumentCategories(org.id)
 
     // "org:manager" IS UNREACHABLE ON THE PRODUCTION CLERK INSTANCE and is a
     // forward-compatible fallback, not the manager path. Verified 2026-08-03:

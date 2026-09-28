@@ -213,6 +213,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         ...staffAudienceWhere(member),
       },
       include: {
+        // DOC-5: the category relation — never the legacy string (F3).
+        docCategory: { select: { name: true, colorKey: true } },
         // HR-11n: retired checkpoints leave the denominator (see hr-compliance.ts).
         checkpoints: { where: { required: true, retiredAt: null }, select: { id: true } },
         versions: {
@@ -289,7 +291,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         {
           documentId: d.id,
           title: d.title,
-          category: d.category,
+          categoryName: d.docCategory?.name ?? null,
+          categoryColorKey: d.docCategory?.colorKey ?? null,
           currentVersionNumber: current.versionNumber,
           status: completion.status,
           recordMissing: completion.recordMissing,
@@ -362,7 +365,13 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         // agreements reach this person, which is an audience question.
         ...staffAudienceWhere(member),
       },
-      select: { id: true, title: true, category: true, linkedFormId: true },
+      // DOC-5 (F7): forms read the shared taxonomy's relation.
+      select: {
+        id: true,
+        title: true,
+        linkedFormId: true,
+        docCategory: { select: { name: true, colorKey: true } },
+      },
       orderBy: { title: "asc" },
     })
     const submissions = await prisma.formSubmission.findMany({
@@ -375,7 +384,13 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           select: {
             versionNumber: true,
             hrDocument: {
-              select: { id: true, title: true, category: true, linkedFormId: true, isActive: true },
+              select: {
+                id: true,
+                title: true,
+                linkedFormId: true,
+                isActive: true,
+                docCategory: { select: { name: true, colorKey: true } },
+              },
             },
           },
         },
@@ -389,7 +404,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         {
           documentId: d.id,
           title: d.title,
-          category: d.category,
+          categoryName: d.docCategory?.name ?? null,
+          categoryColorKey: d.docCategory?.colorKey ?? null,
           linkedFormId: d.linkedFormId,
           active: true,
           submissions: [],
@@ -404,7 +420,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         rowByDocId.set(subDoc.id, {
           documentId: subDoc.id,
           title: sub.formTitle ?? subDoc.title,
-          category: subDoc.category,
+          categoryName: subDoc.docCategory?.name ?? null,
+          categoryColorKey: subDoc.docCategory?.colorKey ?? null,
           linkedFormId: subDoc.linkedFormId,
           active: false,
           submissions: [],

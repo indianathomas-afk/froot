@@ -14,11 +14,9 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   FORM_FIELD_TYPE_LABELS,
   FORM_FIELD_TYPES,
-  HR_CATEGORY_LABELS,
-  HR_DOCUMENT_CATEGORIES,
   type FormFieldType,
-  type HrDocumentCategory,
 } from "@/lib/hr-documents"
+import { DocumentCategorySelect, type DocumentCategoryOption } from "@/components/hr/document-category"
 
 interface BuilderField {
   label: string
@@ -43,8 +41,9 @@ export function FormBuilderClient({
   versions,
   linked,
   pairable,
+  categories,
 }: {
-  doc: { id: string; title: string; category: string; bodyText: string; isActive: boolean }
+  doc: { id: string; title: string; categoryId: string | null; bodyText: string; isActive: boolean }
   fields: BuilderField[]
   currentVersion: { versionNumber: number; fileHash: string; submissionCount: number }
   versions: {
@@ -56,10 +55,12 @@ export function FormBuilderClient({
   }[]
   linked: { id: string; title: string } | null
   pairable: { id: string; title: string }[]
+  categories: DocumentCategoryOption[]
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(doc.title)
-  const [category, setCategory] = useState(doc.category as HrDocumentCategory)
+  // DOC-5: categoryId only — the legacy string is never written after create (F3).
+  const [categoryId, setCategoryId] = useState<string | null>(doc.categoryId)
   const [bodyText, setBodyText] = useState(doc.bodyText)
   const [rows, setRows] = useState<EditRow[]>(
     fields.map((f, i) => ({
@@ -117,7 +118,7 @@ export function FormBuilderClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
-          category,
+          categoryId,
           bodyText,
           fields: rows.map((r) => ({
             label: r.label.trim(),
@@ -195,16 +196,7 @@ export function FormBuilderClient({
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as HrDocumentCategory)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {HR_DOCUMENT_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{HR_CATEGORY_LABELS[c]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <DocumentCategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
           </div>
           <div className="space-y-1.5">

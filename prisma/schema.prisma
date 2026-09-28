@@ -172,6 +172,7 @@ model Organization {
   corporateUpdates              CorporateUpdate[]
   paceAlertLogs                 PaceAlertLog[]
   hrDocuments                   HrDocument[]
+  hrDocumentCategories          HrDocumentCategory[]
   managerNotes                  ManagerNote[]
   trainingModules               TrainingModule[]
   trainingCategories            TrainingCategory[]
@@ -1859,7 +1860,18 @@ model HrDocument {
   organizationId         String
   kind                   String // Acknowledgment | FillableForm | Reference | Link
   title                  String
-  category               String // Handbook | PayAgreement | Policy | HRManagement | Other
+  // DOC-5 (F3): LEGACY, STALE BY DESIGN — the Template.type shape. Category
+  // lives on categoryId below; every reader renders the relation's name. This
+  // column stays NOT NULL (additive migration only) and is written ONLY on
+  // create — the chosen category's name, or "Other" when uncategorized. The
+  // edit dialog, rename and reassign do NOT touch it, so on any row it may name
+  // a category that no longer exists. Never read it. Retirement is a later,
+  // destructive row. Original values: Handbook | PayAgreement | Policy |
+  // HRManagement | Other.
+  category               String
+  // DOC-5 (F2): nullable — uncategorized is a legal resting state, as in HR-20.
+  // Shared by library documents AND FillableForm rows (F7: one taxonomy).
+  categoryId             String?
   // DOC-1 A: THE COMPANY-WIDE GRANT. "all" reaches every staff member in the
   // org (corporate included) and needs no grant row; "selected" means the
   // HrDocumentGrant rows below are the whole audience — zero rows reaches
@@ -1922,6 +1934,12 @@ model HrDocument {
   updatedAt              DateTime @updatedAt
 
   organization  Organization           @relation(fields: [organizationId], references: [id])
+  // onDelete: Restrict ANNOTATED, not defaulted — the TPL-1a/HR-20 drift lesson:
+  // an optional relation left unannotated reads as SetNull, and every later
+  // migrate diff would try to relax the live RESTRICT constraint. Deletion in
+  // use is blocked by a 409 in the route; RESTRICT is the backstop.
+  // Named docCategory because the legacy scalar above already owns `category`.
+  docCategory   HrDocumentCategory?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   versions      HrDocumentVersion[]
   checkpoints   HrDocumentCheckpoint[]
   formFields    FormField[]
@@ -1931,6 +1949,28 @@ model HrDocument {
   // TrainingLesson, not a uniqueness claim about the document.
   linkedLessons TrainingLesson[]
 
+  @@index([organizationId])
+  @@index([categoryId])
+}
+
+// DOC-5 — the org's document taxonomy, fifth instance of the per-org category
+// pattern and an exact copy of HR-20's TrainingCategory shape. Covers library
+// documents AND agreement forms (F7). colorKey is a badge-preset KEY
+// (src/lib/badge-presets.ts), never a class string — the Tailwind 4
+// constraint. No `active` column.
+model HrDocumentCategory {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  colorKey       String   @default("gray")
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  documents    HrDocument[]
+
+  @@unique([organizationId, name])
   @@index([organizationId])
 }
 
