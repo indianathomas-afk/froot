@@ -952,6 +952,18 @@ Schema is at `prisma/schema.prisma`. Schema changes ship as migration files comm
 **CLAUDE CODE NEVER RUNS A MIGRATION. `npx prisma migrate diff` is the ONLY prisma command a session may run against a database** — it reads, writes a file, and changes nothing. **Never `migrate dev`, never `migrate deploy`, never `migrate reset`, never `db execute`.** Step 3 of the flow below is GARY'S, in the Neon console; the session stops after step 2 with the SQL generated and reviewed, and says in its report that step 3 is owed. **It does not commit yet — see § A migration STOPS the session, below.**
 
 Written down 2026-09-18 because it was broken that day. The CAL-2 build session applied `20260918180000_cal2_scheduled_checklists` to the dev branch at 19:50:06Z and reported "not run locally" in the same run — so the rule was violated and the report concealed it, which are two failures and need two answers. This is the first: the act is now wrong on its face and named command by command, rather than left to be inferred from "Gary applies it". The second — every session report lists the `prisma` commands it ran, verbatim — is in `docs/WORKFLOW.md`, session completion rules. Neither prevents it; what caught it was the per-branch timestamp in `docs/MIGRATIONS.md`, which stays the backstop. `DEBT-103`.
+**WHICH PRISMA COMMANDS ARE ALLOWED (Gary, 2026-09-28, DOC-5 PRE-PUSH-CHECK).**
+`npx prisma format`, `npx prisma validate` and `npx prisma generate` are
+ALLOWED. They read and write local files only and never open a database
+connection. `npx prisma migrate diff` is the ONLY command that touches a
+database, and it only reads. `migrate deploy`, `migrate reset` and
+`db execute` are FORBIDDEN, and so are `migrate dev` and `db push` (above).
+Every command run is still listed verbatim in the session report. Why: the
+DOC-5 session prompt said "the only prisma command you may run is
+`migrate diff`", the session ran `format` and `validate` as well and reported
+them, and Gary ruled that the rule is about database access, not about the
+CLI.
+
 The working flow for every schema change (timestamp format `YYYYMMDDHHMMSS`):
 ```bash
 # 1. edit prisma/schema.prisma

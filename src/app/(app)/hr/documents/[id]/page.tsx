@@ -23,6 +23,8 @@ export default async function HrDocumentDetailPage({
   const doc = await prisma.hrDocument.findFirst({
     where: { id: (await params).id, organizationId: org.id },
     include: {
+      // DOC-5: the category relation — never the legacy string (F3).
+      docCategory: { select: { name: true, colorKey: true } },
       versions: {
         orderBy: { versionNumber: "desc" },
         include: {
@@ -99,7 +101,8 @@ export default async function HrDocumentDetailPage({
       doc={{
         id: doc.id,
         title: doc.title,
-        category: doc.category,
+        categoryName: doc.docCategory?.name ?? null,
+        categoryColorKey: doc.docCategory?.colorKey ?? null,
         kind: doc.kind,
         isActive: doc.isActive,
         versions: doc.versions.map((v) => ({

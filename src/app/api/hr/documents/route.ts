@@ -6,11 +6,11 @@ import { buildVersionScanReport, detectAndStoreVersionAnchors } from "@/lib/hr-a
 import { HrFileValidationError, readHrFileMeta, validateHrFileMeta } from "@/lib/hr-files"
 import {
   EXTERNAL_URL_ERROR,
-  HR_DOCUMENT_CATEGORIES,
   defaultAttestationText,
   isValidExternalDocumentUrl,
 } from "@/lib/hr-documents"
 import { sanitizeRichText } from "@/lib/sanitize-html"
+import { categoryWriteFields, resolveDocumentCategoryId } from "@/lib/document-categories"
 import { isOrgHrBlobUrl, requireHrDocumentAccess } from "./access"
 
 // pdfjs anchor detection runs inline at upload; needs Node + headroom.
@@ -33,6 +33,9 @@ export const maxDuration = 60
 // a shipped surface in a commit about documents. Recorded in DECISIONS.md
 // (2026-08-24, amendment 1) so it is a known gap rather than a missed one.
 const instructionsFields = {
+  // DOC-5: the org's category row, or null/absent for uncategorized (F2).
+  // Rides on both branches of the union for the same reason instructions do.
+  categoryId: z.string().min(1).nullish(),
   instructionsHtml: z.string().nullish(),
   instructionsVideoUrl: z
     .string()
@@ -47,7 +50,6 @@ const instructionsFields = {
 const fileBodySchema = z.object({
   kind: z.enum(["Reference", "Acknowledgment"]),
   title: z.string().trim().min(1),
-  category: z.enum(HR_DOCUMENT_CATEGORIES),
   url: z.string().url(),
   fileName: z.string().trim().min(1),
   ...instructionsFields,
@@ -61,7 +63,6 @@ const fileBodySchema = z.object({
 const linkBodySchema = z.object({
   kind: z.literal("Link"),
   title: z.string().trim().min(1),
-  category: z.enum(HR_DOCUMENT_CATEGORIES),
   externalUrl: z
     .string()
     .trim()
@@ -123,13 +124,22 @@ export async function POST(req: Request) {
   const instructionsHtml = sanitizeRichText(body.instructionsHtml)
   const instructionsVideoUrl = body.instructionsVideoUrl?.trim() || null
 
+  // DOC-5: resolved against THIS org before either branch writes. The legacy
+  // `category` string is written from the result (F3): the category's name, or
+  // "Other" when uncategorized. It is never written again after create.
+  const resolved = await resolveDocumentCategoryId(org.id, body.categoryId ?? null)
+  if (resolved === "invalid") {
+    return NextResponse.json({ error: "Unknown category" }, { status: 400 })
+  }
+  const categoryData = categoryWriteFields(resolved ?? null)
+
   if (body.kind === "Link") {
     const doc = await prisma.hrDocument.create({
       data: {
         organizationId: org.id,
         kind: "Link",
         title: body.title,
-        category: body.category,
+        ...categoryData,
         externalUrl: body.externalUrl,
         instructionsHtml,
         instructionsVideoUrl,
@@ -148,7 +158,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ...doc, scan: null }, { status: 201 })
   }
 
-  const { title, category, url, fileName, kind } = body
+  const { title, url, fileName, kind } = body
 
   if (!isOrgHrBlobUrl(url, org.id)) {
     return NextResponse.json({ error: "Invalid file reference" }, { status: 400 })
@@ -198,7 +208,7 @@ export async function POST(req: Request) {
       organizationId: org.id,
       kind,
       title,
-      category,
+      ...categoryData,
       // DOC-3 ruling 3: instructions apply to every kind, so a Reference or an
       // Acknowledgment carries them exactly as a Link does. Already sanitized
       // above — one call, both branches.

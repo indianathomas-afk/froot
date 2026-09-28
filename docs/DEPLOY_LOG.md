@@ -2,6 +2,73 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-28 — DOC-5: document categories become a managed per-org entity
+
+**Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
+stamped with the merge SHA at promotion, on `main`, after the merge.
+
+**Payload: DOC-5 only.** Verified by `git log origin/main..staging` at this
+check, not inferred from headings. It showed exactly two commits, `a7e9d86`
+and `c9426eb`, on `staging` and not on `main`, and this check adds a third.
+All three are DOC-5's.
+
+| Commit | What it is |
+|---|---|
+| `a7e9d86` | DOC-5 work: `HrDocumentCategory` entity + migration, `/api/hr/documents/categories` routes, Manage Categories dialog, all readers switched |
+| `c9426eb` | `docs(DOC-5)`: ROADMAP row, DECISIONS draft, MIGRATIONS entry, session prompt + audit |
+| the commit immediately after `c9426eb` | `docs(DOC-5 PRE-PUSH-CHECK)`: ruling ratified, CLAUDE.md prisma-command rule, this entry, row to `staging`, docs SHA |
+
+**THIS PROMOTION CARRIES A MIGRATION.**
+`20260928213037_doc5_document_category_entity`, additive only. It runs through
+`prisma migrate deploy` in the Vercel build: on staging at Gary's push, and on
+production at promotion. Dev was applied by Gary on 2026-09-28, with 0 of 3
+documents uncategorized and 5 categories per org. It creates the
+`HrDocumentCategory` table and nullable `HrDocument.categoryId` with an
+`ON DELETE RESTRICT` FK. It seeds five categories per org and backfills
+`categoryId` by name. **Nothing is dropped.** The legacy `HrDocument.category`
+column is kept NOT NULL and becomes stale by design (F3).
+**After each deploy:** `SELECT count(*) FROM "HrDocument" WHERE "categoryId" IS NULL`
+should be 0 on that branch, with the branch literal in the same output. Any
+non-zero result means an unexpected legacy value, and goes back to Gary.
+
+**What changes for whom:**
+- **ADMIN on `/hr/documents`** gets a Manage Categories button. It adds,
+  renames, recolours, reorders and deletes categories. Deleting a category in
+  use is blocked with a count and offers Reassign.
+- **Everyone who sees the library** gets colour-coded chips with counts, and
+  sections ordered by the org's category order. Documents with no category
+  appear under Uncategorized, last.
+- **Add Document and New Form** pre-select the first category. Documents and
+  agreement forms share one category set.
+- **Staff on `/my/documents`** now see category names ("Pay Agreement")
+  instead of raw values ("PayAgreement").
+- **New orgs** are seeded with the five starter categories from both Clerk
+  webhook sites.
+- **New routes:** `GET`/`POST /api/hr/documents/categories`,
+  `PATCH`/`DELETE …/[id]` and `POST …/[id]/reassign`, all ADMIN-only.
+  The document and form create and PATCH bodies now take `categoryId`, not
+  `category`.
+
+**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **The code
+revert is safe without a database step.** The migration is additive, the
+legacy `category` column was kept NOT NULL and is written on every create, so
+reverted code reads it as before. The new table and column simply go unread.
+Documents recategorized after the push keep their old string, so reverted code
+would show the category as it was at create time. Dropping the table and column
+would be a separate, destructive decision, and is not part of a rollback.
+
+**Staging evidence pending.** Gary tests after the push, as `indianathomas`
+(ADMIN) on `/hr/documents`:
+1. The Keva Juice Employee Handbook is under Handbook, and the I-9 under Other.
+2. Add "Food Safety" in green, move it to the top, and reload. It persists.
+3. Rename Policy to "Policies". The chip, header and dropdowns update.
+4. Handbook shows Reassign, not a trash icon.
+5. Delete an unused category.
+6. As Tommy (STORE): no Manage Categories, and `/my/documents` shows names.
+
+Also check `/hr/forms`: chips show categories, and New Form pre-selects the
+first category. Evidence names the org ID and the Clerk instance.
+
 ## d929d1d — 2026-09-27 — QREV-1: review a quiz attempt's answers on /staff/[id] Training
 
 **Merge SHA:** `d929d1d47845061a30b540040d5d4c8264372a34`

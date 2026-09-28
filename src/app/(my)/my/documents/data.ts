@@ -70,6 +70,8 @@ export async function requiredDocumentRows(staffMember: {
       ...staffAudienceWhere(staffMember),
     },
     include: {
+      // DOC-5: the category relation — never the legacy string (F3).
+      docCategory: { select: { name: true } },
       // HR-11n: retired checkpoints leave the denominator (see hr-compliance.ts).
       checkpoints: { where: { required: true, retiredAt: null }, select: { id: true } },
       versions: {
@@ -143,7 +145,9 @@ export async function requiredDocumentRows(staffMember: {
       {
         documentId: d.id,
         title: d.title,
-        category: d.category,
+        // DOC-5: populated but not rendered today (audit finding D) — switched
+        // anyway so no reader is left on the stale legacy string.
+        category: d.docCategory?.name ?? null,
         status: completion.status,
         currentVersionNumber: current.versionNumber,
         // R1's invariant, unchanged by R2: a version number only ever comes

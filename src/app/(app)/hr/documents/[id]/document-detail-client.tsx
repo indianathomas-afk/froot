@@ -29,8 +29,6 @@ import {
   HR_ANCHOR_MARK_TYPES,
   HR_ANCHOR_PLACEMENT_LABELS,
   HR_ANCHOR_PLACEMENTS,
-  HR_CATEGORY_LABELS,
-  HR_CATEGORY_STYLES,
   HR_CHECKPOINT_TYPES,
   HR_CHECKPOINT_TYPE_LABELS,
   HR_CHECKPOINT_TYPE_STYLES,
@@ -39,9 +37,9 @@ import {
   type HrAnchorMarkTypeName,
   type HrAnchorPlacementName,
   type HrCheckpointTypeName,
-  type HrDocumentCategory,
 } from "@/lib/hr-documents"
 import { uploadHrFileFromBrowser } from "@/lib/hr-upload-client"
+import { DocumentCategoryChip } from "@/components/hr/document-category"
 
 export interface CheckpointRow {
   id: string
@@ -91,7 +89,9 @@ export interface AnchorRow {
 export interface DocumentDetail {
   id: string
   title: string
-  category: string
+  // DOC-5: the relation's name and colour; null = uncategorized.
+  categoryName: string | null
+  categoryColorKey: string | null
   kind: string
   isActive: boolean
   versions: VersionRow[]
@@ -107,7 +107,6 @@ function formatSize(bytes: number): string {
 
 export function DocumentDetailClient({ doc }: { doc: DocumentDetail }) {
   const isSignatureDoc = doc.kind === "Acknowledgment"
-  const category = doc.category as HrDocumentCategory
 
   return (
     <div>
@@ -126,9 +125,7 @@ export function DocumentDetailClient({ doc }: { doc: DocumentDetail }) {
             {!doc.isActive && <Badge variant="secondary">Archived</Badge>}
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${HR_CATEGORY_STYLES[category] ?? HR_CATEGORY_STYLES.Other}`}>
-              {HR_CATEGORY_LABELS[category] ?? doc.category}
-            </span>
+            <DocumentCategoryChip name={doc.categoryName} colorKey={doc.categoryColorKey} />
             {isSignatureDoc && (
               <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">
                 <PenLine className="h-3 w-3" />

@@ -36,6 +36,7 @@
 import { prisma } from "@/lib/prisma"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { documentCompletion } from "@/lib/hr-completion"
+import { UNCATEGORIZED_LABEL } from "@/lib/hr-documents"
 import { DEFAULT_TIME_ZONE, displayTimeZone } from "@/lib/hr"
 
 export type ComplianceItemStatus =
@@ -293,6 +294,8 @@ export async function computeStaffComplianceDetails(
         requiresAcknowledgment: true,
       },
       include: {
+        // DOC-5: the category relation — never the legacy string (F3).
+        docCategory: { select: { name: true } },
         // HR-11n: `retiredAt: null` is part of the DENOMINATOR, not a display
         // filter — a retired step is no longer required of anyone, so leaving it
         // in would hold every member permanently short of completion on a step
@@ -536,7 +539,9 @@ export async function computeStaffComplianceDetails(
           kind: "document" as const,
           documentId: d.id,
           title: d.title,
-          category: d.category,
+          // DOC-5: populated but not rendered by any consumer today (audit
+          // finding D); switched so no reader stays on the legacy string.
+          category: d.docCategory?.name ?? UNCATEGORIZED_LABEL,
           status,
           currentVersionNumber: current.versionNumber,
           ackedCount: ackedIds.size,

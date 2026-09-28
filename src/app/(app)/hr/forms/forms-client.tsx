@@ -18,18 +18,19 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  HR_CATEGORY_LABELS,
-  HR_CATEGORY_STYLES,
-  HR_DOCUMENT_CATEGORIES,
-  type HrDocumentCategory,
-} from "@/lib/hr-documents"
+  DocumentCategoryChip,
+  DocumentCategorySelect,
+  defaultCategoryId,
+  type DocumentCategoryOption,
+} from "@/components/hr/document-category"
 
 export interface HrFormRow {
   id: string
   title: string
-  category: string
+  // DOC-5: the shared document taxonomy (F7); null = uncategorized.
+  categoryName: string | null
+  categoryColorKey: string | null
   fieldCount: number
   currentVersionNumber: number
   submissionCount: number
@@ -37,7 +38,13 @@ export interface HrFormRow {
   linkedFormTitle: string | null
 }
 
-export function HrFormsClient({ forms }: { forms: HrFormRow[] }) {
+export function HrFormsClient({
+  forms,
+  categories,
+}: {
+  forms: HrFormRow[]
+  categories: DocumentCategoryOption[]
+}) {
   return (
     <div>
       <div className="mb-6 flex items-start justify-between gap-4">
@@ -48,7 +55,7 @@ export function HrFormsClient({ forms }: { forms: HrFormRow[] }) {
             staff member&apos;s Documents tab
           </p>
         </div>
-        <CreateFormButton />
+        <CreateFormButton categories={categories} />
       </div>
 
       {forms.length === 0 ? (
@@ -63,7 +70,7 @@ export function HrFormsClient({ forms }: { forms: HrFormRow[] }) {
               managers can execute it with any staff member.
             </p>
             <div className="mt-6 flex justify-center">
-              <CreateFormButton label="Build the first form" />
+              <CreateFormButton label="Build the first form" categories={categories} />
             </div>
           </div>
         </div>
@@ -77,9 +84,7 @@ export function HrFormsClient({ forms }: { forms: HrFormRow[] }) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{form.title}</p>
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${HR_CATEGORY_STYLES[form.category as HrDocumentCategory] ?? HR_CATEGORY_STYLES.Other}`}>
-                    {HR_CATEGORY_LABELS[form.category as HrDocumentCategory] ?? form.category}
-                  </span>
+                  <DocumentCategoryChip name={form.categoryName} colorKey={form.categoryColorKey} />
                   {form.linkedFormTitle && (
                     <span
                       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20"
@@ -116,12 +121,19 @@ export function HrFormsClient({ forms }: { forms: HrFormRow[] }) {
 // Create collects just title + category; the new form lands on the builder to
 // write the agreement language and fields (same pattern as new signature
 // documents landing on the checkpoint editor).
-function CreateFormButton({ label = "New Form" }: { label?: string }) {
+function CreateFormButton({
+  label = "New Form",
+  categories,
+}: {
+  label?: string
+  categories: DocumentCategoryOption[]
+}) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [title, setTitle] = useState("")
-  const [category, setCategory] = useState<HrDocumentCategory>("HRManagement")
+  // DOC-5 (F7, Gary 2026-09-28): pre-selects the first category in sort order.
+  const [categoryId, setCategoryId] = useState<string | null>(defaultCategoryId(categories))
   const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent) {
@@ -132,7 +144,7 @@ function CreateFormButton({ label = "New Form" }: { label?: string }) {
       const res = await fetch("/api/hr/forms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, category }),
+        body: JSON.stringify({ title, categoryId }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -169,16 +181,7 @@ function CreateFormButton({ label = "New Form" }: { label?: string }) {
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as HrDocumentCategory)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {HR_DOCUMENT_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{HR_CATEGORY_LABELS[c]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <DocumentCategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
             <p className="text-xs text-[var(--color-muted-foreground)]">
               You&apos;ll write the agreement text and add the fillable fields next.

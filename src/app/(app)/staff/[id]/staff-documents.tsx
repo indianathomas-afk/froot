@@ -6,11 +6,7 @@ import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { Download, FileText, PenLine, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  HR_CATEGORY_LABELS,
-  HR_CATEGORY_STYLES,
-  type HrDocumentCategory,
-} from "@/lib/hr-documents"
+import { DocumentCategoryChip } from "@/components/hr/document-category"
 import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
 
 // One row per required Acknowledgment document for this staff member, with
@@ -26,7 +22,9 @@ import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
 export interface StaffDocumentRow {
   documentId: string
   title: string
-  category: string
+  // DOC-5: the relation's name and colour; null = uncategorized.
+  categoryName: string | null
+  categoryColorKey: string | null
   currentVersionNumber: number
   status: "signed" | "needs-current" | "in-progress" | "not-started"
   signedVersionNumber: number | null
@@ -112,9 +110,7 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{row.title}</p>
-              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${HR_CATEGORY_STYLES[row.category as HrDocumentCategory] ?? HR_CATEGORY_STYLES.Other}`}>
-                {HR_CATEGORY_LABELS[row.category as HrDocumentCategory] ?? row.category}
-              </span>
+              <DocumentCategoryChip name={row.categoryName} colorKey={row.categoryColorKey} />
             </div>
             {/* R2, 2026-08-16: an R2 row said v6 twice — "Current version v6"
                 here and "· current is v6" in the badge. The BADGE keeps it,

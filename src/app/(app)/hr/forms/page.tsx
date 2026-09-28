@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { notFound, redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
+import { listDocumentCategories } from "@/lib/document-categories"
 import { HrFormsClient, type HrFormRow } from "./forms-client"
 
 // HR-5 agreement-form templates (Key Agreement, Pay Agreement...). Template
@@ -20,6 +21,8 @@ export default async function HrFormsPage() {
   const docs = await prisma.hrDocument.findMany({
     where: { organizationId: org.id, kind: "FillableForm", isActive: true },
     include: {
+      // DOC-5 (F7): forms share the document taxonomy; read the relation.
+      docCategory: { select: { name: true, colorKey: true } },
       formFields: { select: { id: true } },
       versions: {
         orderBy: { versionNumber: "desc" },
@@ -33,7 +36,8 @@ export default async function HrFormsPage() {
   const forms: HrFormRow[] = docs.map((d) => ({
     id: d.id,
     title: d.title,
-    category: d.category,
+    categoryName: d.docCategory?.name ?? null,
+    categoryColorKey: d.docCategory?.colorKey ?? null,
     fieldCount: d.formFields.length,
     currentVersionNumber: d.versions.find((v) => v.isCurrent)?.versionNumber ?? 1,
     submissionCount: d.versions.reduce((sum, v) => sum + v._count.formSubmissions, 0),
@@ -41,5 +45,7 @@ export default async function HrFormsPage() {
     linkedFormTitle: d.linkedFormId ? titleById.get(d.linkedFormId) ?? null : null,
   }))
 
-  return <HrFormsClient forms={forms} />
+  const categories = await listDocumentCategories(org.id)
+
+  return <HrFormsClient forms={forms} categories={categories} />
 }

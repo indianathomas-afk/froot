@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
-import { externalUrlHost } from "@/lib/hr-documents"
+import { UNCATEGORIZED_LABEL, externalUrlHost } from "@/lib/hr-documents"
 import { DocumentInstructions } from "@/components/hr/document-instructions"
 import { Badge } from "@/components/ui/badge"
 import { MyShell } from "../my-shell"
@@ -78,7 +78,10 @@ export default async function MyDocumentsPage() {
       select: {
         id: true,
         title: true,
-        category: true,
+        // DOC-5: the relation's name. This line used to render the RAW legacy
+        // string, so staff read "PayAgreement" / "HRManagement"; the relation
+        // carries the name the admin chose (F3: never read the legacy column).
+        docCategory: { select: { name: true } },
         // DOC-3: the card branches on kind, so it has to be selected. Without
         // externalUrl a Link's card would keep pointing at the download route,
         // which 404s on a document with no version row.
@@ -303,7 +306,7 @@ export default async function MyDocumentsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-[var(--color-foreground)] truncate">{doc.title}</p>
                     <p className="text-xs text-[var(--color-muted-foreground)] truncate">
-                      {[doc.category, isLink ? externalUrlHost(doc.externalUrl) : null]
+                      {[doc.docCategory?.name ?? UNCATEGORIZED_LABEL, isLink ? externalUrlHost(doc.externalUrl) : null]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>

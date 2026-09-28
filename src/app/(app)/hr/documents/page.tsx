@@ -9,6 +9,7 @@ import {
   viewerAudienceWhere,
 } from "@/lib/hr-documents-access"
 import type { HrDocumentKind } from "@/lib/hr-documents"
+import { listDocumentCategories } from "@/lib/document-categories"
 import { HrDocumentsClient } from "./documents-client"
 
 // HR-3 Reference Library + HR-4 signature documents. Upload/manage is
@@ -53,16 +54,31 @@ export default async function HrDocumentsPage() {
       ...(isAdmin ? {} : { isActive: true }),
       ...viewerAudienceWhere(viewer),
     },
-    include: { versions: { where: { isCurrent: true }, take: 1 }, ...AUDIENCE_INCLUDE },
-    orderBy: [{ category: "asc" }, { title: "asc" }],
+    include: {
+      versions: { where: { isCurrent: true }, take: 1 },
+      // DOC-5: the relation, never the legacy `category` string (F3).
+      docCategory: { select: { name: true, colorKey: true } },
+      ...AUDIENCE_INCLUDE,
+    },
+    // Title only: SECTION order is the org's category sortOrder, applied by
+    // the client over `categories` below — no longer the raw string's
+    // alphabetical order.
+    orderBy: [{ title: "asc" }],
   })
+
+  // DOC-5: the org's taxonomy in sortOrder. Drives the section order, the chips
+  // and both dialogs' pickers; categories with no visible document simply
+  // render no section.
+  const categories = await listDocumentCategories(org.id)
 
   const documents = docs
     .filter((d) => canReadHrDocument(d, viewer))
     .map((d) => ({
       id: d.id,
       title: d.title,
-      category: d.category,
+      categoryId: d.categoryId,
+      categoryName: d.docCategory?.name ?? null,
+      categoryColorKey: d.docCategory?.colorKey ?? null,
       // Widened to the shared type rather than to a longer literal union, so
       // the NEXT kind does not need this line edited again (DOC-3).
       kind: d.kind as HrDocumentKind,
@@ -86,5 +102,5 @@ export default async function HrDocumentsPage() {
       staffGrants: d.grants.filter((g) => g.granteeType === "STAFF").length,
     }))
 
-  return <HrDocumentsClient documents={documents} isAdmin={isAdmin} />
+  return <HrDocumentsClient documents={documents} categories={categories} isAdmin={isAdmin} />
 }

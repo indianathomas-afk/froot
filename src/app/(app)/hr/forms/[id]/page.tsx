@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { notFound, redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
+import { listDocumentCategories } from "@/lib/document-categories"
 import { FormBuilderClient } from "./form-builder-client"
 
 // HR-5 form builder — ADMIN-only, same gate stack as /hr/forms.
@@ -47,13 +48,15 @@ export default async function HrFormBuilderPage({ params }: { params: Promise<{ 
     : null
 
   const current = doc.versions.find((v) => v.isCurrent)
+  // DOC-5 (F7): the shared document taxonomy, for the builder's picker.
+  const categories = await listDocumentCategories(org.id)
 
   return (
     <FormBuilderClient
       doc={{
         id: doc.id,
         title: doc.title,
-        category: doc.category,
+        categoryId: doc.categoryId,
         bodyText: doc.bodyText ?? "",
         isActive: doc.isActive,
       }}
@@ -77,6 +80,7 @@ export default async function HrFormBuilderPage({ params }: { params: Promise<{ 
       }))}
       linked={linked}
       pairable={pairable}
+      categories={categories}
     />
   )
 }

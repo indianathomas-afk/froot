@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { HR_DOCUMENT_CATEGORIES } from "@/lib/hr-documents"
+import { resolveDocumentCategoryId } from "@/lib/document-categories"
 import { saveFormDefinition } from "@/lib/hr-forms"
 import { requireHrDocumentAccess } from "../../documents/access"
 import { FORM_BODY_TEXT_MAX, formFieldsSchema } from "../shared"
@@ -9,7 +9,9 @@ import { FORM_BODY_TEXT_MAX, formFieldsSchema } from "../shared"
 const bodySchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
-    category: z.enum(HR_DOCUMENT_CATEGORIES).optional(),
+    // DOC-5 (F7): the shared taxonomy. categoryId only — the legacy string is
+    // never written after create (F3).
+    categoryId: z.string().min(1).nullable().optional(),
     isActive: z.boolean().optional(),
     // The definition travels as a unit: the builder always sends bodyText and
     // fields together so the canonical snapshot never mixes old and new halves.
@@ -36,19 +38,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const issue = parsed.error.issues[0]
     return NextResponse.json({ error: issue?.message ?? "Invalid request" }, { status: 400 })
   }
-  const { title, category, isActive, bodyText, fields } = parsed.data
+  const { title, categoryId, isActive, bodyText, fields } = parsed.data
 
   const doc = await prisma.hrDocument.findFirst({
     where: { id, organizationId: org.id, kind: "FillableForm" },
   })
   if (!doc) return NextResponse.json({ error: "Form not found" }, { status: 404 })
 
-  if (title !== undefined || category !== undefined || isActive !== undefined) {
+  const resolved = await resolveDocumentCategoryId(org.id, categoryId)
+  if (resolved === "invalid") {
+    return NextResponse.json({ error: "Unknown category" }, { status: 400 })
+  }
+
+  if (title !== undefined || resolved !== undefined || isActive !== undefined) {
     await prisma.hrDocument.update({
       where: { id: doc.id },
       data: {
         ...(title !== undefined ? { title } : {}),
-        ...(category !== undefined ? { category } : {}),
+        ...(resolved !== undefined ? { categoryId: resolved?.id ?? null } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
       },
     })

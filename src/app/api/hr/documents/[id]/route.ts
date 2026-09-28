@@ -3,17 +3,21 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import {
   EXTERNAL_URL_ERROR,
-  HR_DOCUMENT_CATEGORIES,
   HR_DOCUMENT_KINDS,
   isValidExternalDocumentUrl,
 } from "@/lib/hr-documents"
 import { sanitizeRichText } from "@/lib/sanitize-html"
+import { resolveDocumentCategoryId } from "@/lib/document-categories"
 import { requireHrDocumentAccess } from "../access"
 
 const patchSchema = z
   .object({
     title: z.string().trim().min(1).optional(),
-    category: z.enum(HR_DOCUMENT_CATEGORIES).optional(),
+    // DOC-5: the org's category row, or null for uncategorized. Writes
+    // categoryId ONLY — the legacy `category` string is never written after
+    // create (F3, Gary 2026-09-28: "the pencil dialog doesn't write the old
+    // column").
+    categoryId: z.string().min(1).nullable().optional(),
     isActive: z.boolean().optional(),
     // DOC-3. Same validator as the create route, imported from the same module
     // — the client's required-ness and the server's cannot drift if there is
@@ -65,7 +69,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // then reject with a 23514 the caller sees as a 500, and which, if the CHECK
   // were ever dropped by a baseline squash (MIGRATIONS.md Hazard 1), would
   // simply be wrong data. 400 says what happened.
-  const { externalUrl, instructionsHtml, instructionsVideoUrl, ...rest } = parsed.data
+  const { externalUrl, instructionsHtml, instructionsVideoUrl, categoryId, ...rest } = parsed.data
   if (externalUrl !== undefined && doc.kind !== "Link") {
     return NextResponse.json(
       { error: "Only a Link document has an external URL" },
@@ -73,10 +77,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     )
   }
 
+  const resolved = await resolveDocumentCategoryId(access.org.id, categoryId)
+  if (resolved === "invalid") {
+    return NextResponse.json({ error: "Unknown category" }, { status: 400 })
+  }
+
   const updated = await prisma.hrDocument.update({
     where: { id: doc.id },
     data: {
       ...rest,
+      ...(resolved !== undefined ? { categoryId: resolved?.id ?? null } : {}),
       ...(externalUrl !== undefined ? { externalUrl } : {}),
       // Sanitized server-side on the way in, exactly as on create. An `undefined`
       // means "not part of this PATCH" and must not become a null write, which is

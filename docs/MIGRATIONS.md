@@ -1101,3 +1101,46 @@ schema's implied default): the column is a scalar integer, not a relation.
 
 **No protected index is involved**, so § Protected indexes needs no new row and
 a future baseline squash has nothing extra to re-append for this migration.
+
+## 2026-09-28 — `20260928213037_doc5_document_category_entity` (DOC-5)
+
+**APPLIED TO DEV ONLY**, by Gary on 2026-09-28, using `prisma migrate deploy`
+against `br-broad-wave`. He reported 0 of 3 documents uncategorized, 5
+categories per org across 5 orgs, and no stray values. The session ran
+`migrate diff` and nothing else against a database. Staging and production get
+it through `prisma migrate deploy` in the Vercel build on Gary's push.
+
+| Statement | Kind |
+|---|---|
+| `HrDocument.categoryId` `TEXT` (nullable) + index | additive, nullable |
+| `CREATE TABLE "HrDocumentCategory"` + org index + `(organizationId, name)` unique | additive |
+| FK `HrDocument_categoryId_fkey` → `HrDocumentCategory` `ON DELETE RESTRICT` | additive |
+| FK `HrDocumentCategory_organizationId_fkey` → `Organization` `ON DELETE RESTRICT` | additive |
+| Seed: 5 starter rows per org with zero categories | data, idempotent |
+| Seed: one gray row per unknown legacy `category` string | data, idempotent |
+| Backfill: `categoryId` by name for every `HrDocument`, org-scoped | data, NULL rows only |
+
+**No drops, no renames, no type changes, no narrowing.** The legacy
+`HrDocument.category` is read to backfill and never written. It stays NOT NULL
+and is stale by design (F3). Retiring it is a later, destructive row.
+
+**The generated half was clean.** `migrate diff --from-config-datasource`
+against dev produced only the DDL above, with no drift on any other table. The
+FK is annotated `onDelete: Restrict` in `schema.prisma`, which is the
+TPL-1a/HR-20 lesson. Left unannotated, an optional relation reads as
+`SetNull`, and every later diff would try to relax the live constraint.
+
+**The backfill covers every kind and archived rows.** Agreement forms
+(`FillableForm`) share the taxonomy (F7). An archived row still holds the FK,
+so leaving it NULL would only defer the question.
+
+**The seed must match `STARTER_DOCUMENT_CATEGORIES`** in
+`src/lib/document-categories.ts`: same names, colours and `sortOrder`. That
+constant seeds orgs created afterwards, from both Clerk webhook sites.
+`scripts/verify-doc5-categories.ts` compares the two by parsing this file's
+`VALUES` list, and replays this file's data block twice inside a rolled-back
+transaction.
+
+**`HrDocumentCategory` ids are generated per branch**, with the prefix `hdc`
+plus a uuid. They will not match across dev, staging and production, so never
+paste one across branches.
