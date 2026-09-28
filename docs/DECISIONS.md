@@ -5,6 +5,60 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-28 — DOC-5: document categories become a managed per-org entity (Gary)
+
+**DRAFT: TO BE RATIFIED AT PRE-PUSH-CHECK.** Rulings F1 to F9 were given by
+Gary in the DOC-5 build session on 2026-09-28, against the audit at
+`docs/prompts/DOC-5_AUDIT.md`. His words, verbatim:
+
+> DOC-5 rulings: F1 Handbook seeds orange, and new orgs are seeded from both
+> Clerk webhook sites. F2 through F6 are as written. F3: the pencil dialog
+> doesn't write the old column. F7: forms and documents share one category
+> set, and both create dialogs pre-select the first category in sort order.
+> F8: no new colors; use an existing color in the test plan. F9: the API is at
+> /api/hr/documents/categories.
+
+"As written" for F2 to F6 refers to the session prompt's text
+(`docs/prompts/DOC-5.md`), summarised here. Those summaries are the prompt's
+wording, not Gary's.
+
+- **F1 Seed + backfill.** Each org is seeded with Handbook (**orange**, not the
+  prompt's amber, to match the chip users already saw), Pay Agreement (green),
+  Policy (blue), HR Management (purple) and Other (gray). These are
+  renameable, deletable rows. `PayAgreement` and `HRManagement` map to their
+  labels. Any other legacy string gets its own gray row with that exact name.
+  The seed is idempotent (a zero-count guard plus `ON CONFLICT DO NOTHING`)
+  and must match `STARTER_DOCUMENT_CATEGORIES`. New orgs are seeded from both
+  Clerk webhook sites (`organization.created` and
+  `organizationMembership.created`).
+- **F2** `categoryId` is nullable. Uncategorized is a legal resting state, and
+  gets an "Uncategorized (n)" chip.
+- **F3** The legacy `HrDocument.category` is kept NOT NULL and written **only on
+  create**: the chosen category's name, or `"Other"`. Rename, reassign and the
+  pencil (edit) dialog never write it, so it is stale by design, like
+  `Template.type`. Retiring it is a later, destructive row.
+- **F4** Delete while in use copies HR-20: a 409 with the count (archived rows
+  and forms included), and `…/[id]/reassign` as its own route. The dialog shows
+  Reassign in place of the trash icon.
+- **F5** ADMIN only, via `requireHrDocumentAccess({ admin: true })`.
+- **F6** The Training dialog is copied, not shared. Training's file is
+  untouched.
+- **F7** Library documents and agreement forms (`FillableForm`) share one
+  taxonomy. The Add Document and New Form dialogs pre-select the first category
+  by `sortOrder`.
+- **F8** No new badge colours. The staging test plan uses green in place of
+  teal.
+- **F9** The routes live at `/api/hr/documents/categories`, a static segment
+  beside the `[id]` route.
+
+**Claude's implementation choices, flagged for the ratification:**
+- The relation field is named `docCategory`, because Prisma refuses a relation
+  named `category` beside the legacy scalar.
+- Library chips show only categories with at least one visible, active document,
+  plus Uncategorized when it is non-zero. Section order is `sortOrder`, with
+  Uncategorized last.
+- Every category picker offers "Uncategorized" as an explicit choice (F2).
+
 ## 2026-09-27 — QREV-1: an attempt review reads the snapshot, and the stored score is the record (Claude)
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-27, in the PRE-PUSH-CHECK session.**

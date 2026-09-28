@@ -6475,6 +6475,77 @@ phases:
       block runs :167-174 and the branch itself is :175-180.)
       AWAITING RULING BEFORE ANY CODE READS IT.
 
+  - id: DOC-5
+    track: hr
+    size: M
+    # in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns the flip to
+    # staging and adds this row's docs SHA.
+    status: in_progress
+    commits: ["a7e9d86"]
+    title: "Document categories become a managed per-org entity (Manage Categories on /hr/documents)"
+    notes: >
+      THE ASK (Gary): on /hr/documents an ADMIN adds, renames, recolours,
+      reorders and deletes document categories with the same setup as
+      /training -> Manage Categories (HR-20); colour chips with counts; section
+      headers and the Add/Edit dropdowns come from the org's categories.
+      SHAPE: HrDocumentCategory, an exact copy of TrainingCategory
+      (@@unique org+name, sortOrder, badge-preset colorKey, no active column),
+      and nullable HrDocument.categoryId with FK onDelete: Restrict ANNOTATED.
+      The relation field is `docCategory` because the legacy scalar already
+      owns `category`. Migration 20260928213037_doc5_document_category_entity
+      (additive) seeds Handbook(orange)/Pay Agreement(green)/Policy(blue)/
+      HR Management(purple)/Other(gray) per org, gives any unknown legacy
+      string its own gray row, and backfills categoryId by name. DEV APPLIED
+      by Gary 2026-09-28 (br-broad-wave): 0 of 3 uncategorized, 5 categories
+      per org across 5 orgs, no stray values. Staging and production get it
+      through migrate deploy on Gary's push.
+      THE AUDIT'S HEADLINE (docs/prompts/DOC-5_AUDIT.md): agreement forms
+      (kind FillableForm, /hr/forms) share the column. RULED F7: one taxonomy
+      for documents and forms. The in-use count, the reassign and the backfill
+      all cover forms, and archived rows too.
+      RULINGS F1-F9 (Gary, 2026-09-28; DECISIONS.md draft, ratified at
+      PRE-PUSH-CHECK): Handbook seeds orange; new orgs seeded from both Clerk
+      webhook sites; categoryId nullable, with an "Uncategorized (n)" chip;
+      legacy string kept NOT NULL and written on create only (the name, or
+      "Other"), never by edit, rename or reassign; delete-in-use copies HR-20
+      (a 409 with the count, and reassign as its own route); ADMIN only; the
+      dialog is COPIED (Training untouched); both create dialogs pre-select the
+      first category by sortOrder; no new colours; API at
+      /api/hr/documents/categories.
+      READERS SWITCHED: library, detail, /hr/forms, the form builder,
+      /staff/[id] documents and forms rows, /my/documents (which rendered the
+      RAW string, "PayAgreement", to staff until now), plus the two unrendered
+      wires in hr-compliance.ts and my/documents/data.ts.
+      HR_DOCUMENT_CATEGORIES / HR_CATEGORY_LABELS / HR_CATEGORY_STYLES removed.
+      EVIDENCE: scripts/verify-doc5-categories.ts, 40/40 on
+      br-broad-wave-a6vpjdw0. The migration's own data block was read from the
+      file and replayed twice in a ROLLED-BACK transaction, covering seed
+      idempotency, zero nulls with five legacy strings plus one unknown, and
+      archived rows and forms. The fixture also covered rename leaving the
+      legacy string alone, the FK RESTRICT backstop, reassign then delete, and
+      create writing the legacy string through the shipped
+      categoryWriteFields. npm run build green. The UI was checked on a temp
+      /menu harness, deleted before the work commit.
+      NOT VERIFIED OVER HTTP: the non-ADMIN 403 is STRUCTURAL (every write
+      handler calls requireHrDocumentAccess({ admin: true }) before any DB
+      access), because Clerk's auth() cannot run in a script. Staging step 6
+      is the proof.
+      STAGING TEST PLAN (as indianathomas, ADMIN, on /hr/documents):
+      1. The Keva Juice Employee Handbook sits under Handbook, and the I-9
+      under Other.
+      2. Add "Food Safety" in GREEN (F8: no teal), move it to the top, and
+      reload. Its order and colour persist.
+      3. Rename Policy to "Policies". The chip, section header and both
+      dropdowns update.
+      4. Delete Handbook while in use. It shows Reassign, not a trash icon,
+      and a hand-rolled DELETE returns 409 with the count.
+      5. Delete an unused category. It disappears.
+      6. As Tommy (STORE): no Manage Categories button, and /my/documents
+      shows category names.
+      Also check /hr/forms: form chips show their categories, and New Form
+      pre-selects the first category.
+    links: [HR-20, DOC-1, DOC-3, DOC-4]
+
   - id: HR-27
     track: hr
     size: L
