@@ -1,16 +1,27 @@
 import { auth } from "@clerk/nextjs/server"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
-import { formatInstant } from "@/lib/display-time"
-import { displayTimeZone } from "@/lib/hr"
-import { ArrowLeft, Download, FileCheck2 } from "lucide-react"
-import { prisma } from "@/lib/prisma"
+import { ArrowLeft, FileCheck2 } from "lucide-react"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
+import { listDocumentCategories } from "@/lib/document-categories"
+import {
+  filteredTotal,
+  loadSignedRecordFacets,
+  loadSignedRecordsPage,
+  parseSignedRecordFilters,
+  signedRecordFiltersToQuery,
+} from "@/lib/hr-signed-records-list"
+import { SignedRecordsClient } from "./signed-records-client"
 
-// HR-4 admin view: the most recent executed signed records org-wide. Kept
+// HR-4 admin view: the executed signed records org-wide — SIGNED-1 added the
+// category / document filters, the completed-date sort and "Load more". Kept
 // deliberately light — the full compliance rollup (who HASN'T signed, the
 // percentages, the gaps) lives at /hr/compliance (HR-8).
-export default async function HrSignedRecordsPage() {
+export default async function HrSignedRecordsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { orgId } = await auth()
   if (!orgId) redirect("/dashboard")
   if (!hrModuleAvailable(orgId)) notFound()
@@ -19,26 +30,14 @@ export default async function HrSignedRecordsPage() {
   if (!org.activeModules.includes("hr")) redirect("/hr")
   if (dbUser?.role !== "ADMIN") notFound()
 
-  const records = await prisma.hrSignedRecord.findMany({
-    where: { version: { hrDocument: { organizationId: org.id } } },
-    include: {
-      version: { select: { versionNumber: true, hrDocument: { select: { title: true } } } },
-      // DEBT-70b: store zones join the select so each row renders the day ITS
-      // OWN signer lived — the same resolution DEBT-70a stamps into the PDF, so
-      // this list and the artifact it links to cannot disagree.
-      staffMember: {
-        select: {
-          id: true, displayName: true, fullName: true, isCorporate: true,
-          storeAssignments: {
-            select: { isPrimary: true, store: { select: { timezone: true, name: true } } },
-            orderBy: [{ isPrimary: "desc" as const }, { store: { name: "asc" as const } }],
-          },
-        },
-      },
-    },
-    orderBy: { completedAt: "desc" },
-    take: 50,
-  })
+  // SIGNED-1: filters, sort and paging are all server-side — see
+  // lib/hr-signed-records-list.ts for why nothing is filtered in the browser.
+  const filters = parseSignedRecordFilters(await searchParams)
+  const [firstPage, facets, categories] = await Promise.all([
+    loadSignedRecordsPage(org, filters),
+    loadSignedRecordFacets(org.id),
+    listDocumentCategories(org.id),
+  ])
 
   return (
     <div>
@@ -54,7 +53,7 @@ export default async function HrSignedRecordsPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Signed Records</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
-            The 50 most recent executed acknowledgment documents across the organization
+            Executed acknowledgment documents across the organization
           </p>
         </div>
         <Link
@@ -65,7 +64,7 @@ export default async function HrSignedRecordsPage() {
         </Link>
       </div>
 
-      {records.length === 0 ? (
+      {facets.total === 0 ? (
         <div className="flex items-center justify-center min-h-[40vh] border border-dashed border-[var(--color-border)] rounded-lg">
           <div className="text-center max-w-md px-6">
             <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center">
@@ -79,38 +78,16 @@ export default async function HrSignedRecordsPage() {
           </div>
         </div>
       ) : (
-        <div className="border border-[var(--color-border)] rounded-lg divide-y divide-[var(--color-border)] bg-[var(--color-card)]">
-          {records.map((r) => (
-            <div key={r.id} className="flex items-center gap-4 p-4">
-              <div className="w-9 h-9 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
-                <FileCheck2 className="h-4 w-4 text-[var(--color-primary)]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[var(--color-foreground)] truncate">
-                  <Link href={`/staff/${r.staffMember.id}`} className="hover:underline">
-                    {r.staffMember.fullName ?? r.staffMember.displayName}
-                  </Link>{" "}
-                  · {r.version.hrDocument.title} v{r.version.versionNumber}
-                </p>
-                <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                  Completed {formatInstant(r.completedAt, displayTimeZone(r.staffMember, org), "mediumTime")} ·{" "}
-                  <span className="font-mono" title={`sha256 ${r.signedPdfHash}`}>
-                    sha256 {r.signedPdfHash.slice(0, 12)}…
-                  </span>
-                </p>
-              </div>
-              <a
-                href={`/api/hr/signed-records/${r.id}/download`}
-                target="_blank"
-                rel="noopener"
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity shrink-0"
-              >
-                <Download className="h-4 w-4" />
-                Download
-              </a>
-            </div>
-          ))}
-        </div>
+        <SignedRecordsClient
+          // Keyed by the filter, so a new filter starts from its own first page
+          // instead of appending to the previous filter's loaded rows.
+          key={signedRecordFiltersToQuery(filters).toString()}
+          filters={filters}
+          firstPage={firstPage}
+          facets={facets}
+          filteredTotal={filteredTotal(facets, filters)}
+          categories={categories}
+        />
       )}
     </div>
   )

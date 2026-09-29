@@ -80,3 +80,56 @@ export function DocumentCategorySelect({
     </Select>
   )
 }
+
+// The neutral "All" filter chip beside the category chips.
+export function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+        active
+          ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] border-[var(--color-primary)]"
+          : "bg-[var(--color-card)] text-[var(--color-muted-foreground)] border-[var(--color-border)] hover:bg-[var(--color-accent)]"
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+// DOC-5: a category chip wears its colour when selected and a colour dot
+// always — the /hr/training chip shape. Shared by the Document Library and
+// /hr/signed-records (SIGNED-1).
+export function CategoryFilterChip({
+  active,
+  colorKey,
+  onClick,
+  children,
+}: {
+  active: boolean
+  colorKey: string | null
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+        active
+          ? badgePreset(colorKey).badge
+          : "bg-[var(--color-card)] text-[var(--color-muted-foreground)] border-[var(--color-border)] hover:bg-[var(--color-accent)]"
+      }`}
+    >
+      <span className={`h-2 w-2 rounded-full ${badgePreset(colorKey).dot}`} />
+      {children}
+    </button>
+  )
+}
