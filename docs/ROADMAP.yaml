@@ -6862,6 +6862,45 @@ phases:
       canReadHrSignedRecord; a bulk export must keep that gate per record.
       Cross-refs: SIGNED-1, HR-4, HR-7 (rule 5, the sensitive tier).
 
+  - id: DOC-10
+    track: hr
+    size: S
+    # `in_progress` -> `staging` 2026-09-29 BY THIS PRE-PUSH-CHECK. NOT PUSHED
+    # AT THE MOMENT OF WRITING — Claude never pushes. Work, docs, and this
+    # check's own commit — the commit immediately after e9f9b34, which cannot
+    # name itself.
+    status: staging
+    title: "Search box for Individuals in the document audience dialog"
+    commits:
+      - "5ad5b6f"
+      - "e9f9b34"
+    notes: >
+      ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA e9f9b34 added; this check's own commit
+      is the one immediately after it. No ruling from this phase (DECISIONS.md
+      untouched), CLAUDE.md untouched, prompt committed in e9f9b34.
+      DEPLOY_LOG: UNPROMOTED DOC-10 entry, written in chunks (headings
+      65 -> 66, lines 5728 -> 5751). No migration.
+      TIER 2, 2026-09-29. Prompt: docs/prompts/DOC-AUDIENCE-SEARCH.md. On
+      /hr/documents, "Who is this document for?" -> "Choose stores or people"
+      listed every staff member under Individuals with no way to find one
+      person but scrolling. Added a "Search people" input under the heading
+      in src/app/(app)/hr/documents/assign-audience-dialog.tsx: case-
+      insensitive, trimmed substring match on displayName; clear (x) when
+      non-empty; "No one matches ..." empty state; Enter swallowed so it can
+      never reach Save; "N selected" beside the heading (shown when > 0).
+      AUDIT: the staff list arrives whole from GET .../audience, so the
+      filter is client-side over data already loaded. No shared search
+      component exists and HR-22's bulk dialog has none; reused the inline
+      Input + lucide Search pattern from inventory/storage-areas
+      by-ingredient-view.tsx. The search resets on every open for free: the
+      parent keys the dialog by document id ("none" while closed), so a
+      reopen remounts it.
+      FILTERING IS DISPLAY-ONLY — it never touches the selection set, so a
+      hidden pick stays ticked and is saved. Stores list, audience rules,
+      the PUT route and the reach counts are unchanged. Verified by build
+      gate only; staging test steps are in the prompt file.
+
   - id: HR-27
     track: hr
     size: L
