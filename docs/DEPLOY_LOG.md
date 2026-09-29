@@ -81,7 +81,9 @@ the Save sends and who a document reaches are unchanged.
 
 **Rollback:** `git revert 5ad5b6f`. Nothing else depends on it.
 
-## UNPROMOTED — 2026-09-29 — DOC-6: the key holder register — who holds a key now, with an append-only return event
+## e4be68a — 2026-09-29 10:09:48 PDT — DOC-6: the key holder register — who holds a key now, with an append-only return event
+
+**Rollback:** `git revert -m 1 e4be68a` on `main`, then push (merge `e4be68a28a0b983b246b4b7a38b994e42a25aabc`; stamped late on 2026-09-29).
 
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push.
 It gets the merge SHA at promotion, on `main`, after the merge.

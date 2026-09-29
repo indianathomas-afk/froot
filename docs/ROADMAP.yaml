@@ -6727,12 +6727,38 @@ phases:
     # AT THE MOMENT OF WRITING — Claude never pushes. Work, docs, and this
     # check's own commit — the commit immediately after a2c7153, which cannot
     # name itself.
-    status: staging
+    # `staging` -> `shipped` 2026-09-29, stamped LATE on `staging` (merge
+    # e4be68a, DEPLOY_LOG entry `e4be68a`). The comment above is spent, kept.
+    status: shipped
+    shipped: 2026-09-29
     title: "Key holder register — who holds a key now, from the signed Key Agreement plus a return event"
     commits:
       - "65ca616"
       - "a2c7153"
+    open:
+      - >
+        PRODUCTION READ-ONLY QUERY — owed at promotion, NOT CONFIRMED. The
+        DEPLOY_LOG after-deploy check: `SELECT count(*) FROM "HrDocument" WHERE
+        "tracksReturn"` on the production branch, branch literal in the same
+        output, expected 0 until someone ticks the box.
+      - >
+        TURN ON "Tracks return" (label "Key") ON THE PRODUCTION Key Agreement
+        ("Employee Key Agreement Form.pdf", category Logs) — owed at promotion,
+        NOT CONFIRMED. Until it is on, no Key Register shows in production.
     notes: >
+      ── RECORDS CORRECTED LATE 2026-09-29 (PROMOTE-DOCS DOC-6). PREPENDED;
+      NOTHING BELOW IS EDITED. ── SHIPPED 2026-09-29 in merge "e4be68a"
+      ("Merge branch 'staging'", 10:09:48 Pacific; rollback: git revert -m 1
+      e4be68a). THE SHIPPED-FLIP WAS SKIPPED AT PROMOTION: the row read
+      `staging` and the DEPLOY_LOG entry read UNPROMOTED after the code was on
+      production — the DEBT-104 gap, recurring. Measured, not cited: `git log
+      --merges --ancestry-path 73c1a59..origin/main` gives "7308af0" and
+      "e4be68a"; e4be68a^1 does not contain 73c1a59 and 7308af0^1 does, so
+      e4be68a is the only merge that first brought DOC-6 in.
+      `e4be68a^1..e4be68a^2` is exactly "65ca616", "a2c7153", "73c1a59" (the
+      PRE-PUSH-CHECK commit the comment above could not name). Stamped on
+      `staging`, not `main`; it reaches main with DOC-11's promotion. The two
+      production items owed at promotion are in `open:`, unconfirmed.
       ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs SHA a2c7153 added; this check's own commit
       is the one immediately after it. RULINGS RATIFIED AS WRITTEN by Gary,
@@ -30142,6 +30168,13 @@ debt:
       eight promotions since 2026-08-24, each owed a docs pass, and only the
       CAL one got it
     notes: >
+      ── RIDER 2026-09-29 (PROMOTE-DOCS DOC-6). PREPENDED; NOTHING BELOW IS
+      EDITED; STATUS UNCHANGED. ── THE GAP RECURRED ON DOC-6. Its code reached
+      production in merge "e4be68a" (2026-09-29 10:09:48 Pacific), but the row
+      stayed `staging` and its DEPLOY_LOG entry stayed UNPROMOTED until a late
+      correction the same day. This happened even though the shipped-flip step
+      now sits inside the WORKFLOW.md § 2 promotion block, so the ritual line
+      alone did not prevent it.
       ── RECORDER 2026-09-19 (DOCS-6c). ── "THIS COMMIT" IN THE RIDER BELOW IS
       "faf0a3d" on `staging`, unpushed at the time of writing. Recorded as its own
       commit rather than by amending "faf0a3d", which would invalidate the SHA.
