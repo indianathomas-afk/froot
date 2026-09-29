@@ -84,6 +84,9 @@ export interface HrDocumentRow {
   appliesTo: string
   storeGrants: number
   staffGrants: number
+  // DOC-6 (F2): the key register's switch. Offered on Acknowledgment only.
+  tracksReturn: boolean
+  returnItemLabel: string | null
 }
 
 function formatSize(bytes: number): string {
@@ -793,6 +796,11 @@ function EditDocumentButton({
   const [externalUrl, setExternalUrl] = useState(doc.externalUrl ?? "")
   const [instructionsHtml, setInstructionsHtml] = useState(doc.instructionsHtml ?? "")
   const [instructionsVideoUrl, setInstructionsVideoUrl] = useState(doc.instructionsVideoUrl ?? "")
+  // DOC-6 (F2): only an Acknowledgment produces signed records, so only it can
+  // track a return; the route 400s the flag on any other kind.
+  const canTrackReturn = doc.kind === "Acknowledgment"
+  const [tracksReturn, setTracksReturn] = useState(doc.tracksReturn)
+  const [returnItemLabel, setReturnItemLabel] = useState(doc.returnItemLabel ?? "")
   const router = useRouter()
   const isLink = doc.kind === "Link"
 
@@ -817,6 +825,9 @@ function EditDocumentButton({
           ...(isLink ? { externalUrl: externalUrl.trim() } : {}),
           instructionsHtml: instructionsHtml.trim() || null,
           instructionsVideoUrl: instructionsVideoUrl.trim() || null,
+          ...(canTrackReturn
+            ? { tracksReturn, returnItemLabel: tracksReturn ? returnItemLabel.trim() || null : doc.returnItemLabel }
+            : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -882,6 +893,36 @@ function EditDocumentButton({
                 placeholder="https://www.youtube.com/watch?v=..."
               />
             </div>
+            {canTrackReturn && (
+              <div className="space-y-2 rounded-md border border-[var(--color-border)] p-3">
+                <label className="flex items-start gap-2 text-sm text-[var(--color-foreground)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={tracksReturn}
+                    onChange={(e) => setTracksReturn(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-[var(--color-primary)]"
+                  />
+                  <span>
+                    Tracks return
+                    <span className="block text-xs text-[var(--color-muted-foreground)]">
+                      Signing this issues something that must come back, like a key. Signers appear
+                      in the register on Compliance until it&apos;s marked returned.
+                    </span>
+                  </span>
+                </label>
+                {tracksReturn && (
+                  <div className="space-y-1.5 pl-6">
+                    <Label>What is issued</Label>
+                    <Input
+                      value={returnItemLabel}
+                      maxLength={40}
+                      onChange={(e) => setReturnItemLabel(e.target.value)}
+                      placeholder="Key"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             {/* The file-immutability note is FILE-SPECIFIC and would be a lie on
                 a Link, whose whole point is that the destination can be
                 corrected without re-uploading anything (DOC-3). */}

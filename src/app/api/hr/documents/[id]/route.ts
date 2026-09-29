@@ -35,6 +35,10 @@ const patchSchema = z
       .trim()
       .refine(isValidExternalDocumentUrl, { message: EXTERNAL_URL_ERROR })
       .nullish(),
+    // DOC-6 (F2). Acknowledgment only — enforced after the lookup, like
+    // externalUrl, because the row's kind is the only trustworthy source.
+    tracksReturn: z.boolean().optional(),
+    returnItemLabel: z.string().trim().max(40).nullish(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "Nothing to update" })
 
@@ -69,10 +73,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // then reject with a 23514 the caller sees as a 500, and which, if the CHECK
   // were ever dropped by a baseline squash (MIGRATIONS.md Hazard 1), would
   // simply be wrong data. 400 says what happened.
-  const { externalUrl, instructionsHtml, instructionsVideoUrl, categoryId, ...rest } = parsed.data
+  const { externalUrl, instructionsHtml, instructionsVideoUrl, categoryId, returnItemLabel, ...rest } =
+    parsed.data
   if (externalUrl !== undefined && doc.kind !== "Link") {
     return NextResponse.json(
       { error: "Only a Link document has an external URL" },
+      { status: 400 }
+    )
+  }
+
+  // DOC-6 (F2, Gary 2026-09-28: "the toggle on uploaded documents only").
+  // Holding is read off HrSignedRecord, which only an Acknowledgment produces;
+  // on any other kind the flag would open a register that can never fill.
+  // Only a TRUE is refused: an explicit false is harmless on every kind.
+  if (rest.tracksReturn === true && doc.kind !== "Acknowledgment") {
+    return NextResponse.json(
+      { error: "Only an uploaded signature document can track returns" },
       { status: 400 }
     )
   }
@@ -97,6 +113,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(instructionsVideoUrl !== undefined
         ? { instructionsVideoUrl: instructionsVideoUrl?.trim() || null }
         : {}),
+      ...(returnItemLabel !== undefined ? { returnItemLabel: returnItemLabel || null } : {}),
     },
   })
   return NextResponse.json(updated)

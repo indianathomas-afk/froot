@@ -106,6 +106,8 @@ export default async function HrDocumentsPage() {
       appliesTo: d.appliesTo,
       storeGrants: d.grants.filter((g) => g.granteeType === "STORE").length,
       staffGrants: d.grants.filter((g) => g.granteeType === "STAFF").length,
+      tracksReturn: d.tracksReturn,
+      returnItemLabel: d.returnItemLabel,
     }))
 
   return (

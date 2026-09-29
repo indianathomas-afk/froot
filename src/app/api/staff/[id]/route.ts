@@ -208,6 +208,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     prisma.trainingAssignment.count({ where: { staffMemberId: id } }),
     prisma.trainingLessonProgress.count({ where: { completedByStaffId: id } }),
     prisma.staffDocument.count({ where: { staffMemberId: id } }),
+    // DOC-6: a return event is a record too. Its FK is RESTRICT, so without this
+    // count the delete would 500 instead of 409ing with the message below.
+    prisma.hrReturnEvent.count({ where: { staffMemberId: id } }),
   ])
   if (counts.some((c) => c > 0)) {
     return NextResponse.json(

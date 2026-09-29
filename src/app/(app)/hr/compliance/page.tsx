@@ -9,6 +9,8 @@ import { getOrgComplianceRollup } from "@/lib/hr-compliance"
 import { listDocumentCategories } from "@/lib/document-categories"
 import { ComplianceStaffTable, type ComplianceStaffRow } from "./compliance-staff-table"
 import { ByDocumentSection, type ByDocumentFilters } from "./by-document-section"
+import { KeyRegisterSection } from "./key-register-section"
+import { getReturnRegister } from "@/lib/hr-returns"
 
 // HR-8: the compliance rollup dashboard — who is compliant, who is not, and
 // where the gaps are, across handbook acknowledgments and training, rolled up
@@ -37,9 +39,12 @@ export default async function HrCompliancePage({
   if (dbUser?.role !== "ADMIN" && dbUser?.role !== "MANAGER") notFound()
 
   const { isAdmin, storeIds } = await getUserStoreScope()
-  const [rollup, categories] = await Promise.all([
+  const [rollup, categories, keyRegister] = await Promise.all([
     getOrgComplianceRollup(org.id, { storeIds: isAdmin ? null : storeIds }),
     listDocumentCategories(org.id),
+    // DOC-6: a manager sees holders assigned to one of their stores — the same
+    // overlap the POST route allows them to act on.
+    getReturnRegister(org.id, isAdmin ? null : storeIds),
   ])
   const { totals, agreements } = rollup
 
@@ -218,6 +223,9 @@ export default async function HrCompliancePage({
         initial={byDocumentFilters}
         scopeLabel={isAdmin ? "in the organization" : "in your stores"}
       />
+
+      {/* DOC-6: the Key Register. Outside the compliance numbers above. */}
+      <KeyRegisterSection register={keyRegister} scopeLabel={isAdmin ? "in the organization" : "in your stores"} />
 
       {/* Per-employee table */}
       <div className="mb-8">
