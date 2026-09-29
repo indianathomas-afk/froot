@@ -10,6 +10,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  ListChecks,
   Pencil,
   PenLine,
   Plus,
@@ -78,6 +79,8 @@ export interface HrDocumentRow {
   // DOC-1 B. Archived rows reach ADMIN only (page.tsx narrows for everyone
   // else), and the three audience fields drive the chip.
   isActive: boolean
+  // DOC-2: a compliance document is an active Acknowledgment that requires it.
+  requiresAcknowledgment: boolean
   appliesTo: string
   storeGrants: number
   staffGrants: number
@@ -95,10 +98,12 @@ export function HrDocumentsClient({
   documents,
   categories,
   isAdmin,
+  canViewCompliance,
 }: {
   documents: HrDocumentRow[]
   categories: DocumentCategoryOption[]
   isAdmin: boolean
+  canViewCompliance: boolean
 }) {
   const [filter, setFilter] = useState<string>("all")
   const [showArchived, setShowArchived] = useState(false)
@@ -232,6 +237,7 @@ export function HrDocumentsClient({
                       doc={doc}
                       categories={categories}
                       isAdmin={isAdmin}
+                      canViewCompliance={canViewCompliance}
                       onAssign={() => setAssigning({ id: doc.id, title: doc.title })}
                     />
                   ))}
@@ -263,6 +269,7 @@ export function HrDocumentsClient({
                       doc={doc}
                       categories={categories}
                       isAdmin={isAdmin}
+                      canViewCompliance={canViewCompliance}
                       onAssign={() => setAssigning({ id: doc.id, title: doc.title })}
                     />
                   ))}
@@ -301,11 +308,13 @@ function DocumentRow({
   doc,
   categories,
   isAdmin,
+  canViewCompliance,
   onAssign,
 }: {
   doc: HrDocumentRow
   categories: DocumentCategoryOption[]
   isAdmin: boolean
+  canViewCompliance: boolean
   onAssign: () => void
 }) {
   // DOC-3: everything about this row that differs for a link, decided once.
@@ -387,6 +396,18 @@ function DocumentRow({
           >
             <PenLine className="h-4 w-4" />
             Sign
+          </Link>
+        )}
+        {/* DOC-2: who has signed this one, on /hr/compliance's By Document
+            section. Only for documents compliance counts, and only for viewers
+            that page serves (ADMIN, MANAGER). */}
+        {canViewCompliance && doc.isActive && doc.kind === "Acknowledgment" && doc.requiresAcknowledgment && (
+          <Link
+            href={`/hr/compliance?document=${doc.id}`}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity mr-2"
+          >
+            <ListChecks className="h-4 w-4" />
+            Signing status
           </Link>
         )}
         {/* DOC-3: Open, not Download, for a Link. The download route would 404

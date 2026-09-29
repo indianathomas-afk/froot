@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { Archive, ArrowLeft, Download, FileScan, FileText, Pencil, PenLine, Plus, RefreshCw, Trash2, Upload } from "lucide-react"
+import { Archive, ArrowLeft, Download, FileScan, FileText, ListChecks, Pencil, PenLine, Plus, RefreshCw, Trash2, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -94,6 +94,7 @@ export interface DocumentDetail {
   categoryColorKey: string | null
   kind: string
   isActive: boolean
+  requiresAcknowledgment: boolean
   versions: VersionRow[]
   checkpoints: CheckpointRow[]
   currentVersionId: string | null
@@ -134,6 +135,18 @@ export function DocumentDetailClient({ doc }: { doc: DocumentDetail }) {
             )}
           </div>
         </div>
+        {/* DOC-2: this page is ADMIN-only, and ADMIN can always open
+            /hr/compliance — so the only condition is that compliance counts
+            this document at all. */}
+        {isSignatureDoc && doc.isActive && doc.requiresAcknowledgment && (
+          <Link
+            href={`/hr/compliance?document=${doc.id}`}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity shrink-0 mt-1"
+          >
+            <ListChecks className="h-4 w-4" />
+            Signing status
+          </Link>
+        )}
       </div>
 
       <div className="space-y-6">

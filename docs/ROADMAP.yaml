@@ -6042,9 +6042,63 @@ phases:
   - id: DOC-2
     track: hr
     size: M
-    status: planned
+    status: staging
     title: "Per-document compliance view — who hasn't signed this document"
+    commits:
+      - "6401819"
+      - f59beb9
     notes: >
+      ── DOC-2 PRE-PUSH-CHECK 2026-09-28 — STATUS in_progress -> staging.
+      Prepended; NOTHING BELOW IS EDITED. Docs SHA "f59beb9" added to
+      commits:; this check's own commit is the commit immediately after
+      "f59beb9" (it cannot name itself). RULING: the DECISIONS DOC-2 entry
+      was RATIFIED AS WRITTEN by Gary ("Ratified as written."), covering the
+      shape and the three flagged implementation choices. EXCLUDED NOTE
+      CONFIRMED for a MANAGER (Gary's check 1): "no audience" (Unassigned)
+      and "has an audience, nobody active in your stores" are separate counts
+      and separate sentences; the second also covers an in-store audience with
+      nobody active, and its wording is true of both. GUIDE: the Team Members
+      line in docs/guide/hr-compliance.md corrected to R2 — an earlier-version
+      signature still counts; a new version re-prompts only when it requires
+      re-acknowledgment. docs/prompts/DOC-2.md committed. DEPLOY_LOG entry
+      written UNPROMOTED. Status is staging on the understanding that Gary
+      pushes next; Claude has not pushed.
+      ── DOC-2 BUILT 2026-09-28 — STATUS planned -> in_progress at "6401819"
+      (work commit). Prepended; NOTHING BELOW IS EDITED. Committed on staging,
+      NOT pushed; staging does not have it until Gary pushes.
+      WHAT SHIPPED. A By Document section on /hr/compliance: per signature
+      document "X of Y signed" with a progress bar, category badge and current
+      version; expand for people grouped by store (By Store's grouping, lifted
+      into rollupStoreGroupId; corporate as "Corporate", store-less as "No
+      store on file") with Signed (vN on an earlier version), In progress (N of
+      M checkpoints, or "record missing"), Needs re-sign, Not started, each
+      linking to /staff/[id]; outstanding first, then name. Controls: DOC-5
+      category chips (every category, zero counts included), a document select
+      filtered by category, "Outstanding only" (default on); URL state
+      ?category=&document=&outstanding=0, written with history.replaceState.
+      "Signing status" deep links on Library rows (ADMIN/MANAGER, active
+      compliance documents) and on /hr/documents/[id]. Guide: "By Document" in
+      docs/guide/hr-compliance.md.
+      PIVOT, NOT RE-DERIVATION. pivotComplianceByDocument (lib/hr-compliance.ts)
+      is pure over the rollup's StaffComplianceDetail[] and reads no
+      acknowledgment, signed record or grant. The only widening:
+      ComplianceDocItem gained categoryId + categoryColorKey (docCategory
+      select widened to id/name/colorKey). The one new query counts excluded
+      documents for the note: zero-audience ones via hrAudienceLabel (the
+      Unassigned chip's own function), plus those whose audience holds nobody
+      active in scope. complianceDocumentWhere is now shared by both queries.
+      No schema, no migration, no API route, no auth change.
+      VERIFIED. scripts/verify-doc2-by-document.ts on dev
+      br-broad-wave-a6vpjdw0: 36/36, throwaway org removed and re-queried.
+      Expected counts written from the rulings (org: All 2/8, Store 2/4, Staff
+      1/1; manager [Store A]: All 1/4, Store 2/4). THE INVARIANT held at both
+      scopes (sum Y = document items, sum X = complete items: 13/5 org, 8/3
+      manager). verify-doc1c-compliance.ts green after the change.
+      verify-hr8-compliance.ts red with the same nine checks as on unchanged
+      "cf84237" (DEBT-76, pre-existing, untouched).
+      SHAPE CHOICE drafted in docs/DECISIONS.md (2026-09-28, DOC-2, DRAFT) for
+      Gary to ratify at PRE-PUSH-CHECK, citing DOC-1 B's per-row reach-count
+      finding.
       NOTE 2026-09-28 (prepended; nothing below is edited). Gary agreed
       ("Agreed", 2026-09-28) to build this row NEXT, with a category filter, so
       "Logs" shows everyone who hasn't signed the Key Agreement, by person and

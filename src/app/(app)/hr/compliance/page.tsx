@@ -6,7 +6,9 @@ import { AlertCircle, ArrowLeft, FileSignature, Gauge, RefreshCw, Users, XCircle
 import { Card, CardContent } from "@/components/ui/card"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
 import { getOrgComplianceRollup } from "@/lib/hr-compliance"
+import { listDocumentCategories } from "@/lib/document-categories"
 import { ComplianceStaffTable, type ComplianceStaffRow } from "./compliance-staff-table"
+import { ByDocumentSection, type ByDocumentFilters } from "./by-document-section"
 
 // HR-8: the compliance rollup dashboard — who is compliant, who is not, and
 // where the gaps are, across handbook acknowledgments and training, rolled up
@@ -15,7 +17,17 @@ import { ComplianceStaffTable, type ComplianceStaffRow } from "./compliance-staf
 // org, MANAGER only their assigned stores; STORE/STAFF get a 404 like every
 // other HR management surface. Definitions in docs/DECISIONS.md.
 
-export default async function HrCompliancePage() {
+// DOC-2: `?category=&document=&outstanding=` seed the By Document section.
+function firstParam(v: string | string[] | undefined): string | null {
+  const s = Array.isArray(v) ? v[0] : v
+  return s && s.trim() ? s.trim() : null
+}
+
+export default async function HrCompliancePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { orgId } = await auth()
   if (!orgId) redirect("/dashboard")
   if (!hrModuleAvailable(orgId)) notFound()
@@ -25,8 +37,18 @@ export default async function HrCompliancePage() {
   if (dbUser?.role !== "ADMIN" && dbUser?.role !== "MANAGER") notFound()
 
   const { isAdmin, storeIds } = await getUserStoreScope()
-  const rollup = await getOrgComplianceRollup(org.id, { storeIds: isAdmin ? null : storeIds })
+  const [rollup, categories] = await Promise.all([
+    getOrgComplianceRollup(org.id, { storeIds: isAdmin ? null : storeIds }),
+    listDocumentCategories(org.id),
+  ])
   const { totals, agreements } = rollup
+
+  const params = await searchParams
+  const byDocumentFilters: ByDocumentFilters = {
+    category: firstParam(params.category),
+    document: firstParam(params.document),
+    outstanding: firstParam(params.outstanding) !== "0",
+  }
 
   const staffRows: ComplianceStaffRow[] = rollup.staff.map((s) => {
     const docs = s.items.filter((i) => i.kind === "document")
@@ -186,6 +208,16 @@ export default async function HrCompliancePage() {
           </table>
         </div>
       )}
+
+      {/* DOC-2: the same document items as the cards and tables around it,
+          pivoted by document. Scoped by the rollup's fetch, so a manager's
+          X and Y cover their stores' people only. */}
+      <ByDocumentSection
+        view={rollup.byDocument}
+        categories={categories}
+        initial={byDocumentFilters}
+        scopeLabel={isAdmin ? "in the organization" : "in your stores"}
+      />
 
       {/* Per-employee table */}
       <div className="mb-8">

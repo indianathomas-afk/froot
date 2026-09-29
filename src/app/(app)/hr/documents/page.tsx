@@ -34,6 +34,9 @@ export default async function HrDocumentsPage() {
 
   const viewer = await resolveDocumentViewer(org.id, dbUser)
   const isAdmin = dbUser?.role === "ADMIN"
+  // DOC-2: the "Signing status" link goes only to viewers /hr/compliance
+  // serves — its own gate is ADMIN or MANAGER (the page 404s everyone else).
+  const canViewCompliance = isAdmin || dbUser?.role === "MANAGER"
 
   const docs = await prisma.hrDocument.findMany({
     where: {
@@ -94,6 +97,9 @@ export default async function HrDocumentsPage() {
       instructionsHtml: d.instructionsHtml,
       instructionsVideoUrl: d.instructionsVideoUrl,
       isActive: d.isActive,
+      // DOC-2: with kind and isActive, decides whether the row is a compliance
+      // document and so gets the "Signing status" link.
+      requiresAcknowledgment: d.requiresAcknowledgment,
       // The audience chip's inputs. No extra query: AUDIENCE_INCLUDE was
       // already loaded so the predicate above could be asked, and appliesTo is
       // on the row — both were simply dropped in this mapping before.
@@ -102,5 +108,12 @@ export default async function HrDocumentsPage() {
       staffGrants: d.grants.filter((g) => g.granteeType === "STAFF").length,
     }))
 
-  return <HrDocumentsClient documents={documents} categories={categories} isAdmin={isAdmin} />
+  return (
+    <HrDocumentsClient
+      documents={documents}
+      categories={categories}
+      isAdmin={isAdmin}
+      canViewCompliance={canViewCompliance}
+    />
+  )
 }
