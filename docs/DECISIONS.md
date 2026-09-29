@@ -5,6 +5,56 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-29 — DOC-11: Preview on the Document Library (Gary)
+
+**RATIFIED BY GARY, 2026-09-29, at the DOC-11 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him. His first reply, recorded exactly: *"reuse the
+existing viewer, and your four choices are fine"*. That covers the viewer
+choice and the four implementation choices, not rulings 1-5. Asked separately
+about rulings 1-5 as worded, his reply, recorded exactly: *"ratify as
+written"*. Nothing below was changed. This paragraph was added at the head,
+and the "DRAFT ENTRY" marker below is kept as it was and superseded by it.
+Until this ratification the heading read "(Gary — DRAFT entry)".
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The five
+rulings reached the build session through the session prompt
+(`docs/prompts/DOC-11_document_preview.md`, "Rulings (Gary, in chat
+2026-09-29)"). The wording below is the PROMPT'S, not a quote of Gary. Ratify
+or correct it.
+
+1. Preview lives on the Document Library (`/hr/documents`) only, for whoever
+   already sees that page. `/my/documents` is out of scope and becomes a later
+   phase (filed as DOC-12).
+2. PDFs and images preview. Any other uploaded file type opens the dialog with
+   "Preview not available for this file type" and a Download button. Link
+   documents get no Preview and keep "Open".
+3. PDFs render with a page-drawing library (pdf.js), not the browser's
+   built-in viewer in an iframe. iPhone Safari's built-in viewer shows only
+   page 1. Pages render lazily as they scroll into view.
+4. Current version only.
+5. Previewing records nothing: no AuditLog row, no view tracking, no
+   acknowledgment, no compliance effect.
+
+**Gary's choice in the build session (his selection, 2026-09-29).** The
+prompt's build step said to add `react-pdf`. The audit found the HR-11
+`PdfViewer` (pdfjs-dist 6.1.200, lazy canvases, same-origin worker) already in
+use on the signing screen, and `react-pdf` 11.0.0 pins pdfjs-dist 6.3.289. Put
+to him as "Reuse PdfViewer" vs "Add react-pdf 11.0.0 as written", Gary selected
+**Reuse PdfViewer**. Ruling 3 is met by pdfjs-dist directly.
+
+**Claude implementation choices (flagged for ratification):**
+
+- Inline serving is a `?disposition=inline` branch of the existing download
+  route, below its unchanged permission check. It allows PDF/png/jpeg/gif/webp
+  only (415 otherwise) and sends the Content-Type from the allowlist, not the
+  blob's. The existing `?stream=1` (signing viewer) is left as it is.
+- `PdfViewer` gained an opt-in `refitOnResize` prop for resize/rotate. It is
+  default off, so the signing screen is unaffected.
+- Preview shows on active rows only, matching Download (the route refuses
+  archived documents either way).
+- Placeholders before a page draws are letter-proportioned (the viewer's
+  existing skeleton), not measured per page.
+
 ## 2026-09-28 — DOC-6: the key register is an append-only return event against the signed Key Agreement (Gary)
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-29, at the DOC-6 PRE-PUSH-CHECK.** The

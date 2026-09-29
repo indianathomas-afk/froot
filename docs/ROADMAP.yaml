@@ -6727,12 +6727,38 @@ phases:
     # AT THE MOMENT OF WRITING — Claude never pushes. Work, docs, and this
     # check's own commit — the commit immediately after a2c7153, which cannot
     # name itself.
-    status: staging
+    # `staging` -> `shipped` 2026-09-29, stamped LATE on `staging` (merge
+    # e4be68a, DEPLOY_LOG entry `e4be68a`). The comment above is spent, kept.
+    status: shipped
+    shipped: 2026-09-29
     title: "Key holder register — who holds a key now, from the signed Key Agreement plus a return event"
     commits:
       - "65ca616"
       - "a2c7153"
+    open:
+      - >
+        PRODUCTION READ-ONLY QUERY — owed at promotion, NOT CONFIRMED. The
+        DEPLOY_LOG after-deploy check: `SELECT count(*) FROM "HrDocument" WHERE
+        "tracksReturn"` on the production branch, branch literal in the same
+        output, expected 0 until someone ticks the box.
+      - >
+        TURN ON "Tracks return" (label "Key") ON THE PRODUCTION Key Agreement
+        ("Employee Key Agreement Form.pdf", category Logs) — owed at promotion,
+        NOT CONFIRMED. Until it is on, no Key Register shows in production.
     notes: >
+      ── RECORDS CORRECTED LATE 2026-09-29 (PROMOTE-DOCS DOC-6). PREPENDED;
+      NOTHING BELOW IS EDITED. ── SHIPPED 2026-09-29 in merge "e4be68a"
+      ("Merge branch 'staging'", 10:09:48 Pacific; rollback: git revert -m 1
+      e4be68a). THE SHIPPED-FLIP WAS SKIPPED AT PROMOTION: the row read
+      `staging` and the DEPLOY_LOG entry read UNPROMOTED after the code was on
+      production — the DEBT-104 gap, recurring. Measured, not cited: `git log
+      --merges --ancestry-path 73c1a59..origin/main` gives "7308af0" and
+      "e4be68a"; e4be68a^1 does not contain 73c1a59 and 7308af0^1 does, so
+      e4be68a is the only merge that first brought DOC-6 in.
+      `e4be68a^1..e4be68a^2` is exactly "65ca616", "a2c7153", "73c1a59" (the
+      PRE-PUSH-CHECK commit the comment above could not name). Stamped on
+      `staging`, not `main`; it reaches main with DOC-11's promotion. The two
+      production items owed at promotion are in `open:`, unconfirmed.
       ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs SHA a2c7153 added; this check's own commit
       is the one immediately after it. RULINGS RATIFIED AS WRITTEN by Gary,
@@ -6911,6 +6937,93 @@ phases:
       hidden pick stays ticked and is saved. Stores list, audience rules,
       the PUT route and the reach counts are unchanged. Verified by build
       gate only; staging test steps are in the prompt file.
+
+  - id: DOC-11
+    track: hr
+    size: M
+    # `in_progress` -> `staging` 2026-09-29 BY THE PRE-PUSH-CHECK. c5b472e and
+    # d329389 were ALREADY PUSHED to origin/staging when the check ran; this
+    # check's own commit (the one immediately after d329389, which cannot name
+    # itself) is not pushed — Claude never pushes.
+    status: staging
+    title: "Preview button on the Document Library — PDFs and images in a dialog, no download"
+    commits:
+      - "c5b472e"
+      - "d329389"
+    notes: >
+      ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA d329389 added; this check's own commit
+      is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
+      entry (2026-09-29 — DOC-11) was printed verbatim. His replies, exactly:
+      "reuse the existing viewer, and your four choices are fine" (viewer
+      choice + four implementation choices), then, asked about rulings 1-5,
+      "ratify as written". Heading de-drafted, ratification paragraph added at
+      its head. DEPLOY_LOG: UNPROMOTED DOC-11 entry written in three chunks
+      (headings 66 -> 67, lines 5767 -> 5807, +40/-0). CLAUDE.md untouched.
+      Prompt committed in d329389. Staging evidence pending.
+      TIER 2, 2026-09-29. Prompt: docs/prompts/DOC-11_document_preview.md. No
+      schema, no migration, no new permission. Rulings 1-5 are drafted in
+      DECISIONS.md (2026-09-29 — DOC-11), awaiting Gary's ratification at the
+      PRE-PUSH-CHECK.
+      WHAT SHIPS: on /hr/documents every active uploaded-file row gets Preview
+      (lucide Eye, same text-link style) as its first action; Link rows keep
+      Open and get no Preview. It opens document-preview-dialog.tsx: full-
+      screen on phones, 95vw x 92dvh above sm; fixed header (title, "Version
+      N · N pages", Download, close); scrolling body. PDF: continuous scroll,
+      pages fitted to width, drawn lazily. Image: one object-contain <img>.
+      Other types: "Preview not available for this file type" + Download.
+      Failure: "Couldn't load the preview" + Download.
+      AUDIT (at 7308af0 + prompt): page src/app/(app)/hr/documents/page.tsx;
+      action row in DocumentRow, documents-client.tsx. Download route
+      src/app/api/hr/documents/[id]/download/route.ts: requireHrDocumentAccess
+      (HR availability + module + signed-in member) then an org-scoped active
+      lookup (404) then canReadHrDocument (403). Default = 307 to a 5-minute
+      presigned private-Blob URL; ?stream=1 (HR-11) proxies bytes same-origin
+      for the signing viewer. It writes NOTHING (no AuditLog, no counts).
+      Current version = versions where isCurrent, take 1; contentType and
+      fileName live on HrDocumentVersion. No CSP anywhere (next.config.ts,
+      src/proxy.ts).
+      ROUTE: new ?disposition=inline branch BELOW the unchanged permission
+      check — hrPreviewType (src/lib/hr-documents.ts, shared with the dialog)
+      admits pdf/png/jpeg/gif/webp by stored type, extension as fallback;
+      415 otherwise. Sends OUR Content-Type, inline, private no-store,
+      nosniff. Writes nothing. Default redirect and ?stream=1 unchanged.
+      DEPARTURE FROM THE PROMPT, GARY'S CHOICE IN-SESSION: no react-pdf. The
+      audit found the HR-11 PdfViewer (src/components/hr/pdf-viewer.tsx,
+      pdfjs-dist 6.1.200 direct, lazy IntersectionObserver canvases, worker
+      bundled same-origin via new URL(..., import.meta.url)) already running
+      the signing screen on phones; react-pdf 11.0.0 pins pdfjs-dist 6.3.289,
+      so it meant a second pdf.js or an upgrade under the signing screen. Gary
+      picked "Reuse PdfViewer". Ruling 3 (pdf.js, not the iframe viewer) holds.
+      PdfViewer loads via next/dynamic ssr:false and gained an OPT-IN
+      refitOnResize prop (ResizeObserver, debounced; stale pages near the
+      viewport re-render, the rest on scroll-back; fluid canvas CSS). Default
+      off, so the signing path computes the same sizes and styles as before.
+      CHECKS: npm run lint exit 1, 10 errors = the DEBT-33 baseline, none in a
+      touched file (pdf-viewer.tsx's three moved line numbers; its header
+      pointer now says what to search for). tsc: one error, the stale
+      gitignored .next/dev/types/validator.ts naming a deleted temp page
+      (menu/signed1-preview) — not source. npm run build exit 0 (its prisma
+      generate is client generation, not a migration).
+      LOCAL CHECK, PARTIAL: a temp public /menu page (deleted before commit)
+      confirmed the unsupported state at phone width and the dialog size. The
+      browser pane was hidden, which pauses IntersectionObserver and
+      requestAnimationFrame, so PDF canvases could not paint there — the
+      same for the unmodified HEAD viewer. PDF rendering is verified by build
+      gate only; staging test steps 1, 2 and 6 in the prompt file cover it.
+
+  - id: DOC-12
+    track: hr
+    size: S
+    status: planned
+    title: "Preview on /my/documents"
+    notes: >
+      FILED 2026-09-29 by the DOC-11 build session, per DOC-11 ruling 1
+      (preview on /hr/documents only; /my/documents is a later phase). Reuse
+      DocumentPreviewDialog and the download route's ?disposition=inline —
+      /my/documents/page.tsx already links its Download to that same route
+      (:188, :278), so the audience check that serves it is the one preview
+      would get. Cross-refs: DOC-11.
 
   - id: HR-27
     track: hr
@@ -30055,6 +30168,13 @@ debt:
       eight promotions since 2026-08-24, each owed a docs pass, and only the
       CAL one got it
     notes: >
+      ── RIDER 2026-09-29 (PROMOTE-DOCS DOC-6). PREPENDED; NOTHING BELOW IS
+      EDITED; STATUS UNCHANGED. ── THE GAP RECURRED ON DOC-6. Its code reached
+      production in merge "e4be68a" (2026-09-29 10:09:48 Pacific), but the row
+      stayed `staging` and its DEPLOY_LOG entry stayed UNPROMOTED until a late
+      correction the same day. This happened even though the shipped-flip step
+      now sits inside the WORKFLOW.md § 2 promotion block, so the ritual line
+      alone did not prevent it.
       ── RECORDER 2026-09-19 (DOCS-6c). ── "THIS COMMIT" IN THE RIDER BELOW IS
       "faf0a3d" on `staging`, unpushed at the time of writing. Recorded as its own
       commit rather than by amending "faf0a3d", which would invalidate the SHA.

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getHrFileDownloadUrl, hrPathnameFromUrl, streamHrFile } from "@/lib/hr-files"
+import { hrPreviewType } from "@/lib/hr-documents"
 import {
   AUDIENCE_INCLUDE,
   canReadHrDocument,
@@ -48,7 +49,31 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "This document has no downloadable file" }, { status: 404 })
   }
 
-  if (new URL(req.url).searchParams.get("stream") === "1") {
+  // DOC-11: `?disposition=inline` feeds the Document Library's Preview dialog.
+  // It sits BELOW the permission check above and adds none of its own — this
+  // is the same route, the same refusals (404 unknown, 403 not-your-audience).
+  // Unlike ?stream=1 it serves only previewable types (hrPreviewType: PDF and
+  // images, 415 for the rest) with OUR Content-Type rather than the blob's.
+  // Previewing records nothing (DOC-11 ruling 5) — nor does download today;
+  // keep it that way if download ever gains an audit write.
+  const searchParams = new URL(req.url).searchParams
+  if (searchParams.get("disposition") === "inline") {
+    const preview = hrPreviewType(version.contentType, version.fileName)
+    if (!preview) {
+      return NextResponse.json({ error: "Preview not available for this file type" }, { status: 415 })
+    }
+    const upstream = await streamHrFile(version.fileUrl)
+    return new Response(upstream.body, {
+      headers: {
+        "Content-Type": preview.mime,
+        "Content-Disposition": `inline; filename="${version.fileName.replace(/"/g, "")}"`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+      },
+    })
+  }
+
+  if (searchParams.get("stream") === "1") {
     const upstream = await streamHrFile(version.fileUrl)
     return new Response(upstream.body, {
       headers: {

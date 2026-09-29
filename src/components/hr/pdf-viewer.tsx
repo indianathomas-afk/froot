@@ -19,7 +19,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 // DEBT-TRIAGE-2, because a roadmap row is never read by the person who opens
 // this file, which is the only moment it matters.
 //
-// Three of the ten repo-wide eslint errors are HERE, at :57 :58 :59 —
+// Three of the ten repo-wide eslint errors are HERE — the three
+// `xxxRef.current = onXxx` lines in PdfViewer (search `Ref.current = on`; they
+// sat at :57 :58 :59 until DOC-11's refitOnResize prop pushed them down) —
 // react-hooks/refs, "Cannot access refs during render". They are the reason
 // `npm run lint` exits 1 on a clean checkout and no commit gate may use it
 // (CLAUDE.md § Commit Gates). Nothing is known to be broken at runtime; this
@@ -52,6 +54,7 @@ export function PdfViewer({
   onPageViewed,
   onError,
   pageOverlay,
+  refitOnResize = false,
 }: {
   src: string
   /** Called once with the page count when the document opens. */
@@ -63,6 +66,12 @@ export function PdfViewer({
   /** Rendered inside each page wrapper (absolute-position friendly). Receives
    *  the page geometry once rendered (null before) for anchor positioning. */
   pageOverlay?: (pageNumber: number, geom: PageGeom | null) => ReactNode
+  /** DOC-11 (preview dialog): re-fit rendered pages when the container's
+   *  width changes (window resize, phone rotation). Off by default, so the
+   *  signing screen — whose overlays position against a fixed render — keeps
+   *  exactly its HR-11 behavior. With it on, canvases scale with the wrapper
+   *  immediately and re-render sharp once near the viewport. */
+  refitOnResize?: boolean
 }) {
   const [pageCount, setPageCount] = useState(0)
   const [failed, setFailed] = useState(false)
@@ -139,6 +148,7 @@ export function PdfViewer({
             getDoc={() => docRef.current}
             onViewed={() => onPageViewedRef.current?.(i + 1)}
             renderOverlay={pageOverlay ? (geom) => pageOverlay(i + 1, geom) : undefined}
+            refitOnResize={refitOnResize}
           />
         ))
       )}
@@ -151,11 +161,13 @@ function PdfPage({
   getDoc,
   onViewed,
   renderOverlay,
+  refitOnResize,
 }: {
   pageNumber: number
   getDoc: () => PdfDocument | null
   onViewed: () => void
   renderOverlay?: (geom: PageGeom | null) => ReactNode
+  refitOnResize: boolean
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -163,6 +175,14 @@ function PdfPage({
   const viewedRef = useRef(false)
   const [rendered, setRendered] = useState(false)
   const [geom, setGeom] = useState<PageGeom | null>(null)
+  // DOC-11 refit bookkeeping. `gen` retires a superseded render (a resize
+  // mid-render must not let the older pass draw last); nearRef mirrors the
+  // render observer so a resize re-renders only pages near the viewport and
+  // leaves the rest to re-render when they scroll back in.
+  const genRef = useRef(0)
+  const taskRef = useRef<{ cancel: () => void } | null>(null)
+  const renderedWidthRef = useRef(0)
+  const nearRef = useRef(false)
 
   const render = useCallback(async () => {
     if (renderedRef.current) return
@@ -171,20 +191,35 @@ function PdfPage({
     const canvas = canvasRef.current
     if (!doc || !wrapper || !canvas) return
     renderedRef.current = true
+    const gen = ++genRef.current
     try {
       const page = await doc.getPage(pageNumber)
+      if (gen !== genRef.current) return
       const baseViewport = page.getViewport({ scale: 1 })
       const width = wrapper.clientWidth || baseViewport.width
       const scale = width / baseViewport.width
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const viewport = page.getViewport({ scale: scale * dpr })
+      taskRef.current?.cancel()
       canvas.width = viewport.width
       canvas.height = viewport.height
-      canvas.style.width = `${Math.floor(viewport.width / dpr)}px`
-      canvas.style.height = `${Math.floor(viewport.height / dpr)}px`
+      if (refitOnResize) {
+        // Fluid CSS size: between a resize and the sharp re-render the page
+        // scales with its wrapper instead of overflowing it, so the layout
+        // (and the scrollbar) stays honest.
+        canvas.style.width = "100%"
+        canvas.style.height = "auto"
+      } else {
+        canvas.style.width = `${Math.floor(viewport.width / dpr)}px`
+        canvas.style.height = `${Math.floor(viewport.height / dpr)}px`
+      }
       const ctx = canvas.getContext("2d")
       if (!ctx) return
-      await page.render({ canvasContext: ctx, viewport, canvas }).promise
+      const task = page.render({ canvasContext: ctx, viewport, canvas })
+      taskRef.current = task
+      await task.promise
+      if (gen !== genRef.current) return
+      renderedWidthRef.current = width
       // CSS-space viewport (no dpr) for positioning overlay markers at anchors.
       const cssViewport = page.getViewport({ scale })
       setGeom({
@@ -197,10 +232,12 @@ function PdfPage({
       })
       setRendered(true)
     } catch (err) {
+      // A render cancelled by a newer one (refit) is not a failure.
+      if (gen !== genRef.current) return
       renderedRef.current = false
       console.error(`[hr-pdf-viewer] render failed page=${pageNumber}:`, err)
     }
-  }, [getDoc, pageNumber])
+  }, [getDoc, pageNumber, refitOnResize])
 
   useEffect(() => {
     const el = wrapperRef.current
@@ -208,7 +245,11 @@ function PdfPage({
     // Two observers, two jobs: start rendering well before the page scrolls
     // in; count it as VIEWED only when a substantial part is actually seen.
     const renderObserver = new IntersectionObserver(
-      (entries) => entries.forEach((e) => e.isIntersecting && render()),
+      (entries) =>
+        entries.forEach((e) => {
+          nearRef.current = e.isIntersecting
+          if (e.isIntersecting) render()
+        }),
       { rootMargin: "600px 0px" }
     )
     const viewObserver = new IntersectionObserver(
@@ -229,6 +270,30 @@ function PdfPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [render])
+
+  // DOC-11: width changed after this page rendered → mark it stale. Near the
+  // viewport it re-renders now (debounced, so a rotation is one pass, not
+  // thirty); elsewhere the render observer picks it up on the way back in.
+  useEffect(() => {
+    const el = wrapperRef.current
+    if (!refitOnResize || !el) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const ro = new ResizeObserver(() => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        const rendered = renderedWidthRef.current
+        if (!rendered || Math.abs(el.clientWidth - rendered) < 2) return
+        renderedWidthRef.current = 0
+        renderedRef.current = false
+        if (nearRef.current) render()
+      }, 150)
+    })
+    ro.observe(el)
+    return () => {
+      clearTimeout(timer)
+      ro.disconnect()
+    }
+  }, [refitOnResize, render])
 
   return (
     <div ref={wrapperRef} className="relative">

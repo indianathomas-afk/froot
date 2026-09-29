@@ -113,6 +113,51 @@ export function externalUrlHost(value: string | null | undefined): string | null
   }
 }
 
+// ── DOC-11: what the Document Library can preview ───────────────────────────
+// ONE allowlist for both halves: the download route's `?disposition=inline`
+// mode serves only what this returns non-null for (415 otherwise), and the
+// preview dialog branches on the same answer — so the dialog can never ask
+// for an inline file the route will refuse. PDFs and images only (ruling 2);
+// Word files upload fine but have no in-browser renderer.
+//
+// The stored contentType is trusted first; the extension is the fallback for a
+// version whose type was recorded as something generic. The returned `mime` is
+// what the route sends as Content-Type — never the upstream blob's header, so
+// an inline response can only ever be one of these six types.
+export type HrPreviewKind = "pdf" | "image"
+
+const PREVIEW_MIME: Record<string, HrPreviewKind> = {
+  "application/pdf": "pdf",
+  "image/png": "image",
+  "image/jpeg": "image",
+  "image/gif": "image",
+  "image/webp": "image",
+}
+
+const PREVIEW_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+}
+
+export function hrPreviewType(
+  contentType: string | null | undefined,
+  fileName: string | null | undefined
+): { kind: HrPreviewKind; mime: string } | null {
+  const stored = (contentType ?? "").split(";")[0].trim().toLowerCase()
+  if (PREVIEW_MIME[stored]) return { kind: PREVIEW_MIME[stored], mime: stored }
+  const ext = (fileName ?? "").split(".").pop()?.toLowerCase() ?? ""
+  const inferred = PREVIEW_EXT[ext]
+  if (!inferred) return null
+  // A stored type that is specific and NOT previewable wins over the
+  // extension: "report.pdf" recorded as a Word file is not served as a PDF.
+  if (stored && stored !== "application/octet-stream") return null
+  return { kind: PREVIEW_MIME[inferred], mime: inferred }
+}
+
 // ── DOC-1 B: the audience chip ──────────────────────────────────────────────
 // A row's reach at a glance. Before this, an admin could not tell a locked
 // document from a company-wide one by looking — the library rendered both
