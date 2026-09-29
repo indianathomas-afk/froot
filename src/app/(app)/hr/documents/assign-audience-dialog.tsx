@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { audienceWouldGrant, HR_ASSIGN_BLOCKED_COPY } from "@/lib/hr-documents"
 import {
@@ -80,6 +82,10 @@ export function AssignAudienceDialog({
   const [staff, setStaff] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState<SaveResult | null>(null)
+  // Display-only filter over the Individuals list. It never touches `staff`:
+  // a ticked person hidden by the search is still ticked and still saved. No
+  // reset needed on open — the parent's key remounts this component each time.
+  const [staffQuery, setStaffQuery] = useState("")
 
   const docId = doc?.id ?? null
 
@@ -145,6 +151,13 @@ export function AssignAudienceDialog({
       setSaving(false)
     }
   }
+
+  const staffNeedle = staffQuery.trim().toLowerCase()
+  const visibleStaff = data
+    ? staffNeedle
+      ? data.staff.filter((m) => m.displayName.toLowerCase().includes(staffNeedle))
+      : data.staff
+    : []
 
   const dormantCount = data
     ? data.granted.storeIds.length + data.granted.staffMemberIds.length
@@ -306,14 +319,52 @@ export function AssignAudienceDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label>Individuals</Label>
+                <div className="flex items-baseline justify-between gap-2">
+                  <Label>Individuals</Label>
+                  {/* So a pick the search is hiding is never invisible. */}
+                  {staff.size > 0 && (
+                    <span className="text-xs text-[var(--color-muted-foreground)]">
+                      {staff.size} selected
+                    </span>
+                  )}
+                </div>
+                {data.staff.length > 0 && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted-foreground)]" />
+                    <Input
+                      value={staffQuery}
+                      onChange={(e) => setStaffQuery(e.target.value)}
+                      // Enter filters nothing further and must never reach Save.
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.preventDefault()
+                      }}
+                      placeholder="Search people"
+                      aria-label="Search people"
+                      className="pl-9 pr-9"
+                    />
+                    {staffQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setStaffQuery("")}
+                        aria-label="Clear search"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-md divide-y divide-[var(--color-border)]">
                   {data.staff.length === 0 ? (
                     <p className="px-3 py-2 text-sm text-[var(--color-muted-foreground)]">
                       No team members yet.
                     </p>
+                  ) : visibleStaff.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-[var(--color-muted-foreground)]">
+                      No one matches &ldquo;{staffQuery.trim()}&rdquo;
+                    </p>
                   ) : (
-                    data.staff.map((m) => (
+                    visibleStaff.map((m) => (
                       <label
                         key={m.id}
                         className={`flex items-center gap-2 px-3 py-2 text-sm ${mode === "all" ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
