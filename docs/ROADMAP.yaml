@@ -6594,16 +6594,20 @@ phases:
   - id: SIGNED-1
     track: hr
     size: S-M
+    # `staging` -> `shipped` 2026-09-28, stamped post-merge on `main` in the
+    # promotion commit after merge 5c3c6c6 (DEPLOY_LOG entry `5c3c6c6`).
     # `in_progress` -> `staging` 2026-09-28 BY THIS PRE-PUSH-CHECK. NOT PUSHED
     # AT THE MOMENT OF WRITING — Claude never pushes. The build session's note,
     # preserved: "in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns
     # the flip to staging and adds this row's docs SHA."
     # Work, docs, and this check's own commit — the commit immediately after
     # f20d022, which cannot name itself.
-    status: staging
-    commits: ["2ec02a0", "f20d022"]
+    status: shipped
+    shipped: 2026-09-28
+    commits: ["2ec02a0", "f20d022", "41dcdee"]
     title: "Signed Records — filter by category and document, sort by completed date, lift the 50 cap"
     notes: >
+      SHIPPED 2026-09-28 in merge 5c3c6c6 (rollback: git revert -m 1 5c3c6c6); staging: filters + Library chip regression passed, Tommy GET /api/hr/signed-records 403, Load more NOT exercised (14 records < 50, paging proven only by the dev fixture); zero-count chips ratified by Gary (DECISIONS).
       BUILT 2026-09-28, TIER 2, work commit 2ec02a0. Prompt:
       docs/prompts/SIGNED-1.md. Gary's use case: pull every Key Agreement
       record (category "Logs") in date order.

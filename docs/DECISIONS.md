@@ -5,6 +5,23 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-28 — SIGNED-1: Signed Records shows every category chip, zero counts included (Gary)
+
+**RATIFIED 2026-09-28 at the SIGNED-1 promotion.** Gary's reply, verbatim:
+
+> Ratified as written. Signed Records shows every category chip, including
+> zeros, because an empty Logs chip tells me nobody has signed yet.
+
+- **Every category gets a chip, including zero counts.** This is deliberately
+  unlike the Document Library, which shows chips only for categories that have
+  documents (DOC-5).
+- **Why:** on Signed Records an empty chip is information in its own right. It
+  says nobody has signed anything in that category yet. In the Library, an
+  empty category is just clutter.
+
+The build session flagged this choice in its report but drafted no entry, so
+the SIGNED-1 PRE-PUSH-CHECK had nothing to ratify. It is recorded here.
+
 ## 2026-09-28 — DOC-5: document categories become a managed per-org entity (Gary)
 
 **RATIFIED 2026-09-28 at the DOC-5 PRE-PUSH-CHECK.** Gary's reply, verbatim:

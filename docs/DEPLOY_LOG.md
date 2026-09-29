@@ -2,7 +2,38 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-28 — SIGNED-1: Signed Records filter by category and document, sort by date, lift the 50 cap
+## 5c3c6c6 — 2026-09-28 — SIGNED-1: Signed Records filter by category and document, sort by date, lift the 50 cap
+
+**Merge SHA:** `5c3c6c6650e3477f5c13dd414327730026473b6c`
+**Promoted 2026-09-28 21:16:20 -0700 (Pacific)**, which is `2026-09-29T04:16:20Z`,
+in `5c3c6c6` ("Merge branch 'staging'"). THE SHA IS THE `--no-ff` MERGE COMMIT —
+parents `542fdf1` (the prior tip of `main`) and `41dcdee` (the tip of `staging`) —
+and the rollback recipe reads the merge, not the tip of `main`. **3 commits** in
+`5c3c6c6^1..5c3c6c6^2`: `2ec02a0`, `f20d022`, `41dcdee` — read out of `git log`
+at this stamp, not hand-typed. `main` was level with `origin/main` at this
+stamp, so the merge is already pushed. Stamped post-merge on `main`, in the same
+commit that flips the SIGNED-1 row to `shipped`.
+
+**Rollback:** `git revert -m 1 5c3c6c6` on `main`, then push (keep this log per
+WORKFLOW.md § 2). **No database step. No migration rides with this merge:**
+`git diff 5c3c6c6^1 5c3c6c6 -- prisma` is empty, and nothing is written.
+
+**Staging evidence (Gary, 2026-09-28):**
+- Gary's filter test on `/hr/signed-records` and the Document Library chip
+  regression both passed ("Looks great").
+- Tommy (STORE) `GET /api/hr/signed-records` → **403** on staging.
+- **Load more was not exercised on staging.** Staging has 14 records against
+  a 50-record page, so no second page exists there. Paging is proven only by
+  the dev fixture `scripts/verify-signed1-filters.ts` (102 records, 38/38).
+
+**Ruling:** the zero-count chips are Gary's, ratified at this promotion
+(DECISIONS.md, SIGNED-1 entry, 2026-09-28).
+
+> **⚠ SUPERSEDED AT PROMOTION 2026-09-28 — the "Unpromoted — staging only"
+> paragraph immediately below is the PRE-PUSH-CHECK's own, written before the
+> push, and its claim is now spent.** Marked in place, not deleted. **The check's
+> own commit, which it says could not name itself, is `41dcdee`** — the third
+> row of the payload table below.
 
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
 stamped with the merge SHA at promotion, on `main`, after the merge.
@@ -51,6 +82,10 @@ step** — nothing was migrated and nothing was written.
 header; Oldest → earliest signature first; Load more → no duplicates; reload →
 filters persist; Logs chip → Key Agreement rows or the empty state. Evidence to
 name the org ID and the Clerk instance.
+
+> **⚠ ANSWERED AT PROMOTION 2026-09-28** — see "Staging evidence" at the top of
+> this entry. Load more could not be exercised (14 records < 50). The org ID and
+> the Clerk instance were not recorded.
 
 ## 92df26b — 2026-09-28 — DOC-5: document categories become a managed per-org entity
 
