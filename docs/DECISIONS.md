@@ -5,7 +5,16 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-09-29 — DOC-11: Preview on the Document Library (Gary — DRAFT entry)
+## 2026-09-29 — DOC-11: Preview on the Document Library (Gary)
+
+**RATIFIED BY GARY, 2026-09-29, at the DOC-11 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him. His first reply, recorded exactly: *"reuse the
+existing viewer, and your four choices are fine"*. That covers the viewer
+choice and the four implementation choices, not rulings 1-5. Asked separately
+about rulings 1-5 as worded, his reply, recorded exactly: *"ratify as
+written"*. Nothing below was changed. This paragraph was added at the head,
+and the "DRAFT ENTRY" marker below is kept as it was and superseded by it.
+Until this ratification the heading read "(Gary — DRAFT entry)".
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The five
 rulings reached the build session through the session prompt

@@ -6915,11 +6915,26 @@ phases:
   - id: DOC-11
     track: hr
     size: M
-    status: in_progress
+    # `in_progress` -> `staging` 2026-09-29 BY THE PRE-PUSH-CHECK. c5b472e and
+    # d329389 were ALREADY PUSHED to origin/staging when the check ran; this
+    # check's own commit (the one immediately after d329389, which cannot name
+    # itself) is not pushed — Claude never pushes.
+    status: staging
     title: "Preview button on the Document Library — PDFs and images in a dialog, no download"
     commits:
       - "c5b472e"
+      - "d329389"
     notes: >
+      ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA d329389 added; this check's own commit
+      is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
+      entry (2026-09-29 — DOC-11) was printed verbatim. His replies, exactly:
+      "reuse the existing viewer, and your four choices are fine" (viewer
+      choice + four implementation choices), then, asked about rulings 1-5,
+      "ratify as written". Heading de-drafted, ratification paragraph added at
+      its head. DEPLOY_LOG: UNPROMOTED DOC-11 entry written in three chunks
+      (headings 66 -> 67, lines 5767 -> 5807, +40/-0). CLAUDE.md untouched.
+      Prompt committed in d329389. Staging evidence pending.
       TIER 2, 2026-09-29. Prompt: docs/prompts/DOC-11_document_preview.md. No
       schema, no migration, no new permission. Rulings 1-5 are drafted in
       DECISIONS.md (2026-09-29 — DOC-11), awaiting Gary's ratification at the

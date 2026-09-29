@@ -2,6 +2,46 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-29 — DOC-11: Preview on the Document Library (PDFs and images in a dialog)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge.
+
+**Payload: DOC-11 only.** Verified by `git log origin/main..staging` at this
+check: exactly `c5b472e` and `d329389`. **BOTH WERE ALREADY PUSHED TO
+`origin/staging` WHEN THIS CHECK RAN** (`git fetch`, then
+`git log origin/staging..staging` came back empty; the remote-tracking reflog
+reads "update by push" to `d329389`). Gary pushed them before this check. Only
+this check's own commit is unpushed.
+
+| Commit | What it is |
+|---|---|
+| `c5b472e` | DOC-11 work: Preview button, `document-preview-dialog.tsx`, `?disposition=inline` on the download route, `hrPreviewType`, opt-in `refitOnResize` on `PdfViewer` |
+| `d329389` | `docs(DOC-11)`: ROADMAP row, DECISIONS draft, DOC-12 planned, session prompt |
+| the commit immediately after `d329389` | `docs(DOC-11 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHA |
+
+**Blast radius: `/hr/documents`, and one shared component.** No migration, no
+env var, no new route, no permission change, no new dependency.
+- **Download route** (`/api/hr/documents/[id]/download`): adds a
+  `?disposition=inline` branch below the unchanged permission check. It serves
+  PDF/png/jpeg/gif/webp inline and returns 415 for anything else. It writes
+  nothing. The default redirect and `?stream=1` are unchanged.
+- **`PdfViewer`** (`src/components/hr/pdf-viewer.tsx`) is shared with the
+  signing screen and `/my/documents/records/[recordId]`. It gained an opt-in
+  `refitOnResize` prop that neither of them passes. The signing path's render
+  now also keeps a generation counter and render-task handle, which are inert
+  without a resize. Watch: signing-screen page rendering and checkpoint
+  overlay placement.
+- **Library UI**: Preview button plus dialog, client-only.
+
+**Rollback:** `git revert c5b472e`. No database step. `d329389` and this check's
+commit are docs only and can stay.
+
+**Staging evidence:** pending. Test steps 1-8 are in
+`docs/prompts/DOC-11_document_preview.md`. Steps 1, 2 and 6 (PDF pages
+render, including iPhone Safari past page 1) matter most, because PDF
+canvases were not verified locally (the browser pane was hidden).
+
 ## 7308af0 — 2026-09-29 — DOC-10: search box for Individuals in the document audience dialog
 
 **Merge SHA:** `7308af04ed4e72eb6f83254db0d08ca69dadb3cd`
