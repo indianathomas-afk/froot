@@ -6912,6 +6912,78 @@ phases:
       the PUT route and the reach counts are unchanged. Verified by build
       gate only; staging test steps are in the prompt file.
 
+  - id: DOC-11
+    track: hr
+    size: M
+    status: in_progress
+    title: "Preview button on the Document Library — PDFs and images in a dialog, no download"
+    commits:
+      - "c5b472e"
+    notes: >
+      TIER 2, 2026-09-29. Prompt: docs/prompts/DOC-11_document_preview.md. No
+      schema, no migration, no new permission. Rulings 1-5 are drafted in
+      DECISIONS.md (2026-09-29 — DOC-11), awaiting Gary's ratification at the
+      PRE-PUSH-CHECK.
+      WHAT SHIPS: on /hr/documents every active uploaded-file row gets Preview
+      (lucide Eye, same text-link style) as its first action; Link rows keep
+      Open and get no Preview. It opens document-preview-dialog.tsx: full-
+      screen on phones, 95vw x 92dvh above sm; fixed header (title, "Version
+      N · N pages", Download, close); scrolling body. PDF: continuous scroll,
+      pages fitted to width, drawn lazily. Image: one object-contain <img>.
+      Other types: "Preview not available for this file type" + Download.
+      Failure: "Couldn't load the preview" + Download.
+      AUDIT (at 7308af0 + prompt): page src/app/(app)/hr/documents/page.tsx;
+      action row in DocumentRow, documents-client.tsx. Download route
+      src/app/api/hr/documents/[id]/download/route.ts: requireHrDocumentAccess
+      (HR availability + module + signed-in member) then an org-scoped active
+      lookup (404) then canReadHrDocument (403). Default = 307 to a 5-minute
+      presigned private-Blob URL; ?stream=1 (HR-11) proxies bytes same-origin
+      for the signing viewer. It writes NOTHING (no AuditLog, no counts).
+      Current version = versions where isCurrent, take 1; contentType and
+      fileName live on HrDocumentVersion. No CSP anywhere (next.config.ts,
+      src/proxy.ts).
+      ROUTE: new ?disposition=inline branch BELOW the unchanged permission
+      check — hrPreviewType (src/lib/hr-documents.ts, shared with the dialog)
+      admits pdf/png/jpeg/gif/webp by stored type, extension as fallback;
+      415 otherwise. Sends OUR Content-Type, inline, private no-store,
+      nosniff. Writes nothing. Default redirect and ?stream=1 unchanged.
+      DEPARTURE FROM THE PROMPT, GARY'S CHOICE IN-SESSION: no react-pdf. The
+      audit found the HR-11 PdfViewer (src/components/hr/pdf-viewer.tsx,
+      pdfjs-dist 6.1.200 direct, lazy IntersectionObserver canvases, worker
+      bundled same-origin via new URL(..., import.meta.url)) already running
+      the signing screen on phones; react-pdf 11.0.0 pins pdfjs-dist 6.3.289,
+      so it meant a second pdf.js or an upgrade under the signing screen. Gary
+      picked "Reuse PdfViewer". Ruling 3 (pdf.js, not the iframe viewer) holds.
+      PdfViewer loads via next/dynamic ssr:false and gained an OPT-IN
+      refitOnResize prop (ResizeObserver, debounced; stale pages near the
+      viewport re-render, the rest on scroll-back; fluid canvas CSS). Default
+      off, so the signing path computes the same sizes and styles as before.
+      CHECKS: npm run lint exit 1, 10 errors = the DEBT-33 baseline, none in a
+      touched file (pdf-viewer.tsx's three moved line numbers; its header
+      pointer now says what to search for). tsc: one error, the stale
+      gitignored .next/dev/types/validator.ts naming a deleted temp page
+      (menu/signed1-preview) — not source. npm run build exit 0 (its prisma
+      generate is client generation, not a migration).
+      LOCAL CHECK, PARTIAL: a temp public /menu page (deleted before commit)
+      confirmed the unsupported state at phone width and the dialog size. The
+      browser pane was hidden, which pauses IntersectionObserver and
+      requestAnimationFrame, so PDF canvases could not paint there — the
+      same for the unmodified HEAD viewer. PDF rendering is verified by build
+      gate only; staging test steps 1, 2 and 6 in the prompt file cover it.
+
+  - id: DOC-12
+    track: hr
+    size: S
+    status: planned
+    title: "Preview on /my/documents"
+    notes: >
+      FILED 2026-09-29 by the DOC-11 build session, per DOC-11 ruling 1
+      (preview on /hr/documents only; /my/documents is a later phase). Reuse
+      DocumentPreviewDialog and the download route's ?disposition=inline —
+      /my/documents/page.tsx already links its Download to that same route
+      (:188, :278), so the audience check that serves it is the one preview
+      would get. Cross-refs: DOC-11.
+
   - id: HR-27
     track: hr
     size: L
