@@ -5,6 +5,47 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-28 — DOC-2: "who hasn't signed" is a section on /hr/compliance, reached by deep links (Claude — DRAFT)
+
+**DRAFT — UNRATIFIED.** Recorded by the DOC-2 build session. The session
+prompt set the shape; these are not words Gary has said. They go to him at the
+PRE-PUSH-CHECK and are not rulings until he ratifies them.
+
+> 1. **Shape.** The per-document view is a **By Document section on
+>    `/hr/compliance`**, plus a "Signing status" link on each compliance
+>    document's Library row and on `/hr/documents/[id]` that opens it filtered
+>    to that document (`/hr/compliance?document=<id>`). The Library does
+>    **not** show a per-row "X of Y" count.
+> 2. **Why not per-row counts on the Library.** DOC-1 B already declined a
+>    per-row reach count for the audience chips: it would cost either a second
+>    read on every Library render or a browser-side copy of the corporate
+>    exclusion (R3), and the second is the drift the policy module exists to
+>    prevent (`lib/hr-documents.ts`, the `hrAudienceLabel` comment; DOC-2 row,
+>    "take that finding as an input"). X of Y is strictly more expensive than
+>    reach — it needs signature state as well — so the same finding applies
+>    with more force. On `/hr/compliance` the numbers are already computed for
+>    the page, so the section costs one extra query (the excluded-document
+>    count) and no new rule.
+> 3. **Scope.** The section uses the page's existing scope, so a MANAGER sees
+>    only their stores' people, in both X and Y. The link shows only to
+>    viewers `/hr/compliance` serves (ADMIN, MANAGER).
+
+**Claude's implementation choices, flagged for the same ratification:**
+
+- **Every category chip shows, zero counts included**, following Signed
+  Records (SIGNED-1, ratified 2026-09-28) rather than the Library. Here a zero
+  means no document in that category applies to anyone in scope.
+- **The excluded note counts two things separately:** documents with no
+  audience (the Library's Unassigned chip, counted with that chip's own label
+  function) and documents whose audience holds nobody currently active in
+  scope (for a manager, typically a document granted to other stores).
+  Archived documents are not counted; they are not compliance documents.
+- **Store-less staff are grouped as "No store on file"**, not "Unassigned" as
+  By Store labels them, so the section never uses one word for two meanings
+  beside a note about Unassigned documents. Corporate staff are grouped as
+  "Corporate" (By Store omits them; this section may not, or its totals would
+  not match the KPI cards).
+
 ## 2026-09-28 — SIGNED-1: Signed Records shows every category chip, zero counts included (Gary)
 
 **RATIFIED 2026-09-28 at the SIGNED-1 promotion.** Gary's reply, verbatim:
