@@ -6723,11 +6723,30 @@ phases:
   - id: DOC-6
     track: hr
     size: M
-    status: in_progress
+    # `in_progress` -> `staging` 2026-09-29 BY THIS PRE-PUSH-CHECK. NOT PUSHED
+    # AT THE MOMENT OF WRITING — Claude never pushes. Work, docs, and this
+    # check's own commit — the commit immediately after a2c7153, which cannot
+    # name itself.
+    status: staging
     title: "Key holder register — who holds a key now, from the signed Key Agreement plus a return event"
     commits:
       - "65ca616"
+      - "a2c7153"
     notes: >
+      ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA a2c7153 added; this check's own commit
+      is the one immediately after it. RULINGS RATIFIED AS WRITTEN by Gary,
+      including all seven implementation choices (DECISIONS.md, DOC-6 entry,
+      heading now "(Gary)"). His note, which is not a ruling: the register
+      shows every Field answer on the latest signed record, and he'll review
+      that on production once the Key Agreement is signed, and may limit it to
+      a chosen field later. Not filed. DEPLOY_LOG: UNPROMOTED DOC-6 entry,
+      written in chunks (headings 64 -> 65, lines 5653 -> 5728). The migration
+      20260928222624_doc6_key_return_register reaches staging through Gary's
+      push. Filed in the same commit, for pre-existing console findings on
+      staging d760714: DEBT-113 (#418 hydration mismatch on /hr/documents)
+      and DEBT-114 (a 403 on /api/hr/signed-records, unconfirmed until Gary
+      reloads).
       ── DOC-6 BUILT 2026-09-29 — STATUS planned -> in_progress at "65ca616"
       (work commit). TIER 3. Prepended; NOTHING BELOW IS EDITED. Committed on
       staging, NOT pushed; staging does not have it until Gary pushes, and the
@@ -30450,6 +30469,67 @@ debt:
       function as the Unassigned chip (hrAudienceLabel), so the two cannot
       disagree. Library row only; /hr/documents/[id] is the phase's call.
       RELATED: DOC-2.
+
+  - id: DEBT-113
+    status: planned
+    title: >
+      React error #418 (hydration mismatch) on /hr/documents
+    notes: >
+      FILED 2026-09-29 AT THE DOC-6 PRE-PUSH-CHECK, from Gary's report. PRE-EXISTING:
+      seen in the browser console on staging at d760714, before DOC-6, as
+      Tommy (STORE) on /hr/documents. SIZE S (DebtItem carries no size field,
+      so it is recorded here). THE ID FILLS THE NEXT FREE SLOT — no occurrence
+      of "DEBT-113" in the repo and `git log -S DEBT-113 -- docs` returns
+      nothing.
+      THE SYMPTOM. Minified React error #418: server-rendered HTML text didn't
+      match the client's first render. React discards the server HTML for that
+      subtree and re-renders it on the client. Nothing visible breaks.
+      LEADING HYPOTHESIS, NOT CONFIRMED. src/app/(app)/hr/documents/
+      documents-client.tsx:377-378 renders "Uploaded …" / "Added …" with
+      date-fns format(new Date(iso), "MMM d, yyyy") in a CLIENT component. On
+      the server (Vercel, UTC) that prints the UTC day; in the browser it
+      prints the viewer's local day. Any document uploaded between 17:00 and
+      24:00 Pacific (00:00–07:00 UTC) gets two different dates, and the text
+      mismatch is #418. The exact case DEBT-70b ruled on for the staff
+      profile ("THE CLIENT WAS RIGHT"; lib/display-time.ts).
+      FIRST STEP. Reproduce in a dev build (unminified, names the node), or
+      find a Library document whose upload time is 00:00–07:00 UTC and check
+      whether its row is the one that mismatches. If confirmed, render the
+      date in the store's zone on the server (formatInstant +
+      displayTimeZone), or pass a pre-formatted string, so both sides agree.
+      Other client date renders in the Library tree are in scope for the same
+      sweep.
+      RELATED: DEBT-70b.
+
+  - id: DEBT-114
+    status: planned
+    title: >
+      A 403 on /api/hr/signed-records in the console on /hr/documents (UNCONFIRMED — Gary to reload)
+    notes: >
+      FILED 2026-09-29 AT THE DOC-6 PRE-PUSH-CHECK, from Gary's report.
+      PRE-EXISTING: seen in the browser console on staging at d760714, before
+      DOC-6, as Tommy (STORE) on /hr/documents. SIZE XS. THE ID FILLS THE NEXT
+      FREE SLOT — no occurrence of "DEBT-114" in the repo and `git log -S
+      DEBT-114 -- docs` returns nothing.
+      UNCONFIRMED. Gary: "The 403 is real only if it reappears on reload; I'll
+      confirm." Until he does, this row records an observation, not a defect.
+      A 403 FOR TOMMY IS THE CORRECT ANSWER. GET /api/hr/signed-records is
+      ADMIN-only (requireHrDocumentAccess({ admin: true }), SIGNED-1), and
+      SIGNED-1's staging evidence (DEPLOY_LOG 5c3c6c6) records this exact
+      request being made BY HAND as Tommy to prove the 403. The only question
+      is why the request appeared on /hr/documents at all.
+      WHAT THE CODE SAYS, read at a2c7153 for the DOC-6 pre-push check: the
+      only fetch of /api/hr/signed-records in src/ is
+      src/app/(app)/hr/signed-records/signed-records-client.tsx:73 (Load
+      more), on a page STORE can't open. Nothing under /hr/documents or
+      src/components/hr calls it. So the likeliest reading is the manual
+      SIGNED-1 test request still in a preserved console log. That is a
+      hypothesis, not a finding.
+      CLOSE if it doesn't reappear on a clean reload. IF IT DOES: record the
+      initiator (Network tab → Initiator) and open this row as a real defect.
+      Something on /hr/documents is then calling an ADMIN route for a STORE
+      viewer, and that caller is the bug, not the 403.
+      RELATED: SIGNED-1.
 
 rulings:
   - id: R1

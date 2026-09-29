@@ -5,7 +5,20 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-09-28 — DOC-6: the key register is an append-only return event against the signed Key Agreement (Gary — DRAFT entry)
+## 2026-09-28 — DOC-6: the key register is an append-only return event against the signed Key Agreement (Gary)
+
+**RATIFIED AS WRITTEN by Gary, 2026-09-29, at the DOC-6 PRE-PUSH-CHECK.** The
+entry was printed verbatim and put to him. His whole reply, recorded exactly:
+*"Ratified as written, including all seven implementation choices. Noted that
+the register shows every Field answer on the latest signed record; I'll review
+it on production once the Key Agreement is signed, and may limit it to a
+chosen field later."* The ratification covers the rulings and all seven
+flagged implementation choices below. The second sentence is a note, not a
+ruling: limiting the register to one chosen field is a possible follow-up,
+decided on production data, and nothing was filed for it. Nothing below was
+changed. This paragraph was added at the head, and the "DRAFT ENTRY" marker
+below is kept as it was and superseded by it. Until this ratification the
+heading read "(Gary — DRAFT entry)".
 
 **DRAFT ENTRY — THE RULINGS ARE GARY'S, THE ENTRY IS UNRATIFIED.** Gary gave
 the rulings in chat on 2026-09-28, in answer to `docs/prompts/DOC-6_AUDIT.md`.
