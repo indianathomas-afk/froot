@@ -6042,12 +6042,32 @@ phases:
   - id: DOC-2
     track: hr
     size: M
-    status: staging
+    # `staging` -> `shipped` 2026-09-28, stamped post-merge on `main` in the
+    # promotion commit after merge 1df08a9 (DEPLOY_LOG entry `1df08a9`).
+    # Work, docs, and the PRE-PUSH-CHECK's own commit 14a0bdc, which could not
+    # name itself.
+    status: shipped
+    shipped: 2026-09-28
     title: "Per-document compliance view — who hasn't signed this document"
     commits:
       - "6401819"
       - f59beb9
+      - 14a0bdc
     notes: >
+      SHIPPED 2026-09-28 in merge 1df08a9 (rollback: git revert -m 1 1df08a9); staging on 14a0bdc: By Document 4 owed / 4 signed = Team Members' document columns (Tommy 3/3 + Gdogg 1/1), KPI "7 of 8" = 4 documents + 3 of 4 training, excluded note counted HR Test Handbook, Library link worked (also on Unassigned — DEBT-112), Tommy (STORE) 404 on /hr/compliance.
+      ── DOC-2 PROMOTED 2026-09-28 — STATUS staging -> shipped. Merge
+      1df08a95c3e64ebf4d7dc22ac0bcb6a1d7163ff6; parents cf84237 and 14a0bdc;
+      1df08a9^1..1df08a9^2 is exactly 6401819, f59beb9, 14a0bdc. Prepended;
+      nothing below is deleted. No migration. Staging evidence (Gary): By
+      Document showed Test - Handbook Regression 2 of 2 and two Policy
+      documents at 1 person each; the sum check held on real data (above);
+      Tommy (STORE) got a 404 on /hr/compliance. FILED: DEBT-112, the Library
+      "Signing status" link showing on a zero-audience (Unassigned) document,
+      which contradicts the build note below ("active compliance documents").
+      CORRECTION 2026-09-28, AT PROMOTION: the PRE-PUSH-CHECK note below says
+      "Status is staging on the understanding that Gary pushes next". SUPERSEDED
+      — Gary had already pushed 6401819 and f59beb9 at 21:59:46 PDT, before the
+      check finished; only 14a0bdc remained ahead of origin/staging.
       ── DOC-2 PRE-PUSH-CHECK 2026-09-28 — STATUS in_progress -> staging.
       Prepended; NOTHING BELOW IS EDITED. Docs SHA "f59beb9" added to
       commits:; this check's own commit is the commit immediately after
@@ -30364,6 +30384,25 @@ debt:
       added the grid and grant lists whose contents a regenerated table would
       also want to show, since "deniable" and "grantable" are now facts about a
       capability that §5 has no column for.
+  - id: DEBT-112
+    status: planned
+    title: >
+      Library shows "Signing status" on zero-audience (Unassigned) documents
+    notes: >
+      FILED 2026-09-28 AT THE DOC-2 PROMOTION (merge 1df08a9), from Gary's
+      staging walk-through. SIZE XS (DebtItem carries no size field, so it is
+      recorded here). THE ID FILLS THE NEXT FREE SLOT — no occurrence of
+      "DEBT-112" in the repo and `git log -S DEBT-112 -- docs` returns nothing.
+      THE DEFECT. The DOC-2 build report says the Library's "Signing status"
+      deep link shows only on active compliance documents. On staging it also
+      appeared on HR Test Handbook, which is Unassigned (no audience).
+      HARMLESS: the link lands on /hr/compliance's By Document section with
+      nothing listed for that document — the excluded note already counts it
+      as "no audience".
+      FIX. Hide the link when the document has no audience, using the same
+      function as the Unassigned chip (hrAudienceLabel), so the two cannot
+      disagree. Library row only; /hr/documents/[id] is the phase's call.
+      RELATED: DOC-2.
 
 rulings:
   - id: R1

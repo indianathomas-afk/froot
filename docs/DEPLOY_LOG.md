@@ -2,7 +2,42 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-28 — DOC-2: By Document on /hr/compliance — who hasn't signed each document
+## 1df08a9 — 2026-09-28 — DOC-2: By Document on /hr/compliance — who hasn't signed each document
+
+**Merge SHA:** `1df08a95c3e64ebf4d7dc22ac0bcb6a1d7163ff6`
+**Promoted 2026-09-28 22:09:21 -0700 (Pacific)**, which is `2026-09-29T05:09:21Z`,
+in `1df08a9` ("Merge branch 'staging'"). THE SHA IS THE `--no-ff` MERGE COMMIT —
+parents `cf84237` (the prior tip of `main`) and `14a0bdc` (the tip of `staging`) —
+and the rollback recipe reads the merge, not the tip of `main`. **3 commits** in
+`1df08a9^1..1df08a9^2`: `6401819`, `f59beb9`, `14a0bdc` — read out of `git log`
+at this stamp, not hand-typed. `main` was level with `origin/main` at this
+stamp, so the merge is already pushed. Stamped post-merge on `main`, in the same
+commit that flips the DOC-2 row to `shipped`.
+
+**Rollback:** `git revert -m 1 1df08a9` on `main`, then push (keep this log per
+WORKFLOW.md § 2). **No database step. No migration rides with this merge:**
+`git diff 1df08a9^1 1df08a9 -- prisma` is empty, and nothing is written.
+
+**Staging evidence (Gary, 2026-09-28, on `14a0bdc-staging`):**
+- By Document showed Test - Handbook Regression at 2 of 2, and two Policy
+  documents at 1 person each.
+- **Sum check on real data:** By Document totals 4 owed / 4 signed, which equals
+  Team Members' document columns (Tommy 3/3 + Gdogg 1/1). The KPI "7 of 8"
+  equals those 4 documents plus 3 of 4 training items.
+- The excluded note counted HR Test Handbook (no audience).
+- The Library "Signing status" link worked. (It also appeared on HR Test
+  Handbook, which is Unassigned — filed as a DEBT row at this promotion; see
+  ROADMAP.yaml.)
+- Tommy (STORE) got a **404** on `/hr/compliance`.
+
+**Ruling:** DECISIONS.md, DOC-2 entry, 2026-09-28 — ratified as written (at the
+PRE-PUSH-CHECK; unchanged at promotion).
+
+> **⚠ SUPERSEDED AT PROMOTION 2026-09-28 — the "Unpromoted — staging only"
+> paragraph and the payload claim immediately below are the PRE-PUSH-CHECK's
+> own, written before the push, and are now spent.** Marked in place, not
+> deleted. **The check's own commit, which the payload table could not name, is
+> `14a0bdc`.**
 
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
 stamped with the merge SHA at promotion, on `main`, after the merge.
@@ -10,6 +45,12 @@ stamped with the merge SHA at promotion, on `main`, after the merge.
 **Payload: DOC-2 only.** Three commits on `staging` ahead of `origin/staging`,
 and the same three are everything on `staging` not on `main` (`main` =
 `cf84237`; `git log staging..main` empty):
+
+> **⚠ CORRECTED 2026-09-28 (promotion):** "Three commits on `staging` ahead of
+> `origin/staging`" was not true by the time the check finished. `6401819` and
+> `f59beb9` were pushed at 21:59:46 PDT, before the check completed; only
+> `14a0bdc` remained ahead of `origin/staging`. The payload itself (the three
+> commits not on `main`) is correct.
 
 | Commit | What it is |
 |---|---|
