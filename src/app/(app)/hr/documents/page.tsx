@@ -87,6 +87,10 @@ export default async function HrDocumentsPage() {
       kind: d.kind as HrDocumentKind,
       fileName: d.versions[0]?.fileName ?? "",
       sizeBytes: d.versions[0]?.sizeBytes ?? 0,
+      // DOC-11: the Preview dialog picks PDF / image / "not available" from
+      // these; the route re-derives the same answer server-side.
+      contentType: d.versions[0]?.contentType ?? "",
+      versionNumber: d.versions[0]?.versionNumber ?? null,
       // A LINK HAS NO VERSION, so this fell back to d.createdAt and the row
       // then labelled it "Uploaded" — true of the value, false of the word.
       // createdAt is carried separately now and the Link path renders "Added"

@@ -9,6 +9,7 @@ import {
   ArchiveRestore,
   Download,
   ExternalLink,
+  Eye,
   FileText,
   ListChecks,
   Pencil,
@@ -47,6 +48,7 @@ import { uploadHrFileFromBrowser } from "@/lib/hr-upload-client"
 import { RichTextEditor } from "@/components/ui/rich-text-editor"
 import { DocumentInstructions } from "@/components/hr/document-instructions"
 import { AssignAudienceDialog, type AudienceDocumentRef } from "./assign-audience-dialog"
+import { DocumentPreviewDialog } from "./document-preview-dialog"
 import { DocumentCategoryManagerDialog, type DocumentCategory } from "./document-category-manager-dialog"
 import {
   CategoryFilterChip,
@@ -69,6 +71,10 @@ export interface HrDocumentRow {
   fileName: string
   sizeBytes: number
   uploadedAt: string
+  // DOC-11: the current version's stored type and number, for the Preview
+  // dialog. Empty/null on a Link (no version), which never offers Preview.
+  contentType: string
+  versionNumber: number | null
   // DOC-3. A Link has no version, so fileName/sizeBytes/uploadedAt are the
   // empty-string/zero/created-at fallbacks for it and must never be RENDERED on
   // a Link path — see DocumentRow, which branches before it reaches them.
@@ -323,6 +329,7 @@ function DocumentRow({
   // DOC-3: everything about this row that differs for a link, decided once.
   const isLink = doc.kind === "Link"
   const host = externalUrlHost(doc.externalUrl)
+  const [previewOpen, setPreviewOpen] = useState(false)
   return (
     <div className={`flex items-start gap-4 p-4 ${doc.isActive ? "" : "opacity-60"}`}>
       <div className="w-9 h-9 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
@@ -392,6 +399,19 @@ function DocumentRow({
             from every non-admin path, so offering an admin the staff-facing
             affordances would invite them to act on a document nobody else can
             reach. Restore first, then act. */}
+        {/* DOC-11: Preview first, on every uploaded-file row the Download
+            link would appear on (same isActive gate — the route refuses an
+            archived document either way). Never on a Link (ruling 2). */}
+        {doc.isActive && !isLink && (
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity mr-2"
+          >
+            <Eye className="h-4 w-4" />
+            Preview
+          </button>
+        )}
         {doc.isActive && doc.kind === "Acknowledgment" && (
           <Link
             href={`/hr/acknowledge/${doc.id}`}
@@ -463,6 +483,9 @@ function DocumentRow({
         {isAdmin &&
           (doc.isActive ? <ArchiveDocumentButton doc={doc} /> : <RestoreDocumentButton doc={doc} />)}
       </div>
+      {doc.isActive && !isLink && (
+        <DocumentPreviewDialog doc={doc} open={previewOpen} onOpenChange={setPreviewOpen} />
+      )}
     </div>
   )
 }
