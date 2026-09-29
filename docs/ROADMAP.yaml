@@ -6594,10 +6594,14 @@ phases:
   - id: SIGNED-1
     track: hr
     size: S-M
-    # in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns the flip to
-    # staging and adds this row's docs SHA.
-    status: in_progress
-    commits: ["2ec02a0"]
+    # `in_progress` -> `staging` 2026-09-28 BY THIS PRE-PUSH-CHECK. NOT PUSHED
+    # AT THE MOMENT OF WRITING — Claude never pushes. The build session's note,
+    # preserved: "in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns
+    # the flip to staging and adds this row's docs SHA."
+    # Work, docs, and this check's own commit — the commit immediately after
+    # f20d022, which cannot name itself.
+    status: staging
+    commits: ["2ec02a0", "f20d022"]
     title: "Signed Records — filter by category and document, sort by completed date, lift the 50 cap"
     notes: >
       BUILT 2026-09-28, TIER 2, work commit 2ec02a0. Prompt:

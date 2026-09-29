@@ -2,6 +2,56 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-28 — SIGNED-1: Signed Records filter by category and document, sort by date, lift the 50 cap
+
+**Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
+stamped with the merge SHA at promotion, on `main`, after the merge.
+
+**Payload: SIGNED-1 only.** Three commits on `staging` ahead of `origin/staging`,
+and the same three are everything on `staging` not on `main` (`origin/main` =
+`main` = `542fdf1`, checked by ancestry with `git log main..HEAD`, not read
+off headings):
+
+| Commit | What it is |
+|---|---|
+| `2ec02a0` | SIGNED-1 work — server-side category / document filters, completed-date sort, cursor "Load more" on `/hr/signed-records` |
+| `f20d022` | `docs(SIGNED-1)`: ROADMAP row, DOC-6..DOC-9 filed, DOC-2 + NOTIFY-3 notes, session prompt |
+| the commit immediately after `f20d022` | `docs(SIGNED-1 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHA, `PROMOTE-DOCS_2026-09-28_DOC-5.md` committed |
+
+**ONE NEW API ROUTE, READ-ONLY. NOTHING UNDER `prisma/`.**
+`GET /api/hr/signed-records` (new) serves "Load more". It is ADMIN-only through
+`requireHrDocumentAccess({ admin: true })`, the same tier as the page. Other
+files: `src/lib/hr-signed-records-list.ts` (new, the query), `src/lib/hr-signed-records-filters.ts`
+(new, pure URL state), `src/app/(app)/hr/signed-records/page.tsx` and
+`signed-records-client.tsx` (new), and `src/components/hr/document-category.tsx`.
+`FilterChip` / `CategoryFilterChip` moved there from
+`src/app/(app)/hr/documents/documents-client.tsx`, which now imports them.
+Behaviour on the library is unchanged. Also the fixture `scripts/verify-signed1-filters.ts`.
+No migration, env var, new dependency, cron or capability. **Read-only: nothing
+is written.**
+
+**What changes for whom:** ADMIN only, on `/hr/signed-records`. Category chips
+with record counts (DOC-5's categories, plus Uncategorized), a document select
+narrowed by category with archived documents marked "(archived)", and a
+Newest / Oldest toggle. All three are kept in the URL. "Load more" pages 50 at
+a time past the old 50-record cap. The header reads "Showing N of M". Each row
+gains its category badge. Download and access are unchanged. MANAGER, STORE
+and STAFF see nothing new, because the page still 404s for anyone who is not
+ADMIN.
+
+**Verified before push:** `scripts/verify-signed1-filters.ts`, 38/38 on dev
+`br-broad-wave-a6vpjdw0` (throwaway org, removed and re-queried). `npm run
+build` clean after the final commit.
+
+**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+step** — nothing was migrated and nothing was written.
+
+**Staging evidence pending.** Gary tests after push as `indianathomas` on
+`/hr/signed-records`: Handbook chip → only handbook rows, count matches the
+header; Oldest → earliest signature first; Load more → no duplicates; reload →
+filters persist; Logs chip → Key Agreement rows or the empty state. Evidence to
+name the org ID and the Clerk instance.
+
 ## 92df26b — 2026-09-28 — DOC-5: document categories become a managed per-org entity
 
 **Merge SHA:** `92df26bb4d404dcf3cd4f15d05e2e92d90ed70b8`
