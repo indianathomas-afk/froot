@@ -6045,6 +6045,11 @@ phases:
     status: planned
     title: "Per-document compliance view — who hasn't signed this document"
     notes: >
+      NOTE 2026-09-28 (prepended; nothing below is edited). Gary agreed
+      ("Agreed", 2026-09-28) to build this row NEXT, with a category filter, so
+      "Logs" shows everyone who hasn't signed the Key Agreement, by person and
+      store. The filter is DOC-5's category entity, the same one SIGNED-1
+      filters /hr/signed-records by.
       SPLIT OUT OF DOC-1 PHASE C BY RULING (Gary, Q1, 2026-08-12): "correct
       the existing per-staff counters only. The per-document completion
       counter is NOT built this phase: file it as its own row. One phase, no
@@ -6585,6 +6590,133 @@ phases:
       go-ahead. c9426eb is never deployed alone: the push carries all three
       commits and Vercel builds the tip.
       Cross-refs: HR-20, DOC-1, DOC-3, DOC-4.
+
+  - id: SIGNED-1
+    track: hr
+    size: S-M
+    # `in_progress` -> `staging` 2026-09-28 BY THIS PRE-PUSH-CHECK. NOT PUSHED
+    # AT THE MOMENT OF WRITING — Claude never pushes. The build session's note,
+    # preserved: "in_progress: committed, NOT pushed. The PRE-PUSH-CHECK owns
+    # the flip to staging and adds this row's docs SHA."
+    # Work, docs, and this check's own commit — the commit immediately after
+    # f20d022, which cannot name itself.
+    status: staging
+    commits: ["2ec02a0", "f20d022"]
+    title: "Signed Records — filter by category and document, sort by completed date, lift the 50 cap"
+    notes: >
+      BUILT 2026-09-28, TIER 2, work commit 2ec02a0. Prompt:
+      docs/prompts/SIGNED-1.md. Gary's use case: pull every Key Agreement
+      record (category "Logs") in date order.
+      SCOPE CHECK: /hr/signed-records lists HrSignedRecord ONLY — the executed
+      Acknowledgment PDFs. FormSubmission is a separate model and was not added.
+      WHAT SHIPPED. Every filter is in the Prisma `where`
+      (src/lib/hr-signed-records-list.ts), never in the browser, because the old
+      page loaded "the 50 most recent" and a browser filter would have dropped
+      every older match. Category = version.hrDocument.categoryId, with an
+      explicit Uncategorized (categoryId null); document = version.hrDocument.id;
+      sort = completedAt asc/desc with id as the tie-break. Cursor "Load more",
+      50 per page, via GET /api/hr/signed-records (ADMIN, the page's own tier),
+      which calls the same loader as the first load; a cursor that does not
+      match the current filter returns an empty page. `category`, `document`
+      and `sort` live in the query string. Chips are the Document Library's
+      (FilterChip / CategoryFilterChip moved into
+      components/hr/document-category.tsx and shared by both pages); every org
+      category renders a chip, including zero-count ones, so "Logs (0)" is
+      pickable before anyone signs. Counts come from one server groupBy on the
+      version, never from the loaded rows. The document select narrows to the
+      chosen category and marks archived documents "(archived)". Header reads
+      "Showing N of M". Rows gain the category badge; Download and the
+      ADMIN-only gate are untouched.
+      A RECORD'S CATEGORY IS ITS DOCUMENT'S CURRENT CATEGORY — a record pins a
+      version, the category lives on HrDocument, so re-filing a document moves
+      its past records with it. Commented at the loader. Archived documents
+      and terminated staff stay listed under every filter.
+      VERIFIED: scripts/verify-signed1-filters.ts, 38/38 on dev
+      br-broad-wave-a6vpjdw0 — throwaway org, 102 records over two categories
+      plus Uncategorized, an archived document, a terminated signer, 34
+      same-millisecond ties; pages 50+15 with no overlap or skip in both
+      directions, oldest = newest reversed, chip and header counts equal
+      prisma counts for six filter shapes; org removed and re-queried (0
+      residue). npm run build clean.
+      NOT VERIFIED ON STAGING. Test plan in the session report.
+      Out of scope, per the prompt: store filter, name search, compliance math,
+      DOC-2 and the rows filed alongside this one (DOC-6..DOC-9).
+
+  - id: DOC-6
+    track: hr
+    size: M
+    status: planned
+    title: "Key holder register — who holds a key now, from the signed Key Agreement plus a return event"
+    notes: >
+      FILED 2026-09-28 from Gary's message of that day ("Agreed"), alongside
+      SIGNED-1. Scope as the SIGNED-1 prompt worded it: who currently holds a
+      key — issue recorded by the signed Key Agreement, plus a return event.
+      Also covers the offboarding return list (what a leaving staff member
+      still holds).
+      OPEN, NEEDS A RULING FIRST: how a RETURN is recorded. An Acknowledgment
+      records issue only — nothing in HrSignedRecord or the ceremony models a
+      key coming back, so the register needs a return event with a home
+      (schema, so TIER 3). Not ruled.
+      Reads SIGNED-1's category filter today: the "Logs" chip on
+      /hr/signed-records is the issue half of this register, by date.
+      Cross-refs: SIGNED-1, HR-5 (Key/Pay agreement forms), HR-15 (offboarding
+      and rehire).
+
+  - id: DOC-7
+    track: hr
+    size: M
+    status: planned
+    title: "Annual re-sign for policies — a per-category default re-sign interval"
+    notes: >
+      FILED 2026-09-28 from Gary's message of that day ("Agreed"), alongside
+      SIGNED-1. Scope as the SIGNED-1 prompt worded it: likely the existing
+      Case A re-verification toggle (HR-11k Phase B), driven by a per-category
+      default re-sign interval.
+      WHY A NEW ROW AND NOT A NOTE ON HR-11k: HR-11k is shipped and covers a
+      MANUAL, per-upload choice — an admin marks one new version as needing
+      re-verification. Nothing re-opens a signature on a schedule, and nothing
+      carries an interval. The interval is new state (per category, DOC-5's
+      entity), so this is schema and TIER 3. Reuse HR-11k's Case A path for the
+      re-sign itself rather than building a second one.
+      Cross-refs: HR-11k, DOC-5, HR-15b (signing cycles).
+
+  - id: DOC-8
+    track: hr
+    size: M
+    status: planned
+    title: "Document due dates — sign within N days of assignment or hire, overdue shown in compliance"
+    notes: >
+      FILED 2026-09-28 from Gary's message of that day ("Agreed"), alongside
+      SIGNED-1. Scope as the SIGNED-1 prompt worded it: "sign within N days of
+      assignment/hire", with overdue shown in compliance the way training due
+      dates already are.
+      THE SCHEMA GAP IS ALREADY WRITTEN DOWN: the SELF-1 row records that
+      ComplianceDocItem carries no due date because HrDocument has no due-date
+      column, so a required document is owed from the moment it applies and
+      its banner sentence deliberately has no due-date clause (Gary,
+      2026-09-07). This row is the column, and it changes that sentence and
+      the compliance math — both TIER 3.
+      Cross-refs: SELF-1, HR-13 (exclude-until-due training semantics), HR-22
+      (training due-date carry-through), DOC-2.
+
+  - id: DOC-9
+    track: hr
+    size: M
+    status: planned
+    title: "Audit export — a zip of signed-record PDFs plus a CSV index, scoped by the SIGNED-1 filters"
+    notes: >
+      FILED 2026-09-28 from Gary's message of that day ("Agreed"), alongside
+      SIGNED-1. Scope as the SIGNED-1 prompt worded it: a zip of signed-record
+      PDFs plus a CSV index, scoped by the SIGNED-1 filters (category, document,
+      completed-date sort).
+      WHAT IS ALREADY THERE: the filter state is one pure module
+      (src/lib/hr-signed-records-filters.ts) and the `where` one function
+      (signedRecordWhere in src/lib/hr-signed-records-list.ts) — build the
+      export on those so it cannot select a different set from the list the
+      admin was looking at. PDFs live in the PRIVATE froot-hr Blob store and
+      are served one at a time by /api/hr/signed-records/[id]/download under
+      canReadHrSignedRecord; a bulk export must keep that gate per record.
+      Cross-refs: SIGNED-1, HR-4, HR-7 (rule 5, the sensitive tier).
 
   - id: HR-27
     track: hr
@@ -18955,6 +19087,12 @@ phases:
     status: planned
     title: "Employee-facing notifications — assignment emails and 'you have something to sign'"
     notes: >
+      NOTE 2026-09-28 (prepended; nothing below is edited). "HR reminders" —
+      nudge people with outstanding documents — was agreed by Gary ("Agreed",
+      2026-09-28) alongside SIGNED-1 and is filed HERE rather than as a new
+      row: this row already covers reminding a team member while an assigned
+      document is outstanding. The 2026-09-20 deferral below still governs
+      until Gary lifts it, and the recipient model is still the first ruling.
       FILED 2026-09-20, DEFERRED BY RULING IN THE SAME BREATH. Gary, 2026-09-20,
       recorded in docs/DECISIONS.md under NOTIFY-2a: employee-facing emails are
       deferred. This row exists so the deferral is a decision with a home rather
