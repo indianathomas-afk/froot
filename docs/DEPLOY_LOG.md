@@ -2,6 +2,29 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-29 — DOC-10: search box for Individuals in the document audience dialog
+
+**Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push.
+It gets the merge SHA at promotion, on `main`, after the merge.
+
+**Payload: DOC-10 only.** Verified by `git log origin/main..staging` at this
+check, not read off headings. It showed exactly `5ad5b6f` and `e9f9b34`, and
+`git log origin/staging..staging` showed the same two, so neither is pushed
+yet. This check adds a third commit. All three are DOC-10's.
+
+| Commit | What it is |
+|---|---|
+| `5ad5b6f` | DOC-10 work: "Search people" input, clear button, "N selected" count and no-match line in `src/app/(app)/hr/documents/assign-audience-dialog.tsx` |
+| `e9f9b34` | `docs(DOC-10)`: ROADMAP row, session prompt |
+| the commit immediately after `e9f9b34` | `docs(DOC-10 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHA |
+
+**Blast radius: one dialog.** Client-only change to the audience dialog on
+`/hr/documents`. No migration, no env var, no API route, no permission change.
+The search only filters what is shown; it never changes the selection, so what
+the Save sends and who a document reaches are unchanged.
+
+**Rollback:** `git revert 5ad5b6f`. Nothing else depends on it.
+
 ## UNPROMOTED — 2026-09-29 — DOC-6: the key holder register — who holds a key now, with an append-only return event
 
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push.
