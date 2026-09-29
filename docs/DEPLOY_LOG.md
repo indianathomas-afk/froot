@@ -2,6 +2,81 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-29 — DOC-6: the key holder register — who holds a key now, with an append-only return event
+
+**Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push.
+It gets the merge SHA at promotion, on `main`, after the merge.
+
+**Payload: DOC-6 only.** Verified by `git log origin/main..staging` at this
+check, not read off headings. It showed exactly `65ca616` and `a2c7153`, and
+`git log origin/staging..staging` showed the same two, so neither is pushed
+yet. This check adds a third commit. All three are DOC-6's.
+
+| Commit | What it is |
+|---|---|
+| `65ca616` | DOC-6 work: `HrReturnEvent` + `HrDocument.tracksReturn`/`returnItemLabel` and the migration, `src/lib/hr-returns.ts`, `POST /api/hr/returns`, "Tracks return" in the edit dialog, Key Register on `/hr/compliance`, Issued Items on `/staff/[id]`, the Terminate warning, the guide section, the fixture |
+| `a2c7153` | `docs(DOC-6)`: ROADMAP row, DECISIONS draft, MIGRATIONS entry, session prompt + audit |
+| the commit immediately after `a2c7153` | `docs(DOC-6 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHA, two ROW entries filed |
+
+**THIS PUSH CARRIES A MIGRATION.** `20260928222624_doc6_key_return_register`
+is additive only. It runs through `prisma migrate deploy` in the Vercel build,
+on staging at Gary's push and on production at promotion. Gary applied it to
+dev on 2026-09-29, and the fixture passed 48/48 against it. It creates:
+
+- the enum `HrReturnEventType` (`Returned`, `Reissued`);
+- `HrDocument.tracksReturn` `BOOLEAN NOT NULL DEFAULT false` and nullable
+  `HrDocument.returnItemLabel`;
+- the `HrReturnEvent` table, with three `ON DELETE RESTRICT` FKs.
+
+**Nothing is dropped and nothing is backfilled.** Every existing document reads
+`tracksReturn = false`, so no register appears anywhere until an admin ticks
+the box.
+
+**After each deploy:** `SELECT count(*) FROM "HrDocument" WHERE "tracksReturn"`
+should return 0 on that branch until someone ticks the box. Put the branch
+literal in the same output.
+
+**What changes for whom:**
+- **ADMIN, document edit dialog on `/hr/documents`:** a "Tracks return"
+  checkbox and a "What is issued" label, on uploaded signature documents only.
+- **ADMIN and MANAGER on `/hr/compliance`:** a Key Register section below By
+  Document, only when some document tracks returns. It lists holders by store,
+  with the signed date, any Field answer (such as a key number) and Mark
+  returned. A manager sees and acts on people in their stores only.
+- **ADMIN and MANAGER on `/staff/[id]`:** an Issued Items list on the Documents
+  tab, with the return history and Mark returned or Reissue. The Terminate
+  dialog lists any unreturned items as a warning; it does not block.
+- **STAFF and STORE:** nothing new. `POST /api/hr/returns` returns 403.
+- **New route:** `POST /api/hr/returns`, append-only, with no update or delete
+  route. `PATCH /api/hr/documents/[id]` now accepts `tracksReturn` and
+  `returnItemLabel`, and returns 400 on `tracksReturn: true` for any document
+  that isn't an Acknowledgment.
+- **Staff DELETE** now also refuses a person with return events, with the
+  existing 409.
+
+**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **The code
+revert is safe without a database step.** The migration is additive: reverted
+code never reads the new columns or the new table, so both stay behind and go
+unread. Any return events recorded before the revert stay in `HrReturnEvent`,
+and would show again if DOC-6 were re-promoted. Dropping them would be a
+separate, destructive decision, and is not part of a rollback.
+
+**Ruling:** DOC-6 rulings F1–F7 and R0–R2, plus seven implementation choices.
+Ratified as written by Gary at this check (DECISIONS.md, DOC-6 entry,
+2026-09-28, ratified 2026-09-29).
+
+**Staging evidence pending.** Gary tests after the push, as `indianathomas`
+(ADMIN):
+1. Turn on "Tracks return" (label "Key") for a test document signed by 1–2
+   people. The Key Register on `/hr/compliance` shows them holding.
+2. Mark one returned with a date. They leave the list, and the event shows on
+   their `/staff/[id]`.
+3. Reissue them. They are back.
+4. Start terminating a holder and confirm the warning lists the key. Cancel.
+5. As Tommy (STORE), POST to `/api/hr/returns`: 403.
+
+Evidence should name the org ID and the Clerk instance.
+
 ## 1df08a9 — 2026-09-28 — DOC-2: By Document on /hr/compliance — who hasn't signed each document
 
 **Merge SHA:** `1df08a95c3e64ebf4d7dc22ac0bcb6a1d7163ff6`

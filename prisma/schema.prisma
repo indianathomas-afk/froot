@@ -173,6 +173,7 @@ model Organization {
   paceAlertLogs                 PaceAlertLog[]
   hrDocuments                   HrDocument[]
   hrDocumentCategories          HrDocumentCategory[]
+  hrReturnEvents                HrReturnEvent[]
   managerNotes                  ManagerNote[]
   trainingModules               TrainingModule[]
   trainingCategories            TrainingCategory[]
@@ -469,6 +470,7 @@ model StaffMember {
   signedRecords       HrSignedRecord[]
   uploadedDocuments   StaffDocument[]
   hrDocumentGrants    HrDocumentGrant[]
+  hrReturnEvents      HrReturnEvent[]
   calendarCompletions CalendarOccurrence[]     @relation("CalendarOccurrenceCompletedByStaff")
 
   @@unique([organizationId, squareTeamMemberId])
@@ -1930,6 +1932,15 @@ model HrDocument {
   // ruling, and DOC-3 does not need it.
   instructionsHtml       String? // sanitized rich text (HR-28 allowlist)
   instructionsVideoUrl   String? // https, validated by the same rule as externalUrl
+  // DOC-6 (F2, Gary 2026-09-28). A document whose signing ISSUES something
+  // physical — the Key Agreement issues a key — and so gets a return register
+  // (HrReturnEvent below). ADMIN-set on the edit dialog, ACKNOWLEDGMENT KIND
+  // ONLY: holding is read off HrSignedRecord, which only Acknowledgments
+  // produce; the PATCH route refuses the flag on any other kind. Keyed off this
+  // flag and NEVER off the category, which an admin can rename (DOC-5).
+  // Turning it off hides the register; the events stay (append-only).
+  tracksReturn           Boolean  @default(false)
+  returnItemLabel        String? // what is issued, e.g. "Key"; null reads "Item"
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -1948,6 +1959,7 @@ model HrDocument {
   // "one document per lesson" rule is the scalar column's cardinality on
   // TrainingLesson, not a uniqueness claim about the document.
   linkedLessons TrainingLesson[]
+  returnEvents  HrReturnEvent[]
 
   @@index([organizationId])
   @@index([categoryId])
@@ -2211,6 +2223,58 @@ model HrSignedRecord {
 // Field definitions for kind=FillableForm documents. These rows are the
 // EDITABLE current definition; the signed copy lives in each version's
 // definitionSnapshot, so submissions never depend on these rows.
+// DOC-6 (F3, Gary 2026-09-28): the return half of a tracks-return document.
+// The ISSUE half is the signed record — an HrSignedRecord on any version, any
+// cycle, of a document with tracksReturn — and that table is append-only
+// (HR-4), so a return cannot be a column on it. It is a row here instead.
+//
+// APPEND-ONLY, LIKE THE RECORD IT ANSWERS. No update or delete route exists
+// and none may be added: a mistaken Returned is corrected by appending a
+// Reissued, and vice versa. The POST route refuses a duplicate (Returned while
+// not holding, Reissued while holding) with a 409.
+//
+// HOLDING — THE ONE RULE, in src/lib/hr-returns.ts and nowhere else (R1 + F4):
+// a person holds the item when they have a signed record on any version of the
+// document, in any signing cycle, AND their latest ISSUE (a signed record's
+// completedAt, or a Reissued event) is later than their latest Returned. Events
+// are ordered by createdAt — when they were RECORDED — never by occurredOn,
+// which is the date the manager typed and may be backdated.
+//
+// Terminated staff stay in the register (F7); archived documents keep their
+// holders, and Mark returned still works on them while Reissued does not (R2).
+model HrReturnEvent {
+  id               String            @id @default(cuid())
+  organizationId   String
+  hrDocumentId     String
+  staffMemberId    String
+  type             HrReturnEventType
+  occurredOn       DateTime          @db.Date // the date typed in; display only, never ordering
+  note             String?
+  // Plain id, NO FK: User rows are hard-deleted (api/users/[id]), and an event
+  // must outlive the manager who recorded it — the retiredByUserId pattern.
+  // recordedByName is the snapshot the register renders.
+  recordedByUserId String
+  recordedByName   String
+  createdAt        DateTime          @default(now())
+
+  // onDelete: Restrict ANNOTATED on all three, not defaulted (the TPL-1a/HR-20
+  // lesson). Required relations default to Restrict anyway; the annotation is
+  // so nobody has to know that. HrDocument has no delete route (archive only)
+  // and the staff DELETE route 409s on any return event before Restrict fires.
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  hrDocument   HrDocument   @relation(fields: [hrDocumentId], references: [id], onDelete: Restrict)
+  staffMember  StaffMember  @relation(fields: [staffMemberId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([hrDocumentId, staffMemberId, createdAt])
+  @@index([staffMemberId])
+}
+
+enum HrReturnEventType {
+  Returned
+  Reissued
+}
+
 model FormField {
   id           String  @id @default(cuid())
   hrDocumentId String

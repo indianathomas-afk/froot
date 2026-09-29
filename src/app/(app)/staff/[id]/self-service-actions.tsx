@@ -20,6 +20,7 @@ import {
 // the server page passes canManage and the APIs re-enforce it):
 // - Invite to self-service (A): staff WITH an email and no login yet.
 // - Terminate: rule 1 — flips status, revokes any Clerk login, keeps records.
+//   DOC-6: lists unreturned issued items (a key) as a non-blocking warning.
 // - Reactivate (terminated members): flips back to ACTIVE with history intact,
 //   optionally chaining a fresh login invite in the same motion. The dialog
 //   preflights Square and warns when the member is still INACTIVE there,
@@ -31,6 +32,7 @@ export function SelfServiceActions({
   hasLogin,
   invitePending,
   status,
+  unreturnedItems = [],
 }: {
   staffId: string
   displayName: string
@@ -38,6 +40,8 @@ export function SelfServiceActions({
   hasLogin: boolean
   invitePending: boolean
   status: string
+  // DOC-6: items issued by a tracks-return document and not yet returned.
+  unreturnedItems?: { label: string; documentTitle: string }[]
 }) {
   const router = useRouter()
   const [inviting, setInviting] = useState(false)
@@ -193,6 +197,27 @@ export function SelfServiceActions({
                 documents, training, and history — are kept. This does not delete anything.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {/* DOC-6 (F6): WARN, DON'T BLOCK. A manager may need to terminate
+                someone who never returned a key, and the record must say so —
+                they stay on the Key Register as "Terminated — not returned"
+                (F7). Terminations by Square sync have no dialog and are caught
+                by that same flag. */}
+            {unreturnedItems.length > 0 && (
+              <div className="text-sm rounded-md border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-foreground)] px-3 py-2">
+                <p className="font-medium">Not returned yet:</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {unreturnedItems.map((i) => (
+                    <li key={i.documentTitle}>
+                      {i.label} — {i.documentTitle}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
+                  You can still terminate. They&apos;ll stay on the Key Register until it&apos;s marked
+                  returned.
+                </p>
+              </div>
+            )}
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleTerminate} disabled={terminating}>

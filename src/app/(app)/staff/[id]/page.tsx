@@ -20,6 +20,8 @@ import { StaffDocuments, type StaffDocumentRow } from "./staff-documents"
 import { StaffFormDocuments, type StaffFormDocRow } from "./staff-form-documents"
 import { StaffUploadedDocuments, type StaffUploadRow } from "./staff-uploaded-documents"
 import { SelfServiceActions } from "./self-service-actions"
+import { StaffReturnItems } from "./staff-return-items"
+import { loadReturnItems, type ReturnItem } from "@/lib/hr-returns"
 import { StaffEditActions } from "./staff-edit-actions"
 import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
 import { StaffCompliance } from "./staff-compliance"
@@ -610,6 +612,14 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
     complianceDetail = await getStaffComplianceDetail(member.organizationId, member.id)
   }
 
+  // DOC-6: items this person was issued by a tracks-return document (the Key
+  // Agreement's key), holding or returned. Rendered on the Documents tab for the
+  // HR tier, and handed to the Terminate dialog for its non-blocking warning
+  // (F6: "warn, don't block"). getStaffMember already refused an out-of-scope
+  // manager, so no store filter here; the POST route re-checks scope anyway.
+  const returnItems: ReturnItem[] =
+    canSeeHrTabs || canManage ? await loadReturnItems(member.organizationId, { staffId: member.id }) : []
+
   let notes: SerializedNote[] = []
   if (canSeeNotes) {
     // ManagerNote.authorUserId has no Prisma relation to User (deliberate — no
@@ -743,6 +753,9 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               hasLogin={!!member.userId}
               invitePending={invitePending}
               status={member.status}
+              unreturnedItems={returnItems
+                .filter((i) => i.holding)
+                .map((i) => ({ label: i.itemLabel, documentTitle: i.documentTitle }))}
             />
           </div>
         )}
@@ -849,6 +862,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                   denying the uploads does not blank the HR half, and vice
                   versa. */}
               {canSeeHrTabs && <StaffDocuments staffId={member.id} rows={documentRows} />}
+              {canSeeHrTabs && <StaffReturnItems items={returnItems} />}
               {canSeeHrTabs && formDocRows.length > 0 && (
                 <StaffFormDocuments staffId={member.id} rows={formDocRows} />
               )}

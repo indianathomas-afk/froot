@@ -1151,3 +1151,49 @@ transaction.
 **`HrDocumentCategory` ids are generated per branch**, with the prefix `hdc`
 plus a uuid. They will not match across dev, staging and production, so never
 paste one across branches.
+
+## 2026-09-29 — `20260928222624_doc6_key_return_register` (DOC-6)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-09-29, using `prisma migrate
+deploy` against `br-broad-wave` (host `ep-late-water-a6k53nv2`), and reported
+"Migration applied to dev". The session then ran `migrate diff
+--from-config-datasource --to-schema` against dev, which returned
+`-- This is an empty migration.`: dev matches the schema. The session ran
+`migrate diff`, `format`, `validate` and `generate`, and no other prisma
+command. Staging and production get the migration through `prisma migrate
+deploy` in the Vercel build, on Gary's push.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TYPE "HrReturnEventType"` (`Returned`, `Reissued`) | additive |
+| `HrDocument.tracksReturn` `BOOLEAN NOT NULL DEFAULT false` | additive; existing rows read false |
+| `HrDocument.returnItemLabel` `TEXT` (nullable) | additive, nullable |
+| `CREATE TABLE "HrReturnEvent"` + indexes on `organizationId`, `(hrDocumentId, staffMemberId, createdAt)` and `staffMemberId` | additive |
+| FKs `HrReturnEvent_{organizationId,hrDocumentId,staffMemberId}_fkey` `ON DELETE RESTRICT` | additive |
+
+**No drops, no renames, no type changes, no narrowing, no data block.** The
+`DEFAULT false` means no existing document opens a register until an admin
+ticks the box.
+
+**The generated half was clean.** Before editing the schema, the pre-check
+diff against dev returned `-- This is an empty migration.`, so this file holds
+only this session's change. After editing, the diff produced exactly the
+statements above. All three FKs are annotated `onDelete: Restrict` in
+`schema.prisma`, which is the TPL-1a/HR-20 lesson.
+
+**`recordedByUserId` deliberately has no FK.** User rows are hard-deleted
+(`api/users/[id]/route.ts:372`), and a return event must outlive the manager
+who recorded it. `recordedByName` is the snapshot the UI renders.
+
+**The table is append-only by application contract, not by database
+constraint.** `POST /api/hr/returns` is its only writer, and nothing in `src/`
+updates or deletes it. `scripts/verify-doc6-key-register.ts` checks both
+facts by reading the source. The staff DELETE route counts return events, so a
+staff member with one gets the usual 409 rather than a Restrict error.
+
+**No protected index or CHECK is involved,** so § Protected indexes needs no
+new row.
+
+**Fixture:** `scripts/verify-doc6-key-register.ts`, 48/48 on dev
+`br-broad-wave-a6vpjdw0` against the applied schema. The throwaway org was
+removed and the removal confirmed by re-query.
