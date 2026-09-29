@@ -105,6 +105,7 @@ export default async function HrDocumentDetailPage({
         categoryColorKey: doc.docCategory?.colorKey ?? null,
         kind: doc.kind,
         isActive: doc.isActive,
+        requiresAcknowledgment: doc.requiresAcknowledgment,
         versions: doc.versions.map((v) => ({
           id: v.id,
           versionNumber: v.versionNumber,

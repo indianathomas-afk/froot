@@ -34,9 +34,9 @@
 //      deletes or alters a signed record.
 
 import { prisma } from "@/lib/prisma"
-import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
+import { AUDIENCE_INCLUDE, GRANTEE_STAFF, GRANTEE_STORE, grantedToStaff } from "@/lib/hr-documents-access"
 import { documentCompletion } from "@/lib/hr-completion"
-import { UNCATEGORIZED_LABEL } from "@/lib/hr-documents"
+import { UNCATEGORIZED_LABEL, hrAudienceLabel } from "@/lib/hr-documents"
 import { DEFAULT_TIME_ZONE, displayTimeZone } from "@/lib/hr"
 
 export type ComplianceItemStatus =
@@ -51,6 +51,14 @@ export type ComplianceDocItem = {
   documentId: string
   title: string
   category: string
+  /**
+   * DOC-2: the category RELATION, carried so the By Document section can
+   * filter and colour by it. Widened here, on the item, rather than read again
+   * by the pivot — the pivot must not query documents itself. Null =
+   * uncategorized (DOC-5 F2).
+   */
+  categoryId: string | null
+  categoryColorKey: string | null
   status: ComplianceItemStatus
   currentVersionNumber: number
   ackedCount: number
@@ -166,6 +174,8 @@ export type OrgComplianceRollup = {
   }
   stores: StoreComplianceRollup[]
   staff: StaffComplianceDetail[]
+  /** DOC-2: the same document items, pivoted by document. See pivotComplianceByDocument. */
+  byDocument: DocumentComplianceView
   agreements: {
     forms: AgreementFormRollup[]
     pending: PendingCountersign[]
@@ -287,15 +297,11 @@ export async function computeStaffComplianceDetails(
 
   const [docs, assignments] = await Promise.all([
     prisma.hrDocument.findMany({
-      where: {
-        organizationId,
-        kind: "Acknowledgment",
-        isActive: true,
-        requiresAcknowledgment: true,
-      },
+      where: complianceDocumentWhere(organizationId),
       include: {
-        // DOC-5: the category relation — never the legacy string (F3).
-        docCategory: { select: { name: true } },
+        // DOC-5: the category relation — never the legacy string (F3). DOC-2
+        // widened it to id + colorKey for the By Document filter and badge.
+        docCategory: { select: { id: true, name: true, colorKey: true } },
         // HR-11n: `retiredAt: null` is part of the DENOMINATOR, not a display
         // filter — a retired step is no longer required of anyone, so leaving it
         // in would hold every member permanently short of completion on a step
@@ -542,6 +548,8 @@ export async function computeStaffComplianceDetails(
           // DOC-5: populated but not rendered by any consumer today (audit
           // finding D); switched so no reader stays on the legacy string.
           category: d.docCategory?.name ?? UNCATEGORIZED_LABEL,
+          categoryId: d.docCategory?.id ?? null,
+          categoryColorKey: d.docCategory?.colorKey ?? null,
           status,
           currentVersionNumber: current.versionNumber,
           ackedCount: ackedIds.size,
@@ -781,6 +789,8 @@ export async function getOrgComplianceRollup(
     orderBy: { name: "asc" },
   })
 
+  const groupOf = (s: StaffComplianceDetail) => rollupStoreGroupId(s, opts.storeIds)
+
   const byStore = new Map<string | null, StaffComplianceDetail[]>()
   for (const s of staff) {
     // DEBT-9: corporate staff are never bucketed under a store. On the ADMIN
@@ -791,12 +801,7 @@ export async function getOrgComplianceRollup(
     // no store on file, which is a data gap someone should fix. Corporate is
     // the answer, not the absence of one.
     if (s.isCorporate) continue
-    // A member whose primary store is outside a manager's scope still appears
-    // under one of the manager's stores they're assigned to.
-    const groupId =
-      scoped && s.primaryStoreId && !opts.storeIds!.includes(s.primaryStoreId)
-        ? (s.storeIds.find((id) => opts.storeIds!.includes(id)) ?? null)
-        : s.primaryStoreId
+    const groupId = groupOf(s)
     if (!byStore.has(groupId)) byStore.set(groupId, [])
     byStore.get(groupId)!.push(s)
   }
@@ -825,6 +830,18 @@ export async function getOrgComplianceRollup(
 
   const requiredTotal = staff.reduce((n, m) => n + m.requiredTotal, 0)
   const completedCount = staff.reduce((n, m) => n + m.completedCount, 0)
+
+  // DOC-2: By Document. The pivot is pure over `staff` — the SAME population the
+  // KPI cards above sum — so a manager's X and Y are scoped by the fetch at the
+  // top of this function and by nothing else. Store names: the in-scope active
+  // stores first, then each member's own primary store name for the rest (an
+  // inactive primary store is not in `stores` but still names a group here —
+  // By Store drops such members, this pivot may not, or the invariant breaks).
+  const storeNameById = new Map<string, string>()
+  for (const s of staff) if (s.primaryStoreId && s.primaryStoreName) storeNameById.set(s.primaryStoreId, s.primaryStoreName)
+  for (const s of stores) storeNameById.set(s.id, s.name)
+  const pivot = pivotComplianceByDocument(staff, groupOf, storeNameById)
+  const byDocument = await summarizeExcludedDocuments(organizationId, pivot)
 
   // Agreements panel — outside the percentage by design. Forms are org
   // resources; executed/pending counts are limited to the staff in scope.
@@ -928,6 +945,182 @@ export async function getOrgComplianceRollup(
     },
     stores: storeRollups,
     staff,
+    byDocument,
     agreements: { forms: [...formRollups.values()], pending },
   }
+}
+
+// ─── The documents that count at all. Shared by the per-staff derivation and
+// DOC-2's excluded-document note, so "which documents are compliance
+// documents" is written once ─────────────────────────────────────────────────
+
+function complianceDocumentWhere(organizationId: string) {
+  return {
+    organizationId,
+    kind: "Acknowledgment",
+    isActive: true,
+    requiresAcknowledgment: true,
+  }
+}
+
+// ─── Which By Store group a member is counted under. Lifted out of
+// getOrgComplianceRollup unchanged so By Document groups people exactly as By
+// Store does: primary store, or — for a manager whose scope excludes that
+// store — the first in-scope store the member is assigned to. Corporate is the
+// caller's concern (By Store skips them; By Document names them) ────────────
+
+function rollupStoreGroupId(s: StaffComplianceDetail, storeIds: string[] | null): string | null {
+  // A member whose primary store is outside a manager's scope still appears
+  // under one of the manager's stores they're assigned to.
+  return storeIds !== null && s.primaryStoreId && !storeIds.includes(s.primaryStoreId)
+    ? (s.storeIds.find((id) => storeIds.includes(id)) ?? null)
+    : s.primaryStoreId
+}
+
+// ─── DOC-2: By Document ──────────────────────────────────────────────────────
+//
+// "3 of 5 Colorado people have signed the handbook." Every other number on
+// /hr/compliance is per PERSON; this one is per DOCUMENT, and it is produced by
+// PIVOTING THE SAME ITEMS, not by asking the question again. It reads no
+// acknowledgment, no signed record and no grant: the audience (grantedToStaff),
+// ACTIVE-only, R3, R2's prior-version signature and HR-15's cycles were all
+// settled per (document, member) inside computeStaffComplianceDetails, and a
+// person appears under a document here IF AND ONLY IF that document is one of
+// their items there.
+//
+// THE INVARIANT, asserted by scripts/verify-doc2-by-document.ts: summed over
+// documents, audienceCount equals the number of document items across all
+// staff, and signedCount equals the number of those items that are complete.
+// The pivot adds and drops nobody, so the KPI cards and this section cannot
+// disagree about who owes what.
+//
+// What that makes true without a line of code: a transferred signer is absent
+// (the document left their items, ruling 4); a TERMINATED member is absent
+// (not in the population); a zero-audience or archived document is absent (in
+// nobody's items). The last two are reported by summarizeExcludedDocuments.
+
+export type DocumentCompliancePerson = {
+  staffId: string
+  name: string
+  /** By Store's group id; "corporate" for corporate staff; null = no store on file. */
+  groupId: string | null
+  groupName: string
+  status: ComplianceItemStatus
+  signedVersionNumber: number | null
+  signedOnEarlierVersion: boolean
+  ackedCount: number
+  requiredCount: number
+  recordMissing: boolean
+}
+
+export type DocumentComplianceRow = {
+  documentId: string
+  title: string
+  categoryId: string | null
+  categoryName: string
+  categoryColorKey: string | null
+  currentVersionNumber: number
+  /** X — items with status "complete". */
+  signedCount: number
+  /** Y — every document item for this document in the population. */
+  audienceCount: number
+  /** Outstanding first, then by name. */
+  people: DocumentCompliancePerson[]
+}
+
+export type DocumentComplianceView = {
+  documents: DocumentComplianceRow[]
+  /** Compliance documents excluded because they have NO audience (the Library's Unassigned chip). */
+  unassignedExcluded: number
+  /** Compliance documents WITH an audience that reaches nobody active in this scope. */
+  unreachedExcluded: number
+}
+
+export const CORPORATE_GROUP_ID = "corporate"
+
+export function pivotComplianceByDocument(
+  staff: StaffComplianceDetail[],
+  groupOf: (s: StaffComplianceDetail) => string | null,
+  storeNameById: Map<string, string>
+): DocumentComplianceRow[] {
+  const rows = new Map<string, DocumentComplianceRow>()
+  for (const s of staff) {
+    const groupId = s.isCorporate ? CORPORATE_GROUP_ID : groupOf(s)
+    const groupName = s.isCorporate
+      ? "Corporate"
+      : groupId === null
+        ? "No store on file"
+        : (storeNameById.get(groupId) ?? "Unknown store")
+    for (const item of s.items) {
+      if (item.kind !== "document") continue
+      let row = rows.get(item.documentId)
+      if (!row) {
+        row = {
+          documentId: item.documentId,
+          title: item.title,
+          categoryId: item.categoryId,
+          categoryName: item.category,
+          categoryColorKey: item.categoryColorKey,
+          currentVersionNumber: item.currentVersionNumber,
+          signedCount: 0,
+          audienceCount: 0,
+          people: [],
+        }
+        rows.set(item.documentId, row)
+      }
+      row.audienceCount++
+      if (item.status === "complete") row.signedCount++
+      row.people.push({
+        staffId: s.staffId,
+        name: s.displayName,
+        groupId,
+        groupName,
+        status: item.status,
+        signedVersionNumber: item.signedVersionNumber,
+        signedOnEarlierVersion: item.signedOnEarlierVersion,
+        ackedCount: item.ackedCount,
+        requiredCount: item.requiredCount,
+        recordMissing: item.recordMissing,
+      })
+    }
+  }
+  const outstanding = (p: DocumentCompliancePerson) => (p.status === "complete" ? 1 : 0)
+  for (const row of rows.values()) {
+    row.people.sort((a, b) => outstanding(a) - outstanding(b) || a.name.localeCompare(b.name))
+  }
+  return [...rows.values()].sort((a, b) => a.title.localeCompare(b.title))
+}
+
+// The one-line note under By Document. Zero-audience documents are excluded
+// by ruling (Gary, 2026-08-12) and the Library's Unassigned chip is their
+// annunciator; this note only COUNTS them, using the chip's own label function
+// so the two can never disagree about which documents are Unassigned. Every
+// other compliance document missing from the pivot has an audience that holds
+// nobody ACTIVE in this scope (a manager's other stores, an empty store, a
+// terminated grant-holder) — counted, never re-derived: it is simply "not
+// Unassigned and not in the pivot". Archived documents are not compliance
+// documents and are not counted at all.
+async function summarizeExcludedDocuments(
+  organizationId: string,
+  documents: DocumentComplianceRow[]
+): Promise<DocumentComplianceView> {
+  const candidates = await prisma.hrDocument.findMany({
+    where: complianceDocumentWhere(organizationId),
+    select: { id: true, appliesTo: true, ...AUDIENCE_INCLUDE },
+  })
+  const listed = new Set(documents.map((d) => d.documentId))
+  let unassignedExcluded = 0
+  let unreachedExcluded = 0
+  for (const d of candidates) {
+    if (listed.has(d.id)) continue
+    const unassigned =
+      hrAudienceLabel({
+        appliesTo: d.appliesTo,
+        storeGrants: d.grants.filter((g) => g.granteeType === GRANTEE_STORE).length,
+        staffGrants: d.grants.filter((g) => g.granteeType === GRANTEE_STAFF).length,
+      }) === "Unassigned"
+    if (unassigned) unassignedExcluded++
+    else unreachedExcluded++
+  }
+  return { documents, unassignedExcluded, unreachedExcluded }
 }
