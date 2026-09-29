@@ -2,10 +2,26 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-29 — DOC-10: search box for Individuals in the document audience dialog
+## 7308af0 — 2026-09-29 — DOC-10: search box for Individuals in the document audience dialog
 
-**Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push.
-It gets the merge SHA at promotion, on `main`, after the merge.
+**Merge SHA:** `7308af04ed4e72eb6f83254db0d08ca69dadb3cd`
+**Promoted 2026-09-29 12:28:09 -0700 (Pacific)**, which is `2026-09-29T19:28:09Z`,
+in `7308af0` ("Merge branch 'staging'"). THE SHA IS THE `--no-ff` MERGE COMMIT —
+parents `e4be68a` (the prior tip of `main`) and `3fc2b43` (the tip of `staging`) —
+and the rollback recipe reads the merge, not the tip of `main`. **3 commits** in
+`7308af0^1..7308af0^2`: `5ad5b6f`, `e9f9b34`, `3fc2b43` — read out of `git log`
+at this stamp, not hand-typed. `main` was level with `origin/main` at this
+stamp, so the merge is already pushed. Stamped post-merge on `main`, in the same
+commit that flips the DOC-10 row to `shipped`. One code file, no migration.
+
+**Rollback:** `git revert -m 1 7308af0` on `main`, then push. No database step.
+This supersedes the pre-merge `git revert 5ad5b6f` line below, kept in place.
+
+**Verification (Gary, 2026-09-29):** staging-verified before promotion;
+production checked after the deploy ("done and tested").
+
+**Pre-push text, preserved.** Written by the PRE-PUSH-CHECK before Gary's push,
+while the entry was unpromoted and staging only.
 
 **Payload: DOC-10 only.** Verified by `git log origin/main..staging` at this
 check, not read off headings. It showed exactly `5ad5b6f` and `e9f9b34`, and

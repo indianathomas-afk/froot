@@ -6865,16 +6865,27 @@ phases:
   - id: DOC-10
     track: hr
     size: S
+    # `staging` -> `shipped` 2026-09-29, stamped post-merge on `main` in the
+    # promotion commit after merge 7308af0 (DEPLOY_LOG entry `7308af0`).
     # `in_progress` -> `staging` 2026-09-29 BY THIS PRE-PUSH-CHECK. NOT PUSHED
     # AT THE MOMENT OF WRITING — Claude never pushes. Work, docs, and this
     # check's own commit — the commit immediately after e9f9b34, which cannot
     # name itself.
-    status: staging
+    status: shipped
+    shipped: 2026-09-29
     title: "Search box for Individuals in the document audience dialog"
     commits:
       - "5ad5b6f"
       - "e9f9b34"
+      - "3fc2b43"
     notes: >
+      SHIPPED — PROMOTED TO PRODUCTION 2026-09-29 in merge 7308af0
+      (7308af04ed4e72eb6f83254db0d08ca69dadb3cd; parents e4be68a and 3fc2b43;
+      7308af0^1..7308af0^2 is exactly 5ad5b6f, e9f9b34, 3fc2b43). Prepended;
+      nothing below is deleted. Rollback: git revert -m 1 7308af0. One code
+      file, no migration. Staging-verified by Gary before promotion;
+      production checked by Gary after the deploy ("done and tested"). The
+      "Verified by build gate only" line below predates both and is kept.
       ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs SHA e9f9b34 added; this check's own commit
       is the one immediately after it. No ruling from this phase (DECISIONS.md
