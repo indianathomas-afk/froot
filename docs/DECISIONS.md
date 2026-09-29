@@ -5,7 +5,15 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-09-28 — DOC-2: "who hasn't signed" is a section on /hr/compliance, reached by deep links (Claude — DRAFT)
+## 2026-09-28 — DOC-2: "who hasn't signed" is a section on /hr/compliance, reached by deep links (Gary)
+
+**RATIFIED AS WRITTEN by Gary, 2026-09-28, at the DOC-2 PRE-PUSH-CHECK.** The
+entry was printed verbatim and put to him; his whole reply, recorded exactly:
+*"Ratified as written."* It covers the three numbered points and the three
+flagged implementation choices below. Nothing below was changed; this paragraph
+is ADDITIVE at the head, and the "DRAFT — UNRATIFIED" marker below is superseded
+by it and preserved rather than edited. The heading read "(Claude — DRAFT)"
+until this ratification.
 
 **DRAFT — UNRATIFIED.** Recorded by the DOC-2 build session. The session
 prompt set the shape; these are not words Gary has said. They go to him at the

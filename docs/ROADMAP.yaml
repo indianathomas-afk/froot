@@ -6042,11 +6042,27 @@ phases:
   - id: DOC-2
     track: hr
     size: M
-    status: in_progress
+    status: staging
     title: "Per-document compliance view — who hasn't signed this document"
     commits:
       - "6401819"
+      - f59beb9
     notes: >
+      ── DOC-2 PRE-PUSH-CHECK 2026-09-28 — STATUS in_progress -> staging.
+      Prepended; NOTHING BELOW IS EDITED. Docs SHA "f59beb9" added to
+      commits:; this check's own commit is the commit immediately after
+      "f59beb9" (it cannot name itself). RULING: the DECISIONS DOC-2 entry
+      was RATIFIED AS WRITTEN by Gary ("Ratified as written."), covering the
+      shape and the three flagged implementation choices. EXCLUDED NOTE
+      CONFIRMED for a MANAGER (Gary's check 1): "no audience" (Unassigned)
+      and "has an audience, nobody active in your stores" are separate counts
+      and separate sentences; the second also covers an in-store audience with
+      nobody active, and its wording is true of both. GUIDE: the Team Members
+      line in docs/guide/hr-compliance.md corrected to R2 — an earlier-version
+      signature still counts; a new version re-prompts only when it requires
+      re-acknowledgment. docs/prompts/DOC-2.md committed. DEPLOY_LOG entry
+      written UNPROMOTED. Status is staging on the understanding that Gary
+      pushes next; Claude has not pushed.
       ── DOC-2 BUILT 2026-09-28 — STATUS planned -> in_progress at "6401819"
       (work commit). Prepended; NOTHING BELOW IS EDITED. Committed on staging,
       NOT pushed; staging does not have it until Gary pushes.

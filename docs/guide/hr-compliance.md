@@ -51,9 +51,10 @@ Unassigned. Archived documents are not listed either.
 
 Per person, what is outstanding.
 
-Someone can appear here without having missed anything. A document reissued as a
-new version returns to everyone's outstanding list, because a signature is pinned
-to the version that was signed.
+Someone can appear here without having missed anything. A signature on an
+earlier version of a document still counts when a new version is issued. The
+document returns to everyone's outstanding list only when the new version is
+marked as needing everyone to sign again.
 
 ## Agreement Forms
 

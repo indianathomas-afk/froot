@@ -2,6 +2,37 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-09-28 — DOC-2: By Document on /hr/compliance — who hasn't signed each document
+
+**Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push;
+stamped with the merge SHA at promotion, on `main`, after the merge.
+
+**Payload: DOC-2 only.** Three commits on `staging` ahead of `origin/staging`,
+and the same three are everything on `staging` not on `main` (`main` =
+`cf84237`; `git log staging..main` empty):
+
+| Commit | What it is |
+|---|---|
+| `6401819` | DOC-2 work — By Document section on `/hr/compliance`, "Signing status" deep links on the Library and `/hr/documents/[id]`, guide section, fixture |
+| `f59beb9` | `docs(DOC-2)`: ROADMAP row to `in_progress`, DECISIONS draft |
+| the commit immediately after `f59beb9` | `docs(DOC-2 PRE-PUSH-CHECK)`: this entry, ruling ratified, row to `staging`, guide R2 fix, session prompt |
+
+**READ-ONLY. NO API ROUTE, NOTHING UNDER `prisma/`, NO AUTH CHANGE.**
+`git diff cf84237 HEAD -- prisma src/app/api` is empty. The section lives on a
+page that was already ADMIN + MANAGER, under that page's existing store scope.
+The one new query is a read (the excluded-document count). The pivot is pure
+over the rollup's existing per-person items; the KPI cards, By Store and Team
+Members compute exactly as before.
+
+**Rollback:** `git revert -m 1 <merge>` on `main`, then push. No database step.
+
+**Evidence so far:** `scripts/verify-doc2-by-document.ts` on dev
+`br-broad-wave-a6vpjdw0`, 36/36, including the invariant (Σ Y = document items,
+Σ X = complete items) at org scope (13/5) and manager scope (8/3). Staging
+evidence is Gary's, after the push, per the DOC-2 staging test plan.
+
+**Ruling:** DECISIONS.md, DOC-2 entry, 2026-09-28 — ratified as written.
+
 ## 5c3c6c6 — 2026-09-28 — SIGNED-1: Signed Records filter by category and document, sort by date, lift the 50 cap
 
 **Merge SHA:** `5c3c6c6650e3477f5c13dd414327730026473b6c`
