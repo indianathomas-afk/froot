@@ -5,6 +5,81 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-09-28 — DOC-6: the key register is an append-only return event against the signed Key Agreement (Gary — DRAFT entry)
+
+**DRAFT ENTRY — THE RULINGS ARE GARY'S, THE ENTRY IS UNRATIFIED.** Gary gave
+the rulings in chat on 2026-09-28, in answer to `docs/prompts/DOC-6_AUDIT.md`.
+They are quoted verbatim below. The build session wrote this entry; Gary
+ratifies its wording, and the implementation choices flagged under it, at the
+PRE-PUSH-CHECK.
+
+> DOC-6 rulings: R0, on production the Key Agreement is an uploaded document
+> under /hr/documents, category Logs (Employee Key Agreement Form.pdf, uploaded
+> Sep 28), so F1 = A. F2 and F3 as leaned, with the toggle on uploaded
+> documents only and duplicate events refused. F4 confirmed as written:
+> holding is judged per person per document, across all versions and cycles; a
+> key physically issued is held until returned, whatever re-signing happened
+> since. F5, F6 and F7 as leaned. R1: a person holds the key when their latest
+> issue (signature or Reissued) is later than their latest Returned, ordered by
+> when each was recorded. R2: archived key documents keep their holders listed
+> as "(archived)"; Mark returned still works and Reissue doesn't.
+
+And, at the migration stop (2026-09-29): "Keep recordedByName."
+
+**What "as leaned" means, from the DOC-6 prompt's forks (Gary's pre-filled
+leans):**
+
+- **F1 = A:** a new append-only `HrReturnEvent` table against the signed Key
+  Agreement, not the Check-Out/Check-In form pair. A return can't be a column
+  on `HrSignedRecord`, which is append-only (HR-4).
+- **F2:** `HrDocument.tracksReturn` (default false) plus an optional
+  `returnItemLabel`, set on the edit dialog. It is never keyed off the "Logs"
+  category, which can be renamed (DOC-5).
+- **F3:** Returned | Reissued, `occurredOn` (a date), an optional note, and who
+  recorded it. There is no update or delete; a mistake is corrected by
+  appending the opposite event. FKs are Restrict and annotated.
+- **F5:** ADMIN, or a MANAGER for staff in their stores. STAFF and STORE can't.
+- **F6:** a Key Register on `/hr/compliance` below By Document, the holdings on
+  `/staff/[id]`, and a **non-blocking** warning in the terminate flow.
+- **F7:** terminated holders stay in the register, flagged
+  "Terminated — not returned".
+
+**Two deliberate differences from compliance, both ruled:**
+
+- F4 judges holding across cycles; compliance judges per cycle.
+- F7 includes terminated staff; compliance counts active staff only.
+
+A held key is not a compliance gap and changes no compliance number.
+
+**Claude's implementation choices, flagged for ratification:**
+
+- **`recordedByUserId` is a plain id with no FK,** plus a `recordedByName`
+  snapshot (the latter kept by Gary). User rows are hard-deleted
+  (`api/users/[id]/route.ts:372`); this follows the `retiredByUserId` pattern.
+- **The event type is a Postgres enum,** `HrReturnEventType`.
+- **Status codes on `POST /api/hr/returns`:**
+  - 403 for STAFF and STORE, checked before any lookup;
+  - 404 for a cross-org or unknown id, or a document without `tracksReturn`;
+  - 403 for an out-of-scope manager, via `canReadHrSignedRecord`, the HR-7
+    rule 5 tier;
+  - 409 for a duplicate event, a person with no signed record, or a Reissue on
+    an archived document;
+  - 400 for a date more than a day in the future.
+- **Double clicks are refused, simultaneous clicks are not.** There's no lock
+  or transaction. Two rows from a race don't change the holding answer, and the
+  app has no interactive-transaction precedent to follow.
+- **The key number is shown from Field checkpoints.** The register shows every
+  non-retired Field checkpoint's answer on the person's most recent signed
+  record, labelled by checkpoint name. There's no per-document setting, so a
+  document without a Field checkpoint shows none.
+- **Who a manager sees** in the register: people assigned to one of their
+  stores. That's the same overlap the POST route checks, so every row a manager
+  sees can be acted on. Corporate staff with no store assignment are
+  admin-only.
+- **"Completed every step but the signed PDF isn't created yet" doesn't count
+  as holding** (audit COMMENT). The PDF is created straight away, and creating
+  it again changes nothing.
+
 ## 2026-09-28 — DOC-2: "who hasn't signed" is a section on /hr/compliance, reached by deep links (Gary)
 
 **RATIFIED AS WRITTEN by Gary, 2026-09-28, at the DOC-2 PRE-PUSH-CHECK.** The

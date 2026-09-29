@@ -6723,9 +6723,56 @@ phases:
   - id: DOC-6
     track: hr
     size: M
-    status: planned
+    status: in_progress
     title: "Key holder register — who holds a key now, from the signed Key Agreement plus a return event"
+    commits:
+      - "65ca616"
     notes: >
+      ── DOC-6 BUILT 2026-09-29 — STATUS planned -> in_progress at "65ca616"
+      (work commit). TIER 3. Prepended; NOTHING BELOW IS EDITED. Committed on
+      staging, NOT pushed; staging does not have it until Gary pushes, and the
+      migration reaches staging through that push's vercel-build.
+      RULINGS. Gary, 2026-09-28, in answer to docs/prompts/DOC-6_AUDIT.md:
+      R0 (production's Key Agreement is an uploaded Acknowledgment, "Employee
+      Key Agreement Form.pdf", category Logs), so F1 = A; F2-F7 as leaned; F4
+      confirmed as written; R1 (latest issue vs latest Returned, by when
+      recorded); R2 (archived keeps holders, Returned yes, Reissue no).
+      Verbatim in docs/DECISIONS.md (2026-09-28, DOC-6, DRAFT entry), with
+      Claude's implementation choices flagged for the PRE-PUSH-CHECK.
+      SCHEMA. Migration 20260928222624_doc6_key_return_register, applied to
+      dev by Gary 2026-09-29: HrDocument.tracksReturn (default false) +
+      returnItemLabel; new append-only HrReturnEvent (Returned | Reissued).
+      Additive only. docs/MIGRATIONS.md entry.
+      WHAT SHIPPED. src/lib/hr-returns.ts holds the one holding rule
+      (isHolding) and one loader used by every surface. POST
+      /api/hr/returns (POST only): ADMIN or in-scope MANAGER via
+      canReadHrSignedRecord; STAFF/STORE 403; duplicates and archived
+      Reissue 409. "Tracks return" + label on the document edit dialog
+      (Acknowledgment only; PATCH 400s the flag on other kinds). Key Register
+      on /hr/compliance below By Document; Issued Items on /staff/[id] with
+      Mark returned / Reissue and the event history; non-blocking warning in
+      the Terminate dialog. Staff DELETE counts return events (409). Guide:
+      "Key Register" in docs/guide/hr-compliance.md.
+      VERIFIED. scripts/verify-doc6-key-register.ts on dev
+      br-broad-wave-a6vpjdw0: 48/48, throwaway org removed and re-queried.
+      Expected values from the rulings. The 403s are asserted on
+      canRecordReturn plus a read of the route source, since Clerk auth can't
+      run in a fixture; the HTTP 403 is staging test 5. No browser check was
+      run: the surfaces are Clerk-authed and the prompt forbids temporary
+      public preview pages.
+      STAGING TEST PLAN (as indianathomas). (1) Tracks return on, label
+      "Key", for a document signed by 1-2 people; they show holding. (2) Mark
+      one returned; they leave the list and the event shows on /staff/[id].
+      (3) Reissue; they're back. (4) Start terminating a holder; the warning
+      lists the key; cancel. (5) As Tommy (STORE), POST /api/hr/returns: 403.
+      FINDINGS. FIX NOW 2, both done: the staff DELETE guard and the
+      Acknowledgment-only toggle. COMMENT 4: Square-sync terminations get no
+      warning (F7's flag catches them); a person who completed every step
+      before their signed PDF exists doesn't count as holding (the PDF is
+      created immediately); the key number shows only when the document has
+      a Field checkpoint; dev's only Key Agreement is HR-5's FillableForm
+      pair (seed-key-agreement.ts), so dev and production differ in shape,
+      which is expected. ROW 0.
       FILED 2026-09-28 from Gary's message of that day ("Agreed"), alongside
       SIGNED-1. Scope as the SIGNED-1 prompt worded it: who currently holds a
       key — issue recorded by the signed Key Agreement, plus a return event.
