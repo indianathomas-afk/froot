@@ -5,6 +5,74 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-15 — MS-1: Staff Milestones foundation (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Rulings
+1–5 reached the build session through the session prompt
+(`docs/prompts/2026-10-15_MS-1_milestones_foundation.md`, "Gary's rulings
+(2026-10-15)"). The wording below is the PROMPT'S, transcribed as given. The
+fork rulings that follow are Gary's own words in the session chat, quoted
+exactly.
+
+1. Toggle stays on /settings. Only ADMINs see the Milestone setup page.
+2. The Raise Eligibility badge is visible to ADMIN and MANAGER only.
+   STORE and STAFF never see it.
+3. Notifications go to ADMINs and MANAGERs only. Froot never emails
+   employees. Each milestone carries a suggested employee message with a
+   Copy button; the manager pastes it into an existing email system
+   (e.g. mail.keva.com).
+4. Once a raise is completed, the Raise Eligibility badge goes away. An
+   ADMIN sets a cooldown on the setup page (30 / 60 / 90 / 180 / custom
+   days) before the employee can become eligible again.
+5. The 100%-initial-compliance gate is an ADMIN toggle. Tenure milestones
+   ALWAYS count from the start date, whatever the toggle says. The gate
+   applies to raise eligibility only.
+
+**Fork rulings — Gary, in chat 2026-10-15, after the MS-1 audit
+(`docs/prompts/2026-10-15_MS-1_AUDIT.md`).** Recorded exactly:
+
+- F0: *"Build without the bundle. Use existing Froot screens as the pattern
+  (Calendar card, /staff/engagement layout). I'll review on staging. The
+  design bundle comes before MS-2/MS-3."*
+- F1: *"Approved as your lean. Same gate as Compliance; STORE and STAFF see
+  no tab at all."*
+- F2: *"Approved as your lean. ADMIN, and MANAGER for their stores. Raise
+  eligibility runs on hours and on-time %, not tenure, so a start-date edit
+  doesn't move the raise clock."*
+- F3: *"Yes. Snapshot on every sync, accepting that syncs are manual for
+  now."*
+- F4: *"Approved, including the rehire note. Tenure counts through the gap
+  until an admin edits the start date."*
+- F5: *"Yes. Milestones is part of HR; HR off means Milestones off
+  everywhere."*
+- F6: *"Yes. Fill start date from Square created_at only when it hasn't been
+  hand-edited."*
+- *"Relabel "Member Since" to "Added to Froot": yes."*
+- *"isArchived instead of archivedAt, and duplicate day counts blocked in
+  code: yes."*
+
+**Claude's implementation choices (not rulings — listed so they can be
+overruled):**
+
+- **F3's "on every sync" means a snapshot is ATTEMPTED on every sync and
+  WRITTEN only when pay type or rate changed.** That is the audit's lean
+  ("only when the wage differs from the last snapshot"), and the ruling's
+  wording doesn't settle it. jobId and wageVersion are stored but don't
+  trigger a row: a version bump at the same pay isn't a raise. If Gary meant
+  one row per member per sync, it is a one-line change in `writeWageSnapshots`.
+- **Any hand edit of the start date, including clearing it, sets
+  `startDateManual`.** A cleared date then stays cleared, and Square doesn't
+  refill it.
+- **The start date shows and is editable whether or not Milestones is on.**
+  It sits on /staff/[id], which is already HR-gated. It is staff data that
+  Milestones reads, not a Milestones control, so an admin can enter dates
+  before switching the feature on. The ruled "off" list (tab, page, link,
+  APIs) is all off.
+- **Square `created_at` becomes a date in the member's primary-store zone,
+  else the org's**, never by slicing the UTC string.
+- **The /staff/[id] tab row wraps at phone width** (`flex-wrap h-auto`, the
+  inventory/reports precedent). With six tabs the row was wider than a phone.
+
 ## 2026-09-29 — DOC-11: Preview on the Document Library (Gary)
 
 **RATIFIED BY GARY, 2026-09-29, at the DOC-11 PRE-PUSH-CHECK.** The entry was

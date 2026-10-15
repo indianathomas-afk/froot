@@ -7025,6 +7025,91 @@ phases:
       (:188, :278), so the audience check that serves it is the one preview
       would get. Cross-refs: DOC-11.
 
+  - id: MS-1
+    track: hr
+    size: L
+    status: in_progress
+    title: "Staff Milestones foundation — toggle, tenure milestones, start date, Milestones tab"
+    commits:
+      - "4f21157"
+    blockers:
+      - >
+        UNVERIFIED ON STAGING. Everything below is dev-level evidence: the
+        fixture (70/70 on dev br-broad-wave-a6vpjdw0) and a green build. No
+        route was refused by a real request and no pixel was looked at. Staging
+        must check: /settings toggle on/off; /staff/milestones add, edit,
+        archive and restore; a staff member's Milestones tab at desktop and
+        phone width; Tommy (STORE) sees no tab; a start-date edit persists.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-15 — MS-1, to be
+        ratified at the PRE-PUSH-CHECK.
+    notes: >
+      TIER 3, 2026-10-15. Prompt: docs/prompts/2026-10-15_MS-1_milestones_foundation.md.
+      Audit and plan: docs/prompts/2026-10-15_MS-1_AUDIT.md (9a9b9c3). Migration
+      20261015171226_ms1_milestones_foundation is applied to DEV ONLY, by Gary
+      (docs/MIGRATIONS.md). WHAT SHIPPED: Organization.milestonesEnabled
+      (/settings card, Calendar shape, ADMIN route); milestones.manage
+      (ADMIN_ONLY, not grantable, not deniable); /staff/milestones with the
+      tenure milestone list (add, edit, archive, restore) and "Coming soon"
+      cards with no controls for Attendance, Raise eligibility and Checklists;
+      StaffMember.startDate (@db.Date) and startDateManual, editable in the
+      staff Edit dialog under staff.manage (F2), filled from Square created_at
+      in the store-local date only while not hand-edited (F6); "Member Since"
+      relabelled "Added to Froot"; the Milestones tab on /staff/[id] (F1:
+      Compliance tier, and no trigger at all for anyone else); WageSnapshot (F3),
+      written in the roster sync when pay changes, with no reader yet.
+      MILESTONES IS PART OF HR (F5): HR unavailable or off means every
+      milestone surface is off, and the APIs answer 404. Achieved milestones
+      are COMPUTED from startDate + dayCount in the store-local date
+      (src/lib/milestones.ts). There is no achieved table. NO DESIGN BUNDLE
+      EXISTED (F0). The UI is composed from existing Froot screens, and Gary
+      reviews it on staging. The bundle is owed before MS-2 and MS-3.
+
+  - id: MS-2
+    track: hr
+    status: planned
+    title: "Staff Milestones — attendance milestones"
+    notes: >
+      FILED 2026-10-15 by the MS-1 build session, from the MS-1 prompt's scope
+      list ("Attendance (MS-2)"). The /staff/milestones placeholder card is the
+      only thing built. DESIGN BUNDLE REQUIRED FIRST (Gary, F0 2026-10-15:
+      "The design bundle comes before MS-2/MS-3"). Cross-refs: MS-1.
+
+  - id: MS-3
+    track: hr
+    status: planned
+    title: "Staff Milestones — raise eligibility (hours + on-time %), badge, cooldown"
+    notes: >
+      FILED 2026-10-15 by the MS-1 build session. Draft rulings 2, 4 and 5
+      (docs/DECISIONS.md 2026-10-15 — MS-1) govern it: the badge is for
+      ADMIN and MANAGER only, the cooldown is set by an ADMIN, and the
+      100%-initial-compliance gate applies to raise eligibility only. Gary,
+      F2: "Raise eligibility runs on hours and on-time %, not tenure". THE
+      RAISE HISTORY INPUT EXISTS: WageSnapshot (MS-1, F3) has been written on
+      every roster sync since MS-1 shipped. Any reader MUST apply
+      SquareTeamMemberWage.compConfidential (COMP-1). DESIGN BUNDLE REQUIRED
+      FIRST (F0). Cross-refs: MS-1, COMP-1.
+
+  - id: MS-4
+    track: hr
+    status: planned
+    title: "Staff Milestones — checklist milestones, ADMIN/MANAGER notifications, Copy-message button"
+    notes: >
+      FILED 2026-10-15 by the MS-1 build session. Draft ruling 3: notifications
+      go to ADMINs and MANAGERs only, Froot never emails employees, and the
+      Copy button copies the milestone's suggested employee message
+      (TenureMilestone.employeeMessage, already stored by MS-1). MS-4 adds
+      whatever it needs to notify exactly once. MS-1 deliberately has no
+      "achieved" table. Cross-refs: MS-1.
+
+  - id: MS-5
+    track: hr
+    status: planned
+    title: "Staff Milestones — report"
+    notes: >
+      FILED 2026-10-15 by the MS-1 build session, from the MS-1 prompt's scope
+      list ("the report (MS-5)"). Scope not yet defined. Cross-refs: MS-1.
+
   - id: HR-27
     track: hr
     size: L

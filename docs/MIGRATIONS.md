@@ -1197,3 +1197,46 @@ new row.
 **Fixture:** `scripts/verify-doc6-key-register.ts`, 48/48 on dev
 `br-broad-wave-a6vpjdw0` against the applied schema. The throwaway org was
 removed and the removal confirmed by re-query.
+
+## 2026-10-15 — `20261015171226_ms1_milestones_foundation` (MS-1)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-15 with `prisma migrate
+deploy` from `froot/`, against host `ep-late-water-a6k53nv2` (branch
+`br-broad-wave`), and reported "All migrations have been successfully
+applied". **One discrepancy is recorded rather than smoothed over:** the
+session's first `migrate diff --from-config-datasource --to-schema` after
+Gary's first report still returned the whole migration, so dev did not yet
+hold it at that moment. The session stopped and asked. Gary re-confirmed the
+host and the apply, and the next diff returned `-- This is an empty
+migration.` The most likely reading is that the first check ran before his
+apply had landed. It is not proven. Staging and production get the migration
+through `prisma migrate deploy` in the Vercel build, on Gary's push.
+
+Prisma commands the session ran: `format`, `validate`, `generate`, and
+`migrate diff` (five runs: two at the audit, one to generate this file, and
+two level-checks after the apply). It ran no other prisma command.
+
+| Statement | Kind |
+|---|---|
+| `Organization.milestonesEnabled` `BOOLEAN NOT NULL DEFAULT false` | additive; every org lands off |
+| `StaffMember.startDate` `DATE` (nullable) | additive, nullable |
+| `StaffMember.startDateManual` `BOOLEAN NOT NULL DEFAULT false` | additive |
+| `CREATE TABLE "TenureMilestone"` + index `(organizationId, isArchived)` | additive |
+| `CREATE TABLE "WageSnapshot"` + index `(organizationId, squareTeamMemberId, capturedAt)` | additive |
+| FKs `TenureMilestone_organizationId_fkey`, `WageSnapshot_organizationId_fkey` `ON DELETE RESTRICT` | additive |
+
+**No drops, no renames, no type changes, no backfill.** `startDate` stays null
+until a Square import or resync fills it from the team member's `created_at`,
+or someone types it in.
+
+**No partial unique index, by ruling.** "No two active milestones share a
+dayCount" is enforced in `src/lib/milestones-db.ts` (Gary, 2026-10-15). A
+`WHERE NOT "isArchived"` index cannot be expressed in `schema.prisma`, so every
+later `migrate diff` would propose dropping it.
+
+**The pre-check was clean.** Before the schema edit, the audit's diff against
+dev returned an empty migration, so this file holds only MS-1's change.
+
+**Fixture:** `scripts/verify-ms1.ts`, 70 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was
+confirmed level.
