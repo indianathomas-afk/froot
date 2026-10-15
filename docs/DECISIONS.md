@@ -5,7 +5,70 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-15 — MS-1: Staff Milestones foundation (Gary — DRAFT entry)
+## 2026-10-15 — MS-1: Staff Milestones foundation (Gary)
+
+**FINAL — GARY, IN CHAT 2026-10-15, after the MS-1 build.** He reviewed the
+two implementation choices below and wrote, exactly: *"Rulings on the two
+DECISIONS items: both accepted, with additions."* and *"Update the DECISIONS
+draft to final with these rulings, then continue."* The heading was de-drafted
+and this paragraph was added at the head. The "DRAFT ENTRY" marker below is
+kept as written and superseded by this paragraph. Until now the heading read
+"(Gary — DRAFT entry)". Rulings 1–5 still carry the PROMPT'S wording, now
+ratified by that instruction.
+
+**Additions ruled with the acceptance — Gary's words, recorded exactly:**
+
+- *"Wage snapshots (change-only): accepted. Also write one baseline snapshot
+  per employee on the first sync after this ships, so everyone has a starting
+  row even if their pay never changes. Confirm wage history is only visible to
+  roles and stores already allowed to see that employee's pay."*
+- *"Start date editable while Milestones is off: accepted. Also add a
+  "manually set" flag when an admin edits the start date, and show the
+  Square-synced value next to it so a later Square correction is visible."*
+- *"Calculate tenure in each store's time zone, not hardcoded Pacific. The
+  Colorado Springs stores are Mountain time. Add a test for a Mountain-time
+  store at late evening, and one that crosses a DST change."*
+- *"Define and test what happens to milestones an employee already reached
+  when that milestone is archived. Past achievements should stay on record."*
+
+**How each was carried out (Claude):**
+
+- **Baseline snapshot.** Already the behaviour. "Changed" is measured against
+  the member's latest snapshot, and a member with none counts as changed, so
+  the first sync after MS-1 ships writes one row for every member, including
+  anyone whose pay never changes. The fixture pins it with two never-changing
+  members (one baseline each, nothing on the next sync).
+- **Wage history visibility.** Today it is visible to NOBODY. WageSnapshot has
+  no reader, no route and no page, and its writer returns only a count. The
+  fixture fails if any file in `src/` other than `src/lib/labor-roster.ts`
+  names the table. MS-3's reader must apply all three existing pay gates:
+  `canSeeWages` (labor.costs.view and the overlay), the viewer's store scope,
+  and COMP-1 `compConfidential`. It must also be added to that check
+  deliberately.
+- **"Manually set" flag and Square's value.** The flag already existed
+  (`startDateManual`). It now shows on the profile as a "Manually set" badge.
+  A new column, `StaffMember.squareStartDate`, records Square's date on every
+  import and resync, whether or not the date was set by hand (the
+  `squareFullName` shape). The profile shows "Square: <date>" under a hand-set
+  date, in warning text with "differs from the date set here" when the two
+  disagree. Tenure never counts from `squareStartDate`.
+- **Each store's time zone.** The MS-1 code already counted in the member's
+  primary store's own `Store.timezone`, then the org's (`displayTimeZone`).
+  Nothing assumed Pacific; only the fixture did. Measured on dev
+  (`br-broad-wave-a6vpjdw0`), org `cf888f2d-f234-48c7-8097-fd5b44b5b3dd` has 2
+  stores on `America/Denver` and 7 on `America/Los_Angeles`. The fixture now
+  covers Mountain time at 23:30 and 00:30 (the hour when Denver and Pacific
+  disagree), fall-back and spring-forward crossings, and which zone a member is
+  counted in. A corporate member is counted in the org's zone.
+- **Archived milestones.** DEFINED: an archived milestone stays in a member's
+  achieved list, labelled "Archived milestone", when they reached it on or
+  before the store-local date it was archived. Nobody reaches it after that
+  date, and it is never anyone's "next". This needs the archive's DATE, so
+  `TenureMilestone.archivedAt` was added BESIDE `isArchived`, which stays the
+  flag every query filters on (the earlier ruling stands). It is stamped on
+  archive, unchanged by a later re-save, and cleared on restore. An archived row
+  with no date counts for nobody. That only arises for rows archived before
+  this column existed, and there are none outside dev.
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Rulings
 1–5 reached the build session through the session prompt
@@ -51,8 +114,8 @@ exactly.
 - *"isArchived instead of archivedAt, and duplicate day counts blocked in
   code: yes."*
 
-**Claude's implementation choices (not rulings — listed so they can be
-overruled):**
+**Claude's implementation choices — the first two ACCEPTED by Gary
+2026-10-15 with the additions above; the rest stand unchallenged:**
 
 - **F3's "on every sync" means a snapshot is ATTEMPTED on every sync and
   WRITTEN only when pay type or rate changed.** That is the audit's lean

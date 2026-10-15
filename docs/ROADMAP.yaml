@@ -7032,7 +7032,24 @@ phases:
     title: "Staff Milestones foundation — toggle, tenure milestones, start date, Milestones tab"
     commits:
       - "4f21157"
+      - "6d8c52a"
+      - "145fc74"
     blockers:
+      - >
+        UNVERIFIED ON STAGING — RE-STATED 2026-10-15 AFTER 145fc74, WHICH IS THE
+        CURRENT EVIDENCE: verify-ms1 97/97 on dev br-broad-wave-a6vpjdw0 and a
+        green build, both still dev-level. The staging pass must ALSO cover:
+        Gary's Neon-console checks on the staging branch BEFORE and AFTER the
+        deploy (latest five _prisma_migrations rows, both MS-1 migrations
+        finished, none rolled back; Store name/timezone, the Colorado stores on
+        America/Denver); and REAL-REQUEST API checks from the browser console
+        as Tommy (STORE) and as an out-of-scope MANAGER (GET/POST
+        /api/milestones/tenure and POST /api/milestones/toggle: 403 with
+        Milestones on, 404 for the tenure routes with it off, the toggle 403
+        either way; out-of-scope /staff/[id] is a 404 page). Also: the
+        "Manually set" badge and the Square date beneath it; an archived
+        milestone staying in a veteran's history. The entry below is the
+        original and is kept as written.
       - >
         UNVERIFIED ON STAGING. Everything below is dev-level evidence: the
         fixture (70/70 on dev br-broad-wave-a6vpjdw0) and a green build. No
@@ -7040,10 +7057,31 @@ phases:
         must check: /settings toggle on/off; /staff/milestones add, edit,
         archive and restore; a staff member's Milestones tab at desktop and
         phone width; Tommy (STORE) sees no tab; a start-date edit persists.
-      - >
-        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-15 — MS-1, to be
-        ratified at the PRE-PUSH-CHECK.
+      - resolved: true
+        text: >
+          RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-15 — MS-1, to be
+          ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── RIDER 2026-10-15 (145fc74). PREPENDED; NOTHING BELOW IS EDITED. ──
+      GARY MADE THE DECISIONS ENTRY FINAL, IN CHAT: "Rulings on the two
+      DECISIONS items: both accepted, with additions." His additions were folded
+      into MS-1 before the PRE-PUSH-CHECK. (1) StaffMember.squareStartDate
+      records Square's date on every import and resync, and the profile shows
+      "Manually set" with the Square date beneath a hand-set date. (2) An
+      archived milestone stays in a member's history when they reached it on or
+      before its store-local archive date. TenureMilestone.archivedAt sits
+      BESIDE isArchived, which every query still filters on. (3) Tenure was
+      already counted in each member's own store zone. The fixture now proves
+      Mountain time and both DST crossings. Dev has 2 America/Denver stores in
+      org cf888f2d-f234-48c7-8097-fd5b44b5b3dd. (4) A baseline wage snapshot
+      per member on the first sync is pinned. WageSnapshot has no reader, so
+      nobody can see wage history. (5) /staff/milestones help is claimed in
+      docs/guide/staff.md; the guide warning still lists 43 routes, all
+      unclaimed before MS-1. (6) The stale .next/dev/types stubs were deleted
+      and tsc is clean. SECOND MIGRATION:
+      20261015183554_ms1_start_date_square_archived_at, applied to DEV ONLY by
+      Gary. NO STAGING CREDENTIALS ON DISK (agreed by Gary): staging migration
+      state is checked by Gary in the Neon console, not by prisma from here.
       TIER 3, 2026-10-15. Prompt: docs/prompts/2026-10-15_MS-1_milestones_foundation.md.
       Audit and plan: docs/prompts/2026-10-15_MS-1_AUDIT.md (9a9b9c3). Migration
       20261015171226_ms1_milestones_foundation is applied to DEV ONLY, by Gary

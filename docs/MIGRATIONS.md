@@ -1240,3 +1240,35 @@ dev returned an empty migration, so this file holds only MS-1's change.
 **Fixture:** `scripts/verify-ms1.ts`, 70 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was
 confirmed level.
+
+## 2026-10-15 — `20261015183554_ms1_start_date_square_archived_at` (MS-1, additions)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-15 with `prisma migrate
+deploy`, against host `ep-late-water-a6k53nv2` (branch `br-broad-wave`), and
+reported "applied". The session then ran `migrate diff --from-config-datasource
+--to-schema` against dev, which returned `-- This is an empty migration.` Dev
+matches the schema. Staging and production get the migration through `prisma
+migrate deploy` in the Vercel build, on Gary's push. **There is no prisma check
+from this machine against staging.** No staging credentials are on disk, by
+CLAUDE.md and as Gary agreed 2026-10-15. Gary checks staging's
+`_prisma_migrations` in the Neon console before and after the deploy.
+
+Prisma commands for this migration: `format`, `validate`, `generate`, and
+`migrate diff` (twice: once to generate this file, once for the level-check
+after the apply).
+
+| Statement | Kind |
+|---|---|
+| `StaffMember.squareStartDate` `DATE` (nullable) | additive, nullable |
+| `TenureMilestone.archivedAt` `TIMESTAMP(3)` (nullable) | additive, nullable |
+
+**No drops, no renames, no type changes, no backfill.** The generated diff held
+exactly these two statements, which also confirmed that dev already had
+`20261015171226_ms1_milestones_foundation`. An archived milestone with a null
+`archivedAt` counts for nobody (`src/lib/milestones.ts`). That only arises for
+rows archived on dev before this column existed. Staging and production have
+none, because MS-1 was never on them before this.
+
+**Fixture:** `scripts/verify-ms1.ts`, 97 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was
+confirmed level.
