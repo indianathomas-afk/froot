@@ -32,15 +32,17 @@ export function squareStartZone(
   return store?.timezone ?? orgTimeZone ?? DEFAULT_TIME_ZONE
 }
 
-/** THE ONE RULE both Square resync routes apply (F6): a hand-edited start date
- *  is never touched; otherwise Square's created_at fills it when Square has
- *  one. Returns the Prisma `data` fragment — {} means "write nothing". */
+/** THE ONE RULE both Square resync routes apply (F6, plus Gary 2026-10-15):
+ *  Square's date is ALWAYS recorded in squareStartDate, so a later Square
+ *  correction is visible beside a hand-set date; it becomes the working
+ *  startDate only when that has not been hand-edited. Returns the Prisma `data`
+ *  fragment — {} when Square gave no usable created_at. */
 export function squareStartDateData(
   startDateManual: boolean,
   createdAt: string | null | undefined,
   timeZone: string
-): { startDate: Date } | Record<string, never> {
-  if (startDateManual) return {}
-  const startDate = startDateFromSquare(createdAt, timeZone)
-  return startDate ? { startDate } : {}
+): { squareStartDate: Date; startDate?: Date } | Record<string, never> {
+  const squareStartDate = startDateFromSquare(createdAt, timeZone)
+  if (!squareStartDate) return {}
+  return startDateManual ? { squareStartDate } : { squareStartDate, startDate: squareStartDate }
 }

@@ -628,15 +628,24 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   let milestoneProgress: TenureProgress | null = null
   let hasMilestones = false
   if (showMilestonesTab) {
-    const milestones = await prisma.tenureMilestone.findMany({
-      where: { organizationId: member.organizationId, isArchived: false },
-      select: { id: true, dayCount: true, title: true, recognition: true, employeeMessage: true },
+    // ACTIVE AND ARCHIVED rows: an archived milestone a member reached on or
+    // before its archive date stays in their history (Gary, 2026-10-15). The
+    // empty state ("no milestones set up") asks about ACTIVE rows only.
+    const rows = await prisma.tenureMilestone.findMany({
+      where: { organizationId: member.organizationId },
+      select: { id: true, dayCount: true, title: true, recognition: true, employeeMessage: true, isArchived: true, archivedAt: true },
     })
-    hasMilestones = milestones.length > 0
-    // STORE-LOCAL, NEVER UTC (the CAL-2a rule). `zone` is this member's display
-    // zone — primary store, then org. A terminated member's count stops at
-    // their termination date in that same zone (F4).
+    hasMilestones = rows.some((r) => !r.isArchived)
+    // STORE-LOCAL, NEVER UTC (the CAL-2a rule). `zone` is THIS MEMBER'S zone —
+    // their primary store's own Store.timezone (America/Denver for a Colorado
+    // store), then the org's. Nothing here assumes Pacific. A terminated
+    // member's count stops at their termination date in that same zone (F4),
+    // and an archive instant becomes a date in that zone too.
     const now = new Date()
+    const milestones = rows.map((r) => ({
+      ...r,
+      archivedOn: r.isArchived && r.archivedAt ? localDateStr(r.archivedAt, zone) : null,
+    }))
     milestoneProgress = tenureProgress({
       startDate: member.startDate ? dateColumnStr(member.startDate) : null,
       today: localDateStr(now, zone),
@@ -833,7 +842,26 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 <dt className="text-[var(--color-muted-foreground)]">Start Date</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">
                   {member.startDate ? formatCivilDate(member.startDate, "long") : "—"}
+                  {/* Gary, 2026-10-15: flag a hand-set date, and show what
+                      Square says beside it so a later Square correction is
+                      visible rather than silently ignored. */}
+                  {member.startDateManual && (
+                    <Badge variant="secondary" className="ml-2 align-middle">Manually set</Badge>
+                  )}
                 </dd>
+                {member.startDateManual && member.squareStartDate && (
+                  <p
+                    className={`text-xs mt-0.5 ${
+                      member.startDate && dateColumnStr(member.startDate) === dateColumnStr(member.squareStartDate)
+                        ? "text-[var(--color-muted-foreground)]"
+                        : "text-[var(--color-warning-text)]"
+                    }`}
+                  >
+                    Square: {formatCivilDate(member.squareStartDate, "long")}
+                    {!(member.startDate && dateColumnStr(member.startDate) === dateColumnStr(member.squareStartDate)) &&
+                      " — differs from the date set here"}
+                  </p>
+                )}
               </div>
               {/* Relabelled from "Member Since" by MS-1 (Gary, 2026-10-15): this
                   is when the Froot row was created — the import date — and

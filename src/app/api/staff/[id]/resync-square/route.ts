@@ -101,8 +101,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         ...(member.fullNameLocked ? {} : { fullName: squareFullName }),
         squareFullName,
         email: squareMember.email_address || null,
-        // MS-1 (F6). Square's created_at seeds the start date — never over a
-        // hand edit (startDateManual), the fullNameLocked discipline above.
+        // MS-1 (F6). Square's created_at is always recorded in squareStartDate
+        // (the squareFullName shape) and seeds startDate — never over a hand
+        // edit (startDateManual), the fullNameLocked discipline above.
         ...startDateUpdate,
       },
     }),

@@ -30,11 +30,18 @@ export type TenureMilestoneInput = {
   title: string
   recognition: string
   employeeMessage: string
+  /** Store-local date the milestone was archived; null/absent = active. An
+   *  ARCHIVED row passed here with archivedOn null is treated as never
+   *  reachable (no date to judge history against). */
+  archivedOn?: string | null
+  isArchived?: boolean
 }
 
 export type AchievedMilestone = TenureMilestoneInput & {
   /** The store-local date the milestone fell on: startDate + dayCount. */
   achievedOn: string
+  /** Reached before the milestone was archived — kept as history. */
+  archived: boolean
 }
 
 export type NextMilestone = TenureMilestoneInput & {
@@ -91,8 +98,14 @@ export function addDays(date: string, days: number): string {
 }
 
 /**
- * Where a member stands against the org's ACTIVE tenure milestones. The caller
- * passes only non-archived milestones; archived ones never count.
+ * Where a member stands against the org's tenure milestones. The caller passes
+ * ACTIVE AND ARCHIVED rows.
+ *
+ * ARCHIVED MILESTONES (Gary, 2026-10-15: "Past achievements should stay on
+ * record"). An archived milestone stays in a member's achieved list when they
+ * reached it ON OR BEFORE the store-local date it was archived, and is shown as
+ * archived. Nobody reaches it after that date, and it is never the "next"
+ * milestone. An archived row with no archive date counts for nobody.
  *
  * F4 (Gary, 2026-10-15): a terminated member's count stops at their
  * termination date and they have no next milestone. A REHIRE clears
@@ -114,18 +127,26 @@ export function tenureProgress(args: {
   const daysEmployed = daysBetween(startDate, asOf)
 
   const sorted = [...args.milestones].sort((a, b) => a.dayCount - b.dayCount)
-  const achieved: AchievedMilestone[] = sorted
-    .filter((m) => m.dayCount <= daysEmployed)
-    .map((m) => ({ ...m, achievedOn: addDays(startDate, m.dayCount) }))
+  const isArchived = (m: TenureMilestoneInput) => m.isArchived === true || !!m.archivedOn
+  const achieved: AchievedMilestone[] = []
+  for (const m of sorted) {
+    if (m.dayCount > daysEmployed) continue
+    const achievedOn = addDays(startDate, m.dayCount)
+    if (isArchived(m) && !(m.archivedOn && achievedOn <= m.archivedOn)) continue
+    achieved.push({ ...m, achievedOn, archived: isArchived(m) })
+  }
 
-  const upcoming = terminated ? undefined : sorted.find((m) => m.dayCount > daysEmployed)
+  const active = sorted.filter((m) => !isArchived(m))
+  const upcoming = terminated ? undefined : active.find((m) => m.dayCount > daysEmployed)
   const next: NextMilestone | null = upcoming
     ? { ...upcoming, daysToGo: upcoming.dayCount - daysEmployed, dueOn: addDays(startDate, upcoming.dayCount) }
     : null
 
   let progressPct: number | null = null
   if (next) {
-    const from = achieved.length > 0 ? achieved[achieved.length - 1].dayCount : 0
+    // Progress runs from the last ACTIVE milestone already passed.
+    const passed = active.filter((m) => m.dayCount <= daysEmployed)
+    const from = passed.length > 0 ? passed[passed.length - 1].dayCount : 0
     const span = next.dayCount - from
     const done = Math.max(0, daysEmployed - from)
     progressPct = span > 0 ? Math.min(100, Math.max(0, Math.round((done / span) * 100))) : 0

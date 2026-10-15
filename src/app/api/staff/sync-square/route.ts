@@ -93,16 +93,17 @@ export async function POST() {
     const existingPrimary = member.storeAssignments[0]?.storeId
     const primary =
       existingPrimary && assignedStoreIds.includes(existingPrimary) ? existingPrimary : primaryStoreId
-    // MS-1 (F6). Fill startDate from Square's created_at unless it was edited
-    // by hand. created_at never changes, so rewriting it is idempotent; the
-    // only time this moves a value is the first sync after MS-1 ships.
+    // MS-1 (F6). Record Square's created_at date in squareStartDate always, and
+    // fill startDate from it unless it was edited by hand. created_at rarely
+    // changes, so rewriting it is idempotent; a Square correction surfaces as
+    // squareStartDate differing from a hand-set startDate.
     const startData = squareStartDateData(
       member.startDateManual,
       squareMember.created_at,
       squareStartZone(primary, stores, org.timezone)
     )
     await prisma.$transaction([
-      ...("startDate" in startData
+      ...("squareStartDate" in startData
         ? [prisma.staffMember.update({ where: { id: member.id }, data: startData })]
         : []),
       prisma.storeStaffAssignment.deleteMany({ where: { staffMemberId: member.id } }),

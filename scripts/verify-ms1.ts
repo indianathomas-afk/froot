@@ -5,8 +5,10 @@
  *
  * FOUR KINDS OF CHECK, and the kind says what a green run proves:
  *
- *   A. PURE MATH — tenureProgress / localDateStr across the Pacific date
- *      boundary (PDT and PST), terminated members, future start dates.
+ *   A. PURE MATH — tenureProgress / localDateStr in EACH STORE'S OWN ZONE:
+ *      Pacific and Mountain at late evening, both DST crossings, whose zone a
+ *      member is counted in, terminated members, future start dates, and
+ *      archived milestones keeping achievements reached before the archive.
  *   B. CAPABILITY TIERS — milestones.manage is ADMIN-only, not grantable, not
  *      deniable; STORE/STAFF fail staff.view, so they never reach /staff/[id].
  *   C. GATES — milestonesActive() over every combination of its three inputs,
@@ -29,11 +31,12 @@ import { readFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { prisma } from "../src/lib/prisma"
 import { can, isGrantable, ENFORCED_CAPABILITIES, type PermissionRole } from "../src/lib/permissions"
-import { tenureProgress, isValidDateStr, dayCountLabel, dateColumnStr, daysBetween } from "../src/lib/milestones"
+import { tenureProgress, isValidDateStr, dayCountLabel, dateColumnStr, daysBetween, addDays as addDaysStr } from "../src/lib/milestones"
 import { milestonesActive, milestonesDenialStatus } from "../src/lib/milestones-access"
 import { createTenureMilestone, updateTenureMilestone } from "../src/lib/milestones-db"
 import { startDateFromSquare, squareStartDateData } from "../src/lib/milestones-square"
 import { localDateStr } from "../src/lib/reports"
+import { displayTimeZone } from "../src/lib/hr"
 import { wageChanged, writeWageSnapshots } from "../src/lib/labor-roster"
 
 let failures = 0
@@ -88,6 +91,53 @@ check(
   "2026-03-01"
 )
 check("A17. unparseable created_at → no date", startDateFromSquare("not a date", LA), null)
+
+console.log("\nA. Each store's own zone — Mountain time (Gary, 2026-10-15)")
+const DEN = "America/Denver"
+// 2026-10-16T06:30Z is 00:30 MDT Oct 16 in Colorado — and still 23:30 PDT Oct 15
+// in California. A milestone due Oct 16 is reached in Denver, not yet in LA.
+const midnightMtn = new Date("2026-10-16T06:30:00Z")
+check("A18. Denver says Oct 16 while LA says Oct 15", [localDateStr(midnightMtn, DEN), localDateStr(midnightMtn, LA)], ["2026-10-16", "2026-10-15"])
+const due16 = (tz: string) => tenureProgress({ startDate: "2026-07-18", today: localDateStr(midnightMtn, tz), terminatedOn: null, milestones: [M("a", 90)] })
+check("A19. Denver store at 00:30 MDT: 90-day milestone reached", (due16(DEN) as { achieved: unknown[] }).achieved.length, 1)
+check("A20. same instant read as Pacific would say not yet", (due16(LA) as { achieved: unknown[] }).achieved.length, 0)
+const lateMtn = new Date("2026-10-16T05:30:00Z") // 23:30 MDT Oct 15
+const late = tenureProgress({ startDate: "2026-07-18", today: localDateStr(lateMtn, DEN), terminatedOn: null, milestones: [M("a", 90)] })
+check("A21. Denver store at 23:30 MDT the night before: 1 day to go", late.state === "ok" ? [late.achieved.length, late.next?.daysToGo] : null, [0, 1])
+check("A22. …where UTC would already say it was reached", localDateStr(lateMtn, "UTC"), "2026-10-16")
+console.log("\nA. Across a DST change (Mountain)")
+// Fall back: Sun 2026-11-01. Start 2026-10-01 (MDT) + 60 days = 2026-11-30 (MST).
+const fbBefore = new Date("2026-11-30T06:30:00Z") // 23:30 MST Nov 29
+const fbOn = new Date("2026-12-01T06:30:00Z") // 23:30 MST Nov 30
+const fb = (at: Date) => tenureProgress({ startDate: "2026-10-01", today: localDateStr(at, DEN), terminatedOn: null, milestones: [M("a", 60)] })
+check("A23. fall-back crossing: 23:30 MST Nov 29 → 1 day to go", (fb(fbBefore) as { next: { daysToGo: number } }).next.daysToGo, 1)
+check("A24. fall-back crossing: 23:30 MST Nov 30 → reached on Nov 30", (fb(fbOn) as { achieved: { achievedOn: string }[] }).achieved.map((a) => a.achievedOn), ["2026-11-30"])
+// Spring forward: Sun 2027-03-14. Start 2027-03-01 + 30 days = 2027-03-31 (MDT).
+const sf = tenureProgress({ startDate: "2027-03-01", today: localDateStr(new Date("2027-04-01T05:30:00Z"), DEN), terminatedOn: null, milestones: [M("a", 30)] })
+check("A25. spring-forward crossing: 23:30 MDT Mar 31 → reached, 30 whole days", sf.state === "ok" ? [sf.daysEmployed, sf.achieved.length] : null, [30, 1])
+console.log("\nA. Whose zone a member is counted in")
+const denverStore = { isPrimary: true, store: { timezone: DEN, name: "MS-1 Colorado Springs" } }
+const laStore = { isPrimary: false, store: { timezone: LA, name: "MS-1 Reno" } }
+check("A26. primary store in Denver → Denver", displayTimeZone({ isCorporate: false, storeAssignments: [laStore, denverStore] }, { timezone: LA }), DEN)
+check("A27. corporate member → the org's zone", displayTimeZone({ isCorporate: true, storeAssignments: [denverStore] }, { timezone: LA }), LA)
+check("A28. Square created_at 22:30 MST → that Mountain date", startDateFromSquare("2026-01-10T05:30:00Z", DEN)?.toISOString().slice(0, 10), "2026-01-09")
+
+console.log("\nA. Archived milestones keep past achievements (Gary, 2026-10-15)")
+const arch = (id: string, dayCount: number, archivedOn: string | null) => ({ ...M(id, dayCount), isArchived: true, archivedOn })
+const hist = tenureProgress({
+  startDate: "2026-01-01",
+  today: "2026-10-15",
+  terminatedOn: null,
+  milestones: [arch("old90", 90, "2026-05-01"), arch("old200", 200, "2026-05-01"), arch("nodate", 30, null), M("a365", 365)],
+})
+check("A29. reached BEFORE archive (Apr 1 ≤ May 1) → kept, marked archived", hist.state === "ok" ? hist.achieved.map((a) => [a.id, a.archived]) : null, [["old90", true]])
+check("A30. reached AFTER archive (Jul 20) → not counted", hist.state === "ok" ? hist.achieved.some((a) => a.id === "old200") : null, false)
+check("A31. archived with no archive date → counts for nobody", hist.state === "ok" ? hist.achieved.some((a) => a.id === "nodate") : null, false)
+check("A32. next is the ACTIVE 365, never an archived row", hist.state === "ok" ? hist.next?.id : null, "a365")
+const onDay = tenureProgress({ startDate: "2026-01-01", today: "2026-10-15", terminatedOn: null, milestones: [arch("x", 90, "2026-04-01")] })
+check("A33. reached ON the archive date → kept", onDay.state === "ok" ? onDay.achieved.length : null, 1)
+const newHire = tenureProgress({ startDate: "2026-09-01", today: "2026-10-15", terminatedOn: null, milestones: [arch("old30", 30, "2026-05-01"), M("a90", 90)] })
+check("A34. someone hired after the archive never gets it", newHire.state === "ok" ? [newHire.achieved.length, newHire.next?.id] : null, [0, "a90"])
 
 // ─── B. CAPABILITIES ─────────────────────────────────────────────────────────
 console.log("\nB. milestones.manage — ADMIN only, not grantable, not deniable")
@@ -147,6 +197,20 @@ check("C16. /staff link needs milestonesActive && milestones.manage", /canSetUpM
 const patchSrc = readFileSync("src/app/api/staff/[id]/route.ts", "utf8")
 check("C17. a hand edit of startDate sets startDateManual", /fieldData\.startDate = [^\n]+\n\s+fieldData\.startDateManual = true/.test(patchSrc), true)
 
+console.log("\nC. Wage history is visible to nobody (Gary, 2026-10-15: confirm)")
+// WageSnapshot has NO reader in MS-1, so no role and no store can see it. The
+// only file in src/ allowed to name the table is its writer. MS-3's reader
+// must arrive with canSeeWages + store scope + COMP-1, and will fail this check
+// until it is added here deliberately.
+const touching = walk("src")
+  .filter((f) => !f.startsWith(join("src", "generated")))
+  .filter((f) => /\.(ts|tsx)$/.test(f))
+  .filter((f) => /wageSnapshot|"WageSnapshot"/.test(readFileSync(f, "utf8")))
+check("C18. only src/lib/labor-roster.ts touches WageSnapshot", touching, [join("src", "lib", "labor-roster.ts")])
+const rosterSrc = readFileSync("src/lib/labor-roster.ts", "utf8")
+check("C19. the writer returns a COUNT, never snapshot rows", /export async function writeWageSnapshots\([\s\S]*?\): Promise<number>/.test(rosterSrc), true)
+check("C20. no API route or page names the table", touching.some((f) => f.includes(join("src", "app"))), false)
+
 // ─── D. DATABASE ─────────────────────────────────────────────────────────────
 async function db() {
   console.log("\nD. Database (dev branch)")
@@ -176,14 +240,30 @@ async function db() {
     check("D9. same dayCount in ANOTHER org is fine", typeof (await createTenureMilestone(other.id, f(365))), "object")
 
     await updateTenureMilestone(org.id, a180.id, { isArchived: true })
-    // The page's exact query.
-    const active = await prisma.tenureMilestone.findMany({
-      where: { organizationId: org.id, isArchived: false },
-      select: { id: true, dayCount: true, title: true, recognition: true, employeeMessage: true },
+    const a180row = await prisma.tenureMilestone.findUniqueOrThrow({ where: { id: a180.id } })
+    check("D10. archiving stamps archivedAt", a180row.archivedAt instanceof Date, true)
+    await updateTenureMilestone(org.id, a180.id, { title: "MS-1 180 renamed", isArchived: true })
+    const a180again = await prisma.tenureMilestone.findUniqueOrThrow({ where: { id: a180.id } })
+    check("D11. re-saving an archived row does not move archivedAt", a180again.archivedAt?.getTime(), a180row.archivedAt?.getTime())
+    // The page's exact query and mapping.
+    const rows = await prisma.tenureMilestone.findMany({
+      where: { organizationId: org.id },
+      select: { id: true, dayCount: true, title: true, recognition: true, employeeMessage: true, isArchived: true, archivedAt: true },
     })
-    const prog = tenureProgress({ startDate: "2025-01-01", today: "2026-10-15", terminatedOn: null, milestones: active })
-    check("D10. archived milestones (old 90, 180) are not counted", prog.state === "ok" ? prog.achieved.map((m) => m.dayCount) : null, [90, 365])
-    check("D11. …and the 90 that counts is the new one", prog.state === "ok" && typeof new90 === "object" ? prog.achieved[0].id === new90.id : null, true)
+    const today = localDateStr(new Date(), LA)
+    const asInput = rows.map((r) => ({ ...r, archivedOn: r.isArchived && r.archivedAt ? localDateStr(r.archivedAt, LA) : null }))
+    const veteran = tenureProgress({ startDate: "2025-01-01", today, terminatedOn: null, milestones: asInput })
+    check(
+      "D12. veteran: archived 90 and 180 (reached before today's archive) kept as history",
+      veteran.state === "ok"
+        ? veteran.achieved.map((m) => [m.dayCount, m.archived]).sort((x, y) => Number(x[0]) - Number(y[0]) || Number(y[1]) - Number(x[1]))
+        : null,
+      [[90, true], [90, false], [180, true], [365, false]]
+    )
+    const recent = tenureProgress({ startDate: addDaysStr(today, -30), today, terminatedOn: null, milestones: asInput })
+    check("D13. 30-day hire: archived rows never become their next", recent.state === "ok" && typeof new90 === "object" ? recent.next?.id === new90.id : null, true)
+    const restored = await updateTenureMilestone(org.id, a180.id, { isArchived: false })
+    check("D14. restore clears archivedAt", typeof restored === "object" ? restored.archivedAt : "x", null)
 
     // Start date: @db.Date round trip and the manual lock.
     const manual = await prisma.staffMember.create({
@@ -193,7 +273,7 @@ async function db() {
       data: { organizationId: org.id, displayName: "MS-1 Auto", squareTeamMemberId: `ms1-sq-auto-${stamp}` },
     })
     const readBack = await prisma.staffMember.findUniqueOrThrow({ where: { id: manual.id } })
-    check("D12. @db.Date round trip keeps the calendar date", readBack.startDate ? dateColumnStr(readBack.startDate) : null, "2020-01-15")
+    check("D15. @db.Date round trip keeps the calendar date", readBack.startDate ? dateColumnStr(readBack.startDate) : null, "2020-01-15")
     // Simulated resync: the exact rule both routes apply.
     const createdAt = "2024-05-05T03:00:00Z" // 20:00 PDT May 4
     for (const m of [manual, auto]) {
@@ -203,27 +283,32 @@ async function db() {
       prisma.staffMember.findUniqueOrThrow({ where: { id: manual.id } }),
       prisma.staffMember.findUniqueOrThrow({ where: { id: auto.id } }),
     ])
-    check("D13. manual start date survives a resync", m2.startDate ? dateColumnStr(m2.startDate) : null, "2020-01-15")
-    check("D14. unlocked start date filled from created_at, Pacific date", a2.startDate ? dateColumnStr(a2.startDate) : null, "2024-05-04")
+    check("D16. manual start date survives a resync", m2.startDate ? dateColumnStr(m2.startDate) : null, "2020-01-15")
+    check("D17. unlocked start date filled from created_at, Pacific date", a2.startDate ? dateColumnStr(a2.startDate) : null, "2024-05-04")
+    check("D18. manual member: Square's date still recorded beside it", m2.squareStartDate ? dateColumnStr(m2.squareStartDate) : null, "2024-05-04")
+    check("D19. unlocked member: squareStartDate equals startDate", a2.squareStartDate ? dateColumnStr(a2.squareStartDate) : null, "2024-05-04")
 
     // Wage snapshots — only when the wage differs (F3).
     console.log("\nD. Wage snapshots")
-    check("D15. wageChanged: none before → changed", wageChanged(null, { payType: "HOURLY", hourlyRate: 15, annualRate: null }), true)
-    check("D16. wageChanged: same to the cent → not", wageChanged({ payType: "HOURLY", hourlyRate: 15.0, annualRate: null }, { payType: "HOURLY", hourlyRate: 15.001, annualRate: null }), false)
+    check("D20. wageChanged: none before → changed", wageChanged(null, { payType: "HOURLY", hourlyRate: 15, annualRate: null }), true)
+    check("D21. wageChanged: same to the cent → not", wageChanged({ payType: "HOURLY", hourlyRate: 15.0, annualRate: null }, { payType: "HOURLY", hourlyRate: 15.001, annualRate: null }), false)
     const sq = `ms1-sq-wage-${stamp}`
     const member = (cents: number, version: number) => ({
       id: sq,
       wage_setting: { version, job_assignments: [{ pay_type: "HOURLY", hourly_rate: { amount: cents, currency: "USD" }, job_id: "J1" }] },
     })
-    check("D17. first sync writes a baseline snapshot", await writeWageSnapshots(org.id, [member(1500, 1)], new Map()), 1)
-    check("D18. same wage, next sync → nothing", await writeWageSnapshots(org.id, [member(1500, 1)], new Map()), 0)
-    check("D19. version bump, same pay → nothing (not a raise)", await writeWageSnapshots(org.id, [member(1500, 2)], new Map()), 0)
-    check("D20. raise to $16.50 → one snapshot", await writeWageSnapshots(org.id, [member(1650, 3)], new Map()), 1)
+    check("D22. first sync (baseline for everyone, Gary 2026-10-15) writes a baseline snapshot", await writeWageSnapshots(org.id, [member(1500, 1)], new Map()), 1)
+    check("D23. same wage, next sync → nothing", await writeWageSnapshots(org.id, [member(1500, 1)], new Map()), 0)
+    check("D24. version bump, same pay → nothing (not a raise)", await writeWageSnapshots(org.id, [member(1500, 2)], new Map()), 0)
+    check("D25. raise to $16.50 → one snapshot", await writeWageSnapshots(org.id, [member(1650, 3)], new Map()), 1)
     const snaps = await prisma.wageSnapshot.findMany({ where: { organizationId: org.id, squareTeamMemberId: sq }, orderBy: { capturedAt: "asc" } })
-    check("D21. history reads 15.00 → 16.50", snaps.map((s) => Number(s.hourlyRate)), [15, 16.5])
+    check("D26. history reads 15.00 → 16.50", snaps.map((s) => Number(s.hourlyRate)), [15, 16.5])
     const noWage = { id: `ms1-sq-fb-${stamp}` }
+    const twoMembers = [{ id: `ms1-sq-base1-${stamp}`, wage_setting: { job_assignments: [{ pay_type: "HOURLY", hourly_rate: { amount: 1800 } }] } }, { id: `ms1-sq-base2-${stamp}`, wage_setting: { job_assignments: [{ pay_type: "SALARY", annual_rate: { amount: 5200000 } }] } }]
+    check("D28a. first sync gives EVERY member a baseline row, even with pay that never changes", await writeWageSnapshots(org.id, twoMembers, new Map()), 2)
+    check("D28b. …and the next sync adds none", await writeWageSnapshots(org.id, twoMembers, new Map()), 0)
     check(
-      "D22. no wage_setting: the ListTeamMemberWages fallback rate is snapshotted",
+      "D27. no wage_setting: the ListTeamMemberWages fallback rate is snapshotted",
       await writeWageSnapshots(org.id, [noWage], new Map([[noWage.id, { hourlyRate: 17.25, jobTitle: null, jobId: "J2" }]])),
       1
     )
@@ -235,7 +320,7 @@ async function db() {
       await prisma.organization.delete({ where: { id: o } })
     }
     const left = await prisma.organization.count({ where: { clerkOrgId: { startsWith: `ms1-fixture` } } })
-    check("D23. cleanup: no MS-1 fixture orgs left", left, 0)
+    check("D29. cleanup: no MS-1 fixture orgs left", left, 0)
   }
 }
 

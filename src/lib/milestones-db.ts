@@ -45,6 +45,15 @@ export async function updateTenureMilestone(
       })
       if (clash) return "clash" as const
     }
-    return tx.tenureMilestone.update({ where: { id }, data })
+    // archivedAt DATES the archive (Gary, 2026-10-15: past achievements stay on
+    // record). Stamped only on the transition into archived, so re-saving an
+    // archived row never moves the date; cleared on restore.
+    const archivedAt =
+      data.isArchived === true && !current.isArchived
+        ? { archivedAt: new Date() }
+        : data.isArchived === false
+          ? { archivedAt: null }
+          : {}
+    return tx.tenureMilestone.update({ where: { id }, data: { ...data, ...archivedAt } })
   })
 }

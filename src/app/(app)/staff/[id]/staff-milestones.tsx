@@ -125,6 +125,9 @@ export function StaffMilestones({
                   <Trophy className="h-4 w-4 text-[var(--color-primary)] shrink-0" />
                   <span className="font-medium text-[var(--color-foreground)]">{m.title}</span>
                   <Badge variant="secondary">{dayCountLabel(m.dayCount)}</Badge>
+                  {/* Reached before the milestone was archived — kept as history
+                      (Gary, 2026-10-15). */}
+                  {m.archived && <Badge variant="outline">Archived milestone</Badge>}
                 </div>
                 <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Reached {civil(m.achievedOn)}</p>
                 {m.recognition && (

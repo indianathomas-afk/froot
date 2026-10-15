@@ -476,6 +476,11 @@ model StaffMember {
   // MS-1. fullNameLocked's shape: a hand edit sets true, and the Square import
   // and both resync routes then never touch startDate. false = Square may fill.
   startDateManual    Boolean   @default(false)
+  // MS-1 (Gary, 2026-10-15). The start date SQUARE last reported, written on
+  // every import/resync WHETHER OR NOT startDateManual is set — the
+  // squareFullName shape. It is never the value tenure counts from; it exists so
+  // a hand-set date and a later Square correction can be seen side by side.
+  squareStartDate    DateTime? @db.Date
   createdAt          DateTime  @default(now())
 
   organization        Organization             @relation(fields: [organizationId], references: [id])
@@ -3626,21 +3631,27 @@ model CalendarOccurrence {
 /// `migrate diff` would propose dropping it — the one precedent in this repo,
 /// LaborSettings_org_default_key, is hand-added SQL for that reason.
 model TenureMilestone {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   organizationId  String
   /// Days from startDate. > 0, checked by the routes' Zod schema.
   dayCount        Int
   title           String
   /// What the business does for the person — shown on the Milestones tab.
-  recognition     String   @db.Text
+  recognition     String    @db.Text
   /// The suggested message a manager copies into their own email (ruling 3:
   /// Froot never emails employees).
-  employeeMessage String   @db.Text
+  employeeMessage String    @db.Text
   /// House style (Template, CalendarEvent, TrainingModule…), ruled over the
   /// prompt's archivedAt. Archived = excluded from every computation.
-  isArchived      Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isArchived      Boolean   @default(false)
+  /// MS-1 (Gary, 2026-10-15: "Past achievements should stay on record"). When
+  /// the row was archived; null while active, cleared on restore. A member who
+  /// reached the milestone on or before the store-local date of this instant
+  /// keeps it in their achieved list; nobody reaches it after. isArchived stays
+  /// the flag every query filters on (ruled); this only dates it.
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
