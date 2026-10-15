@@ -4,6 +4,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
+import { isValidDateStr } from "@/lib/milestones"
 
 const patchSchema = z.object({
   displayName: z.string().trim().min(1).max(200).optional(),
@@ -15,6 +16,10 @@ const patchSchema = z.object({
   // When present, REPLACES the member's store assignments wholesale.
   storeIds: z.array(z.string().min(1)).optional(),
   primaryStoreId: z.string().min(1).nullish(),
+  // MS-1. "YYYY-MM-DD" (a calendar date, stored @db.Date) or null to clear.
+  // Same gate as every other field here — staff.manage, MANAGER in store scope
+  // (F2, Gary 2026-10-15).
+  startDate: z.string().refine(isValidDateStr, "Invalid date").nullable().optional(),
 })
 
 // Edit a staff member: display/full name, email, store assignments, and
@@ -52,7 +57,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const parsed = patchSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
-  const { displayName, fullName, lockFullName, email, primaryStoreId } = parsed.data
+  const { displayName, fullName, lockFullName, email, primaryStoreId, startDate } = parsed.data
   // DEBT-11. Dedupe ONCE, here, and use this everywhere — matching POST
   // /api/staff. Validation below deduped for the comparison while finalStoreIds
   // was built from the raw array, so a body repeating a storeId passed and then
@@ -111,6 +116,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     fullName?: string | null
     fullNameLocked?: boolean
     email?: string | null
+    startDate?: Date | null
+    startDateManual?: boolean
   } = {}
   if (displayName !== undefined) fieldData.displayName = displayName
   if (fullName !== undefined) {
@@ -126,6 +133,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     fieldData.fullNameLocked = lockFullName
   }
   if (email !== undefined) fieldData.email = email || null
+  // MS-1. ANY hand edit of the start date — including clearing it — sets
+  // startDateManual, the fullNameLocked shape: from then on the Square import
+  // and both resync routes leave the column alone (F6). A cleared date stays
+  // cleared rather than being quietly refilled from Square's created_at.
+  if (startDate !== undefined) {
+    fieldData.startDate = startDate ? new Date(`${startDate}T00:00:00.000Z`) : null
+    fieldData.startDateManual = true
+  }
 
   await prisma.$transaction([
     ...(Object.keys(fieldData).length > 0

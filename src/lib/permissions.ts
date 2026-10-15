@@ -102,6 +102,7 @@ export type Capability =
   | "staff.documents.manage"
   | "staff.notes.use"
   | "engagement.view"
+  | "milestones.manage"
   | "reports.view"
   | "forecasting.view"
   | "forecasting.edit"
@@ -306,6 +307,20 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // so a page-only test can go green without exercising this line at all.
   // COMP-1's F3 finding is the standing warning here (docs/DECISIONS.md:138).
   "engagement.view": ADMIN_ONLY,
+  // MS-1 (Gary, 2026-10-15) — /staff/milestones and every milestone WRITE
+  // route: the org's tenure milestones, the milestones toggle's sibling setup.
+  //
+  // ADMIN_ONLY AND NOT GRANTABLE (ruling 1: "Only ADMINs see the Milestone
+  // setup page"). Absent from GRANTABLE_CAPABILITIES — appending there is a
+  // security change with the weight of a baseline change (this file's header).
+  //
+  // ALSO ABSENT FROM ENFORCED_CAPABILITIES, on the engagement.view shape above:
+  // it cannot be denied to an admin from the /users grid. Admin-denies-admin is
+  // a real access decision that needs its own ruling; MS-1 does not make one.
+  //
+  // THIS CAPABILITY DOES NOT GOVERN THE Milestones TAB on /staff/[id]. That tab
+  // is a READ and mirrors the Compliance tab's ADMIN/MANAGER tier (F1).
+  "milestones.manage": ADMIN_ONLY,
   // PERM-2 §3 #5 (Gary, 2026-07-26): inventory is not one permission — it
   // splits by DATA SENSITIVITY. Operational data (counts, adjustments, pars,
   // item names and units — what a person on the floor with a clipboard needs)

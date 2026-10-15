@@ -54,6 +54,14 @@ model Organization {
   // DEFAULT false, so every existing org lands inert and the migration needs no
   // backfill.
   calendarEnabled         Boolean   @default(false)
+  // MS-1 (Gary, 2026-10-15). STAFF MILESTONES — a plain per-org column on the
+  // calendarEnabled pattern above, toggled on /settings by an ADMIN (ruling 1).
+  // F5: MILESTONES IS PART OF HR. This column is only ever read together with
+  // hrModuleAvailable() + activeModules "hr" (src/lib/milestones-access.ts), so
+  // HR off means Milestones off everywhere whatever this says.
+  // Off = no Milestones tab, /staff/milestones unreachable, APIs 404.
+  // DEFAULT false: every existing org lands inert, no backfill.
+  milestonesEnabled       Boolean   @default(false)
   // F-5b (Gary, 2026-09-20). THE PER-ORG SWITCH FOR BEHIND-PACE ALERT EMAILS.
   // A DEDICATED COLUMN on the calendarEnabled pattern above, and deliberately
   // NOT an activeModules entry: activeModules is the BILLABLE ADD-ON list
@@ -197,6 +205,8 @@ model Organization {
   usageDaily                    UsageDaily[]
   calendarEvents                CalendarEvent[]
   calendarOccurrences           CalendarOccurrence[]
+  tenureMilestones              TenureMilestone[]
+  wageSnapshots                 WageSnapshot[]
 }
 
 model User {
@@ -456,6 +466,16 @@ model StaffMember {
   // false — the default, and every pre-existing row — means "homed at a store",
   // which is the behaviour everyone has today.
   isCorporate        Boolean   @default(false)
+  // MS-1. The date this person started — a CALENDAR DATE, not an instant
+  // (@db.Date, the CAL-1 S5-D77 precedent). Tenure milestones are computed from
+  // it against the member's store-local today; nothing reads it in UTC. Null =
+  // not entered yet. Square seeds it from the team member's created_at (F6) —
+  // which is when the Square PROFILE was made, not a hire date, so a hand edit
+  // always wins.
+  startDate          DateTime? @db.Date
+  // MS-1. fullNameLocked's shape: a hand edit sets true, and the Square import
+  // and both resync routes then never touch startDate. false = Square may fill.
+  startDateManual    Boolean   @default(false)
   createdAt          DateTime  @default(now())
 
   organization        Organization             @relation(fields: [organizationId], references: [id])
@@ -3587,4 +3607,75 @@ model CalendarOccurrence {
   /// in P2002, which the cron catches and counts rather than failing the run.
   @@unique([eventId, storeId, dueDate])
   @@index([organizationId, storeId, status, dueDate])
+}
+
+/// ── MS-1 — STAFF MILESTONES (Gary, 2026-10-15) ───────────────────────────────
+///
+/// A tenure milestone an ADMIN defines on /staff/milestones: "at N days from a
+/// member's startDate, recognise them like this".
+///
+/// THERE IS NO "ACHIEVED" TABLE, AND THAT IS THE DESIGN. Achieved and upcoming
+/// milestones are COMPUTED from StaffMember.startDate + dayCount in the member's
+/// store-local date (src/lib/milestones.ts), so a start-date correction re-flows
+/// instantly and nothing can drift out of agreement with it. MS-4 adds whatever
+/// it needs to send a notification exactly once.
+///
+/// NO TWO NON-ARCHIVED MILESTONES IN AN ORG SHARE A dayCount — ENFORCED IN THE
+/// WRITE ROUTES, NOT BY AN INDEX (Gary, 2026-10-15). A partial unique index
+/// (WHERE NOT "isArchived") is not expressible in schema.prisma, so every later
+/// `migrate diff` would propose dropping it — the one precedent in this repo,
+/// LaborSettings_org_default_key, is hand-added SQL for that reason.
+model TenureMilestone {
+  id              String   @id @default(cuid())
+  organizationId  String
+  /// Days from startDate. > 0, checked by the routes' Zod schema.
+  dayCount        Int
+  title           String
+  /// What the business does for the person — shown on the Milestones tab.
+  recognition     String   @db.Text
+  /// The suggested message a manager copies into their own email (ruling 3:
+  /// Froot never emails employees).
+  employeeMessage String   @db.Text
+  /// House style (Template, CalendarEvent, TrainingModule…), ruled over the
+  /// prompt's archivedAt. Archived = excluded from every computation.
+  isArchived      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, isArchived])
+}
+
+/// MS-1 (F3, Gary 2026-10-15). APPEND-ONLY HISTORY of a member's CURRENT wage as
+/// SquareTeamMemberWage saw it at each roster sync. Square returns only the
+/// current wage, so raise detection (MS-3) can only work from the first snapshot
+/// forward — this table starts that clock early.
+///
+/// WRITTEN ONLY WHEN THE WAGE DIFFERS from the member's latest snapshot, by
+/// writeRoster in src/lib/labor-roster.ts. Syncs are MANUAL today (no cron), so
+/// a wage set and changed again between two syncs is never seen — accepted.
+///
+/// NO READER IN MS-1. COMP-1: whoever adds one MUST apply
+/// SquareTeamMemberWage.compConfidential for the same
+/// (organizationId, squareTeamMemberId) — this table carries no flag of its own,
+/// on the LaborSalariedPerson precedent, so one admin toggle governs every
+/// surface that shows this person's pay.
+model WageSnapshot {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  /// Joins to SquareTeamMemberWage and StaffMember on the same key.
+  squareTeamMemberId String
+  /// Square's HOURLY | SALARY | NONE, verbatim.
+  payType            String?
+  /// Dollars. NULL = not set in Square, never $0.
+  hourlyRate         Decimal? @db.Decimal(10, 2)
+  annualRate         Decimal? @db.Decimal(12, 2)
+  jobId              String?
+  wageVersion        Int?
+  capturedAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, squareTeamMemberId, capturedAt])
 }

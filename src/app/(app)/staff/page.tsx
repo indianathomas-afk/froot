@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import Link from "next/link"
-import { Activity } from "lucide-react"
+import { Activity, Award } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { StaffLocationFilter } from "./staff-location-filter"
@@ -12,6 +12,7 @@ import { getPayForStaff } from "@/lib/labor-roster"
 import { CONFIDENTIAL_DASH, CONFIDENTIAL_TITLE } from "@/lib/comp-confidential"
 import { getStaffComplianceSummaries, type StaffComplianceSummary } from "@/lib/hr-compliance"
 import { resolveSelfStaff } from "@/lib/hr"
+import { milestonesActive } from "@/lib/milestones-access"
 import { Badge } from "@/components/ui/badge"
 
 const NO_SUMMARIES = new Map<string, StaffComplianceSummary>()
@@ -23,9 +24,9 @@ const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | nu
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null }
+  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
@@ -116,6 +117,13 @@ async function getStaffData() {
   // link removes an affordance, not an access.
   const canViewEngagement = can(actor, "engagement.view")
 
+  // MS-1. The setup page's entry point: milestones.manage (ADMIN_ONLY, not
+  // grantable) AND Milestones on — HR available, HR on, toggle on, the same
+  // predicate requireMilestones() applies. Like the Engagement link, THE LINK
+  // IS NOT THE GATE: the page notFound()s while off and redirects without the
+  // capability, and every write route re-checks both.
+  const canSetUpMilestones = milestonesActive(org) && can(actor, "milestones.manage")
+
   // AL-3 vision item 2 — PAY RATES, MANAGER/ADMIN ONLY (Gary's words).
   //
   // THE GATE DECIDES WHETHER TO RUN THE QUERY, not whether to render the cell.
@@ -137,7 +145,7 @@ async function getStaffData() {
     ? await getPayForStaff(org, staff.map((s) => ({ id: s.id, squareTeamMemberId: s.squareTeamMemberId })), actor)
     : NO_PAY
 
-  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, hrActive, summaries, pay, showPay, selfStaffId }
+  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -332,7 +340,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, hrActive, summaries, pay, showPay, selfStaffId } = await getStaffData()
+  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -442,7 +450,7 @@ export default async function StaffPage() {
         : `Everyone assigned to your ${stores.length} store${stores.length !== 1 ? "s" : ""}, including staff based at another location.`}
     </p>
   )
-  const actions = (canViewEngagement || canSync || canImport || canManage) && (
+  const actions = (canViewEngagement || canSetUpMilestones || canSync || canImport || canManage) && (
     <div className="flex gap-2">
       {canViewEngagement && (
         <Link
@@ -451,6 +459,15 @@ export default async function StaffPage() {
         >
           <Activity className="h-4 w-4" />
           Engagement
+        </Link>
+      )}
+      {canSetUpMilestones && (
+        <Link
+          href="/staff/milestones"
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+        >
+          <Award className="h-4 w-4" />
+          Milestones
         </Link>
       )}
       {canSync && <SyncStaffButton />}

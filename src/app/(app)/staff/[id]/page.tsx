@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
-import { formatInstant } from "@/lib/display-time"
+import { formatCivilDate, formatInstant } from "@/lib/display-time"
 import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
 import { displayTimeZone } from "@/lib/hr"
@@ -28,6 +28,10 @@ import { StaffCompliance } from "./staff-compliance"
 import { getStaffComplianceDetail, type StaffComplianceDetail } from "@/lib/hr-compliance"
 import { documentCompletion } from "@/lib/hr-completion"
 import { attemptBreakdown, breakdownMatchesScore } from "@/lib/training-quiz"
+import { StaffMilestones } from "./staff-milestones"
+import { milestonesActive } from "@/lib/milestones-access"
+import { dateColumnStr, tenureProgress, type TenureProgress } from "@/lib/milestones"
+import { localDateStr } from "@/lib/reports"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -612,6 +616,36 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
     complianceDetail = await getStaffComplianceDetail(member.organizationId, member.id)
   }
 
+  // MS-1 Milestones tab (F1, Gary 2026-10-15). THE COMPLIANCE TAB'S TIER
+  // EXACTLY — canSeeHrTabs, ADMIN or MANAGER — with MANAGER store scope already
+  // enforced above by getStaffMember() (an out-of-scope manager gets a 404 for
+  // the whole page). ONE DELIBERATE DIFFERENCE: Compliance renders its trigger
+  // for everyone and a "Restricted" body; Milestones renders NO TRIGGER for a
+  // viewer outside the tier, so STORE and STAFF never see the tab at all
+  // (ruling 2's "never see it"). And it requires Milestones ON — HR is already
+  // on to reach this page (F5); milestonesActive() checks the toggle too.
+  const showMilestonesTab = canSeeHrTabs && milestonesActive(org)
+  let milestoneProgress: TenureProgress | null = null
+  let hasMilestones = false
+  if (showMilestonesTab) {
+    const milestones = await prisma.tenureMilestone.findMany({
+      where: { organizationId: member.organizationId, isArchived: false },
+      select: { id: true, dayCount: true, title: true, recognition: true, employeeMessage: true },
+    })
+    hasMilestones = milestones.length > 0
+    // STORE-LOCAL, NEVER UTC (the CAL-2a rule). `zone` is this member's display
+    // zone — primary store, then org. A terminated member's count stops at
+    // their termination date in that same zone (F4).
+    const now = new Date()
+    milestoneProgress = tenureProgress({
+      startDate: member.startDate ? dateColumnStr(member.startDate) : null,
+      today: localDateStr(now, zone),
+      terminatedOn:
+        member.status === "TERMINATED" && member.terminatedAt ? localDateStr(member.terminatedAt, zone) : null,
+      milestones,
+    })
+  }
+
   // DOC-6: items this person was issued by a tracks-return document (the Key
   // Agreement's key), holding or returned. Rendered on the Documents tab for the
   // HR tier, and handed to the Terminate dialog for its non-blocking warning
@@ -744,6 +778,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 email: member.email,
                 assignedStoreIds: member.storeAssignments.map((a) => a.storeId),
                 primaryStoreId: member.storeAssignments.find((a) => a.isPrimary)?.storeId ?? null,
+                startDate: member.startDate ? dateColumnStr(member.startDate) : null,
               }}
             />
             <SelfServiceActions
@@ -762,12 +797,15 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList>
+        {/* MS-1: a sixth tab. flex-wrap h-auto (the inventory/reports precedent)
+            lets the row wrap at phone width instead of overflowing the page. */}
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="training">Training</TabsTrigger>
           {canSeeNotes && <TabsTrigger value="notes">Notes</TabsTrigger>}
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
+          {showMilestonesTab && <TabsTrigger value="milestones">Milestones</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -789,8 +827,20 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 <dt className="text-[var(--color-muted-foreground)]">Email</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{member.email ?? "—"}</dd>
               </div>
+              {/* MS-1. A CIVIL DATE (@db.Date) — formatCivilDate, never the
+                  member's zone, which would shift it a day back. */}
               <div>
-                <dt className="text-[var(--color-muted-foreground)]">Member Since</dt>
+                <dt className="text-[var(--color-muted-foreground)]">Start Date</dt>
+                <dd className="text-[var(--color-foreground)] font-medium">
+                  {member.startDate ? formatCivilDate(member.startDate, "long") : "—"}
+                </dd>
+              </div>
+              {/* Relabelled from "Member Since" by MS-1 (Gary, 2026-10-15): this
+                  is when the Froot row was created — the import date — and
+                  beside Start Date the old label read as a second claim about
+                  the same thing. */}
+              <div>
+                <dt className="text-[var(--color-muted-foreground)]">Added to Froot</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{formatInstant(member.createdAt, zone, "long")}</dd>
               </div>
               <div>
@@ -934,6 +984,17 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
             </div>
           )}
         </TabsContent>
+
+        {showMilestonesTab && milestoneProgress && (
+          <TabsContent value="milestones" className="mt-4">
+            <StaffMilestones
+              progress={milestoneProgress}
+              hasMilestones={hasMilestones}
+              viewerIsAdmin={dbUser?.role === "ADMIN"}
+              canEditStartDate={canManage}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )
