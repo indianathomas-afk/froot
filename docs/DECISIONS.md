@@ -5,6 +5,82 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-16 — MS-2: on-time % and the On-Time badge (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The fork
+rulings below are Gary's own words in the session chat on 2026-10-16, after the
+MS-2 audit (`docs/prompts/2026-10-16_MS-2_AUDIT.md`), recorded exactly. The
+forks and leans they answer are in the audit file. Anything Gary did not rule
+on is listed separately as a Claude implementation choice.
+
+**Fork rulings — Gary, in chat 2026-10-16, recorded exactly:**
+
+- F0: *"Use the fallback — existing Froot components (BADGE_PRESETS, the status
+  pill). No design bundle for MS-2. This supersedes my 2026-10-15 F0 wording
+  for MS-2 only."*
+- F1: *"Approved — rolling 30 days, admin-set."*
+- F2: *"New admin setting "Grace period" in the On-Time section of
+  /staff/milestones: a choice of 5, 10 or 15 minutes, default 5. A clock-in
+  within the grace period after scheduled start counts as on time. Changing it
+  recalculates badges going forward. The inspector's 20-minute no-show wait
+  stays separate and unchanged."*
+- *"F3–F8: Approved as your leans. F7: compact badge beside the name."*
+- *"F9, F10, F11: Approved as your leans."*
+- F12: *"Approved, on condition that the fixture proves the inspector's output
+  is identical before and after the move, on the same seeded data."*
+- F2 detail: *"F2 detail (9:05:59 on time, 9:06:00 late at 5 min): Approved."*
+
+**Triage rulings — Gary, in chat 2026-10-16, recorded exactly:**
+
+- *"FIX NOW 1, 2, 3: Approved as your leans."*
+- *"RULING NOW (schedule cron): Register it in MS-2, not MS-3. Reason: each sync
+  only reaches 3 days back, so days a store's dashboard isn't opened are lost
+  permanently, and MS-3 needs weeks of complete schedule history. Daily run,
+  cost ~5 Square requests per store accepted. Record this as superseding the
+  CRON-1 parking of the schedule cron. Note in the report that Vercel crons
+  only run on production, so it activates at promotion."*
+- *"COMMENT (Day Inspector "today" uses browser clock): Don't drop it. Add it as
+  a note on the existing BUG-16 row, same bug class. No new row."*
+
+**SUPERSEDES** the 2026-08-20 "CRON-1 activation, phantom opens" bullet *"The
+schedule cron stays parked …"*. That entry is a claim of its date and is not
+edited. `/api/cron/labor-scheduled-shifts` is registered in `vercel.json` at
+`45 11 * * *` UTC.
+
+**What the leans Gary approved say, in brief** (the audit has them in full):
+F3: a no-show counts as not on time, unscheduled cards are left out, and a
+no-show counts only once the timecard sync is past start + 20 minutes. F4: grey
+"Not enough shifts" below the minimum (default 5). F5: grey "No schedule data",
+including when the Square labor overlay is off, with no rows read. F6: the
+Milestones tab's gate (ADMIN, MANAGER for their stores). F7: the compact badge on
+/staff. F8: red below, green at or above, amber between, red >= green refused.
+F9: published shifts only. F10: same-store pairing, % across all of a person's
+stores. F11: grey "Not linked to Square", and a terminated member's window ends
+at termination. F12: one shared pairing predicate in labor-inspector.ts.
+
+**Claude's implementation choices (flagged for ratification):**
+
+- **The colour is decided on the exact percentage and the label is rounded
+  after** (the audit's F8 note). 89.6% prints "90%" and stays amber.
+- **Bounds:** percentages 1–100, look-back 7–90 days, minimum shifts 1–50. The
+  grace period accepts 5, 10 or 15 only.
+- **Grey states read through the same eligibility rule.** A shift whose
+  timecards Froot has not heard about yet is in neither number.
+- **"No schedule data" vs "Not enough shifts".** No published shift at any of
+  the member's assigned stores (or anywhere they had a shift) inside their
+  window → "No schedule data". Otherwise, below the minimum → "Not enough
+  shifts".
+- **The window's "today" is the member's display zone** (primary store, then
+  org, MS-1's rule). Each shift is dated in its own store's zone.
+- **The F12 proof is a golden file**, `scripts/ms2-inspector-golden.json`,
+  written by `scripts/ms2-inspector-seed.ts --write` from the unmodified
+  inspector at `76b857c`. `scripts/verify-ms2.ts` re-runs the same 11 seeded
+  scenarios after the move and asserts byte-identical output.
+- **The cron runs at 45 11 UTC,** fifteen minutes after labor-timecards
+  (30 11), so the two Square sweeps never share a minute.
+- **The On-time section saves while the overlay is off.** It explains that the
+  badges stay grey until Square labor and published schedules exist.
+
 ## 2026-10-15 — MS-1: Staff Milestones foundation (Gary)
 
 **RATIFIED BY GARY, 2026-10-15, at the MS-1 PRE-PUSH-CHECK.** The entry was

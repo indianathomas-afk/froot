@@ -1272,3 +1272,33 @@ none, because MS-1 was never on them before this.
 **Fixture:** `scripts/verify-ms1.ts`, 97 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was
 confirmed level.
+
+## 2026-10-16 — `20261016140411_ms2_milestone_settings` (MS-2)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-16 with `prisma migrate
+deploy`, against host `ep-late-water-a6k53nv2` (branch `br-broad-wave`), and
+reported "All migrations have been successfully applied". The session then ran
+`migrate diff --from-config-datasource --to-schema` against dev, which returned
+`-- This is an empty migration.` Dev matches the schema. Staging and production
+get the migration through `prisma migrate deploy` in the Vercel build, on Gary's
+push. There is no prisma check from this machine against staging. Gary checks
+staging's `_prisma_migrations` in the Neon console before and after the deploy.
+
+Prisma commands for this migration: `format`, `validate`, `migrate diff` (three
+times: the pre-build level check, generating this file, and the level check
+after the apply), and `generate` (after the apply, to refresh the local client).
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "MilestoneSettings"` (5 `INTEGER NOT NULL DEFAULT` columns, timestamps) | additive, new table |
+| `UNIQUE INDEX "MilestoneSettings_organizationId_key"` | additive |
+| FK `organizationId` → `Organization.id` (`ON DELETE RESTRICT`, TenureMilestone's shape) | additive |
+
+**No drops, no renames, no type changes, no backfill.** Every org reads the code
+defaults (`DEFAULT_MILESTONE_SETTINGS`, `src/lib/attendance-settings.ts`) until
+an ADMIN first saves the On-time section. `scripts/verify-ms2.ts` asserts those
+defaults equal the schema `@default`s.
+
+**Fixture:** `scripts/verify-ms2.ts`, 87 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was confirmed
+level and again inside the commit gate.

@@ -7119,13 +7119,61 @@ phases:
 
   - id: MS-2
     track: hr
-    status: planned
-    title: "Staff Milestones — attendance milestones"
+    size: L
+    status: in_progress
+    title: "Staff Milestones — on-time % and On-Time badge, On-time settings, schedule cron"
+    commits:
+      - "15765c7"
+    blockers:
+      - >
+        UNVERIFIED ON STAGING. Everything is dev-level evidence: verify-ms2
+        87/87 on dev br-broad-wave-a6vpjdw0 (inside the commit gate),
+        verify-ms1 97/97, verify-labor-inspector PASS, and a green build. Dev
+        holds NO Square labor rows, so no badge has been seen on real data.
+        Staging must check: the On-time section saves and refuses red >= green;
+        a badge on a staff member with many shifts, one with few (grey "Not
+        enough shifts"), one at a store with no schedule data (grey "No
+        schedule data"); compact badges on /staff; Milestones toggle off hides
+        every badge and GET/PUT /api/milestones/attendance answer 404; console
+        fetch checks of that route as Tommy (STORE) and gary@keva.com (MANAGER,
+        Carson); /staff, the tab and the section at phone width. Gary checks
+        staging _prisma_migrations in the Neon console before and after.
+      - >
+        THE SCHEDULE CRON ACTIVATES AT PROMOTION, NOT ON STAGING. Vercel runs
+        crons on production deployments only (Gary, 2026-10-16). Until
+        promotion, staging schedule rows still come only from dashboard loads.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-2, to be
+        ratified at the PRE-PUSH-CHECK.
     notes: >
-      FILED 2026-10-15 by the MS-1 build session, from the MS-1 prompt's scope
-      list ("Attendance (MS-2)"). The /staff/milestones placeholder card is the
-      only thing built. DESIGN BUNDLE REQUIRED FIRST (Gary, F0 2026-10-15:
-      "The design bundle comes before MS-2/MS-3"). Cross-refs: MS-1.
+      TIER 3, 2026-10-16. Prompt: docs/prompts/2026-10-16_MS-2_attendance_on_time_badge.md.
+      Audit and plan: docs/prompts/2026-10-16_MS-2_AUDIT.md (76b857c). Migration
+      20261016140411_ms2_milestone_settings is applied to DEV ONLY, by Gary
+      (docs/MIGRATIONS.md). WHAT SHIPPED: one on-time function,
+      src/lib/attendance.ts getOnTimeForStaff (staff + any store-local date
+      range, batched, so MS-3 calls it with its own weeks); the FIRST definition
+      of on time in Froot, since the Day Inspector has none (audit A1): the
+      earliest paired clock-in is at or before scheduled start + grace,
+      compared to the minute (at 5 min, 9:05:59 on time, 9:06:00 late);
+      no-shows count late once the timecard sync is past start + the
+      inspector's 20-minute wait; unscheduled cards and draft-only shifts are
+      left out. PAIRING IS THE INSPECTOR'S: pairsAsAttendance() was extracted
+      from labor-inspector.ts, behaviour-identical, proven against
+      scripts/ms2-inspector-golden.json written from the pre-move code (F12).
+      MilestoneSettings, one row per org (red 80, green 90, 30 days, 5 shifts,
+      grace 5 of 5/10/15). /staff/milestones On-time section replaces the
+      Attendance placeholder (PUT/GET /api/milestones/attendance,
+      milestones.manage, 404 when off). Full badge on the Milestones tab;
+      compact badge beside the name on /staff; both gated by Milestones on +
+      ADMIN/MANAGER. BADGE_PRESETS and the status pill, no design bundle (F0
+      superseded for MS-2 by Gary 2026-10-16). With the Square labor overlay
+      off every badge is grey and no Square labor row is read.
+      /api/cron/labor-scheduled-shifts REGISTERED (45 11 * * * UTC), superseding
+      the CRON-1 parking (Gary, 2026-10-16). /staff tables scroll sideways at
+      phone width. verify-ms1 C7 now counts four milestone routes.
+      FILED 2026-10-15 by the MS-1 build session as "attendance milestones",
+      DESIGN BUNDLE REQUIRED FIRST. Both are superseded by the 2026-10-16
+      rulings above. Cross-refs: MS-1, MS-3, CRON-1, BUG-16.
 
   - id: MS-3
     track: hr
@@ -21254,6 +21302,13 @@ bugs:
       viewer on a Colorado store between 11 PM and midnight Pacific).
       /api/dashboard/sales clamps `end > today`, which hides some of it. Fixing
       it changes what the cards request, so it is behaviour, not display.
+      ITEM 4 — ADDED 2026-10-16 by the MS-2 session (Gary: "Add it as a note on
+      the existing BUG-16 row, same bug class. No new row."). The Labor Day
+      Inspector, src/app/(app)/labor/inspector/day-inspector-client.tsx
+      todayStr(), uses the browser's date for the default day and the "today"
+      link. A Pacific viewer on a Colorado store between 11 PM and midnight
+      Pacific lands on the wrong day. The server clamps only the future end
+      (/api/labor/day-inspector, the schedule horizon), so no data is wrong.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
