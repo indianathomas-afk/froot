@@ -21177,8 +21177,13 @@ bugs:
       demonstrated it rather than a fixture asserting it.
 
   - id: BUG-15
-    status: in_progress
-    commits: [0ddf236, cd57d44]
+    # `in_progress` -> `staging` 2026-10-15 BY THE PRE-PUSH-CHECK. None of
+    # 0ddf236 / cd57d44 / 7977d43 was pushed when the check ran; this check's
+    # own commit (the one immediately after 7977d43, which cannot name itself)
+    # is not pushed either — Claude never pushes. MS-1 is still unpromoted
+    # beneath it, so a promotion of staging carries both.
+    status: staging
+    commits: [0ddf236, cd57d44, 7977d43]
     title: >
       /dashboard header date causes React #418 after 5 PM Pacific
     notes: >

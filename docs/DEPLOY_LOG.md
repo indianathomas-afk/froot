@@ -2,6 +2,46 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-15 — BUG-15: /dashboard header date no longer causes React #418 after 5 PM Pacific
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge.
+
+**Payload: BUG-15, ON TOP OF UNPROMOTED MS-1.** Gary overrode the BUG-15
+prompt's launch gate ("do not launch until MS-1 has been promoted to main"), so
+BUG-15 was built on staging with MS-1 still unpromoted. Verified at this check
+by `git fetch` then `git log origin/main..staging`: the four BUG-15 commits
+below PLUS MS-1's six (`9a9b9c3` .. `7010995`, see the MS-1 entry below). **A
+promotion of staging now carries both.** Unpushed at this check
+(`git log origin/staging..staging`): `0ddf236`, `cd57d44`, `7977d43`, and this
+check's own commit.
+
+| Commit | What it is |
+|---|---|
+| `e1b4620` | `docs(BUG-15)`: session prompt (already on `origin/staging`) |
+| `0ddf236` | BUG-15 work: `dashboardAnchorTimeZone` + `dashboardHeaderDate` in `src/lib/reports.ts`, rollup route uses the helper, `page.tsx` formats the header date server-side per store zone, client `useMemo` removed, fixture `scripts/bug15-dashboard-header-date-fixture.tsx` |
+| `cd57d44` | drops the `useMemo` import `0ddf236` left unused |
+| `7977d43` | `docs(BUG-15)`: ROADMAP row, BUG-16 filed planned |
+| the commit immediately after `7977d43` | `docs(BUG-15 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHA |
+
+**Blast radius: `/dashboard` header text, and one read-only route refactor.** No
+migration, no env var, no new route, no permission change, no new dependency,
+no rows written.
+- **`/dashboard`**: the header date is now formatted on the server in the
+  selected store's zone (All locations: the rollup's anchor zone) and passed as
+  a string. Frozen at page load, as before. The page query adds
+  `Store.timezone` to its `select`.
+- **`/api/dashboard/rollup`**: inline `stores[0]?.timezone ?? "America/Los_Angeles"`
+  replaced by `dashboardAnchorTimeZone(stores)`, which returns the same value
+  (`DEFAULT_TIME_ZONE` is `"America/Los_Angeles"`). No behaviour change.
+
+**Rollback:** `git revert cd57d44 0ddf236`. No database step. The docs commits
+can stay.
+
+**Staging evidence:** pending. After 5 PM Pacific (UTC has rolled over), load
+`/dashboard` on a Pacific store, a Colorado store and All locations; check for
+no #418 in the console and the store-local date in the header.
+
 ## UNPROMOTED — 2026-10-15 — MS-1: Staff Milestones foundation (toggle, tenure milestones, start date, Milestones tab)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
