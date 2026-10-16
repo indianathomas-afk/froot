@@ -4,6 +4,7 @@ import { requireMilestones } from "@/lib/milestones-access"
 import { MilestonesClient } from "./milestones-client"
 import { getMilestoneSettings } from "@/lib/attendance"
 import { laborOverlayOn } from "@/lib/labor-dashboard"
+import { getRaisePickerOptions, getRaiseSettings } from "@/lib/raise-eligibility"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MS-1 — /staff/milestones. THE ADMIN SETUP PAGE (ruling 1: "Only ADMINs see the
@@ -19,10 +20,11 @@ import { laborOverlayOn } from "@/lib/labor-dashboard"
 // The write routes re-check (2) and (3) independently (PERM-2: a gate on a
 // page is not a gate on an endpoint).
 //
-// TWO LIVE SECTIONS since MS-2: Tenure milestones (MS-1) and On-time (MS-2,
-// src/app/api/milestones/attendance). Raise eligibility (MS-3) and Checklists
-// (MS-4) still render as labelled "Coming soon" cards with NO controls —
-// nothing in them is wired, and nothing in them may be mistaken for a setting.
+// THREE LIVE SECTIONS since MS-3a: Tenure milestones (MS-1), On-time (MS-2,
+// src/app/api/milestones/attendance) and Raise eligibility (MS-3a,
+// src/app/api/milestones/raise). Checklists (MS-4) still renders as a labelled
+// "Coming soon" card with NO controls — nothing in it is wired, and nothing in
+// it may be mistaken for a setting.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default async function MilestonesSetupPage() {
@@ -46,10 +48,22 @@ export default async function MilestonesSetupPage() {
   // MS-2. The On-time section's values (defaults until the first save) and
   // whether the Square labor overlay is on — F5: with it off the section still
   // saves, and says every badge is grey until schedule data exists.
-  const [settings, org] = await Promise.all([
+  // MS-3a adds the raise rules and the trainings / documents an ADMIN may
+  // require (titles only, this org, live ones — getRaisePickerOptions).
+  const [settings, org, raise, raiseOptions] = await Promise.all([
     getMilestoneSettings(access.org.id),
     prisma.organization.findUniqueOrThrow({ where: { id: access.org.id } }),
+    getRaiseSettings(access.org.id),
+    getRaisePickerOptions(access.org.id),
   ])
 
-  return <MilestonesClient initial={rows} attendance={settings} squareLaborOn={laborOverlayOn(org)} />
+  return (
+    <MilestonesClient
+      initial={rows}
+      attendance={settings}
+      raise={raise}
+      raiseOptions={raiseOptions}
+      squareLaborOn={laborOverlayOn(org)}
+    />
+  )
 }

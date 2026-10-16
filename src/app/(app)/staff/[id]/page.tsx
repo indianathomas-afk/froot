@@ -34,6 +34,8 @@ import { dateColumnStr, tenureProgress, type TenureProgress } from "@/lib/milest
 import { localDateStr } from "@/lib/reports"
 import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
 import { OnTimeCard } from "../on-time-badge"
+import { getRaiseEligibility, getRaiseSettings, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { RaiseCard } from "../raise-badge"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -635,6 +637,13 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // tables when the overlay is off (F5) — getOnTimeForStaff short-circuits.
   let onTime: OnTimeResult | null = null
   let onTimeLookbackDays = 0
+  // MS-3a — the Raise Eligibility card, SAME GATE AS THE TAB (ruling 2: ADMIN
+  // and MANAGER only; STORE and STAFF never see the tab at all). F12: with the
+  // Square labor overlay off getRaiseEligibility returns nothing and reads
+  // nothing, so no card renders; a terminated member gets none either. The
+  // compliance detail computed above for the Compliance tab is handed in, so
+  // the engine does not run twice. NO WAGE DATA in MS-3a.
+  let raise: RaiseEligibility | null = null
   if (showMilestonesTab) {
     const settings = await getMilestoneSettings(member.organizationId)
     onTimeLookbackDays = settings.onTimeLookbackDays
@@ -657,6 +666,24 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       settings
     )
     onTime = results.get(member.id) ?? null
+
+    const raiseResults = await getRaiseEligibility(
+      org,
+      [
+        {
+          id: member.id,
+          squareTeamMemberId: member.squareTeamMemberId,
+          assignedStoreIds: member.storeAssignments.map((a) => a.storeId),
+          startDate: member.startDate,
+          status: member.status,
+          zone,
+        },
+      ],
+      await getRaiseSettings(member.organizationId),
+      settings,
+      { compliance: complianceDetail ? new Map([[member.id, complianceDetail]]) : undefined }
+    )
+    raise = raiseResults.get(member.id) ?? null
   }
   if (showMilestonesTab) {
     // ACTIVE AND ARCHIVED rows: an archived milestone a member reached on or
@@ -1047,6 +1074,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         {showMilestonesTab && milestoneProgress && (
           <TabsContent value="milestones" className="mt-4 space-y-4">
             {onTime && <OnTimeCard result={onTime} lookbackDays={onTimeLookbackDays} />}
+            {raise && <RaiseCard result={raise} />}
             <StaffMilestones
               progress={milestoneProgress}
               hasMilestones={hasMilestones}

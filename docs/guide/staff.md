@@ -93,3 +93,25 @@ has edited it by hand.
 
 Archiving a milestone stops it appearing for anyone who has not reached it yet.
 People who reached it before it was archived keep it in their history.
+
+### Raise eligibility
+
+Where Square labor is switched on, the setup page's **Raise eligibility**
+section sets the rules for a red, yellow or green **Raise** badge. Admins and
+managers see it beside each person's name on Staff Members and on their
+Milestones tab. Store accounts and staff never see it.
+
+- **Compliance gate** — red while any assigned training is overdue or any
+  required document is unsigned. Tenure milestones are not affected.
+- **Hours** — paid hours (unpaid breaks taken off) in each of the last
+  completed Monday–Sunday weeks, all stores combined. The current week never
+  counts.
+- **On-time** — the same percentage as the On-time badge, over those weeks.
+  Below the minimum is red.
+- **Required trainings and documents** — each must be completed or signed. One
+  that isn't assigned to a person shows "N/A — not assigned" and doesn't
+  affect their badge.
+
+Yellow means nothing is blocking but a rule isn't met yet, or there isn't
+enough Square data to judge — a badge is never green on missing data. Set
+hours or on-time to 0 to switch that rule off.

@@ -1970,22 +1970,25 @@ model HrDocument {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  organization  Organization           @relation(fields: [organizationId], references: [id])
+  organization      Organization             @relation(fields: [organizationId], references: [id])
   // onDelete: Restrict ANNOTATED, not defaulted — the TPL-1a/HR-20 drift lesson:
   // an optional relation left unannotated reads as SetNull, and every later
   // migrate diff would try to relax the live RESTRICT constraint. Deletion in
   // use is blocked by a 409 in the route; RESTRICT is the backstop.
   // Named docCategory because the legacy scalar above already owns `category`.
-  docCategory   HrDocumentCategory?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  versions      HrDocumentVersion[]
-  checkpoints   HrDocumentCheckpoint[]
-  formFields    FormField[]
-  grants        HrDocumentGrant[]
+  docCategory       HrDocumentCategory?      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  versions          HrDocumentVersion[]
+  checkpoints       HrDocumentCheckpoint[]
+  formFields        FormField[]
+  grants            HrDocumentGrant[]
   // HR-32 back-relation. A document may be linked from many lessons; the
   // "one document per lesson" rule is the scalar column's cardinality on
   // TrainingLesson, not a uniqueness claim about the document.
-  linkedLessons TrainingLesson[]
-  returnEvents  HrReturnEvent[]
+  linkedLessons     TrainingLesson[]
+  returnEvents      HrReturnEvent[]
+  // MS-3a back-relation: the orgs whose raise eligibility requires this
+  // document. Cascades on delete; an archived document is skipped on read.
+  raiseRequirements MilestoneRaiseDocument[]
 
   @@index([organizationId])
   @@index([categoryId])
@@ -2458,12 +2461,15 @@ model TrainingModule {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization     Organization                    @relation(fields: [organizationId], references: [id])
-  category         TrainingCategory?               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  lessons          TrainingLesson[]
-  quizzes          TrainingQuiz[]
-  assignments      TrainingAssignment[]
-  storeAssignments TrainingModuleStoreAssignment[]
+  organization      Organization                    @relation(fields: [organizationId], references: [id])
+  category          TrainingCategory?               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  lessons           TrainingLesson[]
+  quizzes           TrainingQuiz[]
+  assignments       TrainingAssignment[]
+  storeAssignments  TrainingModuleStoreAssignment[]
+  // MS-3a back-relation: the orgs whose raise eligibility requires this
+  // module. Cascades on delete; an archived module is skipped on read.
+  raiseRequirements MilestoneRaiseTraining[]
 
   @@index([organizationId])
   @@index([categoryId])
@@ -3708,26 +3714,80 @@ model WageSnapshot {
 /// value re-colours every badge from the next render — there is no history to
 /// rewrite.
 model MilestoneSettings {
-  id                   String   @id @default(cuid())
-  organizationId       String   @unique
+  id                   String @id @default(cuid())
+  organizationId       String @unique
   /// Red STRICTLY BELOW this whole percentage (F8). The write route refuses
   /// onTimeRedBelow >= onTimeGreenAtOrAbove.
-  onTimeRedBelow       Int      @default(80)
+  onTimeRedBelow       Int    @default(80)
   /// Green AT OR ABOVE this whole percentage; amber in between (F8).
-  onTimeGreenAtOrAbove Int      @default(90)
+  onTimeGreenAtOrAbove Int    @default(90)
   /// Rolling window in store-local days ending today, each shift dated in its
   /// own store's zone (F1).
-  onTimeLookbackDays   Int      @default(30)
+  onTimeLookbackDays   Int    @default(30)
   /// Fewer eligible shifts than this in the window = grey "Not enough shifts"
   /// (F4).
-  onTimeMinShifts      Int      @default(5)
+  onTimeMinShifts      Int    @default(5)
   /// F2 (Gary, 2026-10-16): 5, 10 or 15 — the route accepts nothing else. A
   /// clock-in at or before scheduled start + this many minutes, compared to the
   /// minute, is on time (at 5: 9:05:59 on time, 9:06:00 late). SEPARATE FROM
   /// the Day Inspector's 20-minute NO-SHOW wait, which is unchanged.
-  onTimeGraceMinutes   Int      @default(5)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  onTimeGraceMinutes   Int    @default(5)
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  // ── MS-3a RAISE ELIGIBILITY (Gary, 2026-10-16). Defaults are his ruling
+  // (F13): 20 h/week, 3 weeks, 90% on time, 90-day cooldown. Computed on read
+  // by src/lib/raise-eligibility.ts; nothing derived is stored.
+  /// Ruling 5: ADMIN toggle, raise eligibility only (tenure always counts from
+  /// the start date). Ruled (b): a TRAINING fails the gate only when OVERDUE;
+  /// a required DOCUMENT fails it whenever unsigned (Gary 2026-09-07: a
+  /// document is owed from the day it applies). Nothing assigned passes.
+  raiseComplianceGate   Boolean  @default(true)
+  /// Paid hours (gross minus unpaid breaks), all stores combined, that EACH of
+  /// the last raiseConsecutiveWeeks COMPLETED Monday–Sunday weeks must reach.
+  raiseMinHoursPerWeek  Int      @default(20)
+  raiseConsecutiveWeeks Int      @default(3)
+  /// The MS-2 exact on-time % over those same weeks must be at or above this.
+  raiseMinOnTimePct     Int      @default(90)
+  /// Ruling 4: days after a raise before the member can be eligible again —
+  /// 30 / 60 / 90 / 180 or a custom value. Saved by MS-3a; READ from MS-3b on
+  /// (raise detection lands there).
+  raiseCooldownDays     Int      @default(90)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization           Organization             @relation(fields: [organizationId], references: [id])
+  raiseRequiredTrainings MilestoneRaiseTraining[]
+  raiseRequiredDocuments MilestoneRaiseDocument[]
+}
+
+/// MS-3a. A training module an org requires before a raise. Completed means
+/// TrainingAssignment.status === "Completed"; a member with no assignment for
+/// it shows "N/A — not assigned" and the module is skipped for them (F11).
+/// Two join tables rather than one polymorphic one, so each carries a real
+/// foreign key and cascades when its module or document is deleted.
+model MilestoneRaiseTraining {
+  milestoneSettingsId String
+  trainingModuleId    String
+  createdAt           DateTime @default(now())
+
+  settings MilestoneSettings @relation(fields: [milestoneSettingsId], references: [id], onDelete: Cascade)
+  module   TrainingModule    @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+
+  @@id([milestoneSettingsId, trainingModuleId])
+  @@index([trainingModuleId])
+}
+
+/// MS-3a. A document an org requires before a raise. Completed means the
+/// compliance engine's documentCompletion() === "signed" for the member's
+/// current signing cycle; a document outside the member's audience shows
+/// "N/A — not assigned" and is skipped for them (F11).
+model MilestoneRaiseDocument {
+  milestoneSettingsId String
+  hrDocumentId        String
+  createdAt           DateTime @default(now())
+
+  settings MilestoneSettings @relation(fields: [milestoneSettingsId], references: [id], onDelete: Cascade)
+  document HrDocument        @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
+
+  @@id([milestoneSettingsId, hrDocumentId])
+  @@index([hrDocumentId])
 }

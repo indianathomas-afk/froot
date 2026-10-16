@@ -10,18 +10,23 @@ import { canSeeWages } from "@/lib/labor-dashboard"
 import { formatPay } from "@/lib/labor-costs"
 import { getPayForStaff } from "@/lib/labor-roster"
 import { CONFIDENTIAL_DASH, CONFIDENTIAL_TITLE } from "@/lib/comp-confidential"
-import { getStaffComplianceSummaries, type StaffComplianceSummary } from "@/lib/hr-compliance"
+import { computeStaffComplianceDetails, summariesFromDetails, type StaffComplianceDetail, type StaffComplianceSummary } from "@/lib/hr-compliance"
 import { resolveSelfStaff } from "@/lib/hr"
 import { milestonesActive } from "@/lib/milestones-access"
 import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
 import { displayTimeZone } from "@/lib/hr"
 import { OnTimeBadge } from "./on-time-badge"
+import { getRaiseEligibility, getRaiseSettings, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { RaiseBadge } from "./raise-badge"
 import { Badge } from "@/components/ui/badge"
 
 const NO_SUMMARIES = new Map<string, StaffComplianceSummary>()
 /// MS-2 — the On-Time map for a viewer outside the badge gate: empty, so no
 /// row renders a badge and no attendance query ran.
 const NO_ON_TIME = new Map<string, OnTimeResult>()
+/// MS-3a — the Raise map for a viewer outside the badge gate, or an org with
+/// the Square labor overlay off (F12): empty, so no row renders a Raise badge.
+const NO_RAISE = new Map<string, RaiseEligibility>()
 /// AL-3. The SHARED EMPTY MAP for a viewer who may not see pay — and the reason
 /// it is a constant rather than a fresh Map() is the same reason NO_SUMMARIES is:
 /// an empty map is the only value this page ever holds for a denied viewer, so
@@ -30,9 +35,9 @@ const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | nu
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0 }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0 }
+  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
@@ -69,9 +74,13 @@ async function getStaffData() {
 
   // HR-8: one batched rollup for the whole roster — never a query per row.
   // Terminated members come back with pct null (excluded from percentages).
-  const summaries = hrActive
-    ? await getStaffComplianceSummaries(org.id, staff.map((s) => s.id))
-    : NO_SUMMARIES
+  // MS-3a: the DETAILS are computed once and feed both this column and raise
+  // eligibility's compliance gate below — summariesFromDetails is the exact
+  // rule getStaffComplianceSummaries applies, so the column is unchanged.
+  const complianceDetails: StaffComplianceDetail[] = hrActive
+    ? await computeStaffComplianceDetails(org.id, staff.map((s) => s.id))
+    : []
+  const summaries = hrActive ? summariesFromDetails(complianceDetails) : NO_SUMMARIES
 
   // PERM-5C. AND-ed with isAdmin, never replacing it. These affordances are
   // ADMIN-only on this page while POST/PATCH /api/staff are staff.manage
@@ -162,6 +171,7 @@ async function getStaffData() {
   const showOnTime = milestonesActive(org) && (dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER")
   let onTime = NO_ON_TIME
   let onTimeLookbackDays = 0
+  let raise = NO_RAISE
   if (showOnTime) {
     const settings = await getMilestoneSettings(org.id)
     onTimeLookbackDays = settings.onTimeLookbackDays
@@ -182,9 +192,28 @@ async function getStaffData() {
       settings,
       now
     )
+
+    // MS-3a — THE COMPACT RAISE BADGE, beside On-Time, on the SAME gate
+    // (ruling 2: ADMIN and MANAGER only), the same roster (MANAGER scope) and
+    // ONE BATCHED CALL. F12: the Square labor overlay off returns an empty map
+    // with no reads. Terminated members get none. NO WAGE DATA in MS-3a.
+    raise = await getRaiseEligibility(
+      org,
+      staff.map((m) => ({
+        id: m.id,
+        squareTeamMemberId: m.squareTeamMemberId,
+        assignedStoreIds: m.storeAssignments.map((a) => a.storeId),
+        startDate: m.startDate,
+        status: m.status,
+        zone: displayTimeZone(m, org),
+      })),
+      await getRaiseSettings(org.id),
+      settings,
+      { now, compliance: new Map(complianceDetails.map((d) => [d.staffId, d])) }
+    )
   }
 
-  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays }
+  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -287,6 +316,7 @@ function StaffRow({
   isSelf = false,
   onTime,
   onTimeLookbackDays = 0,
+  raise,
 }: {
   member: RosterMember
   hrActive: boolean
@@ -302,6 +332,9 @@ function StaffRow({
   /// query never ran; then no badge renders.
   onTime?: OnTimeResult
   onTimeLookbackDays?: number
+  /// MS-3a — undefined outside the badge gate, with the overlay off, and for a
+  /// terminated member; then no Raise badge renders.
+  raise?: RaiseEligibility
   /// AL-3. False for every viewer without labor.costs.view AND for every org
   /// without the Advanced Labor overlay — in both cases `pay` is undefined
   /// because the query never ran.
@@ -339,6 +372,8 @@ function StaffRow({
         )}
         {/* MS-2 (F7) — beside the name, the You/Terminated slot: no new column. */}
         {onTime && <OnTimeBadge result={onTime} lookbackDays={onTimeLookbackDays} size="compact" />}
+        {/* MS-3a — beside On-Time, same slot, no new column. */}
+        {raise && <RaiseBadge result={raise} size="compact" />}
         {homeStoreName && (
           <span className="block text-xs font-normal text-[var(--color-muted-foreground)]">
             Home store: {homeStoreName}
@@ -387,7 +422,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays } = await getStaffData()
+  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -585,6 +620,7 @@ export default async function StaffPage() {
                     pct={summaries.get(member.id)?.pct ?? null}
                     onTime={onTime.get(member.id)}
                     onTimeLookbackDays={onTimeLookbackDays}
+                    raise={raise.get(member.id)}
                     showPay={showPay}
                     pay={pay.get(member.id)}
                     isSelf={member.id === selfStaffId}
@@ -608,6 +644,7 @@ export default async function StaffPage() {
                     pct={summaries.get(member.id)?.pct ?? null}
                     onTime={onTime.get(member.id)}
                     onTimeLookbackDays={onTimeLookbackDays}
+                    raise={raise.get(member.id)}
                     showPay={showPay}
                     pay={pay.get(member.id)}
                     homeStoreName={member.storeAssignments[0].store.name}
@@ -668,6 +705,7 @@ export default async function StaffPage() {
                   pct={summaries.get(member.id)?.pct ?? null}
                     onTime={onTime.get(member.id)}
                     onTimeLookbackDays={onTimeLookbackDays}
+                    raise={raise.get(member.id)}
                   showPay={showPay}
                   pay={pay.get(member.id)}
                   isSelf={member.id === selfStaffId}
@@ -696,6 +734,7 @@ export default async function StaffPage() {
                   pct={summaries.get(member.id)?.pct ?? null}
                     onTime={onTime.get(member.id)}
                     onTimeLookbackDays={onTimeLookbackDays}
+                    raise={raise.get(member.id)}
                   showPay={showPay}
                   pay={pay.get(member.id)}
                   isSelf={member.id === selfStaffId}

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Award, TrendingUp, ListChecks, Pencil, Plus, Archive, RotateCcw } from "lucide-react"
+import { ArrowLeft, Award, ListChecks, Pencil, Plus, Archive, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,6 +24,8 @@ import {
 import { dayCountLabel } from "@/lib/milestones"
 import type { MilestoneSettingsValues } from "@/lib/attendance-settings"
 import { AttendanceSettings } from "./attendance-settings"
+import type { RaiseSettingsValues } from "@/lib/raise-settings"
+import { RaiseSettings } from "./raise-settings"
 
 // MS-1 — the client half of /staff/milestones. Holds no authority: every write
 // goes to /api/milestones/tenure*, which re-checks milestones.manage and the
@@ -44,10 +46,14 @@ const EMPTY: Draft = { dayCount: "", title: "", recognition: "", employeeMessage
 export function MilestonesClient({
   initial,
   attendance,
+  raise,
+  raiseOptions,
   squareLaborOn,
 }: {
   initial: Row[]
   attendance: MilestoneSettingsValues
+  raise: RaiseSettingsValues
+  raiseOptions: { trainings: { id: string; title: string }[]; documents: { id: string; title: string }[] }
   squareLaborOn: boolean
 }) {
   const router = useRouter()
@@ -214,11 +220,18 @@ export function MilestonesClient({
       {/* MS-2 — the On-time section, replacing MS-1's Attendance placeholder. */}
       <AttendanceSettings initial={attendance} squareLaborOn={squareLaborOn} />
 
-      {/* Placeholders for MS-3..MS-4. NO CONTROLS, by instruction: they say what
-          is coming and nothing else. */}
+      {/* MS-3a — the Raise eligibility section, replacing its placeholder. */}
+      <RaiseSettings
+        initial={raise}
+        trainings={raiseOptions.trainings}
+        documents={raiseOptions.documents}
+        squareLaborOn={squareLaborOn}
+      />
+
+      {/* Placeholder for MS-4. NO CONTROLS, by instruction: it says what is
+          coming and nothing else. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         {[
-          { icon: TrendingUp, title: "Raise eligibility", copy: "Raise eligibility from hours and on-time %, with a cooldown after each raise." },
           { icon: ListChecks, title: "Checklists", copy: "Milestones for completing training and onboarding checklists." },
         ].map(({ icon: Icon, title, copy }) => (
           <div key={title} className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-6 text-center">
