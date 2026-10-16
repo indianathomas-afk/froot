@@ -7205,9 +7205,65 @@ phases:
 
   - id: MS-3
     track: hr
-    status: planned
-    title: "Staff Milestones — raise eligibility (hours + on-time %), badge, cooldown"
+    size: L
+    # `planned` -> `in_progress` 2026-10-16 by the MS-3a build session. THIS ID
+    # CARRIES MS-3a; MS-3b is its own row below. Neither commit is pushed —
+    # Claude never pushes.
+    status: in_progress
+    title: "Staff Milestones — raise eligibility (MS-3a): settings, compliance/hours/on-time/trainings/documents criteria, Raise badge"
+    commits:
+      - "3870fb2"
+      - "3a3f210"
+    blockers:
+      - >
+        PROMOTES TOGETHER WITH MS-3b (Gary, 2026-10-16: "Promote together").
+        MS-3a alone shows green for someone who was just given a raise, because
+        raise detection and the cooldown are MS-3b's.
+      - >
+        UNVERIFIED ON STAGING. Everything is dev-level evidence: verify-ms3
+        92/92 on dev br-broad-wave-a6vpjdw0 (inside the commit gate), verify-ms1
+        97/97, verify-ms2 90/90, a green build, and the new components rendered
+        with sample data at 375 px on a temporary local page (no sideways
+        scroll; the custom-cooldown refusal shown client-side, no request sent).
+        No real page was seen signed in. Staging must check: the Raise section
+        saves and refuses bad input (hours 61, cooldown 0 or 731, an archived
+        training); one member per colour; Square labor off hides every Raise
+        badge and the section says why; Milestones off hides it and GET/PUT
+        /api/milestones/raise answer 404; console fetch of that route as Tommy
+        (STORE) and gary@keva.com (MANAGER, Carson) — 403 with Milestones on;
+        /staff, the tab and the section at phone width. Gary checks staging
+        _prisma_migrations in the Neon console before and after.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3, to be
+        ratified at the PRE-PUSH-CHECK.
     notes: >
+      TIER 3, 2026-10-16. Prompt: docs/prompts/2026-10-16_MS-3_raise_eligibility.md.
+      Audit and plan: docs/prompts/2026-10-16_MS-3_AUDIT.md (3870fb2). SPLIT
+      (Gary, 2026-10-16): MS-3a = settings, criteria, badge, NO wage reads;
+      MS-3b = raise detection, manual last-raise date, cooldown, daily wage
+      sync, COMP-1 redaction (prompt: docs/prompts/2026-10-16_MS-3b_raise_detection.md).
+      NO DESIGN BUNDLE for MS-3a or MS-3b (Gary extended his MS-2 ruling).
+      Migration 20261016190415_ms3a_raise_settings is applied to DEV ONLY, by
+      Gary with migrate deploy (docs/MIGRATIONS.md). WHAT SHIPPED (3a3f210):
+      src/lib/raise-eligibility.ts getRaiseEligibility — ONE batched function
+      for /staff, the tab, MS-4 and MS-5. Compliance gate ruled (b): a training
+      fails only when OVERDUE, a document whenever unsigned. Hours: paid hours
+      (paidMinutesOf) in each of the last Y COMPLETED Monday–Sunday weeks, all
+      stores, each card dated by its start in its own store's zone; current
+      week ignored. On-time: getOnTimeForStaff over the same weeks. Required
+      trainings/documents with "N/A — not assigned" (F11) left out of the
+      colour. Never green on missing data (F9). Square labor off = no badge
+      anywhere (F12); terminated = no badge. Defaults (F13): gate on, 20 h, 3
+      weeks, 90%, 90-day cooldown. MilestoneSettings gains five raise columns;
+      MilestoneRaiseTraining / MilestoneRaiseDocument join tables. Raise
+      section on /staff/milestones (GET/PUT /api/milestones/raise,
+      milestones.manage, 404 when off); full RaiseCard on the Milestones tab and
+      a compact badge beside On-Time on /staff, on the On-Time gate. Reads NO
+      wage table — verify-ms3 C14 and D20 assert it. verify-ms1 C7 now counts
+      five milestone routes. hr-compliance exports complianceDocumentWhere and
+      summariesFromDetails (behaviour-identical lift).
+      ── ORIGINAL "planned" NOTES, KEPT VERBATIM. SUPERSEDED by the 2026-10-16
+      rulings above (no design bundle; split). ──
       FILED 2026-10-15 by the MS-1 build session. Draft rulings 2, 4 and 5
       (docs/DECISIONS.md 2026-10-15 — MS-1) govern it: the badge is for
       ADMIN and MANAGER only, the cooldown is set by an ADMIN, and the
@@ -7217,6 +7273,22 @@ phases:
       every roster sync since MS-1 shipped. Any reader MUST apply
       SquareTeamMemberWage.compConfidential (COMP-1). DESIGN BUNDLE REQUIRED
       FIRST (F0). Cross-refs: MS-1, COMP-1.
+
+  - id: MS-3b
+    track: hr
+    status: planned
+    title: "Staff Milestones — raise detection, manual last-raise date, cooldown, daily wage sync, COMP-1 redaction"
+    notes: >
+      FILED 2026-10-16 by the MS-3a build session, per Gary's split ruling
+      ("Write the MS-3b prompt into docs/prompts/ for a later session. Promote
+      together."). Prompt: docs/prompts/2026-10-16_MS-3b_raise_detection.md.
+      Rulings already given (docs/DECISIONS.md 2026-10-16 — MS-3): wage sync in
+      the daily timecard cron; raise detection proven by fixture on dev, the
+      cooldown checked on staging via the manual date; the badge vanishing
+      after a raise is accepted, amounts and dates hidden from anyone without
+      pay access; F5, F6, F7, F10, F15 approved as listed. MS-3a's
+      getRaiseEligibility is the function it extends. Cross-refs: MS-3, MS-1,
+      COMP-1, DEBT-115.
 
   - id: MS-4
     track: hr
@@ -30999,6 +31071,33 @@ debt:
       Something on /hr/documents is then calling an ADMIN route for a STORE
       viewer, and that caller is the bug, not the 403.
       RELATED: SIGNED-1.
+
+  - id: DEBT-115
+    status: planned
+    title: >
+      The timecard cron re-reads only 3 days, so a Square timecard edited later never reaches Froot — and it can decide raise eligibility
+    notes: >
+      FILED 2026-10-16 by the MS-3a build session. Gary, upgrading the audit's
+      COMMENT, recorded exactly: "Upgrade to a ROW — it can decide raise
+      eligibility via the hours criterion." THE ID FILLS THE NEXT FREE SLOT —
+      no occurrence of "DEBT-115" in the repo and `git log -S DEBT-115 -- docs`
+      returns nothing.
+      WHAT IS TRUE TODAY: /api/cron/labor-timecards (30 11 * * * UTC) syncs
+      each store's last 3 store-local days (RECONCILE_DAYS = 3,
+      src/app/api/cron/labor-timecards/route.ts:47; the limit is already noted
+      at :41-43). A manager correction made in Square more than 3 days after
+      the shift never reaches SquareTimecard, and a timecard deleted in Square
+      stays as a stale row (labor-actuals.ts:749-753).
+      WHY IT NOW MATTERS: MS-3a's hours criterion (src/lib/raise-eligibility.ts)
+      sums paid hours per completed week from those rows. A late correction can
+      move a week across the minimum (default 20 h) and flip a member between
+      yellow and green — a raise decision made on a number Square no longer
+      holds. Labor actuals had the same exposure but only ever showed a
+      percentage.
+      OPTIONS (no lean recorded yet): a weekly deep sweep of the last N weeks
+      per store (Square cost ~1 search per store per sweep); or widen
+      RECONCILE_DAYS. Either is cron cost and a CRON-1-class ruling.
+      RELATED: MS-3, MS-3b, CRON-1.
 
 rulings:
   - id: R1

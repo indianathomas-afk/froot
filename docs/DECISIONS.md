@@ -5,6 +5,93 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-16 — MS-3: raise eligibility, split into MS-3a and MS-3b (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The
+rulings below are Gary's own words in the session chat on 2026-10-16, after the
+MS-3 audit (`docs/prompts/2026-10-16_MS-3_AUDIT.md`, `3870fb2`), recorded
+exactly. The forks and leans they answer are in the audit file and in the
+session's one-line restatement of them. Anything Gary did not rule on is listed
+separately as a Claude implementation choice.
+
+**First-pass rulings — Gary, in chat 2026-10-16, recorded exactly:**
+
+- *"Split: Approved. Build MS-3a now (settings, criteria, badge, no wage
+  reads). Write the MS-3b prompt into docs/prompts/ for a later session.
+  Promote together."*
+- *"Design: Extend my "no design bundle" ruling to MS-3a and MS-3b."*
+- *"Compliance gate: Check whether compliance items have due dates. If yes, the
+  gate fails only on OVERDUE items. If no, use your lean (100% on the live
+  score, or nothing assigned). Report which applies."*
+- *"Square labor off: Approved — no Raise badge, settings page explains why."*
+- *"Wage sync in the daily timecard cron: Approved (goes in MS-3b)."*
+- *"Testing raise detection: Approved — fixture on dev, cooldown on staging via
+  the manual date (MS-3b)."*
+- *"Required doc not assigned to the person: Skip it for that person, shown as
+  "N/A — not assigned". Not yellow."*
+- *"Badge vanishing after a raise: Accepted. Amounts and dates stay hidden from
+  anyone without pay access."*
+- *"Defaults: 20 hours/week, 3 consecutive weeks, 90% on-time, 90-day
+  cooldown."*
+- *"FIX NOW (2): Approved."*
+- *"COMMENT "timecard sync looks back only 3 days": Upgrade to a ROW — it can
+  decide raise eligibility via the hours criterion."* (Filed as DEBT-115.)
+
+**Second-pass rulings — Gary, in chat 2026-10-16, recorded exactly.** The
+session reported that trainings carry an optional due date and documents never
+do, and put two readings to him:
+
+- *"Compliance: (b) — trainings fail the gate only when overdue; documents fail
+  whenever unsigned, per my 2026-09-07 ruling."*
+- *"F11: Yes — extend "N/A — not assigned" to required trainings that aren't
+  assigned."*
+- *"All other forks (F1, F3–F5, F9–F10, F12–F15): approved as listed."*
+- *"Go: build MS-3a. Stop at the migration as written."*
+
+**What the forks approved "as listed" say, in brief** (the session's one-line
+list, with the rulings applied): F1 red = compliance gate fails or on-time
+below the minimum with enough shifts; yellow = no blocker but a rule unmet or
+without data; green = every applicable rule met; N/A left out; terminated staff
+no badge. F3 paid hours ≥ X in each of the last Y completed Monday–Sunday weeks,
+all stores. F4 the MS-2 % over those weeks, org's grace; below = red; grey
+states = yellow. F5 (MS-3b) a raise is an hourly rate above the previous
+snapshot; decreases reset nothing; salaried = criteria only. F9 never green on
+missing data. F10 colour to every ADMIN/MANAGER who can see the member; dates
+and amounts only to those who can see that member's pay. F12 Square labor off =
+no badge. F13 the defaults above. F14 nothing to judge = green unless in
+cooldown, settings warn. F15 (MS-3b) ADMIN-only manual last-raise date.
+
+**Claude's implementation choices (flagged for ratification):**
+
+- **0 switches a rule off** for hours and for on-time (F14 needed a way to turn
+  them off). Bounds: hours 0–60, weeks 1–26, on-time 0–100, custom cooldown
+  1–730 days, at most 50 required trainings and 50 documents.
+- **Coverage (F9):** a week counts as "no data" unless Froot holds timecards at
+  the person's stores from on or before its Monday, AND the person's start date
+  is on or before that Monday. A person who started mid-week is "no data" for
+  that week, not "not met". A corporate member (no store) uses the org's
+  earliest timecard. A covered week with no hours is a real zero.
+- **A timecard belongs to the week of its START**, dated in its own store's
+  zone; "this week" is the member's display zone. Open (still clocked-in) cards
+  are not counted — only completed weeks are judged.
+- **The compliance gate reads the whole live compliance list**, not only the
+  required trainings/documents: any overdue training or unsigned document
+  anywhere fails it, per (b).
+- **Not linked to Square = yellow** (hours and on-time have no data), never red.
+- **Badge words:** "Raise eligible", "Raise in progress", "Raise blocked".
+  Yellow renders in the AMBER preset, as the On-Time badge does.
+- **Required lists hold only live items.** The pickers offer active,
+  non-archived trainings and the documents the compliance engine counts; a save
+  naming an archived, foreign or non-compliance id is refused with a 400; an
+  item archived later is skipped on read and dropped on the next save.
+- **The cooldown saves in MS-3a and is not read until MS-3b**, which detects
+  raises. The settings form says so.
+- **/staff computes compliance once.** `summariesFromDetails` was lifted out of
+  `getStaffComplianceSummaries` (behaviour-identical) so the % column and the
+  Raise badge share one engine run.
+- **The ROADMAP id `MS-3` carries MS-3a**; MS-3b is a new row. Cross-references
+  to "MS-3" elsewhere stay valid.
+
 ## 2026-10-16 — MS-2: on-time % and the On-Time badge (Gary)
 
 **RATIFIED BY GARY, 2026-10-16, at the MS-2 PRE-PUSH-CHECK.** The entry was

@@ -1302,3 +1302,38 @@ defaults equal the schema `@default`s.
 **Fixture:** `scripts/verify-ms2.ts`, 87 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was confirmed
 level and again inside the commit gate.
+
+## 2026-10-16 — `20261016190415_ms3a_raise_settings` (MS-3a)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-16 with `prisma migrate
+deploy`, against host `ep-late-water-a6k53nv2` (branch `br-broad-wave`), and
+reported "All migrations have been successfully applied". The session then ran
+`migrate diff --from-config-datasource --to-schema` against dev, which returned
+`-- This is an empty migration.` Dev matches the schema. Staging and production
+get the migration through `prisma migrate deploy` in the Vercel build, on Gary's
+push. There is no prisma check from this machine against staging. Gary checks
+staging's `_prisma_migrations` in the Neon console before and after the deploy.
+
+Prisma commands for this migration: `format`, `validate`, `migrate diff` (three
+times: the pre-build level check in the audit, generating this file, and the
+level check after the apply), and `generate` (to refresh the local client).
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "MilestoneSettings" ADD COLUMN` × 5 (`raiseComplianceGate BOOLEAN NOT NULL DEFAULT true`; `raiseMinHoursPerWeek` 20, `raiseConsecutiveWeeks` 3, `raiseMinOnTimePct` 90, `raiseCooldownDays` 90 — `INTEGER NOT NULL DEFAULT`) | additive |
+| `CREATE TABLE "MilestoneRaiseTraining"` (PK `milestoneSettingsId, trainingModuleId`, `createdAt`) | additive, new table |
+| `CREATE TABLE "MilestoneRaiseDocument"` (PK `milestoneSettingsId, hrDocumentId`, `createdAt`) | additive, new table |
+| `INDEX` on `trainingModuleId` and on `hrDocumentId` | additive |
+| 4 FKs, all `ON DELETE CASCADE`: each join row → its `MilestoneSettings` row, and → its `TrainingModule` / `HrDocument` | additive |
+
+**No drops, no renames, no type changes, no backfill.** Existing
+`MilestoneSettings` rows take Gary's F13 defaults through the column defaults;
+an org with no row reads `DEFAULT_RAISE_SETTINGS`
+(`src/lib/raise-settings.ts`), which `scripts/verify-ms3.ts` asserts equal the
+schema `@default`s. The cascades mean deleting a training module or document
+silently removes it from an org's required list — archiving (the normal path)
+leaves the row, and the read skips it.
+
+**Fixture:** `scripts/verify-ms3.ts`, 92 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was confirmed
+level and again inside the commit gate (work commit `3a3f210`).
