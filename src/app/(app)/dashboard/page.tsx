@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope, laborModuleAvailable } from "@/lib/auth"
+import { dashboardAnchorTimeZone, dashboardHeaderDate } from "@/lib/reports"
 import { can } from "@/lib/permissions"
 import { BuildInfo } from "@/components/build-info"
 import { DashboardClient } from "./dashboard-client"
@@ -27,7 +28,7 @@ async function getDashboardData() {
   const stores = await prisma.store.findMany({
     where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, city: true, state: true },
+    select: { id: true, name: true, city: true, state: true, timezone: true },
   })
 
   // PERM-5C. THE PAGE GUARD /dashboard never had (it was on PERM-5A's
@@ -105,6 +106,14 @@ export default async function DashboardPage() {
   if (!data) return null
   const { stores, countRecency, laborEnabled, canViewForecasting, canViewChecklists } = data
 
+  // BUG-15. The header date is formatted HERE, in each store's own zone, and
+  // handed down as a string — never read off the clock in the client, where the
+  // server (UTC on Vercel) and the browser format it differently after 5 PM
+  // Pacific (React #418). One instant for every string on the page. The rollup
+  // date uses the same zone rule as /api/dashboard/rollup.
+  const now = new Date()
+  const rollupHeaderDate = dashboardHeaderDate(now, dashboardAnchorTimeZone(stores))
+
   return (
     <>
       {/* SELF-1. Above everything, because a manager's own overdue training
@@ -117,7 +126,13 @@ export default async function DashboardPage() {
           reminder are different obligations, and the personal one reads first. */}
       <CalendarDueBanner />
       <DashboardClient
-        stores={stores.map((s) => ({ id: s.id, name: s.name, location: [s.city, s.state].filter(Boolean).join(", ") }))}
+        stores={stores.map((s) => ({
+          id: s.id,
+          name: s.name,
+          location: [s.city, s.state].filter(Boolean).join(", "),
+          headerDate: dashboardHeaderDate(now, s.timezone),
+        }))}
+        rollupHeaderDate={rollupHeaderDate}
         countRecency={countRecency}
         laborEnabled={laborEnabled}
         canViewForecasting={canViewForecasting}

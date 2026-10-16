@@ -171,12 +171,14 @@ function saveStoreId(id: string) {
 
 export function DashboardClient({
   stores,
+  rollupHeaderDate,
   countRecency,
   laborEnabled = false,
   canViewForecasting = false,
   canViewChecklists = false,
 }: {
-  stores: { id: string; name: string; location: string }[]
+  stores: { id: string; name: string; location: string; headerDate: string }[]
+  rollupHeaderDate: string
   countRecency: { storeId: string; storeName: string; days: number | null }[]
   laborEnabled?: boolean
   // PERM-3: gates the "Forecasting →" links. Defaults false so a caller that
@@ -293,10 +295,10 @@ export function DashboardClient({
   const commsLoading = !isRollup && !!storeId && !commsFailed && (commsRes === null || commsRes.storeId !== storeId)
   const store = stores.find((s) => s.id === storeId)
 
-  const headerDate = useMemo(
-    () => new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }),
-    []
-  )
+  // BUG-15. Server-formatted in the store's own zone (page.tsx); the client never
+  // reads the clock for this text, so server and browser render the same string.
+  // Frozen at page load, as the old useMemo([]) was.
+  const headerDate = isRollup ? rollupHeaderDate : store?.headerDate ?? ""
 
   return (
     <div className="space-y-4">

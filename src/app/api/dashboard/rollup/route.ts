@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
-import { localDateStr, dbDate } from "@/lib/reports"
+import { localDateStr, dbDate, dashboardAnchorTimeZone } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
 import { monthStart, round2, daysInMonth, computeRollup, effectiveMtdGoal, projectMonthEnd, type RollupStoreInput } from "@/lib/pacing"
 import { getMonthGoal } from "@/lib/month-goal"
@@ -54,8 +54,9 @@ export async function GET(req: Request) {
   //
   // Defaults to the current month so a caller that passes nothing gets exactly
   // the pre-AL-2 table. Anchored on the FIRST store's zone, the same choice the
-  // `month` field below already makes.
-  const anchorTz = stores[0]?.timezone ?? "America/Los_Angeles"
+  // `month` field below already makes — via the shared rule the /dashboard
+  // header also uses (BUG-15), so the header's date is this route's "today".
+  const anchorTz = dashboardAnchorTimeZone(stores)
   const anchorToday = localDateStr(new Date(), anchorTz)
   const mStartAnchor = monthStart(anchorToday)
   const url = new URL(req.url)
