@@ -970,10 +970,14 @@ The working flow for every schema change (timestamp format `YYYYMMDDHHMMSS`):
 # 2. diff the schema against the live dev DB to generate the migration SQL:
 npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
   --script -o prisma/migrations/<timestamp>_<name>/migration.sql
-# 3. GARY RUNS THIS, NOT CLAUDE (see the rule above). Review the SQL, then
-#    apply it and record it in the migrations ledger:
-npx prisma db execute --file prisma/migrations/<timestamp>_<name>/migration.sql
-npx prisma migrate resolve --applied <timestamp>_<name>
+# 3. GARY RUNS THIS, NOT CLAUDE (see the rule above). Ruled by Gary 2026-10-16:
+#    "Gary applies the migration to dev himself, from froot/: first
+#    `env | grep -c DATABASE_URL` must print 0, then `npx prisma migrate deploy`,
+#    confirming the Datasource host is the dev endpoint. Do not suggest
+#    `db execute` + `migrate resolve` unless migrate deploy fails and Gary
+#    approves the workaround for that one case."
+env | grep -c DATABASE_URL     # must print 0
+npx prisma migrate deploy      # Datasource host must be the dev endpoint
 # 4. regenerate the client:
 npx prisma generate
 ```
