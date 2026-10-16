@@ -7,10 +7,10 @@
  * docs/prompts/2026-10-16_MS-2_AUDIT.md.
  *
  *   A. Pure rules — grace boundary at 5/10/15 compared to the minute (F2:
- *      9:05:59 on time, 9:06:00 late), threshold edges 79/80/89/90 and the
- *      round-after-colour rule (F8), the validator (red >= green refused, grace
+ *      9:05:59 on time, 9:06:00 late), threshold edges 79/80/89/90 (F8), the validator (red >= green refused, grace
  *      5/10/15 only), and the code defaults equal the schema @defaults.
- *   B. The calculation — percent math, no-show counted late, unscheduled
+ *   B. The calculation — percent math (display rounds DOWN, colour on the
+ *      exact value: 89.6% shows 89% amber, 90.0% shows 90% green), no-show counted late, unscheduled
  *      excluded, drafts excluded (F9), min-shifts grey, no-schedule vs
  *      not-enough, not-linked (F11), same-store pairing across two stores
  *      (F10), earliest clock-in, sync horizon, and look-back window edges in a
@@ -168,6 +168,21 @@ console.log("\nB. Percent math")
   check("B1. 8 of 10 → 80%, amber", [r.onTime, r.total, r.percent, r.displayPercent, r.status], [8, 10, 80, 80, "amber"])
   const r10 = run({ shifts, cards, settings: { ...S, onTimeGraceMinutes: 10 } })
   check("B2. grace 10 recalculates: 9:06 now on time → 9/10 green", [r10.onTime, r10.status], [9, "green"])
+
+  // Display ROUNDS DOWN, colour on the exact value (Gary, 2026-10-16: "the
+  // displayed % must never disagree with the badge colour"). One-hour shifts two
+  // hours apart, so no card overlaps a neighbouring shift; a late card starts
+  // ten minutes in.
+  const mk = (onTime: number, total: number) => {
+    const base = new Date("2026-09-20T00:00:00-07:00").getTime()
+    const ss = Array.from({ length: total }, (_, k) => sh(P, new Date(base + k * 7200000).toISOString(), 1))
+    const cc = ss.map((x, k) => cd(P, new Date(x.effectiveStartAt.getTime() + (k < onTime ? 0 : 600000)).toISOString(), 1))
+    const r = run({ shifts: ss, cards: cc })
+    return [r.onTime, r.total, r.percent, r.displayPercent, r.status]
+  }
+  check("B2a. 112 of 125 = 89.6% → shows 89%, amber (never 90% on amber)", mk(112, 125), [112, 125, 89.6, 89, "amber"])
+  check("B2b. 9 of 10 = 90.0% → shows 90%, green", mk(9, 10), [9, 10, 90, 90, "green"])
+  check("B2c. 29 of 50 = 58% exactly → shows 58%, not 57% (multiply first)", mk(29, 50), [29, 50, 58, 58, "red"])
 
   console.log("\nB. No-shows, unscheduled, drafts (F3, F9)")
   const noShow = run({ shifts, cards: cards.slice(0, 9) })
@@ -420,7 +435,7 @@ async function db() {
       now
     )
     const r = res.get(staff.id)
-    check("E6. 4 of 6 on time across two stores (no-show late, draft/unscheduled/40-days-ago out)", [r?.onTime, r?.total, r?.displayPercent, r?.status], [4, 6, 67, "red"])
+    check("E6. 4 of 6 (66.7%, shows 66%) on time across two stores (no-show late, draft/unscheduled/40-days-ago out)", [r?.onTime, r?.total, r?.displayPercent, r?.status], [4, 6, 66, "red"])
     check("E7. unlinked member → not-linked", res.get(unlinked.id)?.status, "not-linked")
     await saveMilestoneSettings(org.id, { ...settings, onTimeGraceMinutes: 10 })
     const r10 = (await getOnTimeForStaff(fullOrg, [{ id: staff.id, squareTeamMemberId: sq, assignedStoreIds: [pac.id], range }], await getMilestoneSettings(org.id), now)).get(staff.id)

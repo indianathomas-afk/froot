@@ -58,10 +58,16 @@ F9: published shifts only. F10: same-store pairing, % across all of a person's
 stores. F11: grey "Not linked to Square", and a terminated member's window ends
 at termination. F12: one shared pairing predicate in labor-inspector.ts.
 
+**Display rounding — Gary, in chat 2026-10-16, after the build, recorded
+exactly:** *"the displayed % must never disagree with the badge colour. Round
+DOWN for display (89.6% shows "89%", amber). Colour still decided on the exact
+percentage."* This replaces Claude's earlier choice to round to nearest
+(89.6% printed "90%" on an amber badge). The percentage is computed as
+`onTime × 100 / total`, so a whole-number result is exact and is never floored
+down by one (29 of 50 shows 58%, not 57%).
+
 **Claude's implementation choices (flagged for ratification):**
 
-- **The colour is decided on the exact percentage and the label is rounded
-  after** (the audit's F8 note). 89.6% prints "90%" and stays amber.
 - **Bounds:** percentages 1–100, look-back 7–90 days, minimum shifts 1–50. The
   grace period accepts 5, 10 or 15 only.
 - **Grey states read through the same eligibility rule.** A shift whose

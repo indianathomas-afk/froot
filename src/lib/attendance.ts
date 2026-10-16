@@ -99,8 +99,12 @@ export type OnTimeResult = {
   total: number
   /// Exact, unrounded. Null when there is nothing to divide.
   percent: number | null
-  /// What a badge prints. ROUNDED AFTER THE COLOUR DECISION (F8): 89.6 prints
-  /// "90%" and stays amber, so display rounding can never turn a badge green.
+  /// What a badge prints: the exact percentage ROUNDED DOWN (Gary,
+  /// 2026-10-16: "the displayed % must never disagree with the badge colour").
+  /// The colour is still decided on the exact value (F8), and flooring is what
+  /// keeps the two in step: 89.6 prints "89%" and is amber, and no label can
+  /// reach a green threshold its colour has not. Rounding to nearest would
+  /// print "90%" on an amber badge.
   displayPercent: number | null
   range: { from: string; to: string }
 }
@@ -193,11 +197,15 @@ export function assembleOnTime(args: {
       args.memberShifts.some((s) => args.storesWithSchedule.has(s.storeId))
     if (!schedules) return { status: "no-schedule", reason: "no-published-shifts", ...empty }
   }
-  const percent = total === 0 ? null : (onTime / total) * 100
+  // MULTIPLY FIRST. (onTime / total) * 100 is not exact in floating point —
+  // 29/50 gives 57.99999999999999, which the floor below would print as
+  // "57%". onTime * 100 / total is exact whenever the true value is a whole
+  // number, so a whole percentage is never floored down by one.
+  const percent = total === 0 ? null : (onTime * 100) / total
   if (total < settings.onTimeMinShifts || percent === null) {
-    return { status: "not-enough", reason: null, onTime, total, percent, displayPercent: percent === null ? null : Math.round(percent), range }
+    return { status: "not-enough", reason: null, onTime, total, percent, displayPercent: percent === null ? null : Math.floor(percent), range }
   }
-  return { status: colourFor(percent, settings), reason: null, onTime, total, percent, displayPercent: Math.round(percent), range }
+  return { status: colourFor(percent, settings), reason: null, onTime, total, percent, displayPercent: Math.floor(percent), range }
 }
 
 // ─── THE RANGE ───────────────────────────────────────────────────────────────
