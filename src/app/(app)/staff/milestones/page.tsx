@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { requireMilestones } from "@/lib/milestones-access"
 import { MilestonesClient } from "./milestones-client"
+import { getMilestoneSettings } from "@/lib/attendance"
+import { laborOverlayOn } from "@/lib/labor-dashboard"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MS-1 — /staff/milestones. THE ADMIN SETUP PAGE (ruling 1: "Only ADMINs see the
@@ -17,9 +19,10 @@ import { MilestonesClient } from "./milestones-client"
 // The write routes re-check (2) and (3) independently (PERM-2: a gate on a
 // page is not a gate on an endpoint).
 //
-// ONE LIVE SECTION. Attendance (MS-2), Raise eligibility (MS-3) and Checklists
-// (MS-4) render as labelled "Coming soon" cards with NO controls — nothing in
-// them is wired, and nothing in them may be mistaken for a setting.
+// TWO LIVE SECTIONS since MS-2: Tenure milestones (MS-1) and On-time (MS-2,
+// src/app/api/milestones/attendance). Raise eligibility (MS-3) and Checklists
+// (MS-4) still render as labelled "Coming soon" cards with NO controls —
+// nothing in them is wired, and nothing in them may be mistaken for a setting.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default async function MilestonesSetupPage() {
@@ -40,5 +43,13 @@ export default async function MilestonesSetupPage() {
     select: { id: true, dayCount: true, title: true, recognition: true, employeeMessage: true, isArchived: true },
   })
 
-  return <MilestonesClient initial={rows} />
+  // MS-2. The On-time section's values (defaults until the first save) and
+  // whether the Square labor overlay is on — F5: with it off the section still
+  // saves, and says every badge is grey until schedule data exists.
+  const [settings, org] = await Promise.all([
+    getMilestoneSettings(access.org.id),
+    prisma.organization.findUniqueOrThrow({ where: { id: access.org.id } }),
+  ])
+
+  return <MilestonesClient initial={rows} attendance={settings} squareLaborOn={laborOverlayOn(org)} />
 }

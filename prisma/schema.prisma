@@ -207,6 +207,7 @@ model Organization {
   calendarOccurrences           CalendarOccurrence[]
   tenureMilestones              TenureMilestone[]
   wageSnapshots                 WageSnapshot[]
+  milestoneSettings             MilestoneSettings?
 }
 
 model User {
@@ -3689,4 +3690,44 @@ model WageSnapshot {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, squareTeamMemberId, capturedAt])
+}
+
+/// MS-2 (Gary, 2026-10-16). STAFF MILESTONES SETTINGS — ONE ROW PER ORG, created
+/// on the first save from /staff/milestones. No row = the code defaults
+/// (DEFAULT_MILESTONE_SETTINGS in src/lib/attendance.ts), which
+/// scripts/verify-ms2.ts asserts equal the @defaults below, so the two cannot
+/// drift. The LaborSettings pattern (A7): a module with several knobs gets its
+/// own model rather than a row of Organization columns. MS-3 adds its raise
+/// settings to this same row.
+///
+/// NOT THE ON/OFF SWITCH. Organization.milestonesEnabled stays the gate, read
+/// with HR availability + activeModules "hr" (src/lib/milestones-access.ts).
+///
+/// Nothing derived is stored here or anywhere: on-time % is computed on read
+/// from the mirrored SquareScheduledShift / SquareTimecard rows. Changing a
+/// value re-colours every badge from the next render — there is no history to
+/// rewrite.
+model MilestoneSettings {
+  id                   String   @id @default(cuid())
+  organizationId       String   @unique
+  /// Red STRICTLY BELOW this whole percentage (F8). The write route refuses
+  /// onTimeRedBelow >= onTimeGreenAtOrAbove.
+  onTimeRedBelow       Int      @default(80)
+  /// Green AT OR ABOVE this whole percentage; amber in between (F8).
+  onTimeGreenAtOrAbove Int      @default(90)
+  /// Rolling window in store-local days ending today, each shift dated in its
+  /// own store's zone (F1).
+  onTimeLookbackDays   Int      @default(30)
+  /// Fewer eligible shifts than this in the window = grey "Not enough shifts"
+  /// (F4).
+  onTimeMinShifts      Int      @default(5)
+  /// F2 (Gary, 2026-10-16): 5, 10 or 15 — the route accepts nothing else. A
+  /// clock-in at or before scheduled start + this many minutes, compared to the
+  /// minute, is on time (at 5: 9:05:59 on time, 9:06:00 late). SEPARATE FROM
+  /// the Day Inspector's 20-minute NO-SHOW wait, which is unchanged.
+  onTimeGraceMinutes   Int      @default(5)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
 }

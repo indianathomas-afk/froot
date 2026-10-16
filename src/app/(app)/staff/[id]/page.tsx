@@ -32,6 +32,8 @@ import { StaffMilestones } from "./staff-milestones"
 import { milestonesActive } from "@/lib/milestones-access"
 import { dateColumnStr, tenureProgress, type TenureProgress } from "@/lib/milestones"
 import { localDateStr } from "@/lib/reports"
+import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
+import { OnTimeCard } from "../on-time-badge"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -627,6 +629,35 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   const showMilestonesTab = canSeeHrTabs && milestonesActive(org)
   let milestoneProgress: TenureProgress | null = null
   let hasMilestones = false
+  // MS-2 — the On-Time badge, same gate as the tab (F6). Computed server-side
+  // over the rolling look-back (F1) ending today in this member's display zone,
+  // or on their termination date (F11). Nothing is read from the Square labor
+  // tables when the overlay is off (F5) — getOnTimeForStaff short-circuits.
+  let onTime: OnTimeResult | null = null
+  let onTimeLookbackDays = 0
+  if (showMilestonesTab) {
+    const settings = await getMilestoneSettings(member.organizationId)
+    onTimeLookbackDays = settings.onTimeLookbackDays
+    const range = lookbackRange(
+      settings.onTimeLookbackDays,
+      new Date(),
+      zone,
+      member.status === "TERMINATED" ? member.terminatedAt : null
+    )
+    const results = await getOnTimeForStaff(
+      org,
+      [
+        {
+          id: member.id,
+          squareTeamMemberId: member.squareTeamMemberId,
+          assignedStoreIds: member.storeAssignments.map((a) => a.storeId),
+          range,
+        },
+      ],
+      settings
+    )
+    onTime = results.get(member.id) ?? null
+  }
   if (showMilestonesTab) {
     // ACTIVE AND ARCHIVED rows: an archived milestone a member reached on or
     // before its archive date stays in their history (Gary, 2026-10-15). The
@@ -1014,7 +1045,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         </TabsContent>
 
         {showMilestonesTab && milestoneProgress && (
-          <TabsContent value="milestones" className="mt-4">
+          <TabsContent value="milestones" className="mt-4 space-y-4">
+            {onTime && <OnTimeCard result={onTime} lookbackDays={onTimeLookbackDays} />}
             <StaffMilestones
               progress={milestoneProgress}
               hasMilestones={hasMilestones}

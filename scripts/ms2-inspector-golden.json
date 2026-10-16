@@ -1,0 +1,2088 @@
+[
+  {
+    "name": "overlap exactly 15 min pairs; 14 min does not",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": "1.3h paid",
+          "bars": [
+            {
+              "startPct": 69.79166666666666,
+              "endPct": 75,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "4:45p",
+              "endLabel": "6:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [],
+              "detail": "4:45p → 6:00p · 1.3h paid",
+              "key": "p0b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 5:00p",
+              "key": "p0g0"
+            }
+          ]
+        },
+        {
+          "key": "p1",
+          "name": "MS-2 Seed Bravo",
+          "unmapped": false,
+          "flags": [
+            "UNSCHEDULED",
+            "NO-SHOW"
+          ],
+          "paidLabel": "1.2h paid",
+          "bars": [
+            {
+              "startPct": 69.86111111111111,
+              "endPct": 75,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "4:46p",
+              "endLabel": "6:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [
+                "UNSCHEDULED"
+              ],
+              "detail": "4:46p → 6:00p · 1.2h paid",
+              "key": "p1b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [
+                "NO-SHOW"
+              ],
+              "detail": "scheduled 9:00a → 5:00p",
+              "key": "p1g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 1,
+        "UNSCHEDULED": 1
+      },
+      "cardsOnFloor": 2,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 0,
+      "notices": [],
+      "noShowHorizonLabel": "11:30p Sep 10",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "no-show grace boundary: start+20 at horizon vs one minute short",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [
+            "NO-SHOW"
+          ],
+          "paidLabel": null,
+          "bars": [],
+          "ghosts": [
+            {
+              "startPct": 50,
+              "endPct": 66.66666666666666,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "12:00p",
+              "endLabel": "4:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [
+                "NO-SHOW"
+              ],
+              "detail": "scheduled 12:00p → 4:00p",
+              "key": "p0g0"
+            }
+          ]
+        },
+        {
+          "key": "p1",
+          "name": "MS-2 Seed Bravo",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": null,
+          "bars": [],
+          "ghosts": [
+            {
+              "startPct": 50.06944444444444,
+              "endPct": 66.66666666666666,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "12:01p",
+              "endLabel": "4:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 12:01p → 4:00p",
+              "key": "p1g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 1,
+        "UNSCHEDULED": 0
+      },
+      "cardsOnFloor": 0,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 1,
+      "unassignedShiftCount": 0,
+      "notices": [
+        {
+          "code": "no-show-pending",
+          "text": "1 shift not yet evaluated for no-show — timecards synced 12:20p Sep 10. A shift cannot be a no-show until the timecard sync has reached past its start; until then it is drawn as a plain scheduled shift and counted nowhere."
+        }
+      ],
+      "noShowHorizonLabel": "12:20p Sep 10",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "never-synced store: no no-show at all",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": null,
+          "bars": [],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 5:00p",
+              "key": "p0g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 0,
+        "UNSCHEDULED": 0
+      },
+      "cardsOnFloor": 0,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 1,
+      "unassignedShiftCount": 0,
+      "notices": [
+        {
+          "code": "no-show-pending",
+          "text": "1 shift not yet evaluated for no-show — timecards have never synced for this store. A shift cannot be a no-show until the timecard sync has reached past its start; until then it is drawn as a plain scheduled shift and counted nowhere."
+        }
+      ],
+      "noShowHorizonLabel": null,
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "late clock-in still pairs; early clock-in pairs",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": "7.3h paid",
+          "bars": [
+            {
+              "startPct": 40.27777777777778,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:40a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [],
+              "detail": "9:40a → 5:00p · 7.3h paid",
+              "key": "p0b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 5:00p",
+              "key": "p0g0"
+            }
+          ]
+        },
+        {
+          "key": "p1",
+          "name": "MS-2 Seed Bravo",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": "8.5h paid",
+          "bars": [
+            {
+              "startPct": 35.41666666666667,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "8:30a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [],
+              "detail": "8:30a → 5:00p · 8.5h paid",
+              "key": "p1b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 5:00p",
+              "key": "p1g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 0,
+        "UNSCHEDULED": 0
+      },
+      "cardsOnFloor": 2,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 0,
+      "notices": [],
+      "noShowHorizonLabel": "11:30p Sep 10",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "split shift covered by one card; second split uncovered for B",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": "8.0h paid",
+          "bars": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [],
+              "detail": "9:00a → 5:00p · 8.0h paid",
+              "key": "p0b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 54.166666666666664,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "1:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 1:00p",
+              "key": "p0g0"
+            },
+            {
+              "startPct": 54.166666666666664,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "1:00p",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 1:00p → 5:00p",
+              "key": "p0g1"
+            }
+          ]
+        },
+        {
+          "key": "p1",
+          "name": "MS-2 Seed Bravo",
+          "unmapped": false,
+          "flags": [
+            "NO-SHOW"
+          ],
+          "paidLabel": "3.8h paid",
+          "bars": [
+            {
+              "startPct": 37.5,
+              "endPct": 53.47222222222222,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "12:50p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [],
+              "detail": "9:00a → 12:50p · 3.8h paid",
+              "key": "p1b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 54.166666666666664,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "1:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 1:00p",
+              "key": "p1g0"
+            },
+            {
+              "startPct": 54.166666666666664,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "1:00p",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [
+                "NO-SHOW"
+              ],
+              "detail": "scheduled 1:00p → 5:00p",
+              "key": "p1g1"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 1,
+        "UNSCHEDULED": 0
+      },
+      "cardsOnFloor": 2,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 0,
+      "notices": [],
+      "noShowHorizonLabel": "11:30p Sep 10",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "unscheduled card beside a scheduled one; double punch",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [
+            "DOUBLE",
+            "UNSCHEDULED"
+          ],
+          "paidLabel": "8.0h paid",
+          "bars": [
+            {
+              "startPct": 37.5,
+              "endPct": 54.166666666666664,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "1:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [
+                "DOUBLE"
+              ],
+              "detail": "9:00a → 1:00p · 4.0h paid",
+              "key": "p0b0"
+            },
+            {
+              "startPct": 50,
+              "endPct": 58.333333333333336,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "12:00p",
+              "endLabel": "2:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [
+                "DOUBLE"
+              ],
+              "detail": "12:00p → 2:00p · 2.0h paid",
+              "key": "p0b1"
+            },
+            {
+              "startPct": 75,
+              "endPct": 83.33333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "6:00p",
+              "endLabel": "8:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [
+                "UNSCHEDULED"
+              ],
+              "detail": "6:00p → 8:00p · 2.0h paid",
+              "key": "p0b2"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 54.166666666666664,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "1:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 1:00p",
+              "key": "p0g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 1,
+        "UNMAPPED": 0,
+        "NO-SHOW": 0,
+        "UNSCHEDULED": 1
+      },
+      "cardsOnFloor": 3,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 0,
+      "notices": [],
+      "noShowHorizonLabel": "11:30p Sep 10",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "open card today pairs against the ceiling",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": "1.9h paid",
+          "bars": [
+            {
+              "startPct": 37.84722222222222,
+              "endPct": 45.83333333333333,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:05a",
+              "endLabel": null,
+              "open": true,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [],
+              "detail": "9:05a → open · 1.9h paid",
+              "key": "p0b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 5:00p",
+              "key": "p0g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 0,
+        "UNSCHEDULED": 0
+      },
+      "cardsOnFloor": 1,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 0,
+      "notices": [],
+      "noShowHorizonLabel": "10:55a Sep 10",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "midnight-crossing shift and card, viewed on the first day",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": "3.8h paid",
+          "bars": [
+            {
+              "startPct": 92.36111111111111,
+              "endPct": 100,
+              "continuesBefore": false,
+              "continuesAfter": true,
+              "startLabel": "10:10p",
+              "endLabel": "2:00a",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [],
+              "detail": "10:10p → 2:00a · 3.8h paid",
+              "key": "p0b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 91.66666666666666,
+              "endPct": 100,
+              "continuesBefore": false,
+              "continuesAfter": true,
+              "startLabel": "10:00p",
+              "endLabel": "2:00a",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 10:00p → 2:00a",
+              "key": "p0g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 0,
+        "UNSCHEDULED": 0
+      },
+      "cardsOnFloor": 1,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 0,
+      "notices": [],
+      "noShowHorizonLabel": "12:00p Sep 11",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "midnight-crossing, viewed on the second day",
+    "result": {
+      "date": "2026-09-11",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": "3.8h paid",
+          "bars": [
+            {
+              "startPct": 0,
+              "endPct": 8.333333333333332,
+              "continuesBefore": true,
+              "continuesAfter": false,
+              "startLabel": "10:10p",
+              "endLabel": "2:00a",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": "Sep 10",
+              "flags": [],
+              "detail": "10:10p → 2:00a · 3.8h paid",
+              "key": "p0b0"
+            }
+          ],
+          "ghosts": [
+            {
+              "startPct": 0,
+              "endPct": 8.333333333333332,
+              "continuesBefore": true,
+              "continuesAfter": false,
+              "startLabel": "10:00p",
+              "endLabel": "2:00a",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": "Sep 10",
+              "flags": [],
+              "detail": "scheduled 10:00p → 2:00a",
+              "key": "p0g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 0,
+        "UNSCHEDULED": 0
+      },
+      "cardsOnFloor": 1,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 0,
+      "notices": [],
+      "noShowHorizonLabel": "12:00p Sep 11",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "unassigned, deleted and draft shifts",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [
+            "UNSCHEDULED"
+          ],
+          "paidLabel": "8.0h paid",
+          "bars": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [
+                "UNSCHEDULED"
+              ],
+              "detail": "9:00a → 5:00p · 8.0h paid",
+              "key": "p0b0"
+            }
+          ],
+          "ghosts": []
+        },
+        {
+          "key": "p1",
+          "name": "MS-2 Seed Bravo",
+          "unmapped": false,
+          "flags": [
+            "NO-SHOW"
+          ],
+          "paidLabel": null,
+          "bars": [],
+          "ghosts": [
+            {
+              "startPct": 41.66666666666667,
+              "endPct": 58.333333333333336,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "10:00a",
+              "endLabel": "2:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [
+                "NO-SHOW"
+              ],
+              "detail": "scheduled 10:00a → 2:00p · draft",
+              "key": "p1g0"
+            }
+          ]
+        },
+        {
+          "key": "open-shifts",
+          "name": "Unassigned shifts",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": null,
+          "bars": [],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 5:00p",
+              "key": "og0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 1,
+        "UNSCHEDULED": 1
+      },
+      "cardsOnFloor": 1,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": false,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 1,
+      "notices": [
+        {
+          "code": "unassigned-shifts",
+          "text": "1 scheduled shift has nobody assigned in Square, so no-show cannot apply to it — there is no one to fail to show. It is drawn as a plain scheduled shift and counted nowhere."
+        }
+      ],
+      "noShowHorizonLabel": "11:30p Sep 10",
+      "durationSuppressed": false
+    }
+  },
+  {
+    "name": "schedule not comparable: nothing paired",
+    "result": {
+      "date": "2026-09-10",
+      "hourTicks": [
+        {
+          "pct": 0,
+          "label": "12a"
+        },
+        {
+          "pct": 4.166666666666666,
+          "label": "1a"
+        },
+        {
+          "pct": 8.333333333333332,
+          "label": "2a"
+        },
+        {
+          "pct": 12.5,
+          "label": "3a"
+        },
+        {
+          "pct": 16.666666666666664,
+          "label": "4a"
+        },
+        {
+          "pct": 20.833333333333336,
+          "label": "5a"
+        },
+        {
+          "pct": 25,
+          "label": "6a"
+        },
+        {
+          "pct": 29.166666666666668,
+          "label": "7a"
+        },
+        {
+          "pct": 33.33333333333333,
+          "label": "8a"
+        },
+        {
+          "pct": 37.5,
+          "label": "9a"
+        },
+        {
+          "pct": 41.66666666666667,
+          "label": "10a"
+        },
+        {
+          "pct": 45.83333333333333,
+          "label": "11a"
+        },
+        {
+          "pct": 50,
+          "label": "12p"
+        },
+        {
+          "pct": 54.166666666666664,
+          "label": "1p"
+        },
+        {
+          "pct": 58.333333333333336,
+          "label": "2p"
+        },
+        {
+          "pct": 62.5,
+          "label": "3p"
+        },
+        {
+          "pct": 66.66666666666666,
+          "label": "4p"
+        },
+        {
+          "pct": 70.83333333333334,
+          "label": "5p"
+        },
+        {
+          "pct": 75,
+          "label": "6p"
+        },
+        {
+          "pct": 79.16666666666666,
+          "label": "7p"
+        },
+        {
+          "pct": 83.33333333333334,
+          "label": "8p"
+        },
+        {
+          "pct": 87.5,
+          "label": "9p"
+        },
+        {
+          "pct": 91.66666666666666,
+          "label": "10p"
+        },
+        {
+          "pct": 95.83333333333334,
+          "label": "11p"
+        }
+      ],
+      "people": [
+        {
+          "key": "p0",
+          "name": "MS-2 Seed Alpha",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": "8.0h paid",
+          "bars": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": "Team Member",
+              "startedOn": null,
+              "flags": [],
+              "detail": "9:00a → 5:00p · 8.0h paid",
+              "key": "p0b0"
+            }
+          ],
+          "ghosts": []
+        },
+        {
+          "key": "p1",
+          "name": "MS-2 Seed Bravo",
+          "unmapped": false,
+          "flags": [],
+          "paidLabel": null,
+          "bars": [],
+          "ghosts": [
+            {
+              "startPct": 37.5,
+              "endPct": 70.83333333333334,
+              "continuesBefore": false,
+              "continuesAfter": false,
+              "startLabel": "9:00a",
+              "endLabel": "5:00p",
+              "open": false,
+              "jobId": "JOBseed",
+              "title": null,
+              "startedOn": null,
+              "flags": [],
+              "detail": "scheduled 9:00a → 5:00p",
+              "key": "p1g0"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "OPEN-STALE": 0,
+        "OPEN-LONG": 0,
+        "DOUBLE": 0,
+        "UNMAPPED": 0,
+        "NO-SHOW": 0,
+        "UNSCHEDULED": 0
+      },
+      "cardsOnFloor": 1,
+      "jobIds": [
+        "JOBseed"
+      ],
+      "scheduleSuppressed": true,
+      "noShowPendingCount": 0,
+      "unassignedShiftCount": 0,
+      "notices": [
+        {
+          "code": "schedule-suppressed",
+          "text": "No schedule data for this store-day, so No-show and Unscheduled are not computed. Nothing here says a shift was unplanned — only that there is no plan to compare it against."
+        }
+      ],
+      "noShowHorizonLabel": "11:30p Sep 10",
+      "durationSuppressed": false
+    }
+  }
+]
