@@ -7028,12 +7028,17 @@ phases:
   - id: MS-1
     track: hr
     size: L
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-15 BY THE PRE-PUSH-CHECK. None of the
+    # five MS-1 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after 9287680, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    status: staging
     title: "Staff Milestones foundation — toggle, tenure milestones, start date, Milestones tab"
     commits:
       - "4f21157"
       - "6d8c52a"
       - "145fc74"
+      - "9287680"
     blockers:
       - >
         UNVERIFIED ON STAGING — RE-STATED 2026-10-15 AFTER 145fc74, WHICH IS THE
@@ -7062,6 +7067,15 @@ phases:
           RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-15 — MS-1, to be
           ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-15 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA 9287680 added; this check's own commit
+      is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
+      entry (2026-10-15 — MS-1) was printed verbatim and put to him; his reply,
+      exactly: "Ratify as written." Ratification paragraph added at its head;
+      nothing else in the entry changed. DEPLOY_LOG: UNPROMOTED MS-1 entry
+      written in four chunks (headings 67 -> 68, lines 5809 -> 5873, +64/-0).
+      CLAUDE.md untouched. Prompt and audit committed (6d8c52a, 9a9b9c3).
+      Staging evidence pending — the blockers below stand.
       ── RIDER 2026-10-15 (145fc74). PREPENDED; NOTHING BELOW IS EDITED. ──
       GARY MADE THE DECISIONS ENTRY FINAL, IN CHAT: "Rulings on the two
       DECISIONS items: both accepted, with additions." His additions were folded

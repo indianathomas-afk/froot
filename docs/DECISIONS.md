@@ -7,6 +7,13 @@ decisions too.)
 
 ## 2026-10-15 — MS-1: Staff Milestones foundation (Gary)
 
+**RATIFIED BY GARY, 2026-10-15, at the MS-1 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly: *"Ratify as written."* That covers the
+whole entry, including rulings 1–5 in the prompt's wording. Nothing below was
+changed. This paragraph was added at the head; the "FINAL" paragraph and the
+"DRAFT ENTRY" marker below are kept as they were and superseded by it.
+
 **FINAL — GARY, IN CHAT 2026-10-15, after the MS-1 build.** He reviewed the
 two implementation choices below and wrote, exactly: *"Rulings on the two
 DECISIONS items: both accepted, with additions."* and *"Update the DECISIONS

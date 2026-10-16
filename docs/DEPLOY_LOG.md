@@ -2,6 +2,70 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-15 — MS-1: Staff Milestones foundation (toggle, tenure milestones, start date, Milestones tab)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge.
+
+**Payload: MS-1 only.** Verified by `git log origin/main..staging` at this
+check (after `git fetch origin`): exactly `9a9b9c3`, `4f21157`, `6d8c52a`,
+`145fc74`, `9287680`. **NONE WAS PUSHED WHEN THIS CHECK RAN** — all five plus
+this check's own commit are unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `9a9b9c3` | `docs(MS-1)`: audit and plan (`docs/prompts/2026-10-15_MS-1_AUDIT.md`) |
+| `4f21157` | MS-1 work: `milestonesEnabled` toggle, `/staff/milestones`, tenure milestones, `StaffMember.startDate`, Milestones tab, `WageSnapshot` writer, migration `20261015171226_ms1_milestones_foundation` |
+| `6d8c52a` | `docs(MS-1)`: row, MS-2..MS-5 planned, DECISIONS draft, MIGRATIONS entry, session prompt |
+| `145fc74` | MS-1 work (Gary's additions): `squareStartDate` beside the manual date, archived-milestone history via `archivedAt`, store-zone fixtures, migration `20261015183554_ms1_start_date_square_archived_at` |
+| `9287680` | `docs(MS-1)`: DECISIONS final, row at `145fc74`, second MIGRATIONS entry |
+| the commit immediately after `9287680` | `docs(MS-1 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHA |
+
+**Blast radius: TWO MIGRATIONS (additive only), the roster sync, the staff
+import paths, and the HR-gated staff pages.** No env var, no new dependency, no
+new Square scope, and no Square write (`square.ts` gains only the `created_at`
+read field).
+- **Migrations**, applied by `prisma migrate deploy` in the Vercel build, in
+  order: `20261015171226_ms1_milestones_foundation` (adds
+  `Organization.milestonesEnabled`, `StaffMember.startDate` and
+  `startDateManual`, and creates tables `TenureMilestone` and `WageSnapshot`)
+  and `20261015183554_ms1_start_date_square_archived_at` (adds
+  `StaffMember.squareStartDate` and `TenureMilestone.archivedAt`). Every new
+  column is nullable or defaulted. Applied to DEV only before this push.
+  Watch: the staging build log, and the Neon-console check of
+  `_prisma_migrations` before and after (the row's blocker).
+- **Roster sync** (`src/lib/labor-roster.ts`, `/api/square/labor/roster/sync`):
+  every sync now also calls `writeWageSnapshots`, which writes a row only when a
+  member's pay type or rate changed. The FIRST sync after deploy writes one
+  baseline row per member. `WageSnapshot` has no reader.
+- **Staff import and resync** (`/api/staff`, `/api/staff/sync-square`,
+  `/api/staff/[id]/resync-square`, `/api/staff/[id]`): fill `startDate` from
+  Square `created_at` while `startDateManual` is false, always record
+  `squareStartDate`, and set `startDateManual` on a hand edit.
+- **New routes**: `/api/milestones/toggle`, `/api/milestones/tenure`,
+  `/api/milestones/tenure/[id]` (ADMIN, `milestones.manage`, ADMIN_ONLY and not
+  grantable). With HR off they answer 404.
+- **UI**: a `/settings` toggle card, `/staff/milestones`, a Milestones tab and
+  start date on `/staff/[id]`, and "Member Since" relabelled "Added to Froot".
+  Default `milestonesEnabled = false`, so no org sees the tab or page until an
+  ADMIN turns it on. The start date shows regardless.
+
+**Rollback:** `git revert 145fc74 4f21157` (newest first). **NO DATABASE STEP,
+AND NONE IS ALLOWED.** Schema is additive-only, so the two migrations STAY
+applied, and the reverted code simply stops reading the new columns and tables.
+Do not drop them. Do not delete their `_prisma_migrations` rows either: the
+migration folders leave the tree with the revert, and a later re-apply of MS-1
+brings them back under the same names. `WageSnapshot` rows written in the
+meantime are harmless, because nothing reads them. `9a9b9c3`, `6d8c52a`,
+`9287680` and this check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-1 row's two
+UNVERIFIED-ON-STAGING blockers in `docs/ROADMAP.yaml`: the Neon-console
+migration and Store-timezone checks before and after the deploy; the
+`/settings` toggle; `/staff/milestones` add, edit, archive and restore; the
+Milestones tab at desktop and phone width; Tommy (STORE) seeing no tab; and
+real-request 403 and 404 checks as STORE and as an out-of-scope MANAGER.
+
 ## UNPROMOTED — 2026-09-29 — DOC-11: Preview on the Document Library (PDFs and images in a dialog)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
