@@ -2,6 +2,69 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-16 — MS-2: on-time % and the On-Time badge (On-time settings, schedule cron)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge.
+
+**Payload: MS-2 only, on top of MS-1 and BUG-15** (both also unpromoted, with
+their own entries below). Verified by `git log origin/staging..staging` at this
+check (after `git fetch origin`): exactly `76b857c`, `15765c7`, `c8e302f`,
+`b0fa415`. `origin/main..staging` additionally holds the five MS-1 commits, the
+MS-1 check `7010995`, and the five BUG-15 commits through `147fa94`. **NONE OF
+THE MS-2 COMMITS WAS PUSHED WHEN THIS CHECK RAN** — all four plus this check's
+own commit are unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `76b857c` | `docs(MS-2)`: audit and plan (`docs/prompts/2026-10-16_MS-2_AUDIT.md`) |
+| `15765c7` | MS-2 work: `src/lib/attendance.ts` on-time function, `pairsAsAttendance()` extracted from the Day Inspector, `MilestoneSettings`, `/api/milestones/attendance`, On-time section, badges on `/staff` and the Milestones tab, schedule cron registered, `/staff` tables scroll sideways, migration `20261016140411_ms2_milestone_settings` |
+| `c8e302f` | `docs(MS-2)`: row, DECISIONS draft, MIGRATIONS entry, BUG-16 item 4, session prompt |
+| `b0fa415` | MS-2 follow-up: displayed % rounds down, colour on the exact value |
+| the commit immediately after `b0fa415` | `docs(MS-2 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHAs, original row notes restored |
+
+**Blast radius: ONE MIGRATION (additive only), ONE NEW CRON, the Day
+Inspector's pairing code (moved, behaviour-identical), and the HR-gated staff
+pages.** No env var, no new dependency, no new Square scope, and no Square
+write.
+- **Migration** `20261016140411_ms2_milestone_settings`, applied by `prisma
+  migrate deploy` in the Vercel build: creates table `MilestoneSettings` (one
+  row per org, every column defaulted). Applied to DEV only before this push.
+  Watch: the staging build log, and the Neon-console check of
+  `_prisma_migrations` before and after.
+- **Cron** `/api/cron/labor-scheduled-shifts` registered at `45 11 * * *` UTC
+  (Gary, superseding CRON-1's parking). **Vercel runs crons on production
+  only, so it does nothing on staging and activates at promotion.** Cost: about
+  5 Square requests per Square-linked store per day, for orgs with the Square
+  labor overlay on. Watch at promotion: the first production run's log.
+- **Day Inspector** (`src/lib/labor-inspector.ts`): the timecard/shift pairing
+  rule moved into `pairsAsAttendance()`. Output proven byte-identical against a
+  golden file written from the pre-move code. Watch: `/labor/inspector`
+  flags unchanged.
+- **New route** `/api/milestones/attendance` (GET/PUT, `milestones.manage`,
+  ADMIN_ONLY). 404 with Milestones off.
+- **UI**: On-time section on `/staff/milestones`, full badge on the Milestones
+  tab, compact badge beside names on `/staff` (ADMIN/MANAGER, Milestones on),
+  `/staff` tables scroll sideways at phone width. With the Square labor overlay
+  off every badge is grey and no Square labor row is read.
+
+**Rollback:** `git revert b0fa415 15765c7` (newest first). That also removes
+the cron entry from `vercel.json`. **NO DATABASE STEP, AND NONE IS ALLOWED.**
+The schema is additive-only, so the migration STAYS applied and the reverted
+code simply stops reading `MilestoneSettings`. Do not drop the table or delete
+its `_prisma_migrations` row: a later re-apply of MS-2 brings the migration
+back under the same name. Schedule rows the cron wrote are ordinary mirrored
+rows the dashboard sync writes anyway. `76b857c`, `c8e302f` and this check's
+commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-2 row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`: the Neon-console
+migration check before and after; the On-time section saving and refusing red
+>= green; coloured, "Not enough shifts" and "No schedule data" badges; compact
+badges on `/staff`; Milestones off hiding every badge with the route 404ing;
+console fetch checks as Tommy (STORE) and gary@keva.com (MANAGER, Carson); and
+phone width.
+
 ## UNPROMOTED — 2026-10-15 — BUG-15: /dashboard header date no longer causes React #418 after 5 PM Pacific
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

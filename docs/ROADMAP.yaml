@@ -7120,10 +7120,16 @@ phases:
   - id: MS-2
     track: hr
     size: L
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-16 BY THE PRE-PUSH-CHECK. None of the
+    # four MS-2 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after b0fa415, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    status: staging
     title: "Staff Milestones — on-time % and On-Time badge, On-time settings, schedule cron"
     commits:
       - "15765c7"
+      - "c8e302f"
+      - "b0fa415"
     blockers:
       - >
         UNVERIFIED ON STAGING. Everything is dev-level evidence: verify-ms2
@@ -7146,6 +7152,21 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-2, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED except the restoration at the foot. Commits
+      c8e302f (docs) and b0fa415 (the display-rounding follow-up, a WORK
+      commit the row was missing) added; this check's own commit is the one
+      immediately after b0fa415. RULINGS RATIFIED by Gary: the DECISIONS entry
+      (2026-10-16 — MS-2) was printed verbatim and put to him; his reply,
+      exactly: "Ratify as written." DOCS-SYNC DRIFT FOUND AND FIXED on Gary's
+      go-ahead: c8e302f had reworded the row's original "planned" notes and
+      deleted their text — restored verbatim below, marked superseded.
+      b0fa415: the displayed % rounds DOWN, colour on the exact value (Gary,
+      2026-10-16); verify-ms2 90/90 on dev br-broad-wave-a6vpjdw0, which
+      supersedes the 87/87 in the first blocker. DEPLOY_LOG: UNPROMOTED MS-2
+      entry written by this check. CLAUDE.md untouched. Prompt and audit
+      committed (c8e302f, 76b857c). Staging evidence pending — the blockers
+      stand.
       TIER 3, 2026-10-16. Prompt: docs/prompts/2026-10-16_MS-2_attendance_on_time_badge.md.
       Audit and plan: docs/prompts/2026-10-16_MS-2_AUDIT.md (76b857c). Migration
       20261016140411_ms2_milestone_settings is applied to DEV ONLY, by Gary
@@ -7174,6 +7195,13 @@ phases:
       FILED 2026-10-15 by the MS-1 build session as "attendance milestones",
       DESIGN BUNDLE REQUIRED FIRST. Both are superseded by the 2026-10-16
       rulings above. Cross-refs: MS-1, MS-3, CRON-1, BUG-16.
+      ── ORIGINAL "planned" NOTES, RESTORED VERBATIM 2026-10-16 by the
+      PRE-PUSH-CHECK (c8e302f had deleted them). SUPERSEDED by the 2026-10-16
+      rulings; kept as the record of what was filed. ──
+      FILED 2026-10-15 by the MS-1 build session, from the MS-1 prompt's scope
+      list ("Attendance (MS-2)"). The /staff/milestones placeholder card is the
+      only thing built. DESIGN BUNDLE REQUIRED FIRST (Gary, F0 2026-10-15:
+      "The design bundle comes before MS-2/MS-3"). Cross-refs: MS-1.
 
   - id: MS-3
     track: hr
