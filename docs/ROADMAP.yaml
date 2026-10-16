@@ -21176,6 +21176,80 @@ bugs:
       independent, in both directions, and this is the first time the estate has
       demonstrated it rather than a fixture asserting it.
 
+  - id: BUG-15
+    status: in_progress
+    commits: [0ddf236, cd57d44]
+    title: >
+      /dashboard header date causes React #418 after 5 PM Pacific
+    notes: >
+      FILED AND FIXED 2026-10-15 (TIER 2), on staging on top of MS-1 — Gary
+      overrode the prompt's launch gate: MS-1 was NOT promoted to main first.
+      ROOT CAUSE. src/app/(app)/dashboard/dashboard-client.tsx:296 (at e1b4620)
+      built the header date as `new Date().toLocaleDateString("en-US",
+      {weekday, month, day})` inside a useMemo with no timeZone. The server
+      formats it in UTC (Vercel), the browser in local time, and once UTC rolls
+      to the next day (5 PM PDT / 4 PM PST) the two disagree: minified React
+      #418, args[]=text. useMemo cannot help — server and browser each run it
+      once. Reproduced in the diagnosis by server-rendering DashboardClient under
+      TZ=UTC and TZ=America/Los_Angeles; exactly one line of HTML differed.
+      THE FIX. The date is formatted on the SERVER and handed down as a string.
+      src/lib/reports.ts gains dashboardHeaderDate(instant, timeZone) (Intl,
+      en-US, weekday/month/day) and dashboardAnchorTimeZone(stores) —
+      stores[0]?.timezone ?? DEFAULT_TIME_ZONE (src/lib/hr.ts). dashboard/page.tsx
+      selects Store.timezone, takes ONE `new Date()`, and passes each store a
+      headerDate in its own zone plus a rollupHeaderDate in the anchor zone.
+      DashboardClient's useMemo is gone; it reads the string. Frozen at page
+      load, as before — no midnight timer.
+      ONE ZONE RULE FOR THE ROLLUP (Gary's addition 1). /api/dashboard/rollup
+      inlined `stores[0]?.timezone ?? "America/Los_Angeles"`; it now calls the
+      same helper as the header, no behaviour change. A3 confirmed both callers
+      build the SAME list: org via clerkOrgId, scope via getCurrentUser().dbUser
+      (role ADMIN = all, else storeAssignments), isActive, orderBy name asc.
+      Edge case, not a divergence: Store.name is not unique and neither query has
+      a tie-breaker, so two same-named stores have no guaranteed order — true of
+      the route against itself too. src/app/api/calendar/due/route.ts:46 inlines
+      the same pattern and was deliberately NOT touched (out of scope).
+      ORGANIZATION.TIMEZONE IS DELIBERATELY NOT READ. The org has no display
+      zone; Organization.timezone is mint-time only, the PDF date-stamp fallback
+      for corporate staff with no store (DEBT-70a). Commented at the helper.
+      FIXTURE. scripts/bug15-dashboard-header-date-fixture.tsx, pure (no DB, no
+      network). F1 formatter at pinned instants incl. the Denver case (06:30Z:
+      Denver Friday Oct 16, Pacific Thursday Oct 15); F2 anchor helper; F3
+      renderToString of DashboardClient in child processes under TZ=UTC /
+      America/Los_Angeles / America/Denver, byte-identical, header carrying the
+      store-local date. 13/13 PASS. NEGATIVE CONTROL, run at 20:45 PDT (03:45
+      UTC Oct 16): with the HEAD client swapped back in, F3 failed 5 checks with
+      exactly the diagnosis diff (UTC "Friday, October 16" vs "Thursday, October
+      15"); the fixed client was restored and re-run green before commit.
+      cd57d44 only drops the useMemo import 0ddf236 left unused (eslint warning;
+      not amended, so 0ddf236 stays the work SHA).
+      UNVERIFIED ON STAGING — load /dashboard after 5 PM Pacific (UTC has rolled
+      over) on a Pacific store, a Colorado store and All locations, and check for
+      no #418 and the store-local date in the header.
+      COMMENT, NOT A ROW (item 4): dashboard-client.tsx:92-100, team-message
+      relative times and dates format in the browser's zone. Arguably correct for
+      the reader, and it only runs after the fetch, so it cannot mismatch.
+
+  - id: BUG-16
+    status: planned
+    title: >
+      dashboard 'today' uses browser time zone, not store time zone
+    notes: >
+      FILED 2026-10-15 from the BUG-15 diagnosis (Gary's addition 3: items 2 and
+      3 as one row).
+      ITEM 2. src/app/(app)/dashboard/use-labor-date.ts todayStr() /
+      shiftDateStr() use browser-local time. They set the labor cards' default
+      day and week, the "today" button, and the back/forward limits.
+      ITEM 3. src/app/(app)/dashboard/date-range-picker.tsx resolvePreset() uses
+      browser-local `new Date()` for the Sales "Today/Yesterday/This week/This
+      month" presets and the rollup's default "This month". Its calendar cut-off
+      `disabled={{ after: new Date() }}` is browser-local too.
+      Neither can cause #418, because both run only after hydration. Both are
+      wrong only when the viewer's zone differs from the store's (e.g. a Pacific
+      viewer on a Colorado store between 11 PM and midnight Pacific).
+      /api/dashboard/sales clamps `end > today`, which hides some of it. Fixing
+      it changes what the cards request, so it is behaviour, not display.
+
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
 #
