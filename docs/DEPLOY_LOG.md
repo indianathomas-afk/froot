@@ -2,6 +2,67 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-16 — MS-3a: raise eligibility (Raise settings, criteria, Raise badge)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **DO NOT PROMOTE WITHOUT MS-3b** (Gary,
+2026-10-16: "Promote together"): MS-3a alone shows green for someone who was
+just given a raise, because raise detection and the cooldown are MS-3b's.
+
+**Payload: MS-3a only, on top of MS-2, BUG-15 and MS-1** (all also unpromoted,
+with their own entries below). Verified by `git log origin/staging..staging` at
+this check (after `git fetch origin`): exactly `3870fb2`, `3a3f210`, `99cab10`,
+`9917412`. **NONE OF THE MS-3 COMMITS WAS PUSHED WHEN THIS CHECK RAN** — all
+four plus this check's own commit are unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `3870fb2` | `docs(MS-3)`: audit and plan (`docs/prompts/2026-10-16_MS-3_AUDIT.md`) |
+| `3a3f210` | MS-3a work: `src/lib/raise-eligibility.ts` (one batched eligibility function), `src/lib/raise-settings.ts`, `/api/milestones/raise`, Raise section on `/staff/milestones`, Raise card on the Milestones tab, compact Raise badge on `/staff`, `summariesFromDetails` lifted out of `hr-compliance.ts`, migration `20261016190415_ms3a_raise_settings` |
+| `99cab10` | `docs(MS-3a)`: row, MS-3b row and prompt, DEBT-115, DECISIONS draft, MIGRATIONS entry, session prompt |
+| `9917412` | `docs(CLAUDE.md)`: Database step 3 is `migrate deploy`, per Gary's 2026-10-16 ruling |
+| the commit immediately after `9917412` | `docs(MS-3 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE MIGRATION (additive only), ONE NEW ROUTE, a
+behaviour-identical lift in the compliance engine, and the HR-gated staff
+pages.** No cron, no env var, no new dependency, no new Square scope, no Square
+write, and NO wage read — `verify-ms3` C14 and D20 assert that no wage table is
+touched.
+- **Migration** `20261016190415_ms3a_raise_settings`, applied by `prisma
+  migrate deploy` in the Vercel build: adds five defaulted columns to
+  `MilestoneSettings` (`raiseComplianceGate` true, `raiseMinHoursPerWeek` 20,
+  `raiseConsecutiveWeeks` 3, `raiseMinOnTimePct` 90, `raiseCooldownDays` 90)
+  and creates join tables `MilestoneRaiseTraining` and
+  `MilestoneRaiseDocument` (cascade on delete). Applied to DEV only before this
+  push, by Gary with `migrate deploy`. Watch: the staging build log, and the
+  Neon-console check of `_prisma_migrations` before and after.
+- **Compliance engine** (`src/lib/hr-compliance.ts`): `summariesFromDetails`
+  and `complianceDocumentWhere` exported; `getStaffComplianceSummaries`
+  behaviour-identical, so `/staff` runs the engine once for both the % column
+  and the badge. Watch: the `/staff` compliance % column unchanged.
+- **New route** `/api/milestones/raise` (GET/PUT, `milestones.manage`). 404
+  with Milestones off; refuses out-of-bounds values and archived, foreign or
+  non-compliance ids with a 400.
+- **UI**: Raise section on `/staff/milestones`, full Raise card on the
+  Milestones tab, compact badge beside On-Time on `/staff`, all on the On-Time
+  gate (ADMIN/MANAGER, Milestones on). With the Square labor overlay off there
+  is no Raise badge anywhere and the section says why.
+
+**Rollback:** `git revert 3a3f210`. **NO DATABASE STEP, AND NONE IS
+ALLOWED.** The schema is additive-only, so the migration STAYS applied and the
+reverted code simply stops reading the raise columns and join tables. Do not
+drop them or delete the `_prisma_migrations` row: a later re-apply of MS-3a
+brings the migration back under the same name. `3870fb2`, `99cab10`,
+`9917412` and this check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-3 row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`: the Neon-console
+migration check before and after; the Raise section saving and refusing bad
+input (hours 61, cooldown 0 or 731, an archived training); one member per
+colour; Square labor off hiding every Raise badge with the section saying why;
+Milestones off hiding it with the route 404ing; console fetch checks as Tommy
+(STORE) and gary@keva.com (MANAGER, Carson); and phone width.
+
 ## UNPROMOTED — 2026-10-16 — MS-2: on-time % and the On-Time badge (On-time settings, schedule cron)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

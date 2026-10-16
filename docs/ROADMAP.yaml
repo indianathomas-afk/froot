@@ -7206,14 +7206,20 @@ phases:
   - id: MS-3
     track: hr
     size: L
+    # `in_progress` -> `staging` 2026-10-16 BY THE PRE-PUSH-CHECK. None of the
+    # four MS-3 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after 9917412, which cannot name itself) is not
+    # pushed either — Claude never pushes.
     # `planned` -> `in_progress` 2026-10-16 by the MS-3a build session. THIS ID
     # CARRIES MS-3a; MS-3b is its own row below. Neither commit is pushed —
     # Claude never pushes.
-    status: in_progress
+    status: staging
     title: "Staff Milestones — raise eligibility (MS-3a): settings, compliance/hours/on-time/trainings/documents criteria, Raise badge"
     commits:
       - "3870fb2"
       - "3a3f210"
+      - "99cab10"
+      - "9917412"
     blockers:
       - >
         PROMOTES TOGETHER WITH MS-3b (Gary, 2026-10-16: "Promote together").
@@ -7237,6 +7243,17 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Commits 99cab10 (docs) and 9917412 (CLAUDE.md
+      Database step 3 is migrate deploy — the MS-3a session's RULING NOW)
+      added; this check's own commit is the one immediately after 9917412.
+      RULINGS RATIFIED by Gary: the DECISIONS entry (2026-10-16 — MS-3) was
+      printed verbatim and put to him; his reply, exactly: "Ratify as
+      written." The "RULINGS ARE A DRAFT" blocker is superseded by that.
+      DOCS-SYNC: no drift. DEPLOY_LOG: UNPROMOTED MS-3a entry written by this
+      check, marked NOT TO BE PROMOTED WITHOUT MS-3b. CLAUDE.md changed only by
+      9917412, which quotes Gary's ruling. Prompts and audit committed
+      (3870fb2, 99cab10). Staging evidence pending — the other blockers stand.
       TIER 3, 2026-10-16. Prompt: docs/prompts/2026-10-16_MS-3_raise_eligibility.md.
       Audit and plan: docs/prompts/2026-10-16_MS-3_AUDIT.md (3870fb2). SPLIT
       (Gary, 2026-10-16): MS-3a = settings, criteria, badge, NO wage reads;
