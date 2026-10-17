@@ -7462,6 +7462,44 @@ phases:
       getRaiseEligibility is the function it extends. Cross-refs: MS-3, MS-1,
       COMP-1, DEBT-115.
 
+  - id: MS-3c
+    track: hr
+    size: S
+    # `in_progress` at 6eabef1, set 2026-10-17 by the MS-3c build session
+    # (TIER 2, written at the end from what was done). Not pushed — Claude
+    # never pushes.
+    status: in_progress
+    title: "Staff Milestones — no amber \"Raise in progress\" badge on /staff (tab unchanged)"
+    commits:
+      - "6eabef1"
+    blockers:
+      - >
+        PROMOTES WITH MS-3 AND MS-3b. It amends MS-3a's /staff badge, so it
+        must not reach main ahead of them.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms3 95/95 (new
+        C17-C19 call RaiseBadge per status; C17 fails with the change removed,
+        negative control run), verify-ms3b 80/80 (new C14b), verify-ms1 97/97,
+        verify-ms2 90/90, all on dev br-broad-wave-a6vpjdw0; a green build. No
+        page was opened. Staging must check: a member who is amber on the tab
+        shows NO Raise badge on /staff; a green and a red member still show
+        theirs; the tab still shows "Raise in progress" for the amber member.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — MS-3c, to be
+        ratified at the PRE-PUSH-CHECK.
+    notes: >
+      TIER 2, 2026-10-17. Prompt:
+      docs/prompts/2026-10-17_MS-3c_hide_amber_raise_badge.md. Gary's ruling
+      (DECISIONS 2026-10-17 — MS-3c): "Get rid of the 'Raise in progress'
+      badge on the staff page. Leave it only on the Milestone page." WHAT
+      SHIPPED (6eabef1): src/app/(app)/staff/raise-badge.tsx — the compact
+      RaiseBadge returns null for status "yellow", as it already does for
+      "cooldown" (MS-3b F7). Green and red still render on /staff. The full
+      badge and RaiseCard on the Milestones tab are unchanged. No schema, no
+      migration, no route, no gate change; the compact size has one caller
+      (/staff/page.tsx). Display-driven, but it decides WHAT renders, which
+      is why this is TIER 2 and not TIER 1. Cross-refs: MS-3, MS-3b.
+
   - id: MS-4
     track: hr
     status: planned

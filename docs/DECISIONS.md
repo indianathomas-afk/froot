@@ -5,6 +5,32 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Gary's
+ruling, as given in the MS-3c session prompt, recorded exactly:
+
+- *"Get rid of the 'Raise in progress' badge on the staff page. Leave it only
+  on the Milestone page. Managers should be directed by us to the Milestone
+  page. I don't want 'Raise in progress' self-governed."*
+
+**Scope, as the session prompt states it** (the prompt's wording, not a
+further quote of Gary): hide ONLY the amber "Raise in progress" compact badge
+on the /staff list. Green "Raise eligible" and red "Raise blocked" stay on the
+list. The Milestones tab on /staff/[id] is unchanged and still shows every
+state.
+
+**What was built** (`6eabef1`): the compact `RaiseBadge` renders nothing for
+status "yellow", the same way it already renders nothing for cooldown (MS-3b
+F7). This amends MS-3a's "compact badge beside On-Time on /staff" for the
+amber state only. No schema, no route, no gate change. The compact size has
+one caller, `src/app/(app)/staff/page.tsx`.
+
+**Claude implementation choices (for the record):** the change sits in the
+component's compact branch, not in the page, so the rule lives beside the
+cooldown rule it mirrors. The hover tooltip that explained an amber result
+on /staff goes with the badge; the same explanation is on the tab's card.
+
 ## 2026-10-16 — MS-3b: raise detection, manual date, cooldown, wage sync (Gary)
 
 **RATIFIED BY GARY, 2026-10-16, at the MS-3b PRE-PUSH-CHECK.** The entry was
