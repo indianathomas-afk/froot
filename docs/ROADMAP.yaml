@@ -3475,6 +3475,7 @@ phases:
         MUST REACH STAGING BEFORE MS-4a IS BUILT. MS-4a counts named tasks
         toward checklist milestones (MS-4 F0).
       - >
+        SUPERSEDED 2026-10-17 — verified on staging by Gary (see notes).
         UNVERIFIED ON STAGING. Dev-level evidence only: verify-chk15 28/28 on
         dev br-broad-wave-a6vpjdw0 (structural checks with negative controls
         A5-A9; live negative control with the ACTIVE rule disabled gave 3
@@ -3490,6 +3491,15 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — CHK-15, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 in the MS-4a session.
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no
+      "verified on staging" value exists). Gary, exactly: "CHK-15: verified on
+      staging by Gary on 2026-10-17 — refusal message on a stale screen,
+      terminated staff hidden from the picker, history kept, un-tick works.
+      Mark the row's "UNVERIFIED ON STAGING" line superseded." The blocker
+      above is marked SUPERSEDED at its head; its text is kept. The
+      "2026-10-17, MS-4a session" note below, which left the blocker for
+      Gary, is closed by this.
       ── 2026-10-17, MS-4a session. Prepended; NOTHING BELOW IS EDITED. Gary,
       in the MS-4a prompt: "NOT the picker fixes: CHK-15 already shipped and
       verified them on staging. Confirm, don't redo." Confirmed from the repo
@@ -7701,10 +7711,20 @@ phases:
         phone width. Gary checks staging _prisma_migrations in the Neon
         console before and after the deploy.
       - >
+        SUPERSEDED 2026-10-17 for the MS-4a entry — ratified by Gary (see
+        notes); the MS-4 entry keeps its own draft marker.
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — MS-4 (Gary's
         rulings) and 2026-10-17 — MS-4a (build choices), to be ratified at the
         MS-4a PRE-PUSH-CHECK.
     notes: >
+      ── RULINGS RATIFIED 2026-10-17 by Gary, in the MS-4a session.
+      Prepended; NOTHING BELOW IS EDITED. His reply, exactly: "Ratify as
+      written, plus two additions in my words:" — (1) CHK-15 verified on
+      staging (recorded on the CHK-15 row); (2) "Live count: accepted for
+      MS-4a. For MS-4b, a milestone email that was sent stays sent — if the
+      milestone is lost and re-reached, don't send again." DECISIONS
+      2026-10-17 — MS-4a now carries both at its head. Still unverified on
+      staging; the PRE-PUSH-CHECK is still owed.
       BUILT 2026-10-17 (TIER 3), 70365c6. Prompt:
       docs/prompts/2026-10-17_MS-4a_build.md. Audit:
       docs/prompts/2026-10-17_MS-4_AUDIT.md (64569a4). Rulings: DECISIONS
@@ -7738,6 +7758,12 @@ phases:
         Builds on MS-4a (checklist milestones are one of the two email
         events), which must be on staging first.
     notes: >
+      ── RULED 2026-10-17 by Gary, in the MS-4a session. Prepended; NOTHING
+      BELOW IS EDITED. His words, exactly: "For MS-4b, a milestone email that
+      was sent stays sent — if the milestone is lost and re-reached, don't
+      send again." The MS-4b prompt already designs it that way (sent-once
+      row never deleted because a count dropped); this makes it his ruling.
+      DECISIONS 2026-10-17 — MS-4a.
       FILED 2026-10-17 by the MS-4a session, from Gary's F11 split ("Write
       the MS-4b prompt during MS-4a."). Prompt:
       docs/prompts/2026-10-17_MS-4b_notifications.md (TIER 3, fresh session).

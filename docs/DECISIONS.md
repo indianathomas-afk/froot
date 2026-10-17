@@ -5,7 +5,26 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-17 — MS-4a: checklist milestones built; CHK-16 ruled (Gary — DRAFT entry)
+## 2026-10-17 — MS-4a: checklist milestones built; CHK-16 ruled (Gary)
+
+**RATIFIED BY GARY, 2026-10-17, in the MS-4a session after the build
+report.** His reply, recorded exactly: *"Ratify as written, plus two additions
+in my words:"*
+
+1. *"CHK-15: verified on staging by Gary on 2026-10-17 — refusal message on a
+   stale screen, terminated staff hidden from the picker, history kept,
+   un-tick works. Mark the row's "UNVERIFIED ON STAGING" line superseded."*
+2. *"Live count: accepted for MS-4a. For MS-4b, a milestone email that was
+   sent stays sent — if the milestone is lost and re-reached, don't send
+   again."*
+
+"As written" covers this whole entry, including Claude's implementation
+choices below. Nothing below was changed. This paragraph was added at the
+head, and the "DRAFT ENTRY" marker below is kept as it was and superseded by
+it. Until this ratification the heading read "(Gary — DRAFT entry)". Addition
+2 binds MS-4b: its sent-once record is never deleted or re-armed because a
+count dropped. The MS-4 entry below keeps its own draft marker; this reply
+was given to the MS-4a entry.
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4a PRE-PUSH-CHECK.**
 The rulings MS-4a builds on are in the MS-4 entry below (F0, F1, F7 addition,
