@@ -7293,9 +7293,72 @@ phases:
 
   - id: MS-3b
     track: hr
-    status: planned
+    size: M
+    # `planned` -> `in_progress` 2026-10-16 by the MS-3b build session. Neither
+    # commit is pushed — Claude never pushes.
+    status: in_progress
     title: "Staff Milestones — raise detection, manual last-raise date, cooldown, daily wage sync, COMP-1 redaction"
+    commits:
+      - "cd650f7"
+      - "d2897ed"
+    blockers:
+      - >
+        PROMOTES TOGETHER WITH MS-3 (Gary, 2026-10-16: "Promote together").
+        The MS-3a DEPLOY_LOG entry is already marked NOT TO BE PROMOTED
+        WITHOUT MS-3b.
+      - >
+        UNVERIFIED ON STAGING. Evidence so far is dev-level only:
+        verify-ms3b 78/78, verify-ms1 97/97, verify-ms2 90/90 and verify-ms3
+        92/92, all on dev br-broad-wave-a6vpjdw0; a green build; and the
+        cooldown card, the redacted card and the ADMIN control rendered with
+        sample data at 375 px on a temporary local /menu page (no sideways
+        scroll; page deleted before the commit). Raise DETECTION is not
+        exercised on staging, which is connected to the real Keva Square
+        account; Froot never writes to Square. Staging must check:
+        - set a manual last-raise date on one member: the badge is gone from
+          /staff and the tab says "Recent raise";
+        - the day-before / day-of boundary, by choosing the date;
+        - as gary@keva.com (MANAGER, Carson), the tab shows NO date for a
+          confidential member, and a console fetch of PUT
+          /api/staff/[id]/last-raise returns 403;
+        - as Tommy (STORE), the route returns 403 and the tab does not exist;
+        - phone width;
+        - Gary checks staging _prisma_migrations in the Neon console before
+          and after.
+        The cron change activates only at promotion (Vercel runs crons on
+        production only).
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3b, to be
+        ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── BUILD 2026-10-16. TIER 3. Audit and plan:
+      docs/prompts/2026-10-16_MS-3b_AUDIT.md (cd650f7). Gary: "G1–G5:
+      approved as your leans." WHAT SHIPPED (d2897ed):
+      - src/lib/raise-history.ts is the ONLY reader of the wage snapshot
+        table and the only file that names StaffLastRaise. verify-ms1 C18's
+        allow-list gained it deliberately; C20 is unchanged.
+      - Detection (F5): the latest hourly rate above the immediately
+        previous snapshot, both non-null. It is dated by the capture sync in
+        the member's zone (G2). Salaried = detection off.
+      - getRaiseEligibility gains the cooldown. The raise on record is the
+        later of the detected date and the manual date (F6). A member is in
+        cooldown while today < raise date + cooldown days. Status
+        "cooldown" beats red (G5), and /staff shows no badge (F7).
+      - redactForViewer deletes the lastRaise and cooldownUntil keys for any
+        viewer who fails canSeeWages or compVisibleForMember (G3). Both
+        pages call it before rendering. No rate ever enters the result.
+      - New table StaffLastRaise (G1; migration
+        20261017002340_ms3b_last_raise, applied to DEV ONLY by Gary).
+      - PUT/DELETE /api/staff/[id]/last-raise: milestones.manage,
+        org-scoped, 404 when the overlay is off, 403 for an ADMIN without
+        pay visibility, no future dates.
+      - An ADMIN card on the Milestones tab to set or clear the date.
+      - The labor-timecards cron runs syncTeamMemberWages(org, "ACTIVE") per
+        org in its own try/catch, outside `ok`. EMPLOYEES_READ only, no new
+        scope, no vercel.json change.
+      - The roster sync route header is corrected (FIX NOW from the MS-3
+        audit).
+      ── ORIGINAL "planned" NOTES, KEPT VERBATIM. ──
       FILED 2026-10-16 by the MS-3a build session, per Gary's split ruling
       ("Write the MS-3b prompt into docs/prompts/ for a later session. Promote
       together."). Prompt: docs/prompts/2026-10-16_MS-3b_raise_detection.md.

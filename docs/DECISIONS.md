@@ -5,6 +5,67 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-16 — MS-3b: raise detection, manual date, cooldown, wage sync (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The
+forks (G1–G5) are in `docs/prompts/2026-10-16_MS-3b_AUDIT.md` (`cd650f7`), each
+with Claude's lean. Gary's replies in the session chat, recorded exactly:
+
+- *"G1–G5: approved as your leans. Go: build MS-3b. Stop at the migration as
+  written."*
+- After applying the migration to dev: *"Applied. Host ep-late-water-a6k53nv2,
+  20261017002340_ms3b_last_raise applied. Go."*
+
+**What the approved leans say** (the audit's wording, condensed — these are
+Claude's leans that Gary approved, not his own sentences):
+
+- **G1** — the manual last-raise date lives in its own table,
+  `StaffLastRaise`, not in `StaffMember` columns. Thirty whole-row
+  `StaffMember` reads exist, and `GET /api/staff` returns them to every
+  in-scope MANAGER. A column there would leak the date.
+- **G2** — the detected raise date is the sync that first saw the new rate,
+  as a calendar date in the member's display zone. It is not Square's own
+  "wage updated" time.
+- **G3** — who may see raise dates: `canSeeWages`, then
+  `compVisibleForMember`. With no wage row, an ADMIN sees the date and a
+  MANAGER does not.
+- **G4** — a salaried member's manual date still counts. Only detection is
+  off for them.
+- **G5** — cooldown beats red. During cooldown there is no /staff badge,
+  whatever the other rules say. The tab still lists every rule.
+
+The rulings this phase was built under (F5, F6, F7, F10, F15, and the wage
+sync in the daily timecard cron) are in the MS-3 entry below. They are not
+repeated here.
+
+**Claude's implementation choices (flagged for ratification):**
+
+- **No raise on record = no cooldown criterion at all.** This leaves an MS-3a
+  result byte-identical (verify-ms3 92/92, unchanged). Once a raise is on
+  record, the criterion reads "N days since the last raise". It is "In
+  cooldown" or "Met".
+- **No criterion text ever carries a date.** Dates exist only in the
+  `lastRaise` and `cooldownUntil` keys, so `redactForViewer` only deletes
+  keys. The tab's "eligible again from <date>" line is built from
+  `cooldownUntil`, and only when that key survived redaction.
+- **The eligibility result carries no rates, even for an ADMIN (F7).**
+  `detectRaises` returns the from/to rates for MS-4 and MS-5.
+- **A tie between a detected and a manual date reads as detected.**
+- **The manual date cannot be in the future** (the member's store-local
+  today). There is no lower bound.
+- **Clearing keeps the row,** with the date null and who cleared it and when.
+- **The last-raise route** returns 404 when Milestones or the Square labor
+  overlay is off, and 403 for MANAGER, STORE and STAFF. It also returns 403
+  for an ADMIN who may not see this member's pay. Nobody writes a value they
+  could not be shown.
+- **The ADMIN control is a card under the Raise card on the Milestones tab.**
+  It is rendered only for an ADMIN who may see that member's pay.
+- **The cron's `ok` and `failed` still count timecards only.** Wage results
+  are reported under a separate `wages` key.
+- **The cooldown help text on /staff/milestones** now explains where the
+  cooldown counts from. It replaces MS-3a's "starts counting once raise
+  detection is live".
+
 ## 2026-10-16 — MS-3: raise eligibility, split into MS-3a and MS-3b (Gary)
 
 **RATIFIED BY GARY, 2026-10-16, at the MS-3 PRE-PUSH-CHECK.** The entry was

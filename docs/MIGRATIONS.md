@@ -1337,3 +1337,45 @@ leaves the row, and the read skips it.
 **Fixture:** `scripts/verify-ms3.ts`, 92 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was confirmed
 level and again inside the commit gate (work commit `3a3f210`).
+
+## 2026-10-17 — `20261017002340_ms3b_last_raise` (MS-3b)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-16 (Pacific) with `prisma
+migrate deploy` against host `ep-late-water-a6k53nv2` and reported
+"20261017002340_ms3b_last_raise applied". The folder's timestamp is UTC, which
+had already rolled over to 10-17. The session then ran `migrate diff
+--from-config-datasource --to-schema` against dev, which returned `-- This is
+an empty migration.`, so dev matches the schema. Staging and production get the
+migration through `prisma migrate deploy` in the Vercel build, on Gary's push.
+Gary checks staging's `_prisma_migrations` in the Neon console before and after
+the deploy.
+
+Prisma commands for this migration: `validate`, `migrate diff` (three times:
+the audit's level check, generating this file, and the level check after the
+apply), and `generate`.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "StaffLastRaise"` (`id` PK, `organizationId`, `staffMemberId`, `lastRaiseDate DATE` nullable, `setByUserId`, `setAt TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP`) | additive, new table |
+| `UNIQUE INDEX` on `staffMemberId`; `INDEX` on `organizationId` | additive |
+| FK → `Organization` (`ON DELETE RESTRICT`), FK → `StaffMember` (`ON DELETE CASCADE`) | additive |
+
+**No drops, no renames, no type changes, no backfill.** The table is empty
+until an ADMIN enters a date.
+
+**WHY A TABLE AND NOT `StaffMember` COLUMNS (Gary's G1 ruling, 2026-10-16).**
+The MS-3b prompt planned three `StaffMember` columns. The audit
+(`docs/prompts/2026-10-16_MS-3b_AUDIT.md`, B6) found thirty whole-row
+`StaffMember` reads. One of them is `GET /api/staff`, which returns every
+in-scope member to any MANAGER. So a raise date stored as a column would reach
+MANAGERs who are not allowed to see pay. On its own table, no existing read can
+load it. `scripts/verify-ms3b.ts` C6 and C7 pin it: only
+`src/lib/raise-history.ts` names the model, and nothing `include`s the
+relation. Clearing the date keeps the row, with `lastRaiseDate` NULL, so the
+row still records who cleared it and when. The `StaffMember` cascade means
+deleting a member (never the normal path, since termination keeps rows) also
+removes their date.
+
+**Fixture:** `scripts/verify-ms3b.ts`, 78 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`). It ran after the apply and again
+inside the commit gate (work commit `d2897ed`).
