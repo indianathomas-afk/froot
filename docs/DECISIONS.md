@@ -141,7 +141,19 @@ assignment): Gary, "not now". F-F (the calendar completion route checks the
 org only): to triage. The covering-staff product gap (no named credit for
 covered shifts under MS-4 F0) is reported, not fixed.
 
-## 2026-10-17 — MS-4: rulings on the audit; split into MS-4a / MS-4b; F12 becomes CHK-15 (Gary — DRAFT entry)
+## 2026-10-17 — MS-4: rulings on the audit; split into MS-4a / MS-4b; F12 becomes CHK-15 (Gary)
+
+**RATIFIED BY GARY, 2026-10-17, in the MS-4a session.** Asked "Ratify the
+MS-4 rulings entry as written too?", he chose the reply, recorded exactly:
+*"Ratify the MS-4 entry (2026-10-17 — MS-4: rulings on the audit) as
+written."* That reply's wording was a button Claude drafted; the choice to
+send it is Gary's, and it is recorded as his ratification, not as a ruling
+in his own words. It covers the whole entry, including Claude's answers and
+choices. Nothing below was changed. This paragraph was added at the head,
+the "DRAFT ENTRY" marker below is kept and superseded by it, and until now
+the heading read "(Gary — DRAFT entry)". The MS-4a entry's line "The MS-4
+entry below keeps its own draft marker" was true when written and is
+superseded by this.
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4a PRE-PUSH-CHECK.**
 The forks (F0–F12) are in `docs/prompts/2026-10-17_MS-4_AUDIT.md`

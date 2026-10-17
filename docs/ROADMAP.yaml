@@ -7651,6 +7651,13 @@ phases:
     status: planned
     title: "Staff Milestones — checklist milestones, ADMIN/MANAGER notifications, Copy-message button"
     notes: >
+      ── MS-4 RULINGS RATIFIED 2026-10-17 by Gary, in the MS-4a session.
+      Prepended; NOTHING BELOW IS EDITED. He chose the reply "Ratify the MS-4
+      entry (2026-10-17 — MS-4: rulings on the audit) as written." (a button
+      Claude worded; the choice is his). DECISIONS 2026-10-17 — MS-4 now
+      reads "(Gary)". With the MS-4a entry already ratified, every ruling
+      MS-4a rests on is ratified; any "MS-4 entry keeps its draft marker"
+      wording on this row is superseded.
       ── 2026-10-17, MS-4a session. Prepended; NOTHING BELOW IS EDITED. MS-4
       is now carried by two rows: MS-4a (built, 70365c6, in_progress) and
       MS-4b (planned, prompt written). This row stays as the umbrella and is
@@ -7717,6 +7724,13 @@ phases:
         rulings) and 2026-10-17 — MS-4a (build choices), to be ratified at the
         MS-4a PRE-PUSH-CHECK.
     notes: >
+      ── MS-4 RULINGS RATIFIED 2026-10-17 by Gary, in the MS-4a session.
+      Prepended; NOTHING BELOW IS EDITED. He chose the reply "Ratify the MS-4
+      entry (2026-10-17 — MS-4: rulings on the audit) as written." (a button
+      Claude worded; the choice is his). DECISIONS 2026-10-17 — MS-4 now
+      reads "(Gary)". With the MS-4a entry already ratified, every ruling
+      MS-4a rests on is ratified; any "MS-4 entry keeps its draft marker"
+      wording on this row is superseded.
       ── RULINGS RATIFIED 2026-10-17 by Gary, in the MS-4a session.
       Prepended; NOTHING BELOW IS EDITED. His reply, exactly: "Ratify as
       written, plus two additions in my words:" — (1) CHK-15 verified on
