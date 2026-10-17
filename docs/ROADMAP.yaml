@@ -7294,13 +7294,19 @@ phases:
   - id: MS-3b
     track: hr
     size: M
+    # `in_progress` -> `staging` 2026-10-16 BY THE PRE-PUSH-CHECK. None of the
+    # four MS-3b commits was pushed when the check ran; this check's own commit
+    # (the one immediately after f5aad38, which cannot name itself) is not
+    # pushed either — Claude never pushes.
     # `planned` -> `in_progress` 2026-10-16 by the MS-3b build session. Neither
     # commit is pushed — Claude never pushes.
-    status: in_progress
+    status: staging
     title: "Staff Milestones — raise detection, manual last-raise date, cooldown, daily wage sync, COMP-1 redaction"
     commits:
       - "cd650f7"
       - "d2897ed"
+      - "f3965f9"
+      - "f5aad38"
     blockers:
       - >
         PROMOTES TOGETHER WITH MS-3 (Gary, 2026-10-16: "Promote together").
@@ -7331,6 +7337,22 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3b, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Commits f3965f9 (docs) and f5aad38 added; this
+      check's own commit is the one immediately after f5aad38. f5aad38 is
+      TEST-ONLY: D22b, a positive control for the raise-date redaction (an
+      ADMIN must see both dates on the D18/D19 members, so a redaction that
+      strips dates for everyone fails). verify-ms3b is now 79/79 on dev
+      br-broad-wave-a6vpjdw0 — this SUPERSEDES the "78/78" in the staging
+      blocker above, which is left as written. f5aad38 landed after the docs
+      commit, so the row could not record it; the check found it as DRIFT and
+      Gary approved the fix: "Go ahead with the proposed fix." RULINGS
+      RATIFIED by Gary: the DECISIONS entry (2026-10-16 — MS-3b) was printed
+      verbatim and put to him; his reply, exactly: "Ratify as written." The
+      "RULINGS ARE A DRAFT" blocker is superseded by that. DEPLOY_LOG:
+      UNPROMOTED MS-3b entry written by this check; promotes together with
+      MS-3a. CLAUDE.md untouched. Prompt (99cab10) and audit (cd650f7)
+      committed. Staging evidence pending — the other blockers stand.
       ── BUILD 2026-10-16. TIER 3. Audit and plan:
       docs/prompts/2026-10-16_MS-3b_AUDIT.md (cd650f7). Gary: "G1–G5:
       approved as your leans." WHAT SHIPPED (d2897ed):

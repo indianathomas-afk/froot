@@ -2,6 +2,75 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-16 — MS-3b: raise detection, manual last-raise date, cooldown, daily wage sync
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **PROMOTES TOGETHER WITH MS-3a** (Gary,
+2026-10-16: "Promote together") — the MS-3a entry below is marked not to be
+promoted without this one, and the reverse holds too.
+
+**Payload: MS-3b only, on top of MS-3a, MS-2, BUG-15 and MS-1** (all also
+unpromoted, with their own entries below). Verified by `git log
+origin/staging..staging` at this check (after `git fetch origin`): exactly
+`cd650f7`, `d2897ed`, `f3965f9`, `f5aad38`. **NONE OF THE MS-3b COMMITS WAS
+PUSHED WHEN THIS CHECK RAN** — all four plus this check's own commit are
+unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `cd650f7` | `docs(MS-3b)`: audit and plan (`docs/prompts/2026-10-16_MS-3b_AUDIT.md`), stopped for Gary's G1–G5 rulings |
+| `d2897ed` | MS-3b work: `src/lib/raise-history.ts` (raise detection; the only reader of the wage snapshot table and of `StaffLastRaise`), cooldown and `redactForViewer` in `src/lib/raise-eligibility.ts`, `PUT`/`DELETE /api/staff/[id]/last-raise`, ADMIN last-raise card on the Milestones tab, daily wage sync in the labor-timecards cron, roster sync route header corrected, migration `20261017002340_ms3b_last_raise` |
+| `f3965f9` | `docs(MS-3b)`: row, DECISIONS draft, MIGRATIONS entry |
+| `f5aad38` | `test(MS-3b)`: D22b positive control for the raise-date redaction (`scripts/verify-ms3b.ts` only; 79/79 on dev) |
+| the commit immediately after `f5aad38` | `docs(MS-3b PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE MIGRATION (additive only), ONE NEW ROUTE, A CHANGE TO A
+PRODUCTION CRON, and the HR-gated staff pages.** No env var, no new dependency,
+no new Square scope, no Square write, no `vercel.json` change. This is the first
+Milestones phase that READS WAGE DATA — the result carries dates only, never a
+rate, and `redactForViewer` strips them for anyone without pay visibility.
+- **Migration** `20261017002340_ms3b_last_raise`, applied by `prisma migrate
+  deploy` in the Vercel build: creates table `StaffLastRaise` (one row per
+  staff member, unique on `staffMemberId`, cascade on member delete, nullable
+  `lastRaiseDate DATE`, `setByUserId`, `setAt`). Nothing existing is altered.
+  Applied to DEV only before this push, by Gary with `migrate deploy`. Watch:
+  the staging build log, and the Neon-console check of `_prisma_migrations`
+  before and after.
+- **Cron** `/api/cron/labor-timecards` now also runs
+  `syncTeamMemberWages(org, "ACTIVE")` per org — one `POST
+  /v2/team-members/search` (a READ, `EMPLOYEES_READ`, already held) — in its
+  own try/catch, reported under a new `wages` key. `ok` / `failed` still count
+  timecards only. **Vercel runs crons on production only, so this activates AT
+  PROMOTION, not on staging.** Watch, after promotion: the production cron log
+  line `[cron:labor-timecards] wages N/M orgs synced`, and no change to the
+  timecard result.
+- **New route** `PUT`/`DELETE /api/staff/[id]/last-raise`
+  (`milestones.manage`, org-scoped). 404 with Milestones or the Square labor
+  overlay off; 403 for MANAGER, STORE and STAFF, and for an ADMIN who may not
+  see this member's pay; refuses a future date.
+- **UI**: the Raise card gains "Recent raise" / cooldown state; during cooldown
+  `/staff` shows no Raise badge (G5). ADMIN-only last-raise card under the
+  Raise card on the Milestones tab. Cooldown help text on `/staff/milestones`
+  reworded. Watch: a MANAGER sees no date for a confidential member.
+
+**Rollback:** `git revert f5aad38 d2897ed` (newest first — `f5aad38` edits a
+file `d2897ed` created). **NO DATABASE STEP, AND NONE IS ALLOWED.** The schema
+is additive-only, so `StaffLastRaise` STAYS and the reverted code simply stops
+reading it. Do not drop it or delete the `_prisma_migrations` row: a later
+re-apply of MS-3b brings the migration back under the same name. Note that
+reverting MS-3b alone leaves MS-3a live without the cooldown — the state Gary's
+"Promote together" ruling exists to prevent. `cd650f7`, `f3965f9` and this
+check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-3b row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`: the Neon-console
+migration check before and after; a manual last-raise date removing the
+`/staff` badge and showing "Recent raise"; the day-before / day-of cooldown
+boundary; as gary@keva.com (MANAGER, Carson) no date for a confidential member
+and a 403 from the route; as Tommy (STORE) a 403 and no tab; and phone width.
+Raise DETECTION is fixture-proven on dev only (verify-ms3b 79/79,
+`br-broad-wave-a6vpjdw0`) and is not exercised on staging.
+
 ## UNPROMOTED — 2026-10-16 — MS-3a: raise eligibility (Raise settings, criteria, Raise badge)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

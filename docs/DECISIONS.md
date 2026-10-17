@@ -5,7 +5,15 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-16 — MS-3b: raise detection, manual date, cooldown, wage sync (Gary — DRAFT entry)
+## 2026-10-16 — MS-3b: raise detection, manual date, cooldown, wage sync (Gary)
+
+**RATIFIED BY GARY, 2026-10-16, at the MS-3b PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly: *"Ratify as written."* That covers the
+whole entry, including the approved G1–G5 leans and Claude's implementation
+choices. Nothing below was changed. This paragraph was added at the head, and
+the "DRAFT ENTRY" marker below is kept as it was and superseded by it. Until
+this ratification the heading read "(Gary — DRAFT entry)".
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The
 forks (G1–G5) are in `docs/prompts/2026-10-16_MS-3b_AUDIT.md` (`cd650f7`), each
