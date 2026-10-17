@@ -71,6 +71,20 @@ and a 403 from the route; as Tommy (STORE) a 403 and no tab; and phone width.
 Raise DETECTION is fixture-proven on dev only (verify-ms3b 79/79,
 `br-broad-wave-a6vpjdw0`) and is not exercised on staging.
 
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED. Environment: staging, Neon branch `br-square-feather-a63z92vz`, org
+`cmr54z65v000105jxczpt72w1` (Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`),
+Clerk development instance (staging keys). Deployed SHA read from the page
+footer: `029e4ba`.
+- Migration finished 2026-10-17 02:14 UTC.
+- Manual last-raise 2026-08-04 → "Recent raise, eligible again from Nov 2,
+  2026", badge hidden on `/staff`; 2026-07-01 → cooldown met, badge back.
+- Privacy: Deon Hazelton marked pay-confidential; Tommy (MANAGER, Las Brisas)
+  saw the cooldown but no dates on the tab and none in page source; ADMIN saw
+  both dates (positive control).
+- Test data cleaned up.
+
 ## UNPROMOTED — 2026-10-16 — MS-3a: raise eligibility (Raise settings, criteria, Raise badge)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
@@ -83,6 +97,9 @@ with their own entries below). Verified by `git log origin/staging..staging` at
 this check (after `git fetch origin`): exactly `3870fb2`, `3a3f210`, `99cab10`,
 `9917412`. **NONE OF THE MS-3 COMMITS WAS PUSHED WHEN THIS CHECK RAN** — all
 four plus this check's own commit are unpushed. Claude never pushes.
+**SUPERSEDED 2026-10-17 (DOCS-CLOSEOUT): pushed 2026-10-16, deployed
+`4cb60b0`.** The "not pushed" line above is kept as written; it was true when
+the check ran.
 
 | Commit | What it is |
 |---|---|
@@ -131,6 +148,15 @@ input (hours 61, cooldown 0 or 731, an archived training); one member per
 colour; Square labor off hiding every Raise badge with the section saying why;
 Milestones off hiding it with the route 404ing; console fetch checks as Tommy
 (STORE) and gary@keva.com (MANAGER, Carson); and phone width.
+
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED, and still NOT TO BE PROMOTED WITHOUT MS-3b. Environment: staging,
+Neon branch `br-square-feather-a63z92vz`, org `cmr54z65v000105jxczpt72w1`
+(Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`), Clerk development instance
+(staging keys). Deployed SHA read from the page footer: `4cb60b0`.
+- Migration finished 2026-10-16 22:14 UTC.
+- All checklist items confirmed by Gary.
 
 ## UNPROMOTED — 2026-10-16 — MS-2: on-time % and the On-Time badge (On-time settings, schedule cron)
 
@@ -195,6 +221,19 @@ badges on `/staff`; Milestones off hiding every badge with the route 404ing;
 console fetch checks as Tommy (STORE) and gary@keva.com (MANAGER, Carson); and
 phone width.
 
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED. Environment: staging, Neon branch `br-square-feather-a63z92vz`, org
+`cmr54z65v000105jxczpt72w1` (Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`),
+Clerk development instance (staging keys). Deployed SHA read from the page
+footer: `06b5bba`.
+- Migration finished 2026-10-16 15:39 UTC.
+- Settings save; red ≥ green refused.
+- Green / red / grey badges on real data; full badge "8 of 8 shifts".
+- Toggle off hides all.
+- 403s as STORE and as an out-of-scope MANAGER.
+- Phone width.
+
 ## UNPROMOTED — 2026-10-15 — BUG-15: /dashboard header date no longer causes React #418 after 5 PM Pacific
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
@@ -234,6 +273,17 @@ can stay.
 **Staging evidence:** pending. After 5 PM Pacific (UTC has rolled over), load
 `/dashboard` on a Pacific store, a Colorado store and All locations; check for
 no #418 in the console and the store-local date in the header.
+
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED. Environment: staging, Neon branch `br-square-feather-a63z92vz`, org
+`cmr54z65v000105jxczpt72w1` (Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`),
+Clerk development instance (staging keys). Deployed SHA read from the page
+footer: `147fa94`.
+- Incognito, console open, hard reload: no React #418 on Las Brisas at
+  20:54 PDT (UTC already the next day).
+- Southgate and All locations clean (checked 06:34 PDT, outside the bug
+  window); the fixture covers Denver.
 
 ## UNPROMOTED — 2026-10-15 — MS-1: Staff Milestones foundation (toggle, tenure milestones, start date, Milestones tab)
 
@@ -299,7 +349,37 @@ migration and Store-timezone checks before and after the deploy; the
 Milestones tab at desktop and phone width; Tommy (STORE) seeing no tab; and
 real-request 403 and 404 checks as STORE and as an out-of-scope MANAGER.
 
-## UNPROMOTED — 2026-09-29 — DOC-11: Preview on the Document Library (PDFs and images in a dialog)
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED. Environment: staging, Neon branch `br-square-feather-a63z92vz`, org
+`cmr54z65v000105jxczpt72w1` (Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`),
+Clerk development instance (staging keys). Deployed SHA read from the page
+footer: `7010995`.
+- Both MS-1 migrations finished 2026-10-16 01:32 UTC, no rollback.
+- Toggle on/off; add / edit / archive / restore; duplicate day count refused.
+- Start date "Manually set" with the Square date warning, survives resync.
+- Tab next / achieved / progress, desktop and phone.
+- Permissions: STORE (Tommy) has no Staff access, APIs 403 with Milestones on
+  and 404 with it off; out-of-scope MANAGER (gary@keva.com, Carson) gets
+  not-found and 403.
+
+## 0d51496 — 2026-09-29 — DOC-11: Preview on the Document Library (PDFs and images in a dialog)
+
+**PROMOTED — stamped late, 2026-10-17, by DOCS-CLOSEOUT.** The heading
+previously read "UNPROMOTED — 2026-09-29 — DOC-11: Preview on the Document
+Library (PDFs and images in a dialog)"; it was stamped with the merge SHA as the
+"Status" line below instructs, and everything below is kept as written.
+**Merge SHA:** `0d5149658e3dc406549dc84ec84dd1803d3e1ac9`, committed
+2026-09-29 13:38:19 -0700 (Pacific), which is `2026-09-29T20:38:19Z`
+("Merge branch 'staging'"), parents `760524e` (prior tip of `main`) and
+`27c67b3` (tip of `staging`). **4 commits** in `0d51496^1..0d51496^2`, read out
+of `git log` at this stamp: `c5b472e`, `d329389`, `5bc3008`, `27c67b3`.
+`git merge-base --is-ancestor 0d51496 origin/main` succeeds, so it is on
+`origin/main`. No production verification of DOC-11 is recorded here.
+
+**Rollback:** `git revert -m 1 0d51496` on `main`, then push. No database step.
+Note this merge also carried `27c67b3` (the DOC-6 promotion stamp, docs only).
+This supersedes the pre-merge `git revert c5b472e` line below, kept in place.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge.

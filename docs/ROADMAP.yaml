@@ -7067,6 +7067,23 @@ phases:
           RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-15 — MS-1, to be
           ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging`: the schema
+      has no "verified on staging" value, and `verified` means shipped.
+      Evidence is Gary's, in chat, 2026-10-15 to 2026-10-17: staging, Neon
+      branch br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk
+      org org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance.
+      Deployed SHA read from the page footer: 7010995. Both MS-1 migrations
+      finished 2026-10-16 01:32 UTC, no rollback. Toggle on/off; add, edit,
+      archive, restore; duplicate day count refused; "Manually set" start date
+      with the Square date warning, survives resync; tab next/achieved/progress
+      at desktop and phone. STORE (Tommy) has no Staff access, APIs 403 on and
+      404 off; out-of-scope MANAGER (gary@keva.com, Carson) not-found and 403.
+      Full block in docs/DEPLOY_LOG.md (MS-1 entry, still UNPROMOTED). The
+      UNVERIFIED-ON-STAGING blockers below are left unflagged: the evidence
+      does not name the Store-timezone Neon check or the archived-milestone
+      history check, so closing them is Gary's call. Promotion: see the MS-3b
+      row note (five Milestones migrations ride together).
       ── PRE-PUSH-CHECK 2026-10-15 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs SHA 9287680 added; this check's own commit
       is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
@@ -7152,6 +7169,19 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-2, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
+      on staging" value exists). Gary, in chat: staging, Neon branch
+      br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance. Deployed
+      SHA read from the page footer: 06b5bba. Migration finished 2026-10-16
+      15:39 UTC. Settings save; red >= green refused; green, red and grey
+      badges on real data; full badge "8 of 8 shifts"; toggle off hides all;
+      403s as STORE and as an out-of-scope MANAGER; phone width. Full block in
+      docs/DEPLOY_LOG.md (MS-2 entry, still UNPROMOTED). The
+      UNVERIFIED-ON-STAGING blocker below is left unflagged for Gary to close.
+      The schedule cron still activates only at promotion (see the MS-3b row
+      note).
       ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED except the restoration at the foot. Commits
       c8e302f (docs) and b0fa415 (the display-rounding follow-up, a WORK
@@ -7243,6 +7273,20 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
+      on staging" value exists). Gary, in chat: staging, Neon branch
+      br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance. Deployed
+      SHA read from the page footer: 4cb60b0. Migration finished 2026-10-16
+      22:14 UTC. All checklist items confirmed by Gary. Full block in
+      docs/DEPLOY_LOG.md (MS-3a entry, still UNPROMOTED; its "not pushed"
+      line is marked superseded: pushed 2026-10-16, deployed 4cb60b0). The
+      UNVERIFIED-ON-STAGING blocker below is left unflagged for Gary to close.
+      PROMOTE TOGETHER WITH MS-3b — MS-3a must not reach main without it.
+      PENDING RULING (Gary): should a MANAGER see their own Raise badge? On
+      staging, Tommy (MANAGER, Las Brisas) sees "Raise blocked" on his own row
+      on /staff. Recorded here, not as a new row, because the badge is MS-3a's.
       ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Commits 99cab10 (docs) and 9917412 (CLAUDE.md
       Database step 3 is migrate deploy — the MS-3a session's RULING NOW)
@@ -7337,6 +7381,32 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3b, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
+      on staging" value exists). Gary, in chat: staging, Neon branch
+      br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance. Deployed
+      SHA read from the page footer: 029e4ba. Migration finished 2026-10-17
+      02:14 UTC. Manual last-raise 2026-08-04 -> "Recent raise, eligible again
+      from Nov 2, 2026", badge hidden on /staff; 2026-07-01 -> cooldown met,
+      badge back. Privacy: Deon Hazelton marked pay-confidential; Tommy
+      (MANAGER, Las Brisas) saw the cooldown but no dates on the tab and none
+      in page source; ADMIN saw both dates (positive control). Test data
+      cleaned up. Full block in docs/DEPLOY_LOG.md (MS-3b entry, still
+      UNPROMOTED). The UNVERIFIED-ON-STAGING blocker below is left unflagged
+      for Gary to close. PROMOTE TOGETHER WITH MS-3.
+      OPEN — GARY TO CONFIRM (possible store-scope bug): on 2026-10-16/17
+      Tommy (MANAGER, Las Brisas only) appeared to see a Southgate card on
+      /staff and the Southgate dashboard. Unconfirmed. If real, it is a
+      store-scope bug and gets its own row.
+      PROMOTION PENDING: five Milestones migrations ride the next promotion of
+      staging — 20261015171226_ms1_milestones_foundation,
+      20261015183554_ms1_start_date_square_archived_at,
+      20261016140411_ms2_milestone_settings, 20261016190415_ms3a_raise_settings
+      and 20261017002340_ms3b_last_raise — plus the schedule cron (MS-2) and
+      the wage sync in the labor-timecards cron (MS-3b), which only run on
+      production. MS-3a must not reach main without MS-3b. BUG-15 rides the
+      same promotion.
       ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Commits f3965f9 (docs) and f5aad38 added; this
       check's own commit is the one immediately after f5aad38. f5aad38 is
@@ -21437,6 +21507,18 @@ bugs:
     title: >
       /dashboard header date causes React #418 after 5 PM Pacific
     notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
+      on staging" value exists). Gary, in chat: staging, Neon branch
+      br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance. Deployed
+      SHA read from the page footer: 147fa94. Incognito, console open, hard
+      reload: no React #418 on Las Brisas at 20:54 PDT (UTC already the next
+      day). Southgate and All locations clean (checked 06:34 PDT, outside the
+      bug window); the fixture covers Denver. This supersedes the
+      "UNVERIFIED ON STAGING" sentence below, kept as written. Full block in
+      docs/DEPLOY_LOG.md (BUG-15 entry, still UNPROMOTED). Promotes with the
+      Milestones batch (see the MS-3b row note).
       FILED AND FIXED 2026-10-15 (TIER 2), on staging on top of MS-1 — Gary
       overrode the prompt's launch gate: MS-1 was NOT promoted to main first.
       ROOT CAUSE. src/app/(app)/dashboard/dashboard-client.tsx:296 (at e1b4620)
