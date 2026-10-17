@@ -7685,12 +7685,19 @@ phases:
   - id: MS-4a
     track: hr
     size: M
+    # `in_progress` -> `staging` 2026-10-17 BY THE PRE-PUSH-CHECK. None of the
+    # four MS-4a commits was pushed when the check ran; this check's own
+    # commit (the one immediately after 2ca8b64, which cannot name itself) is
+    # not pushed either — Claude never pushes.
     # `in_progress` at 70365c6, set 2026-10-17 by the MS-4a build session
     # (TIER 3). Not pushed — Claude never pushes.
-    status: in_progress
+    status: staging
     title: "Staff Milestones — checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning"
     commits:
       - "70365c6"
+      - "e90ca16"
+      - "f295ea1"
+      - "2ca8b64"
     blockers:
       - >
         PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-3c), none of which is
@@ -7724,6 +7731,16 @@ phases:
         rulings) and 2026-10-17 — MS-4a (build choices), to be ratified at the
         MS-4a PRE-PUSH-CHECK.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-17 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs commits e90ca16, f295ea1 and 2ca8b64
+      added; this check's own commit is the one immediately after 2ca8b64.
+      RULINGS RE-RATIFIED at this check: the DECISIONS entries 2026-10-17 —
+      MS-4a and 2026-10-17 — MS-4 were printed verbatim and Gary answered
+      "Ratify as written" (the reply button carrying the check's own
+      prescribed phrase). Both entries unchanged. Docs sync audit: no drift.
+      DEPLOY_LOG entry written by this check (UNPROMOTED, 2026-10-17). Still
+      unverified on staging; promotes with MS-1 to MS-3c and with or after
+      CHK-15.
       ── MS-4 RULINGS RATIFIED 2026-10-17 by Gary, in the MS-4a session.
       Prepended; NOTHING BELOW IS EDITED. He chose the reply "Ratify the MS-4
       entry (2026-10-17 — MS-4: rulings on the audit) as written." (a button

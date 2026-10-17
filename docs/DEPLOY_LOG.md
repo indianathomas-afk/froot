@@ -2,6 +2,65 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-17 — MS-4a: checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **PROMOTES WITH THE REST OF MILESTONES
+(MS-1 to MS-3c) AND WITH OR AFTER CHK-15**, whose name check is what makes the
+named-task count trustworthy. A staging → main merge carries them all together.
+
+**Payload: MS-4a only, on top of CHK-15, MS-3c, MS-3b, MS-3a, MS-2, BUG-15 and
+MS-1** (all also unpromoted, with their own entries below). Verified by `git log
+origin/staging..staging` at this check (after `git fetch origin`): exactly
+`70365c6`, `e90ca16`, `f295ea1`, `2ca8b64`. **NONE OF THE MS-4a COMMITS WAS
+PUSHED WHEN THIS CHECK RAN.** All four, plus this check's own commit, are
+unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `70365c6` | MS-4a work: migration `20261017204956_ms4a_checklist_milestones`, `checklistProgress` / `namedTaskDates`, `/api/milestones/checklist` (GET, POST), `/[id]` (PATCH), `/switch` (PUT), the Checklists section on `/staff/milestones`, checklist progress and Copy message on the `/staff/[id]` Milestones tab, the pay warning, fixture `scripts/verify-ms4a.ts`, `verify-ms1` C7 census 5 → 8 |
+| `e90ca16` | `docs(MS-4a)`: MS-4a / MS-4b rows, DECISIONS draft, MIGRATIONS entry, saved prompt, MS-4b prompt; Tommy/Southgate closed on MS-3b; CHK-16 ruling |
+| `f295ea1` | `docs(MS-4a)`: MS-4a rulings ratified; CHK-15 verified on staging (blocker superseded); MS-4b sent-stays-sent ruling |
+| `2ca8b64` | `docs(MS-4)`: MS-4 rulings entry ratified |
+| the commit immediately after `2ca8b64` | `docs(MS-4a PRE-PUSH-CHECK)`: ratification recorded, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE ADDITIVE MIGRATION, THREE NEW ADMIN ROUTES, TWO PAGES.**
+The migration adds `MilestoneSettings.checklistMilestonesEnabled` (default
+false), a new `ChecklistMilestone` table and an index on
+`TaskLog(completedByStaffId)`. No drops, no backfill. It applies on the Vercel
+build through `prisma migrate deploy`. Watch the build log for it, and Gary
+checks `_prisma_migrations` in the Neon console before and after; the
+advisory-lock P1002 failure is the known risk. No env var, no cron, no email,
+no Square call. The new routes are `milestones.manage` (ADMIN) behind the
+Milestones module gate, and the CRUD routes 404 while the switch is off. With
+the switch OFF (every org, by default) nothing new shows anywhere except the
+switch itself, the pay warning, and the Copy message button on achieved
+TENURE messages, which appears for every org with Milestones on.
+
+**Rollback:** `git revert 70365c6`. That removes the code but NOT the migration
+already applied: the new table, column and index stay, unused and harmless
+(additive). Never drop them by hand (no column drops, ever). The docs commits
+can stay.
+
+**Staging evidence:** pending. The checklist is the MS-4a row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`, with the org named by id
+on every observation:
+- `/staff/milestones` shows the Checklists card with the switch OFF and no list;
+  on shows the list, off hides it again with nothing deleted;
+- add 1- and 2-task milestones, tick tasks naming "MS-4a Staff", and see the
+  tab count, the achieved card and its Copy message button;
+- a "Team Member" tick does not count; un-ticking lowers the count;
+- Copy pastes the message as written; the pay warning shows on the page and in
+  the dialog;
+- as Tommy switched to STORE and as gary@keva.com (MANAGER), a console PUT to
+  `/api/milestones/checklist/switch` returns 404 or 403;
+- phone width.
+
+Dev-level evidence only so far: verify-ms4a 52/52 (live negative control
+5 FAIL, restored), verify-ms1 97/97, verify-ms2 90/90, verify-ms3 95/95,
+verify-ms3b 80/80 and verify-chk15 28/28, all on dev `br-broad-wave-a6vpjdw0`;
+375 px checked on a temporary page with sample data, deleted before the commit.
+
 ## UNPROMOTED — 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
