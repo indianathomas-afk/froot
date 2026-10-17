@@ -3490,6 +3490,14 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — CHK-15, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── 2026-10-17, MS-4a session. Prepended; NOTHING BELOW IS EDITED. Gary,
+      in the MS-4a prompt: "NOT the picker fixes: CHK-15 already shipped and
+      verified them on staging. Confirm, don't redo." Confirmed from the repo
+      only: 329526d is on origin/staging, the picker filters ACTIVE, and the
+      route resolves names through resolveTaskLogStaff; verify-chk15 28/28 on
+      dev br-broad-wave-a6vpjdw0. No staging observation was taken by Claude,
+      so the UNVERIFIED-ON-STAGING blocker above is left for Gary to close on
+      his own observation.
       ── PRE-PUSH-CHECK 2026-10-17 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs commits adc56a9 and 92dad4d added; this
       check's own commit is the one immediately after 92dad4d. RULINGS
@@ -3534,6 +3542,12 @@ phases:
     status: planned
     title: "Covering staff can't be named on a checklist tick — no named credit for covered shifts"
     notes: >
+      ── RULED 2026-10-17 by Gary, in the MS-4a session. Prepended; NOTHING
+      BELOW IS EDITED. His words, exactly: "CHK-16: ship without
+      covering-staff credit." MS-4a (70365c6) shipped on that basis: covering
+      staff earn no named credit and no checklist-milestone progress for
+      covered shifts. The row stays planned — the gap is real, just not a
+      blocker for checklist milestones.
       FILED 2026-10-17 by the CHK-15 session. Gary approved the row as the
       session wrote it, linked to MS-4a planning: "Covering-staff gap: approve
       the ROW as written, linked to MS-4a planning." The finding, as written
@@ -7475,6 +7489,14 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3b, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── TOMMY / SOUTHGATE: CLOSED, NOT A BUG — recorded 2026-10-17 in the
+      MS-4a docs commit, as Gary ruled. Prepended per preserve-and-mark;
+      NOTHING BELOW IS EDITED, including the "OPEN — GARY TO CONFIRM
+      (possible store-scope bug)" paragraph, which this closes. Gary, exactly
+      (MS-4 session): "Tommy/Southgate open item: resolved, not a bug. Gary
+      had assigned Tommy to Southgate earlier, then moved him to Las Brisas
+      only. Record it as closed in the MS-3b row note (preserve-and-mark) in
+      the MS-4a docs commit." No row is filed for it.
       ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
       Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
       on staging" value exists). Gary, in chat: staging, Neon branch
@@ -7619,6 +7641,10 @@ phases:
     status: planned
     title: "Staff Milestones — checklist milestones, ADMIN/MANAGER notifications, Copy-message button"
     notes: >
+      ── 2026-10-17, MS-4a session. Prepended; NOTHING BELOW IS EDITED. MS-4
+      is now carried by two rows: MS-4a (built, 70365c6, in_progress) and
+      MS-4b (planned, prompt written). This row stays as the umbrella and is
+      closed when both are.
       2026-10-17, CHK-15 session — FOR MS-4a PLANNING: read CHK-16 (covering
       staff can't be named on a tick, so they earn no checklist milestone
       for covered shifts under F0). Prepended; nothing below is edited.
@@ -7638,6 +7664,93 @@ phases:
       (TenureMilestone.employeeMessage, already stored by MS-1). MS-4 adds
       whatever it needs to notify exactly once. MS-1 deliberately has no
       "achieved" table. Cross-refs: MS-1.
+
+  - id: MS-4a
+    track: hr
+    size: M
+    # `in_progress` at 70365c6, set 2026-10-17 by the MS-4a build session
+    # (TIER 3). Not pushed — Claude never pushes.
+    status: in_progress
+    title: "Staff Milestones — checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning"
+    commits:
+      - "70365c6"
+    blockers:
+      - >
+        PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-3c), none of which is
+        promoted. Migration 20261017204956_ms4a_checklist_milestones rides the
+        next promotion with the five Milestones migrations already on staging.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms4a 52/52 on
+        dev br-broad-wave-a6vpjdw0 (structural negative controls A9-A14 and
+        A16; live negative control with the org scope removed from
+        namedTaskDates gave 5 FAIL, restored), verify-ms1 97/97 (C7 census
+        5 -> 8), verify-ms2 90/90, verify-ms3 95/95, verify-ms3b 80/80,
+        verify-chk15 28/28; a green build; 375 px checked on a temporary
+        public /menu page with sample data (no sideways scroll, Copy wrote the
+        exact text including a newline, the refusal message showed; page
+        deleted before the commit). Staging must check, naming the org id on
+        every observation: /staff/milestones shows the Checklists card with
+        the switch OFF and no list; switching it on shows the list, and
+        off hides it again with nothing deleted; add 1- and 2-task milestones,
+        then tick tasks naming "MS-4a Staff" on a checklist and see the tab
+        count, the achieved card and its Copy message button; a "Team Member"
+        tick does not count; un-ticking lowers the count; Copy pastes the
+        message as written; the pay warning shows on the page and in the
+        dialog; as Tommy switched to STORE and as gary@keva.com (MANAGER), a
+        console PUT to /api/milestones/checklist/switch returns 404 or 403;
+        phone width. Gary checks staging _prisma_migrations in the Neon
+        console before and after the deploy.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — MS-4 (Gary's
+        rulings) and 2026-10-17 — MS-4a (build choices), to be ratified at the
+        MS-4a PRE-PUSH-CHECK.
+    notes: >
+      BUILT 2026-10-17 (TIER 3), 70365c6. Prompt:
+      docs/prompts/2026-10-17_MS-4a_build.md. Audit:
+      docs/prompts/2026-10-17_MS-4_AUDIT.md (64569a4). Rulings: DECISIONS
+      2026-10-17 — MS-4 (F0 named TASKS, F1 a list, F8 copy as written, F13
+      the separate switch OFF by default, F7 addition the pay warning, F11
+      the split) and CHK-16 (Gary: "ship without covering-staff credit").
+      WHAT SHIPPED: migration 20261017204956_ms4a_checklist_milestones
+      (ChecklistMilestone table; MilestoneSettings.checklistMilestonesEnabled
+      default false; TaskLog(completedByStaffId) index), applied to dev by
+      Gary. checklistProgress (pure) and namedTaskDates (org-scoped through
+      the checklist, store-local). /api/milestones/checklist GET/POST,
+      /[id] PATCH, /switch PUT — milestones.manage behind the module gate,
+      CRUD 404 while the switch is off. /staff/milestones: Checklists section
+      (switch only while off); the tenure list card moved into
+      milestone-list.tsx and is shared. /staff/[id] Milestones tab: checklist
+      progress and achieved list, and a Copy message button on every achieved
+      message, tenure and checklist. NOT HERE: the picker fixes (CHK-15,
+      already on staging); notifications (MS-4b). Cross-refs: MS-4, MS-4b,
+      CHK-15, CHK-16.
+
+  - id: MS-4b
+    track: hr
+    status: planned
+    title: "Staff Milestones — ADMIN/MANAGER milestone emails (production only, sent once, per-user switch-off)"
+    blockers:
+      - >
+        DO NOT BUILD until Gary confirms production's NOTIFY_EMAIL_PROVIDER
+        (Gary, MS-4 session: "MS-4b: don't build until I confirm production's
+        NOTIFY_EMAIL_PROVIDER.").
+      - >
+        Builds on MS-4a (checklist milestones are one of the two email
+        events), which must be on staging first.
+    notes: >
+      FILED 2026-10-17 by the MS-4a session, from Gary's F11 split ("Write
+      the MS-4b prompt during MS-4a."). Prompt:
+      docs/prompts/2026-10-17_MS-4b_notifications.md (TIER 3, fresh session).
+      Scope per the approved leans F2-F7, F9, F10 in
+      docs/prompts/2026-10-17_MS-4_AUDIT.md: tenure and checklist milestone
+      emails (raise-eligible OFF), the 7-day back-fill rule, a daily leg in
+      the pace-alerts cron, one email per recipient per day, sent-once per
+      (employee, milestone), production-only with a dry-run log elsewhere and
+      an ADMIN "Send a test to me", ADMINs plus MANAGERs of any of the
+      employee's stores (never the employee), the "Milestone reached" grid
+      line, no pay in the email, an org switch OFF by default. Checklist
+      milestone emails only while MS-4a's switch is on (F13). Cross-refs:
+      MS-4, MS-4a.
 
   - id: MS-5
     track: hr

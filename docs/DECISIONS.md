@@ -5,6 +5,62 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-17 — MS-4a: checklist milestones built; CHK-16 ruled (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4a PRE-PUSH-CHECK.**
+The rulings MS-4a builds on are in the MS-4 entry below (F0, F1, F7 addition,
+F8, F11, F13), unchanged. Gary's words in the MS-4a session, recorded exactly:
+
+- The MS-4a prompt: *"NOT the picker fixes: CHK-15 already shipped and
+  verified them on staging. Confirm, don't redo."*
+- The build go, in chat, 2026-10-17, typed by Gary with the migration
+  confirmed applied: *"Confirm with migrate diff, then build. CHK-16: ship
+  without covering-staff credit."* (An earlier go with the same CHK-16
+  sentence was a reply button whose wording Claude wrote, so it is not quoted
+  as his.)
+
+**What was built** (`70365c6`): see the MS-4a row in `docs/ROADMAP.yaml`. A
+member's checklist count is the TaskLog rows naming them on checklists in
+their org (F0); thresholds are a list (F1) in a new `ChecklistMilestone`
+table; the "Checklist milestones" switch is
+`MilestoneSettings.checklistMilestonesEnabled`, OFF by default (F13); Copy
+copies the stored message unchanged (F8); the pay warning is on
+/staff/milestones and in the add/edit dialog (F7 addition). Covering staff
+get no named credit (CHK-16).
+
+**Claude implementation choices (for ratification):**
+
+- The switch is a column on `MilestoneSettings` (the "Milestones settings"
+  row on /staff/milestones), not on `Organization`. No row reads OFF.
+- With the switch off, the checklist CRUD routes answer 404 (like the module
+  gate), the setup page reads no rows, and the tab reads no tasks. Turning it
+  off deletes and archives nothing.
+- The checklist section appears on the tab only with the switch on AND at
+  least one active checklist milestone; otherwise the tab is exactly as
+  before. It still shows for a member with no start date or no tenure
+  milestones, since it needs neither.
+- Milestone N is reached on the store-local date of the member's Nth named
+  task, in the member's zone (the zone tenure uses), not the checklist's
+  store's zone. Ties on `completedAt` break by id.
+- The count is live and CAN GO DOWN: un-ticking deletes the TaskLog, so a
+  reached milestone can un-reach. Nothing is stored as achieved (the MS-1
+  design). MS-4b's sent-once record is what will stop an email repeating.
+- Tenure's rules carry over unchanged: duplicate active thresholds refused in
+  code (409), archive never delete, an archived milestone stays in history if
+  reached on or before its archive date, a terminated member has no "next".
+- Old named tasks count, including CHK-15's pre-fix rows that name a
+  same-company person not assigned to that store (forward-only, Gary F12).
+  Rows naming another company's staff (0 on production and staging) never
+  count: the count is org-scoped through the checklist.
+- A `TaskLog(completedByStaffId)` index was added in the same migration for
+  the per-member count.
+- The Copy button sits under every achieved message, tenure and checklist; on
+  a clipboard refusal it says to select the text instead. 44 px tall.
+- The tenure list card was moved, unchanged in behaviour, into a shared
+  `milestone-list.tsx` used by both kinds.
+- `scripts/verify-ms1.ts` C7's route census moved 5 → 8, with a dated note,
+  as MS-2 and MS-3a did.
+
 ## 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store (Gary)
 
 **RATIFIED BY GARY, 2026-10-17, at the CHK-15 PRE-PUSH-CHECK.** The entry was

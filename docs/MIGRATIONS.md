@@ -1379,3 +1379,45 @@ removes their date.
 **Fixture:** `scripts/verify-ms3b.ts`, 78 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`). It ran after the apply and again
 inside the commit gate (work commit `d2897ed`).
+
+## 2026-10-17 — `20261017204956_ms4a_checklist_milestones` (MS-4a)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-17 with `prisma migrate
+deploy` against host `ep-late-water-a6k53nv2` and reported, exactly: *"Now
+actually applied with migrate deploy. Host ep-late-water-a6k53nv2,
+20261017204956_ms4a_checklist_milestones applied ("All migrations have been
+successfully applied")."* The session then ran `migrate diff
+--from-config-datasource --to-schema` against dev, which returned `-- This is
+an empty migration.`, so dev matches the schema. **One earlier report did not
+hold:** Gary's first "applied" message was followed by a level check that still
+returned the full migration SQL, so the session stopped and built nothing; his
+second, naming the host, was followed by an empty diff. The empty diff is the
+evidence, not either message. Staging and production get the migration through
+`prisma migrate deploy` in the Vercel build, on Gary's push. Gary checks
+staging's `_prisma_migrations` in the Neon console before and after the deploy.
+
+Prisma commands for this migration: `format`, `validate`, and `migrate diff`
+(four times: the pre-edit level check, generating this file, the check that
+found it not yet applied, and the level check after the apply). Gary ran
+`migrate deploy` and `generate`.
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "MilestoneSettings" ADD COLUMN "checklistMilestonesEnabled" BOOLEAN NOT NULL DEFAULT false` | additive |
+| `CREATE TABLE "ChecklistMilestone"` (`id` PK, `organizationId`, `taskCount INTEGER`, `title`, `recognition`, `employeeMessage`, `isArchived` default false, `archivedAt` nullable, `createdAt`, `updatedAt`) | additive, new table |
+| `INDEX` on `ChecklistMilestone(organizationId, isArchived)` | additive |
+| `INDEX` on `TaskLog(completedByStaffId)` | additive, existing table |
+| FK `ChecklistMilestone` → `Organization` (`ON DELETE RESTRICT`) | additive |
+
+**No drops, no renames, no type changes, no backfill.** Every existing
+`MilestoneSettings` row takes the switch OFF through the column default (F13,
+Gary: "OFF by default"); an org with no row reads OFF too. The `TaskLog` index
+serves the per-member named-task count on the Milestones tab (F0); it is
+Claude's addition, not a ruling. Like `TenureMilestone`, no index enforces
+"no two active milestones share a number" — that rule is in the write routes
+(`src/lib/milestones-db.ts`), because a partial unique index is not
+expressible in `schema.prisma`.
+
+**Fixture:** `scripts/verify-ms4a.ts`, 52 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`). It ran after the apply and again
+before the work commit (`70365c6`).
