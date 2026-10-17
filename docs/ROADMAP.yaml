@@ -3455,6 +3455,26 @@ phases:
       (section-level reposition, one of the candidate answers above), DEBT-2b
       (free-text sections — why a section of one is legal in the first place).
 
+  - id: CHK-15
+    track: checklists
+    size: S
+    status: planned
+    title: "Task route accepts any staff id — refuse other-company, terminated, and not-at-this-store staff (security fix)"
+    notes: >
+      FILED 2026-10-17 by the MS-4 session, from MS-4 fork F12. Gary: "treat
+      the cross-company staff id as a security fix" and "F12 is forward-only.
+      Ship it ahead of MS-4a as its own small phase, no schema change."
+      POST /api/checklists/[id]/task-log saves completedByStaffId unchecked
+      (since d930d44, 2026-06-28); the picker lists terminated staff. Existing
+      rows, Gary in the Neon console: production br-sparkling-block-a620qvg4
+      0 cross-company rows; preview/staging br-square-feather-a63z92vz 0. No
+      cleanup. Harm today: a planted foreign id blocks the other company's
+      staff deletion; no name leaks. Must land before MS-4a, which counts
+      named tasks toward checklist milestones (F0). Prompt:
+      docs/prompts/2026-10-17_CHK-15_task_log_staff_guard.md (TIER 3, to be
+      run in a fresh session). Audit: docs/prompts/2026-10-17_MS-4_AUDIT.md
+      A1. DECISIONS 2026-10-17 — MS-4 (draft). Cross-refs: MS-4.
+
   # ---- Inventory ----
 
   - id: I-1
@@ -7525,6 +7545,16 @@ phases:
     status: planned
     title: "Staff Milestones — checklist milestones, ADMIN/MANAGER notifications, Copy-message button"
     notes: >
+      2026-10-17, MS-4 session — AUDITED AND RULED, NOTHING BUILT. Prepended;
+      nothing below is edited. Audit: docs/prompts/2026-10-17_MS-4_AUDIT.md
+      (64569a4). Gary's rulings: DECISIONS 2026-10-17 — MS-4 (draft). Split
+      into MS-4a (checklist milestones counting NAMED TASKS, F0; a separate
+      "Checklist milestones" switch, OFF by default, F13; Copy button;
+      picker fixes) and MS-4b (notifications; its prompt is written during
+      MS-4a; NOT to be built until Gary confirms production's
+      NOTIFY_EMAIL_PROVIDER). F12 became CHK-15 and ships first. The
+      Tommy/Southgate item on the MS-3b row is closed (Gary: "resolved, not
+      a bug"), to be marked there in the MS-4a docs commit.
       FILED 2026-10-15 by the MS-1 build session. Draft ruling 3: notifications
       go to ADMINs and MANAGERs only, Froot never emails employees, and the
       Copy button copies the milestone's suggested employee message

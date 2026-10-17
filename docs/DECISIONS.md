@@ -5,6 +5,105 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-17 — MS-4: rulings on the audit; split into MS-4a / MS-4b; F12 becomes CHK-15 (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4a PRE-PUSH-CHECK.**
+The forks (F0–F12) are in `docs/prompts/2026-10-17_MS-4_AUDIT.md`
+(`64569a4`), each with Claude's lean. Gary's replies in the MS-4 session chat,
+recorded exactly. Nothing has been built under them yet.
+
+**First pass:**
+
+- *"F0: Count TASKS where the person is named (not whole checklists).
+  Thresholds therefore mean "N tasks completed"."*
+- *"F13 (new): Add a separate ADMIN on/off switch "Checklist milestones" in
+  the Milestones settings, OFF by default, independent of the main
+  Milestones toggle. Off = no checklist milestones on the tab, no checklist
+  milestone emails, and the setup section shows only the switch. Reason
+  (Gary): "just in case the data sucks and we don't want to confuse people."
+  I'll switch it on once I've checked name-picking rates on production."*
+- *"F1–F9: Approved as your leans. F7 addition: the settings page warns
+  admins not to type pay into recognition or message text."*
+- *"F10: Approved — org-level milestone email switch, off by default."*
+- *"F11: Approved — split into MS-4a (checklist milestones + F13 switch, Copy
+  button, picker fixes) and MS-4b (notifications). Write the MS-4b prompt
+  during MS-4a."*
+- *"F12: Approved, and treat the cross-company staff id as a security fix.
+  Tell me: when it was introduced, whether any existing TaskLog rows
+  reference a staff member from another org (give me a read-only query for
+  the Neon console, staging and production), and whether it should ship
+  ahead of MS-4a on its own."*
+- *"Tommy/Southgate open item: resolved, not a bug. Gary had assigned Tommy
+  to Southgate earlier, then moved him to Las Brisas only. Record it as
+  closed in the MS-3b row note (preserve-and-mark) in the MS-4a docs
+  commit."*
+- *"MS-4b: don't build until I confirm production's NOTIFY_EMAIL_PROVIDER."*
+
+**Second pass, after the F12 queries:**
+
+- *"F12 is forward-only. Ship it ahead of MS-4a as its own small phase, no
+  schema change."*
+- *"Before building it: check how corporate staff (isCorporate) and staff
+  covering at another store are handled by the "must be assigned to this
+  store" rule. Lean: allow corporate staff; refuse other same-company staff
+  who aren't assigned to the store, with a clear message on the checklist
+  screen rather than a silent failure. Tell me if that breaks a real
+  workflow."*
+
+**What the approved leans F1–F9 say** (the audit's wording, condensed —
+Claude's leans that Gary approved, not his own sentences): F1 a list of
+thresholds, same shape as tenure; F2 tenure and checklist milestones email,
+raise-eligible does not; F3 nothing reached more than 7 days before the check
+is ever emailed, it is recorded as known; F4 daily, inside the pace-alerts
+cron, store-local, one email per recipient per day, sent-once per (employee,
+milestone); F5 milestone emails send from production only (`VERCEL_ENV`),
+plus an ADMIN "Send a test to me"; F6 ADMINs + MANAGERs of any of the
+employee's stores, never the employee, never a manager about themselves,
+corporate staff to ADMINs only, each subject to the per-user grid; F7 no pay,
+rates or raise dates in the email; F8 Copy copies the message as written; F9
+no email for archived milestones or terminated staff.
+
+**F0 supersedes the audit's F0 lean** (checklists with ≥1 named task). The
+F13 switch is new and was not in the audit.
+
+**F12 evidence**, from the queries Gary ran in the Neon console (read-only),
+labelled as he reported them:
+
+```
+production br-sparkling-block-a620qvg4  TaskLog naming another company's staff: 0 rows
+production br-sparkling-block-a620qvg4  same company, staff not at checklist's store: 28 rows, 0 after termination, 2026-06-30 17:31 UTC → 2026-08-13 22:09 UTC
+preview/staging br-square-feather-a63z92vz  naming another company's staff: 0 rows
+preview/staging br-square-feather-a63z92vz  same company, not at store: 12 rows, 0 after termination, 2026-07-22 17:20:38 UTC → 2026-08-08 20:36:41 UTC
+```
+
+`br-sparkling-block-a620qvg4` is recorded as production on the repo's own
+docs: CLAUDE.md § Browser Evidence (the 2026-08-06 correction names it as
+production SQL) and docs/DEPLOY_LOG.md (production's Vercel build applied
+migrations to it). It was NOT checked against the Vercel Production
+`DATABASE_URL` endpoint — this repo cannot read that (`vercel env pull` is
+banned). The gap was introduced in `d930d44` (2026-06-28 10:01:49 PDT /
+17:01:49 UTC).
+
+**Claude's answers and choices (flagged for ratification):**
+
+- **F12 is CHK-15**, a new row on the checklists track; prompt
+  `docs/prompts/2026-10-17_CHK-15_task_log_staff_guard.md`, to be run by
+  Gary in a fresh session.
+- **The store rule breaks no workflow the app offers today.** The picker
+  already lists only staff assigned to the checklist's store, so covering
+  staff can't be picked now either; they use "Team Member". The new message
+  is reachable from the app only on a screen opened before someone was
+  unassigned or terminated. **Product gap, not a regression:** covering
+  staff earn no named credit, so under F0 they get no checklist-milestone
+  progress for covered shifts.
+- **Corporate staff already pass a store rule in practice** — the Square
+  sync gives a corporate member one assignment per store. Gary's "allow
+  corporate" matters only for a member flagged corporate by hand with no
+  assignments; the route will allow them, the picker will still not list
+  them.
+- **The refusal message never reveals that an id exists in another
+  company.**
+
 ## 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (Gary)
 
 **RATIFIED BY GARY, 2026-10-17, in the MS-3c session**, with one addition. His
