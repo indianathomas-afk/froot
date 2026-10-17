@@ -5,6 +5,57 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Gary's
+words, recorded exactly:
+
+- MS-4 F12 (see the MS-4 entry below): *"F12: Approved, and treat the
+  cross-company staff id as a security fix."*
+- *"F12 is forward-only. Ship it ahead of MS-4a as its own small phase, no
+  schema change."*
+- *"Lean: allow corporate staff; refuse other same-company staff who aren't
+  assigned to the store, with a clear message on the checklist screen rather
+  than a silent failure."*
+- The CHK-15 build go, in chat, 2026-10-17: *"Go. Build CHK-15 with your
+  recommended F-A (b), F-B (b), F-C and F-D. F-E not now, F-F to triage."*
+
+The forks F-A to F-F are in `docs/prompts/2026-10-17_CHK-15_AUDIT.md`. Gary
+approved the recommendations; the wording of each fork is Claude's.
+
+**What was built** (`329526d`): `resolveTaskLogStaff`
+(`src/lib/task-log-staff.ts`) accepts a name only if the person is in this
+org, ACTIVE, and assigned to the checklist's store or `isCorporate`. The
+task-log route calls it on a tick only, before any write. The picker lists
+ACTIVE staff only. No schema change, no migration, and no existing row is
+touched.
+
+**Claude implementation choices (for the record, approved as forks):**
+
+- F-A (b): the `existing` lookup moves above the Pending → In Progress write.
+  The resolver runs only when `!existing`, so a refused first tick leaves a
+  Pending checklist untouched and an un-tick is never refused.
+- F-B (b): a separate org-scoped query resolves names already on saved ticks,
+  for display only. A person terminated or moved since the tick keeps their
+  "completed by" line, and the picker never lists them.
+- F-C: the status test is `!== "ACTIVE"`, after `src/lib/auth.ts:215`.
+- F-D: a non-string id is refused with the generic sentence instead of
+  reaching Prisma and returning a 500.
+
+**Further choices made in the build, not put to Gary as forks:**
+
+- An unknown id and a foreign-company id get the SAME sentence, so the
+  refusal cannot be used to probe whether an id exists elsewhere.
+- Status is checked before the store rule, so a terminated corporate member
+  is refused as terminated.
+- Every refusal returns 400 with the prompt's sentences, the person's
+  `displayName` included where the person is in this org.
+
+**Not done here:** F-E (widening the picker to corporate staff with no
+assignment): Gary, "not now". F-F (the calendar completion route checks the
+org only): to triage. The covering-staff product gap (no named credit for
+covered shifts under MS-4 F0) is reported, not fixed.
+
 ## 2026-10-17 — MS-4: rulings on the audit; split into MS-4a / MS-4b; F12 becomes CHK-15 (Gary — DRAFT entry)
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4a PRE-PUSH-CHECK.**

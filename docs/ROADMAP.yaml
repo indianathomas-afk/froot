@@ -3458,9 +3458,47 @@ phases:
   - id: CHK-15
     track: checklists
     size: S
-    status: planned
+    # `in_progress` at 329526d, set 2026-10-17 by the CHK-15 build session
+    # (TIER 3). Not pushed — Claude never pushes.
+    status: in_progress
     title: "Task route accepts any staff id — refuse other-company, terminated, and not-at-this-store staff (security fix)"
+    commits:
+      - "329526d"
+    blockers:
+      - >
+        MUST REACH STAGING BEFORE MS-4a IS BUILT. MS-4a counts named tasks
+        toward checklist milestones (MS-4 F0).
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-chk15 28/28 on
+        dev br-broad-wave-a6vpjdw0 (structural checks with negative controls
+        A5-A9; live negative control with the ACTIVE rule disabled gave 3
+        FAIL, then restored to 28/28), plus verify-ms1 97/97, verify-ms2 90/90,
+        verify-ms3 95/95 and verify-ms3b 80/80, all unchanged, and a green
+        build. No page was opened. Staging must check, naming the org id on
+        every observation: a tick naming an assigned active person saves; a
+        "CHK-15 Staff" member terminated while the checklist screen is open,
+        then picked, gives the clear message and the tick rolls back; "Team
+        Member" still saves; after reload the terminated person is gone from
+        the picker, and a task they ticked earlier still shows their name.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — CHK-15, to be
+        ratified at the PRE-PUSH-CHECK.
     notes: >
+      BUILT 2026-10-17 (TIER 3), 329526d. Audit:
+      docs/prompts/2026-10-17_CHK-15_AUDIT.md. Gary's go: "Go. Build CHK-15
+      with your recommended F-A (b), F-B (b), F-C and F-D. F-E not now, F-F to
+      triage." WHAT SHIPPED: src/lib/task-log-staff.ts resolveTaskLogStaff
+      (in org, ACTIVE, and assigned to the store or isCorporate; null, "" and
+      "manager" save null; unknown and foreign ids get one generic sentence;
+      a non-string id is refused). The task-log route reads `existing` first
+      and resolves on a tick only, before the Pending write (F-A b). The
+      store-view checklist picker lists ACTIVE only, and saved-tick names come
+      from a separate org-scoped query (F-B b). Forward-only: no row changed.
+      No schema, no migration. OPEN, NOT FIXED HERE: F-F (calendar
+      occurrence completion checks the org only, with no ACTIVE or store
+      rule) is to triage. Covering staff still get no named credit (a product
+      gap under F0). The picker still omits a corporate member with no
+      assignment (F-E, Gary "not now"). ── FILING NOTE BELOW, UNEDITED ──
       FILED 2026-10-17 by the MS-4 session, from MS-4 fork F12. Gary: "treat
       the cross-company staff id as a security fix" and "F12 is forward-only.
       Ship it ahead of MS-4a as its own small phase, no schema change."
