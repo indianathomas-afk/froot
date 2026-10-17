@@ -5,7 +5,21 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (Gary — DRAFT entry)
+## 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (Gary)
+
+**RATIFIED BY GARY, 2026-10-17, in the MS-3c session**, with one addition. His
+reply, recorded exactly: *"Ratify, with one addition to my words: my scope
+answer was "Only amber 'Raise in progress' — keep green and red on the
+list." Record that as my wording too, not the prompt's."* So the scope is
+also Gary's ruling, in his words:
+
+- *"Only amber 'Raise in progress' — keep green and red on the list."*
+
+The scope paragraph below said it was "the prompt's wording, not a further
+quote of Gary". That attribution was wrong and is corrected in place; the
+scope itself is unchanged. The "DRAFT ENTRY" marker is kept as it was and
+superseded by this paragraph. Until this ratification the heading read
+"(Gary — DRAFT entry)".
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Gary's
 ruling, as given in the MS-3c session prompt, recorded exactly:
@@ -14,8 +28,9 @@ ruling, as given in the MS-3c session prompt, recorded exactly:
   on the Milestone page. Managers should be directed by us to the Milestone
   page. I don't want 'Raise in progress' self-governed."*
 
-**Scope, as the session prompt states it** (the prompt's wording, not a
-further quote of Gary): hide ONLY the amber "Raise in progress" compact badge
+**Scope, as the session prompt states it** (Gary's ruling — his own answer
+was *"Only amber 'Raise in progress' — keep green and red on the list."*, see
+the ratification above): hide ONLY the amber "Raise in progress" compact badge
 on the /staff list. Green "Raise eligible" and red "Raise blocked" stay on the
 list. The Milestones tab on /staff/[id] is unchanged and still shows every
 state.

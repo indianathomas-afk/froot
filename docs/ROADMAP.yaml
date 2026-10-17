@@ -7488,6 +7488,12 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — MS-3c, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── RULINGS RATIFIED 2026-10-17 by Gary, in the MS-3c session. Prepended;
+      NOTHING BELOW IS EDITED. His reply, exactly: "Ratify, with one addition
+      to my words: my scope answer was "Only amber 'Raise in progress' — keep
+      green and red on the list." Record that as my wording too, not the
+      prompt's." DECISIONS 2026-10-17 — MS-3c now quotes the scope as his
+      ruling. The "RULINGS ARE A DRAFT" blocker is superseded by this.
       TIER 2, 2026-10-17. Prompt:
       docs/prompts/2026-10-17_MS-3c_hide_amber_raise_badge.md. Gary's ruling
       (DECISIONS 2026-10-17 — MS-3c): "Get rid of the 'Raise in progress'
