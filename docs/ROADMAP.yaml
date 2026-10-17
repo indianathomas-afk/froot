@@ -3513,6 +3513,27 @@ phases:
       run in a fresh session). Audit: docs/prompts/2026-10-17_MS-4_AUDIT.md
       A1. DECISIONS 2026-10-17 — MS-4 (draft). Cross-refs: MS-4.
 
+  - id: CHK-16
+    track: checklists
+    size: S
+    status: planned
+    title: "Covering staff can't be named on a checklist tick — no named credit for covered shifts"
+    notes: >
+      FILED 2026-10-17 by the CHK-15 session. Gary approved the row as the
+      session wrote it, linked to MS-4a planning: "Covering-staff gap: approve
+      the ROW as written, linked to MS-4a planning." The finding, as written
+      in the CHK-15 report: staff covering at a store they aren't assigned to
+      can't be named on a tick, so under MS-4 F0 they earn no checklist
+      milestone for covered shifts. This is not a CHK-15 regression. The
+      store-view picker has always listed only staff assigned to the
+      checklist's store (src/app/(app)/store-view/checklist/[id]/page.tsx),
+      and since 329526d the task-log route refuses the same people
+      (src/lib/task-log-staff.ts), so they use "Team Member", which saves no
+      name. MS-4a planning must decide whether covered shifts should count
+      before checklist milestones ship. Any fix widens BOTH the picker and
+      resolveTaskLogStaff together, never one alone. Cross-refs: MS-4
+      (MS-4a), CHK-15.
+
   # ---- Inventory ----
 
   - id: I-1
@@ -7583,6 +7604,9 @@ phases:
     status: planned
     title: "Staff Milestones — checklist milestones, ADMIN/MANAGER notifications, Copy-message button"
     notes: >
+      2026-10-17, CHK-15 session — FOR MS-4a PLANNING: read CHK-16 (covering
+      staff can't be named on a tick, so they earn no checklist milestone
+      for covered shifts under F0). Prepended; nothing below is edited.
       2026-10-17, MS-4 session — AUDITED AND RULED, NOTHING BUILT. Prepended;
       nothing below is edited. Audit: docs/prompts/2026-10-17_MS-4_AUDIT.md
       (64569a4). Gary's rulings: DECISIONS 2026-10-17 — MS-4 (draft). Split
@@ -19215,6 +19239,28 @@ phases:
       NAV-1 (the hand-rolled accordion pattern this follows), SELF-1 (the shell,
       and the other half of DEBT-100's stack), DEBT-100 (shorter now, still
       open).
+  - id: CAL-3
+    track: cal
+    size: S
+    status: planned
+    title: "Calendar completion route accepts any same-company staff id — add CHK-15's active + store/corporate check"
+    notes: >
+      FILED 2026-10-17 by the CHK-15 session, from its audit fork F-F
+      (docs/prompts/2026-10-17_CHK-15_AUDIT.md). Gary: "File as a ROW — the
+      calendar completion route should get the same staff check (active +
+      store/corporate). Not in CHK-15." POST
+      /api/calendar/occurrences/[id]/complete
+      (src/app/api/calendar/occurrences/[id]/complete/route.ts:109-119 at
+      adc56a9) checks only that completedByStaffId is in this org. It does not
+      refuse a TERMINATED member, or one who is neither assigned to the
+      occurrence's store nor isCorporate. The rule to reuse is
+      resolveTaskLogStaff in src/lib/task-log-staff.ts (CHK-15, 329526d).
+      Before building: enumerate every caller of the route (CLAUDE.md § Verifying
+      a guard covers every path), and check whether the calendar's own picker
+      lists terminated staff. Forward-only, like CHK-15 (assumed; Gary to
+      confirm when the row is taken up). TIER 3: a route that writes rows.
+      Cross-refs: CHK-15, CAL-2.
+
   - id: NOTIFY-1
     track: platform
     size: S
