@@ -164,3 +164,97 @@ export function dayCountLabel(dayCount: number): string {
   }
   return `${dayCount} day${dayCount === 1 ? "" : "s"}`
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MS-4a — CHECKLIST MILESTONE MATH. Pure, like tenureProgress above.
+//
+// F0 (Gary, 2026-10-17): "Count TASKS where the person is named (not whole
+// checklists). Thresholds therefore mean "N tasks completed"." The caller hands
+// in the store-local date of every TaskLog naming the member, oldest first; the
+// count is its length and milestone N is reached on the date of the Nth.
+//
+// THE COUNT CAN GO DOWN. Un-ticking a task deletes its TaskLog
+// (api/checklists/[id]/task-log), so an achieved milestone can un-achieve. The
+// tab shows the live count; nothing is stored.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The editable fields of a ChecklistMilestone — POST, and PATCH .partial(). */
+export const checklistFieldsSchema = z.object({
+  taskCount: z.number().int().min(1).max(1_000_000),
+  title: z.string().trim().min(1).max(120),
+  recognition: z.string().trim().max(4000),
+  employeeMessage: z.string().trim().max(4000),
+})
+
+export type ChecklistMilestoneInput = {
+  id: string
+  taskCount: number
+  title: string
+  recognition: string
+  employeeMessage: string
+  /** Same meaning as TenureMilestoneInput.archivedOn. */
+  archivedOn?: string | null
+  isArchived?: boolean
+}
+
+export type AchievedChecklistMilestone = ChecklistMilestoneInput & {
+  /** Store-local date of the member's Nth named task. */
+  achievedOn: string
+  archived: boolean
+}
+
+export type ChecklistProgress = {
+  tasksCompleted: number
+  terminated: boolean
+  /** Oldest first. */
+  achieved: AchievedChecklistMilestone[]
+  /** Null when every milestone is reached, when there are none, and for a
+   *  terminated member (the tenure F4 rule, applied the same way). */
+  next: (ChecklistMilestoneInput & { tasksToGo: number }) | null
+  progressPct: number | null
+}
+
+/**
+ * Where a member stands against the org's checklist milestones. The caller
+ * passes ACTIVE AND ARCHIVED rows; the archived rule is tenureProgress's: kept
+ * in history when reached on or before its archive date, never reached after,
+ * never "next".
+ */
+export function checklistProgress(args: {
+  /** Store-local "YYYY-MM-DD" of each named task, oldest first. */
+  taskDates: string[]
+  terminated: boolean
+  milestones: ChecklistMilestoneInput[]
+}): ChecklistProgress {
+  const { taskDates, terminated } = args
+  const count = taskDates.length
+  const sorted = [...args.milestones].sort((a, b) => a.taskCount - b.taskCount)
+  const isArchived = (m: ChecklistMilestoneInput) => m.isArchived === true || !!m.archivedOn
+
+  const achieved: AchievedChecklistMilestone[] = []
+  for (const m of sorted) {
+    if (m.taskCount > count) continue
+    const achievedOn = taskDates[m.taskCount - 1]
+    if (isArchived(m) && !(m.archivedOn && achievedOn <= m.archivedOn)) continue
+    achieved.push({ ...m, achievedOn, archived: isArchived(m) })
+  }
+
+  const active = sorted.filter((m) => !isArchived(m))
+  const upcoming = terminated ? undefined : active.find((m) => m.taskCount > count)
+  const next = upcoming ? { ...upcoming, tasksToGo: upcoming.taskCount - count } : null
+
+  let progressPct: number | null = null
+  if (next) {
+    const passed = active.filter((m) => m.taskCount <= count)
+    const from = passed.length > 0 ? passed[passed.length - 1].taskCount : 0
+    const span = next.taskCount - from
+    progressPct = span > 0 ? Math.min(100, Math.max(0, Math.round(((count - from) / span) * 100))) : 0
+  }
+
+  return { tasksCompleted: count, terminated, achieved, next, progressPct }
+}
+
+/** "1 task", "250 tasks". */
+export function taskCountLabel(taskCount: number): string {
+  return `${taskCount.toLocaleString("en-US")} task${taskCount === 1 ? "" : "s"}`
+}

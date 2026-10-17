@@ -177,8 +177,10 @@ const apiFiles = walk("src/app/api/milestones").filter((f) => f.endsWith("route.
 // MS-2 added src/app/api/milestones/attendance/route.ts — four since 2026-10-16;
 // it carries the same gate and is checked in scripts/verify-ms2.ts. MS-3a added
 // src/app/api/milestones/raise/route.ts — five since 2026-10-16, same gate,
-// checked in scripts/verify-ms3.ts.
-check("C7. five milestone route files (tenure ×2, toggle, MS-2 attendance, MS-3a raise)", apiFiles.length, 5)
+// checked in scripts/verify-ms3.ts. MS-4a added src/app/api/milestones/checklist/
+// route.ts, [id]/route.ts and switch/route.ts — eight since 2026-10-17, same
+// gate, checked handler by handler in scripts/verify-ms4a.ts (A15).
+check("C7. eight milestone route files (tenure ×2, toggle, MS-2 attendance, MS-3a raise, MS-4a checklist ×3)", apiFiles.length, 8)
 for (const f of apiFiles.filter((f) => f.includes("tenure"))) {
   const src = readFileSync(f, "utf8")
   const handlers = [...src.matchAll(/export async function (GET|POST|PATCH|PUT|DELETE)\([\s\S]*?\n}/g)]

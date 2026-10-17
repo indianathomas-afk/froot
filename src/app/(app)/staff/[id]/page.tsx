@@ -30,7 +30,8 @@ import { documentCompletion } from "@/lib/hr-completion"
 import { attemptBreakdown, breakdownMatchesScore } from "@/lib/training-quiz"
 import { StaffMilestones } from "./staff-milestones"
 import { milestonesActive } from "@/lib/milestones-access"
-import { dateColumnStr, tenureProgress, type TenureProgress } from "@/lib/milestones"
+import { checklistProgress, dateColumnStr, tenureProgress, type ChecklistProgress, type TenureProgress } from "@/lib/milestones"
+import { checklistMilestonesEnabled, namedTaskDates } from "@/lib/milestones-db"
 import { localDateStr } from "@/lib/reports"
 import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
 import { OnTimeCard } from "../on-time-badge"
@@ -633,6 +634,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   const showMilestonesTab = canSeeHrTabs && milestonesActive(org)
   let milestoneProgress: TenureProgress | null = null
   let hasMilestones = false
+  let checklistMilestoneProgress: ChecklistProgress | null = null
   // MS-2 — the On-Time badge, same gate as the tab (F6). Computed server-side
   // over the rolling look-back (F1) ending today in this member's display zone,
   // or on their termination date (F11). Nothing is read from the Square labor
@@ -732,6 +734,27 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         member.status === "TERMINATED" && member.terminatedAt ? localDateStr(member.terminatedAt, zone) : null,
       milestones,
     })
+
+    // MS-4a — CHECKLIST MILESTONES (F0: named tasks). Only with the F13 switch
+    // on AND at least one active checklist milestone; otherwise null and the
+    // tab is exactly what it was. Same zone and same archived rule as tenure
+    // above. The member's tasks are not even read while the switch is off.
+    if (await checklistMilestonesEnabled(member.organizationId)) {
+      const checklistRows = await prisma.checklistMilestone.findMany({
+        where: { organizationId: member.organizationId },
+        select: { id: true, taskCount: true, title: true, recognition: true, employeeMessage: true, isArchived: true, archivedAt: true },
+      })
+      if (checklistRows.some((r) => !r.isArchived)) {
+        checklistMilestoneProgress = checklistProgress({
+          taskDates: await namedTaskDates({ organizationId: member.organizationId, staffMemberId: member.id, zone }),
+          terminated: member.status === "TERMINATED",
+          milestones: checklistRows.map((r) => ({
+            ...r,
+            archivedOn: r.isArchived && r.archivedAt ? localDateStr(r.archivedAt, zone) : null,
+          })),
+        })
+      }
+    }
   }
 
   // DOC-6: items this person was issued by a tracks-return document (the Key
@@ -1102,6 +1125,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
             <StaffMilestones
               progress={milestoneProgress}
               hasMilestones={hasMilestones}
+              checklist={checklistMilestoneProgress}
               viewerIsAdmin={dbUser?.role === "ADMIN"}
               canEditStartDate={canManage}
             />

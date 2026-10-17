@@ -9,6 +9,7 @@
 // resolved organizationId from the session. These functions are not a gate.
 
 import { prisma } from "@/lib/prisma"
+import { localDateStr } from "@/lib/reports"
 
 type Fields = { dayCount: number; title: string; recognition: string; employeeMessage: string }
 
@@ -56,4 +57,94 @@ export async function updateTenureMilestone(
           : {}
     return tx.tenureMilestone.update({ where: { id }, data: { ...data, ...archivedAt } })
   })
+}
+
+// ─── MS-4a — CHECKLIST MILESTONES ────────────────────────────────────────────
+// The same duplicate rule as tenure, on taskCount: no two NON-ARCHIVED checklist
+// milestones in an org share one. Check and write share one transaction. The
+// tenure functions above are not generalised over both models on purpose — two
+// Prisma delegates do not share a type, and a cast would hide a wrong-table
+// write from the compiler.
+
+type ChecklistFields = { taskCount: number; title: string; recognition: string; employeeMessage: string }
+
+export async function createChecklistMilestone(organizationId: string, data: ChecklistFields) {
+  return prisma.$transaction(async (tx) => {
+    const clash = await tx.checklistMilestone.findFirst({
+      where: { organizationId, isArchived: false, taskCount: data.taskCount },
+      select: { id: true },
+    })
+    if (clash) return "clash" as const
+    return tx.checklistMilestone.create({ data: { organizationId, ...data } })
+  })
+}
+
+export async function updateChecklistMilestone(
+  organizationId: string,
+  id: string,
+  data: Partial<ChecklistFields> & { isArchived?: boolean }
+) {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.checklistMilestone.findFirst({ where: { id, organizationId } })
+    if (!current) return "not-found" as const
+
+    // Judged on the RESULTING state, as updateTenureMilestone does.
+    const nextArchived = data.isArchived ?? current.isArchived
+    const nextTaskCount = data.taskCount ?? current.taskCount
+    if (!nextArchived) {
+      const clash = await tx.checklistMilestone.findFirst({
+        where: { organizationId, isArchived: false, taskCount: nextTaskCount, id: { not: id } },
+        select: { id: true },
+      })
+      if (clash) return "clash" as const
+    }
+    const archivedAt =
+      data.isArchived === true && !current.isArchived
+        ? { archivedAt: new Date() }
+        : data.isArchived === false
+          ? { archivedAt: null }
+          : {}
+    return tx.checklistMilestone.update({ where: { id }, data: { ...data, ...archivedAt } })
+  })
+}
+
+/** F13 (Gary, 2026-10-17) — the "Checklist milestones" switch. No settings row
+ *  = OFF, the column's default. Only meaningful once milestonesActive() passes;
+ *  this is not the module gate. */
+export async function checklistMilestonesEnabled(organizationId: string): Promise<boolean> {
+  const row = await prisma.milestoneSettings.findUnique({
+    where: { organizationId },
+    select: { checklistMilestonesEnabled: true },
+  })
+  return row?.checklistMilestonesEnabled ?? false
+}
+
+/** First save creates the settings row with every other column at its default
+ *  (A7, the MS-2 pattern); an existing row keeps its other values. */
+export async function setChecklistMilestonesEnabled(organizationId: string, enabled: boolean) {
+  await prisma.milestoneSettings.upsert({
+    where: { organizationId },
+    create: { organizationId, checklistMilestonesEnabled: enabled },
+    update: { checklistMilestonesEnabled: enabled },
+  })
+}
+
+/**
+ * F0 — the store-local date of every task naming this member, oldest first.
+ * ORG-SCOPED THROUGH THE CHECKLIST: a TaskLog has no organizationId, and the
+ * FK alone only proves the StaffMember exists somewhere (the CHK-15 finding).
+ * Ties on completedAt break by id so the Nth task is stable between renders.
+ * Unnamed ("Team Member") ticks have a null staff id and never match.
+ */
+export async function namedTaskDates(args: {
+  organizationId: string
+  staffMemberId: string
+  zone: string
+}): Promise<string[]> {
+  const rows = await prisma.taskLog.findMany({
+    where: { completedByStaffId: args.staffMemberId, checklist: { organizationId: args.organizationId } },
+    orderBy: [{ completedAt: "asc" }, { id: "asc" }],
+    select: { completedAt: true },
+  })
+  return rows.map((r) => localDateStr(r.completedAt, args.zone))
 }
