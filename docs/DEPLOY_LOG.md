@@ -2,6 +2,43 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (tab unchanged)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **PROMOTES WITH MS-3a AND MS-3b** — it
+amends MS-3a's `/staff` badge, so it must not reach `main` ahead of them.
+
+**Payload: MS-3c only, on top of MS-3b, MS-3a, MS-2, BUG-15 and MS-1** (all also
+unpromoted, with their own entries below). Verified by `git log
+origin/staging..staging` at this check (after `git fetch origin`): exactly
+`6eabef1`, `3d675b4`, `7d53b1b`. **NONE OF THE MS-3c COMMITS WAS PUSHED WHEN
+THIS CHECK RAN** — all three plus this check's own commit are unpushed. Claude
+never pushes.
+
+| Commit | What it is |
+|---|---|
+| `6eabef1` | MS-3c work: `src/app/(app)/staff/raise-badge.tsx` — compact `RaiseBadge` returns nothing for status "yellow"; fixtures `scripts/verify-ms3.ts` (C17–C19) and `scripts/verify-ms3b.ts` (C14b) |
+| `3d675b4` | `docs(MS-3c)`: row, DECISIONS draft, saved prompt |
+| `7d53b1b` | `docs(MS-3c)`: rulings ratified by Gary, scope recorded as his wording |
+| the commit immediately after `7d53b1b` | `docs(MS-3c PRE-PUSH-CHECK)`: ratification recorded, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE COMPONENT, DISPLAY ONLY.** No migration, no route, no gate,
+no env var, no cron, no Square call. The compact `RaiseBadge` has one caller,
+`src/app/(app)/staff/page.tsx`. On `/staff` the amber "Raise in progress" badge
+(and its hover tooltip) no longer renders; green "Raise eligible" and red
+"Raise blocked" still do. The Milestones tab on `/staff/[id]` is unchanged and
+still shows every state. Watch: an amber member on the list.
+
+**Rollback:** `git revert 6eabef1`. No database step. `3d675b4`, `7d53b1b` and
+this check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-3c row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`: a member who is amber on
+the tab shows NO Raise badge on `/staff`; a green and a red member still show
+theirs; the tab still shows "Raise in progress" for the amber member.
+Dev-level evidence only so far (verify-ms3 95/95, verify-ms3b 80/80, verify-ms1
+97/97, verify-ms2 90/90, all on dev `br-broad-wave-a6vpjdw0`).
+
 ## UNPROMOTED — 2026-10-16 — MS-3b: raise detection, manual last-raise date, cooldown, daily wage sync
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

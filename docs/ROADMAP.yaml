@@ -7465,13 +7465,19 @@ phases:
   - id: MS-3c
     track: hr
     size: S
+    # `in_progress` -> `staging` 2026-10-17 BY THE PRE-PUSH-CHECK. None of the
+    # three MS-3c commits was pushed when the check ran; this check's own
+    # commit (the one immediately after 7d53b1b, which cannot name itself) is
+    # not pushed either — Claude never pushes.
     # `in_progress` at 6eabef1, set 2026-10-17 by the MS-3c build session
     # (TIER 2, written at the end from what was done). Not pushed — Claude
     # never pushes.
-    status: in_progress
+    status: staging
     title: "Staff Milestones — no amber \"Raise in progress\" badge on /staff (tab unchanged)"
     commits:
       - "6eabef1"
+      - "3d675b4"
+      - "7d53b1b"
     blockers:
       - >
         PROMOTES WITH MS-3 AND MS-3b. It amends MS-3a's /staff badge, so it
@@ -7488,6 +7494,14 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — MS-3c, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-17 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs commits 3d675b4 and 7d53b1b added; this
+      check's own commit is the one immediately after 7d53b1b. RULINGS
+      RE-RATIFIED by Gary at this check: the DECISIONS entry (2026-10-17 —
+      MS-3c) was printed verbatim and he replied, exactly: "Ratify as
+      written." The entry is unchanged. Docs sync audit: no drift.
+      DEPLOY_LOG entry written by this check (UNPROMOTED, 2026-10-17). Still
+      unverified on staging; promotes with MS-3 and MS-3b.
       ── RULINGS RATIFIED 2026-10-17 by Gary, in the MS-3c session. Prepended;
       NOTHING BELOW IS EDITED. His reply, exactly: "Ratify, with one addition
       to my words: my scope answer was "Only amber 'Raise in progress' — keep
