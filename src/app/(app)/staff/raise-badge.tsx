@@ -1,4 +1,4 @@
-import { TrendingUp, Check, X, Minus, Ban, CircleDashed } from "lucide-react"
+import { TrendingUp, Check, X, Minus, Ban, CircleDashed, Hourglass } from "lucide-react"
 import { BADGE_PRESETS } from "@/lib/badge-presets"
 import { formatCivilDate } from "@/lib/display-time"
 import type { RaiseCriterionState, RaiseEligibility, RaiseStatus } from "@/lib/raise-eligibility"
@@ -17,28 +17,41 @@ import type { RaiseCriterionState, RaiseEligibility, RaiseStatus } from "@/lib/r
 // THE GATE IS THE CALLER'S. Both pages render this only with Milestones on, the
 // Square labor overlay on (F12), for an ADMIN or in-scope MANAGER (ruling 2),
 // and never for a terminated member.
+//
+// MS-3b — THE COOLDOWN (F7). Status "cooldown" renders NO compact badge (no
+// badge on /staff), and on the tab a grey "Recent raise" with "— eligible again
+// from <date>" ONLY WHEN THE RESULT STILL CARRIES `cooldownUntil`. The page has
+// already run redactForViewer, so for a viewer who may not see this member's
+// pay the key is ABSENT and the words read "— in cooldown". This file never
+// decides visibility; it renders what survived redaction. No amounts here, even
+// for an ADMIN.
 
 const CLASS: Record<RaiseStatus, string> = {
   green: BADGE_PRESETS.green.badge,
   yellow: BADGE_PRESETS.amber.badge,
   red: BADGE_PRESETS.red.badge,
+  cooldown: BADGE_PRESETS.gray.badge,
 }
 
 const LABEL: Record<RaiseStatus, string> = {
   green: "Raise eligible",
   yellow: "Raise in progress",
   red: "Raise blocked",
+  cooldown: "Recent raise",
 }
 
 /// The one-line why — the compact badge's tooltip.
 export function raiseExplanation(r: RaiseEligibility): string {
   if (r.status === "green") return "Every raise rule is met."
+  if (r.status === "cooldown") return "Recent raise — in cooldown."
   const open = r.criteria.filter((c) => c.state === "blocked" || c.state === "not-met" || c.state === "no-data")
   return open.map((c) => `${c.label}: ${c.detail}`).join(" ")
 }
 
 export function RaiseBadge({ result, size }: { result: RaiseEligibility; size: "full" | "compact" }) {
   if (size === "compact") {
+    // F7: during cooldown, no badge on /staff.
+    if (result.status === "cooldown") return null
     return (
       <span
         title={raiseExplanation(result)}
@@ -63,7 +76,10 @@ const STATE: Record<RaiseCriterionState, { icon: typeof Check; word: string; ton
   blocked: { icon: Ban, word: "Not met", tone: "text-red-700" },
   "no-data": { icon: CircleDashed, word: "Not enough data", tone: "text-amber-700" },
   na: { icon: Minus, word: "N/A", tone: "text-[var(--color-muted-foreground)]" },
+  cooldown: { icon: Hourglass, word: "In cooldown", tone: "text-[var(--color-muted-foreground)]" },
 }
+
+const civil = (d: string) => formatCivilDate(new Date(`${d}T00:00:00.000Z`), "medium")
 
 /// The Milestones tab card: the full badge, the weeks judged, and each rule as
 /// met / not met / not enough data / N/A. Stacked, no fixed widths — readable at
@@ -76,6 +92,18 @@ export function RaiseCard({ result }: { result: RaiseEligibility }) {
     <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-4 sm:p-5">
       <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-foreground)] mb-2">Raise eligibility</p>
       <RaiseBadge result={result} size="full" />
+      {result.status === "cooldown" && (
+        <p className="text-sm font-medium text-[var(--color-foreground)] mt-2">
+          {result.cooldownUntil ? `Recent raise — eligible again from ${civil(result.cooldownUntil)}` : "Recent raise — in cooldown"}
+        </p>
+      )}
+      {result.lastRaise && (
+        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+          {result.lastRaise.source === "detected"
+            ? `Raise detected in Square ${civil(result.lastRaise.date)}.`
+            : `Last raise date entered by an admin: ${civil(result.lastRaise.date)}.`}
+        </p>
+      )}
       <p className="text-sm text-[var(--color-muted-foreground)] mt-2">
         Weeks judged: {from} – {to}. Visible to admins and managers only.
       </p>

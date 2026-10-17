@@ -34,8 +34,10 @@ import { dateColumnStr, tenureProgress, type TenureProgress } from "@/lib/milest
 import { localDateStr } from "@/lib/reports"
 import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
 import { OnTimeCard } from "../on-time-badge"
-import { getRaiseEligibility, getRaiseSettings, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { getRaiseEligibility, getRaiseSettings, redactForViewer, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { getManualRaiseDates, getRaiseDetailVisibility } from "@/lib/raise-history"
 import { RaiseCard } from "../raise-badge"
+import { LastRaiseControl } from "./last-raise-control"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -644,6 +646,11 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   // compliance detail computed above for the Compliance tab is handed in, so
   // the engine does not run twice. NO WAGE DATA in MS-3a.
   let raise: RaiseEligibility | null = null
+  // MS-3b (F6, F15) — the ADMIN's manual last-raise date control. Null for
+  // everyone else, and for an ADMIN who may not see this member's pay (G3:
+  // canSeeWages, then COMP-1) — the date is pay data, so its current value is
+  // never read for a viewer who could not be shown it.
+  let lastRaiseControl: { current: string | null; today: string } | null = null
   if (showMilestonesTab) {
     const settings = await getMilestoneSettings(member.organizationId)
     onTimeLookbackDays = settings.onTimeLookbackDays
@@ -683,7 +690,21 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
       settings,
       { compliance: complianceDetail ? new Map([[member.id, complianceDetail]]) : undefined }
     )
-    raise = raiseResults.get(member.id) ?? null
+    // MS-3b (F7, F10): the raise DATES are pay data. redactForViewer runs here,
+    // before anything renders, so a viewer who fails canSeeWages or COMP-1 for
+    // this member (no wage row = masked for a MANAGER) gets "in cooldown" with
+    // no date keys at all.
+    const computed = raiseResults.get(member.id) ?? null
+    if (computed) {
+      const raiseVisible = (await getRaiseDetailVisibility(org, actor, [member])).has(member.id)
+      raise = redactForViewer(computed, raiseVisible)
+      if (raiseVisible && can(actor, "milestones.manage")) {
+        lastRaiseControl = {
+          current: (await getManualRaiseDates(member.organizationId, [member.id])).get(member.id) ?? null,
+          today: localDateStr(new Date(), zone),
+        }
+      }
+    }
   }
   if (showMilestonesTab) {
     // ACTIVE AND ARCHIVED rows: an archived milestone a member reached on or
@@ -1075,6 +1096,9 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           <TabsContent value="milestones" className="mt-4 space-y-4">
             {onTime && <OnTimeCard result={onTime} lookbackDays={onTimeLookbackDays} />}
             {raise && <RaiseCard result={raise} />}
+            {raise && lastRaiseControl && (
+              <LastRaiseControl staffId={member.id} current={lastRaiseControl.current} today={lastRaiseControl.today} />
+            )}
             <StaffMilestones
               progress={milestoneProgress}
               hasMilestones={hasMilestones}

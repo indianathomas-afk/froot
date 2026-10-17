@@ -16,7 +16,8 @@ import { milestonesActive } from "@/lib/milestones-access"
 import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
 import { displayTimeZone } from "@/lib/hr"
 import { OnTimeBadge } from "./on-time-badge"
-import { getRaiseEligibility, getRaiseSettings, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { getRaiseEligibility, getRaiseSettings, redactForViewer, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { getRaiseDetailVisibility } from "@/lib/raise-history"
 import { RaiseBadge } from "./raise-badge"
 import { Badge } from "@/components/ui/badge"
 
@@ -197,7 +198,13 @@ async function getStaffData() {
     // (ruling 2: ADMIN and MANAGER only), the same roster (MANAGER scope) and
     // ONE BATCHED CALL. F12: the Square labor overlay off returns an empty map
     // with no reads. Terminated members get none. NO WAGE DATA in MS-3a.
-    raise = await getRaiseEligibility(
+    //
+    // MS-3b (F7, F10): a member in cooldown gets NO compact badge. The raise
+    // DATES in each result are pay data, so every result is run through
+    // redactForViewer HERE, before anything renders — a viewer who fails
+    // canSeeWages, or COMP-1 for that member (no wage row = masked for a
+    // MANAGER), gets the result with both date keys absent.
+    const computed = await getRaiseEligibility(
       org,
       staff.map((m) => ({
         id: m.id,
@@ -211,6 +218,8 @@ async function getStaffData() {
       settings,
       { now, compliance: new Map(complianceDetails.map((d) => [d.staffId, d])) }
     )
+    const raiseVisible = await getRaiseDetailVisibility(org, actor, staff)
+    raise = new Map([...computed].map(([id, r]) => [id, redactForViewer(r, raiseVisible.has(id))]))
   }
 
   return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise }

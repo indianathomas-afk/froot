@@ -207,6 +207,7 @@ model Organization {
   calendarOccurrences           CalendarOccurrence[]
   tenureMilestones              TenureMilestone[]
   wageSnapshots                 WageSnapshot[]
+  staffLastRaises               StaffLastRaise[]
   milestoneSettings             MilestoneSettings?
 }
 
@@ -414,6 +415,10 @@ model PendingInvite {
   @@unique([organizationId, email])
 }
 
+// NEVER PUT PAY OR OTHER PER-VIEWER DATA ON THIS MODEL (MS-3b audit, B6).
+// About thirty reads load the WHOLE row, and GET /api/staff returns it to every
+// in-scope MANAGER, so any new column here is in that response automatically.
+// Pay-adjacent facts live in their own tables (StaffLastRaise, WageSnapshot).
 model StaffMember {
   id                 String    @id @default(cuid())
   organizationId     String
@@ -498,6 +503,8 @@ model StaffMember {
   hrDocumentGrants    HrDocumentGrant[]
   hrReturnEvents      HrReturnEvent[]
   calendarCompletions CalendarOccurrence[]     @relation("CalendarOccurrenceCompletedByStaff")
+  // MS-3b. PAY DATA — never `include` this outside src/lib/raise-history.ts.
+  lastRaise           StaffLastRaise?
 
   @@unique([organizationId, squareTeamMemberId])
 }
@@ -3696,6 +3703,35 @@ model WageSnapshot {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, squareTeamMemberId, capturedAt])
+}
+
+/// MS-3b (F6, F15; Gary G1 2026-10-16). An ADMIN-entered "last raise date" for
+/// raises Froot did not see — before the daily wage sync existed, or from
+/// before Square was connected. The raise cooldown counts from the LATER of
+/// this and the last raise detected in the wage history.
+///
+/// PAY DATA UNDER COMP-1: shown only where canSeeWages and
+/// compVisibleForMember both pass. ITS OWN TABLE ON PURPOSE, not columns on
+/// StaffMember: thirty StaffMember reads return the whole row and
+/// GET /api/staff sends it to every in-scope MANAGER, so a column there would
+/// leak (docs/prompts/2026-10-16_MS-3b_AUDIT.md, B6). ONLY
+/// src/lib/raise-history.ts may name this model — scripts/verify-ms3b.ts pins
+/// it — and nothing may `include` the StaffMember.lastRaise relation.
+model StaffLastRaise {
+  id             String    @id @default(cuid())
+  organizationId String
+  staffMemberId  String    @unique
+  /// Store-local CALENDAR date (@db.Date). NULL = cleared by an ADMIN; the row
+  /// is kept so it still says who cleared it and when.
+  lastRaiseDate  DateTime? @db.Date
+  /// User.id of the ADMIN who last set or cleared it.
+  setByUserId    String
+  setAt          DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  staffMember  StaffMember  @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 /// MS-2 (Gary, 2026-10-16). STAFF MILESTONES SETTINGS — ONE ROW PER ORG, created

@@ -13,6 +13,7 @@ import {
   type StaffComplianceDetail,
 } from "@/lib/hr-compliance"
 import { DEFAULT_RAISE_SETTINGS, raiseSettingsProblem, type RaiseSettingsValues } from "@/lib/raise-settings"
+import { detectRaises, getManualRaiseDates } from "@/lib/raise-history"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MS-3a — RAISE ELIGIBILITY. ONE FUNCTION (getRaiseEligibility), batched like
@@ -46,6 +47,22 @@ import { DEFAULT_RAISE_SETTINGS, raiseSettingsProblem, type RaiseSettingsValues 
 // manual last-raise date and the cooldown arrive in MS-3b, which is also where
 // any amount or date gets redacted per viewer. Nothing in this file's output is
 // pay data — verify-ms3 asserts no wage field appears in it.
+//
+// MS-3b — THE COOLDOWN (ruling 4; F6, F7; G4, G5). This file still names no
+// wage table and reads no rate: src/lib/raise-history.ts does the reading and
+// hands back DATES only. Then:
+//   - the raise on record is the LATER of the detected raise and the ADMIN's
+//     manual date (F6); none on record = no cooldown criterion at all, so an
+//     MS-3a result is unchanged for anyone without one;
+//   - in cooldown while member-zone today < raise date + cooldown days — the
+//     day before is in, that day itself is out;
+//   - in cooldown the status is "cooldown", WHATEVER THE OTHER CRITERIA SAY
+//     (G5): /staff shows no badge, the tab still lists every rule.
+//   - THE ONLY DATES ARE THE `lastRaise` AND `cooldownUntil` KEYS. No criterion
+//     text ever carries one, so redactForViewer is key deletion and nothing
+//     else. Those two keys are PAY DATA (F10): every caller runs
+//     redactForViewer per member before anything renders or returns —
+//     /staff, /staff/[id], and MS-4/MS-5 when they arrive.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── SETTINGS (DB) ───────────────────────────────────────────────────────────
@@ -174,18 +191,26 @@ export function completedWeeks(today: string, count: number): string[] {
 
 // ─── PURE: ONE MEMBER ────────────────────────────────────────────────────────
 
-export type RaiseCriterionKey = "compliance" | "hours" | "onTime" | "trainings" | "documents"
+export type RaiseCriterionKey = "compliance" | "hours" | "onTime" | "trainings" | "documents" | "cooldown"
 /// blocked = the hard-blocker kind of not-met (F1 red). na = F11, left out of
-/// the colour.
-export type RaiseCriterionState = "met" | "not-met" | "blocked" | "no-data" | "na"
+/// the colour. cooldown = MS-3b, a raise inside the cooldown window.
+export type RaiseCriterionState = "met" | "not-met" | "blocked" | "no-data" | "na" | "cooldown"
 export type RaiseCriterion = { key: RaiseCriterionKey; label: string; state: RaiseCriterionState; detail: string }
-export type RaiseStatus = "green" | "yellow" | "red"
+/// "cooldown" (MS-3b, F7): a recent raise — no badge on /staff.
+export type RaiseStatus = "green" | "yellow" | "red" | "cooldown"
+export type RaiseSource = "detected" | "manual"
 export type RaiseEligibility = {
   status: RaiseStatus
   criteria: RaiseCriterion[]
   /// The completed weeks judged, store-local, Monday of the first to Sunday of
   /// the last.
   weeks: { from: string; to: string }
+  /// MS-3b. PAY DATA — present only when a raise is on record, and DELETED by
+  /// redactForViewer for a viewer who may not see this member's pay.
+  lastRaise?: { date: string; source: RaiseSource }
+  /// MS-3b. PAY DATA, same rule. The first eligible day: lastRaise.date +
+  /// cooldown days.
+  cooldownUntil?: string
 }
 
 export type RaiseMemberInputs = {
@@ -319,6 +344,54 @@ export function assembleRaise(i: RaiseMemberInputs): RaiseEligibility {
   const first = i.weeks[0]
   const last = i.weeks[i.weeks.length - 1]
   return { status, criteria, weeks: { from: first, to: addDaysStr(last, 6) } }
+}
+
+// ─── PURE: THE COOLDOWN (MS-3b) ──────────────────────────────────────────────
+
+/// F6: the raise on record is the LATER of the detected raise and the manual
+/// date. A tie reads as detected. Neither = null.
+export function effectiveRaise(detected: string | null, manual: string | null): { date: string; source: RaiseSource } | null {
+  if (detected === null && manual === null) return null
+  if (manual === null || (detected !== null && detected >= manual)) return { date: detected as string, source: "detected" }
+  return { date: manual, source: "manual" }
+}
+
+/// Layer the cooldown over an MS-3a result. `today` is the member-zone date.
+/// No raise on record = the result unchanged. In cooldown = status "cooldown"
+/// whatever the rest says (G5). The criterion's words never carry a date.
+export function applyCooldown(
+  result: RaiseEligibility,
+  raise: { date: string; source: RaiseSource } | null,
+  cooldownDays: number,
+  today: string
+): RaiseEligibility {
+  if (!raise) return result
+  const cooldownUntil = addDaysStr(raise.date, cooldownDays)
+  const inCooldown = today < cooldownUntil
+  const criterion: RaiseCriterion = {
+    key: "cooldown",
+    label: `${plural(cooldownDays, "day")} since the last raise`,
+    state: inCooldown ? "cooldown" : "met",
+    detail: inCooldown ? "Recent raise — in cooldown." : `No raise in the last ${plural(cooldownDays, "day")}.`,
+  }
+  return {
+    ...result,
+    status: inCooldown ? "cooldown" : result.status,
+    criteria: [...result.criteria, criterion],
+    lastRaise: raise,
+    cooldownUntil,
+  }
+}
+
+/// F10 — PURE. For a viewer who may not see this member's pay, a copy with
+/// both date keys DELETED (absent, not null); the cooldown words already carry
+/// no date. Run per member, on the server, before anything renders or returns.
+export function redactForViewer(result: RaiseEligibility, payVisible: boolean): RaiseEligibility {
+  if (payVisible) return result
+  const copy: RaiseEligibility = { ...result }
+  delete copy.lastRaise
+  delete copy.cooldownUntil
+  return copy
 }
 
 // ─── THE READ (DB) ───────────────────────────────────────────────────────────
@@ -456,26 +529,39 @@ export async function getRaiseEligibility(
         )
       : new Map<string, OnTimeResult>()
 
+  // MS-3b — raise history: DATES ONLY come back across this line (the rates
+  // stay in raise-history.ts). Two batched reads, whatever the roster size.
+  const [detected, manual] = await Promise.all([
+    detectRaises(org, active.map((m) => ({ id: m.id, squareTeamMemberId: m.squareTeamMemberId, zone: m.zone }))),
+    getManualRaiseDates(org.id, ids),
+  ])
+
   for (const m of active) {
     // Data start for this member: the earliest of their stores' first
     // timecards; a member with no store (corporate) falls back to the org's.
     const own = m.assignedStoreIds.map((s) => dataStartByStore.get(s)).filter((d): d is string => !!d).sort()
     const dataStart = m.assignedStoreIds.length ? (own[0] ?? null) : orgDataStart
+    const base = assembleRaise({
+      settings: raise,
+      weeks: weeksOf.get(m.id) as string[],
+      minutesByWeek: minutes.get(m.id) ?? new Map(),
+      dataStart,
+      startDate: m.startDate ? dateColumnStr(m.startDate) : null,
+      linked: !!m.squareTeamMemberId,
+      compliance: compliance?.get(m.id),
+      onTime: onTime.get(m.id),
+      requiredTrainings,
+      trainingStatus: trainingStatus.get(m.id) ?? new Map(),
+      requiredDocuments,
+    })
     out.set(
       m.id,
-      assembleRaise({
-        settings: raise,
-        weeks: weeksOf.get(m.id) as string[],
-        minutesByWeek: minutes.get(m.id) ?? new Map(),
-        dataStart,
-        startDate: m.startDate ? dateColumnStr(m.startDate) : null,
-        linked: !!m.squareTeamMemberId,
-        compliance: compliance?.get(m.id),
-        onTime: onTime.get(m.id),
-        requiredTrainings,
-        trainingStatus: trainingStatus.get(m.id) ?? new Map(),
-        requiredDocuments,
-      })
+      applyCooldown(
+        base,
+        effectiveRaise(detected.get(m.id)?.date ?? null, manual.get(m.id) ?? null),
+        raise.raiseCooldownDays,
+        localDateStr(now, m.zone)
+      )
     )
   }
   return out

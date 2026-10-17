@@ -210,7 +210,15 @@ const touching = walk("src")
   .filter((f) => !f.startsWith(join("src", "generated")))
   .filter((f) => /\.(ts|tsx)$/.test(f))
   .filter((f) => /wageSnapshot|"WageSnapshot"/.test(readFileSync(f, "utf8")))
-check("C18. only src/lib/labor-roster.ts touches WageSnapshot", touching, [join("src", "lib", "labor-roster.ts")])
+// MS-3b — CHANGED DELIBERATELY (docs/prompts/2026-10-16_MS-3b_AUDIT.md, B3).
+// The reader arrived: src/lib/raise-history.ts, which applies canSeeWages and
+// COMP-1 before any date leaves it (scripts/verify-ms3b.ts pins that). It is the
+// ONLY reader; C20 below still forbids any src/app file from naming the table.
+check(
+  "C18. only labor-roster.ts (writer) and raise-history.ts (reader) touch WageSnapshot",
+  touching.sort(),
+  [join("src", "lib", "labor-roster.ts"), join("src", "lib", "raise-history.ts")]
+)
 const rosterSrc = readFileSync("src/lib/labor-roster.ts", "utf8")
 check("C19. the writer returns a COUNT, never snapshot rows", /export async function writeWageSnapshots\([\s\S]*?\): Promise<number>/.test(rosterSrc), true)
 check("C20. no API route or page names the table", touching.some((f) => f.includes(join("src", "app"))), false)

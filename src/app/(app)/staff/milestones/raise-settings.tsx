@@ -207,8 +207,9 @@ export function RaiseSettings({
         <p className="text-xs text-[var(--color-muted-foreground)]">
           Hours are paid hours (unpaid breaks taken off) in each of the last completed Monday–Sunday weeks, all stores
           combined; the current week is never counted. On-time is the same percentage as the On-time badge, over those
-          same weeks. Set hours or on-time to 0 to switch that rule off. The cooldown starts counting once raise
-          detection is live.
+          same weeks. Set hours or on-time to 0 to switch that rule off. The cooldown counts from the latest raise Froot
+          sees in Square (wages sync daily) or the last raise date an admin enters on the person&apos;s Milestones tab,
+          whichever is later. During it the Raise badge is hidden on Staff.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

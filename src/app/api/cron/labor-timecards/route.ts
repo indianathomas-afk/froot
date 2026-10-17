@@ -4,6 +4,7 @@ import { addDaysStr } from "@/lib/goal-engine"
 import { localDateStr } from "@/lib/reports"
 import { squareLaborAvailable, laborModuleAvailable } from "@/lib/auth"
 import { syncTimecardsForStore } from "@/lib/labor-actuals"
+import { syncTeamMemberWages } from "@/lib/labor-roster"
 
 // GET /api/cron/labor-timecards — trailing re-pull of Square timecards for every
 // Square-linked store in every org that has the Advanced Labor overlay ON.
@@ -41,6 +42,18 @@ import { syncTimecardsForStore } from "@/lib/labor-actuals"
 // how far back "recent" reaches. KNOWN LIMIT, recorded rather than hidden:
 // manager corrections can land later than three days, and this window will miss
 // those. A weekly deeper sweep is the obvious answer and is not built here.
+//
+// MS-3b — THE DAILY WAGE SYNC RIDES THIS CRON (Gary, 2026-10-16: "Wage sync in
+// the daily timecard cron: Approved"). After each org's stores,
+// syncTeamMemberWages(org, "ACTIVE") — the same call the "Sync roster" button
+// makes — refreshes SquareTeamMemberWage and appends a wage snapshot for every
+// changed rate, so a raise is seen within a day (MS-3b's raise detection).
+// ONE read-only Square request per org (POST /v2/team-members/search, a
+// POST-shaped READ), EMPLOYEES_READ only, already held — no new scope, nothing
+// written to Square. ITS OWN TRY/CATCH: a wage failure is logged and reported
+// under `wages`, and never changes `ok` / `failed`, which stay about timecards.
+// No new vercel.json entry. Vercel runs crons on production only, so staging
+// still syncs wages from the button alone.
 
 export const maxDuration = 300
 
@@ -63,6 +76,7 @@ export async function GET(req: Request) {
   })
 
   const results: { org: string; store: string; timecards?: number; written?: number; error?: string }[] = []
+  const wages: { org: string; members?: number; snapshots?: number; error?: string }[] = []
   for (const org of orgs) {
     if (!laborModuleAvailable(org.clerkOrgId)) continue
     if (!squareLaborAvailable(org.clerkOrgId)) continue
@@ -87,9 +101,20 @@ export async function GET(req: Request) {
         results.push({ org: org.id, store: store.id, error: msg.slice(0, 200) })
       }
     }
+
+    // MS-3b — the daily wage sync, isolated from the timecard result above.
+    try {
+      const w = await syncTeamMemberWages(org, "ACTIVE")
+      wages.push({ org: org.id, members: w.members, snapshots: w.snapshots })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "wage sync failed"
+      console.error(`[cron:labor-timecards] org=${org.id} wage sync failed`, e)
+      wages.push({ org: org.id, error: msg.slice(0, 200) })
+    }
   }
 
   const failed = results.filter((r) => r.error).length
   console.log(`[cron:labor-timecards] ${results.length - failed}/${results.length} stores synced`)
-  return NextResponse.json({ ok: failed === 0, stores: results.length, failed, results })
+  console.log(`[cron:labor-timecards] wages ${wages.filter((w) => !w.error).length}/${wages.length} orgs synced`)
+  return NextResponse.json({ ok: failed === 0, stores: results.length, failed, results, wages })
 }
