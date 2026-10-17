@@ -366,6 +366,17 @@ async function db() {
       [asAdmin.get(C.id)?.cooldownUntil, asAdmin.get(U.id)?.lastRaise?.date],
       [addDaysStr(raisedOn, 90), addDaysStr(today, -5)]
     )
+    // POSITIVE CONTROL for D18/D19 — the SAME members (R open, C confidential),
+    // the SAME raw()/leaks() detector, the opposite viewer. If redaction stripped
+    // the dates for everyone, D18/D19 would still pass; this check would not.
+    check(
+      "D22b. positive control: ADMIN gets BOTH dates on the open and the confidential member, and leaks() sees them",
+      [R, C].map((m) => [asAdmin.get(m.id)?.status, asAdmin.get(m.id)?.lastRaise?.date, asAdmin.get(m.id)?.cooldownUntil, leaks(raw(asAdmin, m.id), rDates)]),
+      [
+        ["cooldown", raisedOn, addDaysStr(raisedOn, 90), true],
+        ["cooldown", raisedOn, addDaysStr(raisedOn, 90), true],
+      ]
+    )
     const asStore = await asSeenBy(STORE)
     check("D23. STORE: no member's dates visible", [...asStore.values()].some((r) => "lastRaise" in r || "cooldownUntil" in r), false)
     check("D24. no result for ANY viewer carries a rate or amount (F7)", [asAdmin, asManager, asNoPay].some((m) => PAY_PATTERN.test(JSON.stringify([...m.values()]))), false)
