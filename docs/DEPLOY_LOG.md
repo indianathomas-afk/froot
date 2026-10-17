@@ -2,6 +2,57 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **A SECURITY FIX (MS-4 F12). MUST REACH
+`main` BEFORE OR WITH MS-4a**, which counts named tasks toward checklist
+milestones. It has no code dependency on the MS-1 to MS-3c entries below, but a
+staging → main merge carries them all together.
+
+**Payload: CHK-15 only, on top of MS-3c, MS-3b, MS-3a, MS-2, BUG-15 and MS-1** (all
+also unpromoted, with their own entries below). Verified by `git log
+origin/staging..staging` at this check (after `git fetch origin`): exactly
+`329526d`, `adc56a9`, `92dad4d`. **NONE OF THE CHK-15 COMMITS WAS PUSHED WHEN
+THIS CHECK RAN.** All three, plus this check's own commit, are unpushed. Claude
+never pushes.
+
+| Commit | What it is |
+|---|---|
+| `329526d` | CHK-15 work: `src/lib/task-log-staff.ts` (`resolveTaskLogStaff`), the task-log route calls it on a tick before any write, the store-view checklist picker lists ACTIVE only, a display-only names query, fixture `scripts/verify-chk15.ts` |
+| `adc56a9` | `docs(CHK-15)`: row, DECISIONS draft, audit |
+| `92dad4d` | `docs(CHK-15 triage)`: CAL-3 and CHK-16 filed, pointer on MS-4 |
+| the commit immediately after `92dad4d` | `docs(CHK-15 PRE-PUSH-CHECK)`: ratification recorded, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE WRITE ROUTE AND ONE PAGE.** No migration, no schema, no env
+var, no cron, no Square call, and no existing row changed (forward-only).
+`POST /api/checklists/[id]/task-log` now refuses, with a 400 and a sentence
+shown on the task, a tick naming someone who is not in this org, not ACTIVE, or
+neither assigned to the checklist's store nor `isCorporate`. A non-string id is
+refused too (before, it caused a 500). "Team Member" and no name save as before.
+An un-tick is never refused. `/store-view/checklist/[id]`'s "Who completed this
+task?" picker lists ACTIVE staff only. A task ticked earlier by someone since
+terminated or moved still shows their name. Watch: any 400 on task-log in the
+runtime logs, and that the refusal message appears on a task when it happens.
+
+**Rollback:** `git revert 329526d`. No database step. That restores the old
+route, which saves any id sent, so the security gap reopens. `adc56a9`,
+`92dad4d` and this check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the CHK-15 row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`, with the org named by id
+on every observation:
+- a tick naming an assigned, active person saves;
+- a "CHK-15 Staff" member terminated while the checklist screen is open, then
+  picked, gives the clear message and the tick rolls back;
+- "Team Member" still saves;
+- after a reload the terminated person is gone from the picker, and a task they
+  ticked earlier still shows their name.
+
+Dev-level evidence only so far: verify-chk15 28/28 (live negative control
+3 FAIL, restored), verify-ms1 97/97, verify-ms2 90/90, verify-ms3 95/95 and
+verify-ms3b 80/80, all on dev `br-broad-wave-a6vpjdw0`.
+
 ## UNPROMOTED — 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (tab unchanged)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

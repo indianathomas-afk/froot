@@ -5,7 +5,17 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store (Gary — DRAFT entry)
+## 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store (Gary)
+
+**RATIFIED BY GARY, 2026-10-17, at the CHK-15 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly: *"Ratify as written."* That covers the
+whole entry, including the approved forks F-A to F-D and Claude's further
+choices. Nothing below was changed. This paragraph was added at the head, and
+the "DRAFT ENTRY" marker below is kept as it was and superseded by it. Until
+this ratification the heading read "(Gary — DRAFT entry)". The "to triage"
+line below is as written at the time; the triage has since filed F-F as
+CAL-3 and the covering-staff gap as CHK-16 (`92dad4d`).
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Gary's
 words, recorded exactly:

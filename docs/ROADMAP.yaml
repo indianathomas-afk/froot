@@ -3458,12 +3458,18 @@ phases:
   - id: CHK-15
     track: checklists
     size: S
+    # `in_progress` -> `staging` 2026-10-17 BY THE PRE-PUSH-CHECK. None of the
+    # three CHK-15 commits was pushed when the check ran; this check's own
+    # commit (the one immediately after 92dad4d, which cannot name itself) is
+    # not pushed either — Claude never pushes.
     # `in_progress` at 329526d, set 2026-10-17 by the CHK-15 build session
     # (TIER 3). Not pushed — Claude never pushes.
-    status: in_progress
+    status: staging
     title: "Task route accepts any staff id — refuse other-company, terminated, and not-at-this-store staff (security fix)"
     commits:
       - "329526d"
+      - "adc56a9"
+      - "92dad4d"
     blockers:
       - >
         MUST REACH STAGING BEFORE MS-4a IS BUILT. MS-4a counts named tasks
@@ -3484,6 +3490,15 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — CHK-15, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-17 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs commits adc56a9 and 92dad4d added; this
+      check's own commit is the one immediately after 92dad4d. RULINGS
+      RATIFIED by Gary at this check: the DECISIONS entry (2026-10-17 —
+      CHK-15) was printed verbatim and he replied, exactly: "Ratify as
+      written." The entry is unchanged apart from the ratification paragraph
+      at its head, so the RULINGS-ARE-A-DRAFT blocker above is superseded.
+      Docs sync audit: no drift. DEPLOY_LOG entry written by this check
+      (UNPROMOTED, 2026-10-17). Still unverified on staging.
       BUILT 2026-10-17 (TIER 3), 329526d. Audit:
       docs/prompts/2026-10-17_CHK-15_AUDIT.md. Gary's go: "Go. Build CHK-15
       with your recommended F-A (b), F-B (b), F-C and F-D. F-E not now, F-F to
