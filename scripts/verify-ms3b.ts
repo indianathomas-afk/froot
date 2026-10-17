@@ -216,6 +216,8 @@ check(
   true
 )
 check("C14. compact badge renders nothing in cooldown (F7)", /if \(result\.status === "cooldown"\) return null/.test(readFileSync("src/app/(app)/staff/raise-badge.tsx", "utf8")), true)
+// MS-3c (Gary, 2026-10-17): amber joins cooldown — no compact badge on /staff.
+check("C14b. compact badge renders nothing for amber either (MS-3c)", /if \(result\.status === "yellow"\) return null/.test(readFileSync("src/app/(app)/staff/raise-badge.tsx", "utf8")), true)
 
 const cronSrc = readFileSync("src/app/api/cron/labor-timecards/route.ts", "utf8")
 check("C15. cron: the wage sync is inside its own try", /try {\s*const w = await syncTeamMemberWages\(org, "ACTIVE"\)/.test(cronSrc), true)

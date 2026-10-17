@@ -19,7 +19,9 @@
  *      STORE/STAFF refused, toggle off = 404, the Raise badge rides the On-Time
  *      gate on both pages (ADMIN/MANAGER, Milestones on, MANAGER scope via the
  *      roster), overlay off returns nothing (F12), and the eligibility module
- *      reads no wage table (the MS-3a/MS-3b split).
+ *      reads no wage table (the MS-3a/MS-3b split). MS-3c: the amber
+ *      "Raise in progress" compact badge renders nothing on /staff; green and
+ *      red still do, and the tab shows every state.
  *   D. Database (dev branch) — settings save/refuse/read-back, archived and
  *      foreign ids refused, then the batched read end to end on seeded Square
  *      rows, trainings and documents: one member per colour, store-zone dating,
@@ -53,6 +55,7 @@ import {
   type RaiseEligibility,
   type RaiseMemberInputs,
 } from "../src/lib/raise-eligibility"
+import { RaiseBadge, RaiseCard } from "../src/app/(app)/staff/raise-badge"
 
 let passes = 0
 let failures = 0
@@ -244,6 +247,14 @@ check("C13. the Raise card renders only inside the Milestones tab content", /{sh
 const libSrc = readFileSync("src/lib/raise-eligibility.ts", "utf8")
 check("C14. the eligibility module names no wage table or rate column (MS-3a reads no pay)", /wageSnapshot|squareTeamMemberWage|hourlyRate|annualRate|getPayForStaff/.test(libSrc), false)
 check("C15. overlay check is the first thing the read does (F12)", /const out = new Map<string, RaiseEligibility>\(\)\s*if \(!laborOverlayOn\(org\)\) return out/.test(libSrc), true)
+// MS-3c (Gary, 2026-10-17): no amber "Raise in progress" on /staff — the
+// compact badge renders nothing for yellow, as for cooldown (MS-3b F7). Green
+// and red still show there; the tab's full badge and card show every state.
+const STATUSES = ["green", "yellow", "red", "cooldown"] as const
+const asStatus = (status: (typeof STATUSES)[number]): RaiseEligibility => ({ ...assembleRaise(base()), status })
+check("C17. MS-3c: /staff compact badge per status (green, yellow, red, cooldown)", STATUSES.map((s) => RaiseBadge({ result: asStatus(s), size: "compact" }) !== null), [true, false, true, false])
+check("C18. MS-3c: tab full badge still renders every status", STATUSES.map((s) => RaiseBadge({ result: asStatus(s), size: "full" }) !== null), [true, true, true, true])
+check("C19. MS-3c: tab card still renders for amber", RaiseCard({ result: asStatus("yellow") }) !== null, true)
 
 async function overlayOff() {
   const fakeOrg = { id: "no-such-org", clerkOrgId: "org_ms3_off", activeModules: ["hr"], squareLaborEnabled: false } as unknown as Organization

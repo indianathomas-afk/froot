@@ -25,6 +25,12 @@ import type { RaiseCriterionState, RaiseEligibility, RaiseStatus } from "@/lib/r
 // pay the key is ABSENT and the words read "— in cooldown". This file never
 // decides visibility; it renders what survived redaction. No amounts here, even
 // for an ADMIN.
+//
+// MS-3c — THE AMBER STATE ON /staff. Status "yellow" ("Raise in progress")
+// also renders NO compact badge, exactly as cooldown does. Green and red still
+// show on /staff; the full badge and RaiseCard on the Milestones tab are
+// unchanged and show every state. Gary, 2026-10-17: "I don't want 'Raise in
+// progress' self-governed."
 
 const CLASS: Record<RaiseStatus, string> = {
   green: BADGE_PRESETS.green.badge,
@@ -52,6 +58,9 @@ export function RaiseBadge({ result, size }: { result: RaiseEligibility; size: "
   if (size === "compact") {
     // F7: during cooldown, no badge on /staff.
     if (result.status === "cooldown") return null
+    // MS-3c (Gary, 2026-10-17): no amber "Raise in progress" on /staff either —
+    // managers are directed to the Milestones tab, which still shows it.
+    if (result.status === "yellow") return null
     return (
       <span
         title={raiseExplanation(result)}
