@@ -16,6 +16,10 @@
  *   D. acknowledgment: dry-run outcome and no `email.sent`; sandbox filters the
  *      list; a throwing provider still never throws; the no-recipients skip
  *      stays row-less.
+ *   F. STAGING WITH NO ALLOWLIST EMAILS NOBODY (Gary, before PRE-PUSH-CHECK):
+ *      VERCEL_ENV=preview + resend, allowlist unset / "" / " , " — the mode
+ *      resolved FROM ENV is "sandbox" (never "live"), and pace and ack driven
+ *      by that resolved mode send nothing, write no lock, record a dry run.
  *   E. log: "Dry run — not sent", legacy console "Logged only", provider-less
  *      "unknown"; findAttemptByResendId never returns a dry-run row.
  * Everything is deleted afterwards and every env var restored.
@@ -86,6 +90,12 @@ function restoreEnv() {
 }
 // Fake Resend config. Never a real key; fetch to Resend is stubbed below.
 const FAKE_RESEND = { RESEND_API_KEY: "re_notify5_fixture_fake", NOTIFY_FROM_EMAIL: "NOTIFY-5 <n5@example.com>" }
+// F: the three spellings of "no allowlist" a Preview env can hold.
+const NO_ALLOWLIST: [string, string | undefined][] = [
+  ["unset", undefined],
+  ['""', ""],
+  ['" , "', " , "],
+]
 const DRY = { VERCEL_ENV: undefined, NOTIFY_EMAIL_PROVIDER: "console" }
 const SANDBOX = { VERCEL_ENV: "preview", NOTIFY_EMAIL_PROVIDER: "resend", ...FAKE_RESEND }
 const LIVE = { VERCEL_ENV: "production", NOTIFY_EMAIL_PROVIDER: "resend", ...FAKE_RESEND }
@@ -199,8 +209,8 @@ async function main() {
   try {
     const adminEmail = `notify5-admin-${tag}@example.com`
     const managerEmail = `notify5-mgr-${tag}@example.com`
-    const [storeA, storeB, storeC, storeNeg] = await Promise.all(
-      ["A", "B", "C", "Neg"].map((s) =>
+    const [storeA, storeB, storeC, storeNeg, ...storesF] = await Promise.all(
+      ["A", "B", "C", "Neg", "F-unset", "F-empty", "F-commas"].map((s) =>
         prisma.store.create({ data: { organizationId: org.id, name: `NOTIFY-5 Store ${s}`, timezone: TZ } })
       )
     )
@@ -210,13 +220,13 @@ async function main() {
     const manager = await prisma.user.create({
       data: { clerkUserId: `notify5-mgr-${tag}`, organizationId: org.id, email: managerEmail, role: "MANAGER" },
     })
-    for (const s of [storeA, storeB, storeC, storeNeg]) {
+    for (const s of [storeA, storeB, storeC, storeNeg, ...storesF]) {
       await prisma.storeUserAssignment.create({ data: { userId: manager.id, storeId: s.id } })
     }
     void admin
 
     // $1,000/day plan, $500/day sales → 50% pace, behind a 90% threshold.
-    for (const s of [storeA, storeB, storeC, storeNeg]) {
+    for (const s of [storeA, storeB, storeC, storeNeg, ...storesF]) {
       const plan = await prisma.goalPlan.create({
         data: { organizationId: org.id, storeId: s.id, year: Number(today.slice(0, 4)), basisType: "MANUAL", updatedById: "notify5-fixture" },
       })
@@ -315,6 +325,29 @@ async function main() {
           (await rowsFor(storeC.id, ACTION_DRY_RUN)).length === 1,
         sbEmpty.reason
       )
+
+      // ── F (pace). Mode RESOLVED FROM ENV, not passed as a literal ──────────
+      for (const [i, [label, list]] of NO_ALLOWLIST.entries()) {
+        setEnv({ ...SANDBOX, NOTIFY_SANDBOX_ALLOWLIST: list })
+        const resolved = deliveryMode()
+        resendCalls.length = 0
+        const r = await processPaceAlertForStore(storesF[i], {
+          thresholdPct: 90,
+          sender: getEmailSender(), // the real Resend sender, against the stubbed fetch
+          mode: resolved,
+        })
+        check(
+          `F pace: preview + resend + allowlist ${label} → mode "${resolved}" (never live), nobody emailed, no lock, one dry-run row`,
+          resolved === "sandbox" &&
+            !r.alerted &&
+            r.reason === "dry-run" &&
+            resendCalls.length === 0 &&
+            (await lockFor(storesF[i].id)) === null &&
+            (await rowsFor(storesF[i].id, ACTION_DRY_RUN)).length === 1 &&
+            (await rowsFor(storesF[i].id, ACTION_SENT)).length === 0,
+          `mode=${resolved} reason=${r.reason} resendCalls=${resendCalls.length}`
+        )
+      }
     }
 
     // ── D. signed acknowledgment ───────────────────────────────────────────────
@@ -405,6 +438,23 @@ async function main() {
       ackSbEmpty.status
     )
     await clearAckRows()
+
+    // ── F (ack). Every spelling of "no allowlist", mode resolved from env ─────
+    for (const [label, list] of NO_ALLOWLIST) {
+      setEnv({ ...SANDBOX, NOTIFY_SANDBOX_ALLOWLIST: list })
+      resendCalls.length = 0
+      const r = await sendAckNotification(record.id)
+      check(
+        `F ack: preview + resend + allowlist ${label} → mode "${deliveryMode()}" (never live), dry-run, nobody emailed`,
+        deliveryMode() === "sandbox" &&
+          r.status === "dry-run" &&
+          resendCalls.length === 0 &&
+          (await ackRows(ACTION_SENT)).length === 0 &&
+          (await ackRows(ACTION_DRY_RUN)).length === 1,
+        `${r.status} resendCalls=${resendCalls.length}`
+      )
+      await clearAckRows()
+    }
 
     setEnv({ NOTIFY_SANDBOX_ALLOWLIST: allowed })
     resendFails = true
