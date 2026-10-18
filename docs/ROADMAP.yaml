@@ -20361,6 +20361,104 @@ phases:
       lands, console mode burns pace locks again" stops being true once this
       reaches production - console is now a dry run that consumes nothing.
 
+  - id: NOTIFY-10
+    track: platform
+    size: S
+    status: planned
+    title: "Production email go-live — real mail from production for the existing types (Gary-side checklist)"
+    blockers:
+      - >
+        GARY'S PRE-GO-LIVE CONDITIONS, his words exactly (2026-10-18, at the
+        NOTIFY-5 PRE-PUSH-CHECK): "Before go-live: confirm SPF and DKIM are
+        green in Resend for notify.usefroot.com; add a DMARC record for the
+        sending domain; start production sending with a small set of internal
+        recipients before all managers. The first staging test (2026-10-18)
+        delivered but landed in Outlook Junk."
+      - >
+        OPEN, NOT RESOLVED HERE: does a DMARC record exist for the sending
+        domain? Gary's words say "add a DMARC record". The audit's step 2 below
+        says to confirm notify.usefroot.com shows "SPF, DKIM, DMARC `p=none`",
+        and DEBT-109's step 2 is about tightening an existing p=none. Both of
+        those assume a record exists. Gary's words are the instruction. Check
+        the DNS/Resend record before go-live to find out which is true.
+    notes: |
+      FILED 2026-10-18 by Gary's instruction at the NOTIFY-5 PRE-PUSH-CHECK
+      (TIER 1, docs only). This is the phase the NOTIFY-3 audit calls GO-LIVE
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7: "Gary-side (no
+      session needed; a TIER 1 docs session can record it)", depends on
+      nothing). The audit gave it no number.
+      WHY NOTIFY-10 AND NOT NOTIFY-7. Gary leaned NOTIFY-7 and asked for a free
+      id. NOTIFY-6 to NOTIFY-9 are already allocated by the same audit's phase
+      table (NOTIFY-6 ledger and dispatcher, NOTIFY-7 suppression and bounce
+      handling, NOTIFY-8 tenant onboarding, NOTIFY-9 legacy retirement), and
+      MS-4b's blocker already cites NOTIFY-6. No document, source file or
+      commit used NOTIFY-10 before this row.
+      ORDER. The audit recommends GO-LIVE together with NOTIFY-5 ("the pair
+      gets Gary his first email with no new way to lose one"). NOTIFY-5 is on
+      local staging at the time of filing (row above). Once it reaches
+      production, the audit's rollback note "until NOTIFY-5 lands, console
+      mode burns pace locks again" stops being true. The checklist below
+      also predates the "Send a test to me" button, which can replace step 11's
+      console fetch once NOTIFY-5 is in production.
+      DELIVERABILITY: see DEBT-109 (Outlook Junk). It carries the 2026-10-18
+      staging observation as evidence, and its Not-Junk and DMARC-tightening
+      order applies to the first production sends.
+      ── THE CHECKLIST, QUOTED VERBATIM FROM THE NOTIFY-3 AUDIT SECTION 6 ──
+      "Everything here is Gary's to do; nothing needs a code change. It is the
+      MS-4b audit's B2 list, ordered, with the steps that audit did not cover.
+      Can run before any pipeline phase: today's defaults mean the flip itself
+      emails nobody.
+      Before anything
+      1. Run the MS-4b audit's Q1, Q2, Q3 in the Neon console on `production`
+         (`br-sparkling-block-a620qvg4`). Q1 tells you which orgs would start
+         mailing at the next 15:00 UTC; Q3 tells you which stores already have a
+         burned lock this month.
+      2. In Resend: confirm `notify.usefroot.com` still shows Verified (SPF,
+         DKIM, DMARC `p=none`), and note the plan's daily and monthly limits.
+      3. In Resend: create an API key for production only, sending access,
+         restricted to that domain. Put it in the password manager in the same
+         minute (Sensitive values can never be read back).
+      Vercel, Production scope only (Preview values are separate)
+      4. `NOTIFY_EMAIL_PROVIDER` = `resend`
+      5. `NOTIFY_FROM_EMAIL` = `USE Froot <noreply@notify.usefroot.com>`
+      6. `RESEND_API_KEY` = the new key — Sensitive
+      7. Confirm `NEXT_PUBLIC_APP_URL` = `https://www.usefroot.com` (links in every
+         email are built from it; hr.ack refuses to send without it).
+      8. In Resend: add a webhook endpoint `https://www.usefroot.com/api/webhooks/resend`
+         for `email.delivered`, `email.bounced`, `email.complained`,
+         `email.delivery_delayed`. Copy its signing secret into
+         `RESEND_WEBHOOK_SECRET` (Production). Never Preview's — one secret per
+         endpoint.
+      Deploy
+      9. Redeploy production (read the branch column). A deployment keeps the
+         env it was built with; saving a variable alone changes nothing.
+      10. Confirm the new deployment's created time is after the saves.
+      Prove it
+      11. Signed in to production as an ADMIN, on any page, open the browser
+          console and run:
+          `await fetch("/api/notify/test", { method: "POST" }).then(r => r.json())`
+          Expect `provider: "resend"`, `ok: true` and an `id`. (Until the test
+          button exists, this is the only way.)
+      12. Find the email — check Junk — and mark it Not Junk (DEBT-109).
+          This is the first email Gary receives.
+      13. Within a few minutes, /settings/notifications → Recent emails shows that
+          test as Delivered. That proves the webhook end to end, which no
+          environment has done yet. If it stays Sent, the webhook secret or
+          endpoint is wrong — not the send.
+      Turn types on, one at a time
+      14. Signed acknowledgments: put one address (Gary's) in the list, sign a
+          test document, expect one email whose link opens the record.
+      15. Behind-pace alerts: turn on for Keva only, after reading Q3 — any store
+          with a lock for the current month stays quiet until next month (the
+          console-mode burn). Watch the first 15:00 UTC run in the function log:
+          `N orgs enabled, M stores evaluated, K alerted`.
+      16. Milestones: only after MS-4b is built and promoted.
+      Rollback (fastest first)
+      - Turn an org's switch off on /settings/notifications — instant, no deploy.
+      - Set `NOTIFY_EMAIL_PROVIDER=console` and redeploy production — stops all
+        mail. (Note: until NOTIFY-5 lands, console mode burns pace locks again.)"
+      ── END QUOTE. The audit's bold emphasis is dropped; the words are unchanged. ──
+
 
 bugs:
   - id: BUG-1
@@ -31478,6 +31576,17 @@ debt:
       Deliverability — mail from the new sending domain lands in Outlook Junk;
       there is no code fix, only a warm-up and a DMARC tightening
     notes: >
+      ── NOTE 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
+      SEE NOTIFY-10 (production email go-live), filed the same day. Its
+      blockers carry Gary's pre-go-live conditions in his words, and the
+      Not-Junk and DMARC order below applies to its first production sends.
+      EVIDENCE, 2026-10-18, staging, in Gary's words: "The first staging test
+      (2026-10-18) delivered but landed in Outlook Junk." That is the symptom
+      below, observed on a real send from the NOTIFY-1 sending domain. It is
+      consistent with this row's diagnosis (a domain with no reputation) and
+      changes neither remedy nor their order. One open question is recorded on
+      NOTIFY-10 and not resolved here: Gary's words say "add a DMARC record",
+      while step 2 below assumes a p=none record already exists to tighten.
       FILED 2026-09-20 BY GARY, in the NOTIFY-2a docs commit. NOT A BUG AND NOT
       A CODE ROW. Nothing in src/ is wrong and nothing in src/ will fix it —
       this is filed so the next person who sees an alert "not arrive" checks the
