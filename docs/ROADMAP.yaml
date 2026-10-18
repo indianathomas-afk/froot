@@ -7788,6 +7788,13 @@ phases:
       - >
         Builds on MS-4a (checklist milestones are one of the two email
         events), which must be on staging first.
+      - >
+        HELD BEHIND NOTIFY-6 (fork P0, NOTIFY-3 audit, 2026-10-18). Gary's
+        words, exactly: "P0 approved: adopt the pipeline, hold MS-4b behind
+        NOTIFY-6. Write the NOTIFY-5 prompt next." MS-4b does NOT build its own
+        MilestoneNotice table, guard or test button; it becomes the first new
+        kind on the NOTIFY-6 pipeline (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md
+        section 4.7 and 7). Recorded by the NOTIFY-5 docs commit.
     notes: >
       ── RULED 2026-10-17 by Gary, in the MS-4a session. Prepended; NOTHING
       BELOW IS EDITED. His words, exactly: "For MS-4b, a milestone email that
@@ -20260,6 +20267,66 @@ phases:
       email setting lives on one page" ruling. NOTIFY-2a deliberately left no
       placeholder for it - a card for a consumer that does not exist is a
       control over nothing.
+
+  - id: NOTIFY-5
+    track: platform
+    size: S
+    # in_progress: work commit 07e9253 is on local `staging` and NOT pushed
+    # (Claude never pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    status: in_progress
+    commits: ["07e9253"]
+    title: "One delivery mode (live / sandbox / dry-run) for every email + 'Send a test to me'"
+    blockers:
+      - >
+        NOT PUSHED. Work commit 07e9253 and this docs commit are on local
+        staging only. Every staging check below waits on Gary's push and the
+        staging-SHA precondition.
+      - >
+        NOTIFY_SANDBOX_ALLOWLIST is UNSET in Vercel Preview. Until Gary sets it
+        to his own address (P2: "Start the allowlist with just my address"),
+        sandbox mails NOBODY on staging and every staging email reads "Dry run
+        — not sent". That is the safe direction, not a defect.
+      - >
+        Staging verification owed (the NOTIFY-5 report's checklist): the
+        button sends to Gary in sandbox; a non-allow-listed hrAckRecipients
+        address reads "Dry run — not sent"; a hand-fired pace cron reports
+        mode=sandbox, mails nobody but Gary, and writes no PaceAlertLog row
+        for the month on preview/staging (br-square-feather-a63z92vz); MANAGER
+        still redirected from /settings/notifications.
+    deferred:
+      - >
+        Everything the NOTIFY-3 audit puts in NOTIFY-6 and later: the ledger
+        and dispatcher tables, per-recipient sends, retries, the registry,
+        kind-specific test samples, suppression, milestone emails (MS-4b),
+        any change to the Resend webhook.
+    notes: >
+      BUILT 2026-10-18 (TIER 3) from docs/prompts/2026-10-18_NOTIFY-5_delivery_mode.md;
+      audit docs/prompts/2026-10-18_NOTIFY-5_AUDIT.md. Phase from the NOTIFY-3
+      audit (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 4.4 and 7).
+      RULINGS, Gary's words exactly. P0: "P0 approved: adopt the pipeline,
+      hold MS-4b behind NOTIFY-6. Write the NOTIFY-5 prompt next." P2:
+      "Approved. Staging sends real email only to addresses on an allowlist.
+      Start the allowlist with just my address. Everything else on staging is
+      sandboxed or dry-run, never delivered." The build go and the
+      ratification of the audit's seven implementation choices came through a
+      reply button whose wording Claude wrote, so they are NOT quoted as his
+      words (DECISIONS 2026-10-18 - NOTIFY-5).
+      WHAT IT DOES: deliveryMode() in src/lib/notify.ts is the one decision -
+      unset/console = dry-run, resend + VERCEL_ENV=production = live, resend
+      elsewhere = sandbox (NOTIFY_SANDBOX_ALLOWLIST only). Dry-run writes an
+      email.dryrun row ("Dry run - not sent") and NEVER a PaceAlertLog lock or
+      an email.sent row, which ends the console-mode lock burn (MS-4b audit B2)
+      and the acknowledgment "sent and lost". Pace dry-run logs at most one row
+      per store per month. Sandbox writes no lock. The test route mails the
+      caller in sandbox whether or not allow-listed. /settings/notifications
+      gains "Send a test to me". No schema.
+      FIXTURES (DEV database): scripts/verify-notify5.ts 49/49, negative
+      control 12 checks fail with the dry-run branch disabled;
+      verify-f5-polish.ts 63/63 (its pace calls now pass mode "live");
+      verify-notify-template.ts 35/35.
+      GO-LIVE NOTE: NOTIFY-3 audit section 6's rollback line "until NOTIFY-5
+      lands, console mode burns pace locks again" stops being true once this
+      reaches production - console is now a dry run that consumes nothing.
 
 
 bugs:

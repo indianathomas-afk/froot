@@ -5,6 +5,67 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-18 — NOTIFY-5: one delivery mode; staging sends only to an allowlist (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE NOTIFY-5 PRE-PUSH-CHECK.**
+
+**Gary's words, recorded exactly.**
+
+- **P0** (NOTIFY-3 audit session, quoted in the NOTIFY-5 prompt as his words
+  exactly): *"P0 approved: adopt the pipeline, hold MS-4b behind NOTIFY-6.
+  Write the NOTIFY-5 prompt next."*
+- **P2** (the NOTIFY-5 session prompt, 2026-10-18): *"Approved. Staging sends
+  real email only to addresses on an allowlist. Start the allowlist with just
+  my address. Everything else on staging is sandboxed or dry-run, never
+  delivered."*
+
+**Not his words.** The build go and the ratification of the seven
+implementation choices came through a reply button. Claude wrote its text
+("Go. Build NOTIFY-5 as planned in the audit. The choices are ratified as
+written."), so it is not quoted as Gary's (same rule as the MS-4a entry
+below). Read it as: Gary approved the plan in
+`docs/prompts/2026-10-18_NOTIFY-5_AUDIT.md` by clicking it. The choices below
+are therefore marked **Claude**, approved by click, until he ratifies this
+entry in his own words.
+
+**What was built** (`07e9253`). `deliveryMode()` in `src/lib/notify.ts` is the
+one decision for every email type:
+
+- unset or `console` → **dry-run**;
+- `resend` with `VERCEL_ENV=production` → **live**;
+- `resend` anywhere else → **sandbox**, which mails only
+  `NOTIFY_SANDBOX_ALLOWLIST`.
+
+Dry-run writes an `email.dryrun` row ("Dry run — not sent"). It never writes
+a pace lock or an `email.sent` row. See the NOTIFY-5 row in
+`docs/ROADMAP.yaml`.
+
+**Claude implementation choices** (audit "Choices for ratification", numbered
+as there):
+
+1. **Claude** — `mode` is a required option of `processPaceAlertForStore`. The
+   cron resolves it once, next to the sender.
+2. **Claude** — `deliveryMode()` throws on an unknown provider, the same way
+   `getEmailSender()` does.
+3. **Claude** — Sandbox `email.sent` rows carry `withheld: <count>`, never the
+   withheld addresses. Those go to the function log only.
+4. **Claude** — Sandbox pace sends are not deduplicated. Every hand-fire on
+   staging re-sends to the allow-listed addresses, and production (`live`)
+   keeps its lock.
+5. **Claude** — The fixture stubs `fetch` for `api.resend.com` instead of
+   adding a test-only seam to `sendAckNotification`.
+6. **Claude** — Dry-run still prints the `[notify:console]` line.
+7. **Claude** — Two concurrent dry-run evaluations can write two dry-run rows.
+   This is accepted as cosmetic.
+
+Two further **Claude** choices made during the build:
+
+- A failed sandbox acknowledgment send records only the addresses it
+  attempted.
+- The test button's result line names the HTTP status and a probable expired
+  session when the route returns no JSON. Before this it read "unknown
+  error". Found while checking the button signed out.
+
 ## 2026-10-17 — MS-4a: checklist milestones built; CHK-16 ruled (Gary)
 
 **RATIFIED BY GARY, 2026-10-17, in the MS-4a session after the build
