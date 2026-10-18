@@ -5,9 +5,28 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-18 — NOTIFY-5: one delivery mode; staging sends only to an allowlist (Gary — DRAFT entry)
+## 2026-10-18 — NOTIFY-5: one delivery mode; staging sends only to an allowlist (Gary)
 
-**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE NOTIFY-5 PRE-PUSH-CHECK.**
+**RATIFIED BY GARY, 2026-10-18, at the NOTIFY-5 PRE-PUSH-CHECK.** His reply,
+recorded exactly: *"Ratify as written, plus one ruling in my words: "Send a
+test to me" may email the admin who pressed it even when the allowlist is
+empty, because it can only ever reach the person clicking. Every other email
+on staging follows the allowlist, and an empty allowlist means nobody is
+emailed."*
+
+The seven numbered choices and the two build choices below are therefore
+ratified, not only approved by click. The banner that stood here read "DRAFT
+ENTRY — AWAITING GARY'S RATIFICATION AT THE NOTIFY-5 PRE-PUSH-CHECK." The
+prose below it is unchanged.
+
+**The test-send ruling matches the code as built (`07e9253`), checked at
+source by this check, not inferred.** `POST /api/notify/test` takes its only
+recipient from the caller's own Clerk primary email and never consults
+`NOTIFY_SANDBOX_ALLOWLIST` (`src/app/api/notify/test/route.ts`). The only
+other senders are pace alerts and HR acknowledgments. Both filter with
+`sandboxAllows` in sandbox mode (`src/lib/pace-alerts.ts`,
+`src/lib/hr-ack-notification.ts`), and an empty filtered list takes the
+dry-run path on the console sender. No code changed.
 
 **Gary's words, recorded exactly.**
 

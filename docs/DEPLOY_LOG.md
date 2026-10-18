@@ -2,6 +2,77 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-18 — NOTIFY-5: one delivery mode (live / sandbox / dry-run) for every email, and "Send a test to me"
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **NOTIFY-5 is independent of the
+Milestones payload below it** (MS-1 to MS-4a, CHK-15, BUG-15, all still
+unpromoted), but a staging → main merge carries them all together.
+
+**Payload: NOTIFY-5 plus two audit-only docs commits, on top of the
+unpromoted entries below.** Verified by `git log origin/staging..staging` at
+this check (after `git fetch origin`): exactly `3fb760d`, `0ee506f`,
+`07e9253`, `634eab3`, `93bd378`, `7673b14`. **NONE OF THEM WAS PUSHED WHEN THIS
+CHECK RAN.** All six, plus this check's own commit, are unpushed. Claude never
+pushes.
+
+| Commit | What it is |
+|---|---|
+| `7673b14` | `docs(MS-4b)`: audit only. Found that production sends no email (console provider). Forks F14–F16 |
+| `93bd378` | `docs(NOTIFY-3 AUDIT)`: email inventory and the one-pipeline proposal (P0 adopted; MS-4b held behind NOTIFY-6) |
+| `634eab3` | `docs(NOTIFY-5)`: saved session prompt |
+| `07e9253` | NOTIFY-5 work: `deliveryMode()` in `src/lib/notify.ts`, the pace-alert, acknowledgment and test-send paths on it, the `email.dryrun` row, "Send a test to me" on `/settings/notifications`, fixture `scripts/verify-notify5.ts` |
+| `0ee506f` | `docs(NOTIFY-5)`: audit, ROADMAP row, MS-4b P0 blocker, DECISIONS draft, CLAUDE.md env lines |
+| `3fb760d` | `test(NOTIFY-5)`: fixture section F, which proves staging with the allowlist unset, `""` or `" , "` resolves to sandbox and emails nobody. Fixture only, no production code |
+| the commit immediately after `3fb760d` | `docs(NOTIFY-5 PRE-PUSH-CHECK)`: DECISIONS ratified plus Gary's test-send ruling, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: EVERY EMAIL FROOT SENDS, IN EVERY ENVIRONMENT. NO SCHEMA, NO
+MIGRATION.** A new optional env var, `NOTIFY_SANDBOX_ALLOWLIST`, is read
+off production only. What changes, by environment:
+
+- **Staging** (`NOTIFY_EMAIL_PROVIDER=resend`, not production): **sandbox.**
+  Real mail goes only to `NOTIFY_SANDBOX_ALLOWLIST`, which is **UNSET in
+  Preview at this check**. So from this push on, staging pace alerts and HR
+  acknowledgment emails to `hrAckRecipients` **reach nobody**, and they record
+  "Dry run — not sent". Sandbox never writes a `PaceAlertLog` lock. The ONLY
+  exception is "Send a test to me", which mails the admin who pressed it
+  whether or not they are on the list (Gary's ruling, 2026-10-18, DECISIONS).
+  Gary adds his own address to the Preview allowlist to receive staging mail.
+- **Production with `resend`** → **live**. Same recipients, lock and audit
+  rows as before.
+- **Unset or `console`, anywhere** → **dry-run**. Rendered and logged, with one
+  `email.dryrun` row per store per month for pace. **It consumes no pace lock
+  and writes no `email.sent` row.** Before this, console mode burned the
+  store's monthly lock with nothing delivered.
+- An unknown provider value still throws, now from `deliveryMode()` as well.
+
+New UI: the ADMIN-only "Send a test to me" button on `/settings/notifications`,
+calling the existing `POST /api/notify/test`. The recipient is never supplied
+by the caller. No Square call, no cron schedule change, no Clerk change.
+
+**Rollback:** `git revert 3fb760d 07e9253`. There's no migration to unwind.
+After a revert, console mode burns pace locks again (NOTIFY-3 audit §6), and
+staging `resend` emails every configured recipient again, which P2 forbids.
+**Before reverting on staging, set `NOTIFY_EMAIL_PROVIDER` to `console` in
+Preview.** The docs commits can stay.
+
+**Staging evidence:** pending. This is the NOTIFY-5 row's "Staging
+verification owed" blocker in `docs/ROADMAP.yaml`. Name the org by id on
+every observation and branch `preview/staging` (`br-square-feather-a63z92vz`)
+on every row:
+- "Send a test to me" as ADMIN delivers to Gary with the allowlist unset, and
+  the result line reads `mode: sandbox`;
+- an HR acknowledgment to an address that isn't allow-listed reads "Dry run —
+  not sent";
+- a hand-fired pace cron reports `mode=sandbox`, mails nobody but allow-listed
+  addresses, and writes no `PaceAlertLog` row for the month;
+- MANAGER is still redirected from `/settings/notifications`.
+
+Dev-level evidence only so far: verify-notify5 55/55 (negative controls: 12
+fail with the dry-run branch disabled, 6 section-F fail with `resend` forced
+to live, both restored), verify-f5-polish 63/63, verify-notify-template 35/35,
+all on the DEV database. Nothing has been seen in an inbox from this code.
+
 ## UNPROMOTED — 2026-10-17 — MS-4a: checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

@@ -20271,10 +20271,17 @@ phases:
   - id: NOTIFY-5
     track: platform
     size: S
+    # `in_progress` -> `staging` 2026-10-18 BY THE PRE-PUSH-CHECK. None of the
+    # NOTIFY-5 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after 3fb760d, which cannot name itself) is not
+    # pushed either — Claude never pushes.
     # in_progress: work commit 07e9253 is on local `staging` and NOT pushed
     # (Claude never pushes). PRE-PUSH-CHECK owns the flip to `staging`.
-    status: in_progress
-    commits: ["07e9253"]
+    status: staging
+    commits:
+      - "07e9253"
+      - "0ee506f"
+      - "3fb760d"
     title: "One delivery mode (live / sandbox / dry-run) for every email + 'Send a test to me'"
     blockers:
       - >
@@ -20300,6 +20307,32 @@ phases:
         kind-specific test samples, suppression, milestone emails (MS-4b),
         any change to the Resend webhook.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
+      per Step 4. RULING RATIFIED, WITH ONE ADDITION IN GARY'S WORDS. The
+      docs/DECISIONS.md NOTIFY-5 entry was printed verbatim and put to Gary;
+      his whole reply, recorded exactly: "Ratify as written, plus one ruling in
+      my words: "Send a test to me" may email the admin who pressed it even
+      when the allowlist is empty, because it can only ever reach the person
+      clicking. Every other email on staging follows the allowlist, and an
+      empty allowlist means nobody is emailed." The DRAFT banner was replaced
+      by the ratification; the entry's prose is otherwise unchanged. THE
+      RULING MATCHES THE CODE AS BUILT, checked at source: the test route's
+      only recipient is the caller's Clerk primary email and it never reads
+      the allowlist; pace alerts and HR acknowledgments filter with
+      sandboxAllows and an empty result takes the dry-run path. No code
+      changed. DOCS SYNC: NO DRIFT. One recording gap closed here rather than
+      called drift, because it is the SHA-adding this check exists to do:
+      `3fb760d` (fixture section F, made after the docs commit at Gary's
+      request) was not on this row. It is now in `commits`, with docs commit
+      `0ee506f`. The FIXTURES line below ("verify-notify5.ts 49/49") was true
+      at `0ee506f` and is superseded: 55/55 at `3fb760d`, section-F negative
+      control 6 fail. docs/DEPLOY_LOG.md entry written into the file by this
+      check, headed "UNPROMOTED — 2026-10-18", heading count 75 -> 76, 71
+      lines added and none removed. CLAUDE.md carries the two env lines from
+      `0ee506f` and already states the test-send exception. Prompt and audit
+      committed in `634eab3` and `0ee506f`. No meta.updated key. Nothing has
+      been seen in an inbox; this check read files and ran `npm run build`.
       BUILT 2026-10-18 (TIER 3) from docs/prompts/2026-10-18_NOTIFY-5_delivery_mode.md;
       audit docs/prompts/2026-10-18_NOTIFY-5_AUDIT.md. Phase from the NOTIFY-3
       audit (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 4.4 and 7).
