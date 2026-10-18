@@ -9,6 +9,7 @@ import { listRecentEmails } from "@/lib/notification-log"
 import { HrAckRecipientsField } from "./hr-ack-recipients"
 import { PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
 import { RecentEmails } from "./recent-emails"
+import { TestSendButton } from "./test-send-button"
 
 // NOTIFY-2a — every email setting on one page (Gary's ruling, 2026-09-20).
 // Before this, HR-16's acknowledgment recipients and F-5b's behind-pace toggle
@@ -89,6 +90,11 @@ export default async function NotificationSettingsPage() {
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
           Who Froot emails, and when. Every email the app sends is configured here.
         </p>
+        {/* NOTIFY-5. Near the top because it answers the question this page is
+            usually opened to ask — does email work here at all. */}
+        <div className="mt-4">
+          <TestSendButton />
+        </div>
       </div>
 
       {hrAvailable && (
@@ -200,7 +206,9 @@ export default async function NotificationSettingsPage() {
             The last {recentEmails.length === 1 ? "email" : `${recentEmails.length} emails`} Froot sent
             for this organization, newest first. <span className="font-medium text-[var(--color-foreground)]">Delivered</span>{" "}
             means the receiving mail server accepted it; <span className="font-medium text-[var(--color-foreground)]">Sent</span>{" "}
-            means it was handed to the provider and no delivery result has come back yet.
+            means it was handed to the provider and no delivery result has come back yet;{" "}
+            <span className="font-medium text-[var(--color-foreground)]">Dry run</span> means the email was
+            composed and logged, and nothing left this environment.
           </p>
           <RecentEmails entries={recentEmails} timeZone={org.timezone} />
         </CardContent>

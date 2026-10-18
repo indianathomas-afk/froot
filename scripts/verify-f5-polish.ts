@@ -30,6 +30,9 @@
  *      REJECTED at the route (isGrantable is false, so PATCH /api/users/[id]
  *      400s) and IGNORED at read time even if one is written straight to the
  *      column.
+ * NOTIFY-5: every processPaceAlertForStore call passes `mode: "live"`. Mode is
+ * a REQUIRED option since NOTIFY-5, and every check here is about the live
+ * lock; dry-run and sandbox are covered by scripts/verify-notify5.ts.
  * Everything is deleted afterwards.
  */
 import "dotenv/config"
@@ -221,7 +224,7 @@ async function main() {
       // fails here rather than at the call site.
       const capture: EmailSender = { send: async (m: EmailMessage) => { sent.push(m); return {} } }
 
-      const first = await processPaceAlertForStore(storeBehind, { thresholdPct: 90, sender: capture })
+      const first = await processPaceAlertForStore(storeBehind, { thresholdPct: 90, sender: capture, mode: "live" })
       check("behind-pace store alerts", first.alerted && sent.length === 1, first.reason)
       check("pace is ~50%", first.pacePct !== null && Math.abs(first.pacePct - 50) < 2, `${first.pacePct?.toFixed(1)}%`)
       // NOTIFY-1 widened EmailMessage.to to `string | string[]`.
@@ -375,10 +378,10 @@ async function main() {
         log.map((r) => r.kind).join(", ")
       )
 
-      const second = await processPaceAlertForStore(storeBehind, { thresholdPct: 90, sender: capture })
+      const second = await processPaceAlertForStore(storeBehind, { thresholdPct: 90, sender: capture, mode: "live" })
       check("duplicate suppressed within the month", !second.alerted && sent.length === 1, second.reason)
 
-      const noPlan = await processPaceAlertForStore(storeNoPlan, { thresholdPct: 90, sender: capture })
+      const noPlan = await processPaceAlertForStore(storeNoPlan, { thresholdPct: 90, sender: capture, mode: "live" })
       check("store without a plan is skipped", !noPlan.alerted && noPlan.reason === "no plan for this month")
 
       const logRow = await prisma.paceAlertLog.findUnique({
@@ -434,7 +437,7 @@ async function main() {
       }
       let sendThrew = false
       try {
-        await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: boom })
+        await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: boom, mode: "live" })
       } catch {
         sendThrew = true
       }
@@ -448,7 +451,7 @@ async function main() {
       // The whole point of releasing the lock: the NEXT run must be able to
       // alert. Pre-F-5b this returned "already alerted this month" and the store
       // was dark for the rest of the calendar month.
-      const retry = await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture })
+      const retry = await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture, mode: "live" })
       check("DEBT-105: the next run alerts instead of reporting a phantom send", retry.alerted, retry.reason)
       const retryRow = await prisma.paceAlertLog.findUnique({
         where: { storeId_month: { storeId: storeThrow.id, month: dbDate(mStart) } },
@@ -482,7 +485,7 @@ async function main() {
       const sentAfter: EmailMessage[] = []
       const capture2: EmailSender = { send: async (m: EmailMessage) => { sentAfter.push(m); return {} } }
       await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
-      await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture2 })
+      await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture2, mode: "live" })
       const to2raw = sentAfter[0]?.to ?? []
       const to2 = Array.isArray(to2raw) ? to2raw : [to2raw]
       check(
@@ -525,6 +528,7 @@ async function main() {
       const atOwn = await processPaceAlertForStore(storeThrow, {
         thresholdPct: ownThreshold ?? envFallbackPct,
         sender: capture3,
+        mode: "live",
       })
       check(
         "NOTIFY-2a: a store that alerts at the fallback is SILENT under its org's lower threshold",
@@ -548,6 +552,7 @@ async function main() {
       const atFallback = await processPaceAlertForStore(storeThrow, {
         thresholdPct: clearedThreshold ?? envFallbackPct,
         sender: capture3,
+        mode: "live",
       })
       check(
         "NOTIFY-2a: clearing the column falls back to the deployment threshold and alerts again",
@@ -630,7 +635,7 @@ async function main() {
       const sent2c: EmailMessage[] = []
       const capture2c: EmailSender = { send: async (m: EmailMessage) => { sent2c.push(m); return {} } }
       await prisma.paceAlertLog.deleteMany({ where: { storeId: storeThrow.id } })
-      const run2c = await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture2c })
+      const run2c = await processPaceAlertForStore(storeThrow, { thresholdPct: 90, sender: capture2c, mode: "live" })
       const to2craw = sent2c[0]?.to ?? []
       const to2c = Array.isArray(to2craw) ? to2craw : [to2craw]
 

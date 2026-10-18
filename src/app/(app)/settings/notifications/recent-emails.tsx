@@ -28,6 +28,10 @@ const STATUS_STYLE: Record<EmailLogStatus, { label: string; className: string }>
   // was composed and logged, nothing left the building" is the correct
   // behaviour there rather than a fault to fix.
   "logged only": { label: "Logged only", className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]" },
+  // NOTIFY-5. Same not-an-error styling as "Logged only", which it replaces for
+  // every row written from this phase on: the email was composed and nothing
+  // left this environment, by design.
+  "dry run": { label: "Dry run — not sent", className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]" },
   unknown: { label: "Unknown", className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]" },
 }
 

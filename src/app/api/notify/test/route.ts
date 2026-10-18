@@ -2,9 +2,9 @@ import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { getOrganization, requireAdmin } from "@/lib/auth"
 import { getClerkPrimaryEmail } from "@/lib/clerk"
-import { emailProviderName, getEmailSender } from "@/lib/notify"
+import { consoleEmailSender, deliveryMode, emailProviderName, getEmailSender, type DeliveryMode } from "@/lib/notify"
 import { renderEmail } from "@/lib/email-template"
-import { ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
+import { ACTION_DRY_RUN, ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
 
 // POST /api/notify/test — NOTIFY-1. Proves real delivery from a deployed
 // environment without giving anyone a way to email arbitrary people.
@@ -18,6 +18,14 @@ import { ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notificati
 // The DB column is a copy maintained by the Clerk webhook, and this route's
 // entire job is to answer "did an email reach the human sitting here", so it
 // asks Clerk rather than a cache of Clerk.
+//
+// NOTIFY-5: every response carries `mode` (live | sandbox | dry-run; null when
+// the provider value itself is invalid). In SANDBOX the caller is mailed
+// WHETHER OR NOT they are on NOTIFY_SANDBOX_ALLOWLIST — the caller is always
+// the only recipient, which is this route's whole security model, so the
+// allowlist has nothing to protect here. In DRY-RUN the row is `email.dryrun`.
+// The "Send a test to me" button on /settings/notifications is the first UI
+// caller.
 //
 // CONSOLE MODE RETURNS ok: true AND THAT IS CORRECT. The console sender did
 // exactly what it is for — the response names the provider, so a "success"
@@ -98,7 +106,23 @@ export async function POST() {
     text,
   })
 
+  let mode: DeliveryMode | null = null
   try {
+    // Inside the try: deliveryMode() throws on an unknown provider, and that
+    // must come back as the 502 below naming the value, not as an unhandled 500.
+    mode = deliveryMode()
+    if (mode === "dry-run") {
+      await consoleEmailSender.send({ to, subject, text, html })
+      await recordEmailAttempt({
+        organizationId: org.id,
+        entityId: null,
+        kind: "test",
+        action: ACTION_DRY_RUN,
+        recipients: [to],
+        subject,
+      })
+      return NextResponse.json({ provider, to, mode, ok: true })
+    }
     const sender = getEmailSender()
     const { id } = await sender.send({ to, subject, text, html })
     await recordEmailAttempt({
@@ -110,7 +134,7 @@ export async function POST() {
       subject,
       resendId: id ?? null,
     })
-    return NextResponse.json({ provider, to, ok: true, ...(id ? { id } : {}) })
+    return NextResponse.json({ provider, to, mode, ok: true, ...(id ? { id } : {}) })
   } catch (e) {
     const message = e instanceof Error ? e.message : "email send failed"
     console.error(`[notify:test] provider=${provider}: ${message}`)
@@ -123,6 +147,6 @@ export async function POST() {
       subject,
       error: message,
     })
-    return NextResponse.json({ provider, to, ok: false, error: message }, { status: 502 })
+    return NextResponse.json({ provider, to, mode, ok: false, error: message }, { status: 502 })
   }
 }

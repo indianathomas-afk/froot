@@ -23,7 +23,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { writeAuditLog } from "@/lib/audit"
-import { emailProviderName } from "@/lib/notify"
+import { deliveryMode, emailProviderName, type DeliveryMode } from "@/lib/notify"
 
 export const NOTIFICATION_ENTITY_TYPE = "Notification"
 
@@ -33,9 +33,21 @@ export const ACTION_DELIVERED = "email.delivered"
 export const ACTION_BOUNCED = "email.bounced"
 export const ACTION_COMPLAINED = "email.complained"
 export const ACTION_DELAYED = "email.delayed"
+// NOTIFY-5. Written INSTEAD of `email.sent` when deliveryMode() is "dry-run"
+// (or a sandbox send whose allowlist filtered everyone out). It is a record of
+// an email that was composed and deliberately NOT handed to any provider —
+// never a claim that one was sent.
+export const ACTION_DRY_RUN = "email.dryrun"
 
 /** The rows an admin's "Recent emails" list is built from — one per attempt. */
-export const ATTEMPT_ACTIONS = [ACTION_SENT, ACTION_FAILED] as const
+export const ATTEMPT_ACTIONS = [ACTION_SENT, ACTION_FAILED, ACTION_DRY_RUN] as const
+/**
+ * The attempts a PROVIDER could have produced a message id for. NOTIFY-5 keeps
+ * this separate from ATTEMPT_ACTIONS on purpose: a dry-run row never carries a
+ * resendId, so the JSON-path filter alone would already exclude it — but that
+ * is an accident of shape, and findAttemptByResendId says it explicitly.
+ */
+export const PROVIDER_ATTEMPT_ACTIONS = [ACTION_SENT, ACTION_FAILED] as const
 /** Rows written by the Resend webhook, correlated to an attempt by resendId. */
 export const DELIVERY_ACTIONS = [
   ACTION_DELIVERED,
@@ -68,13 +80,15 @@ export async function recordEmailAttempt(args: {
   /** The thing the email is ABOUT, where there is one. Nullable by design. */
   entityId?: string | null
   kind: NotificationKind
-  action: typeof ACTION_SENT | typeof ACTION_FAILED
+  action: typeof ACTION_SENT | typeof ACTION_FAILED | typeof ACTION_DRY_RUN
   recipients: string[]
   subject: string
   resendId?: string | null
   error?: string
+  /** NOTIFY-5: sandbox only — how many resolved recipients the allowlist held back. */
+  withheld?: number
 }): Promise<void> {
-  const { organizationId, entityId, kind, action, recipients, subject, resendId, error } = args
+  const { organizationId, entityId, kind, action, recipients, subject, resendId, error, withheld } = args
   try {
     await writeAuditLog({
       organizationId,
@@ -88,14 +102,29 @@ export async function recordEmailAttempt(args: {
       metadata: {
         kind,
         provider: emailProviderName(),
+        // NOTIFY-5: stamped here, like provider, so no caller can forget it.
+        mode: currentModeOrNull(),
         recipients,
         subject,
         ...(resendId !== undefined ? { resendId: resendId ?? null } : {}),
         ...(error ? { error } : {}),
+        ...(withheld !== undefined ? { withheld } : {}),
       },
     })
   } catch (err) {
     console.error(`[notify-log] ${action} (${kind}) audit write failed:`, err)
+  }
+}
+
+// deliveryMode() THROWS on an unknown provider, and recordEmailAttempt runs on
+// exactly that failure path (the test route records the 502). This function
+// must never throw, so an invalid provider is recorded as mode null — the row's
+// `provider` field already names the bad value.
+function currentModeOrNull(): DeliveryMode | null {
+  try {
+    return deliveryMode()
+  } catch {
+    return null
   }
 }
 
@@ -108,6 +137,7 @@ export type EmailLogStatus =
   | "delayed"
   | "sent"
   | "logged only"
+  | "dry run"
   | "unknown"
   | "failed"
 
@@ -210,6 +240,10 @@ export async function listRecentEmails(organizationId: string, limit = 50): Prom
     if (a.action === ACTION_FAILED) {
       status = "failed"
       detail = str(m.error)
+    } else if (a.action === ACTION_DRY_RUN) {
+      // NOTIFY-5. Checked before any provider rule: a dry-run row is never a
+      // send, whatever provider was configured when it was written.
+      status = "dry run"
     } else if (event) {
       status = DELIVERY_STATUS[event.action] ?? "sent"
       detail = event.reason
@@ -253,7 +287,7 @@ export async function findAttemptByResendId(
   const row = await prisma.auditLog.findFirst({
     where: {
       entityType: NOTIFICATION_ENTITY_TYPE,
-      action: { in: [...ATTEMPT_ACTIONS] },
+      action: { in: [...PROVIDER_ATTEMPT_ACTIONS] },
       metadata: { path: ["resendId"], equals: resendId },
     },
     orderBy: { createdAt: "desc" },

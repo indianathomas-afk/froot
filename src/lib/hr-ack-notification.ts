@@ -14,9 +14,9 @@
 
 import { after } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getEmailSender } from "@/lib/notify"
+import { consoleEmailSender, deliveryMode, getEmailSender, sandboxAllows } from "@/lib/notify"
 import { renderEmail } from "@/lib/email-template"
-import { ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
+import { ACTION_DRY_RUN, ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
 
 // AuditLog shape, ruled by Gary 2026-09-20 (F2). entityType is the CHANNEL and
 // action is the OUTCOME, so a future /settings/notifications page (NOTIFY-2)
@@ -46,6 +46,9 @@ export type AckNotificationOutcome =
   | { status: "sent"; recipients: string[]; id?: string }
   | { status: "skipped"; reason: string }
   | { status: "failed"; recipients: string[]; error: string }
+  // NOTIFY-5: composed and logged, handed to no provider. `recipients` is who
+  // it WOULD have gone to.
+  | { status: "dry-run"; recipients: string[] }
 
 /**
  * Fire the completion email for a minted record, after the response is sent.
@@ -196,13 +199,27 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
     "replies.",
   ].join("\n")
 
+  // NOTIFY-5: who a failure row names. Narrowed to the allow-listed addresses
+  // once the mode is known, so a failed sandbox send never lists an address
+  // nobody tried to mail.
+  let attempted = recipients
   try {
     // THE CONSTRUCTION IS INSIDE THE TRY, NOT JUST THE SEND (Gary, 2026-09-20).
     // getEmailSender() THROWS on a misconfigured deployment and never degrades
     // to the console sender (src/lib/notify.ts:138-157) — so on staging, where
     // NOTIFY_EMAIL_PROVIDER=resend, a missing RESEND_API_KEY throws here and not
     // at send(). Outside this try that throw reaches the signing path.
-    const sender = getEmailSender()
+    //
+    // NOTIFY-5: deliveryMode() is inside the same try for the same reason — it
+    // throws on an unknown provider.
+    const mode = deliveryMode()
+    const sendTo = mode === "sandbox" ? recipients.filter(sandboxAllows) : recipients
+    const withheld = recipients.length - sendTo.length
+    attempted = sendTo
+    const dryRun = mode === "dry-run" || sendTo.length === 0
+    // Only built when something will really be sent: dry-run never needs
+    // Resend config, and a sandbox run that filtered everyone out is a dry run.
+    const sender = dryRun ? consoleEmailSender : getEmailSender()
     // replyTo is deliberately NOT set. notify.ts:19-22 anticipates HR-16 wanting
     // it; the HR-16 ruling is the later instruction and says no per-merchant
     // reply address. Sending is `USE Froot <noreply@notify.usefroot.com>`
@@ -229,17 +246,34 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
       appUrl,
       text,
     })
-    const { id } = await sender.send({ to: recipients, subject, text, html })
+    if (dryRun) {
+      await sender.send({ to: recipients, subject, text, html })
+      console.log(`[hr-ack] record=${signedRecordId} dry run (mode=${mode}) — nothing sent`)
+      await recordOutcome(org.id, signedRecordId, ACTION_DRY_RUN, subject, { recipients })
+      return { status: "dry-run", recipients }
+    }
+    // Sandbox (P2, Gary 2026-10-18): real mail to the allow-listed addresses
+    // only; the row names only them. Live: sendTo is the whole list.
+    if (withheld > 0) {
+      console.log(
+        `[hr-ack] record=${signedRecordId} sandbox: withheld ${withheld} recipient(s) not on the allowlist`
+      )
+    }
+    const { id } = await sender.send({ to: sendTo, subject, text, html })
     console.log(
-      `[hr-ack] record=${signedRecordId} sent to ${recipients.length} recipient(s) id=${id ?? "(none)"}`
+      `[hr-ack] record=${signedRecordId} sent to ${sendTo.length} recipient(s) id=${id ?? "(none)"} mode=${mode}`
     )
-    await recordOutcome(org.id, signedRecordId, ACTION_SENT, subject, { recipients, resendId: id ?? null })
-    return { status: "sent", recipients, id }
+    await recordOutcome(org.id, signedRecordId, ACTION_SENT, subject, {
+      recipients: sendTo,
+      resendId: id ?? null,
+      ...(mode === "sandbox" ? { withheld } : {}),
+    })
+    return { status: "sent", recipients: sendTo, id }
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
     console.error(`[hr-ack] record=${signedRecordId} send failed: ${error}`)
-    await recordOutcome(org.id, signedRecordId, ACTION_FAILED, subject, { recipients, error })
-    return { status: "failed", recipients, error }
+    await recordOutcome(org.id, signedRecordId, ACTION_FAILED, subject, { recipients: attempted, error })
+    return { status: "failed", recipients: attempted, error }
   }
 }
 
@@ -257,9 +291,9 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
 async function recordOutcome(
   organizationId: string,
   signedRecordId: string,
-  action: typeof ACTION_SENT | typeof ACTION_FAILED,
+  action: typeof ACTION_SENT | typeof ACTION_FAILED | typeof ACTION_DRY_RUN,
   subject: string,
-  extra: { recipients: string[]; resendId?: string | null; error?: string }
+  extra: { recipients: string[]; resendId?: string | null; error?: string; withheld?: number }
 ): Promise<void> {
   try {
     await recordEmailAttempt({

@@ -4,9 +4,16 @@ import { getMonthGoal } from "@/lib/month-goal"
 import { projectMonthEnd, round2 } from "@/lib/pacing"
 import { addDaysStr } from "@/lib/goal-engine"
 import { localDateStr, dbDate } from "@/lib/reports"
-import type { EmailSender } from "@/lib/notify"
+import { consoleEmailSender, sandboxAllows, type DeliveryMode, type EmailSender } from "@/lib/notify"
 import { renderEmail } from "@/lib/email-template"
-import { ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
+import {
+  ACTION_DRY_RUN,
+  ACTION_FAILED,
+  ACTION_SENT,
+  NOTIFICATION_ENTITY_TYPE,
+  recordEmailAttempt,
+} from "@/lib/notification-log"
+import { localMidnightUtc } from "@/lib/sales-sync"
 import { can, grantsFrom, overridesFrom } from "@/lib/permissions"
 
 // ─── Behind-pace alerts (Phase F-5) ──────────────────────────────────────────
@@ -50,7 +57,13 @@ export type PaceAlertResult = {
 // Evaluates one store and sends at most one alert per store-month.
 export async function processPaceAlertForStore(
   store: Store,
-  opts: { thresholdPct: number; sender: EmailSender; now?: Date }
+  // NOTIFY-5: `mode` is REQUIRED and comes from the caller, next to `sender`.
+  // The cron resolves both once, before its store loop, so one run cannot mix
+  // modes; deliveryMode() is still the only thing that decides it. Not
+  // defaulted from the environment on purpose: verify-f5-polish.ts asserts
+  // lock behaviour that only "live" has, and a default would silently turn it
+  // into a dry-run test on any machine without NOTIFY_EMAIL_PROVIDER set.
+  opts: { thresholdPct: number; sender: EmailSender; mode: DeliveryMode; now?: Date }
 ): Promise<PaceAlertResult> {
   const base = { storeId: store.id, storeName: store.name }
   const today = localDateStr(opts.now ?? new Date(), store.timezone)
@@ -150,35 +163,32 @@ export async function processPaceAlertForStore(
     return { ...base, pacePct: verdict.pacePct, alerted: false, reason }
   }
 
-  // ORDERING: LOCK -> SEND -> RELEASE ON FAILURE (DEBT-105, F3, Gary 2026-09-20).
-  //
-  // The log row is the idempotency lock — write it BEFORE sending so a crash
-  // or concurrent run can't double-alert. A unique violation means another
-  // run got here first. That half is unchanged and was never the defect.
-  //
-  // What was missing is the release. Until F-5b nothing undid this row when the
-  // send then threw, so a single runtime failure — a non-2xx from Resend, the
-  // 10s AbortController timeout — burned the store's one-alert-per-month lock
-  // and the NEXT day's run reported the reassuring "already alerted this month"
-  // for a mail that never left. See the release at the send below.
-  let lock: { id: string }
-  try {
-    lock = await prisma.paceAlertLog.create({
-      data: {
+  // ── NOTIFY-5: THE MODE IS DECIDED HERE, BEFORE THE LOCK ─────────────────────
+  // Only "live" reaches the lock below. dry-run and sandbox must never write a
+  // PaceAlertLog row: that row is the store's one alert for the month, and
+  // before this phase console mode consumed it with no email delivered.
+  const sendTo = opts.mode === "sandbox" ? recipients.filter(sandboxAllows) : recipients
+  const withheld = recipients.length - sendTo.length
+
+  if (opts.mode === "dry-run" || sendTo.length === 0) {
+    // AT MOST ONE DRY-RUN ROW PER STORE PER MONTH. A store that stays behind
+    // would otherwise write a row every day. Checked BEFORE rendering so a quiet
+    // repeat costs one indexed query: [organizationId, entityType, createdAt]
+    // serves the first three predicates, action and entityId filter the rest.
+    // The month boundary is store-local, the same month the lock is keyed on.
+    const existing = await prisma.auditLog.findFirst({
+      where: {
         organizationId: store.organizationId,
-        storeId: store.id,
-        month: monthKey,
-        pacePct: round2(verdict.pacePct!),
-        thresholdPct: opts.thresholdPct,
-        recipients,
+        entityType: NOTIFICATION_ENTITY_TYPE,
+        createdAt: { gte: localMidnightUtc(mStart, store.timezone) },
+        action: ACTION_DRY_RUN,
+        entityId: store.id,
       },
       select: { id: true },
     })
-  } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return { ...base, pacePct: verdict.pacePct, alerted: false, reason: "already alerted this month" }
+    if (existing) {
+      return { ...base, pacePct: verdict.pacePct, alerted: false, reason: "dry-run (already logged this month)" }
     }
-    throw e
   }
 
   const projected = projectMonthEnd({
@@ -192,6 +202,10 @@ export async function processPaceAlertForStore(
   const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.usefroot.com"
 
+  // NOTIFY-5: rendering moved above the lock so dry-run and sandbox render the
+  // same email live would. On the live path it still runs only when no lock
+  // exists yet, so the org query below is still about once per store-month.
+  //
   // NOTIFY-2b. THE ORG NAME IS FETCHED HERE RATHER THAN WIDENING THE SIGNATURE.
   // processPaceAlertForStore is typed `store: Store` and NOTIFY-2a deliberately
   // kept it that way — including `organization` on the cron's store query would
@@ -246,6 +260,93 @@ export async function processPaceAlertForStore(
     appUrl,
     text,
   })
+
+  if (opts.mode === "dry-run" || sendTo.length === 0) {
+    // Logged through the console sender whatever the configured provider: a
+    // sandbox run whose allowlist held nobody must not reach Resend.
+    await consoleEmailSender.send({ to: recipients, subject, text, html })
+    await recordEmailAttempt({
+      organizationId: store.organizationId,
+      entityId: store.id,
+      kind: "pace.alert",
+      action: ACTION_DRY_RUN,
+      recipients,
+      subject,
+    })
+    return { ...base, pacePct: verdict.pacePct, alerted: false, reason: "dry-run", recipients }
+  }
+
+  if (opts.mode === "sandbox") {
+    // REAL MAIL, ALLOW-LISTED ADDRESSES ONLY, AND NO LOCK (P2, Gary
+    // 2026-10-18). Staging must never consume a month. Not deduplicated either:
+    // Vercel crons run only on production, so a sandbox run is a hand-fire, and
+    // re-sending is what a hand-fire is for (NOTIFY-5 audit, choice 4).
+    if (withheld > 0) {
+      console.log(
+        `[pace-alerts] store=${store.id} sandbox: withheld ${withheld} recipient(s) not on the allowlist: ${recipients
+          .filter((r) => !sendTo.includes(r))
+          .join(", ")}`
+      )
+    }
+    try {
+      const { id } = await opts.sender.send({ to: sendTo, subject, text, html })
+      await recordEmailAttempt({
+        organizationId: store.organizationId,
+        entityId: store.id,
+        kind: "pace.alert",
+        action: ACTION_SENT,
+        recipients: sendTo,
+        subject,
+        resendId: id ?? null,
+        withheld,
+      })
+    } catch (e) {
+      await recordEmailAttempt({
+        organizationId: store.organizationId,
+        entityId: store.id,
+        kind: "pace.alert",
+        action: ACTION_FAILED,
+        recipients: sendTo,
+        subject,
+        error: e instanceof Error ? e.message : String(e),
+        withheld,
+      })
+      throw e
+    }
+    return { ...base, pacePct: verdict.pacePct, alerted: true, reason: "sandbox", recipients: sendTo }
+  }
+
+  // ── live: unchanged from NOTIFY-2c ──────────────────────────────────────────
+  // ORDERING: LOCK -> SEND -> RELEASE ON FAILURE (DEBT-105, F3, Gary 2026-09-20).
+  //
+  // The log row is the idempotency lock — write it BEFORE sending so a crash
+  // or concurrent run can't double-alert. A unique violation means another
+  // run got here first. That half is unchanged and was never the defect.
+  //
+  // What was missing is the release. Until F-5b nothing undid this row when the
+  // send then threw, so a single runtime failure — a non-2xx from Resend, the
+  // 10s AbortController timeout — burned the store's one-alert-per-month lock
+  // and the NEXT day's run reported the reassuring "already alerted this month"
+  // for a mail that never left. See the release at the send below.
+  let lock: { id: string }
+  try {
+    lock = await prisma.paceAlertLog.create({
+      data: {
+        organizationId: store.organizationId,
+        storeId: store.id,
+        month: monthKey,
+        pacePct: round2(verdict.pacePct!),
+        thresholdPct: opts.thresholdPct,
+        recipients,
+      },
+      select: { id: true },
+    })
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { ...base, pacePct: verdict.pacePct, alerted: false, reason: "already alerted this month" }
+    }
+    throw e
+  }
 
   // RELEASE ON FAILURE. Deleting BY ID is the whole of the concurrency
   // argument and is not a style choice: a delete by the {storeId, month} unique
