@@ -20368,6 +20368,20 @@ phases:
     title: "Production email go-live — real mail from production for the existing types (Gary-side checklist)"
     blockers:
       - >
+        DMARC STEP SUPERSEDED, 2026-10-18 (Gary). His replacement for the "add
+        a DMARC record for the sending domain" step in the entry below, in his
+        words exactly: "DMARC already exists at p=quarantine on usefroot.com —
+        confirm at go-live; optionally redirect rua reports to an address Gary
+        reads." EVIDENCE, Gary, 2026-10-18, via `dig TXT _dmarc.usefroot.com`:
+        "v=DMARC1; p=quarantine; adkim=r; aspf=r;
+        rua=mailto:dmarc_rua@onsecureserver.net;". `_dmarc.notify.usefroot.com`
+        has no record, so notify.usefroot.com inherits the parent policy. In
+        Gary's finding, SPF and DKIM are verified in Resend, so Froot mail
+        passes DMARC, and the Junk result is likely new-domain reputation (see
+        DEBT-109). The rest of the entry below (SPF and DKIM green, a small set
+        of internal recipients first, the Junk observation) still stands. It is
+        kept verbatim.
+      - >
         GARY'S PRE-GO-LIVE CONDITIONS, his words exactly (2026-10-18, at the
         NOTIFY-5 PRE-PUSH-CHECK): "Before go-live: confirm SPF and DKIM are
         green in Resend for notify.usefroot.com; add a DMARC record for the
@@ -20375,6 +20389,16 @@ phases:
         recipients before all managers. The first staging test (2026-10-18)
         delivered but landed in Outlook Junk."
       - >
+        RESOLVED 2026-10-18. The entry below is kept verbatim. A DMARC record
+        EXISTS, and it is p=quarantine, not p=none. It is on the parent
+        usefroot.com, which notify.usefroot.com inherits because it has no
+        record of its own (Gary's dig, quoted in the first blocker above). So
+        neither half of the question below was right: Gary's original words
+        ("add a DMARC record") assumed there was none, and the audit's step 2
+        and DEBT-109's step 2 assumed p=none. The audit's step 2 ("DMARC
+        `p=none`") in the quoted checklist is therefore wrong on the policy
+        value. It stays in the quote, which is a claim of record, and this
+        entry is its correction.
         OPEN, NOT RESOLVED HERE: does a DMARC record exist for the sending
         domain? Gary's words say "add a DMARC record". The audit's step 2 below
         says to confirm notify.usefroot.com shows "SPF, DKIM, DMARC `p=none`",
@@ -31576,6 +31600,24 @@ debt:
       Deliverability — mail from the new sending domain lands in Outlook Junk;
       there is no code fix, only a warm-up and a DMARC tightening
     notes: >
+      ── DMARC FINDING 2026-10-18 (Gary). PREPENDED; NOTHING BELOW IS EDITED. ──
+      EVIDENCE, Gary, 2026-10-18, via `dig TXT _dmarc.usefroot.com`:
+      "v=DMARC1; p=quarantine; adkim=r; aspf=r;
+      rua=mailto:dmarc_rua@onsecureserver.net;". `_dmarc.notify.usefroot.com`
+      has no record, so the sending subdomain inherits the parent policy.
+      THE OPEN DMARC QUESTION IN THE NOTE BELOW IS RESOLVED: a record exists,
+      and it is p=quarantine, not p=none. CORRECTION TO STEP 2 FURTHER DOWN
+      (the premise, not the remedy): step 2 ("TIGHTEN DMARC TO p=quarantine")
+      assumed the domain sat at p=none. It does not. The policy step 2 aims
+      for is already in force on the parent, so the "DMARC tightening" in this
+      row's title has nothing left to tighten toward. Step 2's warning about
+      ordering is kept as written. In Gary's finding, SPF and DKIM are
+      verified in Resend, so Froot mail passes DMARC, and the 2026-10-18 Junk
+      result is likely new-domain reputation. That is step 1's territory
+      (Not-Junk the first sends), and it is this row's original diagnosis.
+      NOTIFY-10's DMARC step is superseded with Gary's words: "DMARC already
+      exists at p=quarantine on usefroot.com — confirm at go-live; optionally
+      redirect rua reports to an address Gary reads."
       ── NOTE 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
       SEE NOTIFY-10 (production email go-live), filed the same day. Its
       blockers carry Gary's pre-go-live conditions in his words, and the
