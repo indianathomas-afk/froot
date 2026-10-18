@@ -20285,6 +20285,21 @@ phases:
     title: "One delivery mode (live / sandbox / dry-run) for every email + 'Send a test to me'"
     blockers:
       - >
+        DISCHARGED 2026-10-18 — THE THREE BLOCKERS BELOW, ONE OF THEM BY
+        SUBSTITUTION. Prepended per preserve-and-mark; nothing below is edited.
+        (1) NOT PUSHED: no longer true. 07e9253, 0ee506f, 3fb760d and 16832d0
+        are on origin/staging (git branch -r --contains 16832d0 -> origin/staging),
+        and Gary's staging footer read 1037b89, so the deployment he tested
+        contained the NOTIFY-5 code. (2) ALLOWLIST UNSET: Gary set it — the
+        signed acknowledgment below reached gary@kevajuice.com through the
+        sandbox allowlist. This row records that address as reached, not the
+        variable's full value. (3) STAGING VERIFICATION OWED: see the 2026-10-18
+        STAGING EVIDENCE note. Two of its four items were observed by Gary; the
+        hand-fired pace cron was NOT run and is accepted as fixture-proven
+        instead; the "non-allow-listed hrAckRecipients address reads 'Dry run —
+        not sent'" item was not reported observed on staging and rests on
+        fixture section D/F (DEV database) only.
+      - >
         NOT PUSHED. Work commit 07e9253 and this docs commit are on local
         staging only. Every staging check below waits on Gary's push and the
         staging-SHA precondition.
@@ -20307,6 +20322,24 @@ phases:
         kind-specific test samples, suppression, milestone emails (MS-4b),
         any change to the Resend webhook.
     notes: >
+      ── STAGING EVIDENCE 2026-10-18 (Gary). PREPENDED; NOTHING BELOW IS EDITED. ──
+      Reported by Gary, staging (Vercel Preview), footer 1037b89 — the
+      deployment contains work commit 07e9253. Status stays `staging`; this
+      note records evidence, it does not promote. (a) "Send a test to me"
+      DELIVERED to indianathomas@live.com — it landed in Outlook JUNK, not the
+      inbox; Resend id 01a15062-e6ed-7312-a501-6ae62acb9213. Junk placement is
+      a deliverability fact for NOTIFY-10, not a NOTIFY-5 defect. (b) A signed
+      HR acknowledgment DELIVERED to gary@kevajuice.com via the sandbox
+      allowlist. (c) PACE ALERT PATH: NOT hand-fired on staging. Accepted as
+      fixture-proven — scripts/verify-notify5.ts 55/55 at 3fb760d on the DEV
+      database, including section F's env-driven sandbox checks (mode resolved
+      from env, not passed as a literal). The staging claims "mode=sandbox,
+      mails nobody but Gary, writes no PaceAlertLog row on
+      br-square-feather-a63z92vz" are therefore NOT observed; no staging
+      PaceAlertLog query was run. (d) Pace alerts were switched back OFF after
+      the pass. (e) MANAGER (Tommy) pasting /settings/notifications was
+      redirected to /dashboard — the role gate holds on staging. Org id for (a),
+      (b) and (e) was not reported with the observations.
       ── PRE-PUSH-CHECK 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
       READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
       per Step 4. RULING RATIFIED, WITH ONE ADDITION IN GARY'S WORDS. The
