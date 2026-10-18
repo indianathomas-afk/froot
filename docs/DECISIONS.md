@@ -5,6 +5,44 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-18 — NOTIFY-3 audit forks P1, P3–P6 ruled; NOTIFY-6 to NOTIFY-9 filed (Gary)
+
+**Gary's words, recorded exactly** (session prompt, 2026-10-18, headed
+"Rulings (Gary, 2026-10-18, my words)"):
+
+- **P1:** *"Yes — one-click unsubscribe on every operational email, before a
+  second tenant."*
+- **P3:** *"Yes — sender shows "{Org name} via Froot"."*
+- **P4:** *"Yes — optional per-org reply-to, unset by default."*
+- **P5:** *"Yes — 180 days for messages, events and deliveries; sent-once
+  locks kept forever."*
+- **P6:** *"Yes — replace MS-4b's F16: retry only the recipients who didn't
+  get it, using per-recipient delivery rows."*
+
+The forks are in `docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md` ("Forks for
+Gary"; design in § 4.2, § 4.3 and § 5). P0 and P2 were ruled earlier and are
+recorded in the NOTIFY-5 entry below.
+
+**What each one reverses or replaces.**
+
+- **P1** reverses NOTIFY-2c's "no unsubscribe anywhere" (Gary, 2026-09-20).
+  That ruling is not edited; this one supersedes it for operational email.
+- **P4** reopens HR-16's "no per-merchant reply address". The default is
+  unchanged (unset = no-reply).
+- **P6** replaces the MS-4b audit's **F16 lean** (`docs/prompts/2026-10-17_MS-4b_AUDIT.md`).
+  F16 was never ruled. Its lean was to mark a partly failed milestone
+  `failed` and never retry it.
+
+**Where they land** (`docs/ROADMAP.yaml`): P6 on **NOTIFY-6** and **MS-4b**
+(F16 marked superseded, preserve-and-mark); P1, P3, P4 and P5 on
+**NOTIFY-8**. **NOTIFY-7** and **NOTIFY-9** carry no ruling. All four new rows
+are `planned`, filed from the audit's § 7 phase table.
+
+**Not his words.** The audit's design details quoted on the rows (header
+sanitising, the `List-Unsubscribe` mechanism, `engagement-prune` as the prune
+host) are the audit's leans. Gary approved the forks. He did not rule on those
+details one by one.
+
 ## 2026-10-18 — NOTIFY-5: one delivery mode; staging sends only to an allowlist (Gary)
 
 **RATIFIED BY GARY, 2026-10-18, at the NOTIFY-5 PRE-PUSH-CHECK.** His reply,

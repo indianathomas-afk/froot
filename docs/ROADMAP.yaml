@@ -7782,6 +7782,20 @@ phases:
     title: "Staff Milestones — ADMIN/MANAGER milestone emails (production only, sent once, per-user switch-off)"
     blockers:
       - >
+        F16 SUPERSEDED, 2026-10-18 (fork P6, NOTIFY-3 audit). Prepended per
+        preserve-and-mark; nothing below is edited. Gary's words exactly: "P6:
+        Yes — replace MS-4b's F16: retry only the recipients who didn't get it,
+        using per-recipient delivery rows." F16 in
+        docs/prompts/2026-10-17_MS-4b_AUDIT.md was a lean, never ruled: a
+        milestone where some emails went and some failed is set to `failed` and
+        NOT retried. That lean is dead. Under NOTIFY-6 each (intent, recipient)
+        has a NotificationDelivery row; a partial send leaves the intent
+        `partial` and the retry mails only recipients with no `sent` row. MS-4b
+        builds no partial-failure rule of its own. The 2026-10-17 MS-4b prompt's
+        "sent-once row ... removed if the send fails" shape and its `failed`
+        state are superseded with it; that prompt is a claim wholesale and is
+        not edited.
+      - >
         DO NOT BUILD until Gary confirms production's NOTIFY_EMAIL_PROVIDER
         (Gary, MS-4 session: "MS-4b: don't build until I confirm production's
         NOTIFY_EMAIL_PROVIDER.").
@@ -20393,6 +20407,129 @@ phases:
       GO-LIVE NOTE: NOTIFY-3 audit section 6's rollback line "until NOTIFY-5
       lands, console mode burns pace locks again" stops being true once this
       reaches production - console is now a dry run that consumes nothing.
+
+  - id: NOTIFY-6
+    track: platform
+    size: M-L
+    status: planned
+    title: "One notification pipeline — intent ledger, dispatcher, registry, per-recipient sends, retry"
+    blockers:
+      - >
+        DEPENDS ON NOTIFY-5 (on staging since 2026-10-18). NOTIFY-6 builds on
+        deliveryMode() / sandboxAllows() in src/lib/notify.ts; it does not
+        re-decide the mode table.
+      - >
+        SCHEMA PHASE. Four additive tables, one migration. Per CLAUDE.md
+        "A migration STOPS the session": the session generates the SQL with
+        `migrate diff`, STOPS, and commits nothing until Gary has applied it to
+        dev and the fixture has run green against the applied schema.
+    notes: >
+      FILED 2026-10-18 from the NOTIFY-3 audit phase table
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7; design in sections
+      4.1-4.3, 4.5, 4.7). Tier lean TIER 3 (Gary declares it). Session prompt:
+      docs/prompts/2026-10-18_NOTIFY-6_pipeline.md.
+      WHAT (audit section 7, as written there): four tables (migration, STOP
+      for Gary), enqueueNotification, dispatchNotifications, the registry,
+      freshness, per-recipient sends, partial-failure retry, hourly sweep.
+      Migrate pace, hr.ack and test onto it. Parallel writes to PaceAlertLog
+      and AuditLog for one release; reader switches to NotificationMessage.
+      Webhook re-pointed at the indexed column. Shared fixture template.
+      RULING P6, Gary's words exactly (2026-10-18): "P6: Yes — replace MS-4b's
+      F16: retry only the recipients who didn't get it, using per-recipient
+      delivery rows." So: NotificationDelivery holds one row per (intent,
+      recipient); a partly failed send leaves the intent `partial`, and the
+      retry sends ONLY to resolved recipients with no `sent` delivery row.
+      Nobody who got the email gets it twice. This replaces the MS-4b audit's
+      F16 lean (see the MS-4b row).
+      RULING P0 (already recorded on NOTIFY-5 and MS-4b): "P0 approved: adopt
+      the pipeline, hold MS-4b behind NOTIFY-6."
+      NOT IN NOTIFY-6: suppression (NOTIFY-7), From display name, reply-to,
+      unsubscribe, retention, per-org cap, generic setting table (all
+      NOTIFY-8), stopping the legacy writes (NOTIFY-9), milestone emails
+      (MS-4b).
+      Cross-refs: NOTIFY-5, NOTIFY-7, NOTIFY-8, NOTIFY-9, MS-4b, NOTIFY-10.
+
+  - id: NOTIFY-7
+    track: platform
+    size: S-M
+    status: planned
+    title: "Suppression and bounce handling — hard bounces and complaints stop being mailed"
+    blockers:
+      - >
+        DEPENDS ON NOTIFY-6 and on a Resend webhook endpoint being provisioned
+        (RESEND_WEBHOOK_SECRET set) in the environment it is verified in.
+    notes: >
+      FILED 2026-10-18 from the NOTIFY-3 audit phase table
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7; design in section
+      4.6). Tier lean TIER 3 (Gary declares it).
+      WHAT (audit section 7, as written there): EmailSuppression, dispatch
+      skip, admin view and clear, user-row badge. Hard bounce or complaint ->
+      suppressed address; dispatch records the delivery as `suppressed`; soft
+      bounces and delays never suppress. Suppression is per sending domain
+      (Resend's own is per account), shown to each org only for its own
+      recipients; clearing is audited.
+      No ruling attached. Cross-refs: NOTIFY-6, NOTIFY-8, DEBT-109.
+
+  - id: NOTIFY-8
+    track: platform
+    size: M
+    status: planned
+    title: "Tenant onboarding for email — '{Org} via Froot', optional reply-to, one-click unsubscribe, 180-day retention"
+    blockers:
+      - >
+        DEPENDS ON NOTIFY-6. P1, P3, P4 and P5 are RULED (below), so no fork
+        blocks it.
+      - >
+        P1's ORDER: Gary ruled unsubscribe goes in "before a second tenant".
+        NOTIFY-8 (or at least its P1 half) must be on production before a
+        second business is onboarded to email.
+    notes: >
+      FILED 2026-10-18 from the NOTIFY-3 audit phase table
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7; design in section
+      5). Tier lean TIER 3 (Gary declares it).
+      WHAT (audit section 7, as written there): sanitised org display name in
+      From, optional reply-to (if P4), generic per-org setting table,
+      onboarding step, per-org daily cap, retention prune, and one-click
+      unsubscribe (if P1). P1 and P4 were both approved, so neither "if"
+      applies.
+      RULINGS, Gary's words exactly (2026-10-18):
+      P1: "Yes — one-click unsubscribe on every operational email, before a
+      second tenant." (Reverses NOTIFY-2c's "no unsubscribe anywhere",
+      2026-09-20. The audit's design: List-Unsubscribe + List-Unsubscribe-Post
+      on every operational email, a signed link that denies that kind's
+      notify.*.receive for that user — the same switch as the grid — and, for
+      an hrAckRecipients address, removes it from the list.)
+      P3: "Yes — sender shows "{Org name} via Froot"." (Address stays
+      noreply@notify.usefroot.com; org name sanitised before it reaches a
+      header: strip " < > CR LF, collapse whitespace, cap about 60 chars.)
+      P4: "Yes — optional per-org reply-to, unset by default." (Reopens HR-16's
+      "no per-merchant reply address"; unset = no-reply, as today.)
+      P5: "Yes — 180 days for messages, events and deliveries; sent-once locks
+      kept forever." (Pruned in the existing engagement-prune cron;
+      NotificationIntent state is never pruned.)
+      GO-LIVE NOTE: NOTIFY-10 sets NOTIFY_FROM_EMAIL to "USE Froot
+      <noreply@...>". P3 replaces that display name per org when NOTIFY-8
+      ships; it does not block NOTIFY-10.
+      Cross-refs: NOTIFY-6, NOTIFY-7, NOTIFY-10, NOTIFY-2c, HR-16, DEBT-109.
+
+  - id: NOTIFY-9
+    track: platform
+    size: S
+    status: planned
+    title: "Legacy notification retirement — stop the parallel PaceAlertLog and AuditLog writes"
+    blockers:
+      - >
+        DEPENDS ON NOTIFY-6 having been in production for one release with
+        parallel writes.
+    notes: >
+      FILED 2026-10-18 from the NOTIFY-3 audit phase table
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7). Tier lean TIER 2
+      (Gary declares it).
+      WHAT (audit section 7, as written there): after one release with
+      parallel writes, stop writing PaceAlertLog and Notification AuditLog
+      rows (tables and columns stay — additive-only), mark the legacy reader
+      as history-only. No drop, ever.
+      No ruling attached. Cross-refs: NOTIFY-6.
 
   - id: NOTIFY-10
     track: platform
