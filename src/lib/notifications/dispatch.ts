@@ -47,6 +47,19 @@
 // person twice. A `pending` row older than STALE_PENDING_MS belonged to a
 // dispatcher that died mid-send and is reclaimed (audit choice 2).
 //
+// THE GROUPED MODE (MS-4b ruling 1, Gary 2026-10-19: "one email per person per
+// day, via a new grouping mode in the dispatcher"). A kind with batch
+// "per-recipient-daily" goes through dispatchGrouped: the same freshness →
+// switch → recipients → P6 steps per intent, then every intent due for one
+// recipient is rendered into ONE email. Delivery rows stay per (intent,
+// recipient) and point at that one message, so P6 holds per item. A summary's
+// NotificationMessage leaves intentId null and lists what it covered in
+// intentIds (N1(a)) — the only record a dry run has, since dry-run and sandbox
+// write no delivery rows. THE SWEEP NEVER MAKES A GROUPED FIRST SEND (MS-4b
+// choice C3): it retries intents with attempts > 0 and expires the rest, so a
+// first send happens only in the daily producer run and "one per day" holds.
+// "per-intent" kinds never reach that code path and behave exactly as before.
+//
 // NOTHING HERE THROWS TO A CALLER. enqueue logs and returns null; dispatch
 // records a per-intent error and moves on. The signing path calls both.
 
@@ -73,6 +86,7 @@ import {
   getKind,
   type IntentState,
   type KindIntent,
+  type GroupedKindDef,
   type NotificationKindDef,
   type NotificationOrg,
   type Rendered,
@@ -186,6 +200,43 @@ async function enqueueOnce(args: EnqueueArgs, retryOnRace: boolean): Promise<Enq
   return { intentId: existing.id, state: existing.state as IntentState, created: false, refreshed: false }
 }
 
+/**
+ * MS-4b ruling 2 (Gary, 2026-10-19): "Milestones reached more than 7 days
+ * before the job runs are recorded as known without sending." CREATE-ONLY: a
+ * `known` row is written only when no intent exists for the key. ANY existing
+ * row — queued, expired, sent, partial, failed — is left exactly as it is, so
+ * a dry-run intent that aged past the window expires by freshness rather than
+ * being relabelled, and nothing `known` is ever dispatched (DISPATCHABLE is
+ * queued/partial only). NEVER THROWS; null after logging a failed write.
+ */
+export async function recordKnownNotification(args: EnqueueArgs): Promise<EnqueueResult | null> {
+  const { organizationId, kind, dedupeKey, entityId, eventAt, payload } = args
+  try {
+    const existing = await prisma.notificationIntent.findUnique({
+      where: { organizationId_kind_dedupeKey: { organizationId, kind, dedupeKey } },
+      select: { id: true, state: true },
+    })
+    if (existing) return { intentId: existing.id, state: existing.state as IntentState, created: false, refreshed: false }
+    try {
+      const row = await prisma.notificationIntent.create({
+        data: { organizationId, kind, dedupeKey, entityId: entityId ?? null, eventAt, payload, state: "known" },
+        select: { id: true },
+      })
+      return { intentId: row.id, state: "known", created: true, refreshed: false }
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e
+      const now = await prisma.notificationIntent.findUnique({
+        where: { organizationId_kind_dedupeKey: { organizationId, kind, dedupeKey } },
+        select: { id: true, state: true },
+      })
+      return now ? { intentId: now.id, state: now.state as IntentState, created: false, refreshed: false } : null
+    }
+  } catch (err) {
+    console.error(`[notify] known ${kind} ${dedupeKey} org=${organizationId} failed:`, err)
+    return null
+  }
+}
+
 // ── Dispatch ─────────────────────────────────────────────────────────────────
 
 export type RecipientResult = {
@@ -241,7 +292,35 @@ export async function dispatchNotifications(opts: {
   })
 
   const results: IntentDispatchResult[] = []
+
+  // Grouped kinds: one dispatchGrouped call per (org, kind), in first-seen order.
+  const groups = new Map<string, { def: GroupedKindDef<unknown>; intents: IntentRow[] }>()
+  const perIntent: IntentRow[] = []
   for (const intent of intents) {
+    const def = getKind(intent.kind)
+    if (def?.batch === "per-recipient-daily") {
+      const key = `${intent.organizationId}\u0000${intent.kind}`
+      const g = groups.get(key) ?? { def, intents: [] }
+      g.intents.push(intent)
+      groups.set(key, g)
+    } else {
+      perIntent.push(intent)
+    }
+  }
+  for (const g of groups.values()) {
+    try {
+      results.push(...(await dispatchGrouped(g.def, g.intents, opts.transport, opts.trigger, now)))
+    } catch (err) {
+      const msg = errorText(err)
+      console.error(`[notify] grouped ${g.def.kind} org=${g.intents[0].organizationId} dispatch threw: ${msg}`)
+      for (const intent of g.intents) {
+        await prisma.notificationIntent.update({ where: { id: intent.id }, data: { lastError: msg } }).catch(() => {})
+        results.push(skippedResult(intent, `error: ${msg.slice(0, 200)}`))
+      }
+    }
+  }
+
+  for (const intent of perIntent) {
     try {
       results.push(await dispatchOne(intent, opts.transport, opts.trigger, now))
     } catch (err) {
@@ -250,17 +329,7 @@ export async function dispatchNotifications(opts: {
       await prisma.notificationIntent
         .update({ where: { id: intent.id }, data: { lastError: msg } })
         .catch(() => {})
-      results.push({
-        intentId: intent.id,
-        organizationId: intent.organizationId,
-        kind: intent.kind,
-        outcome: "skipped",
-        reason: `error: ${msg.slice(0, 200)}`,
-        candidates: 0,
-        eligible: 0,
-        recipients: [],
-        withheld: 0,
-      })
+      results.push(skippedResult(intent, `error: ${msg.slice(0, 200)}`))
     }
   }
   return results
@@ -268,7 +337,40 @@ export async function dispatchNotifications(opts: {
 
 type IntentRow = NotificationIntent
 
-const ORG_SELECT = { id: true, name: true, timezone: true, paceAlertsEnabled: true, hrAckRecipients: true } as const
+function skippedResult(intent: IntentRow, reason: string): IntentDispatchResult {
+  return {
+    intentId: intent.id,
+    organizationId: intent.organizationId,
+    kind: intent.kind,
+    outcome: "skipped",
+    reason,
+    candidates: 0,
+    eligible: 0,
+    recipients: [],
+    withheld: 0,
+  }
+}
+
+const ORG_SELECT = {
+  id: true,
+  name: true,
+  timezone: true,
+  paceAlertsEnabled: true,
+  hrAckRecipients: true,
+  clerkOrgId: true,
+  activeModules: true,
+  milestonesEnabled: true,
+  milestoneAlertsEnabled: true,
+  milestoneSettings: { select: { checklistMilestonesEnabled: true } },
+} as const
+
+/** The org as a kind sees it. Null when the row is gone. */
+async function loadOrg(organizationId: string): Promise<NotificationOrg | null> {
+  const row = await prisma.organization.findUnique({ where: { id: organizationId }, select: ORG_SELECT })
+  if (!row) return null
+  const { milestoneSettings, ...org } = row
+  return { ...org, checklistMilestonesEnabled: milestoneSettings?.checklistMilestonesEnabled ?? false }
+}
 
 function toKindIntent(intent: IntentRow): KindIntent<unknown> {
   return {
@@ -308,7 +410,7 @@ async function eligibleRecipients(
     ) {
       continue
     }
-    if (def.exclude?.(ki, r)) continue
+    if (def.exclude && (await def.exclude(ki, r))) continue
     if (seen.has(key)) continue
     seen.add(key)
     eligible.push({ ...r, email: key })
@@ -317,8 +419,16 @@ async function eligibleRecipients(
 }
 
 function safeRender(def: NotificationKindDef<unknown>, payload: unknown, org: NotificationOrg, to: string): Rendered {
+  return def.batch === "per-recipient-daily" ? safeRenderGroup(def, [payload], org, to) : guard(def, () => def.render(payload, org, to))
+}
+
+function safeRenderGroup(def: GroupedKindDef<unknown>, payloads: unknown[], org: NotificationOrg, to: string): Rendered {
+  return guard(def, () => def.renderGroup(payloads, org, to))
+}
+
+function guard(def: NotificationKindDef<unknown>, render: () => Rendered): Rendered {
   try {
-    return def.render(payload, org, to)
+    return render()
   } catch (err) {
     return { subject: def.label, error: `render failed: ${errorText(err)}` }
   }
@@ -360,9 +470,9 @@ async function dispatchOne(
   }
 
   // 2. The org switch — queued and partial alike.
-  const org = await prisma.organization.findUnique({ where: { id: intent.organizationId }, select: ORG_SELECT })
+  const org = await loadOrg(intent.organizationId)
   if (!org) return { ...result, outcome: "skipped", reason: "organization not found" }
-  if (!def.enabled(org)) {
+  if (!def.enabled(org, ki)) {
     await expire(intent.id, DISPATCHABLE, "switched off for this organization")
     return { ...result, outcome: "expired", reason: "switched off for this organization" }
   }
@@ -604,6 +714,197 @@ async function finalize(
   }
 }
 
+// ── Grouped dispatch (MS-4b) ─────────────────────────────────────────────────
+
+type GroupEntry = {
+  intent: IntentRow
+  ki: KindIntent<unknown>
+  result: IntentDispatchResult
+  eligible: ResolvedRecipient[]
+  deliveryOf: Map<string, { id: string; recipient: string; state: string; updatedAt: Date }>
+}
+
+/**
+ * Every due intent of ONE grouped kind in ONE org. Steps 1–3 are dispatchOne's,
+ * per intent. Then each recipient gets ONE email covering exactly the intents
+ * THEY are eligible for — the map is built from each intent's own eligible
+ * list, never "every intent to everyone" (MS-4b audit B5 item 6: a Store A
+ * manager must never read a Store B employee's milestone).
+ */
+async function dispatchGrouped(
+  def: GroupedKindDef<unknown>,
+  intents: IntentRow[],
+  transport: Transport,
+  trigger: DispatchTrigger,
+  now: Date
+): Promise<IntentDispatchResult[]> {
+  const org = await loadOrg(intents[0].organizationId)
+  if (!org) return intents.map((i) => skippedResult(i, "organization not found"))
+
+  const out: IntentDispatchResult[] = []
+  const entries: GroupEntry[] = []
+  for (const intent of intents) {
+    const ki = toKindIntent(intent)
+    const result: IntentDispatchResult = { ...skippedResult(intent, ""), outcome: intent.state as IntentState }
+    out.push(result)
+
+    // 1. Freshness — queued only, as dispatchOne.
+    if (intent.state === "queued" && now.getTime() - intent.eventAt.getTime() > def.freshnessMinutes * 60_000) {
+      await expire(intent.id, ["queued"], "past the freshness window")
+      Object.assign(result, { outcome: "expired", reason: "past the freshness window" })
+      continue
+    }
+    // 2. The switch — queued and partial alike.
+    if (!def.enabled(org, ki)) {
+      await expire(intent.id, DISPATCHABLE, "switched off for this organization")
+      Object.assign(result, { outcome: "expired", reason: "switched off for this organization" })
+      continue
+    }
+    // C3: the sweep retries; it never makes a grouped FIRST send.
+    if (trigger === "sweep" && intent.attempts === 0) {
+      result.reason = "first send waits for the daily run"
+      continue
+    }
+    // 3. Recipients, resolved now, never cached.
+    const { candidates, eligible } = await eligibleRecipients(def, ki, org)
+    result.candidates = candidates
+    result.eligible = eligible.length
+    if (eligible.length === 0) {
+      result.reason = "no eligible recipients"
+      continue
+    }
+    const deliveries = await prisma.notificationDelivery.findMany({
+      where: { intentId: intent.id },
+      select: { id: true, recipient: true, state: true, updatedAt: true },
+    })
+    entries.push({ intent, ki, result, eligible, deliveryOf: new Map(deliveries.map((d) => [d.recipient, d])) })
+  }
+
+  // Recipient → the entries they get. P6: never a pair with a `sent` delivery.
+  const byRecipient = new Map<string, { r: ResolvedRecipient; items: GroupEntry[] }>()
+  for (const e of entries) {
+    for (const r of e.eligible) {
+      if (e.deliveryOf.get(r.email)?.state === "sent") continue
+      const slot = byRecipient.get(r.email) ?? { r, items: [] }
+      slot.items.push(e)
+      byRecipient.set(r.email, slot)
+    }
+  }
+
+  const modeFor = (email: string): DeliveryMode =>
+    transport.mode === "live"
+      ? "live"
+      : transport.mode === "sandbox" && (def.sandboxBypass || sandboxAllows(email))
+        ? "sandbox"
+        : "dry-run"
+  if (transport.mode === "sandbox") {
+    for (const e of entries) e.result.withheld = e.eligible.filter((r) => modeFor(r.email) === "dry-run").length
+  }
+  const withheldTotal = transport.mode === "sandbox" ? [...byRecipient.keys()].filter((k) => modeFor(k) === "dry-run").length : undefined
+
+  // What dry-run already logged, as "recipient|intentId" — read through
+  // intentIds (N1(a)), so each item is logged to each person once.
+  const loggedPairs = new Set<string>()
+  if (transport.mode !== "live" && entries.length > 0) {
+    const prior = await prisma.notificationMessage.findMany({
+      where: {
+        organizationId: org.id,
+        kind: def.kind,
+        mode: "dry-run",
+        intentIds: { hasSome: entries.map((e) => e.intent.id) },
+      },
+      select: { to: true, intentIds: true },
+    })
+    for (const m of prior) for (const id of m.intentIds) loggedPairs.add(`${m.to}|${id}`)
+  }
+
+  const provider = emailProviderName()
+  const dryRunProvider = transport.mode === "sandbox" ? provider : "console"
+  const push = (items: GroupEntry[], rr: RecipientResult) => {
+    for (const e of items) e.result.recipients.push({ ...rr })
+  }
+  const record = (covers: GroupEntry[], args: {
+    to: string
+    mode: DeliveryMode
+    status: "sent" | "failed" | "dry-run"
+    subject: string
+    providerMessageId?: string | null
+    error?: string
+  }) =>
+    writeMessage({
+      intent: covers[0].intent,
+      covers: covers.map((c) => c.intent),
+      provider: args.mode === "dry-run" ? dryRunProvider : provider,
+      withheld: withheldTotal,
+      ...args,
+    })
+
+  // Recipients in a stable order; each one's items oldest first.
+  for (const email of [...byRecipient.keys()].sort()) {
+    const { r, items } = byRecipient.get(email)!
+    items.sort((a, b) => a.intent.eventAt.getTime() - b.intent.eventAt.getTime() || a.intent.id.localeCompare(b.intent.id))
+    const mode = modeFor(email)
+
+    if (mode === "dry-run") {
+      const already = items.filter((e) => loggedPairs.has(`${email}|${e.intent.id}`))
+      push(already, { to: email, mode, status: "skipped", reason: "dry run already logged" })
+      const fresh = items.filter((e) => !loggedPairs.has(`${email}|${e.intent.id}`))
+      if (fresh.length === 0) continue
+      const rendered = safeRenderGroup(def, fresh.map((e) => e.intent.payload), org, email)
+      if ("error" in rendered) {
+        await record(fresh, { to: email, mode, status: "failed", subject: rendered.subject, error: rendered.error })
+        push(fresh, { to: email, mode, status: "failed", error: rendered.error })
+        continue
+      }
+      await consoleEmailSender.send({ to: email, subject: rendered.subject, text: rendered.text, html: rendered.html })
+      await record(fresh, { to: email, mode, status: "dry-run", subject: rendered.subject })
+      push(fresh, { to: email, mode, status: "dry-run" })
+      continue
+    }
+
+    if (mode === "sandbox") {
+      if (trigger === "sweep") {
+        push(items, { to: email, mode, status: "skipped", reason: "R2: the sweep never sends in sandbox" })
+        continue
+      }
+      const rendered = safeRenderGroup(def, items.map((e) => e.intent.payload), org, email)
+      const sent = await sendOne(transport, email, rendered)
+      await record(items, { to: email, mode, subject: rendered.subject, ...sent })
+      push(items, { to: email, mode, ...sent })
+      continue
+    }
+
+    // live: claim every pair first; only claimed pairs go in this email.
+    const claimed: { e: GroupEntry; deliveryId: string }[] = []
+    for (const e of items) {
+      const deliveryId = await claim(e.intent.id, r, e.deliveryOf.get(email), now)
+      if (deliveryId) claimed.push({ e, deliveryId })
+      else e.result.recipients.push({ to: email, mode, status: "skipped", reason: "being sent by another dispatch" })
+    }
+    if (claimed.length === 0) continue
+    const covers = claimed.map((c) => c.e)
+    const rendered = safeRenderGroup(def, covers.map((e) => e.intent.payload), org, email)
+    const sent = await sendOne(transport, email, rendered)
+    const messageId = await record(covers, { to: email, mode, subject: rendered.subject, ...sent })
+    await prisma.notificationDelivery.updateMany({
+      where: { id: { in: claimed.map((c) => c.deliveryId) } },
+      data: { state: sent.status, messageId, error: sent.error ?? null },
+    })
+    push(covers, { to: email, mode, ...sent })
+  }
+
+  // Dry-run and sandbox NEVER change an intent's state (R1, structural).
+  if (transport.mode !== "live") {
+    for (const e of entries) e.result.reason = transport.mode
+    return out
+  }
+  for (const e of entries) {
+    const done = await finalize(e.intent, def, e.ki, e.eligible, e.result, now)
+    Object.assign(e.result, done)
+  }
+  return out
+}
+
 // ── Recording ────────────────────────────────────────────────────────────────
 
 const ACTION_FOR = { sent: ACTION_SENT, failed: ACTION_FAILED, "dry-run": ACTION_DRY_RUN } as const
@@ -615,6 +916,13 @@ const ACTION_FOR = { sent: ACTION_SENT, failed: ACTION_FAILED, "dry-run": ACTION
  */
 async function writeMessage(args: {
   intent: IntentRow
+  /**
+   * MS-4b: set for a GROUPED message — every intent it covered, `intent` among
+   * them. The row then has intentId null and these ids in intentIds (N1(a)),
+   * and its audit copy has no entityId (a summary is about several things).
+   * Absent for a per-intent kind, whose row is exactly what it was.
+   */
+  covers?: IntentRow[]
   provider: string
   to: string
   mode: DeliveryMode | "unknown"
@@ -624,7 +932,7 @@ async function writeMessage(args: {
   error?: string
   withheld?: number
 }): Promise<string | null> {
-  const { intent, to, mode, status, subject, providerMessageId, error, withheld } = args
+  const { intent, covers, to, mode, status, subject, providerMessageId, error, withheld } = args
   let messageId: string | null = null
   try {
     const row = await prisma.notificationMessage.create({
@@ -639,7 +947,8 @@ async function writeMessage(args: {
         subject,
         status,
         error: error ?? null,
-        intentId: intent.id,
+        intentId: covers ? null : intent.id,
+        ...(covers ? { intentIds: covers.map((c) => c.id) } : {}),
       },
       select: { id: true },
     })
@@ -651,7 +960,7 @@ async function writeMessage(args: {
   // resendId, so a reverted reader and webhook still work on these rows.
   await recordEmailAttempt({
     organizationId: intent.organizationId,
-    entityId: intent.entityId,
+    entityId: covers ? null : intent.entityId,
     kind: intent.kind as NotificationKind,
     action: ACTION_FOR[status],
     recipients: [to],
@@ -676,7 +985,7 @@ export async function recordUndispatchable(intentId: string, error: string): Pro
     const intent = await prisma.notificationIntent.findUnique({ where: { id: intentId } })
     const def = intent ? getKind(intent.kind) : undefined
     if (!intent || !def) return []
-    const org = await prisma.organization.findUnique({ where: { id: intent.organizationId }, select: ORG_SELECT })
+    const org = await loadOrg(intent.organizationId)
     if (!org) return []
     const { eligible } = await eligibleRecipients(def, toKindIntent(intent), org)
     const provider = emailProviderName()

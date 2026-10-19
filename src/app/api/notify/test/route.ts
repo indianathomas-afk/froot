@@ -10,7 +10,7 @@ import {
   recordUndispatchable,
   resolveTransport,
 } from "@/lib/notifications/dispatch"
-import type { TestPayload } from "@/lib/notifications/kinds/test"
+import { sampleableKinds, type TestPayload } from "@/lib/notifications/kinds/test"
 
 // POST /api/notify/test — NOTIFY-1. Proves real delivery from a deployed
 // environment without giving anyone a way to email arbitrary people.
@@ -39,11 +39,17 @@ import type { TestPayload } from "@/lib/notifications/kinds/test"
 // from that one recipient's result and keeps its shape (ok, mode, provider,
 // to, id). The email text lives in src/lib/notifications/kinds/test.ts.
 //
+// MS-4b: `?kind=milestone.reached` sends that kind's sample() instead of the
+// delivery test — STILL NO BODY, and the query names only WHAT to render,
+// never who to send it to. It is still a `test` intent with the caller as its
+// one recipient, so nothing about the security model above changes. Only kinds
+// that define sample() are accepted; anything else is a 400.
+//
 // CONSOLE MODE RETURNS ok: true AND THAT IS CORRECT. The console sender did
 // exactly what it is for — the response names the provider, so a "success"
 // with provider: "console" reads as "nothing left the building", which is the
 // honest answer and not a bug to fix.
-export async function POST() {
+export async function POST(req: Request) {
   const { userId, orgId } = await auth()
   if (!userId || !orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -51,6 +57,11 @@ export async function POST() {
     await requireAdmin()
   } catch {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 })
+  }
+
+  const sampleOf = new URL(req.url).searchParams.get("kind") ?? undefined
+  if (sampleOf !== undefined && !sampleableKinds().includes(sampleOf)) {
+    return NextResponse.json({ error: `No sample for kind "${sampleOf}"` }, { status: 400 })
   }
 
   // NOTIFY-2b: the org, for the audit row and the template header. Resolved
@@ -78,7 +89,7 @@ export async function POST() {
   const deployEnv = process.env.VERCEL_ENV ?? "local"
   const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "unknown"
 
-  const payload: TestPayload = { to, provider, stamp, deployEnv, sha }
+  const payload: TestPayload = { to, provider, stamp, deployEnv, sha, ...(sampleOf ? { sampleOf } : {}) }
   const enq = await enqueueNotification({
     organizationId: org.id,
     kind: "test",

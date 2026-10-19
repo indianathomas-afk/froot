@@ -24,6 +24,7 @@
 import { prisma } from "@/lib/prisma"
 import { writeAuditLog } from "@/lib/audit"
 import { deliveryMode, emailProviderName, type DeliveryMode } from "@/lib/notify"
+import { kindLabel } from "@/lib/notifications/registry"
 
 export const NOTIFICATION_ENTITY_TYPE = "Notification"
 
@@ -58,6 +59,9 @@ export const DELIVERY_ACTIONS = [
 
 export type NotificationKind = "hr.ack" | "pace.alert" | "test"
 
+// MS-4b: THE READER LABELS FROM THE REGISTRY (kindLabel), so a new kind is
+// labelled by its own definition. This map is no longer read and is kept for
+// one release; every key in it is also a registry entry with the same label.
 export const KIND_LABELS: Record<string, string> = {
   "hr.ack": "Signed acknowledgment",
   "pace.alert": "Behind-pace alert",
@@ -258,7 +262,7 @@ export async function listRecentEmails(organizationId: string, limit = 50): Prom
       section: "pipeline",
       at: m.createdAt,
       kind: m.kind,
-      kindLabel: KIND_LABELS[m.kind] ?? m.kind,
+      kindLabel: kindLabel(m.kind),
       recipients: [m.to],
       subject: m.subject,
       provider: m.provider,
@@ -376,7 +380,7 @@ async function listLegacyEmails(
       section: "legacy",
       at: a.createdAt,
       kind,
-      kindLabel: KIND_LABELS[kind] ?? kind,
+      kindLabel: kindLabel(kind),
       recipients: strings(m.recipients),
       subject: str(m.subject),
       provider,

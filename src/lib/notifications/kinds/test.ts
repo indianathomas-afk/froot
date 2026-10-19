@@ -11,7 +11,22 @@
 // later.
 
 import { renderEmail } from "@/lib/email-template"
-import { defineNotification } from "../define"
+import { defineNotification, type GroupedKindDef } from "../define"
+import { MILESTONE_KIND, milestoneKind } from "./milestone"
+
+// MS-4b — "Send a sample to me". A kind with sample() can be rendered through
+// THIS kind, so the sample inherits this kind's whole security model: the
+// caller is the only recipient, sandbox reaches them, 15-minute freshness. The
+// sampled kind's own resolver is never called. A map rather than the registry
+// so this file does not import the registry that imports it.
+const SAMPLED: Record<string, GroupedKindDef<unknown>> = {
+  [MILESTONE_KIND]: milestoneKind as GroupedKindDef<unknown>,
+}
+
+/** Kinds the test route may sample. */
+export function sampleableKinds(): string[] {
+  return Object.keys(SAMPLED).filter((k) => !!SAMPLED[k].sample)
+}
 
 export type TestPayload = {
   to: string
@@ -20,6 +35,8 @@ export type TestPayload = {
   stamp: string
   deployEnv: string
   sha: string
+  /** MS-4b: render this kind's sample() instead of the delivery test. */
+  sampleOf?: string
 }
 
 export const testKind = defineNotification<TestPayload>({
@@ -38,7 +55,13 @@ export const testKind = defineNotification<TestPayload>({
   },
 
   // The NOTIFY-1 text, unchanged and passed through the template verbatim.
-  render(p, org) {
+  render(p, org, to) {
+    const sampled = p.sampleOf ? SAMPLED[p.sampleOf] : undefined
+    if (p.sampleOf) {
+      if (!sampled?.sample) return { subject: `USE Froot test — ${p.stamp}`, error: `no sample for "${p.sampleOf}"` }
+      const r = sampled.renderGroup(sampled.sample(org), org, to)
+      return { ...r, subject: `Test — ${r.subject}` }
+    }
     const subject = `USE Froot test — ${p.stamp}`
     const text = [
       `This is a USE Froot email delivery test.`,

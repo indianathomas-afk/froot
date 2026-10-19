@@ -158,6 +158,10 @@ export type Capability =
   // every route and every other capability they hold is untouched (Gary, F3,
   // 2026-09-20).
   | "notify.pace.receive"
+  // MS-4b — the second user-addressed email, on the convention above. Same
+  // shape as notify.pace.receive: baseline ADMIN + MANAGER, deniable from the
+  // grid, never grantable down to STORE or STAFF.
+  | "notify.milestone.receive"
 
 const ALL: readonly PermissionRole[] = ["ADMIN", "MANAGER", "STORE", "STAFF"]
 const MANAGE: readonly PermissionRole[] = ["ADMIN", "MANAGER"]
@@ -499,6 +503,12 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // /settings/notifications sit ABOVE this: org off → nobody, whatever this
   // says.
   "notify.pace.receive": MANAGE,
+  // MS-4b (F6). Who is ELIGIBLE for milestone-reached emails; the recipient
+  // query in src/lib/notifications/kinds/milestone.ts decides which employees
+  // each eligible person hears about (every ADMIN; MANAGERs of the employee's
+  // stores; corporate staff → ADMINs only). Deniable, not grantable, exactly as
+  // notify.pace.receive above.
+  "notify.milestone.receive": MANAGE,
 }
 
 function isPermissionRole(role: unknown): role is PermissionRole {
@@ -997,6 +1007,15 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Receives behind-pace alert emails",
     removes:
       "Sent when a store they manage falls behind its month-to-date goal. Admins receive alerts for every store. Nothing else changes — they keep every other permission, and only the email stops.",
+  },
+  // MS-4b — the second row in the area, which is the property NOTIFY-2c built
+  // the area for: one entry, no grid change.
+  {
+    capability: "notify.milestone.receive",
+    area: "Email notifications",
+    label: "Milestone reached",
+    removes:
+      "A once-a-day email listing staff in their stores who reached a tenure or checklist milestone. Admins hear about every store. Nothing else changes — they keep every other permission, and only the email stops.",
   },
 ]
 

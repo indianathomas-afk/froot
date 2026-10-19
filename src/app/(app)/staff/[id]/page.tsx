@@ -89,7 +89,13 @@ function ShellTab({
   )
 }
 
-export default async function StaffDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StaffDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string | string[] }>
+}) {
   const { orgId } = await auth()
   if (!orgId) redirect("/dashboard")
 
@@ -103,6 +109,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   }
 
   const { id } = await params
+  const { tab: tabParam } = await searchParams
   const member = await getStaffMember(id, orgId)
   if (!member) notFound()
 
@@ -907,7 +914,10 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
 
-      <Tabs defaultValue="overview">
+      {/* MS-4b: the milestone email links here with ?tab=milestones. Honoured
+          ONLY when the tab renders anyway (showMilestonesTab); any other value,
+          or a viewer without the tab, lands on Overview as before. */}
+      <Tabs defaultValue={tabParam === "milestones" && showMilestonesTab ? "milestones" : "overview"}>
         {/* MS-1: a sixth tab. flex-wrap h-auto (the inventory/reports precedent)
             lets the row wrap at phone width instead of overflowing the page. */}
         <TabsList className="flex-wrap h-auto">

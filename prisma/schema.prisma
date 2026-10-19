@@ -102,6 +102,15 @@ model Organization {
   // PaceAlertLog.thresholdPct records it per row (F-5), so changing this value
   // does not rewrite history.
   paceAlertThresholdPct   Int?
+  // MS-4b (F10, Gary 2026-10-17: "org-level milestone email switch, off by
+  // default"). THE PER-ORG SWITCH FOR MILESTONE-REACHED EMAILS. A column, not
+  // a generic setting row, because NOTIFY-8's setting table does not exist yet.
+  // Only meaningful while milestonesActive() passes (HR available, HR on,
+  // milestonesEnabled). Off = the pace cron's milestone leg never reads the
+  // org, and a queued milestone intent expires at dispatch. Default false for
+  // paceAlertsEnabled's reason: nothing starts emailing managers as a side
+  // effect of a deploy or an env flip.
+  milestoneAlertsEnabled  Boolean   @default(false)
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
   // HR-11b: governs inline `Date:` field stamps ONLY ("dateOnly" | "dateTime").
@@ -978,6 +987,14 @@ model NotificationMessage {
   status            String
   error             String?
   intentId          String?
+  // MS-4b (N1(a), Gary 2026-10-19). Every intent a GROUPED message covers —
+  // one daily summary lists several milestones, and `intentId` holds one. A
+  // summary leaves `intentId` null and fills this; a per-intent kind keeps
+  // `intentId` and leaves this empty, so its rows are unchanged. What it is for:
+  // dry-run and sandbox write no NotificationDelivery rows (R1), so this is the
+  // only record of which milestones a dry-run summary already logged to `to`.
+  // No FK — intents are kept forever (P5), so a dangling id cannot occur.
+  intentIds         String[] @default([])
   createdAt         DateTime @default(now())
 
   organization Organization           @relation(fields: [organizationId], references: [id])

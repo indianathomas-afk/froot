@@ -46,7 +46,10 @@ function describe(r: TestResult): { text: string; failed: boolean } {
   return { text: `Sent to ${r.to} (live, ${r.provider}${id}). Check Junk if it does not arrive.`, failed: false }
 }
 
-export function TestSendButton() {
+// MS-4b: `kind` sends that kind's sample() through the same route
+// (?kind=…, still no body — the caller is still the only recipient). The
+// milestone card renders one with label "Send a sample to me".
+export function TestSendButton({ kind, label = "Send a test to me" }: { kind?: string; label?: string } = {}) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ text: string; failed: boolean } | null>(null)
@@ -54,7 +57,8 @@ export function TestSendButton() {
   async function send() {
     setBusy(true)
     setResult(null)
-    const res = await fetch("/api/notify/test", { method: "POST" }).catch(() => null)
+    const url = kind ? `/api/notify/test?kind=${encodeURIComponent(kind)}` : "/api/notify/test"
+    const res = await fetch(url, { method: "POST" }).catch(() => null)
     let body: TestResult = { ok: false, error: "network error" }
     if (res) {
       // A non-JSON answer means the route never ran — most often an expired
@@ -74,7 +78,7 @@ export function TestSendButton() {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <Button variant="outline" onClick={send} disabled={busy}>
-        {busy ? "Sending…" : "Send a test to me"}
+        {busy ? "Sending…" : label}
       </Button>
       {result && (
         <p

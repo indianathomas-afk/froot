@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { paceThresholdPct, processPaceAlertForStore, type PaceAlertResult } from "@/lib/pace-alerts"
 import { deliveryMode, getEmailSender } from "@/lib/notify"
+import { processMilestoneAlerts, type MilestoneOrgResult } from "@/lib/milestone-alerts"
 
 // GET /api/cron/pace-alerts — once daily, alert admins + assigned managers
 // when a store falls below its org's alert threshold (NOTIFY-2a:
@@ -114,6 +115,28 @@ export async function GET(req: Request) {
       ? `no org evaluated (fallback ${fallbackPct}%)`
       : thresholds.map((t) => `${t.organizationId}=${t.thresholdPct}%(${t.source})`).join(" ")
 
+  // MS-4b — THE MILESTONE LEG (F4: once a day, inside this cron). Its own
+  // function, its own result key, its own try/catch: a failure in either leg
+  // never stops the other, and the pace loop above has already finished. Same
+  // sender and mode as the pace loop, so one run cannot mix modes.
+  let milestones: MilestoneOrgResult[] | { error: string }
+  try {
+    milestones = await processMilestoneAlerts({ sender, mode })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "milestone alerts failed"
+    console.error(`[cron:pace-alerts] milestone leg: ${msg}`)
+    milestones = { error: msg.slice(0, 200) }
+  }
+  if (Array.isArray(milestones)) {
+    // ORGS BY ID (CLAUDE.md § Database Evidence).
+    console.log(
+      `[cron:pace-alerts] milestones mode=${mode} ${milestones.length} org(s)` +
+        (milestones.length
+          ? ": " + milestones.map((m) => `${m.organizationId} queued=${m.queued} known=${m.known} sent=${m.sent} failed=${m.failed} dryRun=${m.dryRun}${m.error ? ` error=${m.error}` : ""}`).join("; ")
+          : "")
+    )
+  }
+
   const alerted = results.filter((r) => r.alerted).length
   console.log(
     `[cron:pace-alerts] mode=${mode} ${enabledOrgs.length} orgs enabled, ${stores.length} stores evaluated, ` +
@@ -137,5 +160,6 @@ export async function GET(req: Request) {
     alerted,
     skippedDisabled,
     results,
+    milestones,
   })
 }

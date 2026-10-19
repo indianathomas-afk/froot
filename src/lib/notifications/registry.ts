@@ -8,18 +8,19 @@
 // sandbox filtering, one-message-per-recipient, the sent-once lock, retries and
 // the log are the dispatcher's, identical for every kind.
 //
-// NOT HERE YET, deliberately (audit C7): `sample()` for a per-kind test send,
-// and `batch: "per-recipient-daily"`. Both arrive with MS-4b, the first kind
-// that needs them.
+// MS-4b added both things NOTIFY-6 left out (audit C7): `batch:
+// "per-recipient-daily"` (the grouped mode, dispatch.ts) and `sample()`, which
+// the test kind renders for "Send a sample to me" (kinds/test.ts).
 
 import type { NotificationKindDef } from "./define"
 import { paceAlertKind } from "./kinds/pace-alert"
 import { hrAckKind } from "./kinds/hr-ack"
 import { testKind } from "./kinds/test"
+import { milestoneKind } from "./kinds/milestone"
 
 export * from "./define"
 
-const KINDS: NotificationKindDef<unknown>[] = [paceAlertKind, hrAckKind, testKind]
+const KINDS: NotificationKindDef<unknown>[] = [paceAlertKind, hrAckKind, testKind, milestoneKind]
 
 const BY_KIND = new Map(KINDS.map((k) => [k.kind, k]))
 
