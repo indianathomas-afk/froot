@@ -20806,6 +20806,51 @@ phases:
         mail. (Note: until NOTIFY-5 lands, console mode burns pace locks again.)"
       ── END QUOTE. The audit's bold emphasis is dropped; the words are unchanged. ──
 
+  - id: NOTIFY-11
+    track: platform
+    size: S
+    status: planned
+    title: "R2 enforced: the sweep never sends in sandbox; dry-run rows name the real provider"
+    blockers:
+      - >
+        DEPENDS ON NOTIFY-6 (on staging since 2026-10-18). NOTIFY-11 changes
+        src/lib/notifications/dispatch.ts and the Recent emails reader, both
+        NOTIFY-6 code. Build on staging with NOTIFY-6's commits present.
+      - >
+        STAGING VERIFICATION NEEDS NOTIFY_SANDBOX_ALLOWLIST TO EXIST in Vercel
+        Preview. As of 2026-10-19 it does not (NOTIFY-6 notes, 2026-10-19
+        STAGING EVIDENCE). Gary creates it and redeploys before the staging
+        pass.
+    notes: >
+      FILED 2026-10-19 as FIX NOW by Gary, from the NOTIFY-5/NOTIFY-6
+      acknowledgment investigation (staging, footer 1fe1481, org
+      cmr54z65v000105jxczpt72w1, branch br-square-feather-a63z92vz; evidence on
+      the NOTIFY-6 row). Session prompt:
+      docs/prompts/2026-10-19_NOTIFY-11_r2_sweep_and_label.md. Tier lean TIER 3
+      (cron path and row writes); Gary declares it. No schema expected.
+      WHAT. (a) THE R2 GAP. Gary's ruling, ratified in a7fed5f, in his words:
+      "R2 — the hourly retry never sends in sandbox". The dispatcher skips a
+      sandbox recipient on trigger "sweep" only when a sandbox message already
+      exists for that recipient (src/lib/notifications/dispatch.ts:428). So a
+      sweep makes a FIRST sandbox send whenever the producer's inline dispatch
+      did not send one, for example an address added to the allowlist after
+      the signing. Fix: on trigger "sweep" in sandbox mode, no send at all,
+      with a fixture check and a negative control. The comments in
+      dispatch.ts and api/cron/notify-dispatch/route.ts that state the rule are
+      corrected to match. (b) THE LABEL. writeMessage forces provider
+      "console" on every dry-run row (dispatch.ts:616), so Recent emails
+      shows "Dry run — not sent · console" even when resend is configured and
+      the sandbox allowlist held the address back. On 2026-10-19 that label
+      hid the real cause (NOTIFY_SANDBOX_ALLOWLIST never created) for a
+      staging test. Fix: a dry-run row stops showing provider "console" when
+      resend is configured, and a recipient held back by the sandbox allowlist
+      is told apart from a console-mode dry run.
+      NOT IN NOTIFY-11: the allowlist parser (comma-only today, while
+      hrAckRecipients accepts commas or newlines), an allowlist status banner
+      on /settings/notifications, and test-send allowlist fields. Those were
+      proposed in the same investigation and are not ruled. Cross-refs:
+      NOTIFY-5, NOTIFY-6.
+
 
 bugs:
   - id: BUG-1
