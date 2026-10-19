@@ -20299,6 +20299,29 @@ phases:
     title: "One delivery mode (live / sandbox / dry-run) for every email + 'Send a test to me'"
     blockers:
       - >
+        RE-OPENED 2026-10-19 — ALLOWLIST UNSET / UNPROVEN. Prepended per
+        preserve-and-mark; nothing below is edited. Item (2) of the DISCHARGED
+        entry directly below is SUPERSEDED. It was discharged only on the
+        signed-acknowledgment evidence from 29a32c9, and that evidence was false.
+        Gary, 2026-10-19, his words: "The NOTIFY-5 staging evidence that a
+        signed acknowledgment was delivered to gary@kevajuice.com is wrong. That
+        test was never run. I told Claude it was completed by mistake. The first
+        real acknowledgment test was today on NOTIFY-6." So the blocker
+        "NOTIFY_SANDBOX_ALLOWLIST is UNSET in Vercel Preview" (third entry
+        below) is OPEN again. Nothing on staging has ever shown the allowlist
+        working. Observed by Claude, 2026-10-19: `npx vercel env ls` (names,
+        scopes and created ages only; no values read, no pull) lists NO
+        NOTIFY_SANDBOX_ALLOWLIST in any environment of project froot. Preview
+        holds NOTIFY_EMAIL_PROVIDER, NOTIFY_FROM_EMAIL and RESEND_API_KEY (29d
+        ago). That matches Gary's 2026-10-19 NOTIFY-6 observation on staging
+        (footer 1fe1481, org cmr54z65v000105jxczpt72w1): a signed acknowledgment
+        to hrAckRecipients = gary@kevajuice.com at 07:43 PDT (14:43 UTC) recorded
+        "Dry run — not sent", provider console. "Send a test to me" bypasses the
+        allowlist by design, so its delivery says nothing about the allowlist.
+        Discharge only on a staging acknowledgment that is actually delivered
+        through the allowlist: a message row with mode sandbox and status sent,
+        named by org id and branch.
+      - >
         DISCHARGED 2026-10-18 — THE THREE BLOCKERS BELOW, ONE OF THEM BY
         SUBSTITUTION. Prepended per preserve-and-mark; nothing below is edited.
         (1) NOT PUSHED: no longer true. 07e9253, 0ee506f, 3fb760d and 16832d0
@@ -20336,6 +20359,17 @@ phases:
         kind-specific test samples, suppression, milestone emails (MS-4b),
         any change to the Resend webhook.
     notes: >
+      ── CORRECTION 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS EDITED. ──
+      Item (b) of the 2026-10-18 STAGING EVIDENCE note directly below is
+      SUPERSEDED. That is the line "A signed HR acknowledgment DELIVERED to
+      gary@kevajuice.com via the sandbox allowlist", recorded by 29a32c9. Gary's
+      words, exactly: "The NOTIFY-5 staging evidence that a signed acknowledgment
+      was delivered to gary@kevajuice.com is wrong. That test was never run. I
+      told Claude it was completed by mistake. The first real acknowledgment test
+      was today on NOTIFY-6." Items (a), (c), (d) and (e) are unaffected. The
+      blocker that (b) discharged is re-opened above. The 29a32c9 commit message
+      repeats the claim; a commit message is not edited, and this note
+      supersedes it.
       ── STAGING EVIDENCE 2026-10-18 (Gary). PREPENDED; NOTHING BELOW IS EDITED. ──
       Reported by Gary, staging (Vercel Preview), footer 1037b89 — the
       deployment contains work commit 07e9253. Status stays `staging`; this
