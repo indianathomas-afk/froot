@@ -5,6 +5,96 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-18 — NOTIFY-6: one notification pipeline (DRAFT — pending Gary's ratification)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE NOTIFY-6 PRE-PUSH-CHECK.**
+
+**Gary's words, recorded exactly** — the rulings the phase was built under, as
+the session prompt quotes them (`docs/prompts/2026-10-18_NOTIFY-6_pipeline.md`):
+
+- **P0:** *"P0 approved: adopt the pipeline, hold MS-4b behind NOTIFY-6.
+  Write the NOTIFY-5 prompt next."*
+- **P2:** *"Approved. Staging sends real email only to addresses on an
+  allowlist. Start the allowlist with just my address. Everything else on
+  staging is sandboxed or dry-run, never delivered."*
+- **P6:** *"Yes — replace MS-4b's F16: retry only the recipients who didn't
+  get it, using per-recipient delivery rows."*
+- **NOTIFY-5 test-send ruling:** *""Send a test to me" may email the admin
+  who pressed it even when the allowlist is empty, because it can only ever
+  reach the person clicking. Every other email on staging follows the
+  allowlist, and an empty allowlist means nobody is emailed."*
+- **MS-4a:** *"a milestone email that was sent stays sent — if the milestone
+  is lost and re-reached, don't send again."*
+- **The migration apply** (2026-10-18): *"I ran npx prisma migrate deploy
+  myself from froot/. Host ep-late-water-a6k53nv2.
+  20261019005116_notify6_pipeline applied ("All migrations have been
+  successfully applied")."*
+
+**Not his words.** The build go, and the two rulings the audit asked for
+(R1, R2), came through a reply button whose text Claude wrote: *"Go. Build
+NOTIFY-6 as planned in the audit. R1: the design wins; sandbox never moves an
+intent's state, and the staging checklist step is corrected. R2: the sweep
+never makes a sandbox send; producer dispatches keep NOTIFY-5 choice 4."* Read
+it as: Gary approved the audit's leans by clicking. They are marked **Claude
+(approved by click)** below until he ratifies this entry in his own words. A
+second reply-button message reporting the migration applied was ALSO Claude's
+text, and the level check after it showed the migration not yet applied; the
+session stopped until Gary's own message above.
+
+**Rulings the audit raised** (`docs/prompts/2026-10-18_NOTIFY-6_AUDIT.md`):
+
+- **R1 — Claude (approved by click).** Sandbox never moves an intent's state
+  and never writes a delivery. The prompt's staging checklist said a sandbox
+  signing "writes one intent `sent`"; that step is corrected on the NOTIFY-6
+  row: the intent stays `queued`, with one sandbox `NotificationMessage`.
+- **R2 — Claude (approved by click).** The hourly sweep never makes a sandbox
+  send. Without it, the sweep would re-mail the allowlist every hour while a
+  sandbox intent stayed queued. Dispatches a producer starts keep NOTIFY-5
+  choice 4 (a hand-fire re-sends).
+
+**Claude implementation choices, for ratification** (audit numbering):
+
+1. **Claude** — States, kinds and modes are `TEXT`, not Postgres enums.
+2. **Claude** — A `pending` delivery older than 15 minutes is reclaimed and
+   retried: a one-round-trip duplicate window, accepted over losing a notice.
+3. **Claude** — Freshness in minutes: pace 1440, hr.ack 10080, test 15 (the
+   prompt's "test immediate" would expire every test before its own send).
+4. **Claude** — All recipients failed → `queued`; some → `partial`. Freshness
+   expires `queued` only; the org switch expires both.
+5. **Claude** — Retry cap 5; backoff 1 / 2 / 4 / 8 hours.
+6. **Claude** — One parallel AuditLog row per `NotificationMessage`, carrying
+   `notificationMessageId`; the reader's legacy section is rows older than the
+   org's first message.
+7. **Claude** — Recent emails shows one row per message, so one per recipient.
+8. **Claude** — A pre-pipeline `PaceAlertLog` row still gates the pace
+   producer during the parallel release (prevents a second alert in the deploy
+   month); `PaceAlertLog` is written when a pace intent becomes `sent`.
+9. **Claude** — hr.ack with an empty list enqueues nothing (row-less, F3).
+10. **Claude** — `processPaceAlertForStore` and `sendAckNotification` keep
+    their signatures and wrap enqueue + dispatch.
+11. **Claude** — The payload holds facts computed at enqueue; `render` is pure.
+12. **Claude** — The caller passes the transport (mode + sender) to dispatch;
+    it is required, not read from the environment inside.
+13. **Claude** — No `sample()`; `batch` is `"per-intent"` only (MS-4b adds both).
+14. **Claude** — `NotificationDelivery.userId` is plain text, no FK.
+15. **Claude** — `NotificationEvent.at` is required: provider time, else
+    receipt time.
+16. **Claude** — The sweep is its own route, `/api/cron/notify-dispatch`, at
+    `15 * * * *`.
+
+Two further **Claude** choices made during the build:
+
+- **P6 is enforced twice.** The dispatcher drops recipients with a `sent`
+  delivery, and the per-recipient claim never re-claims a `sent` row. The
+  first negative control (filter only) failed nothing until a check on the
+  retry's own recipient list was added; both guards are now tested on their
+  own.
+- **A direct pace call now honours the org switch.** Before, only the cron's
+  store query checked `paceAlertsEnabled`; dispatch now checks it too (the
+  prompt's step 2). Production is unchanged — the cron only passes enabled
+  orgs — but `verify-f5-polish.ts` now switches its org on for the pace checks
+  and asserts the F1 default on the row as created.
+
 ## 2026-10-18 — NOTIFY-3 audit forks P1, P3–P6 ruled; NOTIFY-6 to NOTIFY-9 filed (Gary)
 
 **Gary's words, recorded exactly** (session prompt, 2026-10-18, headed

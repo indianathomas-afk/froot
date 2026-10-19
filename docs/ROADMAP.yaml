@@ -20411,9 +20411,37 @@ phases:
   - id: NOTIFY-6
     track: platform
     size: M-L
-    status: planned
+    # planned -> in_progress 2026-10-18 by the NOTIFY-6 build session. Work
+    # commit 3ffb3f6 is on local `staging` and NOT pushed (Claude never
+    # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    status: in_progress
+    commits:
+      - "3ffb3f6"
     title: "One notification pipeline — intent ledger, dispatcher, registry, per-recipient sends, retry"
     blockers:
+      - >
+        NOT PUSHED. Work commit 3ffb3f6 and the docs commit after it are on
+        local staging only. The migration 20261019005116_notify6_pipeline is
+        applied to DEV only (Gary, migrate deploy; level check empty); staging
+        and production get it through `prisma migrate deploy` in the Vercel
+        build on Gary's push.
+      - >
+        STAGING VERIFICATION OWED, staging-SHA precondition first. (1) The
+        build applies the migration (check preview/staging _prisma_migrations,
+        br-square-feather-a63z92vz). (2) "Send a test to me" still arrives
+        (check Junk) and Recent emails shows it from NotificationMessage.
+        (3) CORRECTED FROM THE PROMPT (R1, approved 2026-10-18): signing a test
+        document with only Gary's address in hrAckRecipients sends one email
+        and writes one NotificationMessage (mode sandbox, status sent), ZERO
+        NotificationDelivery rows, and the intent stays `queued` — sandbox
+        never moves an intent's state. The prompt's "writes one intent `sent`"
+        contradicted its own design. (4) A non-allow-listed hrAckRecipients
+        address reads "Dry run — not sent" and the intent stays `queued`.
+        (5) As a MANAGER, /settings/notifications still redirects.
+      - >
+        CONFIRM THE CRON ALLOWANCE. vercel.json now has 8 crons (new:
+        /api/cron/notify-dispatch at "15 * * * *"). The repo does not record
+        the Vercel plan; Gary confirms an eighth cron is allowed (audit C4).
       - >
         DEPENDS ON NOTIFY-5 (on staging since 2026-10-18). NOTIFY-6 builds on
         deliveryMode() / sandboxAllows() in src/lib/notify.ts; it does not
@@ -20424,6 +20452,25 @@ phases:
         `migrate diff`, STOPS, and commits nothing until Gary has applied it to
         dev and the fixture has run green against the applied schema.
     notes: >
+      ── BUILT 2026-10-18 (work commit 3ffb3f6). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Audit: docs/prompts/2026-10-18_NOTIFY-6_AUDIT.md. Migration
+      20261019005116_notify6_pipeline: NotificationIntent, NotificationDelivery,
+      NotificationMessage, NotificationEvent; additive, no existing table
+      altered. Code: src/lib/notifications/ (define, registry, dispatch, kinds
+      pace-alert / hr-ack / test); pace-alerts.ts, hr-ack-notification.ts and
+      /api/notify/test are producers; /api/cron/notify-dispatch is the hourly
+      sweep (15 * * * *). R1 and R2 approved by reply button 2026-10-18 (the
+      text was Claude's, so it is not quoted as Gary's words): R1 sandbox never
+      moves an intent's state, and the staging checklist step is corrected
+      (blocker above); R2 the sweep never makes a sandbox send, while producer
+      dispatches keep NOTIFY-5 choice 4. P6 is enforced twice: the dispatcher
+      drops recipients with a `sent` delivery, and the per-recipient claim never
+      re-claims a `sent` row. Fixtures on dev (br-broad-wave-a6vpjdw0):
+      verify-notify6 72/0; verify-notify5 55/0 and verify-f5-polish 63/0 with
+      expectations adapted (one message/row per recipient, the intent is reset
+      with PaceAlertLog, legacy rows backdated, pace switch on for the direct
+      calls); verify-notify-template 35/0 unchanged. Choices for ratification:
+      DECISIONS.md 2026-10-18 NOTIFY-6 entry.
       FILED 2026-10-18 from the NOTIFY-3 audit phase table
       (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7; design in sections
       4.1-4.3, 4.5, 4.7). Tier lean TIER 3 (Gary declares it). Session prompt:
@@ -20521,6 +20568,16 @@ phases:
       - >
         DEPENDS ON NOTIFY-6 having been in production for one release with
         parallel writes.
+      - >
+        RETIRE THE PACE GATE IN THE SAME CHANGE (NOTIFY-6 audit W4,
+        2026-10-18). processPaceAlertForStore (src/lib/pace-alerts.ts) still
+        reads PaceAlertLog as its "already alerted this month" gate, so a store
+        alerted by the pre-pipeline code is not alerted twice in the deploy
+        month. Once NOTIFY-9 stops the PaceAlertLog write the gate reads a table
+        nothing writes. That is not a double-send — a sent store-month intent
+        already makes enqueue a no-op — but it is dead code that looks
+        load-bearing, so remove it in the same commit and say the intent state
+        is the only lock.
     notes: >
       FILED 2026-10-18 from the NOTIFY-3 audit phase table
       (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7). Tier lean TIER 2

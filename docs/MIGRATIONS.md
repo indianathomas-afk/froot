@@ -1421,3 +1421,50 @@ expressible in `schema.prisma`.
 **Fixture:** `scripts/verify-ms4a.ts`, 52 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`). It ran after the apply and again
 before the work commit (`70365c6`).
+
+## 2026-10-19 — `20261019005116_notify6_pipeline` (NOTIFY-6)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-18 (PDT) with `prisma
+migrate deploy` from `froot/` against host `ep-late-water-a6k53nv2` and
+reported, exactly: *"I ran npx prisma migrate deploy myself from froot/. Host
+ep-late-water-a6k53nv2. 20261019005116_notify6_pipeline applied ("All
+migrations have been successfully applied")."* The session then ran `migrate
+diff --from-config-datasource --to-schema` against dev, which returned `--
+This is an empty migration.`, so dev matches the schema. **One earlier report
+did not hold:** a reply-button message saying the migration was applied (its
+text was Claude's, not Gary's) was followed by a level check that still
+returned the full migration SQL, so the session stopped and built nothing. The
+empty diff is the evidence. Staging and production get the migration through
+`prisma migrate deploy` in the Vercel build, on Gary's push.
+
+Timestamp note: the folder name is the UTC instant of generation
+(`2026-10-19 00:51:16 UTC` = `2026-10-18 17:51:16 PDT`), so it carries the
+next calendar day.
+
+Prisma commands for this migration: `format`, `validate`, `generate`, and
+`migrate diff` (four times: the audit level check, generating this file, the
+check that found it not yet applied, and the level check after Gary's apply).
+Gary ran `migrate deploy`.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "NotificationIntent"` (`id` PK, `organizationId`, `kind`, `dedupeKey`, `entityId?`, `eventAt`, `payload JSONB`, `state TEXT DEFAULT 'queued'`, `attempts INT DEFAULT 0`, `lastError?`, `nextAttemptAt?`, `sentAt?`, `createdAt`, `updatedAt`) | additive, new table |
+| `UNIQUE (organizationId, kind, dedupeKey)`; `INDEX (state, nextAttemptAt)` | additive |
+| `CREATE TABLE "NotificationDelivery"` (`id` PK, `intentId`, `recipient`, `userId?`, `messageId?`, `state`, `error?`, `createdAt`, `updatedAt`) | additive, new table |
+| `UNIQUE (intentId, recipient)`; `INDEX (messageId)` | additive |
+| `CREATE TABLE "NotificationMessage"` (`id` PK, `organizationId`, `kind`, `mode`, `provider`, `providerMessageId?`, `to`, `subject`, `status`, `error?`, `intentId?`, `createdAt`) | additive, new table |
+| `UNIQUE (providerMessageId)`; `INDEX (organizationId, createdAt)`; `INDEX (intentId)` | additive |
+| `CREATE TABLE "NotificationEvent"` (`id` PK, `messageId`, `type`, `reason?`, `at`, `createdAt`) | additive, new table |
+| `UNIQUE (messageId, type)` | additive |
+| FKs: Intent→Organization RESTRICT; Message→Organization RESTRICT; Delivery→Intent CASCADE; Delivery→Message SET NULL; Message→Intent SET NULL; Event→Message CASCADE | additive |
+
+**No existing table altered, no enum type, no backfill.** States, kinds and
+modes are `TEXT` (audit choice 1). The FK directions leave NOTIFY-8's P5 prune
+room: nothing points from an intent to a prunable row, and pruning a message
+nulls a delivery's `messageId` rather than failing. `PaceAlertLog` and the
+Notification `AuditLog` rows are still written in parallel for one release
+(NOTIFY-9 stops them).
+
+**Fixture:** `scripts/verify-notify6.ts`, 72 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`3ffb3f6`).
