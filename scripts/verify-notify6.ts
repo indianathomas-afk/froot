@@ -12,8 +12,11 @@
  *      sandbox never move an intent's state and never write a delivery;
  *      sandbox mails only allow-listed addresses; the test kind reaches its
  *      caller in sandbox with an empty allowlist; dry-run logs once per
- *      (intent, recipient); THE SWEEP NEVER RE-SENDS IN SANDBOX (R2) while a
- *      producer dispatch does (NOTIFY-5 choice 4).
+ *      (intent, recipient); THE SWEEP NEVER SENDS IN SANDBOX (R2) — neither a
+ *      re-send nor, since NOTIFY-11, a first send — while a producer dispatch
+ *      does (NOTIFY-5 choice 4). NOTIFY-11 label: a sandbox-withheld dry run
+ *      names provider resend and the reader's detail names the allowlist; a
+ *      console-mode or hand-passed dry-run transport says console, no detail.
  *   C. one message per recipient, no shared `to:`.
  *   D. THE BURN STAYS GONE: pace in dry-run, then live the same month → sends
  *      and PaceAlertLog is written; the pre-pipeline PaceAlertLog gate (W4).
@@ -47,6 +50,10 @@
  *
  * NEGATIVE CONTROL: hand-break the P6 filter in src/lib/notifications/
  * dispatch.ts (retry everyone: `const remaining = eligible`) — E must FAIL.
+ * NOTIFY-11: restore `trigger === "sweep" && <prior sandbox message>` — the
+ * first-send R2 check must FAIL; force "console" on every dry-run row — the
+ * sandbox label checks must FAIL; write the environment's provider on every
+ * dry-run row — the hand-passed-transport check must FAIL.
  */
 import "dotenv/config"
 import { Webhook } from "svix"
@@ -341,6 +348,68 @@ async function main() {
           (await messagesOf(id2)).filter((m) => m.mode === "dry-run").length === 3 &&
           (await intentOf(id2)).state === "queued"
       )
+
+      // NOTIFY-11 (a). R2 covers the FIRST send too: a sweep that reaches a
+      // fresh intent before any producer dispatch mails nobody.
+      setEnv({ NOTIFY_SANDBOX_ALLOWLIST: A })
+      const r2Id = await ackIntent()
+      const r2Cap = capture()
+      await dispatch(r2Id, transport("sandbox", r2Cap), "sweep")
+      check(
+        "B sandbox (R2, NOTIFY-11): a FIRST sweep dispatch sends nothing, writes no sandbox message, intent queued",
+        r2Cap.attempts.length === 0 &&
+          (await messagesOf(r2Id)).filter((m) => m.mode === "sandbox").length === 0 &&
+          (await intentOf(r2Id)).state === "queued",
+        `${r2Cap.attempts.length} attempts`
+      )
+      await dispatch(r2Id, transport("sandbox", r2Cap), "producer")
+      check(
+        "B sandbox (NOTIFY-5 choice 4, NOTIFY-11): the same intent, producer dispatch → exactly one send, to A",
+        r2Cap.sent.length === 1 && r2Cap.sent[0].to === A,
+        JSON.stringify(r2Cap.sent.map((m) => m.to))
+      )
+
+      // NOTIFY-11 (b). The dry-run label names the provider its dispatch ran
+      // under: resend only when the sandbox allowlist held the address back.
+      setEnv({ NOTIFY_EMAIL_PROVIDER: "resend", VERCEL_ENV: undefined, ...FAKE_RESEND })
+      const heldId = await ackIntent()
+      await dispatch(heldId, transport("sandbox", capture()))
+      const heldRow = (await messagesOf(heldId)).find((m) => m.to === B)
+      const heldLog = (await listRecentEmails(orgA.id)).find((e) => e.id === heldRow?.id)
+      check(
+        "B label (NOTIFY-11): a sandbox-withheld recipient's row has provider resend",
+        heldRow?.mode === "dry-run" && heldRow.status === "dry-run" && heldRow.provider === "resend",
+        `${heldRow?.mode} / ${heldRow?.provider}`
+      )
+      check(
+        "B label (NOTIFY-11): Recent emails reads it 'dry run', provider resend, detail naming the allowlist",
+        heldLog?.status === "dry run" &&
+          heldLog.provider === "resend" &&
+          (heldLog.detail ?? "").includes("NOTIFY_SANDBOX_ALLOWLIST"),
+        `${heldLog?.status} / ${heldLog?.provider} / ${heldLog?.detail}`
+      )
+      // A hand-passed dry-run transport while the environment says resend:
+      // the label follows the dispatch's mode, never the environment alone.
+      const handId = await ackIntent()
+      await dispatch(handId, transport("dry-run", capture()))
+      const handRow = (await messagesOf(handId)).find((m) => m.to === B)
+      const handLog = (await listRecentEmails(orgA.id)).find((e) => e.id === handRow?.id)
+      check(
+        "B label (NOTIFY-11): a dry-run transport under NOTIFY_EMAIL_PROVIDER=resend → provider console, no detail",
+        handRow?.provider === "console" && handLog?.status === "dry run" && handLog.provider === "console" && handLog.detail === null,
+        `${handRow?.provider} / ${handLog?.detail}`
+      )
+      setEnv({ NOTIFY_EMAIL_PROVIDER: "console" })
+      const consId = await ackIntent()
+      await dispatch(consId, transport("dry-run", capture()))
+      const consRow = (await messagesOf(consId)).find((m) => m.to === B)
+      const consLog = (await listRecentEmails(orgA.id)).find((e) => e.id === consRow?.id)
+      check(
+        "B label (NOTIFY-11): a console-mode dry run → provider console, no detail",
+        consRow?.provider === "console" && consLog?.status === "dry run" && consLog.provider === "console" && consLog.detail === null,
+        `${consRow?.provider} / ${consLog?.detail}`
+      )
+      setEnv({ NOTIFY_SANDBOX_ALLOWLIST: "" })
 
       // The test kind reaches its caller in sandbox with an EMPTY allowlist.
       const caller = `notify6-caller-${tag}@example.com`

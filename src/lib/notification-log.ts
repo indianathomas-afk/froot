@@ -240,6 +240,13 @@ export async function listRecentEmails(organizationId: string, limit = 50): Prom
       }
     } else if (m.status === "dry-run") {
       status = "dry run"
+      // NOTIFY-11. The dispatcher names a provider on a dry-run row only when
+      // the transport was sandbox, so a non-console provider here means the
+      // allowlist held this address back. Rows from before NOTIFY-11 say
+      // "console" whatever happened, and get no detail.
+      if (m.mode === "dry-run" && m.provider !== "console") {
+        detail = "Held back by the staging allowlist (NOTIFY_SANDBOX_ALLOWLIST)"
+      }
     } else if (event) {
       status = DELIVERY_STATUS[event.type] ?? "sent"
       detail = event.reason

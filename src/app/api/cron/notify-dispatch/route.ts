@@ -13,9 +13,14 @@ import { dispatchNotifications, resolveTransport } from "@/lib/notifications/dis
 // stop email retries. :15, so it runs after pace's own inline dispatch at
 // 15:00 and off the two hourly crons at :00.
 //
-// THE SWEEP NEVER MAKES A SANDBOX SEND (R2, approved 2026-10-18) — the
-// dispatcher enforces it via trigger "sweep". On staging this run therefore
-// only expires stale intents and writes nothing else.
+// THE SWEEP NEVER MAKES A SANDBOX SEND, first or repeat (R2, Gary's words: "the
+// hourly retry never sends in sandbox") — the dispatcher enforces it via
+// trigger "sweep". On staging this run therefore mails nobody. It still writes:
+// expiries; a "Dry run — not sent" log line for a withheld or console-mode
+// recipient not yet logged for that intent (at most once per intent and
+// recipient); a failed message row when such a recipient's email will not
+// render; and lastError on an intent whose dispatch threw. (Before NOTIFY-11
+// this said "writes nothing else", which was never true of the first two.)
 //
 // NO ORG SCOPE, DELIBERATELY: a system job with no session. Every write is keyed
 // to the intent's own organizationId.

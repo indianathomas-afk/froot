@@ -21,12 +21,23 @@
 //            NO state change. Written at most once per (intent, recipient), so a
 //            store behind all month logs its dry run once, not daily.
 //
-// THE SWEEP NEVER MAKES A SANDBOX SEND (R2, approved 2026-10-18). A sandbox send
+// THE SWEEP NEVER MAKES A SANDBOX SEND — not a re-send and not a first send
+// (R2, Gary's words: "the hourly retry never sends in sandbox"). Enforced by
+// trigger "sweep" alone, whatever messages already exist (NOTIFY-11: the guard
+// once skipped only recipients with a prior sandbox message, so a sweep made a
+// first send to an address allow-listed after the signing). A sandbox send
 // leaves the intent queued by design, so without this rule the hourly sweep
-// would re-mail the allowlist every hour until the intent expired. Dispatches a
-// producer starts (a hand-fired cron, a signing, the test button) still re-send
-// — NOTIFY-5 choice 4, ratified: "Every hand-fire on staging re-sends to the
-// allow-listed addresses."
+// would mail the allowlist every hour until the intent expired. Dispatches a
+// producer starts (a hand-fired cron, a signing, the test button) still send
+// and re-send — NOTIFY-5 choice 4, ratified: "Every hand-fire on staging
+// re-sends to the allow-listed addresses." The sweep still writes a dry-run
+// log line for a withheld recipient, once per (intent, recipient).
+//
+// A DRY-RUN ROW NAMES THE PROVIDER ITS DISPATCH RAN UNDER (NOTIFY-11): the
+// configured provider when the transport is sandbox (the allowlist held the
+// address back), "console" otherwise. Taken from transport.mode, not from the
+// environment alone, so "dry run, provider not console" means "withheld by the
+// allowlist" for every caller — the reader's detail relies on it.
 //
 // CONCURRENCY (audit C8): the NotificationDelivery @@unique([intentId,
 // recipient]) row is the per-recipient lock. It is claimed as `pending` BEFORE
@@ -381,17 +392,20 @@ async function dispatchOne(
         : "dry-run"
   if (transport.mode === "sandbox") result.withheld = eligible.filter((r) => modeFor(r.email) === "dry-run").length
 
-  // What dry-run and sandbox have already written for this intent, so dry-run
-  // logs once per (intent, recipient) and the sweep never re-sends in sandbox.
+  // What dry-run has already written for this intent, so dry-run logs once per
+  // (intent, recipient).
   const prior = transport.mode === "live"
     ? []
     : await prisma.notificationMessage.findMany({
-        where: { intentId: intent.id, mode: { in: ["dry-run", "sandbox"] } },
-        select: { to: true, mode: true },
+        where: { intentId: intent.id, mode: "dry-run" },
+        select: { to: true },
       })
-  const priorKey = new Set(prior.map((m) => `${m.mode}:${m.to}`))
+  const dryRunLogged = new Set(prior.map((m) => m.to))
 
   const provider = emailProviderName()
+  // NOTIFY-11. A dry run was handed to no provider; its row names the provider
+  // only when the sandbox allowlist is what held it back.
+  const dryRunProvider = transport.mode === "sandbox" ? provider : "console"
   const record = (args: {
     to: string
     mode: DeliveryMode
@@ -399,7 +413,13 @@ async function dispatchOne(
     subject: string
     providerMessageId?: string | null
     error?: string
-  }) => writeMessage({ intent, provider, withheld: transport.mode === "sandbox" ? result.withheld : undefined, ...args })
+  }) =>
+    writeMessage({
+      intent,
+      provider: args.mode === "dry-run" ? dryRunProvider : provider,
+      withheld: transport.mode === "sandbox" ? result.withheld : undefined,
+      ...args,
+    })
 
   // 5–7. Render, one message per recipient, record.
   for (const r of remaining) {
@@ -407,7 +427,7 @@ async function dispatchOne(
     const rendered = safeRender(def, intent.payload, org, r.email)
 
     if (mode === "dry-run") {
-      if (priorKey.has(`dry-run:${r.email}`)) {
+      if (dryRunLogged.has(r.email)) {
         result.recipients.push({ to: r.email, mode, status: "skipped", reason: "dry run already logged" })
         continue
       }
@@ -425,8 +445,8 @@ async function dispatchOne(
     }
 
     if (mode === "sandbox") {
-      if (trigger === "sweep" && priorKey.has(`sandbox:${r.email}`)) {
-        result.recipients.push({ to: r.email, mode, status: "skipped", reason: "the sweep never re-sends in sandbox" })
+      if (trigger === "sweep") {
+        result.recipients.push({ to: r.email, mode, status: "skipped", reason: "R2: the sweep never sends in sandbox" })
         continue
       }
       const sent = await sendOne(transport, r.email, rendered)
@@ -612,8 +632,8 @@ async function writeMessage(args: {
         organizationId: intent.organizationId,
         kind: intent.kind,
         mode,
-        // A dry run was handed to no provider, whatever is configured.
-        provider: mode === "dry-run" ? "console" : args.provider,
+        // The caller decides a dry run's provider (NOTIFY-11; see dispatchOne).
+        provider: args.provider,
         providerMessageId: providerMessageId ?? null,
         to,
         subject,
