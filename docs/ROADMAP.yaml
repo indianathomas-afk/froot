@@ -20809,9 +20809,36 @@ phases:
   - id: NOTIFY-11
     track: platform
     size: S
-    status: planned
+    # planned -> in_progress 2026-10-19 by the NOTIFY-11 build session. Work
+    # commit 9f54bd8 is on local `staging` and NOT pushed (Claude never
+    # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    status: in_progress
+    commits:
+      - "9f54bd8"
     title: "R2 enforced: the sweep never sends in sandbox; dry-run rows name the real provider"
     blockers:
+      - >
+        NOT PUSHED. Work commit 9f54bd8 and the docs commit after it are on
+        local staging only. No migration.
+      - >
+        STAGING VERIFICATION OWED, after Gary's push. Precondition:
+        NOTIFY_SANDBOX_ALLOWLIST exists in Vercel Preview and staging was
+        redeployed after the save (deployment created time postdates it); then
+        the staging-SHA precondition. (1) R2 ON REAL DATA: while intent
+        cmvfd7emg000j08jnr89ef48w is still queued (before 2026-10-26 14:43
+        UTC), Gary hand-fires /api/cron/notify-dispatch with CRON_SECRET → the
+        response reports 0 sent for it, no new sandbox message row, no email
+        arrives. ONLY AFTER NOTIFY-11 IS DEPLOYED: on NOTIFY-6 code this
+        hand-fire would send. (2) Sign a NEW test document with
+        gary@kevajuice.com allow-listed → one email, one message row mode
+        sandbox, status sent, provider resend, zero delivery rows, intent
+        queued (also discharges NOTIFY-6 item (3) and the re-opened NOTIFY-5
+        allowlist blocker). (3) A non-allow-listed hrAckRecipients address →
+        "Dry run — not sent", provider resend, detail naming
+        NOTIFY_SANDBOX_ALLOWLIST. Every query names branch
+        br-square-feather-a63z92vz on the same line
+        (current_setting('neon.branch_id', true)); every browser observation
+        names org cmr54z65v000105jxczpt72w1.
       - >
         DEPENDS ON NOTIFY-6 (on staging since 2026-10-18). NOTIFY-11 changes
         src/lib/notifications/dispatch.ts and the Recent emails reader, both
@@ -20822,6 +20849,35 @@ phases:
         STAGING EVIDENCE). Gary creates it and redeploys before the staging
         pass.
     notes: >
+      ── BUILT 2026-10-19 (work commit 9f54bd8). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Audit: docs/prompts/2026-10-19_NOTIFY-11_AUDIT.md. Gary's go,
+      his words exactly: "Approved (Gary, 2026-10-19, my words): build
+      NOTIFY-11 with lean (a) as written, and lean (b) with your change — the
+      dry-run label comes from the mode the email was actually dispatched
+      under (configured provider only in sandbox, otherwise "console"), plus
+      the extra fixture check for a hand-passed mode. Go." (a) The sandbox
+      guard in dispatchOne is trigger "sweep" alone; producer dispatches keep
+      NOTIFY-5 choice 4; withheld dry-run rows and intent state unchanged.
+      (b) A dry-run row's provider is the configured provider when
+      transport.mode is sandbox, else "console" (the audit's amendment: the
+      dispatcher read the provider from the environment independently of the
+      injected mode, so the prompt's lean held for production callers but not
+      by construction). listRecentEmails adds detail "Held back by the staging
+      allowlist (NOTIFY_SANDBOX_ALLOWLIST)" to a dry-run row whose provider is
+      not console; status unchanged; no backfill; no UI file changed. The
+      cron route's "writes nothing else" comment corrected (it never held for
+      first dry-run rows). Fixtures on dev (br-broad-wave-a6vpjdw0):
+      verify-notify6 78/0 (6 new checks: R2 first send, choice 4 kept, label
+      sandbox row, label reader, hand-passed dry-run transport, console);
+      verify-notify5 55/0; verify-f5-polish 63/0; verify-notify-template 35/0.
+      NO EXISTING EXPECTATION CHANGED: no check asserted provider on a
+      sandbox-withheld row. Negative controls, run and reverted, not committed:
+      old guard (sweep skips only with a prior sandbox message) → 2 fail (the
+      first-send check and the choice-4 count; the pre-existing re-send check
+      PASSED, which is why the gap went unseen); forced "console" → 2 fail
+      (both sandbox label checks); environment-only provider (the prompt's
+      original lean) → 1 fail (the hand-passed check, which then read "Held
+      back by the staging allowlist" on a console dry run).
       FILED 2026-10-19 as FIX NOW by Gary, from the NOTIFY-5/NOTIFY-6
       acknowledgment investigation (staging, footer 1fe1481, org
       cmr54z65v000105jxczpt72w1, branch br-square-feather-a63z92vz; evidence on
