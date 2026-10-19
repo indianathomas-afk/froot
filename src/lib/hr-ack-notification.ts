@@ -8,39 +8,24 @@
 // the SENDER CONSTRUCTION rather than only the send, the swallowed audit write.
 // Nothing here may throw into the signing path.
 //
-// Not a cron, not a queue, no retry. A failed send is recorded and lost; the
-// record it describes is permanent and downloadable regardless. Delivery status
-// beyond "Resend accepted it" is NOTIFY-2's job (webhooks), not this file's.
+// NOTIFY-6: THIS FILE IS NOW A PRODUCER, AND THE "NO RETRY" THAT STOOD HERE IS
+// GONE. The mint enqueues one "hr.ack" intent (dedupeKey = signedRecordId) and
+// dispatches it inline, so a signing notice still arrives in seconds; a failed
+// live send is retried by the hourly sweep, only to the addresses that did not
+// get it (P6, Gary 2026-10-18), and the intent's state is the sent-once lock.
+// The email — subject and text byte for byte — lives in
+// src/lib/notifications/kinds/hr-ack.ts. The enqueue is the only thing the
+// signing path touches, and it never throws.
 
 import { after } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { consoleEmailSender, deliveryMode, getEmailSender, sandboxAllows } from "@/lib/notify"
-import { renderEmail } from "@/lib/email-template"
-import { ACTION_DRY_RUN, ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
-
-// AuditLog shape, ruled by Gary 2026-09-20 (F2). entityType is the CHANNEL and
-// action is the OUTCOME, so a future /settings/notifications page (NOTIFY-2)
-// filters on one indexed value — @@index([organizationId, entityType,
-// createdAt]) is already the index it needs. `kind` inside metadata is what
-// distinguishes HR-16's mail from the next consumer's; the entityType stays
-// "Notification" for all of them.
-//
-// WRITE-ONLY FOR NOW, BY RULING. Nothing reads these rows: the only AuditLog
-// reader is /api/forecasting/audit, which filters to GOAL_ENTITY_TYPES
-// (src/lib/audit.ts:16) and cannot see them. NOTIFY-2 is the row that builds
-// the reader.
-// NOTIFY-2b moved these to src/lib/notification-log.ts, which is now the one
-// file that knows the row shape — three consumers write it as of this phase,
-// and three copies of the strings is how a log ends up with two spellings of
-// the same kind.
-const AUDIT_KIND = "hr.ack"
-
-// Same format the Certificate of Acknowledgment prints (hr-signed-pdf.ts:66).
-// Copied rather than imported: that module pulls pdf-lib and unpdf, and this
-// one has no other reason to.
-function utc(d: Date): string {
-  return d.toISOString().replace("T", " ").slice(0, 19) + " UTC"
-}
+import {
+  dispatchNotifications,
+  enqueueNotification,
+  recordUndispatchable,
+  resolveTransport,
+} from "@/lib/notifications/dispatch"
+import type { HrAckPayload } from "@/lib/notifications/kinds/hr-ack"
 
 export type AckNotificationOutcome =
   | { status: "sent"; recipients: string[]; id?: string }
@@ -80,9 +65,9 @@ export function scheduleAckNotification(signedRecordId: string): void {
 }
 
 /**
- * Load what the email needs, send it, record the outcome. Exported for the
- * scheduler above and for direct use in a verification script; callers get an
- * outcome rather than an exception.
+ * Load what the email needs, enqueue it, dispatch it inline, and report the
+ * outcome. Exported for the scheduler above and for direct use in a
+ * verification script; callers get an outcome rather than an exception.
  */
 export async function sendAckNotification(signedRecordId: string): Promise<AckNotificationOutcome> {
   const record = await prisma.hrSignedRecord.findUnique({
@@ -104,15 +89,11 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
   }
 
   const org = record.version.hrDocument.organization
-  const recipients = org.hrAckRecipients
 
-  // F3 (Gary, 2026-09-20): SILENT SKIP WITH A NAMED LOG LINE. Same shape as
-  // F-5's "no admin/manager recipients" (src/lib/pace-alerts.ts:100) — the skip
-  // is not an error and raises nothing, but it says WHY in the log so an org
-  // that forgot to fill the field is distinguishable from one whose provider
-  // broke. NO AUDIT ROW: the ruling is one row per ATTEMPT, and nothing was
-  // attempted.
-  if (recipients.length === 0) {
+  // F3 (Gary, 2026-09-20): SILENT SKIP WITH A NAMED LOG LINE, AND STILL
+  // ROW-LESS. NOTIFY-6 keeps it before the enqueue, so an org that does not use
+  // the feature writes no intent either — nothing was attempted.
+  if (org.hrAckRecipients.length === 0) {
     console.log(`[hr-ack] record=${signedRecordId} org=${org.id} skipped: no recipients configured`)
     return { status: "skipped", reason: "no recipients configured" }
   }
@@ -151,160 +132,63 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
   const executedName =
     live.find((a) => a.checkpoint.type === "Signature" || a.checkpoint.type === "Acknowledgment")
       ?.typedName ?? nameOnRecord
-  // Same "-" the certificate prints for a signer with no store (corporate
-  // members are homed at no location by design). Not invented copy: it is what
-  // the artifact says.
-  const storeName = lastAck.storeName ?? "-"
-
-  const title = record.version.hrDocument.title
-  const versionNumber = record.version.versionNumber
-
-  // F4 (Gary, 2026-09-20): the DOWNLOAD API, which is the only URL that names
-  // this record. ADMIN or in-scope MANAGER (HR-7 rule 5); it 307s to a
-  // short-lived signed blob URL, so a recipient outside that tier gets a 403
-  // rather than the bytes.
-  //
-  // NEXT_PUBLIC_APP_URL is the existing host variable (eight call sites; see
-  // api/webhooks/square/route.ts:51, which likewise treats it as required). No
-  // new variable is introduced. Unset is a REAL failure and is recorded as one
-  // — a link with no host helps nobody, and a silent send with a broken link is
-  // the kind of thing that goes unnoticed for months.
-  // NOTIFY-2b: BUILT BEFORE THE HOST GATE BELOW, DELIBERATELY. The subject
-  // needs no URL, and the `email.failed` row written when the host is missing
-  // is far more useful naming the email it could not send than leaving the
-  // send log a row that says only "failed".
-  const subject = `Signed: ${title} v${versionNumber} — ${nameOnRecord}${
-    lastAck.storeName ? ` (${lastAck.storeName})` : ""
-  }`
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
-  if (!appUrl) {
-    const error = "NEXT_PUBLIC_APP_URL is not set — the record link has no host"
-    console.error(`[hr-ack] record=${signedRecordId} not sent: ${error}`)
-    await recordOutcome(org.id, signedRecordId, ACTION_FAILED, subject, { recipients, error })
-    return { status: "failed", recipients, error }
+  const payload: HrAckPayload = {
+    signedRecordId: record.id,
+    title: record.version.hrDocument.title,
+    versionNumber: record.version.versionNumber,
+    nameOnRecord,
+    executedName,
+    storeName: lastAck.storeName ?? null,
+    completedAt: record.completedAt.toISOString(),
   }
-  const recordUrl = new URL(`/api/hr/signed-records/${record.id}/download`, appUrl).toString()
 
-  const text = [
-    `${nameOnRecord} completed all required acknowledgments.`,
-    "",
-    `Document:   ${title}, version ${versionNumber}`,
-    `Signer:     ${nameOnRecord}  (executed as: ${executedName})`,
-    `Store:      ${storeName}`,
-    `Completed:  ${utc(record.completedAt)}`,
-    `Record:     ${recordUrl}`,
-    "",
-    `Sent by USE Froot on behalf of ${org.name}. This address does not accept`,
-    "replies.",
-  ].join("\n")
+  const enq = await enqueueNotification({
+    organizationId: org.id,
+    kind: "hr.ack",
+    dedupeKey: record.id,
+    entityId: record.id,
+    eventAt: record.completedAt,
+    payload,
+  })
+  if (!enq) return { status: "failed", recipients: org.hrAckRecipients, error: "could not record the notification" }
+  if (enq.state !== "queued" && enq.state !== "partial") {
+    return { status: "skipped", reason: `already ${enq.state}` }
+  }
 
-  // NOTIFY-5: who a failure row names. Narrowed to the allow-listed addresses
-  // once the mode is known, so a failed sandbox send never lists an address
-  // nobody tried to mail.
-  let attempted = recipients
+  // deliveryMode() THROWS on an unknown provider, so the transport is resolved
+  // inside a try — that throw must never reach the signing path. It is recorded
+  // as a failed send naming the bad value, as before.
+  let transport: ReturnType<typeof resolveTransport>
   try {
-    // THE CONSTRUCTION IS INSIDE THE TRY, NOT JUST THE SEND (Gary, 2026-09-20).
-    // getEmailSender() THROWS on a misconfigured deployment and never degrades
-    // to the console sender (src/lib/notify.ts:138-157) — so on staging, where
-    // NOTIFY_EMAIL_PROVIDER=resend, a missing RESEND_API_KEY throws here and not
-    // at send(). Outside this try that throw reaches the signing path.
-    //
-    // NOTIFY-5: deliveryMode() is inside the same try for the same reason — it
-    // throws on an unknown provider.
-    const mode = deliveryMode()
-    const sendTo = mode === "sandbox" ? recipients.filter(sandboxAllows) : recipients
-    const withheld = recipients.length - sendTo.length
-    attempted = sendTo
-    const dryRun = mode === "dry-run" || sendTo.length === 0
-    // Only built when something will really be sent: dry-run never needs
-    // Resend config, and a sandbox run that filtered everyone out is a dry run.
-    const sender = dryRun ? consoleEmailSender : getEmailSender()
-    // replyTo is deliberately NOT set. notify.ts:19-22 anticipates HR-16 wanting
-    // it; the HR-16 ruling is the later instruction and says no per-merchant
-    // reply address. Sending is `USE Froot <noreply@notify.usefroot.com>`
-    // (NOTIFY_FROM_EMAIL) for every recipient.
-    //
-    // NOTIFY-2b: THE HTML IS NEW, THE TEXT IS NOT. `text` above is passed
-    // through the template verbatim rather than regenerated from the rows —
-    // this email's wording predates the template and its lines are what the
-    // HR-16 ruling settled. The template's own text generator would produce a
-    // different (correct, but different) body, and changing the wording was
-    // never what "one template" was asked to buy.
-    const { html } = renderEmail({
-      orgName: org.name,
-      heading: `${nameOnRecord} completed all required acknowledgments.`,
-      intro: "",
-      rows: [
-        { label: "Document", value: `${title}, version ${versionNumber}` },
-        { label: "Signer", value: `${nameOnRecord}  (executed as: ${executedName})` },
-        { label: "Store", value: storeName },
-        { label: "Completed", value: utc(record.completedAt) },
-      ],
-      cta: { label: "Download the record", url: recordUrl },
-      footer: `Sent by USE Froot on behalf of ${org.name}. This address does not accept replies.`,
-      appUrl,
-      text,
-    })
-    if (dryRun) {
-      await sender.send({ to: recipients, subject, text, html })
-      console.log(`[hr-ack] record=${signedRecordId} dry run (mode=${mode}) — nothing sent`)
-      await recordOutcome(org.id, signedRecordId, ACTION_DRY_RUN, subject, { recipients })
-      return { status: "dry-run", recipients }
-    }
-    // Sandbox (P2, Gary 2026-10-18): real mail to the allow-listed addresses
-    // only; the row names only them. Live: sendTo is the whole list.
-    if (withheld > 0) {
-      console.log(
-        `[hr-ack] record=${signedRecordId} sandbox: withheld ${withheld} recipient(s) not on the allowlist`
-      )
-    }
-    const { id } = await sender.send({ to: sendTo, subject, text, html })
-    console.log(
-      `[hr-ack] record=${signedRecordId} sent to ${sendTo.length} recipient(s) id=${id ?? "(none)"} mode=${mode}`
-    )
-    await recordOutcome(org.id, signedRecordId, ACTION_SENT, subject, {
-      recipients: sendTo,
-      resendId: id ?? null,
-      ...(mode === "sandbox" ? { withheld } : {}),
-    })
-    return { status: "sent", recipients: sendTo, id }
+    transport = resolveTransport()
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
     console.error(`[hr-ack] record=${signedRecordId} send failed: ${error}`)
-    await recordOutcome(org.id, signedRecordId, ACTION_FAILED, subject, { recipients: attempted, error })
-    return { status: "failed", recipients: attempted, error }
+    const recipients = await recordUndispatchable(enq.intentId, error)
+    return { status: "failed", recipients, error }
   }
-}
 
-// NOTIFY-2b: the row shape moved to src/lib/notification-log.ts, which stamps
-// `provider` itself and swallows its own failures. This wrapper survives only
-// because the whole point of this file is that nothing downstream of a
-// signature can throw, and one more catch costs nothing.
-//
-// WHAT NOTIFY-2a WROTE HERE IS PRESERVED IN THAT FILE AND IS WORTH RE-READING
-// BEFORE ANYONE "SIMPLIFIES" IT: `provider` is what stops a console-mode
-// "sent" from reading as delivery, and `resendId` is NOT a usable proxy for it
-// — the console sender returns {} so console mode stores null, but so does a
-// real Resend 2xx whose body failed to parse (notify.ts:112-117, which
-// deliberately keeps the send successful and loses the id).
-async function recordOutcome(
-  organizationId: string,
-  signedRecordId: string,
-  action: typeof ACTION_SENT | typeof ACTION_FAILED | typeof ACTION_DRY_RUN,
-  subject: string,
-  extra: { recipients: string[]; resendId?: string | null; error?: string; withheld?: number }
-): Promise<void> {
-  try {
-    await recordEmailAttempt({
-      organizationId,
-      entityId: signedRecordId,
-      kind: AUDIT_KIND,
-      action,
-      subject,
-      ...extra,
-    })
-  } catch (err) {
-    console.error(`[hr-ack] record=${signedRecordId} audit write failed:`, err)
+  const [r] = await dispatchNotifications({ transport, trigger: "producer", intentIds: [enq.intentId] })
+  if (!r) return { status: "skipped", reason: "retry scheduled" }
+  if (r.outcome === "expired") return { status: "skipped", reason: r.reason }
+
+  const real = r.recipients.filter((x) => x.mode !== "dry-run")
+  const sent = real.filter((x) => x.status === "sent")
+  const failed = r.recipients.filter((x) => x.status === "failed")
+  if (r.withheld > 0) {
+    console.log(`[hr-ack] record=${signedRecordId} sandbox: withheld ${r.withheld} recipient(s) not on the allowlist`)
   }
+  if (sent.length > 0 && failed.length === 0) {
+    console.log(
+      `[hr-ack] record=${signedRecordId} sent to ${sent.length} recipient(s) mode=${transport.mode} intent=${r.outcome}`
+    )
+    return { status: "sent", recipients: sent.map((x) => x.to), id: sent[0].providerMessageId }
+  }
+  if (failed.length > 0) {
+    const error = failed[0].error ?? "send failed"
+    console.error(`[hr-ack] record=${signedRecordId} send failed: ${error}`)
+    return { status: "failed", recipients: failed.map((x) => x.to), error }
+  }
+  console.log(`[hr-ack] record=${signedRecordId} dry run (mode=${transport.mode}) — nothing sent`)
+  return { status: "dry-run", recipients: r.recipients.map((x) => x.to) }
 }

@@ -7,7 +7,9 @@ import {
   ACTION_DELIVERED,
   deliveryEventExists,
   findAttemptByResendId,
+  findMessageByProviderId,
   recordDeliveryEvent,
+  recordMessageEvent,
 } from "@/lib/notification-log"
 
 // POST /api/webhooks/resend — NOTIFY-2b. Resend delivery events, appended to
@@ -121,6 +123,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true, ignored: "no email_id" })
   }
 
+  // NOTIFY-6: FIRST, THE PIPELINE MESSAGE, by its indexed providerMessageId.
+  // The org comes from the message row, never from the event body. The event
+  // is appended to NotificationEvent (idempotent on message + type) AND, for
+  // one release, to AuditLog in parallel, so a reverted reader still sees it.
+  const message = await findMessageByProviderId(resendId)
+  if (message) {
+    const reason = reasonOf(event.data)
+    const at = event.created_at ?? event.data?.created_at ?? null
+    const recorded = await recordMessageEvent({ messageId: message.id, type: action, reason, at })
+    if (!(await deliveryEventExists(resendId, action))) {
+      await recordDeliveryEvent({
+        organizationId: message.organizationId,
+        entityId: message.entityId,
+        action,
+        resendId,
+        kind: message.kind,
+        recipients: recipientsOf(event.data),
+        reason,
+        at,
+      })
+    }
+    return NextResponse.json(recorded ? { received: true, recorded: action } : { received: true, ignored: "already recorded" })
+  }
+
+  // PRE-PIPELINE SENDS fall back to the AuditLog lookup, unchanged.
   // F3: correlate by the id the send already recorded. A miss is a 200 — see
   // the header. Never a 4xx: Svix retries a non-2xx for days, and an event
   // Froot legitimately cannot place would retry forever.

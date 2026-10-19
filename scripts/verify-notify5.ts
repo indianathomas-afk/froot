@@ -28,6 +28,14 @@
  * acknowledgment path (which builds its own sender) runs against a stubbed
  * globalThis.fetch for api.resend.com (NOTIFY-5 audit, choice 5).
  *
+ * NOTIFY-6 (the pipeline) changed what these checks count, never what they
+ * protect: (1) one message — so one `email.dryrun` / `email.sent` row and one
+ * Resend call — PER RECIPIENT, so "one row" became "one row per recipient";
+ * (2) the acknowledgment steps reuse one signed record, and its intent is the
+ * sent-once lock now, so clearAckRows() clears the intent too; (3) the E log
+ * rows are backdated, since "legacy" means older than the org's first pipeline
+ * message. The mode table (A) is untouched.
+ *
  * NEGATIVE CONTROL: set NOTIFY5_NEGATIVE_CONTROL=1 after hand-breaking a rule
  * (the session that wrote this disabled the dry-run branch in pace-alerts.ts so
  * dry-run fell through to the lock) — B must then FAIL.
@@ -263,19 +271,17 @@ async function main() {
       check("B pace dry-run: NO PaceAlertLog row (the lock is not burned)", lockAfterDry === null)
       check("B pace dry-run: the injected sender is never called", capB.sent.length === 0)
       check(
-        "B pace dry-run: exactly one email.dryrun row, kind pace.alert, both would-be recipients, mode dry-run",
-        dryRows1.length === 1 &&
-          meta(dryRows1[0]).kind === "pace.alert" &&
-          meta(dryRows1[0]).mode === "dry-run" &&
-          (meta(dryRows1[0]).recipients as string[]).length === 2 &&
-          typeof meta(dryRows1[0]).subject === "string",
+        "B pace dry-run: one email.dryrun row PER would-be recipient (NOTIFY-6), kind pace.alert, mode dry-run",
+        dryRows1.length === 2 &&
+          dryRows1.every((r) => meta(r).kind === "pace.alert" && meta(r).mode === "dry-run" && (meta(r).recipients as string[]).length === 1 && typeof meta(r).subject === "string") &&
+          new Set(dryRows1.map((r) => (meta(r).recipients as string[])[0])).size === 2,
         `${dryRows1.length} row(s)`
       )
       check("B pace dry-run: no email.sent row", (await rowsFor(storeA.id, ACTION_SENT)).length === 0)
       const dry2 = await processPaceAlertForStore(storeA, { thresholdPct: 90, sender: capB.sender, mode: "dry-run" })
       check(
         "B pace dry-run: a second run the same month writes NO second dry-run row",
-        (await rowsFor(storeA.id, ACTION_DRY_RUN)).length === 1 && !dry2.alerted,
+        (await rowsFor(storeA.id, ACTION_DRY_RUN)).length === 2 && !dry2.alerted,
         dry2.reason
       )
 
@@ -285,13 +291,13 @@ async function main() {
       const lockAfterLive = await lockFor(storeA.id)
       check(
         "B THE BURN IS GONE: live in the same month alerts after dry-run and writes the lock",
-        live.alerted && lockAfterLive !== null && capLive.sent.length === 1,
+        live.alerted && lockAfterLive !== null && capLive.sent.length === 2,
         live.reason
       )
       const liveRow = (await rowsFor(storeA.id, ACTION_SENT))[0]
       check("B live: email.sent row stamped mode live", meta(liveRow).mode === "live" && meta(liveRow).provider === "resend")
       const live2 = await processPaceAlertForStore(storeA, { thresholdPct: 90, sender: capLive.sender, mode: "live" })
-      check("B live: still one alert per store per month", !live2.alerted && capLive.sent.length === 1, live2.reason)
+      check("B live: still one alert per store per month", !live2.alerted && capLive.sent.length === 2, live2.reason)
 
       // ── C. pace in sandbox ─────────────────────────────────────────────────
       setEnv({ ...SANDBOX, NOTIFY_SANDBOX_ALLOWLIST: adminEmail.toUpperCase() })
@@ -317,12 +323,12 @@ async function main() {
       const capC2 = capture()
       const sbEmpty = await processPaceAlertForStore(storeC, { thresholdPct: 90, sender: capC2.sender, mode: "sandbox" })
       check(
-        "C pace sandbox, empty allowlist → behaves as dry-run (no send, no lock, one dry-run row)",
+        "C pace sandbox, empty allowlist → behaves as dry-run (no send, no lock, one dry-run row per recipient)",
         !sbEmpty.alerted &&
           sbEmpty.reason === "dry-run" &&
           capC2.sent.length === 0 &&
           (await lockFor(storeC.id)) === null &&
-          (await rowsFor(storeC.id, ACTION_DRY_RUN)).length === 1,
+          (await rowsFor(storeC.id, ACTION_DRY_RUN)).length === 2,
         sbEmpty.reason
       )
 
@@ -337,13 +343,13 @@ async function main() {
           mode: resolved,
         })
         check(
-          `F pace: preview + resend + allowlist ${label} → mode "${resolved}" (never live), nobody emailed, no lock, one dry-run row`,
+          `F pace: preview + resend + allowlist ${label} → mode "${resolved}" (never live), nobody emailed, no lock, one dry-run row per recipient`,
           resolved === "sandbox" &&
             !r.alerted &&
             r.reason === "dry-run" &&
             resendCalls.length === 0 &&
             (await lockFor(storesF[i].id)) === null &&
-            (await rowsFor(storesF[i].id, ACTION_DRY_RUN)).length === 1 &&
+            (await rowsFor(storesF[i].id, ACTION_DRY_RUN)).length === 2 &&
             (await rowsFor(storesF[i].id, ACTION_SENT)).length === 0,
           `mode=${resolved} reason=${r.reason} resendCalls=${resendCalls.length}`
         )
@@ -385,7 +391,12 @@ async function main() {
     const setAckList = (list: string[]) =>
       prisma.organization.update({ where: { id: org.id }, data: { hrAckRecipients: list } })
     const ackRows = async (action: string) => rowsFor(record.id, action)
-    const clearAckRows = () => prisma.auditLog.deleteMany({ where: { organizationId: org.id, entityId: record.id } })
+    const clearAckRows = async () => {
+      await prisma.auditLog.deleteMany({ where: { organizationId: org.id, entityId: record.id } })
+      // NOTIFY-6: the record's intent is the sent-once lock; each step starts fresh.
+      await prisma.notificationMessage.deleteMany({ where: { intent: { organizationId: org.id, dedupeKey: record.id } } })
+      await prisma.notificationIntent.deleteMany({ where: { organizationId: org.id, dedupeKey: record.id } })
+    }
 
     setEnv({ NEXT_PUBLIC_APP_URL: "https://notify5.example.com" })
 
@@ -408,8 +419,8 @@ async function main() {
       ackDry.status === "dry-run" && ackDry.recipients.length === 2,
       ackDry.status
     )
-    check("D ack dry-run: no email.sent row, one email.dryrun row, nothing reached Resend",
-      (await ackRows(ACTION_SENT)).length === 0 && (await ackRows(ACTION_DRY_RUN)).length === 1 && resendCalls.length === 0)
+    check("D ack dry-run: no email.sent row, one email.dryrun row per address, nothing reached Resend",
+      (await ackRows(ACTION_SENT)).length === 0 && (await ackRows(ACTION_DRY_RUN)).length === 2 && resendCalls.length === 0)
     await clearAckRows()
 
     setEnv({ ...SANDBOX, NOTIFY_SANDBOX_ALLOWLIST: allowed.toUpperCase() })
@@ -434,7 +445,7 @@ async function main() {
     const ackSbEmpty = await sendAckNotification(record.id)
     check(
       "D ack sandbox, empty allowlist → dry-run, nothing reached Resend",
-      ackSbEmpty.status === "dry-run" && resendCalls.length === 0 && (await ackRows(ACTION_DRY_RUN)).length === 1,
+      ackSbEmpty.status === "dry-run" && resendCalls.length === 0 && (await ackRows(ACTION_DRY_RUN)).length === 2,
       ackSbEmpty.status
     )
     await clearAckRows()
@@ -450,7 +461,7 @@ async function main() {
           r.status === "dry-run" &&
           resendCalls.length === 0 &&
           (await ackRows(ACTION_SENT)).length === 0 &&
-          (await ackRows(ACTION_DRY_RUN)).length === 1,
+          (await ackRows(ACTION_DRY_RUN)).length === 2,
         `${r.status} resendCalls=${resendCalls.length}`
       )
       await clearAckRows()
@@ -478,8 +489,8 @@ async function main() {
     resendCalls.length = 0
     const ackLive = await sendAckNotification(record.id)
     check(
-      "D ack live: unchanged — sent to the whole list",
-      ackLive.status === "sent" && resendCalls.length === 1 && resendCalls[0].to.length === 2,
+      "D ack live: sent to the whole list — one message per address (NOTIFY-6)",
+      ackLive.status === "sent" && resendCalls.length === 2 && resendCalls.every((c) => c.to.length === 1),
       JSON.stringify(resendCalls)
     )
     await clearAckRows()
@@ -501,6 +512,11 @@ async function main() {
       organizationId: org.id, userId: null, action: ACTION_DRY_RUN, entityType: NOTIFICATION_ENTITY_TYPE, entityId: "notify5-probe",
       metadata: { kind: "test", provider: "console", mode: "dry-run", recipients: ["p@example.com"], subject: "NOTIFY-5 probe", resendId: probe },
     })
+    // NOTIFY-6: legacy history is older than the org's first pipeline message.
+    await prisma.auditLog.updateMany({
+      where: { organizationId: org.id, entityId: { in: ["notify5-legacy-console", "notify5-legacy-none", "notify5-probe"] } },
+      data: { createdAt: new Date(Date.now() - 400 * 86_400_000) },
+    })
     const log = await listRecentEmails(org.id)
     const bySubject = (s: string) => log.find((e) => e.subject === s)
     check("E log: a legacy console email.sent still reads 'logged only'", bySubject("NOTIFY-5 legacy console")?.status === "logged only")
@@ -521,6 +537,9 @@ async function main() {
   } finally {
     globalThis.fetch = realFetch
     restoreEnv()
+    // NOTIFY-6: pipeline rows first — their org FK is RESTRICT.
+    await prisma.notificationMessage.deleteMany({ where: { organizationId: org.id } })
+    await prisma.notificationIntent.deleteMany({ where: { organizationId: org.id } })
     await prisma.auditLog.deleteMany({ where: { organizationId: org.id } })
     if (hrIds.docId) {
       const versions = await prisma.hrDocumentVersion.findMany({ where: { hrDocumentId: hrIds.docId }, select: { id: true } })

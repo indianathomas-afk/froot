@@ -208,7 +208,7 @@ export default async function NotificationSettingsPage() {
             means the receiving mail server accepted it; <span className="font-medium text-[var(--color-foreground)]">Sent</span>{" "}
             means it was handed to the provider and no delivery result has come back yet;{" "}
             <span className="font-medium text-[var(--color-foreground)]">Dry run</span> means the email was
-            composed and logged, and nothing left this environment.
+            composed and logged, and nothing left this environment. Each recipient has their own row.
           </p>
           <RecentEmails entries={recentEmails} timeZone={org.timezone} />
         </CardContent>

@@ -211,11 +211,11 @@ export function getEmailSender(): EmailSender {
 
   if (provider === RESEND_PROVIDER) {
     // CONFIG IS VALIDATED HERE, NOT INSIDE send(), AND THAT IS DELIBERATE.
-    // pace-alerts.ts writes the PaceAlertLog idempotency row BEFORE it sends,
-    // so a throw at send() time would burn a store's one-alert-per-month lock
-    // with no email delivered — unrecoverable until the month rolls. The cron
-    // calls getEmailSender() once, before the store loop, so a missing key
-    // fails the run with zero rows written instead of poisoning every store.
+    // The pace cron calls getEmailSender() once, before the store loop, so a
+    // missing key fails the run with zero rows written instead of poisoning
+    // every store. (Before NOTIFY-6 the stronger reason was that pace wrote its
+    // PaceAlertLog lock BEFORE sending; the lock is now the intent's state,
+    // which only a real send moves, but failing early is still the right shape.)
     return createResendEmailSender({
       apiKey: requiredEnv("RESEND_API_KEY"),
       from: requiredEnv("NOTIFY_FROM_EMAIL"),

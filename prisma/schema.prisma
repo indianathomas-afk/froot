@@ -179,6 +179,8 @@ model Organization {
   teamMessages                  TeamMessage[]
   corporateUpdates              CorporateUpdate[]
   paceAlertLogs                 PaceAlertLog[]
+  notificationIntents           NotificationIntent[]
+  notificationMessages          NotificationMessage[]
   hrDocuments                   HrDocument[]
   hrDocumentCategories          HrDocumentCategory[]
   hrReturnEvents                HrReturnEvent[]
@@ -894,6 +896,112 @@ model PaceAlertLog {
   store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, month])
+}
+
+// ─── NOTIFY-6: ONE NOTIFICATION PIPELINE ─────────────────────────────────────
+// docs/prompts/2026-10-18_NOTIFY-6_AUDIT.md. A producer enqueues an INTENT
+// ("this happened, someone should hear about it"); the dispatcher decides who,
+// in which mode, and records one MESSAGE per provider call and one DELIVERY per
+// live recipient. Additive only: PaceAlertLog and the Notification AuditLog
+// rows keep being written in parallel for one release (NOTIFY-9 stops them).
+//
+// States, kinds and modes are TEXT, not Postgres enums (audit choice 1): the
+// registry (src/lib/notifications/registry.ts) is the validation, and a new
+// kind or state (NOTIFY-7's `suppressed`) must not need a migration.
+
+// One row per event. The sent-once lock for EVERY kind is `state`, never the
+// row's existence: queued | sent | partial | failed | expired | known. Kept
+// forever (P5); nothing prunable has a foreign key that points here from
+// the intent side.
+model NotificationIntent {
+  id             String    @id @default(cuid())
+  organizationId String
+  kind           String
+  dedupeKey      String
+  entityId       String?
+  eventAt        DateTime
+  payload        Json
+  state          String    @default("queued")
+  attempts       Int       @default(0)
+  lastError      String?
+  nextAttemptAt  DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id])
+  deliveries   NotificationDelivery[]
+  messages     NotificationMessage[]
+
+  @@unique([organizationId, kind, dedupeKey])
+  // The hourly sweep: queued/partial intents whose nextAttemptAt has passed.
+  @@index([state, nextAttemptAt])
+}
+
+// One row per (intent, recipient), LIVE recipients only. The unique row is
+// also the per-recipient send lock (audit C8): claimed as `pending` before the
+// provider call, settled to `sent` or `failed` after it. P6 (Gary,
+// 2026-10-18): a retry sends only to recipients with no `sent` row.
+// `recipient` is lower-cased. `userId` is plain text with no FK, like
+// AuditLog.userId — a deleted user must not block a ledger row.
+model NotificationDelivery {
+  id        String   @id @default(cuid())
+  intentId  String
+  recipient String
+  userId    String?
+  messageId String?
+  state     String
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  intent  NotificationIntent   @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  message NotificationMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@unique([intentId, recipient])
+  @@index([messageId])
+}
+
+// One row per provider call (or per would-be call in dry-run): exactly one
+// recipient in `to`. "Recent emails" reads this. `providerMessageId` is a real
+// indexed column so the Resend webhook lookup is an index hit (NOTIFY-3 audit
+// finding 2). mode: live | sandbox | dry-run. status: sent | failed | dry-run.
+model NotificationMessage {
+  id                String   @id @default(cuid())
+  organizationId    String
+  kind              String
+  mode              String
+  provider          String
+  providerMessageId String?  @unique
+  to                String
+  subject           String
+  status            String
+  error             String?
+  intentId          String?
+  createdAt         DateTime @default(now())
+
+  organization Organization           @relation(fields: [organizationId], references: [id])
+  intent       NotificationIntent?    @relation(fields: [intentId], references: [id], onDelete: SetNull)
+  deliveries   NotificationDelivery[]
+  events       NotificationEvent[]
+
+  @@index([organizationId, createdAt])
+  @@index([intentId])
+}
+
+// One row per webhook event. Append, never update (Gary, 2026-09-20);
+// idempotent on (message, type). The org is the message's, never the body's.
+model NotificationEvent {
+  id        String   @id @default(cuid())
+  messageId String
+  type      String
+  reason    String?
+  at        DateTime
+  createdAt DateTime @default(now())
+
+  message NotificationMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, type])
 }
 
 // ─── ENG-1: ENGAGEMENT TRACKING ──────────────────────────────────────────────

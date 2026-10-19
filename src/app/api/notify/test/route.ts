@@ -2,9 +2,15 @@ import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { getOrganization, requireAdmin } from "@/lib/auth"
 import { getClerkPrimaryEmail } from "@/lib/clerk"
-import { consoleEmailSender, deliveryMode, emailProviderName, getEmailSender, type DeliveryMode } from "@/lib/notify"
-import { renderEmail } from "@/lib/email-template"
-import { ACTION_DRY_RUN, ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
+import { randomUUID } from "node:crypto"
+import { emailProviderName, type DeliveryMode } from "@/lib/notify"
+import {
+  dispatchNotifications,
+  enqueueNotification,
+  recordUndispatchable,
+  resolveTransport,
+} from "@/lib/notifications/dispatch"
+import type { TestPayload } from "@/lib/notifications/kinds/test"
 
 // POST /api/notify/test — NOTIFY-1. Proves real delivery from a deployed
 // environment without giving anyone a way to email arbitrary people.
@@ -26,6 +32,12 @@ import { ACTION_DRY_RUN, ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "
 // allowlist has nothing to protect here. In DRY-RUN the row is `email.dryrun`.
 // The "Send a test to me" button on /settings/notifications is the first UI
 // caller.
+//
+// NOTIFY-6: THE ROUTE IS NOW A PRODUCER. Every press enqueues a fresh "test"
+// intent (a random dedupeKey, never deduplicated) carrying the caller's
+// address, and dispatches it inline; the response the button reads is mapped
+// from that one recipient's result and keeps its shape (ok, mode, provider,
+// to, id). The email text lives in src/lib/notifications/kinds/test.ts.
 //
 // CONSOLE MODE RETURNS ok: true AND THAT IS CORRECT. The console sender did
 // exactly what it is for — the response names the provider, so a "success"
@@ -66,87 +78,43 @@ export async function POST() {
   const deployEnv = process.env.VERCEL_ENV ?? "local"
   const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "unknown"
 
-  // NOTIFY-2b: the text is UNCHANGED and passed through the template verbatim.
-  // What the branded HTML adds here is a second job this route now does — it is
-  // the one email an admin can fire on demand, so it is also the only way to
-  // look at the template without waiting for a store to fall behind pace or for
-  // someone to sign a document.
-  const subject = `USE Froot test — ${stamp}`
-  const text = [
-    `This is a USE Froot email delivery test.`,
-    ``,
-    `Provider:   ${provider}`,
-    `Deployment: ${deployEnv} @ ${sha}`,
-    `Sent at:    ${stamp}`,
-    ``,
-    `If you are reading this in an inbox, real email delivery works in this`,
-    `environment. Nothing else was sent — this route only ever writes to the`,
-    `address on the requesting admin's own Clerk account.`,
-  ].join("\n")
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
-  const { html } = renderEmail({
-    orgName: org.name,
-    heading: "This is a USE Froot email delivery test.",
-    intro:
-      "If you are reading this in an inbox, real email delivery works in this environment. " +
-      "Nothing else was sent — this route only ever writes to the address on the requesting " +
-      "admin's own Clerk account.",
-    rows: [
-      { label: "Provider", value: provider },
-      { label: "Deployment", value: `${deployEnv} @ ${sha}` },
-      { label: "Sent at", value: stamp },
-    ],
-    // No host, no button. The CTA is the only part of this email that needs an
-    // absolute URL, and a test message is exactly the wrong place to fail over
-    // a missing variable — see the fallback in email-template.ts.
-    cta: appUrl ? { label: "Email notification settings", url: `${appUrl}/settings/notifications` } : undefined,
-    footer: `Sent by USE Froot on behalf of ${org.name}. This address does not accept replies.`,
-    appUrl,
-    text,
+  const payload: TestPayload = { to, provider, stamp, deployEnv, sha }
+  const enq = await enqueueNotification({
+    organizationId: org.id,
+    kind: "test",
+    dedupeKey: randomUUID(),
+    entityId: null,
+    eventAt: new Date(),
+    payload,
   })
+  if (!enq) {
+    return NextResponse.json(
+      { provider, to, mode: null, ok: false, error: "could not record the test email" },
+      { status: 502 }
+    )
+  }
 
   let mode: DeliveryMode | null = null
   try {
     // Inside the try: deliveryMode() throws on an unknown provider, and that
     // must come back as the 502 below naming the value, not as an unhandled 500.
-    mode = deliveryMode()
-    if (mode === "dry-run") {
-      await consoleEmailSender.send({ to, subject, text, html })
-      await recordEmailAttempt({
-        organizationId: org.id,
-        entityId: null,
-        kind: "test",
-        action: ACTION_DRY_RUN,
-        recipients: [to],
-        subject,
-      })
-      return NextResponse.json({ provider, to, mode, ok: true })
+    const transport = resolveTransport()
+    mode = transport.mode
+    const [r] = await dispatchNotifications({ transport, trigger: "producer", intentIds: [enq.intentId] })
+    const result = r?.recipients.find((x) => x.to === to.trim().toLowerCase()) ?? r?.recipients[0]
+    if (!result) throw new Error(r?.reason || "the test was not dispatched")
+    if (result.status === "failed") throw new Error(result.error ?? "email send failed")
+    if (result.status === "sent") {
+      return NextResponse.json({ provider, to, mode, ok: true, ...(result.providerMessageId ? { id: result.providerMessageId } : {}) })
     }
-    const sender = getEmailSender()
-    const { id } = await sender.send({ to, subject, text, html })
-    await recordEmailAttempt({
-      organizationId: org.id,
-      entityId: null,
-      kind: "test",
-      action: ACTION_SENT,
-      recipients: [to],
-      subject,
-      resendId: id ?? null,
-    })
-    return NextResponse.json({ provider, to, mode, ok: true, ...(id ? { id } : {}) })
+    // dry-run (logged through the console sender, recorded "Dry run — not sent").
+    return NextResponse.json({ provider, to, mode, ok: true })
   } catch (e) {
     const message = e instanceof Error ? e.message : "email send failed"
     console.error(`[notify:test] provider=${provider}: ${message}`)
-    await recordEmailAttempt({
-      organizationId: org.id,
-      entityId: null,
-      kind: "test",
-      action: ACTION_FAILED,
-      recipients: [to],
-      subject,
-      error: message,
-    })
+    // The dispatcher already recorded a failed send. Only an unresolvable
+    // provider (mode still null) reaches here with nothing on the log.
+    if (mode === null) await recordUndispatchable(enq.intentId, message)
     return NextResponse.json({ provider, to, mode, ok: false, error: message }, { status: 502 })
   }
 }
