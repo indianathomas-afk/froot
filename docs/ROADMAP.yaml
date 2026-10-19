@@ -7844,6 +7844,37 @@ phases:
         kind on the NOTIFY-6 pipeline (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md
         section 4.7 and 7). Recorded by the NOTIFY-5 docs commit.
     notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Staging footer 9a70f52; Neon branch preview/staging
+      (br-square-feather-a63z92vz); org cmr54z65v000105jxczpt72w1. The footer
+      SHA equals local HEAD 9a70f52 when this was recorded. The first build after the 15:21 PDT push (9e608ab)
+      stalled at Initializing; 9a70f52 built and is serving. DISCHARGED by
+      this evidence, from the "STAGING VERIFICATION OWED" list below:
+      (a) the migration — 20261019211518_ms4b_milestone_alerts finished
+      2026-10-19 22:30:59 UTC, rolled_back_at null (_prisma_migrations on
+      preview/staging); (b) the "Milestone emails" card — found on
+      /settings/notifications (not /staff/milestones), the org switch starts
+      OFF; (c) "Send a sample to me" — delivered to Gary only; (d) the
+      BUILT block's "no phone-width observation was taken" — phone width
+      checked for the milestone card and a Milestones tab. Also observed:
+      Edit User shows the "Milestone reached" line. STILL OPEN, not covered
+      by this evidence: (1) the card's "Milestones off → one disabled line"
+      state — no observation with the Milestones module off; (2) the
+      ?tab=milestones link on /staff/[id] — a Milestones tab was seen at
+      phone width, but following the link (the sample email's or a direct
+      ?tab=milestones URL) and landing on that tab is not recorded; (3) the
+      pace-alerts cron run with the switch on — NOT RUN. Gary's evidence
+      lists the daily summary, the 7-day window, skipped days,
+      self-exclusion and sweep behaviour as accepted as fixture-proven
+      (verify-ms4b 59/59, J1–J4, negative controls); that acceptance is
+      recorded here, but no staging run exists, so the ruling-3 claim that
+      the cron summary reaches only NOTIFY_SANDBOX_ALLOWLIST addresses has
+      no staging observation. FOR THE PROMOTION PASS: 9a70f52 (comment-only
+      fix to src/lib/milestone-alerts.ts, the C2 comment) is the serving
+      commit but is NOT in the DEPLOY_LOG "UNPROMOTED — 2026-10-19 — MS-4b"
+      payload table yet, nor in this row's commits list; that entry's
+      "Staging evidence: pending" line is likewise not updated by this
+      commit.
       ── PRE-PUSH-CHECK 2026-10-19. PREPENDED; NOTHING BELOW IS EDITED. ──
       Status to `staging` (not pushed; Gary pushes). Commits: 1bc01cf (work),
       5517d60 (docs), 9e608ab (test), and this check's own commit, the one
