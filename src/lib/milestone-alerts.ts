@@ -21,10 +21,12 @@
 //     an existing intent in any state is left alone).
 // The dispatcher's 8-day freshness (N2) is the backstop, not the judge.
 //
-// MS-4b CHOICE C2 — THE DISPATCH IS SCOPED TO WHAT WAS REACHED TODAY. Only
-// this run's queued intents are dispatched, so a queued checklist milestone
-// whose count has since dropped (MS-4a: counts go down) is not re-announced; it
-// ages out. A sent one stays sent whatever the count does.
+// MS-4b CHOICE C2 — THE DISPATCH IS SCOPED TO WHAT THIS RUN QUEUED OR
+// REFRESHED. Every run re-counts from scratch and enqueues every milestone
+// reached within the last 7 store-local days, so a skipped run loses nothing
+// (verify-ms4b J1–J4). Only those intents are dispatched, so a queued checklist
+// milestone whose count has since dropped (MS-4a: counts go down) is not
+// re-announced; it ages out. A sent one stays sent whatever the count does.
 //
 // F13: with "Checklist milestones" off, no checklist intent is written at all —
 // neither queued nor known. Turning it on later behaves like any switch-on:
