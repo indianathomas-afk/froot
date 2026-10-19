@@ -20492,6 +20492,51 @@ phases:
         `migrate diff`, STOPS, and commits nothing until Gary has applied it to
         dev and the fixture has run green against the applied schema.
     notes: >
+      ── STAGING EVIDENCE 2026-10-19, FIRST REAL ACKNOWLEDGMENT TEST.
+      PREPENDED; NOTHING BELOW IS EDITED. ── Observed by Gary on staging
+      (Vercel Preview), footer 1fe1481 = local HEAD = origin/staging, org
+      cmr54z65v000105jxczpt72w1. A signed acknowledgment (Test Document v1,
+      signed by Tommy Thomas, Las Brisas) to hrAckRecipients =
+      gary@kevajuice.com showed in Recent emails as "Dry run — not sent",
+      provider console. The NOTIFY-6 checklist (blocker item 3) expects one
+      email and one message row with mode sandbox, status sent, provider
+      resend. Six read-only queries, run by Gary in the Neon console. Every
+      result carries branch_id br-square-feather-a63z92vz (preview/staging).
+      An earlier run hit production (br-sparkling-block-a620qvg4), where the
+      NOTIFY-6 tables do not exist; that run is not evidence and is not used.
+      (1) NotificationIntent cmvfd7emg000j08jnr89ef48w, kind hr.ack, dedupeKey
+      cmvfd7e7m000i08jn6xny6lxj: state queued, attempts 0, lastError null,
+      sentAt null, nextAttemptAt null. eventAt 14:43:52 UTC (07:43:52 PDT),
+      createdAt 14:43:55 UTC. (2) One NotificationMessage
+      cmvfd7ew4000k08jnap5usal1: mode dry-run, provider console, status
+      dry-run, to gary@kevajuice.com (18 characters), 14:43:56 UTC. (3) Zero
+      NotificationDelivery rows. (4) The parallel AuditLog row
+      cmvfd7ey2000l08jn13rhsvu9, action email.dryrun, 14:43:56 UTC:
+      metadata.provider resend, metadata.mode sandbox, recipients
+      ["gary@kevajuice.com"]. (5) The most recent test intent, 04:17:12 UTC on
+      2026-10-19 (21:17 PDT on 2026-10-18): payload sha 1fe1481, env preview,
+      provider resend, message mode sandbox, status sent, Resend id
+      01a15260-b9ba-716c-bb46-5689772a0a9a. That is the same deployment as the
+      acknowledgment. (6) Organization.hrAckRecipients = {gary@kevajuice.com},
+      length 18, hex 67617279406b6576616a756963652e636f6d. No hidden
+      characters. CAUSE: NOTIFY_SANDBOX_ALLOWLIST WAS NEVER CREATED IN VERCEL.
+      `npx vercel env ls` (Claude, 2026-10-19; names only, no values, no pull)
+      lists it in no environment of project froot. Query (4) shows the
+      transport was resend and sandbox, so the per-recipient allowlist check
+      held the address back as a dry run. Query (5) shows the test button
+      reaching Gary on the same deployment, because the test kind bypasses the
+      allowlist (sandboxBypass). NO CODE DEFECT IN THIS SEND: the intent,
+      message and delivery rows are what the design produces for a
+      sandbox-withheld recipient (R1). Blocker item (3) is NOT satisfied and
+      stays owed until the variable exists, staging is redeployed after the
+      save, and a NEW document is signed. Two findings from the same
+      investigation are filed as NOTIFY-11, FIX NOW per Gary 2026-10-19. (a)
+      The R2 gap: the sweep skips only a sandbox RE-send (dispatch.ts:428), so
+      a hand-fired sweep makes a FIRST sandbox send. Do not hand-fire
+      /api/cron/notify-dispatch on staging before 2026-10-26 14:43 UTC: intent
+      cmvfd7emg000j08jnr89ef48w stays queued until then, and once the allowlist
+      exists the sweep would mail it. (b) A dry-run row always shows provider
+      console (dispatch.ts:616), which hid that resend was configured.
       ── PRE-PUSH-CHECK 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
       Status flipped to `staging`. Docs SHAs 9747638 and a7fed5f are added, and
       this check's own commit is the one immediately after a7fed5f. DECISIONS:
