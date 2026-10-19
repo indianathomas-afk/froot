@@ -497,12 +497,13 @@ Deny-by-default: unknown capability → `false`.
 | `hr.toggle` | ADMIN | HR-13 |
 | `my.access` | linked ACTIVE staff | PG-33, MY-1/2, `getActiveStaffSelf` |
 | `notify.pace.receive` | ADMIN, MANAGER (assigned stores only — the assignment half is the recipient query's, not this entry's). **Deniable, never grantable.** Added by NOTIFY-2c, 2026-09-20 | `src/lib/pace-alerts.ts` recipient query; grid row "Email notifications" |
+| `notify.milestone.receive` | ADMIN, MANAGER (the employee's stores only; corporate staff → ADMINs only — the recipient query's, not this entry's). **Deniable, never grantable.** Added by MS-4b, 2026-10-19 | `src/lib/notifications/kinds/milestone.ts` recipient query; grid row "Milestone reached" under "Email notifications" |
 
 ### Notification capabilities are DENIABLE-ONLY (NOTIFY-2c, Gary, 2026-09-20)
 
 `notify.*` is a namespace for **who receives a Froot email**, one entry per
-user-addressed email (`notify.pace.receive` is the first and today the only
-one). Three rules hold for every entry in it, and they are rules rather than
+user-addressed email (`notify.pace.receive` was the first; `notify.milestone.receive`, MS-4b,
+2026-10-19, is the second). Three rules hold for every entry in it, and they are rules rather than
 this one entry's accidents:
 
 1. **Deniable — a row in `ENFORCED_CAPABILITIES`, so an ADMIN unticks it on the

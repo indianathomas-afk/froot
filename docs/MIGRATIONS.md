@@ -1468,3 +1468,51 @@ Notification `AuditLog` rows are still written in parallel for one release
 **Fixture:** `scripts/verify-notify6.ts`, 72 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
 the work commit (`3ffb3f6`).
+
+## 2026-10-19 — `20261019211518_ms4b_milestone_alerts` (MS-4b)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-19 with `prisma migrate
+deploy` from `froot/` against host `ep-late-water-a6k53nv2` and reported,
+exactly: *"I ran npx prisma migrate deploy myself from
+/Users/garythomas/Claude_Projects/Froot/froot. Host ep-late-water-a6k53nv2.
+Applying migration 20261019211518_ms4b_milestone_alerts — "All migrations have
+been successfully applied." Check the diff and continue the build."* The
+session then ran `migrate diff --from-config-datasource --to-schema` against
+dev, which returned `-- This is an empty migration.`, so dev matches the
+schema. **One earlier report did not hold:** Gary's first message saying it was
+applied was followed by a level check that still returned both `ADD COLUMN`
+statements, with `.env`'s only endpoint confirmed as `ep-late-water-a6k53nv2`.
+The session stopped and built nothing until the second apply. The empty diff is
+the evidence. Staging and production get the migration through `prisma migrate
+deploy` in the Vercel build, on Gary's push.
+
+Timestamp note: the folder name is the UTC instant of generation
+(`2026-10-19 21:15:18 UTC` = `2026-10-19 14:15:18 PDT`).
+
+Prisma commands for this migration: `validate`, `generate`, and `migrate diff`
+(four times: the audit level check, generating this file, the check that found
+it not yet applied, and the level check after Gary's apply). Gary ran `migrate
+deploy`.
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "Organization" ADD COLUMN "milestoneAlertsEnabled" BOOLEAN NOT NULL DEFAULT false` | additive |
+| `ALTER TABLE "NotificationMessage" ADD COLUMN "intentIds" TEXT[] DEFAULT ARRAY[]::TEXT[]` | additive |
+
+**Why each.** `milestoneAlertsEnabled` is F10's org switch (Gary, 2026-10-17:
+*"org-level milestone email switch, off by default"*), a column because
+NOTIFY-8's generic setting table does not exist. `intentIds` is N1(a) (Gary,
+2026-10-19: *"add an intentIds list column to NotificationMessage so a dry-run
+summary logs each milestone to each person once"*): a daily summary covers
+several intents, `intentId` holds one, and dry-run writes no delivery rows
+(R1), so this is the only record of what a dry-run summary covered. A
+per-intent kind leaves it empty and keeps `intentId`. No FK: intents are kept
+forever (P5). The `TEXT[]` column is nullable in SQL, which is how Prisma writes
+every scalar list; the client always reads it as a list (`[]` default).
+
+**No table created, nothing dropped or altered in type, no backfill.** Every
+existing org reads `false`, so nothing emails on deploy.
+
+**Fixture:** `scripts/verify-ms4b.ts`, 54 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`1bc01cf`).

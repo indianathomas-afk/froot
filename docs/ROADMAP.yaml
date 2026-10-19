@@ -7778,7 +7778,12 @@ phases:
 
   - id: MS-4b
     track: hr
-    status: planned
+    # planned -> in_progress 2026-10-19 by the MS-4b v2 build session. Work
+    # commit 1bc01cf is on local `staging` and NOT pushed (Claude never
+    # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    status: in_progress
+    commits:
+      - "1bc01cf"
     title: "Staff Milestones — ADMIN/MANAGER milestone emails (production only, sent once, per-user switch-off)"
     blockers:
       - >
@@ -7833,6 +7838,33 @@ phases:
         kind on the NOTIFY-6 pipeline (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md
         section 4.7 and 7). Recorded by the NOTIFY-5 docs commit.
     notes: >
+      ── BUILT 2026-10-19 (work 1bc01cf). PREPENDED; NOTHING BELOW IS EDITED. ──
+      TIER 3. Audit docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md. Gary's words,
+      2026-10-19: "N1 — option (a): add an intentIds list column to
+      NotificationMessage so a dry-run summary logs each milestone to each
+      person once." and "N2 — freshness backstop is 8 days (11,520 minutes), so
+      my ruling "more than 7 days ago is recorded as known and never sent"
+      stays exactly as worded." Migration 20261019211518_ms4b_milestone_alerts
+      (Organization.milestoneAlertsEnabled, NotificationMessage.intentIds),
+      additive, APPLIED TO DEV ONLY by Gary; level confirmed by an empty
+      migrate diff (a first apply report did not hold; see MIGRATIONS.md).
+      WHAT EXISTS: kind milestone.reached on batch "per-recipient-daily" (one
+      email per recipient per dispatch, deliveries per (milestone, recipient),
+      P6 per item); recordKnownNotification (create-only); producer
+      processMilestoneAlerts in the pace-alerts cron (own try/catch, result key
+      `milestones`); capability notify.milestone.receive + grid line "Milestone
+      reached"; "Milestone emails" card + PUT /api/milestone-alerts/settings;
+      "Send a sample to me" via /api/notify/test?kind=milestone.reached;
+      ?tab=milestones on /staff/[id]. THE SWEEP NEVER MAKES A GROUPED FIRST
+      SEND (C3). VERIFICATION: scripts/verify-ms4b.ts 54/54 on dev
+      (br-broad-wave-a6vpjdw0), negative control (email exclusion removed)
+      failed B4 + 2 counts, restored, green. Re-run green on dev: verify-notify6
+      78, verify-notify5 55, verify-f5-polish 63, verify-notify-template 35,
+      verify-ms1 97, ms2 90, ms3 95, ms3b 80, ms4a 52, chk15 28. npm run build
+      green. NOT VERIFIED: nothing on staging; the new card and the staff tab
+      link were NOT opened in a browser (authed pages; no phone-width
+      observation was taken) — on the staging checklist. Choices C1-C15 for
+      ratification: DECISIONS 2026-10-19, "MS-4b: built on the pipeline".
       ── v2 PROMPT 2026-10-19. PREPENDED; NOTHING BELOW IS EDITED. ── The
       prompt for this row is now docs/prompts/2026-10-19_MS-4b_v2_on_pipeline.md.
       The "Prompt: docs/prompts/2026-10-17_MS-4b_notifications.md" pointer

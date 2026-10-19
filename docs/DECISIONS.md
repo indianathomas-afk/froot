@@ -5,6 +5,93 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-19 — MS-4b: built on the pipeline; N1 and N2 ruled (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4b PRE-PUSH-CHECK.**
+The rulings MS-4b builds on are in the entry directly below (rulings 1–5) and
+in the MS-4, MS-4a, NOTIFY-5 and NOTIFY-6 entries, unchanged. The audit is
+`docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md`.
+
+**Gary's words, recorded exactly** (chat, 2026-10-19, headed "Approved (Gary,
+2026-10-19, my words):"):
+
+- *"N1 — option (a): add an intentIds list column to NotificationMessage so a
+  dry-run summary logs each milestone to each person once. Migration:
+  Organization.milestoneAlertsEnabled (default false) and
+  NotificationMessage.intentIds (default empty)."*
+- *"N2 — freshness backstop is 8 days (11,520 minutes), so my ruling "more
+  than 7 days ago is recorded as known and never sent" stays exactly as
+  worded."*
+- *"Go: build MS-4b. Stop at the migration."*
+- The apply, second report (the first did not hold — see
+  `docs/MIGRATIONS.md`): *"I ran npx prisma migrate deploy myself from
+  /Users/garythomas/Claude_Projects/Froot/froot. Host ep-late-water-a6k53nv2.
+  Applying migration 20261019211518_ms4b_milestone_alerts — "All migrations
+  have been successfully applied." Check the diff and continue the build."*
+
+**What N1 and N2 settle.** N1: the grouped mode's dry-run rows record every
+intent they cover, so production's default dry run logs each milestone to each
+person once rather than daily for a week. N2: the prompt's 7-day (10080-minute)
+freshness would have expired a milestone reached exactly 7 days ago in the very
+run that should send it, because eventAt is the store-local midnight of the
+reach date and the cron runs at 08:00 Pacific. The producer judges ruling 2 on
+store-local days; the 8-day freshness is only a backstop.
+
+**What was built** (`1bc01cf`): see the MS-4b row in `docs/ROADMAP.yaml`.
+
+**Claude implementation choices, for ratification** (audit numbering):
+
+- **C1 — Claude** — kind id `milestone.reached`, label "Milestone reached";
+  dedupeKey `{staffMemberId}:{tenure|checklist}:{milestoneId}`.
+- **C2 — Claude** — the producer dispatches only the intents it queued or
+  refreshed in this run, so a queued checklist milestone whose count dropped is
+  not re-announced; it ages out.
+- **C3 — Claude** — the sweep never makes a grouped FIRST send; it retries
+  intents with `attempts > 0` and still expires by freshness and switch. This
+  keeps ruling 1's "one email per person per day".
+- **C4 — Claude** — eventAt = `localMidnightUtc(reachedOn, displayTimeZone(member,
+  org))`, the Milestones tab's zone.
+- **C5 — Claude** — `known` is create-only (`recordKnownNotification`): any
+  existing intent, in any state, is left alone.
+- **C6 — Claude** — `exclude` may be async and reads the member's current
+  `userId`/`email` (one query per pair); `enabled` receives the intent.
+- **C7 — Claude** — F13 at both ends: with the checklist switch off, no
+  checklist intent is written at all (neither queued nor known); a queued one
+  expires at dispatch if the switch goes off.
+- **C8 — Claude** — F9 at both ends: the producer skips archived history and
+  non-ACTIVE members; the resolver returns nobody if either changes before
+  dispatch.
+- **C9 — Claude** — the email: subject "{Name} reached {Title}" for one,
+  "{n} new staff milestones" for several; one block per milestone (name and
+  store, title, threshold and reach date, recognition, the suggested message
+  verbatim), each linking `/staff/{id}?tab=milestones` through a new optional
+  `EmailRow.url`; CTA `/staff/milestones`.
+- **C10 — Claude** — "Send a sample to me" is a second button on the milestone
+  card, posting `/api/notify/test?kind=milestone.reached`; the sample renders
+  through the `test` kind, so it keeps that kind's caller-only rule.
+- **C11 — Claude** — `processMilestoneAlerts` in `src/lib/milestone-alerts.ts`,
+  called from the pace cron after its store loop, own try/catch, result key
+  `milestones`.
+- **C12 — Claude** — the card is shown where HR exists; Milestones off → one
+  disabled line. Writes go through new `PUT /api/milestone-alerts/settings`
+  (Milestones gate → 404, then ADMIN-only → 403).
+- **C13 — Claude** — `?tab=milestones` is honoured only when the tab renders.
+- **C14 — Claude** — the send log labels from the registry (`kindLabel`);
+  `KIND_LABELS` is left exported and unread for one release.
+- **C15 — Claude** — grid line "Milestone reached", area "Email
+  notifications"; `GRANTS` = ADMIN + MANAGER; not grantable.
+
+Two further **Claude** choices made during the build:
+
+- **`NotificationOrg` grew by five fields, not one** — `clerkOrgId`,
+  `activeModules`, `milestonesEnabled`, `milestoneAlertsEnabled` and the
+  checklist switch (read through the `milestoneSettings` relation in the same
+  org query) — because the kind's switch is `milestoneAlertsEnabled AND
+  milestonesActive()`.
+- **A summary's audit copy has no `entityId`**, since it is about several
+  people; its `NotificationMessage` has `intentId` null and the covered ids in
+  `intentIds`.
+
 ## 2026-10-19 — MS-4b re-scoped onto the NOTIFY-6 pipeline (Gary)
 
 **Gary's words, recorded exactly** (session prompt, 2026-10-19, headed
