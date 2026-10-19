@@ -5,9 +5,21 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-18 — NOTIFY-6: one notification pipeline (DRAFT — pending Gary's ratification)
+## 2026-10-18 — NOTIFY-6: one notification pipeline (Gary)
 
-**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE NOTIFY-6 PRE-PUSH-CHECK.**
+**RATIFIED BY GARY, 2026-10-18.** His reply, recorded exactly: *"Ratify as
+written, in my words: R1 — sandbox never changes a send's status; R2 — the
+hourly retry never sends in sandbox; and the 18 implementation choices as
+listed."*
+
+So R1 and R2 are now **Gary's rulings in his own words**, as quoted there.
+The "18 implementation choices" are the 16 numbered choices plus the two build
+choices below, all ratified as written. Only the banner and the heading changed.
+The heading read "NOTIFY-6: one notification pipeline (DRAFT — pending Gary's
+ratification)", and the banner read "DRAFT ENTRY — AWAITING GARY'S
+RATIFICATION AT THE NOTIFY-6 PRE-PUSH-CHECK." The prose below is unchanged,
+including the "approved by click" markings. They are true about how the build
+go arrived, and this ratification supersedes them.
 
 **Gary's words, recorded exactly** — the rulings the phase was built under, as
 the session prompt quotes them (`docs/prompts/2026-10-18_NOTIFY-6_pipeline.md`):
