@@ -20299,6 +20299,21 @@ phases:
     title: "One delivery mode (live / sandbox / dry-run) for every email + 'Send a test to me'"
     blockers:
       - >
+        DISCHARGED 2026-10-19 — THE RE-OPENED ALLOWLIST BLOCKER DIRECTLY BELOW,
+        on Gary's instruction. Prepended per preserve-and-mark; nothing below is
+        edited. This is the owed NOTIFY-5 acknowledgment test, now actually run.
+        NOTIFY_SANDBOX_ALLOWLIST exists in Vercel Preview only (`vercel env ls`,
+        names only, 2026-10-19). A signed acknowledgment at 11:29 PDT (18:29
+        UTC), on a staging deployment built after the save, arrived at
+        gary@kevajuice.com, and Recent emails shows it Sent · resend. Full
+        evidence: the 2026-10-19 "ALLOWLIST CREATED" note on the NOTIFY-6 row.
+        The blocker's own discharge condition asked for "a message row with
+        mode sandbox and status sent, named by org id and branch". It is met in
+        substance but not as written: no Neon query was run, so no branch is
+        named, and the org id was not reported with the observation. The
+        discharge rests on Gary's instruction plus the inbox and Recent emails
+        evidence.
+      - >
         RE-OPENED 2026-10-19 — ALLOWLIST UNSET / UNPROVEN. Prepended per
         preserve-and-mark; nothing below is edited. Item (2) of the DISCHARGED
         entry directly below is SUPERSEDED. It was discharged only on the
@@ -20359,6 +20374,14 @@ phases:
         kind-specific test samples, suppression, milestone emails (MS-4b),
         any change to the Resend webhook.
     notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── The acknowledgment test that item (b) below wrongly recorded
+      as done has now been run, on NOTIFY-6 and NOTIFY-11 code (staging
+      30923dc). A signed acknowledgment at 11:29 PDT (18:29 UTC) arrived at
+      gary@kevajuice.com through the sandbox allowlist. Evidence and its limits
+      are on the NOTIFY-6 row (2026-10-19 "ALLOWLIST CREATED" note). The
+      re-opened blocker is discharged above. Item (c) below (pace path
+      fixture-proven, not hand-fired) is unchanged.
       ── CORRECTION 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS EDITED. ──
       Item (b) of the 2026-10-18 STAGING EVIDENCE note directly below is
       SUPERSEDED. That is the line "A signed HR acknowledgment DELIVERED to
@@ -20460,6 +20483,16 @@ phases:
     title: "One notification pipeline — intent ledger, dispatcher, registry, per-recipient sends, retry"
     blockers:
       - >
+        DISCHARGED 2026-10-19 — ITEM (3) OF "STAGING VERIFICATION OWED" BELOW,
+        on Gary's instruction. Prepended per preserve-and-mark; nothing below is
+        edited. Evidence: the 2026-10-19 "ALLOWLIST CREATED" note at the top of
+        notes. A signed acknowledgment after the allowlist reached Preview
+        arrived at gary@kevajuice.com, and Recent emails shows it Sent · resend.
+        The item's three database claims (message mode sandbox, ZERO
+        NotificationDelivery rows, intent stays queued) were NOT queried on
+        staging. They rest on the code path and on verify-notify6 (dev). Items
+        (1), (2), (4) and (5) are not addressed by this entry.
+      - >
         NOT PUSHED. Work commit 3ffb3f6 and the docs commit after it are on
         local staging only. The migration 20261019005116_notify6_pipeline is
         applied to DEV only (Gary, migrate deploy; level check empty); staging
@@ -20492,6 +20525,47 @@ phases:
         `migrate diff`, STOPS, and commits nothing until Gary has applied it to
         dev and the fixture has run green against the applied schema.
     notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary), ALLOWLIST CREATED; CHECKLIST
+      ITEM (3) DISCHARGED. PREPENDED; NOTHING BELOW IS EDITED. ── Reported by
+      Gary in the session prompt. Claude saw neither the inbox nor the page.
+      NOTIFY_SANDBOX_ALLOWLIST = gary@kevajuice.com was first saved to
+      Production by mistake, then moved to Preview, and staging was
+      redeployed. While it sat in Production it did nothing: deliveryMode()
+      returns live there and never reads the allowlist (src/lib/notify.ts:189).
+      CHECKED BY CLAUDE at 11:32 PDT (18:32 UTC), names and scopes only, no
+      values, no pull. `npx vercel env ls` lists NOTIFY_SANDBOX_ALLOWLIST in
+      Preview ONLY, created about 34 minutes earlier (about 10:58 PDT; the
+      CLI gives only a relative age). Staging-SHA precondition: the staging
+      alias serves dpl_F1mH3gxXFGjE1KY2yUx3SdHUH5Er, created 11:21:58 PDT
+      (18:21:58 UTC). That deployment is listed by `vercel ls --meta
+      githubCommitSha=` for 30923dc (full sha) = local HEAD = origin/staging,
+      so it carries the NOTIFY-6 and NOTIFY-11 code, and it was built after
+      the Preview save. GARY'S OBSERVATIONS. (i) Acknowledgment sends at 10:51
+      PDT (17:51 UTC) and 11:15 PDT (18:15 UTC) showed in Recent emails as
+      "Held back by the staging allowlist". That is the NOTIFY-11 label
+      (9f54bd8), so it is verified on staging; see the NOTIFY-11 row. (ii)
+      Signed acknowledgment "Test 10192026c v1", signed by Tommy Thomas, Las
+      Brisas, at 11:29 AM PDT (18:29 UTC), after the redeploy, to
+      hrAckRecipients = gary@kevajuice.com. Recent emails shows it as Sent ·
+      resend, with no allowlist note. The email arrived at gary@kevajuice.com
+      naming the document, the signer and the store, completed 2026-10-19
+      18:29:04 UTC (11:29:04 PDT). This is the first acknowledgment ever
+      delivered through the sandbox allowlist on staging. CHECKLIST ITEM (3)
+      IS DISCHARGED on Gary's instruction (blocker above). WHAT THIS COVERS:
+      one email arrived, and Recent emails, which reads NotificationMessage,
+      shows a sent row with provider resend. On Preview, resend resolves to
+      sandbox, so the mode is sandbox by the code path, not by a query. NOT
+      QUERIED: the message row's mode column, the ZERO NotificationDelivery
+      rows, and the intent staying queued. No Neon query was run for this
+      send, so no branch id and no intent id are recorded; those three rest on
+      verify-notify6 (dev, br-broad-wave-a6vpjdw0). The org id was not reported
+      with the observations; Tommy Thomas / Las Brisas was under org
+      cmr54z65v000105jxczpt72w1 in the 1fe1481 test below. The hourly-sweep
+      hand-fire was NOT run; Gary accepts it as fixture-proven (NOTIFY-11 row).
+      The do-not-hand-fire warning below (intent cmvfd7emg000j08jnr89ef48w,
+      until 2026-10-26 14:43 UTC) was written for NOTIFY-6 code. With NOTIFY-11
+      on the serving deployment, the sweep makes no sandbox send; that is
+      proven by fixture, not observed on staging.
       ── STAGING EVIDENCE 2026-10-19, FIRST REAL ACKNOWLEDGMENT TEST.
       PREPENDED; NOTHING BELOW IS EDITED. ── Observed by Gary on staging
       (Vercel Preview), footer 1fe1481 = local HEAD = origin/staging, org
@@ -20824,6 +20898,29 @@ phases:
     title: "R2 enforced: the sweep never sends in sandbox; dry-run rows name the real provider"
     blockers:
       - >
+        STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. The last blocker below ("STAGING VERIFICATION
+        NEEDS NOTIFY_SANDBOX_ALLOWLIST TO EXIST") is DISCHARGED: the variable
+        is in Vercel Preview only, and the deployment the staging alias serves
+        (dpl_F1mH3gxXFGjE1KY2yUx3SdHUH5Er, 11:21:58 PDT, commit 30923dc = local
+        HEAD) was built after the save. The checklist in "STAGING VERIFICATION
+        OWED", item by item. (1) R2 ON REAL DATA: NOT RUN. Gary accepts it as
+        fixture-proven: verify-notify6 78/0 on dev, whose R2 first-send check
+        fails under the old guard (negative control in the notes). (2) A NEW
+        document signed with gary@kevajuice.com allow-listed: one email
+        arrived, and Recent emails shows Sent · resend. Mode sandbox, zero
+        delivery rows and intent queued were NOT queried. This is the item that
+        discharges NOTIFY-6 item (3) and the re-opened NOTIFY-5 blocker; both
+        are discharged on their rows. (3) THE LABEL: VERIFIED. The 10:51 and
+        11:15 PDT sends read "Held back by the staging allowlist". Note the
+        shape: those rows were gary@kevajuice.com withheld because the variable
+        was not yet on the serving deployment. They were not a
+        non-allow-listed address next to an allow-listed one, but
+        sandboxAllows() is false in both cases, so it is the same code path. No
+        query was run and no org id was reported, so the item's
+        branch-on-every-line and org-on-every-observation requirements are not
+        met as written.
+      - >
         NOT PUSHED. Work commit 9f54bd8 and the docs commit after it are on
         local staging only. No migration.
       - >
@@ -20855,6 +20952,16 @@ phases:
         STAGING EVIDENCE). Gary creates it and redeploys before the staging
         pass.
     notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Status stays `staging`; this records evidence and does not
+      promote. On staging 30923dc, after NOTIFY_SANDBOX_ALLOWLIST was moved
+      from Production (saved there by mistake, where it did nothing) to
+      Preview and staging was redeployed, the "Held back by the staging
+      allowlist" label showed on the 10:51 and 11:15 PDT sends. The 11:29 PDT
+      signed acknowledgment was delivered (Sent · resend). The sweep hand-fire
+      was not run and is accepted as fixture-proven. Item-by-item status is
+      in the first blocker; full evidence and its limits are on the NOTIFY-6
+      row (2026-10-19 "ALLOWLIST CREATED" note).
       ── BUILT 2026-10-19 (work commit 9f54bd8). PREPENDED; NOTHING BELOW IS
       EDITED. ── Audit: docs/prompts/2026-10-19_NOTIFY-11_AUDIT.md. Gary's go,
       his words exactly: "Approved (Gary, 2026-10-19, my words): build
