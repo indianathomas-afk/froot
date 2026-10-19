@@ -40,10 +40,21 @@
  *   I. The sample: renders through the test kind, reaches only the caller,
  *      subject "Test — …", fictional names; per-intent rows unchanged
  *      (intentId set, intentIds empty).
+ *   J. SKIPPED DAYS (Gary, 2026-10-19). The producer keeps no "new since last
+ *      run" list — every run recounts — so an outage loses nothing inside the
+ *      window. Reached on D, no run on D+1 or D+2, run on D+3 → sent once, and
+ *      D+4 does not resend. Down until D+7 → still sent. Down until D+8 →
+ *      recorded known, not sent, and still not sent the day after. Each person
+ *      is first seen by the producer on the late day, and each reach date is in
+ *      the future at every earlier run, so no earlier run can have sent it.
  *
- * NEGATIVE CONTROL (run by the build session, recorded in the report): delete
- * the matching-email test from `exclude` in kinds/milestone.ts — B's "by email"
- * check must FAIL.
+ * NEGATIVE CONTROLS (run by the build session, recorded in the report):
+ *   - delete the matching-email test from `exclude` in kinds/milestone.ts — B's
+ *     "by email" check must FAIL;
+ *   - in src/lib/milestone-alerts.ts, judge the window with `>=` instead of
+ *     `>` (so exactly 7 days is known) — J3 must FAIL;
+ *   - set MILESTONE_SEND_WINDOW_DAYS to 0, i.e. a run announces only what was
+ *     reached that day (the "new since the last run" shape) — J1 must FAIL.
  */
 import "dotenv/config"
 import { prisma } from "../src/lib/prisma"
@@ -284,7 +295,8 @@ async function main() {
     const admMail = live.sent.find((m) => to(m) === E(adm))!
     check("D6 the suggested message is the stored message, verbatim", admMail.text.includes(tenure30.employeeMessage) && (admMail.html ?? "").includes(tenure30.employeeMessage))
     check("D7 each milestone links its Milestones tab", admMail.text.includes(`https://ms4b.example.com/staff/${ana.id}?tab=milestones`) && (admMail.html ?? "").includes(`/staff/${ana.id}?tab=milestones`))
-    check("D8 a Store B manager's email never names a Store A employee", !live.sent.find((m) => to(m) === E(mB))!.text.includes("MS-4b Staff Ana"))
+    // Optional chaining so a broken run reports instead of crashing; D1 asserts the email exists.
+    check("D8 a Store B manager's email never names a Store A employee", !(live.sent.find((m) => to(m) === E(mB))?.text ?? "").includes("MS-4b Staff Ana"))
     check("D9 the 7-day boundary sends (Cara, reached exactly 7 days ago)", admMail.text.includes("MS-4b Staff Cara"))
     const live2 = capture()
     await run("live", live2, org.id)
@@ -369,6 +381,53 @@ async function main() {
       smp.sent[0]?.subject === "Test — 2 new staff milestones" && smp.sent[0].text.includes("Sample Person") && !smp.sent[0].text.includes("MS-4b Staff"))
     const tMsg = await prisma.notificationMessage.findFirst({ where: { intentId: tEnq!.intentId } })
     check("I3 a per-intent kind's row is unchanged: intentId set, intentIds empty", !!tMsg && tMsg.kind === "test" && tMsg.intentIds.length === 0)
+
+    // ── J. Skipped days ────────────────────────────────────────────────────
+    // Three people whose 30-day milestone falls in the FUTURE relative to every
+    // run above, at different days, so each is first seen on its late run.
+    const at = (days: number) => new Date(NOW.getTime() + days * DAY) // 15:00 UTC that day
+    const mentions = (c: Capture, name: string) => c.sent.filter((m) => m.text.includes(`MS-4b Staff ${name}`))
+    const D1 = 10, D2 = 20, D3 = 30
+    const jo = await staff("Jo", -D1, storeB.id) // reached TODAY+10
+    const kim = await staff("Kim", -D2, storeB.id) // reached TODAY+20
+    const lee = await staff("Lee", -D3, storeB.id) // reached TODAY+30
+    const storeBRecipients = [E(adm), E(mB)]
+
+    // Reached on D; the job does not run on D+1 or D+2; it runs on D+3.
+    const j3 = capture()
+    await run("live", j3, org.id, at(D1 + 3))
+    const joIntent = await intentOf(jo.id)
+    check(
+      "J1 reached D, no run D+1 or D+2, run D+3 → sent once to each recipient",
+      same(mentions(j3, "Jo").map(to), storeBRecipients) && joIntent?.state === "sent",
+      `${mentions(j3, "Jo").map(to).join(" ")} · ${joIntent?.state}`
+    )
+    check("J1b dated the day it was reached, not the late run", joIntent?.eventAt.getTime() === localMidnightUtc(addDays(TODAY, D1), TZ).getTime())
+    const j4 = capture()
+    await run("live", j4, org.id, at(D1 + 4))
+    check("J2 the next day does not resend it", mentions(j4, "Jo").length === 0)
+
+    // Down until D+7: still inside ruling 2's window.
+    const j7 = capture()
+    await run("live", j7, org.id, at(D2 + 7))
+    check(
+      "J3 job down until D+7 → still sent",
+      same(mentions(j7, "Kim").map(to), storeBRecipients) && (await intentOf(kim.id))?.state === "sent",
+      mentions(j7, "Kim").map(to).join(" ")
+    )
+
+    // Down until D+8: more than 7 days → known, never sent.
+    const j8 = capture()
+    await run("live", j8, org.id, at(D3 + 8))
+    const j9 = capture()
+    await run("live", j9, org.id, at(D3 + 9))
+    const leeIntent = await intentOf(lee.id)
+    check(
+      "J4 job down until D+8 → recorded known, not sent (and not the day after)",
+      mentions(j8, "Lee").length === 0 && mentions(j9, "Lee").length === 0 && leeIntent?.state === "known" &&
+        (await prisma.notificationDelivery.count({ where: { intentId: leeIntent.id } })) === 0,
+      `${leeIntent?.state}`
+    )
   } finally {
     restoreEnv()
     const intents = await prisma.notificationIntent.findMany({ where: { organizationId: org.id }, select: { id: true } })
