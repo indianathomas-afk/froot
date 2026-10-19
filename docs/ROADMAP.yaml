@@ -7782,6 +7782,29 @@ phases:
     title: "Staff Milestones — ADMIN/MANAGER milestone emails (production only, sent once, per-user switch-off)"
     blockers:
       - >
+        RE-SCOPED 2026-10-19 — BUILD FROM THE v2 PROMPT. Prepended per
+        preserve-and-mark; nothing below is edited. Prompt:
+        docs/prompts/2026-10-19_MS-4b_v2_on_pipeline.md (TIER 3, fresh
+        session). It supersedes docs/prompts/2026-10-17_MS-4b_notifications.md,
+        which is not edited. Gary's rulings, 2026-10-19, his words (DECISIONS
+        2026-10-19, MS-4b re-scoped): (1) "Build the daily summary: one email
+        per person per day, via a new grouping mode in the dispatcher." (2)
+        "Milestones reached more than 7 days before the job runs are recorded
+        as known without sending, and each milestone is dated the day it was
+        reached, never "today"." (3) "P2 replaces F5: on staging, milestone
+        emails go only to the allowlist, like every other email type." (4)
+        "F15: yes — never email the employee about their own milestone,
+        excluded by linked account and by matching email." (5) "Hold lifted:
+        production's NOTIFY_EMAIL_PROVIDER is unset (confirmed in Vercel
+        2026-10-18), so production dry-runs safely." And: ""Held behind
+        NOTIFY-6" means on staging, which it is." EFFECT ON THE ENTRIES BELOW.
+        "DO NOT BUILD until Gary confirms production's NOTIFY_EMAIL_PROVIDER"
+        is DISCHARGED by ruling 5. "HELD BEHIND NOTIFY-6" is DISCHARGED:
+        NOTIFY-6 is on staging. "Builds on MS-4a" is met: MS-4a is on staging.
+        "F16 SUPERSEDED" stands (P6). The title's "production only" is F5's
+        wording and is superseded by ruling 3; the title is left as filed. MS-4b
+        is still `planned`; nothing is built.
+      - >
         F16 SUPERSEDED, 2026-10-18 (fork P6, NOTIFY-3 audit). Prepended per
         preserve-and-mark; nothing below is edited. Gary's words exactly: "P6:
         Yes — replace MS-4b's F16: retry only the recipients who didn't get it,
@@ -7810,6 +7833,21 @@ phases:
         kind on the NOTIFY-6 pipeline (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md
         section 4.7 and 7). Recorded by the NOTIFY-5 docs commit.
     notes: >
+      ── v2 PROMPT 2026-10-19. PREPENDED; NOTHING BELOW IS EDITED. ── The
+      prompt for this row is now docs/prompts/2026-10-19_MS-4b_v2_on_pipeline.md.
+      The "Prompt: docs/prompts/2026-10-17_MS-4b_notifications.md" pointer
+      below is superseded. MS-4b becomes the first new kind on the NOTIFY-6
+      pipeline (NOTIFY-3 audit section 4.7). It drops its own MilestoneNotice
+      table, guard, dry-run log and test button. It keeps the
+      notify.milestone.receive capability and grid line,
+      Organization.milestoneAlertsEnabled (default false), the producer leg in
+      the pace-alerts cron, the org switch card and ?tab=milestones. It adds a
+      daily per-recipient grouping mode and a `known` write to the dispatcher.
+      The scope summary below ("production-only with a dry-run log elsewhere
+      and an ADMIN "Send a test to me"", "sent-once per (employee,
+      milestone)") is superseded on those points by the rulings in the first
+      blocker. The rulings are in DECISIONS 2026-10-19; the Remove / Keep list
+      in the v2 prompt is Claude's, not a ruling.
       ── RULED 2026-10-17 by Gary, in the MS-4a session. Prepended; NOTHING
       BELOW IS EDITED. His words, exactly: "For MS-4b, a milestone email that
       was sent stays sent — if the milestone is lost and re-reached, don't
@@ -20299,6 +20337,15 @@ phases:
     title: "One delivery mode (live / sandbox / dry-run) for every email + 'Send a test to me'"
     blockers:
       - >
+        EVIDENCE CONTEXT 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. The discharge directly below now has its
+        branch and org: preview/staging Neon branch br-square-feather-a63z92vz,
+        org cmr54z65v000105jxczpt72w1. So its sentence "no branch is named, and
+        the org id was not reported" is superseded. The sent row with provider
+        resend was seen in Recent emails (which reads NotificationMessage), not
+        by a query, and its mode column was not queried. Mode sandbox follows
+        from the code path (resend on Preview).
+      - >
         DISCHARGED 2026-10-19 — THE RE-OPENED ALLOWLIST BLOCKER DIRECTLY BELOW,
         on Gary's instruction. Prepended per preserve-and-mark; nothing below is
         edited. This is the owed NOTIFY-5 acknowledgment test, now actually run.
@@ -20525,6 +20572,17 @@ phases:
         `migrate diff`, STOPS, and commits nothing until Gary has applied it to
         dev and the fixture has run green against the applied schema.
     notes: >
+      ── EVIDENCE CONTEXT 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Gary named the context for the "ALLOWLIST CREATED" note
+      directly below: preview/staging Neon branch br-square-feather-a63z92vz,
+      org cmr54z65v000105jxczpt72w1. That note's "The org id was not reported
+      with the observations" is superseded: the 10:51, 11:15 and 11:29 PDT
+      observations were taken under that org, and Recent emails read
+      NotificationMessage on that branch. What stays true: no Neon query was
+      run for the 11:29 send. The three database claims of checklist item (3)
+      (message mode sandbox, zero NotificationDelivery rows, intent queued)
+      are still NOT queried. Naming the branch says where the rows live; it
+      does not add a query result.
       ── STAGING EVIDENCE 2026-10-19 (Gary), ALLOWLIST CREATED; CHECKLIST
       ITEM (3) DISCHARGED. PREPENDED; NOTHING BELOW IS EDITED. ── Reported by
       Gary in the session prompt. Claude saw neither the inbox nor the page.
@@ -20897,6 +20955,14 @@ phases:
       - "6f78487"
     title: "R2 enforced: the sweep never sends in sandbox; dry-run rows name the real provider"
     blockers:
+      - >
+        EVIDENCE CONTEXT 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. The staging pass in the entry directly below
+        was taken on preview/staging Neon branch br-square-feather-a63z92vz,
+        org cmr54z65v000105jxczpt72w1. Its closing sentence ("no org id was
+        reported ... not met as written") is superseded for the org and branch
+        naming. Still true: no query was run, so nothing in item (2) or (3) is
+        a query result.
       - >
         STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
         nothing below is edited. The last blocker below ("STAGING VERIFICATION

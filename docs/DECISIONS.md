@@ -5,6 +5,44 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-19 — MS-4b re-scoped onto the NOTIFY-6 pipeline (Gary)
+
+**Gary's words, recorded exactly** (session prompt, 2026-10-19, headed
+"MS-4b rulings (Gary, 2026-10-19, my words)"):
+
+1. *"Build the daily summary: one email per person per day, via a new
+   grouping mode in the dispatcher."*
+2. *"Milestones reached more than 7 days before the job runs are recorded as
+   known without sending, and each milestone is dated the day it was reached,
+   never "today"."*
+3. *"P2 replaces F5: on staging, milestone emails go only to the allowlist,
+   like every other email type."*
+4. *"F15: yes — never email the employee about their own milestone, excluded
+   by linked account and by matching email."*
+5. *"Hold lifted: production's NOTIFY_EMAIL_PROVIDER is unset (confirmed in
+   Vercel 2026-10-18), so production dry-runs safely."*
+
+And: *""Held behind NOTIFY-6" means on staging, which it is."*
+
+**What they settle.** Ruling 1 keeps F4 (one email per recipient per day) and
+puts it in the dispatcher as a new batch mode. Today NOTIFY-6 only knows
+`"per-intent"`. Ruling 2 restates F3 for the pipeline: the producer writes
+`known` intents, and an intent's `eventAt` is the reach date. Ruling 3
+retires F5's "production only, dry-run elsewhere" send rule; the delivery
+mode table (`deliveryMode()`, NOTIFY-5) now decides for milestones too.
+Ruling 4 rules the MS-4b audit's F15 lean (`docs/prompts/2026-10-17_MS-4b_AUDIT.md`)
+as written. Ruling 5 lifts the 2026-10-17 hold ("MS-4b: don't build until I
+confirm production's NOTIFY_EMAIL_PROVIDER."). With the provider unset,
+production is a dry run that consumes nothing (NOTIFY-5), which also answers
+the MS-4b audit's F14. The last line settles P0's "hold MS-4b behind NOTIFY-6":
+NOTIFY-6 on staging is enough. It does not wait for promotion.
+
+**Not Gary's words.** The Remove / Keep list these rulings answer was Claude's
+review of the 2026-10-17 prompt against NOTIFY-6, given in chat the same day.
+It is written into the v2 prompt
+(`docs/prompts/2026-10-19_MS-4b_v2_on_pipeline.md`) as Claude's, not as a
+ruling.
+
 ## 2026-10-18 — NOTIFY-6: one notification pipeline (Gary)
 
 **RATIFIED BY GARY, 2026-10-18.** His reply, recorded exactly: *"Ratify as
