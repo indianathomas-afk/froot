@@ -5,9 +5,24 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-19 — MS-4b: built on the pipeline; N1 and N2 ruled (Gary — DRAFT entry)
+## 2026-10-19 — MS-4b: built on the pipeline; N1 and N2 ruled (Gary)
 
-**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4b PRE-PUSH-CHECK.**
+**RATIFIED BY GARY, 2026-10-19, at the MS-4b PRE-PUSH-CHECK.** His reply,
+recorded exactly: *"Ratify as written, in my words: N1 and N2 as quoted, and
+C1–C15 plus the two build choices as listed — including C2 (each run
+recomputes everything and sends any milestone reached within the last 7 days,
+so missed days lose nothing) and C3 (the hourly sweep never makes a first
+milestone send, only retries failures)."*
+
+So C1–C15 and the two build choices are ratified as written. Gary's glosses on
+C2 and C3 are his own words and agree with the code at `9e608ab`: the producer
+re-counts every run and enqueues everything reached within ruling 2's window
+(verify-ms4b J1–J4 cover the skipped days), and the hourly `notify-dispatch`
+sweep (`15 * * * *`) skips grouped intents with `attempts = 0`. Only the banner
+and the heading changed. The heading ended "(Gary — DRAFT entry)" and the
+banner read "DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4b
+PRE-PUSH-CHECK." The prose below is unchanged.
+
 The rulings MS-4b builds on are in the entry directly below (rulings 1–5) and
 in the MS-4, MS-4a, NOTIFY-5 and NOTIFY-6 entries, unchanged. The audit is
 `docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md`.

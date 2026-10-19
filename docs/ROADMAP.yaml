@@ -7778,12 +7778,18 @@ phases:
 
   - id: MS-4b
     track: hr
+    # `in_progress` -> `staging` 2026-10-19 BY THE PRE-PUSH-CHECK. None of the
+    # MS-4b commits was pushed when the check ran; this check's own commit
+    # (the one immediately after 9e608ab, which cannot name itself) is not
+    # pushed either — Claude never pushes.
     # planned -> in_progress 2026-10-19 by the MS-4b v2 build session. Work
     # commit 1bc01cf is on local `staging` and NOT pushed (Claude never
     # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
-    status: in_progress
+    status: staging
     commits:
       - "1bc01cf"
+      - "5517d60"
+      - "9e608ab"
     title: "Staff Milestones — ADMIN/MANAGER milestone emails (production only, sent once, per-user switch-off)"
     blockers:
       - >
@@ -7838,6 +7844,27 @@ phases:
         kind on the NOTIFY-6 pipeline (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md
         section 4.7 and 7). Recorded by the NOTIFY-5 docs commit.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-19. PREPENDED; NOTHING BELOW IS EDITED. ──
+      Status to `staging` (not pushed; Gary pushes). Commits: 1bc01cf (work),
+      5517d60 (docs), 9e608ab (test), and this check's own commit, the one
+      immediately after 9e608ab. 9e608ab WAS MISSING FROM THIS ROW; added on
+      Gary's go-ahead, his words: "Yes — add 9e608ab (the skipped-day test I
+      asked for) to the MS-4b row, preserve-and-mark, in this check's one docs
+      commit along with my ratification." It adds section J (skipped days) to
+      scripts/verify-ms4b.ts, no product code: reached D and run first on D+3
+      → sent once, dated D; D+4 does not resend; down until D+7 → still sent;
+      down until D+8 → known, never sent. verify-ms4b 59/59 on dev
+      (br-broad-wave-a6vpjdw0), so the "54/54" below is the build session's
+      count before J. Negative controls `>=` and window 0 each failed and
+      were restored. C1-C15 and the two build choices RATIFIED by Gary at
+      this check (DECISIONS 2026-10-19, "MS-4b: built on the pipeline").
+      STAGING VERIFICATION OWED (staging-SHA precondition first): the
+      "Milestone emails" card on /settings/notifications (ADMIN; Milestones
+      off → one disabled line), "Send a sample to me", the ?tab=milestones
+      link on /staff/[id], and one pace-alerts cron run with the switch on —
+      the summary goes only to NOTIFY_SANDBOX_ALLOWLIST addresses (ruling 3).
+      Migration 20261019211518_ms4b_milestone_alerts reaches staging through
+      the Vercel build on push.
       ── BUILT 2026-10-19 (work 1bc01cf). PREPENDED; NOTHING BELOW IS EDITED. ──
       TIER 3. Audit docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md. Gary's words,
       2026-10-19: "N1 — option (a): add an intentIds list column to

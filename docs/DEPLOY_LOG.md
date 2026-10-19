@@ -2,6 +2,86 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-19 — MS-4b: milestone emails, the first grouped kind on the NOTIFY-6 pipeline
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **MS-4b builds on NOTIFY-6, NOTIFY-11 and
+MS-4a below it** (it extends `src/lib/notifications/dispatch.ts` and reads
+MS-4a's checklist milestones), and a staging → main merge carries it together
+with every unpromoted entry below.
+
+**Payload: three MS-4b commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `1bc01cf`, `5517d60`, `9e608ab`. **NONE WAS
+PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `1bc01cf` | MS-4b work: kind `milestone.reached` on a new per-recipient daily grouping mode in the dispatcher; `recordKnownNotification`; producer `processMilestoneAlerts` in the pace-alerts cron; capability `notify.milestone.receive` and grid line "Milestone reached"; "Milestone emails" card + `PUT /api/milestone-alerts/settings`; "Send a sample to me"; `?tab=milestones` on `/staff/[id]`; migration `20261019211518_ms4b_milestone_alerts`; `scripts/verify-ms4b.ts` |
+| `5517d60` | `docs(MS-4b)`: row to `in_progress`, DECISIONS draft, MIGRATIONS entry, PERMISSIONS_INVENTORY, audit `docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md` |
+| `9e608ab` | `test(MS-4b)`: section J, skipped-day checks in `verify-ms4b` (Gary asked for it). No product code |
+| the commit immediately after `9e608ab` | `docs(MS-4b PRE-PUSH-CHECK)`: this entry, DECISIONS ratified, row to `staging`, docs SHAs |
+
+**Blast radius: SCHEMA (two additive columns), the daily pace-alerts cron, and
+two pages. NO EMAIL ON DEPLOY, BY CONSTRUCTION:** the new
+`Organization.milestoneAlertsEnabled` defaults to `false`, so the producer
+finds no org until an ADMIN turns the switch on; and production's
+`NOTIFY_EMAIL_PROVIDER` is unset (Gary, ruling 5), so even a switched-on org
+in production writes "Dry run — not sent" rows and mails nobody. On staging
+the summary reaches only `NOTIFY_SANDBOX_ALLOWLIST` (ruling 3). What changes:
+
+- **Migration `20261019211518_ms4b_milestone_alerts`**, applied by `prisma
+  migrate deploy` in the Vercel build: `Organization.milestoneAlertsEnabled
+  BOOLEAN NOT NULL DEFAULT false` and `NotificationMessage.intentIds TEXT[]
+  DEFAULT '{}'`. Additive; no drop, no type change, no backfill. Applied to
+  dev only before this push (`docs/MIGRATIONS.md`).
+- **`/api/cron/pace-alerts` (daily, `0 15 * * *`) gains a milestone leg**
+  after the pace loop, in its own try/catch with result key `milestones`. A
+  failure there never stops the pace alerts, which have already run.
+- **The dispatcher gains a grouped mode** (one email per recipient per run,
+  deliveries per milestone and recipient) and a create-only `known` write. The
+  hourly `notify-dispatch` sweep never makes a grouped FIRST send, only
+  retries (C3). Per-intent kinds (signing, pace, test) are unchanged; their
+  message rows keep `intentId` and leave `intentIds` empty (verify-ms4b I3).
+- **Permissions:** new capability `notify.milestone.receive`, baseline ADMIN +
+  MANAGER, deniable from the grid ("Email notifications" → "Milestone
+  reached"), never grantable to STORE or STAFF.
+- **`/settings/notifications`:** a "Milestone emails" card where HR exists
+  (ADMIN writes via `PUT /api/milestone-alerts/settings`: Milestones gate →
+  404, non-ADMIN → 403) and a "Send a sample to me" button (caller only).
+  Recent emails now labels kinds from the registry; existing labels are
+  identical.
+- **`/staff/[id]?tab=milestones`** opens the Milestones tab when it renders.
+
+No Square call, no Clerk change, no new OAuth scope, no new env var, no new
+cron.
+
+**Rollback:** `git revert 9e608ab 1bc01cf` (the test commit first; the docs
+commits can stay). **The two columns STAY** — additive-only, nothing is ever
+dropped — and the reverted client simply does not read them. Any
+`milestone.reached` intents left behind are harmless: the reverted dispatcher
+finds no definition for the kind and skips them as `unknown kind`
+(`dispatch.ts`, NOTIFY-6), so nothing mails. Turning the org switch off is the
+no-deploy alternative: queued intents then expire at dispatch.
+
+**Staging evidence:** pending — the MS-4b row's "STAGING VERIFICATION OWED"
+note in `docs/ROADMAP.yaml`. Preconditions: the staging-SHA precondition,
+then the migration confirmed applied by the staging build log. Name org
+`cmr54z65v000105jxczpt72w1` on every browser observation and branch
+`preview/staging` (`br-square-feather-a63z92vz`) on every row:
+- the "Milestone emails" card on `/settings/notifications` (ADMIN), and "Send
+  a sample to me" → one "Test — …" email to the caller only;
+- `/staff/[id]?tab=milestones` opens the Milestones tab;
+- switch on, hand-fire `/api/cron/pace-alerts` → one summary per eligible
+  recipient on the allowlist, everyone else "Dry run — not sent"; a second
+  fire the same day sends nothing new.
+
+Dev-level evidence only so far, all on the DEV database
+(`br-broad-wave-a6vpjdw0`): verify-ms4b 59/0 (54 at the work commit plus 5
+skipped-day checks in `9e608ab`); verify-notify6 78, verify-notify5 55,
+verify-f5-polish 63, verify-notify-template 35, verify-ms1 97, ms2 90, ms3 95,
+ms3b 80, ms4a 52, chk15 28. Negative controls run and restored: email
+exclusion removed → B4 failed; `>=` window → J3 failed; window 0 → J1 failed.
+
 ## UNPROMOTED — 2026-10-19 — NOTIFY-11: the hourly sweep never sends in sandbox (R2); dry-run rows name the real provider
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
