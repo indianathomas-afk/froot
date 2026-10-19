@@ -2,6 +2,85 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-18 — NOTIFY-6: one notification pipeline (intent ledger, dispatcher, per-recipient sends, hourly retry)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **NOTIFY-6 builds on NOTIFY-5 below it**
+(`deliveryMode()` / `sandboxAllows()`), and a staging → main merge carries it
+together with every unpromoted entry below.
+
+**Payload: three NOTIFY-6 commits plus this check's own.** Verified by `git log
+origin/staging..staging` at this check, after `git fetch origin`: exactly
+`a7fed5f`, `9747638`, `3ffb3f6`. **NONE OF THEM WAS PUSHED WHEN THIS CHECK
+RAN.** The session prompt `eae2aad` was already on origin/staging. Claude never
+pushes.
+
+| Commit | What it is |
+|---|---|
+| `3ffb3f6` | NOTIFY-6 work: migration `20261019005116_notify6_pipeline`, `src/lib/notifications/` (define, registry, dispatch, kinds pace-alert / hr-ack / test), pace, hr.ack and test-send moved onto it, `/api/cron/notify-dispatch`, Recent emails reads `NotificationMessage`, Resend webhook re-pointed, fixture `scripts/verify-notify6.ts` |
+| `9747638` | `docs(NOTIFY-6)`: audit, row to `in_progress`, MIGRATIONS entry, DECISIONS draft |
+| `a7fed5f` | `docs(NOTIFY-6)`: records Gary's ratification of R1, R2 and the 18 choices |
+| the commit immediately after `a7fed5f` | `docs(NOTIFY-6 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHAs |
+
+**Blast radius: EVERY EMAIL FROOT SENDS, IN EVERY ENVIRONMENT, PLUS A
+MIGRATION AND A NEW CRON.** No new env var. What changes:
+
+- **Schema.** Four additive tables: `NotificationIntent`,
+  `NotificationDelivery`, `NotificationMessage`, `NotificationEvent`. No
+  existing table altered, no enum, no backfill (`docs/MIGRATIONS.md`, 2026-10-19
+  entry). Applied to DEV only. Staging and production apply it through `prisma
+  migrate deploy` in the Vercel build, so **a failed migrate fails the
+  deploy** (see the P1002 advisory-lock note if it does).
+- **Every send goes through the ledger.** Pace alerts, HR acknowledgment
+  emails and "Send a test to me" now enqueue an intent and dispatch one
+  `NotificationDelivery` + `NotificationMessage` per recipient. A partial
+  failure leaves the intent `partial`, and the retry mails ONLY recipients with
+  no `sent` delivery (P6, Gary's ruling).
+- **New hourly cron** `/api/cron/notify-dispatch` at `15 * * * *`, behind
+  `CRON_SECRET`. vercel.json now lists 8 crons; **the eighth isn't confirmed
+  against the Vercel plan** (row blocker). Retry cap 5, backoff 1/2/4/8 h. The
+  sweep never makes a sandbox send (R2), so staging sends no hourly mail.
+- **Sandbox never moves an intent's state** (R1). On staging an allow-listed
+  send writes a sandbox `NotificationMessage` and the intent stays `queued`.
+- **Parallel legacy writes for one release.** `PaceAlertLog` and the
+  Notification `AuditLog` rows are still written (NOTIFY-9 stops them), and a
+  pre-pipeline `PaceAlertLog` row still gates the pace producer, so the deploy
+  month can't send a second alert.
+- Recent emails on `/settings/notifications` reads `NotificationMessage`, one
+  row per recipient, with older `AuditLog` rows shown as a legacy section.
+  A direct pace call now honours `paceAlertsEnabled` too. In production that
+  changes nothing, because the cron only passes enabled orgs.
+
+No Square call, no Clerk change, no new OAuth scope.
+
+**Rollback:** `git revert 3ffb3f6`. **The four tables stay**, because no
+column or table is ever dropped. They are additive and nothing in the reverted
+code reads them. Because the legacy `PaceAlertLog` and `AuditLog` rows were
+written in parallel, the reverted NOTIFY-5 code finds every lock and every
+Recent-emails row it expects, so no alert repeats in the month. Pace and
+hr.ack sends that are still `queued`/`partial` at revert time are **not retried**
+once the sweep route is gone. Remove the cron by reverting, not by hand. The
+docs commits can stay.
+
+**Staging evidence:** pending. This is the NOTIFY-6 row's "Staging
+verification owed" blocker in `docs/ROADMAP.yaml`, staging-SHA precondition
+first. Name the org by id on every observation, and name branch
+`preview/staging` (`br-square-feather-a63z92vz`) on every row:
+- the build applied `20261019005116_notify6_pipeline` (`_prisma_migrations`);
+- "Send a test to me" still arrives (check Junk), and Recent emails shows it
+  from `NotificationMessage`;
+- signing a test document with only Gary's address in `hrAckRecipients` sends
+  one email, writes one `NotificationMessage` (mode sandbox, status sent) and
+  ZERO `NotificationDelivery` rows, and the intent stays `queued` (R1);
+- a recipient that isn't allow-listed reads "Dry run — not sent", and the
+  intent stays `queued`;
+- MANAGER is still redirected from `/settings/notifications`.
+
+Dev-level evidence only so far, all on the DEV database
+(`br-broad-wave-a6vpjdw0`): verify-notify6 72/0, verify-notify5 55/0,
+verify-f5-polish 63/0, verify-notify-template 35/0. Nothing from this code has
+been seen in an inbox yet.
+
 ## UNPROMOTED — 2026-10-18 — NOTIFY-5: one delivery mode (live / sandbox / dry-run) for every email, and "Send a test to me"
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

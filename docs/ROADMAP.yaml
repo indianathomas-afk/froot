@@ -20411,12 +20411,18 @@ phases:
   - id: NOTIFY-6
     track: platform
     size: M-L
+    # `in_progress` -> `staging` 2026-10-18 BY THE PRE-PUSH-CHECK. None of the
+    # NOTIFY-6 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after a7fed5f, which cannot name itself) is not
+    # pushed either — Claude never pushes.
     # planned -> in_progress 2026-10-18 by the NOTIFY-6 build session. Work
     # commit 3ffb3f6 is on local `staging` and NOT pushed (Claude never
     # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
-    status: in_progress
+    status: staging
     commits:
       - "3ffb3f6"
+      - "9747638"
+      - "a7fed5f"
     title: "One notification pipeline — intent ledger, dispatcher, registry, per-recipient sends, retry"
     blockers:
       - >
@@ -20452,6 +20458,17 @@ phases:
         `migrate diff`, STOPS, and commits nothing until Gary has applied it to
         dev and the fixture has run green against the applied schema.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
+      Status flipped to `staging`. Docs SHAs 9747638 and a7fed5f are added, and
+      this check's own commit is the one immediately after a7fed5f. DECISIONS:
+      the NOTIFY-6 entry is RATIFIED. a7fed5f records Gary's reply in his own
+      words ("Ratify as written, in my words: R1 — sandbox never changes a
+      send's status; R2 — the hourly retry never sends in sandbox; and the 18
+      implementation choices as listed."). At this check, Step 1 asked again and
+      the answer was "Ratify as written.", given through a reply button whose
+      text Claude wrote. It is the check's own option, so the entry is left
+      unchanged. The "for ratification" wording below is superseded by that.
+      DEPLOY_LOG: UNPROMOTED entry written at this check.
       ── BUILT 2026-10-18 (work commit 3ffb3f6). PREPENDED; NOTHING BELOW IS
       EDITED. ── Audit: docs/prompts/2026-10-18_NOTIFY-6_AUDIT.md. Migration
       20261019005116_notify6_pipeline: NotificationIntent, NotificationDelivery,
