@@ -2,6 +2,74 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-19 — NOTIFY-11: the hourly sweep never sends in sandbox (R2); dry-run rows name the real provider
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **NOTIFY-11 builds on NOTIFY-6 below it**
+(it changes `src/lib/notifications/dispatch.ts` and the Recent emails reader,
+both NOTIFY-6 code), and a staging → main merge carries it together with every
+unpromoted entry below.
+
+**Payload: two NOTIFY-11 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `6f78487`, `9f54bd8`. **NEITHER WAS PUSHED WHEN
+THIS CHECK RAN.** The session prompt `754ad1c` was already on origin/staging.
+Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `9f54bd8` | NOTIFY-11 work: `dispatch.ts` sandbox guard is trigger "sweep" alone; dry-run rows take their provider from `transport.mode`; `listRecentEmails` adds the allowlist detail; cron route comment corrected; 6 new checks in `scripts/verify-notify6.ts` |
+| `6f78487` | `docs(NOTIFY-11)`: row to `in_progress` with `9f54bd8`, build evidence, audit `docs/prompts/2026-10-19_NOTIFY-11_AUDIT.md` |
+| the commit immediately after `6f78487` | `docs(NOTIFY-11 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHAs |
+
+**Blast radius: STAGING EMAIL ONLY. PRODUCTION BEHAVIOUR IS UNCHANGED BY
+CONSTRUCTION.** No migration, no new env var, no new cron, no UI file. Both
+changes act only when the transport is `sandbox`, and `deliveryMode()` never
+returns sandbox where `VERCEL_ENV=production`. What changes:
+
+- **R2 enforced (Gary's words: "the hourly retry never sends in sandbox").**
+  The hourly `/api/cron/notify-dispatch` sweep skipped a sandbox recipient only
+  when a sandbox message already existed, so it could make a FIRST send, e.g.
+  to an address allow-listed after the signing. It now never sends in sandbox,
+  first or repeat. Producer dispatches (signing, test button, pace cron, a
+  hand-fired pace cron) still send and re-send — NOTIFY-5 choice 4. Sandbox
+  still never moves an intent's state (R1).
+- **The dry-run label.** A dry-run `NotificationMessage` written under a
+  sandbox transport now names the configured provider (e.g. `resend`) instead
+  of `console`, and Recent emails on `/settings/notifications` adds "Held back
+  by the staging allowlist (NOTIFY_SANDBOX_ALLOWLIST)". Status stays "Dry run —
+  not sent". Older rows keep `console`; no backfill.
+
+No Square call, no Clerk change, no new OAuth scope, no schema.
+
+**Rollback:** `git revert 9f54bd8`. Nothing to undo in data: dry-run rows
+written with a non-console provider stay, and the reverted reader shows them
+as plain "Dry run — not sent" with no detail. After a revert the staging sweep
+can again make a first sandbox send to a newly allow-listed address. The docs
+commits can stay.
+
+**Staging evidence:** pending. This is the NOTIFY-11 row's "Staging
+verification owed" blocker in `docs/ROADMAP.yaml`. Preconditions:
+`NOTIFY_SANDBOX_ALLOWLIST` exists in Vercel Preview and staging was redeployed
+after the save (deployment created time postdates it), then the staging-SHA
+precondition. Name org `cmr54z65v000105jxczpt72w1` on every browser
+observation and branch `preview/staging` (`br-square-feather-a63z92vz`) on
+every row:
+- **R2 on real data**: while intent `cmvfd7emg000j08jnr89ef48w` is still
+  queued (before 2026-10-26 14:43 UTC), hand-fire `/api/cron/notify-dispatch`
+  → 0 sent for it, no new sandbox message row, no email. Only meaningful AFTER
+  NOTIFY-11 is deployed: on NOTIFY-6 code this hand-fire would send;
+- sign a NEW test document with `gary@kevajuice.com` allow-listed → one email,
+  one message row mode sandbox, status sent, provider resend, zero delivery
+  rows, intent queued;
+- a non-allow-listed `hrAckRecipients` address → "Dry run — not sent",
+  provider resend, detail naming `NOTIFY_SANDBOX_ALLOWLIST`.
+
+Dev-level evidence only so far, all on the DEV database
+(`br-broad-wave-a6vpjdw0`): verify-notify6 78/0 (6 new), verify-notify5 55/0,
+verify-f5-polish 63/0, verify-notify-template 35/0. Negative controls run and
+reverted: old guard → 2 fail; forced `console` → 2 fail; environment-only
+provider → 1 fail.
+
 ## UNPROMOTED — 2026-10-18 — NOTIFY-6: one notification pipeline (intent ledger, dispatcher, per-recipient sends, hourly retry)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

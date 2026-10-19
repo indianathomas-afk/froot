@@ -20809,12 +20809,18 @@ phases:
   - id: NOTIFY-11
     track: platform
     size: S
+    # `in_progress` -> `staging` 2026-10-19 BY THE PRE-PUSH-CHECK. Neither
+    # NOTIFY-11 commit was pushed when the check ran; this check's own commit
+    # (the one immediately after 6f78487, which cannot name itself) is not
+    # pushed either — Claude never pushes. DEPLOY_LOG entry written by this
+    # check, headed UNPROMOTED.
     # planned -> in_progress 2026-10-19 by the NOTIFY-11 build session. Work
     # commit 9f54bd8 is on local `staging` and NOT pushed (Claude never
     # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
-    status: in_progress
+    status: staging
     commits:
       - "9f54bd8"
+      - "6f78487"
     title: "R2 enforced: the sweep never sends in sandbox; dry-run rows name the real provider"
     blockers:
       - >
