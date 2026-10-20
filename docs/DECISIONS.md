@@ -5,6 +5,29 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-19 — MS-5b: one milestone button per role on /staff (Gary)
+
+**Gary's words, recorded exactly** (session prompt, 2026-10-19, saved as
+`docs/prompts/2026-10-19_MS-5b_staff_report_button.md`):
+
+- *"Remove the Milestone report button from the /staff page and leave it on
+  the /staff/milestones page. The reason is that /staff is getting
+  cluttered."*
+- *"Scope: on /staff, ADMINs no longer see the "Milestone report" button
+  (they reach it from /staff/milestones). MANAGERs, who can't open
+  /staff/milestones, keep the "Milestone report" button on /staff as their
+  only route to the report. Each role sees one milestone button."*
+
+This narrows MS-5's "Links: /staff header (ADMIN + MANAGER on the badges'
+gate)" to MANAGER only. The report page and its gates are unchanged.
+
+**Claude's choice (for the record):** the /staff flag is written as "the
+badges' gate AND NOT the Milestones button" (`showOnTime &&
+!canSetUpMilestones`) rather than naming the MANAGER role, so whoever lacks
+the route through /staff/milestones keeps the direct link. Today that
+condition and "MANAGER" pick out the same people, because `milestones.manage`
+is ADMIN_ONLY.
+
 ## 2026-10-19 — MS-5: the Milestone Report; F9 a MANAGER never sees their own Raise status (Gary)
 
 **RATIFIED BY GARY, 2026-10-19, at the MS-5 PRE-PUSH-CHECK.** The entry was

@@ -8050,6 +8050,42 @@ phases:
       session, from the MS-1 prompt's scope list ("the report (MS-5)"). Scope
       not yet defined. Cross-refs: MS-1.
 
+  - id: MS-5b
+    track: hr
+    size: S
+    # `in_progress` at dbd7482, set 2026-10-19 by the MS-5b build session
+    # (TIER 2). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns the
+    # flip to `staging`.
+    status: in_progress
+    title: "Staff Milestones — one milestone button per role on /staff (ADMIN: Milestones; MANAGER: Milestone report)"
+    commits:
+      - "dbd7482"
+    blockers:
+      - >
+        PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-5). No migration.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms5 51/51
+        (B11 pins the flag, B12 runs it through can() for ADMIN and MANAGER,
+        B13 confirms the setup page still links the report), with one live
+        negative control run and restored (old flag put back → B11 FAIL); a
+        green build. Not opened in a browser. Staging must check, on branch
+        br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1, naming the
+        org id on every observation: as ADMIN, /staff shows "Milestones" and
+        no "Milestone report", and /staff/milestones shows "Milestone report";
+        as MANAGER (Tommy, Las Brisas), /staff shows "Milestone report" and no
+        "Milestones", and the link opens the report.
+    notes: >
+      TIER 2, 2026-10-19. Prompt:
+      docs/prompts/2026-10-19_MS-5b_staff_report_button.md. Ruling: Gary,
+      2026-10-19 (docs/DECISIONS.md 2026-10-19 — MS-5b). WHAT SHIPPED
+      (dbd7482): canSeeMilestoneReport in src/app/(app)/staff/page.tsx is now
+      `showOnTime && !canSetUpMilestones` — the badges' gate minus anyone who
+      gets the Milestones button. milestones.manage is ADMIN_ONLY, so ADMINs
+      see Milestones only and reach the report from /staff/milestones;
+      MANAGERs keep the report button, their only route in. The report page
+      and its gates are unchanged. No schema, no migration, nothing writes.
+      verify-ms5 gains B12 and B13 and B11 is retargeted. Cross-refs: MS-5.
+
   - id: HR-27
     track: hr
     size: L
