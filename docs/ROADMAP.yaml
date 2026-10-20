@@ -7960,11 +7960,67 @@ phases:
 
   - id: MS-5
     track: hr
-    status: planned
-    title: "Staff Milestones — report"
+    size: M
+    # `in_progress` at 511f321, set 2026-10-19 by the MS-5 build session
+    # (TIER 3). Not pushed — Claude never pushes.
+    status: in_progress
+    title: "Staff Milestones — Milestone Report (/staff/milestones/report), and F9: a MANAGER never sees their own Raise status"
+    commits:
+      - "60c8468"
+      - "511f321"
+    blockers:
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-19 — MS-5 records
+        Gary's F1–F10 exactly and lists Claude's choices separately; it awaits
+        ratification at the MS-5 PRE-PUSH-CHECK. Two readings in it need his
+        eye: C1 (cooldown is shown on the report, because F10 allows the
+        cooldown filter, though F3 says lists show "green and red only") and
+        C2 (F9 rides on resolveSelfStaff — an unresolved or ambiguous login
+        hides nothing).
+      - >
+        PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-4b). No migration.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms5 49/49 on dev
+        br-broad-wave-a6vpjdw0, with three live negative controls run and
+        restored (redaction forced off → C12, C13, C14, C14b, C19 FAIL; amber
+        kept → A2, C10 FAIL; F9 test removed → B7, C11, C19 FAIL);
+        verify-ms1 97/97, ms2 90/90, ms3 95/95, ms3b 80/80, ms4a 52/52, ms4b
+        all passed; a green build; 375 px checked on a temporary public /menu
+        page with sample data (no sideways scroll, cards not table, terminated
+        toggle 4 → 5; page deleted before the commit). Staging must check, on
+        branch br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1,
+        naming the org id on every observation: the ADMIN view; Tommy as
+        MANAGER (Las Brisas) sees only Las Brisas people and NO raise on his
+        own row there, on /staff and on his own Milestones tab; gary@keva.com
+        (MANAGER, Carson) sees only Carson; Tommy switched to STORE is
+        redirected; filters; the terminated toggle; the CSV (ADMIN only) opened
+        and read; a pay-confidential member shows no raise dates to a manager
+        (view-source search for the date); phone width; Milestones off → 404.
     notes: >
-      FILED 2026-10-15 by the MS-1 build session, from the MS-1 prompt's scope
-      list ("the report (MS-5)"). Scope not yet defined. Cross-refs: MS-1.
+      TIER 3, 2026-10-19. Prompt: docs/prompts/2026-10-19_MS-5_milestone_report.md.
+      Audit and plan: docs/prompts/2026-10-19_MS-5_AUDIT.md (60c8468). Rulings
+      F1–F10: Gary, 2026-10-19 (docs/DECISIONS.md 2026-10-19 — MS-5). WHAT
+      SHIPPED (511f321): /staff/milestones/report, read-only. Gates: the /staff
+      layout (staff.view), requireMilestones() with no capability (Milestones
+      off = 404), then ADMIN or MANAGER. MANAGER scope is /staff's roster
+      query, "also works here" included. src/lib/milestone-report.ts
+      buildMilestoneReport — its return value IS the client's props; raise per
+      member goes through redactForViewer (F10), drops amber (F3) and drops a
+      MANAGER's own row (F9). src/lib/milestone-report-view.ts holds the row
+      type, filters, sort and the CSV builder (pure, client-safe).
+      namedTaskDatesForMembers in milestones-db.ts reads every member's named
+      tasks in ONE query (the per-member reader stays for the tab and the
+      MS-4b cron). F9 is also applied on /staff and the profile Milestones tab
+      through raiseHiddenForViewer in raise-eligibility.ts — this answers the
+      open MS-3a question ("should a MANAGER see their own Raise badge?").
+      Links: /staff header (ADMIN + MANAGER on the badges' gate) and the setup
+      page. CSV: ADMIN only, built in the browser from the same rows. No
+      schema, no migration, no email, nothing writes. Query count is constant
+      in roster size. NOT DONE: no help article claims the new route (the
+      build's [guide] warning went 43 → 44 unclaimed routes). ── ORIGINAL
+      "planned" NOTES, KEPT VERBATIM. ── FILED 2026-10-15 by the MS-1 build
+      session, from the MS-1 prompt's scope list ("the report (MS-5)"). Scope
+      not yet defined. Cross-refs: MS-1.
 
   - id: HR-27
     track: hr

@@ -5,6 +5,77 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-19 — MS-5: the Milestone Report; F9 a MANAGER never sees their own Raise status (Gary — DRAFT entry)
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-5 PRE-PUSH-CHECK.**
+The forks are in `docs/prompts/2026-10-19_MS-5_AUDIT.md` (Part 1). Work commit
+`511f321`.
+
+**Gary's words, recorded exactly** (chat, 2026-10-19, headed "MS-5 rulings
+(Gary, 2026-10-19, my words)"):
+
+- *"F1: Yes — /staff/milestones/report, ADMIN + MANAGER (own stores), linked
+  from /staff and the setup page."*
+- *"F2: Columns as leaned."*
+- *"F3: Leave amber "Raise in progress" OFF the report, same as /staff. Lists
+  show green and red only; the person's Milestones tab shows the full
+  picture. Consistent with my MS-3c ruling that raise progress isn't
+  self-governed."*
+- *"F4: Filters as leaned."*
+- *"F5: Terminated hidden by default, toggle shows achieved history only."*
+- *"F6: CSV for ADMIN only, built from the page's already-redacted data."*
+- *"F7, F8: As leaned."*
+- *"F9: A MANAGER never sees their own Raise status — hide it on their own row
+  on /staff, on the report, and on their own Milestones tab. ADMINs see
+  everyone. Apply to /staff too in this phase; this answers the open MS-3a
+  question."*
+- *"F10: Allow the cooldown filter for pay-confidential people; dates stay
+  hidden."*
+- *"Go: build MS-5. No migration expected — STOP if one is needed."*
+
+The leans F2, F4, F7 and F8 point to are the audit's Part 1 wording, which is
+the prompt's own lean text: F2 columns — name, home store, start date, days
+employed, last milestone reached + date, next milestone + date + days to go,
+checklist count and next threshold (switch on only), On-Time, Raise; F4 —
+store, milestone type, reached in the last 30 / 90 days, coming up in the
+next 30 days, raise status; F7 — next milestone soonest first, every column
+clickable; F8 — cards on a phone, a table on desktop.
+
+No migration was needed.
+
+**Claude's choices (for ratification):**
+
+- **C1. Cooldown is shown on the report.** F3 says lists show "green and red
+  only", and F10 allows "the cooldown filter". A filter needs a status to
+  match, so the report keeps a grey "Recent raise" pill, with "Eligible again
+  <date>" only where the date survived redaction. Amber is absent everywhere
+  on the report and in its payload and CSV. If Gary meant no cooldown pill,
+  that is one line in `raiseForRow` and the filter option goes with it.
+- **C2. "Own" is resolveSelfStaff's answer** — the same resolver as the
+  /staff "You" marker (linked login first, then a single email match). A
+  MANAGER whose login resolves to no staff record, or to two, hides nothing.
+  One pure function, `raiseHiddenForViewer`, decides it on all three surfaces.
+- **C3. F9 drops the WHOLE result, not just the badge.** On /staff the
+  viewer's entry is removed from the raise map, on the tab the card is not
+  computed into props, and on the report the row's raise is null — so the
+  status is absent from the payload, not hidden in it. Only the Raise status:
+  the manager's own On-Time badge is unchanged (F9 names Raise only).
+- **C4. The report payload is one builder's return value.** The fixture's
+  leak checks run on `JSON.stringify` of it and on the raw CSV text, with an
+  ADMIN positive control.
+- **C5. A batched checklist reader** (`namedTaskDatesForMembers`) for the
+  report only; the tab and the MS-4b cron keep the per-member reader. The
+  fixture asserts the two agree for every member.
+- **C6. Store filter matches any of a person's stores the viewer can see;**
+  the store column shows the home store, "Corporate" for corporate staff.
+- **C7. "Coming up" is tenure only** — a checklist threshold has no date.
+  "Reached in the last N days" counts today as day 0, in the member's own
+  store zone.
+- **C8. Terminated rows carry history only:** reached milestones, no next, no
+  On-Time, no Raise, whichever toggle state.
+- **C9. Links.** /staff header for ADMIN and MANAGER on the badges' gate
+  (Milestones on); the setup page header for ADMIN.
+
 ## 2026-10-19 — MS-4b: built on the pipeline; N1 and N2 ruled (Gary)
 
 **RATIFIED BY GARY, 2026-10-19, at the MS-4b PRE-PUSH-CHECK.** His reply,
