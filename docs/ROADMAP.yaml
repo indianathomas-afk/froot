@@ -7982,6 +7982,30 @@ phases:
       - "511f321"
       - "041834b"
     blockers:
+      - >
+        STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. Staging footer 80af7e2 = local HEAD, branch
+        preview/staging br-square-feather-a63z92vz, org
+        cmr54z65v000105jxczpt72w1, Clerk dev instance (serves staging). The
+        "UNVERIFIED ON STAGING" checklist below, item by item. DONE: (1) ADMIN
+        view: 43 people, all stores, Download CSV shown; positive control Deon
+        (pay-confidential, last raise 2026-10-10) shows "Recent raise" with
+        "Eligible again Jan 8, 2027". (2) Tommy as MANAGER (Las Brisas) sees
+        only Las Brisas people, and his own row on the REPORT shows no Raise
+        status (F9). (3) Pay-confidential member to a manager: Deon shows
+        "Recent raise" with no date; view-source as Tommy searched for
+        2026-10-10, Oct 10, 2027-01-08 and Jan 8 and found none. (4) CSV is
+        ADMIN only: shown to the ADMIN, absent for Tommy. (5) Terminated:
+        CHK-15 Test terminated is hidden from Tommy's report (26 -> 25) and
+        "Show terminated (1)" appears. Also seen: Aubree shows "Raise blocked"
+        to Tommy, red visible to a manager (F3). STILL OPEN, not in the
+        evidence: F9 on Tommy's own row on /staff and on his own Milestones
+        tab (only the report was checked); gary@keva.com (MANAGER, Carson)
+        sees only Carson; Tommy switched to STORE is redirected; the filters;
+        turning the terminated toggle ON; the CSV opened and read (only its
+        visibility was checked); phone width; Milestones off -> 404. Test data
+        undone: Deon's last raise date cleared and pay confidentiality
+        removed. CHK-15 Test was not reported as un-terminated.
       - resolved: true
         text: >
           RESOLVED 2026-10-19 AT THE PRE-PUSH-CHECK: Gary ratified the
@@ -8015,6 +8039,13 @@ phases:
         and read; a pay-confidential member shows no raise dates to a manager
         (view-source search for the date); phone width; Milestones off → 404.
     notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Status stays `staging`; this records evidence and does not
+      promote. On staging 80af7e2 (= local HEAD), org
+      cmr54z65v000105jxczpt72w1: ADMIN and MANAGER scope, F9 on the report,
+      pay-confidential redaction (view-source clean, ADMIN positive control),
+      CSV visibility and terminated hiding all held. Eight checklist items
+      are still open; item-by-item status is in the first blocker.
       ── PRE-PUSH-CHECK 2026-10-19 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs SHA 041834b added; this check's own commit
       is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
@@ -8065,6 +8096,16 @@ phases:
       - "7feab65"
     blockers:
       - >
+        STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. Staging footer 80af7e2 = local HEAD, branch
+        preview/staging br-square-feather-a63z92vz, org
+        cmr54z65v000105jxczpt72w1, Clerk dev instance (serves staging). The
+        "UNVERIFIED ON STAGING" blocker below is DISCHARGED: all four checks
+        in it were observed. As ADMIN, /staff shows "Milestones" only and
+        /staff/milestones shows "Milestone report"; as MANAGER (Tommy, Las
+        Brisas), /staff shows "Milestone report" only and the link opens the
+        report. Nothing in MS-5b's own checklist is still open.
+      - >
         PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-5). No migration.
       - >
         UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms5 51/51
@@ -8078,6 +8119,12 @@ phases:
         as MANAGER (Tommy, Las Brisas), /staff shows "Milestone report" and no
         "Milestones", and the link opens the report.
     notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Status stays `staging`; this records evidence and does not
+      promote. On staging 80af7e2 (= local HEAD), org
+      cmr54z65v000105jxczpt72w1, each role saw exactly one milestone button.
+      The staging blocker is discharged (first blocker). MS-5b promotes with
+      MS-5, which still has open staging items.
       ── PRE-PUSH-CHECK 2026-10-19 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs SHA 7feab65 added; this check's own commit
       is the one immediately after it. RULING RATIFIED by Gary with one
