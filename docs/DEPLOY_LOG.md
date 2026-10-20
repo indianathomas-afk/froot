@@ -909,6 +909,23 @@ of `git log` at this stamp: `c5b472e`, `d329389`, `5bc3008`, `27c67b3`.
 Note this merge also carried `27c67b3` (the DOC-6 promotion stamp, docs only).
 This supersedes the pre-merge `git revert c5b472e` line below, kept in place.
 
+> **⚠ SUPERSEDED AT PROMOTION 2026-09-29.** The "Status: staging only" line and
+> the "Staging evidence: pending" paragraph below are the PRE-PUSH-CHECK's own.
+> They were written before the push and are now spent. Marked in place, not
+> deleted. The check's own commit, which the payload table could not name, is
+> `5bc3008`.
+>
+> **Staging evidence (Gary, 2026-09-29, on `27c67b3-staging`):** the Key Agreement
+> preview on desktop. A 4-page test handbook on desktop, scrolled to the last
+> page. The same file on iPhone Safari drew the pages past page 1. **Not observed
+> on staging:** rotate/refit, and a phone signing as Tommy (the `PdfViewer`
+> regression check). Both are open on the ROADMAP row.
+>
+> *(Adapted 2026-10-20 by DOCS-CLOSEOUT-2 from `stash@{0}` "main docs WIP",
+> where both paragraphs sat uncommitted. The stash's heading stamp and payload
+> paragraph are not folded in: DOCS-CLOSEOUT stamped this heading on 2026-10-17,
+> above, with the same SHAs.)*
+
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge.
 
@@ -990,6 +1007,12 @@ the Save sends and who a document reaches are unchanged.
 
 **Rollback:** `git revert -m 1 e4be68a` on `main`, then push (merge `e4be68a28a0b983b246b4b7a38b994e42a25aabc`; stamped late on 2026-09-29).
 
+> **Correction 2026-09-29: promoted in `e4be68a`.** The paragraph below is the
+> PRE-PUSH-CHECK's own. It is kept as written and is now spent.
+> *(Folded in 2026-10-20 by DOCS-CLOSEOUT-2 from `stash@{0}` "main docs WIP",
+> where it sat uncommitted. `e4be68a^1..e4be68a^2` is exactly `65ca616`,
+> `a2c7153`, `73c1a59`.)*
+
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push.
 It gets the merge SHA at promotion, on `main`, after the merge.
 
@@ -1040,7 +1063,7 @@ literal in the same output.
 - **Staff DELETE** now also refuses a person with return events, with the
   existing 409.
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **The code
+**Rollback:** `git revert -m 1 e4be68a` on `main`, then push. **The code
 revert is safe without a database step.** The migration is additive: reverted
 code never reads the new columns or the new table, so both stay behind and go
 unread. Any return events recorded before the revert stay in `HrReturnEvent`,
@@ -1207,7 +1230,7 @@ ADMIN.
 `br-broad-wave-a6vpjdw0` (throwaway org, removed and re-queried). `npm run
 build` clean after the final commit.
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+**Rollback:** `git revert -m 1 5c3c6c6` on `main`, then push. **No database
 step** — nothing was migrated and nothing was written.
 
 **Staging evidence pending.** Gary tests after push as `indianathomas` on
@@ -1299,7 +1322,7 @@ non-zero result means an unexpected legacy value, and goes back to Gary.
   The document and form create and PATCH bodies now take `categoryId`, not
   `category`.
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **The code
+**Rollback:** `git revert -m 1 92df26b` on `main`, then push. **The code
 revert is safe without a database step.** The migration is additive, the
 legacy `category` column was kept NOT NULL and is written on every create, so
 reverted code reads it as before. The new table and column simply go unread.
@@ -1368,7 +1391,7 @@ not see their own missed answers for now). The graders used by quiz submit and
 trainer review moved file but not behaviour (50,000-case HEAD comparison, 0
 differences).
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+**Rollback:** `git revert -m 1 d929d1d` on `main`, then push. **No database
 step** — nothing was migrated and nothing was written.
 
 > **⚠ CORRECTED AT PROMOTION 2026-09-27 — the NAV-2 line immediately below was
@@ -1434,7 +1457,7 @@ the header exactly as before. Fails closed to the STAFF header if the role
 cannot be read. Reported from production by Neesha Hartman (manager, Carson),
 2026-09-23.
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+**Rollback:** `git revert -m 1 3c0ffc9` on `main`, then push. **No database
 step** — nothing was migrated and nothing was written.
 
 **Staging evidence pending** — Gary tests after push: ADMIN (`indianathomas`)
@@ -2510,6 +2533,13 @@ after the 09:05 merge, so its three commits — `9936610`, the docs commit
 `00db87e` and the check commit `dfbfe6e` — are on `origin/staging` and nowhere
 else; `git log --oneline origin/main..origin/staging` returns those three and
 nothing more. This carry line gets its own stamp when CAL-1b is promoted.
+
+> **Correction 2026-10-20 (DOCS-CLOSEOUT-2): CAL-1b was promoted later, in
+> `d2b8d79`** ("promote: CAL-1b, DOCS-4, CAL-2, CAL-2a, DOCS-5, CAL-2b",
+> 2026-09-18). `git merge-base --is-ancestor 9936610 d2b8d79` succeeds and the
+> same check against `d2b8d79^1` fails, so `d2b8d79` is the merge that carried
+> it. The "STILL UNPROMOTED" paragraph above is kept as written and is now
+> spent. Rollback for CAL-1b is the `d2b8d79` entry's.
 **STAMPED 2026-09-19 BY DOCS-6 — THIS IS THE STAMP THE LINE ABOVE ASKS FOR.**
 CAL-1b reached production 2026-09-18 in `d2b8d79` ("promote: CAL-1b, DOCS-4,
 CAL-2, CAL-2a, DOCS-5, CAL-2b"), the entry at the head of this log, with all
@@ -2644,6 +2674,27 @@ unfiltered `/users` is unchanged.
 
 **Rollback is code-only and needs no database step.** Reverting the work commit
 removes the two controls and restores the previous page; nothing was written.
+
+## 10c9cf5 — 2026-09-13 — CHK-8: template task sort order — RETROACTIVE ENTRY, written 2026-10-20 by DOCS-CLOSEOUT-2
+
+**RETROACTIVE ENTRY, written 2026-10-20 by DOCS-CLOSEOUT-2.** No entry was
+written at promotion time. Sourced from `git` and from the CHK-8 row in
+`docs/ROADMAP.yaml` ("PROMOTED TO PRODUCTION IN "10c9cf5", merging "509fe62"").
+Nothing here was observed in a browser or a database by this session.
+
+**Merge SHA:** `10c9cf5596bb80e86ae53ed577569c5169442acd`
+**Promoted 2026-09-13 14:53:07 -0700** in `10c9cf5` ("merge: CHK-8 template
+task sort order (509fe62)"), parents `53b5a7c` (prior tip of `main`) and
+`509fe62`. `10c9cf5^1..10c9cf5^2` is exactly **1 commit**, `509fe62`, read out of
+`git log` at this writing. `git diff --stat 10c9cf5^1 10c9cf5 -- prisma` is
+empty: no migration.
+
+**What it does.** On the template editor, a task drag is constrained to its own
+section, a Sort Order field sits beside Est. Time, and the unsaved state is
+loud. The CHK-8 row holds the audit, the promotion gate (passed on staging,
+measured by Gary before promoting) and the post-promotion production report.
+
+**Rollback:** `git revert -m 1 10c9cf5` on `main`, then push. No database step.
 
 ## 53b5a7c — 2026-09-09 — Take Photo: the button now opens a camera
 
@@ -3213,6 +3264,166 @@ edited.
   article as a STORE login to watch the contents list renumber.
 - Nothing here proves browser rendering generally, and the assertions exercise
   the policy functions the routes call rather than HTTP responses over the wire.
+
+## f863259 — 2026-09-05 — HELP-1b: eleven help articles (HR and checklists batches)
+
+> **RESTORED ENTRY, restored 2026-10-20 by DOCS-CLOSEOUT-2. NOTHING BELOW IS
+> EDITED.** Written on `main` in `28cd3e1` (2026-09-05) and DROPPED the same
+> day by the HR-33 promotion merge `bf5a66f`, together with the ENG-1 and NAV-1
+> entries below (`bf5a66f^1` = `bc13251` holds it, `bf5a66f^2` = `d1fa739`
+> never did). DEBT-90 recorded it as "exists ONLY on `main`"; by then it existed
+> on neither branch. The text below is `git show bc13251:docs/DEPLOY_LOG.md`,
+> byte-identical to `28cd3e1`'s; only its position is new.
+
+**Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
+**Same merge as the HELP-1a entry above.** One promotion carried both — the
+machine and the first two batches of articles written into it. Recorded as a
+separate entry because they are separate phases with separate rows and separate
+rollback consequences.
+
+**Payload:** content plus two new verification scripts. **No schema, no
+migration, no cron, no Square call, no writes to any existing table.** Rolling
+this back removes articles from a help surface that keeps working.
+
+### What ships to readers
+
+Eleven articles across HR and checklists, plus the three from HELP-1a. Per-role
+visibility: **ADMIN 14, MANAGER 12, STORE 7, STAFF 6.** The checklists batch was
+weighted at STORE deliberately — it was the thinnest-covered role at 3, and the
+store view, checklist review, dashboard and messages are a STORE login's whole
+shift.
+
+Coverage: 72 routes, 24 claimed, 7 exempt, **41 unclaimed**. That warn list is
+the remaining scope and shrinks per batch; it is not a defect.
+
+### Two bugs this phase found in production-bound code, both by looking
+
+Neither was visible to any assertion in the repo, and both had shipped to
+staging before a human opened the page.
+
+- **The guide image 404'd** because the code read `GUIDE_BLOB_READ_WRITE_TOKEN`
+  while Vercel had created `GUIDE_READ_WRITE_TOKEN` — Blob stores auto-name from
+  the prefix chosen at connect time. It worked locally because `.env` had been
+  hand-typed with the name the code expected, so the mismatch existed only where
+  nothing tested. `GUIDE_READ_WRITE_TOKEN` is set for Production; the resolution
+  now accepts either name and lives in one exported function.
+- **A bullet wrapped across source lines ended its list**, rendering the tail as
+  a full-width paragraph. It affected five of nine articles at the time.
+
+### What is knowingly open
+
+- **Two `pending:` claims** warn on every build — a handoff-scope claim and
+  "a Missed checklist cannot be submitted late". Both were drafted, judged
+  unverified, and PULLED from the prose rather than shipped hedged. No unverified
+  statement reaches a reader; the warning is the to-do.
+- **Three rulings in `DECISIONS.md` are Claude-drafted and await Gary's wording** —
+  section absence, the permanent-warn coverage gate, and all-images-authenticated.
+  They govern shipped code. Their prose must not be quoted as his.
+- **DEBT-85, 86, 87, 88** filed and open. 85 and 87 both make help articles
+  stricter than the pages they document — help hides more than the product shows,
+  the safe direction. 86 is the deployed-env gap the image bug came through.
+
+### Rollback
+
+`git revert -m 1 f863259` — parent 1 is `main`, verified after the merge rather
+than assumed. Pair it with `git checkout HEAD -- docs/DEPLOY_LOG.md` per
+WORKFLOW.md: that revert conflicts on this file for the same structural reason
+this merge did, and keeping the log is the correct resolution both times.
+
+## 8c25084 — 2026-08-30 — ENG-1: engagement tracking
+
+> **RESTORED ENTRY, restored 2026-10-20 by DOCS-CLOSEOUT-2. NOTHING BELOW IS
+> EDITED.** This entry was written on `main` in `b65a76b` (2026-08-30) and was
+> silently DROPPED on 2026-09-05 by the HR-33 promotion merge `bf5a66f`, which
+> resolved this file to the `staging` side (`bf5a66f^1` = `bc13251` holds it,
+> `bf5a66f^2` = `d1fa739` never did). It has been absent from both branches
+> since. The text below is `git show bc13251:docs/DEPLOY_LOG.md`,
+> byte-identical; only its position is new.
+> **Payload, re-read from `git` at this restoration:** parents `66ea10e` (prior
+> tip of `main`) and `835b213`. `8c25084^1..8c25084^2` is exactly **4 commits**:
+> `f1e9833` (work), `e2ed2d0` (row), `5421762` (NAV-1's pre-push check prompt,
+> riding along), `835b213` (pre-push check). **The first parent is `66ea10e`, NOT
+> `e6149f8`:** `git log --oneline e6149f8..66ea10e` returns exactly one commit,
+> `66ea10e` "docs(deploy): NAV-1 promotion recorded" — the NAV-1 entry below,
+> committed directly to `main` two minutes after the NAV-1 merge. Nothing else
+> was committed directly to `main` in that window.
+> **Migration** `20260830120000_eng1_engagement_tracking`: present in production
+> `_prisma_migrations` (measured in chat 2026-10-20, recorded in the
+> DOCS-CLOSEOUT-2 addendum; not re-run by this session, which has no
+> production access).
+> **Rollback:** `git revert -m 1 8c25084` on `main`, then push. Code-only: the
+> additive columns and `UsageDaily` stay behind, unread (as the entry says).
+
+**Merge SHA:** `8c250846a43a3c4d05df3c569b9188690c5549a3`
+**Written before the merge existed**, per the ritual — the heading's two tokens
+and the Merge SHA line's one are stamped from `git rev-parse` and `date`,
+never hand-typed.
+
+**READ THIS FIRST IF YOU ARE ROLLING BACK.** This promotion carries an ADDITIVE
+MIGRATION and a NEW CAPABILITY. The migration
+(`20260830120000_eng1_engagement_tracking`) is two nullable `ADD COLUMN`s on
+`User` plus one new table `UsageDaily`. Reverting the code leaves all three
+unread and harmless — do NOT drop them (WORKFLOW.md § Rolling a promotion back).
+Nothing existing reads or writes them.
+
+**Blast radius is small and one-directional.** No existing query changed, no
+existing route changed behaviour, no permission baseline moved. The new
+capability `engagement.view` is ADMIN_ONLY, is not grantable and is not
+deniable, so no role gains or loses anything on promotion day. The one edit to a
+shipped surface is a link added to `/staff`'s header and an icon added to each
+`/stores` row, both behind `can(actor, "engagement.view")` — invisible to
+everyone but an admin.
+
+**What is new.** `POST /api/usage` (a beacon written by every authenticated
+page view), `GET /api/staff/engagement` (ADMIN-only read), `/staff/engagement`
+(the page), `GET /api/cron/engagement-prune` (retention), and a client beacon
+mounted in both the `(app)` and `(my)` shells.
+
+**The one thing to watch on the first day.** `POST /api/usage` fires on every
+client-side route change for every authenticated user, so it is the highest-QPS
+write this app has. It is one indexed upsert against
+`@@unique([userId, path, date])` plus, at most once per user per 15 minutes, one
+`User` update. If Neon connection pressure shows up after this promotion, that
+is the first place to look — and the safe mitigation is to stop mounting
+`<UsageBeacon />` in `src/app/(app)/layout.tsx` and `src/app/(my)/layout.tsx`,
+which disables collection without touching the schema or any read path.
+
+**A new cron.** `/api/cron/engagement-prune` at `0 12 * * *`, deleting
+`UsageDaily` rows older than 180 days. Vercel crons fire on Production only, so
+this promotion is its first live run. `CRON_SECRET` is unchanged and already
+held.
+
+**Verified before the push, on the dev branch** (`ep-late-water-a6k53nv2`):
+prune end-to-end (401 without the secret, deleted exactly a seeded 200-day-old
+row and kept today's), the rollup incrementing rather than duplicating, path
+normalization collapsing two staff ids onto one row, the 15-minute throttle
+writing once, and 28 fixture checks. NOT verified on staging by that session —
+Claude does not push.
+
+**Still open after this promotion.** The per-role 403 capture by request, and
+the geo headers, which cannot appear under `next dev` and are only observable on
+a Vercel-served request. Expect `lastSeenLocation` to stay null for every row
+until the first real Vercel traffic.
+
+## 2026-08-30 — NAV-1 promotion e6149f8
+
+> **RESTORED ENTRY, restored 2026-10-20 by DOCS-CLOSEOUT-2. NOTHING BELOW IS
+> EDITED.** Written on `main` in `66ea10e`, stamped `e6149f8` and moved to its
+> date position in `b65a76b`, then DROPPED by the same `bf5a66f` merge as the
+> ENG-1 entry above. The six lines below are `bc13251`'s, byte-identical; the
+> heading keeps its original format rather than the SHA-first one.
+> **Payload, re-read from `git` at this restoration:** merge `e6149f8`,
+> 2026-08-30 09:21:58 -0700, parents `849e410` (prior tip of `main`) and
+> `16f6f6b`. `e6149f8^1..e6149f8^2` is exactly **4 commits**: `a005cba` (work),
+> `16f6f6b` (docs), plus two closeout docs commits riding along, `10439b3`
+> (PERM-8) and `e4c8c69` (COMP-1). `git diff --stat e6149f8^1 e6149f8 -- prisma`
+> is empty: no migration. NAV-1 row: `docs/ROADMAP.yaml`, `id: NAV-1`.
+
+Sidebar regrouped 15 → 9 top-level (Checklists/Stores/Forecasting groups,
+INVENTORY pattern reused). Daily Tasks button added to /dashboard → /checklists.
+No route, schema, or API changes. Per-role URL sets verified identical
+(work a005cba); /settings/labor hidden without labor.access per NAV-1 ruling.
+Rollback: git revert -m 1 e6149f8
 
 ## 849e410 — 2026-08-29 — PERM-8: the Square staff import becomes grantable to specific managers
 

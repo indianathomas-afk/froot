@@ -6853,6 +6853,7 @@ phases:
     commits:
       - "65ca616"
       - "a2c7153"
+      - "73c1a59"
     open:
       - >
         PRODUCTION READ-ONLY QUERY — owed at promotion, NOT CONFIRMED. The
@@ -7063,12 +7064,34 @@ phases:
     # d329389 were ALREADY PUSHED to origin/staging when the check ran; this
     # check's own commit (the one immediately after d329389, which cannot name
     # itself) is not pushed — Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-09-29, stamped 2026-10-20 by DOCS-CLOSEOUT-2
+    # from stash@{0} "main docs WIP" (merge 0d51496, DEPLOY_LOG entry
+    # `0d51496`). The comment above is spent, kept.
+    status: shipped
+    shipped: 2026-09-29
     title: "Preview button on the Document Library — PDFs and images in a dialog, no download"
     commits:
       - "c5b472e"
       - "d329389"
+      - "5bc3008"
+    open:
+      - >
+        NOT OBSERVED ON STAGING: rotate/refit. The opt-in refitOnResize
+        (ResizeObserver) path was not exercised on a device rotation.
+      - >
+        NOT OBSERVED ON STAGING: the phone signing regression check. PdfViewer
+        is shared with the signing screen. Sign on a phone as Tommy and confirm
+        that pages render and the checkpoint overlays sit correctly.
     notes: >
+      ── SHIPPED 2026-09-29 in merge 0d51496 ("Merge branch 'staging'", 13:38
+      PDT; parents 760524e and 27c67b3; 0d51496^1..0d51496^2 is exactly
+      27c67b3, 5bc3008, d329389, c5b472e; no prisma diff). Prepended; NOTHING
+      BELOW IS EDITED. Rollback: git revert -m 1 0d51496. Evidence (Gary, on
+      27c67b3-staging): Key Agreement preview on desktop; a 4-page test
+      handbook scrolled to the last page on desktop, and its pages past page 1
+      drew on iPhone Safari. Rotate/refit and phone signing as Tommy were not
+      observed; both are in `open:`. Written into stash@{0} on 2026-09-29,
+      never committed; folded in 2026-10-20 by DOCS-CLOSEOUT-2.
       ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs SHA d329389 added; this check's own commit
       is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
@@ -31529,6 +31552,10 @@ debt:
       docs/DEPLOY_LOG.md has diverged between staging and main — staging is
       missing HELP-1b entirely, and a hand edit on main damaged HELP-1a's prose
     notes: >
+      ── 2026-10-20: the HELP-1b DEPLOY_LOG entry was restored by
+      DOCS-CLOSEOUT-2 (from bc13251, byte-identical; it had been dropped from
+      BOTH branches by merge bf5a66f, not kept on main). Prepended; NOTHING
+      BELOW IS EDITED.
       FILED 2026-09-05 by HR-33's Phase 0 audit. Gary ruled it a ROW, not a fix
       inside HR-33 (2026-09-05): "File the DEPLOY_LOG staging/main divergence as
       a ROW. Do not fix it here."
