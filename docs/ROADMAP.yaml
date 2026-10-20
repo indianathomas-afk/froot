@@ -7391,6 +7391,14 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── MARKED 2026-10-19 BY THE MS-5 PRE-PUSH-CHECK. Prepended; NOTHING
+      BELOW IS EDITED. The "PENDING RULING (Gary): should a MANAGER see their
+      own Raise badge?" below is ANSWERED by MS-5 F9, Gary 2026-10-19: "A
+      MANAGER never sees their own Raise status — hide it on their own row on
+      /staff, on the report, and on their own Milestones tab. ADMINs see
+      everyone. Apply to /staff too in this phase; this answers the open MS-3a
+      question." Built in 511f321 (raiseHiddenForViewer). See the MS-5 row and
+      docs/DECISIONS.md 2026-10-19 — MS-5.
       ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
       Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
       on staging" value exists). Gary, in chat: staging, Neon branch
@@ -7961,22 +7969,32 @@ phases:
   - id: MS-5
     track: hr
     size: M
+    # `in_progress` -> `staging` 2026-10-19 BY THE PRE-PUSH-CHECK. None of the
+    # three MS-5 commits was pushed when the check ran; this check's own
+    # commit (the one immediately after 041834b, which cannot name itself) is
+    # not pushed either — Claude never pushes.
     # `in_progress` at 511f321, set 2026-10-19 by the MS-5 build session
     # (TIER 3). Not pushed — Claude never pushes.
-    status: in_progress
+    status: staging
     title: "Staff Milestones — Milestone Report (/staff/milestones/report), and F9: a MANAGER never sees their own Raise status"
     commits:
       - "60c8468"
       - "511f321"
+      - "041834b"
     blockers:
-      - >
-        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-19 — MS-5 records
-        Gary's F1–F10 exactly and lists Claude's choices separately; it awaits
-        ratification at the MS-5 PRE-PUSH-CHECK. Two readings in it need his
-        eye: C1 (cooldown is shown on the report, because F10 allows the
-        cooldown filter, though F3 says lists show "green and red only") and
-        C2 (F9 rides on resolveSelfStaff — an unresolved or ambiguous login
-        hides nothing).
+      - resolved: true
+        text: >
+          RESOLVED 2026-10-19 AT THE PRE-PUSH-CHECK: Gary ratified the
+          DECISIONS entry as written, C1 also in his own words
+          (docs/DECISIONS.md 2026-10-19 — MS-5). The original entry follows,
+          unedited. ──
+          RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-19 — MS-5 records
+          Gary's F1–F10 exactly and lists Claude's choices separately; it awaits
+          ratification at the MS-5 PRE-PUSH-CHECK. Two readings in it need his
+          eye: C1 (cooldown is shown on the report, because F10 allows the
+          cooldown filter, though F3 says lists show "green and red only") and
+          C2 (F9 rides on resolveSelfStaff — an unresolved or ambiguous login
+          hides nothing).
       - >
         PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-4b). No migration.
       - >
@@ -7997,6 +8015,16 @@ phases:
         and read; a pay-confidential member shows no raise dates to a manager
         (view-source search for the date); phone width; Milestones off → 404.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-19 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA 041834b added; this check's own commit
+      is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
+      entry was printed verbatim; his reply ratified it as written, C1 in his
+      own words, and filed DEBT-116 (link every manager's login to their staff
+      record), DEBT-117 (help article for this route) and DEBT-118 (MS-4b daily
+      job on the batched checklist reader); the MS-3 row carries the F9 mark.
+      DEPLOY_LOG: UNPROMOTED MS-5 entry written by this check. CLAUDE.md
+      untouched. Prompt and audit committed (041834b, 60c8468). Staging
+      evidence pending — the blockers above stand.
       TIER 3, 2026-10-19. Prompt: docs/prompts/2026-10-19_MS-5_milestone_report.md.
       Audit and plan: docs/prompts/2026-10-19_MS-5_AUDIT.md (60c8468). Rulings
       F1–F10: Gary, 2026-10-19 (docs/DECISIONS.md 2026-10-19 — MS-5). WHAT
@@ -32639,6 +32667,72 @@ debt:
       per store (Square cost ~1 search per store per sweep); or widen
       RECONCILE_DAYS. Either is cron cost and a CRON-1-class ruling.
       RELATED: MS-3, MS-3b, CRON-1.
+
+  - id: DEBT-116
+    status: planned
+    title: >
+      Link every manager's login to their staff record — closes the MS-4b self-exclusion gap and the MS-5 own-row gap
+    notes: >
+      FILED 2026-10-19 by the MS-5 PRE-PUSH-CHECK, on Gary's instruction,
+      recorded exactly: "link every manager's login to their staff record,
+      which closes the MS-4b self-exclusion gap and the MS-5 C2 own-row gap".
+      THE ID FILLS THE NEXT FREE SLOT — no occurrence of "DEBT-116" in docs/,
+      src/, scripts/ or CLAUDE.md, and `git log -S DEBT-116 -- docs` returns
+      nothing.
+      WHAT IS TRUE TODAY: two surfaces decide "is this person the viewer?"
+      from StaffMember.userId first and an email match second. (1) MS-4b's
+      milestone email `exclude` (src/lib/notifications/kinds/milestone.ts,
+      ruling 4 "excluded by linked account and by matching email"): a manager
+      whose staff record has no userId and a different or empty email IS
+      emailed about their own milestone. (2) MS-5 F9 (raiseHiddenForViewer,
+      decided by resolveSelfStaff in src/lib/hr.ts): a MANAGER whose login
+      resolves to no staff record, or to two (ambiguous email), sees their own
+      Raise status on /staff, the report and their own Milestones tab
+      (ratified MS-5 C2).
+      THE FIX IS DATA, NOT A NEW RULE: once every MANAGER (and ADMIN) User is
+      linked to exactly one StaffMember (StaffMember.userId), both checks hit
+      their first branch and the email fallback stops mattering. Scope to be
+      audited: how many manager logins are unlinked per org (measure by org id
+      on each branch), whether the existing self-service invite / link flow can
+      do it or an admin "link login" action is needed, and what a wrong link
+      would expose (a link grants the self view of that record). WRITES ROWS —
+      TIER 3.
+      RELATED: MS-4b, MS-5, SELF-1.
+
+  - id: DEBT-117
+    status: planned
+    title: >
+      Help article for /staff/milestones/report
+    notes: >
+      FILED 2026-10-19 by the MS-5 PRE-PUSH-CHECK, on Gary's instruction,
+      recorded exactly: "a help article for /staff/milestones/report". THE ID
+      FILLS THE NEXT FREE SLOT (checked as for DEBT-116).
+      WHAT IS TRUE TODAY: the MS-5 build's [guide] warning went from 43 to 44
+      claimable routes with no article; the new one is
+      /staff/milestones/report. The article should say who sees the page
+      (ADMIN org-wide, MANAGER their own stores), what each column means, that
+      amber "Raise in progress" is never shown (F3) and a manager never sees
+      their own Raise status (F9), that raise dates appear only with pay
+      access, that "coming up" is tenure only, and that the CSV is ADMIN-only.
+      RELATED: MS-5.
+
+  - id: DEBT-118
+    status: planned
+    title: >
+      Switch the MS-4b daily milestone job to the batched checklist reader
+    notes: >
+      FILED 2026-10-19 by the MS-5 PRE-PUSH-CHECK, on Gary's instruction,
+      recorded exactly: "switch the MS-4b daily job to the batched checklist
+      reader". THE ID FILLS THE NEXT FREE SLOT (checked as for DEBT-116).
+      WHAT IS TRUE TODAY: processMilestoneAlerts (src/lib/milestone-alerts.ts)
+      calls namedTaskDates once PER MEMBER inside its loop while the checklist
+      switch is on — N queries per org per day. MS-5 added
+      namedTaskDatesForMembers (src/lib/milestones-db.ts), one query for every
+      member, and verify-ms5 C8 asserts the two agree member by member. The
+      change swaps the call and adds the same agreement check to verify-ms4b;
+      J1–J4 must stay green. Touches a cron — TIER 3 by CLAUDE.md § Session
+      Tiers.
+      RELATED: MS-4b, MS-5.
 
 rulings:
   - id: R1

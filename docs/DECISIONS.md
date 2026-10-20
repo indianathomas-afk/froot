@@ -5,7 +5,26 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-19 — MS-5: the Milestone Report; F9 a MANAGER never sees their own Raise status (Gary — DRAFT entry)
+## 2026-10-19 — MS-5: the Milestone Report; F9 a MANAGER never sees their own Raise status (Gary)
+
+**RATIFIED BY GARY, 2026-10-19, at the MS-5 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly (it arrived cut off mid-sentence, and is
+recorded as it arrived): *"Ratify as written, in my words, including C1: the
+report shows a neutral grey "Recent raise" label (dates only for viewers with
+pay access) so the F10 cooldown filter works; amber never appears. Also file
+three rows: (1) link every manager's login to their staff record, which closes
+the MS-4b self-exclusion gap and the MS-5 C2 own-row gap; (2) a help article
+for /staff/milestones/report; (3) switch the MS-4b daily job to the batched
+checklist reader. Mark the MS-3a "manager's own badge"*
+
+So C1–C9 are ratified as written, and C1 is also Gary's ruling in his words
+above. The three rows are DEBT-116, DEBT-117 and DEBT-118 in
+`docs/ROADMAP.yaml`. The cut-off last sentence was read as "mark the MS-3a
+manager's-own-badge question answered by F9", and the MS-3 row carries that
+mark; if Gary meant more, it is his to say. Only the heading and this
+paragraph changed: the heading ended "(Gary — DRAFT entry)", and the banner
+below is kept as written and superseded by this paragraph.
 
 **DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-5 PRE-PUSH-CHECK.**
 The forks are in `docs/prompts/2026-10-19_MS-5_AUDIT.md` (Part 1). Work commit

@@ -2,6 +2,52 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-19 — MS-5: the Milestone Report, and a MANAGER never sees their own Raise status
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **MS-5 builds on MS-1 to MS-4b below it**
+(it reads their batched readers and redaction), and a staging → main merge
+carries it together with every unpromoted entry below.
+
+**Payload: three MS-5 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `60c8468`, `511f321`, `041834b`. **NONE WAS
+PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `60c8468` | `docs(MS-5)`: audit and plan, `docs/prompts/2026-10-19_MS-5_AUDIT.md` |
+| `511f321` | MS-5 work: `/staff/milestones/report` (page, client, loading); `src/lib/milestone-report.ts` builder; `src/lib/milestone-report-view.ts` (row type, filters, sort, CSV); `namedTaskDatesForMembers`; `raiseHiddenForViewer` applied on `/staff`, the profile Milestones tab and the report; report links on `/staff` and the setup page; `scripts/verify-ms5.ts` |
+| `041834b` | `docs(MS-5)`: row to `in_progress`, DECISIONS draft, the session prompt |
+| the commit immediately after `041834b` | `docs(MS-5 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified, row to `staging`, MS-3 F9 mark, DEBT-116 to DEBT-118 filed |
+
+**Blast radius: one new read-only page and a change to who sees one badge. NO
+SCHEMA, NO MIGRATION, NO WRITE, NO EMAIL, NO CRON, NO ENV VAR.** What changes:
+
+- **New page `/staff/milestones/report`** (ADMIN org-wide, MANAGER their own
+  stores). Gates: the `/staff` layout (`staff.view`), `requireMilestones()`
+  (Milestones off → 404 for everyone), then ADMIN or MANAGER; STORE and STAFF
+  are redirected. Raise dates reach only viewers with pay access
+  (`redactForViewer`); amber "Raise in progress" never appears (F3). CSV
+  download is ADMIN-only, built in the browser from the page's own rows (F6).
+- **F9 — a MANAGER no longer sees their OWN Raise status** on `/staff`, the
+  report, or their own Milestones tab (Gary, 2026-10-19). This REMOVES a badge
+  managers could see before this deploy (Tommy's own "Raise blocked" on
+  staging); ADMINs are unchanged. "Own" is the `/staff` "You" resolver — a
+  manager whose login is not linked to their staff record still sees it
+  (DEBT-116).
+- **Links:** "Milestone report" in the `/staff` header (ADMIN and MANAGER,
+  Milestones on) and on the setup page.
+
+No Square call, no Clerk change, no new OAuth scope, no new capability.
+
+**Rollback:** `git revert 511f321` (the docs commits can stay). Nothing is
+stored, so nothing is left behind; F9's hidden badge returns for managers.
+Turning Milestones off at `/settings` hides the page (404) without a deploy.
+
+**Staging verification — pending (Gary, in chat, after deploy).** Branch
+`br-square-feather-a63z92vz`, org `cmr54z65v000105jxczpt72w1`; the checklist
+is on the MS-5 row in `docs/ROADMAP.yaml`.
+
 ## UNPROMOTED — 2026-10-19 — MS-4b: milestone emails, the first grouped kind on the NOTIFY-6 pipeline
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
